@@ -1,5 +1,12 @@
 package com.makomi;
 
+import com.makomi.command.ModCommands;
+import com.makomi.data.LinkNodeRetireEvents;
+import com.makomi.network.PairingNetwork;
+import com.makomi.registry.ModBlockEntities;
+import com.makomi.registry.ModBlocks;
+import com.makomi.registry.ModItemGroups;
+import com.makomi.registry.ModItems;
 import net.fabricmc.api.ModInitializer;
 
 import org.slf4j.Logger;
@@ -15,10 +22,13 @@ public class RedstoneLink implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		// This code runs as soon as Minecraft is in a mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
-
-		LOGGER.info("Hello Fabric world!");
+		PairingNetwork.register();
+		ModBlocks.register();
+		ModBlockEntities.register();
+		ModItems.register();
+		ModItemGroups.register();
+		ModCommands.register();
+		LinkNodeRetireEvents.register();
+		LOGGER.info("RedstoneLink initialized");
 	}
 }

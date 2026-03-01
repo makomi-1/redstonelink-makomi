@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    "redstonelink:link_redstone_core",
+    "redstonelink:link_toggle_button"
+  ]
+}
