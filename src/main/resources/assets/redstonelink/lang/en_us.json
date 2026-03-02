@@ -18,7 +18,7 @@
   "tooltip.redstonelink.serial": "Serial: %s",
   "tooltip.redstonelink.pair": "Last Target Serial: %s",
   "tooltip.redstonelink.links": "Current Links: %s",
-  "tooltip.redstonelink.open_pairing": "Right click in air to open pairing UI",
+  "tooltip.redstonelink.open_pairing": "Sneak with empty offhand, then right-click to open pairing UI",
   "screen.redstonelink.pairing.title": "Redstone Link Pairing",
   "screen.redstonelink.pairing.input": "Target Serial",
   "screen.redstonelink.pairing.input_hint": "Enter target serial, 0 clears all links",

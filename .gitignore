@@ -30,7 +30,12 @@ bin/
 
 # fabric
 
-run/
+run/*
+!run/saves/
+run/saves/*
+!run/saves/test/
+!run/saves/test/**
+run/saves/test/session.lock
 
 # java
 

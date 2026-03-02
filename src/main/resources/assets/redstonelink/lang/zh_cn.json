@@ -18,7 +18,7 @@
   "tooltip.redstonelink.serial": "序号: %s",
   "tooltip.redstonelink.pair": "最近目标序号: %s",
   "tooltip.redstonelink.links": "当前连接: %s",
-  "tooltip.redstonelink.open_pairing": "空手对空气右键可打开配对界面",
+  "tooltip.redstonelink.open_pairing": "潜行且左手为空时右键可打开配对界面",
   "screen.redstonelink.pairing.title": "红石连接配对",
   "screen.redstonelink.pairing.input": "目标序号",
   "screen.redstonelink.pairing.input_hint": "输入目标序号，0 表示清空全部连接",

@@ -37,7 +37,7 @@ public class PairableBlockItem extends BlockItem {
 	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		ensureSerial(level, heldStack);
-		if (!player.isShiftKeyDown()) {
+		if (!canOpenPairingUi(player, hand)) {
 			return InteractionResultHolder.pass(heldStack);
 		}
 
@@ -61,7 +61,9 @@ public class PairableBlockItem extends BlockItem {
 		ensureSerial(level, heldStack);
 
 		Player player = context.getPlayer();
-		if (player != null && player.isShiftKeyDown() && (nodeType == LinkNodeType.BUTTON || nodeType == LinkNodeType.CORE)) {
+		if (player != null
+			&& canOpenPairingUi(player, context.getHand())
+			&& (nodeType == LinkNodeType.BUTTON || nodeType == LinkNodeType.CORE)) {
 			if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
 				long serial = LinkItemData.getSerial(heldStack);
 				if (serial > 0L) {
@@ -119,5 +121,12 @@ public class PairableBlockItem extends BlockItem {
 		if (level instanceof ServerLevel serverLevel) {
 			LinkItemData.ensureSerial(stack, serverLevel, nodeType);
 		}
+	}
+
+	/**
+	 * 判断当前是否允许打开配对界面：潜行 + 左手（副手）为空 + 右手触发。
+	 */
+	private boolean canOpenPairingUi(Player player, InteractionHand hand) {
+		return hand == InteractionHand.MAIN_HAND && player.isShiftKeyDown() && player.getOffhandItem().isEmpty();
 	}
 }
