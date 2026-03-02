@@ -63,6 +63,52 @@ RedstoneLink 是一个基于 Minecraft Fabric 1.21.1 的红石联动模组。
 4. 通过潜行+空手交互打开配对界面。
 5. 写入目标序号后触发联动。
 
+## 配方图与合成说明
+
+### 1) 红石连接原件（`redstone_link_component`）
+![红石连接原件配方](docs/recipes/原件.png)
+
+- 合成类型：有序合成（`crafting_shaped`）
+- 合成逻辑：`I`（铁锭）上下、`C`（铜锭）左右、`R`（红石粉）中心
+- 产出：`redstonelink:redstone_link_component` ×3
+
+### 2) 连接核心-红石块（`link_redstone_core`）
+![连接核心-红石块配方](docs/recipes/核心红石块.png)
+
+- 合成类型：有序合成（`crafting_shaped`）
+- 合成逻辑：统一采用 `BL` 横向摆放（中排左侧 `B`，中排中间 `L`）
+- 本配方材料：`B = minecraft:redstone_block`，`L = redstonelink:redstone_link_component`
+- 产出：`redstonelink:link_redstone_core` ×1
+
+### 3) 连接核心-红石粉（`link_redstone_dust_core`）
+![连接核心-红石粉配方](docs/recipes/核心红石粉.png)
+
+- 合成类型：有序合成（`crafting_shaped`）
+- 合成逻辑：与“连接核心-红石块”相同，均为 `BL` 横向摆放
+- 本配方材料：`B = minecraft:redstone`，`L = redstonelink:redstone_link_component`
+- 产出：`redstonelink:link_redstone_dust_core` ×1
+
+### 4) 连接木按钮（脉冲，`link_push_button`）
+![连接木按钮（脉冲）配方](docs/recipes/脉冲木按钮.png)
+
+- 合成类型：有序合成（`crafting_shaped`）
+- 合成逻辑：同样采用 `BL` 横向摆放
+- 本配方材料：`B = minecraft:wooden_buttons`（标签，任意木按钮），`L = redstonelink:redstone_link_component`
+- 产出：`redstonelink:link_push_button` ×1
+
+### 5) 连接核心-红石块（透明，`link_redstone_core_transparent`）
+![连接核心-红石块（透明）配方](docs/recipes/透明核心红石块.png)
+
+- 合成类型：无序合成（`crafting_shapeless`）
+- 合成逻辑：`1 × link_redstone_core` 直接转换为透明变种（1:1）
+- 产出：`redstonelink:link_redstone_core_transparent` ×1
+
+### 无配方图项（合成逻辑与上文一致）
+
+- `link_redstone_dust_core_transparent`：与透明红石块核心同逻辑，均为“非透明核心 1:1 无序转换为透明核心”。
+- `link_toggle_button`：与“连接木按钮（脉冲）”同 `BL` 有序合成逻辑，仅 `B` 改为 `minecraft:stone_button`。
+- `link_toggle_lever`：与“连接木按钮（脉冲）”同 `BL` 有序合成逻辑，仅 `B` 改为 `minecraft:lever`。
+
 ## 命令清单（核心）
 - `redstonelink pair main|off <serial>`：兼容单目标配对入口。
 - `redstonelink pair_node button <source_serial> <target_serial>`：按钮到核心配对。
