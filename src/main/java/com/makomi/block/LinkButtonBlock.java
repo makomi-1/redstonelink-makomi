@@ -144,6 +144,6 @@ public class LinkButtonBlock extends ButtonBlock implements EntityBlock {
 	}
 
 	private static boolean isPlayerEmptyHanded(Player player) {
-		return player.getMainHandItem().isEmpty();
+		return player.getMainHandItem().isEmpty() && player.getOffhandItem().isEmpty();
 	}
 }

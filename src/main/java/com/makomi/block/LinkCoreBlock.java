@@ -170,6 +170,6 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	}
 
 	private static boolean isPlayerEmptyHanded(Player player) {
-		return player.getMainHandItem().isEmpty();
+		return player.getMainHandItem().isEmpty() && player.getOffhandItem().isEmpty();
 	}
 }
