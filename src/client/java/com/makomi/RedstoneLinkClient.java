@@ -6,29 +6,18 @@ import com.makomi.client.screen.LinkPairingScreen;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlocks;
-import com.makomi.registry.ModItems;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.ColorProviderRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.world.level.block.RedStoneWireBlock;
 
 public class RedstoneLinkClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.cutout());
-		ColorProviderRegistry.BLOCK.register(
-			(state, world, pos, tintIndex) -> tintIndex == 0 ? RedStoneWireBlock.getColorForPower(state.getValue(RedStoneWireBlock.POWER)) : -1,
-			ModBlocks.LINK_REDSTONE_DUST_CORE
-		);
-		ColorProviderRegistry.ITEM.register(
-			(stack, tintIndex) -> tintIndex == 0 ? RedStoneWireBlock.getColorForPower(15) : -1,
-			ModItems.LINK_REDSTONE_DUST_CORE
-		);
 
 		ClientHooks.setPairingScreenOpener(hand -> {
 			Minecraft minecraft = Minecraft.getInstance();

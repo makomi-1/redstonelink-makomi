@@ -1,0 +1,6 @@
+{
+  "parent": "redstonelink:block/link_redstone_dust_side",
+  "textures": {
+    "line": "redstonelink:block/link_redstone_dust_line0_blue"
+  }
+}

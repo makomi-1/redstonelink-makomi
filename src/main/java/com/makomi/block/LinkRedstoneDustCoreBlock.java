@@ -29,6 +29,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.RedstoneSide;
 import net.minecraft.world.level.storage.loot.LootParams;
@@ -39,6 +40,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements EntityBlock {
 	public static final DirectionProperty SUPPORT_FACE = DirectionProperty.create("support_face", Direction.values());
+	public static final BooleanProperty POWERED = BooleanProperty.create("powered");
 	private static final VoxelShape FLOOR_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 1.0D, 16.0D);
 	private static final VoxelShape CEILING_SHAPE = Block.box(0.0D, 15.0D, 0.0D, 16.0D, 16.0D, 16.0D);
 	private static final VoxelShape NORTH_WALL_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 16.0D, 1.0D);
@@ -48,7 +50,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 	public LinkRedstoneDustCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN));
+		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN).setValue(POWERED, false));
 	}
 
 	@Override
@@ -135,7 +137,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		super.createBlockStateDefinition(builder);
-		builder.add(SUPPORT_FACE);
+		builder.add(SUPPORT_FACE, POWERED);
 	}
 
 	@Override
@@ -306,8 +308,9 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
 		int targetPower = isCoreActive(level, pos) ? 15 : 0;
-		if (state.getValue(POWER) != targetPower) {
-			level.setBlock(pos, state.setValue(POWER, targetPower), Block.UPDATE_ALL);
+		boolean targetPowered = targetPower > 0;
+		if (state.getValue(POWER) != targetPower || state.getValue(POWERED) != targetPowered) {
+			level.setBlock(pos, state.setValue(POWER, targetPower).setValue(POWERED, targetPowered), Block.UPDATE_ALL);
 		}
 	}
 }

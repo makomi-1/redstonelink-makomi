@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/button",
   "textures": {
-    "texture": "minecraft:block/oak_planks"
+    "texture": "redstonelink:block/link_push_button_blue_overlay"
   }
 }

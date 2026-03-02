@@ -1,6 +1,6 @@
 {
 	"parent": "minecraft:block/button",
 	"textures": {
-		"texture": "minecraft:block/stone"
+		"texture": "redstonelink:block/link_toggle_button_blue_overlay"
 	}
 }
