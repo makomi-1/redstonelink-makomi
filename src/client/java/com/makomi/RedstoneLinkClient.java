@@ -19,6 +19,7 @@ import net.minecraft.world.level.block.RedStoneWireBlock;
 public class RedstoneLinkClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.cutout());
 		ColorProviderRegistry.BLOCK.register(
 			(state, world, pos, tintIndex) -> tintIndex == 0 ? RedStoneWireBlock.getColorForPower(state.getValue(RedStoneWireBlock.POWER)) : -1,

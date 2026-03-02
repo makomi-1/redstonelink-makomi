@@ -27,7 +27,11 @@ public final class ModBlocks {
 	public static final LinkTransparentCoreBlock LINK_REDSTONE_CORE_TRANSPARENT = register(
 		"link_redstone_core_transparent",
 		new LinkTransparentCoreBlock(
-			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).lightLevel(state -> 0)
+			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK)
+				.lightLevel(state -> 0)
+				.noOcclusion()
+				.isViewBlocking((state, level, pos) -> false)
+				.isSuffocating((state, level, pos) -> false)
 		)
 	);
 
