@@ -16,21 +16,39 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.RedstoneSide;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements EntityBlock {
+	public static final DirectionProperty SUPPORT_FACE = DirectionProperty.create("support_face", Direction.values());
+	private static final VoxelShape FLOOR_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 1.0D, 16.0D);
+	private static final VoxelShape CEILING_SHAPE = Block.box(0.0D, 15.0D, 0.0D, 16.0D, 16.0D, 16.0D);
+	private static final VoxelShape NORTH_WALL_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 16.0D, 1.0D);
+	private static final VoxelShape SOUTH_WALL_SHAPE = Block.box(0.0D, 0.0D, 15.0D, 16.0D, 16.0D, 16.0D);
+	private static final VoxelShape WEST_WALL_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 1.0D, 16.0D, 16.0D);
+	private static final VoxelShape EAST_WALL_SHAPE = Block.box(15.0D, 0.0D, 0.0D, 16.0D, 16.0D, 16.0D);
+
 	public LinkRedstoneDustCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
+		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN));
 	}
 
 	@Override
@@ -106,14 +124,118 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			return;
 		}
 
+		state = normalizeForSupportFace(state);
+		if (!state.equals(level.getBlockState(pos))) {
+			level.setBlock(pos, state, Block.UPDATE_ALL);
+		}
+
 		syncPowerWithActiveState(state, level, pos);
+	}
+
+	@Override
+	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+		super.createBlockStateDefinition(builder);
+		builder.add(SUPPORT_FACE);
+	}
+
+	@Override
+	public BlockState getStateForPlacement(BlockPlaceContext context) {
+		BlockState baseState = super.getStateForPlacement(context);
+		if (baseState == null) {
+			baseState = defaultBlockState();
+		}
+
+		Direction preferredSupportFace = context.getClickedFace().getOpposite();
+		BlockState preferredState = normalizeForSupportFace(baseState.setValue(SUPPORT_FACE, preferredSupportFace));
+		if (preferredState.canSurvive(context.getLevel(), context.getClickedPos())) {
+			return preferredState;
+		}
+
+		// 点击面不可附着时，按玩家视角方向回退选择可附着面。
+		for (Direction lookDirection : context.getNearestLookingDirections()) {
+			BlockState fallbackState = normalizeForSupportFace(baseState.setValue(SUPPORT_FACE, lookDirection.getOpposite()));
+			if (fallbackState.canSurvive(context.getLevel(), context.getClickedPos())) {
+				return fallbackState;
+			}
+		}
+		return null;
+	}
+
+	@Override
+	protected boolean canSurvive(BlockState state, LevelReader level, BlockPos pos) {
+		Direction supportFace = state.getValue(SUPPORT_FACE);
+		BlockPos supportPos = pos.relative(supportFace);
+		return level.getBlockState(supportPos).isFaceSturdy(level, supportPos, supportFace.getOpposite());
+	}
+
+	@Override
+	protected BlockState updateShape(
+		BlockState state,
+		Direction direction,
+		BlockState neighborState,
+		LevelAccessor level,
+		BlockPos pos,
+		BlockPos neighborPos
+	) {
+		if (!isNonTopAttached(state)) {
+			return super.updateShape(state, direction, neighborState, level, pos, neighborPos);
+		}
+
+		// 侧面/底面附着时禁止连接态演算，避免任何连线或形状变化。
+		if (!state.canSurvive(level, pos)) {
+			return Blocks.AIR.defaultBlockState();
+		}
+		return normalizeForSupportFace(state);
+	}
+
+	@Override
+	protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+		return switch (state.getValue(SUPPORT_FACE)) {
+			case DOWN -> FLOOR_SHAPE;
+			case UP -> CEILING_SHAPE;
+			case NORTH -> NORTH_WALL_SHAPE;
+			case SOUTH -> SOUTH_WALL_SHAPE;
+			case WEST -> WEST_WALL_SHAPE;
+			case EAST -> EAST_WALL_SHAPE;
+		};
 	}
 
 	@Override
 	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
 		super.onPlace(state, level, pos, oldState, movedByPiston);
+		state = normalizeForSupportFace(level.getBlockState(pos));
+		if (!state.equals(level.getBlockState(pos))) {
+			level.setBlock(pos, state, Block.UPDATE_ALL);
+		}
 		// 放置时原版红石粉逻辑可能按邻居输入写入POWER，这里强制回到核心激活态。
-		syncPowerWithActiveState(level.getBlockState(pos), level, pos);
+		syncPowerWithActiveState(state, level, pos);
+	}
+
+	@Override
+	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+		if (!isNonTopAttached(state)) {
+			return super.getSignal(state, level, pos, direction);
+		}
+		// C-1修正：非顶面附着时只向附着方向输出，激活对象即附着支撑方块。
+		return direction == state.getValue(SUPPORT_FACE).getOpposite() ? state.getValue(POWER) : 0;
+	}
+
+	@Override
+	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+		if (!isNonTopAttached(state)) {
+			return super.getDirectSignal(state, level, pos, direction);
+		}
+		// 直接信号与弱信号保持一致，避免侧/底附着时出现方向不一致。
+		return direction == state.getValue(SUPPORT_FACE).getOpposite() ? state.getValue(POWER) : 0;
+	}
+
+	@Override
+	protected boolean isSignalSource(BlockState state) {
+		if (isNonTopAttached(state)) {
+			// 让红石粉连接判定完全忽略侧面/底面附着核心粉。
+			return false;
+		}
+		return super.isSignalSource(state);
 	}
 
 	@Override
@@ -164,6 +286,22 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 	private static boolean isCoreActive(BlockGetter level, BlockPos pos) {
 		return level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity && coreBlockEntity.isActive();
+	}
+
+	private static BlockState normalizeForSupportFace(BlockState state) {
+		if (!isNonTopAttached(state)) {
+			return state;
+		}
+		// C-1：侧面和底面附着不参与与其他红石粉连接交互，四向连接全部固定为 none。
+		return state
+			.setValue(NORTH, RedstoneSide.NONE)
+			.setValue(EAST, RedstoneSide.NONE)
+			.setValue(SOUTH, RedstoneSide.NONE)
+			.setValue(WEST, RedstoneSide.NONE);
+	}
+
+	private static boolean isNonTopAttached(BlockState state) {
+		return state.getValue(SUPPORT_FACE) != Direction.DOWN;
 	}
 
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {

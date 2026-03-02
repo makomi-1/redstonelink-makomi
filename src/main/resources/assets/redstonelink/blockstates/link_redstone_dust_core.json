@@ -5,28 +5,35 @@
 				"model": "minecraft:block/redstone_dust_dot"
 			},
 			"when": {
-				"OR": [
+				"AND": [
 					{
-						"east": "none",
-						"north": "none",
-						"south": "none",
-						"west": "none"
+						"support_face": "down"
 					},
 					{
-						"east": "side|up",
-						"north": "side|up"
-					},
-					{
-						"east": "side|up",
-						"south": "side|up"
-					},
-					{
-						"south": "side|up",
-						"west": "side|up"
-					},
-					{
-						"north": "side|up",
-						"west": "side|up"
+						"OR": [
+							{
+								"east": "none",
+								"north": "none",
+								"south": "none",
+								"west": "none"
+							},
+							{
+								"east": "side|up",
+								"north": "side|up"
+							},
+							{
+								"east": "side|up",
+								"south": "side|up"
+							},
+							{
+								"south": "side|up",
+								"west": "side|up"
+							},
+							{
+								"north": "side|up",
+								"west": "side|up"
+							}
+						]
 					}
 				]
 			}
@@ -36,6 +43,7 @@
 				"model": "minecraft:block/redstone_dust_side0"
 			},
 			"when": {
+				"support_face": "down",
 				"north": "side|up"
 			}
 		},
@@ -44,6 +52,7 @@
 				"model": "minecraft:block/redstone_dust_side_alt0"
 			},
 			"when": {
+				"support_face": "down",
 				"south": "side|up"
 			}
 		},
@@ -53,6 +62,7 @@
 				"y": 270
 			},
 			"when": {
+				"support_face": "down",
 				"east": "side|up"
 			}
 		},
@@ -62,6 +72,7 @@
 				"y": 270
 			},
 			"when": {
+				"support_face": "down",
 				"west": "side|up"
 			}
 		},
@@ -70,6 +81,7 @@
 				"model": "minecraft:block/redstone_dust_up"
 			},
 			"when": {
+				"support_face": "down",
 				"north": "up"
 			}
 		},
@@ -79,6 +91,7 @@
 				"y": 90
 			},
 			"when": {
+				"support_face": "down",
 				"east": "up"
 			}
 		},
@@ -88,6 +101,7 @@
 				"y": 180
 			},
 			"when": {
+				"support_face": "down",
 				"south": "up"
 			}
 		},
@@ -97,7 +111,56 @@
 				"y": 270
 			},
 			"when": {
+				"support_face": "down",
 				"west": "up"
+			}
+		},
+		{
+			"apply": {
+				"model": "minecraft:block/redstone_dust_dot",
+				"x": 180
+			},
+			"when": {
+				"support_face": "up"
+			}
+		},
+		{
+			"apply": {
+				"model": "minecraft:block/redstone_dust_dot",
+				"x": 90,
+				"y": 180
+			},
+			"when": {
+				"support_face": "north"
+			}
+		},
+		{
+			"apply": {
+				"model": "minecraft:block/redstone_dust_dot",
+				"x": 90
+			},
+			"when": {
+				"support_face": "south"
+			}
+		},
+		{
+			"apply": {
+				"model": "minecraft:block/redstone_dust_dot",
+				"x": 90,
+				"y": 270
+			},
+			"when": {
+				"support_face": "east"
+			}
+		},
+		{
+			"apply": {
+				"model": "minecraft:block/redstone_dust_dot",
+				"x": 90,
+				"y": 90
+			},
+			"when": {
+				"support_face": "west"
 			}
 		}
 	]
