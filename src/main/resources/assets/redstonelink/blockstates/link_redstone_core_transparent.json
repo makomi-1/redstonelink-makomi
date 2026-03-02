@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "active=false": {
+      "model": "redstonelink:block/link_redstone_core_transparent"
+    },
+    "active=true": {
+      "model": "redstonelink:block/link_redstone_core_transparent"
+    }
+  }
+}

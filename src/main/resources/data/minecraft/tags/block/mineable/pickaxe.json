@@ -2,6 +2,7 @@
   "replace": false,
   "values": [
     "redstonelink:link_redstone_core",
+    "redstonelink:link_redstone_core_transparent",
     "redstonelink:link_toggle_button",
     "redstonelink:link_toggle_lever"
   ]

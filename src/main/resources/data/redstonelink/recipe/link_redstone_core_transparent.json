@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "redstone",
+  "ingredients": [
+    {
+      "item": "redstonelink:link_redstone_core"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "redstonelink:link_redstone_core_transparent"
+  }
+}

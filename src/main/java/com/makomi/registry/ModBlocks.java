@@ -5,6 +5,8 @@ import com.makomi.block.LinkButtonBlock;
 import com.makomi.block.LinkCoreBlock;
 import com.makomi.block.LinkPulseButtonBlock;
 import com.makomi.block.LinkRedstoneDustCoreBlock;
+import com.makomi.block.LinkTransparentCoreBlock;
+import com.makomi.block.LinkTransparentRedstoneDustCoreBlock;
 import com.makomi.block.LinkToggleButtonBlock;
 import com.makomi.block.LinkToggleLeverBlock;
 import net.minecraft.core.Registry;
@@ -18,6 +20,13 @@ public final class ModBlocks {
 	public static final LinkCoreBlock LINK_REDSTONE_CORE = register(
 		"link_redstone_core",
 		new LinkCoreBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).lightLevel(state -> 0)
+		)
+	);
+
+	public static final LinkTransparentCoreBlock LINK_REDSTONE_CORE_TRANSPARENT = register(
+		"link_redstone_core_transparent",
+		new LinkTransparentCoreBlock(
 			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).lightLevel(state -> 0)
 		)
 	);
@@ -40,6 +49,11 @@ public final class ModBlocks {
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(
 		"link_redstone_dust_core",
 		new LinkRedstoneDustCoreBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE))
+	);
+
+	public static final LinkTransparentRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE_TRANSPARENT = register(
+		"link_redstone_dust_core_transparent",
+		new LinkTransparentRedstoneDustCoreBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE))
 	);
 
 	private ModBlocks() {

@@ -5,6 +5,8 @@ import com.makomi.block.entity.LinkButtonBlockEntity;
 import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
+import com.makomi.block.entity.LinkTransparentCoreBlockEntity;
+import com.makomi.block.entity.LinkTransparentRedstoneDustCoreBlockEntity;
 import com.makomi.block.entity.LinkToggleButtonBlockEntity;
 import com.makomi.block.entity.LinkToggleLeverBlockEntity;
 import net.minecraft.core.Registry;
@@ -16,6 +18,11 @@ public final class ModBlockEntities {
 	public static final BlockEntityType<LinkCoreBlockEntity> LINK_REDSTONE_CORE = register(
 		"link_redstone_core",
 		BlockEntityType.Builder.of(LinkCoreBlockEntity::new, ModBlocks.LINK_REDSTONE_CORE).build(null)
+	);
+
+	public static final BlockEntityType<LinkTransparentCoreBlockEntity> LINK_REDSTONE_CORE_TRANSPARENT = register(
+		"link_redstone_core_transparent",
+		BlockEntityType.Builder.of(LinkTransparentCoreBlockEntity::new, ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT).build(null)
 	);
 
 	public static final BlockEntityType<LinkToggleButtonBlockEntity> LINK_TOGGLE_BUTTON = register(
@@ -36,6 +43,14 @@ public final class ModBlockEntities {
 	public static final BlockEntityType<LinkRedstoneDustCoreBlockEntity> LINK_REDSTONE_DUST_CORE = register(
 		"link_redstone_dust_core",
 		BlockEntityType.Builder.of(LinkRedstoneDustCoreBlockEntity::new, ModBlocks.LINK_REDSTONE_DUST_CORE).build(null)
+	);
+
+	public static final BlockEntityType<LinkTransparentRedstoneDustCoreBlockEntity> LINK_REDSTONE_DUST_CORE_TRANSPARENT = register(
+		"link_redstone_dust_core_transparent",
+		BlockEntityType.Builder.of(
+			LinkTransparentRedstoneDustCoreBlockEntity::new,
+			ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT
+		).build(null)
 	);
 
 	private ModBlockEntities() {

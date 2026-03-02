@@ -6,11 +6,20 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 public class LinkCoreBlockEntity extends ActivatableTargetBlockEntity {
 	public LinkCoreBlockEntity(BlockPos blockPos, BlockState blockState) {
-		super(com.makomi.registry.ModBlockEntities.LINK_REDSTONE_CORE, blockPos, blockState);
+		this(com.makomi.registry.ModBlockEntities.LINK_REDSTONE_CORE, blockPos, blockState);
+	}
+
+	protected LinkCoreBlockEntity(
+		BlockEntityType<? extends PairableNodeBlockEntity> blockEntityType,
+		BlockPos blockPos,
+		BlockState blockState
+	) {
+		super(blockEntityType, blockPos, blockState);
 	}
 
 	@Override
