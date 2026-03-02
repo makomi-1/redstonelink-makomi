@@ -18,6 +18,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -98,20 +99,21 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		BlockPos fromPos,
 		boolean movedByPiston
 	) {
-		if (!isCoreActive(level, pos)) {
-			super.neighborChanged(state, level, pos, block, fromPos, movedByPiston);
-			return;
-		}
-
+		// 核心红石粉只输出不接收输入：邻居变化时仅同步自身激活态功率，不走原版输入重算。
 		if (!state.canSurvive(level, pos)) {
 			dropResources(state, level, pos);
 			level.removeBlock(pos, false);
 			return;
 		}
 
-		if (state.getValue(POWER) != 15) {
-			level.setBlock(pos, state.setValue(POWER, 15), UPDATE_ALL);
-		}
+		syncPowerWithActiveState(state, level, pos);
+	}
+
+	@Override
+	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+		super.onPlace(state, level, pos, oldState, movedByPiston);
+		// 放置时原版红石粉逻辑可能按邻居输入写入POWER，这里强制回到核心激活态。
+		syncPowerWithActiveState(level.getBlockState(pos), level, pos);
 	}
 
 	@Override
@@ -162,5 +164,12 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 	private static boolean isCoreActive(BlockGetter level, BlockPos pos) {
 		return level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity && coreBlockEntity.isActive();
+	}
+
+	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
+		int targetPower = isCoreActive(level, pos) ? 15 : 0;
+		if (state.getValue(POWER) != targetPower) {
+			level.setBlock(pos, state.setValue(POWER, targetPower), Block.UPDATE_ALL);
+		}
 	}
 }
