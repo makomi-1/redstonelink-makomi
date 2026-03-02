@@ -1,4 +1,35 @@
 pluginManagement {
+	def applyProxyFromEnv = { String protocol, List<String> keys ->
+		for (String key : keys) {
+			if (System.getProperty("${protocol}.proxyHost")) {
+				return
+			}
+
+			String raw = System.getenv(key)
+			if (!raw) {
+				continue
+			}
+
+			try {
+				def uri = raw.contains("://") ? new java.net.URI(raw) : new java.net.URI("http://${raw}")
+				if (!uri.host) {
+					continue
+				}
+
+				System.setProperty("${protocol}.proxyHost", uri.host)
+				if (uri.port > 0) {
+					System.setProperty("${protocol}.proxyPort", Integer.toString(uri.port))
+				}
+				return
+			} catch (Exception ignored) {
+				// Ignore malformed proxy env and continue with defaults.
+			}
+		}
+	}
+
+	applyProxyFromEnv("http", ["HTTP_PROXY", "http_proxy"])
+	applyProxyFromEnv("https", ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"])
+
 	repositories {
 		maven {
 			name = 'Fabric'
@@ -6,5 +37,12 @@ pluginManagement {
 		}
 		mavenCentral()
 		gradlePluginPortal()
+	}
+	resolutionStrategy {
+		eachPlugin {
+			if (requested.id.id == "fabric-loom" || requested.id.id == "net.fabricmc.fabric-loom") {
+				useModule("net.fabricmc:fabric-loom:${requested.version}")
+			}
+		}
 	}
 }
