@@ -1,9 +1,11 @@
 {
   "itemGroup.redstonelink": "RedstoneLink",
   "item.redstonelink.link_redstone_core": "Linked Redstone Core",
+  "item.redstonelink.link_redstone_dust_core": "Linked Redstone Dust Core",
   "item.redstonelink.link_toggle_button": "Linked Toggle Button",
   "item.redstonelink.redstone_link_component": "Redstone Link Component",
   "block.redstonelink.link_redstone_core": "Linked Redstone Core",
+  "block.redstonelink.link_redstone_dust_core": "Linked Redstone Dust Core",
   "block.redstonelink.link_toggle_button": "Linked Toggle Button",
   "tooltip.redstonelink.serial": "Serial: %s",
   "tooltip.redstonelink.pair": "Last Target Serial: %s",

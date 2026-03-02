@@ -3,6 +3,7 @@ package com.makomi.registry;
 import com.makomi.RedstoneLink;
 import com.makomi.block.LinkButtonBlock;
 import com.makomi.block.LinkCoreBlock;
+import com.makomi.block.LinkRedstoneDustCoreBlock;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -21,6 +22,11 @@ public final class ModBlocks {
 	public static final LinkButtonBlock LINK_TOGGLE_BUTTON = register(
 		"link_toggle_button",
 		new LinkButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_BUTTON))
+	);
+
+	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(
+		"link_redstone_dust_core",
+		new LinkRedstoneDustCoreBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE))
 	);
 
 	private ModBlocks() {

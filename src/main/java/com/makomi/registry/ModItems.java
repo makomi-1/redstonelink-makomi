@@ -19,6 +19,11 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.LINK_REDSTONE_CORE, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
 	);
 
+	public static final Item LINK_REDSTONE_DUST_CORE = register(
+		"link_redstone_dust_core",
+		new PairableBlockItem(ModBlocks.LINK_REDSTONE_DUST_CORE, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
 	public static final Item LINK_TOGGLE_BUTTON = register(
 		"link_toggle_button",
 		new PairableBlockItem(ModBlocks.LINK_TOGGLE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)

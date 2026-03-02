@@ -1,9 +1,11 @@
 {
   "itemGroup.redstonelink": "RedstoneLink",
   "item.redstonelink.link_redstone_core": "Linked Redstone Core",
+  "item.redstonelink.link_redstone_dust_core": "连接核心-红石粉",
   "item.redstonelink.link_toggle_button": "Linked Toggle Button",
   "item.redstonelink.redstone_link_component": "红石连接原件",
   "block.redstonelink.link_redstone_core": "Linked Redstone Core",
+  "block.redstonelink.link_redstone_dust_core": "连接核心-红石粉",
   "block.redstonelink.link_toggle_button": "Linked Toggle Button",
   "tooltip.redstonelink.serial": "Serial: %s",
   "tooltip.redstonelink.pair": "Last Target Serial: %s",
