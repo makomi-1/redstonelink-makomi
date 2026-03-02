@@ -3,7 +3,6 @@ package com.makomi;
 import com.makomi.client.ClientHooks;
 import com.makomi.client.screen.CorePairingScreen;
 import com.makomi.client.screen.LinkPairingScreen;
-import com.makomi.block.LinkRedstoneDustCoreBlock;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlocks;
@@ -22,7 +21,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.cutout());
 		ColorProviderRegistry.BLOCK.register(
-			(state, world, pos, tintIndex) -> tintIndex == 0 ? RedStoneWireBlock.getColorForPower(state.getValue(LinkRedstoneDustCoreBlock.ACTIVE) ? 15 : 0) : -1,
+			(state, world, pos, tintIndex) -> tintIndex == 0 ? RedStoneWireBlock.getColorForPower(state.getValue(RedStoneWireBlock.POWER)) : -1,
 			ModBlocks.LINK_REDSTONE_DUST_CORE
 		);
 		ColorProviderRegistry.ITEM.register(

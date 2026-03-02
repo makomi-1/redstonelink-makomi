@@ -21,8 +21,8 @@ public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntit
 	@Override
 	protected void onActiveChanged(boolean active) {
 		BlockState state = level.getBlockState(worldPosition);
-		if (state.getBlock() instanceof LinkRedstoneDustCoreBlock && state.getValue(LinkRedstoneDustCoreBlock.ACTIVE) != active) {
-			level.setBlock(worldPosition, state.setValue(LinkRedstoneDustCoreBlock.ACTIVE, active), Block.UPDATE_ALL);
+		if (!(state.getBlock() instanceof LinkRedstoneDustCoreBlock)) {
+			return;
 		}
 
 		Block block = state.getBlock();
