@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "B": {
+      "item": "minecraft:lever"
+    },
+    "L": {
+      "item": "redstonelink:redstone_link_component"
+    }
+  },
+  "pattern": [
+    "   ",
+    "BL ",
+    "   "
+  ],
+  "result": {
+    "count": 1,
+    "id": "redstonelink:link_toggle_lever"
+  }
+}

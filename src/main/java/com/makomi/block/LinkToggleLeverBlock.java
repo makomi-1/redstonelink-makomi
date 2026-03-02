@@ -1,6 +1,7 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.block.entity.LinkToggleLeverBlockEntity;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -17,31 +18,24 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.LeverBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.BlockSetType;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 
-public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock {
-	protected LinkButtonBlock(BlockBehaviour.Properties properties) {
-		this(BlockSetType.STONE, 20, properties);
-	}
-
-	protected LinkButtonBlock(BlockSetType blockSetType, int ticksToStayPressed, BlockBehaviour.Properties properties) {
-		super(blockSetType, ticksToStayPressed, properties);
+public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
+	public LinkToggleLeverBlock(BlockBehaviour.Properties properties) {
+		super(properties);
 	}
 
 	@Override
 	public BlockEntity newBlockEntity(BlockPos blockPos, BlockState blockState) {
-		return createButtonBlockEntity(blockPos, blockState);
+		return new LinkToggleLeverBlockEntity(blockPos, blockState);
 	}
-
-	protected abstract LinkButtonBlockEntity createButtonBlockEntity(BlockPos blockPos, BlockState blockState);
 
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
@@ -96,14 +90,6 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	}
 
 	@Override
-	public void press(BlockState state, Level level, BlockPos pos, Player player) {
-		super.press(state, level, pos, player);
-		if (!level.isClientSide && level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-			buttonBlockEntity.triggerLinkedTargets(player);
-		}
-	}
-
-	@Override
 	protected InteractionResult useWithoutItem(
 		BlockState state,
 		Level level,
@@ -115,7 +101,14 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 			openPairingScreen(level, pos, player);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
-		return super.useWithoutItem(state, level, pos, player, hitResult);
+
+		InteractionResult result = super.useWithoutItem(state, level, pos, player, hitResult);
+		if (!level.isClientSide && result.consumesAction()) {
+			if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+				buttonBlockEntity.triggerLinkedTargets(player);
+			}
+		}
+		return result;
 	}
 
 	@Override

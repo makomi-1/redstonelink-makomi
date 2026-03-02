@@ -29,6 +29,16 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.LINK_TOGGLE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
 	);
 
+	public static final Item LINK_TOGGLE_LEVER = register(
+		"link_toggle_lever",
+		new PairableBlockItem(ModBlocks.LINK_TOGGLE_LEVER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+	);
+
+	public static final Item LINK_PUSH_BUTTON = register(
+		"link_push_button",
+		new PairableBlockItem(ModBlocks.LINK_PUSH_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+	);
+
 	private ModItems() {
 	}
 

@@ -38,15 +38,20 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	public final void triggerByPlayer() {
-		applyActivation(0L);
+		applyActivation(0L, activationMode);
 	}
 
 	public final void triggerBySource(long sourceSerial) {
-		applyActivation(sourceSerial);
+		applyActivation(sourceSerial, activationMode);
+	}
+
+	public final void triggerBySource(long sourceSerial, ActivationMode triggerMode) {
+		applyActivation(sourceSerial, triggerMode == null ? activationMode : triggerMode);
 	}
 
 	public final void onPulseTick() {
-		if (activationMode == ActivationMode.PULSE && active) {
+		// tick 仅在脉冲触发路径中调度，到点后统一回落。
+		if (active) {
 			setActive(false);
 		}
 	}
@@ -63,12 +68,13 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 
 	protected abstract void schedulePulseReset(int pulseTicks);
 
-	private void applyActivation(long sourceSerial) {
+	private void applyActivation(long sourceSerial, ActivationMode mode) {
 		if (!canBeTriggeredBy(sourceSerial)) {
 			return;
 		}
 
-		if (activationMode == ActivationMode.PULSE) {
+		// 脉冲语义：本次触发立即置为激活态，并在延时 tick 后自动熄灭。
+		if (mode == ActivationMode.PULSE) {
 			setActive(true);
 			schedulePulseReset(getPulseDurationTicks());
 			return;

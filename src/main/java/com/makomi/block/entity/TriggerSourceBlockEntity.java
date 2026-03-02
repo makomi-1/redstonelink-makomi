@@ -23,6 +23,11 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 
 	protected abstract LinkNodeType getTargetNodeType();
 
+	// 触发源默认采用切换语义；脉冲按钮会覆写为 PULSE（先激活后熄灭）。
+	protected ActivationMode getTriggerActivationMode() {
+		return ActivationMode.TOGGLE;
+	}
+
 	public void triggerLinkedTargets(Player player) {
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
@@ -56,7 +61,7 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 
 			BlockEntity blockEntity = targetLevel.getBlockEntity(node.pos());
 			if (blockEntity instanceof ActivatableTargetBlockEntity targetBlockEntity) {
-				targetBlockEntity.triggerBySource(sourceSerial);
+				targetBlockEntity.triggerBySource(sourceSerial, getTriggerActivationMode());
 				triggeredCount++;
 			} else {
 				savedData.removeNode(getTargetNodeType(), targetSerial);
