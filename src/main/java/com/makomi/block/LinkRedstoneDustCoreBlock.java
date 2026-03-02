@@ -7,7 +7,6 @@ import com.makomi.data.LinkSavedData;
 import com.makomi.network.PairingNetwork;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -24,15 +23,11 @@ import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.EnumProperty;
-import net.minecraft.world.level.block.state.properties.RedstoneSide;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 
 public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements EntityBlock {
-	private static final Map<Direction, EnumProperty<RedstoneSide>> PROPERTY_BY_DIRECTION = RedStoneWireBlock.PROPERTY_BY_DIRECTION;
-
 	public LinkRedstoneDustCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
 	}
@@ -95,18 +90,28 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	}
 
 	@Override
-	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+	protected void neighborChanged(
+		BlockState state,
+		Level level,
+		BlockPos pos,
+		net.minecraft.world.level.block.Block block,
+		BlockPos fromPos,
+		boolean movedByPiston
+	) {
 		if (!isCoreActive(level, pos)) {
-			return super.getSignal(state, level, pos, direction);
+			super.neighborChanged(state, level, pos, block, fromPos, movedByPiston);
+			return;
 		}
-		if (direction == Direction.DOWN) {
-			return 0;
+
+		if (!state.canSurvive(level, pos)) {
+			dropResources(state, level, pos);
+			level.removeBlock(pos, false);
+			return;
 		}
-		if (direction == Direction.UP) {
-			return 15;
+
+		if (state.getValue(POWER) != 15) {
+			level.setBlock(pos, state.setValue(POWER, 15), UPDATE_ALL);
 		}
-		EnumProperty<RedstoneSide> sideProperty = PROPERTY_BY_DIRECTION.get(direction.getOpposite());
-		return sideProperty != null && state.getValue(sideProperty).isConnected() ? 15 : 0;
 	}
 
 	@Override

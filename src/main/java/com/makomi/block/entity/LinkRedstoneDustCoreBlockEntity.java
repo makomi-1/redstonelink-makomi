@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntity {
@@ -23,6 +24,12 @@ public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntit
 		BlockState state = level.getBlockState(worldPosition);
 		if (!(state.getBlock() instanceof LinkRedstoneDustCoreBlock)) {
 			return;
+		}
+
+		int targetPower = active ? 15 : 0;
+		if (state.getValue(RedStoneWireBlock.POWER) != targetPower) {
+			state = state.setValue(RedStoneWireBlock.POWER, targetPower);
+			level.setBlock(worldPosition, state, Block.UPDATE_ALL);
 		}
 
 		Block block = state.getBlock();
