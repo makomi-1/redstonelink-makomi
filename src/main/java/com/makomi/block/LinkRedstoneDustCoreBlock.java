@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
@@ -37,10 +38,12 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import org.joml.Vector3f;
 
 public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements EntityBlock {
 	public static final DirectionProperty SUPPORT_FACE = DirectionProperty.create("support_face", Direction.values());
 	public static final BooleanProperty POWERED = BooleanProperty.create("powered");
+	private static final Vector3f BLUE_PARTICLE_BASE_COLOR = new Vector3f(0.36F, 0.66F, 1.0F);
 	private static final VoxelShape FLOOR_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 1.0D, 16.0D);
 	private static final VoxelShape CEILING_SHAPE = Block.box(0.0D, 15.0D, 0.0D, 16.0D, 16.0D, 16.0D);
 	private static final VoxelShape NORTH_WALL_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 16.0D, 1.0D);
@@ -264,6 +267,28 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
 			coreBlockEntity.onPulseTick();
 		}
+	}
+
+	/**
+	 * 核心红石粉粒子改造：仅在激活态渲染本地蓝色粒子，避免继承原版红色粒子表现。
+	 */
+	@Override
+	public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
+		int power = state.getValue(POWER);
+		if (power <= 0 || random.nextFloat() > 0.35F) {
+			return;
+		}
+
+		float intensity = power / 15.0F;
+		float red = BLUE_PARTICLE_BASE_COLOR.x() * (0.55F + 0.45F * intensity);
+		float green = BLUE_PARTICLE_BASE_COLOR.y() * (0.55F + 0.45F * intensity);
+		float blue = BLUE_PARTICLE_BASE_COLOR.z() * (0.55F + 0.45F * intensity);
+		float scale = 0.45F + 0.25F * intensity;
+
+		double x = pos.getX() + 0.5D + (random.nextDouble() - 0.5D) * 0.5D;
+		double y = pos.getY() + 0.0625D;
+		double z = pos.getZ() + 0.5D + (random.nextDouble() - 0.5D) * 0.5D;
+		level.addParticle(new DustParticleOptions(new Vector3f(red, green, blue), scale), x, y, z, 0.0D, 0.0D, 0.0D);
 	}
 
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
