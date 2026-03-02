@@ -83,11 +83,7 @@ public class LinkButtonBlock extends ButtonBlock implements EntityBlock {
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
 			if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-				if (isRemovedByFluid(newState)) {
-					buttonBlockEntity.retireNode();
-				} else {
-					buttonBlockEntity.unregisterNode();
-				}
+				buttonBlockEntity.unregisterNode();
 			}
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);
@@ -145,10 +141,6 @@ public class LinkButtonBlock extends ButtonBlock implements EntityBlock {
 				PairingNetwork.openButtonPairing(serverPlayer, serial);
 			}
 		}
-	}
-
-	private static boolean isRemovedByFluid(BlockState newState) {
-		return !newState.getFluidState().isEmpty();
 	}
 
 	private static boolean isPlayerEmptyHanded(Player player) {

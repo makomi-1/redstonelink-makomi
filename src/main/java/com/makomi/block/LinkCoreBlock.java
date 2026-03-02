@@ -101,11 +101,7 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
 			if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
-				if (isRemovedByFluid(newState)) {
-					coreBlockEntity.retireNode();
-				} else {
-					coreBlockEntity.unregisterNode();
-				}
+				coreBlockEntity.unregisterNode();
 			}
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);
@@ -155,10 +151,6 @@ public class LinkCoreBlock extends BaseEntityBlock {
 		if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
 			coreBlockEntity.onPulseTick();
 		}
-	}
-
-	private static boolean isRemovedByFluid(BlockState newState) {
-		return !newState.getFluidState().isEmpty();
 	}
 
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
