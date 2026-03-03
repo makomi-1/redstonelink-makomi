@@ -19,6 +19,13 @@ import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 
+/**
+ * RedstoneLink 世界级持久化数据。
+ * <p>
+ * 负责维护节点序列号分配、在线节点快照、退役集合与按钮-核心关联关系。
+ * 数据统一存储在主世界数据存储中，供跨维度联动查询与写回使用。
+ * </p>
+ */
 public final class LinkSavedData extends SavedData {
 	private static final String DATA_NAME = "redstonelink_serial_data";
 	private static final String KEY_NEXT_SERIAL = "nextSerial";
@@ -54,6 +61,9 @@ public final class LinkSavedData extends SavedData {
 	private final Set<Long> retiredCoreSerials = new HashSet<>();
 	private final Set<Long> retiredButtonSerials = new HashSet<>();
 
+	/**
+	 * 获取当前服务器共享的联动存档数据实例。
+	 */
 	public static LinkSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
 		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
@@ -130,6 +140,9 @@ public final class LinkSavedData extends SavedData {
 		return data;
 	}
 
+	/**
+	 * 为指定节点类型分配新序列号并立即标记为已分配。
+	 */
 	public long allocateSerial(LinkNodeType type) {
 		long serial = allocateFromCounter(type);
 		markAllocatedInternal(type, serial);
@@ -137,6 +150,12 @@ public final class LinkSavedData extends SavedData {
 		return serial;
 	}
 
+	/**
+	 * 解析放置场景下最终可用的序列号。
+	 * <p>
+	 * 该过程会处理退役冲突、未登记序列号补登记以及“同序列号不同坐标”冲突重分配。
+	 * </p>
+	 */
 	public long resolvePlacementSerial(LinkNodeType type, long preferredSerial, ResourceKey<Level> dimension, BlockPos pos) {
 		long serial = preferredSerial;
 		boolean changed = false;
@@ -162,6 +181,9 @@ public final class LinkSavedData extends SavedData {
 		return serial;
 	}
 
+	/**
+	 * 注册（或更新）在线节点坐标信息。
+	 */
 	public void registerNode(long serial, ResourceKey<Level> dimension, BlockPos pos, LinkNodeType type) {
 		if (serial <= 0L) {
 			return;
@@ -175,6 +197,9 @@ public final class LinkSavedData extends SavedData {
 		}
 	}
 
+	/**
+	 * 从在线节点表中移除指定节点。
+	 */
 	public void removeNode(LinkNodeType type, long serial) {
 		if (serial <= 0L) {
 			return;
@@ -185,6 +210,11 @@ public final class LinkSavedData extends SavedData {
 		}
 	}
 
+	/**
+	 * 退役节点并清理其关联关系。
+	 *
+	 * @return 退役结果，包含节点是否移除、清理链接数与是否新增退役标记
+	 */
 	public RetireResult retireNode(LinkNodeType type, long serial) {
 		if (serial <= 0L) {
 			return new RetireResult(false, 0, false);
@@ -200,22 +230,37 @@ public final class LinkSavedData extends SavedData {
 		return new RetireResult(removed, clearedLinks, retiredMarked);
 	}
 
+	/**
+	 * 查询节点快照。
+	 */
 	public Optional<LinkNode> findNode(LinkNodeType type, long serial) {
 		return Optional.ofNullable(nodeMap(type).get(serial));
 	}
 
+	/**
+	 * 判断序列号是否已登记分配。
+	 */
 	public boolean isSerialAllocated(LinkNodeType type, long serial) {
 		return serial > 0L && allocatedSerialSet(type).contains(serial);
 	}
 
+	/**
+	 * 判断序列号是否已退役。
+	 */
 	public boolean isSerialRetired(LinkNodeType type, long serial) {
 		return serial > 0L && retiredSerialSet(type).contains(serial);
 	}
 
+	/**
+	 * 判断序列号是否处于可用激活状态（已分配且未退役）。
+	 */
 	public boolean isSerialActive(LinkNodeType type, long serial) {
 		return isSerialAllocated(type, serial) && !isSerialRetired(type, serial);
 	}
 
+	/**
+	 * 手动登记序列号为“已分配”。
+	 */
 	public boolean markSerialAllocated(LinkNodeType type, long serial) {
 		if (serial <= 0L) {
 			return false;
@@ -227,16 +272,27 @@ public final class LinkSavedData extends SavedData {
 		return changed;
 	}
 
+	/**
+	 * 获取指定节点类型的活跃序列号集合。
+	 */
 	public Set<Long> getActiveSerials(LinkNodeType type) {
 		Set<Long> active = new HashSet<>(allocatedSerialSet(type));
 		active.removeAll(retiredSerialSet(type));
 		return Set.copyOf(active);
 	}
 
+	/**
+	 * 获取指定节点类型的退役序列号集合。
+	 */
 	public Set<Long> getRetiredSerials(LinkNodeType type) {
 		return Set.copyOf(retiredSerialSet(type));
 	}
 
+	/**
+	 * 切换按钮与核心之间的关联关系。
+	 *
+	 * @return true 表示本次切换后为“已关联”，false 表示切换后为“未关联”
+	 */
 	public boolean toggleLink(long buttonSerial, long coreSerial) {
 		if (buttonSerial <= 0L || coreSerial <= 0L) {
 			return false;
@@ -254,6 +310,9 @@ public final class LinkSavedData extends SavedData {
 		return true;
 	}
 
+	/**
+	 * 解除按钮与核心的单条关联关系。
+	 */
 	public boolean unlink(long buttonSerial, long coreSerial) {
 		Set<Long> linkedCores = buttonToCores.get(buttonSerial);
 		if (linkedCores == null || !linkedCores.remove(coreSerial)) {
@@ -274,6 +333,9 @@ public final class LinkSavedData extends SavedData {
 		return true;
 	}
 
+	/**
+	 * 查询按钮关联的核心序列号集合。
+	 */
 	public Set<Long> getLinkedCores(long buttonSerial) {
 		Set<Long> linked = buttonToCores.get(buttonSerial);
 		if (linked == null || linked.isEmpty()) {
@@ -282,6 +344,9 @@ public final class LinkSavedData extends SavedData {
 		return Set.copyOf(linked);
 	}
 
+	/**
+	 * 查询核心被哪些按钮关联。
+	 */
 	public Set<Long> getLinkedButtons(long coreSerial) {
 		Set<Long> linked = coreToButtons.get(coreSerial);
 		if (linked == null || linked.isEmpty()) {
@@ -290,6 +355,11 @@ public final class LinkSavedData extends SavedData {
 		return Set.copyOf(linked);
 	}
 
+	/**
+	 * 清理指定节点的全部关联关系。
+	 *
+	 * @return 被移除的链接数量
+	 */
 	public int clearLinksForNode(LinkNodeType type, long serial) {
 		if (serial <= 0L) {
 			return 0;
@@ -336,6 +406,9 @@ public final class LinkSavedData extends SavedData {
 		return removed;
 	}
 
+	/**
+	 * 生成当前链路拓扑审计快照。
+	 */
 	public AuditSnapshot createAuditSnapshot() {
 		int linkCount = 0;
 		int linksWithMissingEndpoint = 0;
@@ -528,10 +601,19 @@ public final class LinkSavedData extends SavedData {
 		return max;
 	}
 
+	/**
+	 * 在线节点快照记录。
+	 */
 	public record LinkNode(long serial, ResourceKey<Level> dimension, BlockPos pos, LinkNodeType type) {}
 
+	/**
+	 * 节点退役结果记录。
+	 */
 	public record RetireResult(boolean nodeRemoved, int linksRemoved, boolean retiredMarked) {}
 
+	/**
+	 * 联动图谱审计快照记录。
+	 */
 	public record AuditSnapshot(
 		int onlineCoreNodes,
 		int onlineButtonNodes,

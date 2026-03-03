@@ -36,6 +36,9 @@ import net.minecraft.world.level.Level;
  * </p>
  */
 public class LinkerItem extends Item implements PairableItem {
+	/**
+	 * 触发模式，由具体物品实例在注册时注入。
+	 */
 	private final ApiActivationMode activationMode;
 
 	/**
@@ -47,11 +50,27 @@ public class LinkerItem extends Item implements PairableItem {
 		this.activationMode = activationMode;
 	}
 
+	/**
+	 * 获取该可配对物品在链路系统中的节点类型。
+	 *
+	 * @return 固定返回按钮节点类型
+	 */
 	@Override
 	public LinkNodeType getNodeType() {
 		return LinkNodeType.BUTTON;
 	}
 
+	/**
+	 * 空手对空气右键时的交互入口。
+	 * <p>
+	 * 行为优先级：先尝试打开配对界面，再尝试触发已连接核心。
+	 * </p>
+	 *
+	 * @param level 当前世界
+	 * @param player 操作玩家
+	 * @param hand 交互手
+	 * @return 本次交互结果与手持物
+	 */
 	@Override
 	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
@@ -68,6 +87,15 @@ public class LinkerItem extends Item implements PairableItem {
 		return InteractionResultHolder.pass(heldStack);
 	}
 
+	/**
+	 * 右键方块时的交互入口。
+	 * <p>
+	 * 与 {@link #use(Level, Player, InteractionHand)} 保持相同手势语义，避免两套规则不一致。
+	 * </p>
+	 *
+	 * @param context 使用上下文
+	 * @return 本次交互结果
+	 */
 	@Override
 	public InteractionResult useOn(UseOnContext context) {
 		Level level = context.getLevel();
@@ -86,12 +114,35 @@ public class LinkerItem extends Item implements PairableItem {
 		return InteractionResult.PASS;
 	}
 
+	/**
+	 * 物品在背包中的每 tick 回调。
+	 * <p>
+	 * 这里统一补齐序号，确保遥控器在任何获得路径下都具备稳定身份。
+	 * </p>
+	 *
+	 * @param stack 物品栈
+	 * @param level 当前世界
+	 * @param entity 持有实体
+	 * @param slotId 槽位索引
+	 * @param isSelected 是否被选中
+	 */
 	@Override
 	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
 		ensureSerial(level, stack);
 		super.inventoryTick(stack, level, entity, slotId, isSelected);
 	}
 
+	/**
+	 * 追加物品提示文本。
+	 * <p>
+	 * 展示序号、已连接核心列表以及操作手势说明，便于玩家在物品栏中直接确认状态。
+	 * </p>
+	 *
+	 * @param stack 物品栈
+	 * @param context 提示上下文
+	 * @param tooltipComponents 提示文本容器
+	 * @param tooltipFlag 提示标记
+	 */
 	@Override
 	public void appendHoverText(
 		ItemStack stack,
@@ -108,6 +159,7 @@ public class LinkerItem extends Item implements PairableItem {
 				serial > 0L ? Long.toString(serial) : "-"
 			)
 		);
+		// 约定无连接时显示 "-"，避免空字符串造成玩家误解。
 		String linkedText = linkedSerials.isEmpty()
 			? "-"
 			: linkedSerials.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
@@ -134,15 +186,32 @@ public class LinkerItem extends Item implements PairableItem {
 		if (player.isShiftKeyDown()) {
 			return false;
 		}
+		// 副手必须为空，防止与副手物品交互语义冲突。
 		return player.getOffhandItem().isEmpty();
 	}
 
+	/**
+	 * 确保物品具备唯一序号。
+	 * <p>
+	 * 仅在服务端写入，避免客户端预测写入导致状态分叉。
+	 * </p>
+	 *
+	 * @param level 当前世界
+	 * @param stack 物品栈
+	 */
 	private static void ensureSerial(Level level, ItemStack stack) {
 		if (level instanceof ServerLevel serverLevel) {
 			LinkItemData.ensureSerial(stack, serverLevel, LinkNodeType.BUTTON);
 		}
 	}
 
+	/**
+	 * 打开遥控器配对界面并同步当前已连接核心列表。
+	 *
+	 * @param level 当前世界
+	 * @param player 操作玩家
+	 * @param stack 物品栈
+	 */
 	private static void openPairingScreen(Level level, Player player, ItemStack stack) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
@@ -171,12 +240,15 @@ public class LinkerItem extends Item implements PairableItem {
 			.trigger()
 			.emit(new TriggerRequest(serverLevel, ApiNodeType.BUTTON, serial, activationMode, ActorContext.fromPlayer(player)));
 
+		// 每次触发后都回写最新连接列表，确保物品提示信息与存档状态一致。
 		LinkItemData.setLinkedSerials(stack, LinkSavedData.get(serverLevel).getLinkedCores(serial));
 
+		// success=false 或 totalTargets=0 均视为“未设置目标”，对玩家给出同一语义提示。
 		if (!triggerResult.success() || triggerResult.totalTargets() == 0) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));
 			return;
 		}
+		// 有目标但触发数量为 0，表示存在不可达目标（如维度/区块状态限制）。
 		if (triggerResult.triggeredCount() == 0) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.no_reachable_targets"));
 		}

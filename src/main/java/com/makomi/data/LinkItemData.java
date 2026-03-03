@@ -13,6 +13,13 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
+/**
+ * 物品 NBT 元数据读写工具。
+ * <p>
+ * 负责管理可配对物品上的序列号、配对目标、链接集合与退役标记，
+ * 供放置流程、交互流程与节点回收流程统一使用。
+ * </p>
+ */
 public final class LinkItemData {
 	private static final String KEY_SERIAL = "rl_serial";
 	private static final String KEY_PAIR = "rl_pair";
@@ -22,6 +29,13 @@ public final class LinkItemData {
 	private LinkItemData() {
 	}
 
+	/**
+	 * 确保物品拥有可用序列号。
+	 * <p>
+	 * 若序列号不存在则分配新号；若序列号已退役则重分配；
+	 * 若序列号存在但未登记分配集合，则补登记。
+	 * </p>
+	 */
 	public static long ensureSerial(ItemStack stack, ServerLevel level, LinkNodeType type) {
 		LinkSavedData savedData = LinkSavedData.get(level);
 		long serial = getSerial(stack);
@@ -42,6 +56,12 @@ public final class LinkItemData {
 		return allocated;
 	}
 
+	/**
+	 * 解析放置时最终应使用的序列号。
+	 * <p>
+	 * 会结合物品当前序列号、世界维度与方块坐标进行冲突规避。
+	 * </p>
+	 */
 	public static long resolvePlacementSerial(
 		ItemStack stack,
 		ServerLevel level,
@@ -52,6 +72,9 @@ public final class LinkItemData {
 		return LinkSavedData.get(level).resolvePlacementSerial(type, preferredSerial, level.dimension(), pos);
 	}
 
+	/**
+	 * 读取物品序列号。
+	 */
 	public static long getSerial(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
 		if (tag.contains(KEY_SERIAL, Tag.TAG_LONG)) {
@@ -60,6 +83,11 @@ public final class LinkItemData {
 		return 0L;
 	}
 
+	/**
+	 * 写入物品序列号。
+	 *
+	 * @param serial 大于 0 时写入，小于等于 0 时移除字段
+	 */
 	public static void setSerial(ItemStack stack, long serial) {
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
 			if (serial > 0L) {
@@ -70,6 +98,9 @@ public final class LinkItemData {
 		});
 	}
 
+	/**
+	 * 读取配对核心序列号。
+	 */
 	public static long getPairSerial(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
 		if (tag.contains(KEY_PAIR, Tag.TAG_LONG)) {
@@ -78,6 +109,11 @@ public final class LinkItemData {
 		return 0L;
 	}
 
+	/**
+	 * 写入配对核心序列号。
+	 *
+	 * @param pairSerial 大于 0 时写入，小于等于 0 时移除字段
+	 */
 	public static void setPairSerial(ItemStack stack, long pairSerial) {
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
 			if (pairSerial > 0L) {
@@ -88,6 +124,9 @@ public final class LinkItemData {
 		});
 	}
 
+	/**
+	 * 读取触发源关联的目标核心序列号列表。
+	 */
 	public static List<Long> getLinkedSerials(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
 		if (!tag.contains(KEY_LINKS, Tag.TAG_LONG_ARRAY)) {
@@ -108,6 +147,9 @@ public final class LinkItemData {
 		return List.copyOf(result);
 	}
 
+	/**
+	 * 覆盖写入关联目标核心序列号集合。
+	 */
 	public static void setLinkedSerials(ItemStack stack, Set<Long> linkedSerials) {
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
 			if (linkedSerials == null || linkedSerials.isEmpty()) {
@@ -128,6 +170,9 @@ public final class LinkItemData {
 		});
 	}
 
+	/**
+	 * 设置“销毁即退役”标记。
+	 */
 	public static void setDestroyRetireCandidate(ItemStack stack, boolean retireCandidate) {
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
 			if (retireCandidate) {
@@ -138,11 +183,17 @@ public final class LinkItemData {
 		});
 	}
 
+	/**
+	 * 判断物品是否携带“销毁即退役”标记。
+	 */
 	public static boolean isDestroyRetireCandidate(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
 		return tag.getBoolean(KEY_DESTROY_RETIRE);
 	}
 
+	/**
+	 * 解析物品对应的节点类型。
+	 */
 	public static Optional<LinkNodeType> getNodeType(ItemStack stack) {
 		if (stack.getItem() instanceof PairableItem pairableItem) {
 			return Optional.of(pairableItem.getNodeType());
