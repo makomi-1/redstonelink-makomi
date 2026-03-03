@@ -1,6 +1,6 @@
 package com.makomi.data;
 
-import com.makomi.item.PairableBlockItem;
+import com.makomi.item.PairableItem;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -144,8 +144,8 @@ public final class LinkItemData {
 	}
 
 	public static Optional<LinkNodeType> getNodeType(ItemStack stack) {
-		if (stack.getItem() instanceof PairableBlockItem pairableBlockItem) {
-			return Optional.of(pairableBlockItem.getNodeType());
+		if (stack.getItem() instanceof PairableItem pairableItem) {
+			return Optional.of(pairableItem.getNodeType());
 		}
 		return Optional.empty();
 	}

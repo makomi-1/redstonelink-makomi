@@ -22,7 +22,7 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
-public class PairableBlockItem extends BlockItem {
+public class PairableBlockItem extends BlockItem implements PairableItem {
 	private final LinkNodeType nodeType;
 
 	public PairableBlockItem(Block block, Item.Properties properties, LinkNodeType nodeType) {
@@ -30,6 +30,7 @@ public class PairableBlockItem extends BlockItem {
 		this.nodeType = Objects.requireNonNull(nodeType);
 	}
 
+	@Override
 	public LinkNodeType getNodeType() {
 		return nodeType;
 	}

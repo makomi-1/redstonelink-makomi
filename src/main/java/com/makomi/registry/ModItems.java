@@ -1,6 +1,8 @@
 package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
+import com.makomi.api.v1.model.ApiActivationMode;
+import com.makomi.item.LinkerItem;
 import com.makomi.item.PairableBlockItem;
 import com.makomi.data.LinkNodeType;
 import net.minecraft.core.Registry;
@@ -57,6 +59,16 @@ public final class ModItems {
 	public static final Item LINK_PULSE_EMITTER = register(
 		"link_pulse_emitter",
 		new PairableBlockItem(ModBlocks.LINK_PULSE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+	);
+
+	public static final Item REDSTONELINK_TOGGLE_LINKER = register(
+		"redstonelink_toggle_linker",
+		new LinkerItem(new Item.Properties().stacksTo(1), ApiActivationMode.TOGGLE)
+	);
+
+	public static final Item REDSTONELINK_PULSE_LINKER = register(
+		"redstonelink_pulse_linker",
+		new LinkerItem(new Item.Properties().stacksTo(1), ApiActivationMode.PULSE)
 	);
 
 	private ModItems() {

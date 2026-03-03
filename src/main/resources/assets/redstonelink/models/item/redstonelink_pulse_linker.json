@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "redstonelink:item/redstonelink_pulse_linker"
+  }
+}

@@ -5,7 +5,7 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
-import com.makomi.item.PairableBlockItem;
+import com.makomi.item.PairableItem;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -128,12 +128,12 @@ public final class ModCommands {
 		}
 
 		ItemStack heldStack = player.getItemInHand(hand);
-		if (!(heldStack.getItem() instanceof PairableBlockItem pairableBlockItem)) {
+		if (!(heldStack.getItem() instanceof PairableItem pairableItem)) {
 			source.sendFailure(Component.translatable("message.redstonelink.not_pairable"));
 			return 0;
 		}
 
-		LinkNodeType selfType = pairableBlockItem.getNodeType();
+		LinkNodeType selfType = pairableItem.getNodeType();
 		if (selfType != LinkNodeType.BUTTON) {
 			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
 			return 0;
