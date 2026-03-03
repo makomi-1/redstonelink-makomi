@@ -30,7 +30,7 @@ import net.minecraft.world.level.Level;
  * 手持遥控器物品：支持按钮节点配对与远程触发。
  * <p>
  * 交互约束：
- * 1. 潜行 + 主手右键：打开配对界面；
+ * 1. 默认潜行 + 主手右键：打开配对界面（潜行门槛可由专用配置控制）；
  * 2. 站立 + 主手右键 + 副手空：触发已连接核心；
  * 3. 物品不可放置（继承 Item 而非 BlockItem）。
  * </p>
@@ -170,10 +170,10 @@ public class LinkerItem extends Item implements PairableItem {
 	}
 
 	/**
-	 * 配对入口固定为潜行手势，避免与“站立触发”冲突。
+	 * 判断是否允许通过遥控器手势打开配对界面。
 	 */
 	private static boolean shouldOpenPairingUi(Player player, InteractionHand hand) {
-		return player.isShiftKeyDown() && RedstoneLinkConfig.canOpenPairingByHeldItem(player, hand);
+		return RedstoneLinkConfig.canOpenPairingByLinker(player, hand);
 	}
 
 	/**
@@ -243,14 +243,40 @@ public class LinkerItem extends Item implements PairableItem {
 		// 每次触发后都回写最新连接列表，确保物品提示信息与存档状态一致。
 		LinkItemData.setLinkedSerials(stack, LinkSavedData.get(serverLevel).getLinkedCores(serial));
 
-		// success=false 或 totalTargets=0 均视为“未设置目标”，对玩家给出同一语义提示。
-		if (!triggerResult.success() || triggerResult.totalTargets() == 0) {
+		// 仅 totalTargets=0 时提示“未设置目标”，避免掩盖真实失败原因。
+		if (triggerResult.totalTargets() == 0) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));
+			return;
+		}
+		// 触发失败时优先使用 API 返回的 reasonKey 提示。
+		if (!triggerResult.success()) {
+			serverPlayer.sendSystemMessage(mapTriggerFailureMessage(triggerResult, serial));
 			return;
 		}
 		// 有目标但触发数量为 0，表示存在不可达目标（如维度/区块状态限制）。
 		if (triggerResult.triggeredCount() == 0) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.no_reachable_targets"));
 		}
+	}
+
+	/**
+	 * 将触发失败结果映射为可读提示。
+	 * <p>
+	 * 对携带 source serial 占位符的消息补齐参数，其余 reasonKey 直接透传。
+	 * </p>
+	 */
+	private static Component mapTriggerFailureMessage(TriggerResult triggerResult, long sourceSerial) {
+		String reasonKey = triggerResult.reasonKey();
+		if (reasonKey == null || reasonKey.isBlank()) {
+			return Component.translatable("message.redstonelink.no_reachable_targets");
+		}
+		if (
+			"message.redstonelink.source_serial_unallocated".equals(reasonKey)
+				|| "message.redstonelink.source_serial_retired".equals(reasonKey)
+				|| "message.redstonelink.source_not_found".equals(reasonKey)
+		) {
+			return Component.translatable(reasonKey, sourceSerial);
+		}
+		return Component.translatable(reasonKey);
 	}
 }

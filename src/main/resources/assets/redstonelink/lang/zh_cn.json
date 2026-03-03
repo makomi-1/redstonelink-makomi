@@ -70,6 +70,7 @@
   "message.redstonelink.offline_targets_saved": "已保存离线目标: %s（当前不可交互，待上线后可用）。",
   "message.redstonelink.target_not_set": "该按钮未连接任何核心。",
   "message.redstonelink.no_reachable_targets": "没有可达的已连接核心。",
+  "message.redstonelink.trigger_cancelled": "触发已被策略拦截。",
   "message.redstonelink.audit.summary": "审计 - 在线核心: %s，在线按钮: %s，总连接: %s，存在离线端点的连接: %s。",
   "message.redstonelink.audit.linked_serials": "连接序号计数 - 按钮: %s，核心: %s。",
   "message.redstonelink.audit.core_active_serials": "核心序号（已分配且未退役）: %s。",

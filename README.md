@@ -93,6 +93,9 @@ RedstoneLink 是一个基于 Minecraft Fabric 1.21.1 的红石远程信号传播
 	- 潜行右键（主手）= 打开配对 UI
 	- 站立右键（主手，副手空）= 直接触发已绑定核心
 - 上述门槛可通过配置文件调整：`.minecraft/config/redstonelink-server.properties`。
+	- `interaction.requireSneakToOpenPairing`：已放置方块与普通手持可配对物品的潜行门槛。
+	- `interaction.requireSneakToOpenLinkerPairing`：遥控器打开配对 UI 的专用潜行门槛（默认 `true`）。
+	- `interaction.requireEmptyOffhandToOpenPairing`：打开配对 UI 时是否要求副手为空（包含遥控器）。
 
 #### 2) 核心类物品用法
 

@@ -101,8 +101,22 @@ public final class RedstoneLinkConfig {
 		return values.requireSneakToOpenPairing();
 	}
 
+	/**
+	 * 遥控器（Linker）打开配对 UI 时是否必须潜行。
+	 */
+	public static boolean requireSneakToOpenLinkerPairing() {
+		return values.requireSneakToOpenLinkerPairing();
+	}
+
 	public static boolean requireEmptyOffhandToOpenPairing() {
 		return values.requireEmptyOffhandToOpenPairing();
+	}
+
+	/**
+	 * 是否启用完整自动清理。
+	 */
+	public static boolean fullAutoCleanupEnabled() {
+		return values.fullAutoCleanupEnabled();
 	}
 
 	/**
@@ -113,6 +127,25 @@ public final class RedstoneLinkConfig {
 			return false;
 		}
 		if (requireSneakToOpenPairing() && !player.isShiftKeyDown()) {
+			return false;
+		}
+		if (requireEmptyOffhandToOpenPairing() && !player.getOffhandItem().isEmpty()) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * 统一“遥控器打开配对 UI”条件。
+	 * <p>
+	 * 与通用手持入口分离，避免全局潜行配置影响遥控器“站立触发”语义。
+	 * </p>
+	 */
+	public static boolean canOpenPairingByLinker(Player player, InteractionHand hand) {
+		if (hand != InteractionHand.MAIN_HAND) {
+			return false;
+		}
+		if (requireSneakToOpenLinkerPairing() && !player.isShiftKeyDown()) {
 			return false;
 		}
 		if (requireEmptyOffhandToOpenPairing() && !player.getOffhandItem().isEmpty()) {
@@ -148,7 +181,9 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.maxTargetsPerSetLinks", 128, 1, 512),
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
-			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
+			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
+			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true),
+			parseBoolean(props, "retire.fullAutoCleanup", false)
 		);
 	}
 
@@ -227,11 +262,21 @@ public final class RedstoneLinkConfig {
 			# zh: 打开配对 UI 是否必须潜行。
 			# en: Require sneaking to open pairing UI.
 			interaction.requireSneakToOpenPairing=true
+
+			# interaction.requireSneakToOpenLinkerPairing
+			# zh: 遥控器打开配对 UI 是否必须潜行。默认 true，避免与站立右键触发冲突。
+			# en: Require sneaking when opening pairing UI via linker. Default true to avoid conflict with standing right-click trigger.
+			interaction.requireSneakToOpenLinkerPairing=true
 			
 			# interaction.requireEmptyOffhandToOpenPairing
 			# zh: 打开配对 UI 是否必须副手为空。
 			# en: Require empty offhand to open pairing UI.
 			interaction.requireEmptyOffhandToOpenPairing=true
+
+			# retire.fullAutoCleanup
+			# zh: 是否启用完整自动清理。false=沿用当前实现；true=在当前实现基础上补齐“创造模式破坏方块即退役”。
+			# en: Enable full auto cleanup. false=use current behavior; true=add creative-break retire on top of current behavior.
+			retire.fullAutoCleanup=false
 			""";
 	}
 
@@ -242,10 +287,12 @@ public final class RedstoneLinkConfig {
 		int maxTargetsPerSetLinks,
 		boolean allowOfflineTargetBinding,
 		boolean requireSneakToOpenPairing,
-		boolean requireEmptyOffhandToOpenPairing
+		boolean requireSneakToOpenLinkerPairing,
+		boolean requireEmptyOffhandToOpenPairing,
+		boolean fullAutoCleanupEnabled
 	) {
 		private static Values defaults() {
-			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, true, true);
+			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, true, true, true, false);
 		}
 	}
 }

@@ -70,6 +70,7 @@
   "message.redstonelink.offline_targets_saved": "Saved offline targets: %s (not interactable until online).",
   "message.redstonelink.target_not_set": "This button has no linked cores.",
   "message.redstonelink.no_reachable_targets": "No linked core was reachable.",
+  "message.redstonelink.trigger_cancelled": "Trigger was cancelled by policy.",
   "message.redstonelink.audit.summary": "Audit - online cores: %s, online buttons: %s, total links: %s, links missing online endpoint: %s.",
   "message.redstonelink.audit.linked_serials": "Linked serial counts - buttons: %s, cores: %s.",
   "message.redstonelink.audit.core_active_serials": "Core serials (allocated & active): %s.",
