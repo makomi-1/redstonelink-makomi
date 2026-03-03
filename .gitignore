@@ -45,6 +45,7 @@ replay_*.log
 *.jfr
 
 plan
+agents/plans/05_后续迭代与测试路线.md
 AGENTS.md
 
 
