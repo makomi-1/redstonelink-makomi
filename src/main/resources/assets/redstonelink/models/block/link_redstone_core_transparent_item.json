@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "all": "redstonelink:item/link_redstone_core_blue_bright"
+    "all": "redstonelink:item/link_redstone_core_transparent_blue"
   }
 }
