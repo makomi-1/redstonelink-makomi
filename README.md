@@ -22,6 +22,8 @@ RedstoneLink 是一个基于 Minecraft Fabric 1.21.1 的红石远程信号传播
 - 提供api（未测试），详见docs/api文档
 - 配置文件路径：.minecraft/config/redstonelink-server.properties
 
+![物品一览图](docs/物品一览图.png)
+
 ## 功能特性
 
 ### 1) 节点体系
@@ -30,6 +32,7 @@ RedstoneLink 是一个基于 Minecraft Fabric 1.21.1 的红石远程信号传播
 - 连接核心透明变种（红石块 / 红石粉）
 
 - 触发源：连接石按钮（切换）、连接木按钮（脉冲）、连接拉杆（切换）、两种受红石信号激发的触发器
+- 触发源：脉冲/切换遥控器，站立右键使用
 
 ### 2) 配对与联动
 - 支持核心与触发源多对多配对
@@ -63,6 +66,7 @@ RedstoneLink 是一个基于 Minecraft Fabric 1.21.1 的红石远程信号传播
 - 仓库内置可快速体验本模组的测试地图：`run/saves/test`。
 - 启动开发客户端后，单人世界中选择该存档即可快速体验mod特性和与原版红石元件的互动。
 - 该测试地图作为体验资产纳入版本管理，会随仓库更新同步。
+![测试地图一览图](docs/测试地图一览图.png)
 
 ## 安装与使用
 
@@ -117,12 +121,21 @@ RedstoneLink 是一个基于 Minecraft Fabric 1.21.1 的红石远程信号传播
 - 材料：`B = redstonelink:link_toggle_button`，`L = redstonelink:redstone_link_component`
 - 产出：`redstonelink:link_toggle_emitter` ×1
 
+### 6) 切换遥控器（`redstonelink_toggle_linker`）
+![切换遥控器配方](docs/recipes/切换遥控器.png)
+
+- 合成类型：有序合成（`crafting_shaped`）
+- 合成逻辑：中排按 `BL` 横向摆放
+- 材料：`B = redstonelink:link_toggle_button`，`L = minecraft:lever`
+- 产出：`redstonelink:redstonelink_toggle_linker` ×1
+
 ### 无配方图项（合成逻辑与同类一致，补充文字说明）
 
 - `link_redstone_dust_core`：与“连接核心-红石块”同类，均为有序 `BL` 横向摆放；`B = minecraft:redstone`，`L = redstonelink:redstone_link_component`；产出 `redstonelink:link_redstone_dust_core ×1`。
 - `link_push_button`：与“连接切换按钮”同类，均为有序 `BL` 横向摆放；`B = minecraft:wooden_buttons`（标签，任意木按钮），`L = redstonelink:redstone_link_component`；产出 `redstonelink:link_push_button ×1`。
 - `link_toggle_lever`：与“连接切换按钮”同类，均为有序 `BL` 横向摆放；`B = minecraft:lever`，`L = redstonelink:redstone_link_component`；产出 `redstonelink:link_toggle_lever ×1`。
 - `link_pulse_emitter`：与“连接切换发射器”同类，均为有序 `BL` 横向摆放；`B = redstonelink:link_push_button`，`L = redstonelink:redstone_link_component`；产出 `redstonelink:link_pulse_emitter ×1`。
+- `redstonelink_pulse_linker`：与“切换遥控器”同类，均为有序 `BL` 横向摆放；`B = redstonelink:link_push_button`，`L = minecraft:lever`；产出 `redstonelink:redstonelink_pulse_linker ×1`。
 - `link_redstone_dust_core_transparent`：与“连接核心-红石块（透明）”同类，均为无序 1:1 转换；`1 × link_redstone_dust_core -> 1 × link_redstone_dust_core_transparent`。
 - `link_redstone_core_from_transparent`：与透明变种互转同类，均为无序 1:1 反向转换；`1 × link_redstone_core_transparent -> 1 × link_redstone_core`。
 - `link_redstone_dust_core_from_transparent`：与透明变种互转同类，均为无序 1:1 反向转换；`1 × link_redstone_dust_core_transparent -> 1 × link_redstone_dust_core`。
