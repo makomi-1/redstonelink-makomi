@@ -4,6 +4,8 @@
     "redstonelink:link_redstone_core",
     "redstonelink:link_redstone_core_transparent",
     "redstonelink:link_toggle_button",
-    "redstonelink:link_toggle_lever"
+    "redstonelink:link_toggle_lever",
+    "redstonelink:link_toggle_emitter",
+    "redstonelink:link_pulse_emitter"
   ]
 }

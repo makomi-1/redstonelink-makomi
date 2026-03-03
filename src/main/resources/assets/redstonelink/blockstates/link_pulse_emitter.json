@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "redstonelink:block/link_pulse_emitter"
+    },
+    "powered=true": {
+      "model": "redstonelink:block/link_pulse_emitter"
+    }
+  }
+}

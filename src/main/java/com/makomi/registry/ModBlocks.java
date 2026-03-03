@@ -1,12 +1,13 @@
 package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
-import com.makomi.block.LinkButtonBlock;
 import com.makomi.block.LinkCoreBlock;
+import com.makomi.block.LinkPulseEmitterBlock;
 import com.makomi.block.LinkPulseButtonBlock;
 import com.makomi.block.LinkRedstoneDustCoreBlock;
 import com.makomi.block.LinkTransparentCoreBlock;
 import com.makomi.block.LinkTransparentRedstoneDustCoreBlock;
+import com.makomi.block.LinkToggleEmitterBlock;
 import com.makomi.block.LinkToggleButtonBlock;
 import com.makomi.block.LinkToggleLeverBlock;
 import net.minecraft.core.Registry;
@@ -48,6 +49,16 @@ public final class ModBlocks {
 	public static final LinkPulseButtonBlock LINK_PUSH_BUTTON = register(
 		"link_push_button",
 		new LinkPulseButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_BUTTON))
+	);
+
+	public static final LinkToggleEmitterBlock LINK_TOGGLE_EMITTER = register(
+		"link_toggle_emitter",
+		new LinkToggleEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER))
+	);
+
+	public static final LinkPulseEmitterBlock LINK_PULSE_EMITTER = register(
+		"link_pulse_emitter",
+		new LinkPulseEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER))
 	);
 
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(

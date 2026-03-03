@@ -49,6 +49,16 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.LINK_PUSH_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
 	);
 
+	public static final Item LINK_TOGGLE_EMITTER = register(
+		"link_toggle_emitter",
+		new PairableBlockItem(ModBlocks.LINK_TOGGLE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+	);
+
+	public static final Item LINK_PULSE_EMITTER = register(
+		"link_pulse_emitter",
+		new PairableBlockItem(ModBlocks.LINK_PULSE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+	);
+
 	private ModItems() {
 	}
 

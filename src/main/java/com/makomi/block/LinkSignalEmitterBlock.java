@@ -1,0 +1,202 @@
+package com.makomi.block;
+
+import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkNodeType;
+import com.makomi.data.LinkSavedData;
+import com.makomi.network.PairingNetwork;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.phys.BlockHitResult;
+
+/**
+ * 红石信号触发基类：
+ * 1. 维持按钮节点序号与掉落继承；
+ * 2. 监听邻居红石输入，且仅在上升沿（0 -> >0）触发一次联动；
+ * 3. 支持“潜行 + 双手空手”打开按钮配对界面。
+ */
+public abstract class LinkSignalEmitterBlock extends Block implements EntityBlock {
+	public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
+
+	protected LinkSignalEmitterBlock(BlockBehaviour.Properties properties) {
+		super(properties);
+		registerDefaultState(stateDefinition.any().setValue(POWERED, false));
+	}
+
+	@Override
+	public BlockEntity newBlockEntity(BlockPos blockPos, BlockState blockState) {
+		return createEmitterBlockEntity(blockPos, blockState);
+	}
+
+	/**
+	 * 创建发射器方块实体（切换/脉冲模式由子类方块实体决定）。
+	 */
+	protected abstract LinkButtonBlockEntity createEmitterBlockEntity(BlockPos blockPos, BlockState blockState);
+
+	@Override
+	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
+		super.setPlacedBy(level, pos, state, placer, stack);
+		if (!(level instanceof ServerLevel serverLevel)) {
+			return;
+		}
+		if (!(level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity)) {
+			return;
+		}
+
+		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.BUTTON, pos);
+		buttonBlockEntity.setLinkData(serial);
+	}
+
+	@Override
+	protected List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
+		List<ItemStack> drops = new ArrayList<>(super.getDrops(state, builder));
+		if (drops.isEmpty()) {
+			drops.add(new ItemStack(asItem()));
+		}
+
+		if (!(builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY) instanceof LinkButtonBlockEntity buttonBlockEntity)) {
+			return drops;
+		}
+
+		long serial = buttonBlockEntity.getSerial();
+		if (serial <= 0L) {
+			return drops;
+		}
+
+		for (ItemStack drop : drops) {
+			if (drop.is(asItem())) {
+				LinkItemData.setSerial(drop, serial);
+				LinkItemData.setDestroyRetireCandidate(drop, true);
+				if (buttonBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
+					LinkItemData.setLinkedSerials(drop, LinkSavedData.get(serverLevel).getLinkedCores(serial));
+				}
+			}
+		}
+		return drops;
+	}
+
+	@Override
+	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
+		if (!state.is(newState.getBlock())) {
+			if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+				buttonBlockEntity.unregisterNode();
+			}
+		}
+		super.onRemove(state, level, pos, newState, movedByPiston);
+	}
+
+	@Override
+	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+		super.onPlace(state, level, pos, oldState, movedByPiston);
+		if (!oldState.is(state.getBlock())) {
+			updatePoweredState(level, pos, state);
+		}
+	}
+
+	@Override
+	protected void neighborChanged(
+		BlockState state,
+		Level level,
+		BlockPos pos,
+		Block block,
+		BlockPos fromPos,
+		boolean movedByPiston
+	) {
+		super.neighborChanged(state, level, pos, block, fromPos, movedByPiston);
+		updatePoweredState(level, pos, state);
+	}
+
+	@Override
+	protected InteractionResult useWithoutItem(
+		BlockState state,
+		Level level,
+		BlockPos pos,
+		Player player,
+		BlockHitResult hitResult
+	) {
+		if (player.isShiftKeyDown() && isPlayerEmptyHanded(player)) {
+			openPairingScreen(level, pos, player);
+			return InteractionResult.sidedSuccess(level.isClientSide);
+		}
+		return InteractionResult.PASS;
+	}
+
+	@Override
+	protected boolean isSignalSource(BlockState state) {
+		return false;
+	}
+
+	@Override
+	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+		return 0;
+	}
+
+	@Override
+	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+		return 0;
+	}
+
+	@Override
+	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+		builder.add(POWERED);
+	}
+
+	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
+		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
+			return;
+		}
+		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+			long serial = buttonBlockEntity.getSerial();
+			if (serial <= 0L) {
+				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.BUTTON);
+				buttonBlockEntity.setLinkData(serial);
+			}
+			if (serial > 0L) {
+				PairingNetwork.openButtonPairing(serverPlayer, serial);
+			}
+		}
+	}
+
+	private static boolean isPlayerEmptyHanded(Player player) {
+		return player.getMainHandItem().isEmpty() && player.getOffhandItem().isEmpty();
+	}
+
+	/**
+	 * 统一红石输入处理：仅在上升沿触发绑定目标，避免持续高电平重复触发。
+	 */
+	private static void updatePoweredState(Level level, BlockPos pos, BlockState state) {
+		if (level.isClientSide) {
+			return;
+		}
+		boolean hasSignal = level.hasNeighborSignal(pos);
+		boolean wasPowered = state.getValue(POWERED);
+		if (hasSignal == wasPowered) {
+			return;
+		}
+
+		level.setBlock(pos, state.setValue(POWERED, hasSignal), Block.UPDATE_ALL);
+		if (hasSignal && level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+			buttonBlockEntity.triggerLinkedTargets(null);
+		}
+	}
+}

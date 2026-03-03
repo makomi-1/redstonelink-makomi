@@ -4,10 +4,12 @@ import com.makomi.RedstoneLink;
 import com.makomi.block.entity.LinkButtonBlockEntity;
 import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
+import com.makomi.block.entity.LinkPulseEmitterBlockEntity;
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
 import com.makomi.block.entity.LinkTransparentCoreBlockEntity;
 import com.makomi.block.entity.LinkTransparentRedstoneDustCoreBlockEntity;
 import com.makomi.block.entity.LinkToggleButtonBlockEntity;
+import com.makomi.block.entity.LinkToggleEmitterBlockEntity;
 import com.makomi.block.entity.LinkToggleLeverBlockEntity;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -38,6 +40,16 @@ public final class ModBlockEntities {
 	public static final BlockEntityType<LinkPulseButtonBlockEntity> LINK_PUSH_BUTTON = register(
 		"link_push_button",
 		BlockEntityType.Builder.of(LinkPulseButtonBlockEntity::new, ModBlocks.LINK_PUSH_BUTTON).build(null)
+	);
+
+	public static final BlockEntityType<LinkToggleEmitterBlockEntity> LINK_TOGGLE_EMITTER = register(
+		"link_toggle_emitter",
+		BlockEntityType.Builder.of(LinkToggleEmitterBlockEntity::new, ModBlocks.LINK_TOGGLE_EMITTER).build(null)
+	);
+
+	public static final BlockEntityType<LinkPulseEmitterBlockEntity> LINK_PULSE_EMITTER = register(
+		"link_pulse_emitter",
+		BlockEntityType.Builder.of(LinkPulseEmitterBlockEntity::new, ModBlocks.LINK_PULSE_EMITTER).build(null)
 	);
 
 	public static final BlockEntityType<LinkRedstoneDustCoreBlockEntity> LINK_REDSTONE_DUST_CORE = register(

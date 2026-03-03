@@ -25,6 +25,8 @@ public final class ModItemGroups {
 				output.accept(ModItems.LINK_TOGGLE_BUTTON, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_TOGGLE_LEVER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_PUSH_BUTTON, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.LINK_TOGGLE_EMITTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.LINK_PULSE_EMITTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONE_LINK_COMPONENT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 			})
 			.build()
