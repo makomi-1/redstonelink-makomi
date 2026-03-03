@@ -1,6 +1,7 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -32,8 +33,8 @@ import net.minecraft.world.phys.BlockHitResult;
 /**
  * 红石信号触发基类：
  * 1. 维持按钮节点序号与掉落继承；
- * 2. 监听邻居红石输入，且仅在上升沿（0 -> >0）触发一次联动；
- * 3. 支持“潜行 + 双手空手”打开按钮配对界面。
+ * 2. 监听邻居红石输入，按配置的边沿策略触发联动；
+ * 3. 支持按配置策略打开按钮配对界面。
  */
 public abstract class LinkSignalEmitterBlock extends Block implements EntityBlock {
 	public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
@@ -134,7 +135,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		Player player,
 		BlockHitResult hitResult
 	) {
-		if (player.isShiftKeyDown() && isPlayerEmptyHanded(player)) {
+		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
@@ -177,12 +178,8 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		}
 	}
 
-	private static boolean isPlayerEmptyHanded(Player player) {
-		return player.getMainHandItem().isEmpty() && player.getOffhandItem().isEmpty();
-	}
-
 	/**
-	 * 统一红石输入处理：仅在上升沿触发绑定目标，避免持续高电平重复触发。
+	 * 统一红石输入处理：按配置边沿触发绑定目标，避免持续高电平重复触发。
 	 */
 	private static void updatePoweredState(Level level, BlockPos pos, BlockState state) {
 		if (level.isClientSide) {
@@ -194,8 +191,9 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 			return;
 		}
 
+		boolean shouldTrigger = RedstoneLinkConfig.emitterEdgeMode().shouldTrigger(wasPowered, hasSignal);
 		level.setBlock(pos, state.setValue(POWERED, hasSignal), Block.UPDATE_ALL);
-		if (hasSignal && level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+		if (shouldTrigger && level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
 			buttonBlockEntity.triggerLinkedTargets(null);
 		}
 	}

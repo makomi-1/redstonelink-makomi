@@ -2,6 +2,7 @@ package com.makomi.block;
 
 import com.makomi.block.entity.LinkButtonBlockEntity;
 import com.makomi.block.entity.LinkToggleLeverBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -97,7 +98,7 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 		Player player,
 		BlockHitResult hitResult
 	) {
-		if (player.isShiftKeyDown() && isPlayerEmptyHanded(player)) {
+		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
@@ -142,7 +143,4 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 		}
 	}
 
-	private static boolean isPlayerEmptyHanded(Player player) {
-		return player.getMainHandItem().isEmpty() && player.getOffhandItem().isEmpty();
-	}
 }

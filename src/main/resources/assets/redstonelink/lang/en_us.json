@@ -62,6 +62,8 @@
   "message.redstonelink.invalid_target_tokens": "Invalid serial entries: %s",
   "message.redstonelink.invalid_target_unallocated": "Unallocated target serials: %s",
   "message.redstonelink.invalid_target_retired": "Retired target serials: %s",
+  "message.redstonelink.too_many_targets": "Too many targets, max %s.",
+  "message.redstonelink.offline_targets_blocked": "Offline targets are blocked by config: %s",
   "message.redstonelink.offline_targets_saved": "Saved offline targets: %s (not interactable until online).",
   "message.redstonelink.target_not_set": "This button has no linked cores.",
   "message.redstonelink.no_reachable_targets": "No linked core was reachable.",

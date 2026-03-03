@@ -1,6 +1,7 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -251,7 +252,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		Player player,
 		BlockHitResult hitResult
 	) {
-		if (player.isShiftKeyDown() && isPlayerEmptyHanded(player)) {
+		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
@@ -307,10 +308,6 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		}
 	}
 
-	private static boolean isPlayerEmptyHanded(Player player) {
-		return player.getMainHandItem().isEmpty() && player.getOffhandItem().isEmpty();
-	}
-
 	private static boolean isCoreActive(BlockGetter level, BlockPos pos) {
 		return level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity && coreBlockEntity.isActive();
 	}
@@ -332,7 +329,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	}
 
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
-		int targetPower = isCoreActive(level, pos) ? 15 : 0;
+		int targetPower = isCoreActive(level, pos) ? RedstoneLinkConfig.coreOutputPower() : 0;
 		boolean targetPowered = targetPower > 0;
 		if (state.getValue(POWER) != targetPower || state.getValue(POWERED) != targetPowered) {
 			level.setBlock(pos, state.setValue(POWER, targetPower).setValue(POWERED, targetPowered), Block.UPDATE_ALL);

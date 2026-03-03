@@ -2,6 +2,7 @@ package com.makomi.block;
 
 import com.mojang.serialization.MapCodec;
 import com.makomi.block.entity.LinkCoreBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -114,12 +115,12 @@ public class LinkCoreBlock extends BaseEntityBlock {
 
 	@Override
 	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return state.getValue(ACTIVE) ? 15 : 0;
+		return state.getValue(ACTIVE) ? RedstoneLinkConfig.coreOutputPower() : 0;
 	}
 
 	@Override
 	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return state.getValue(ACTIVE) ? 15 : 0;
+		return state.getValue(ACTIVE) ? RedstoneLinkConfig.coreOutputPower() : 0;
 	}
 
 	@Override
@@ -130,7 +131,7 @@ public class LinkCoreBlock extends BaseEntityBlock {
 		Player player,
 		BlockHitResult hitResult
 	) {
-		if (player.isShiftKeyDown() && isPlayerEmptyHanded(player)) {
+		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
@@ -169,7 +170,4 @@ public class LinkCoreBlock extends BaseEntityBlock {
 		}
 	}
 
-	private static boolean isPlayerEmptyHanded(Player player) {
-		return player.getMainHandItem().isEmpty() && player.getOffhandItem().isEmpty();
-	}
 }

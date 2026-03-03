@@ -62,6 +62,8 @@
   "message.redstonelink.invalid_target_tokens": "无效序号输入: %s",
   "message.redstonelink.invalid_target_unallocated": "以下目标序号未分配: %s",
   "message.redstonelink.invalid_target_retired": "以下目标序号已退役: %s",
+  "message.redstonelink.too_many_targets": "目标数量过多，最多 %s 个。",
+  "message.redstonelink.offline_targets_blocked": "以下目标当前离线，配置已禁止离线绑定: %s",
   "message.redstonelink.offline_targets_saved": "已保存离线目标: %s（当前不可交互，待上线后可用）。",
   "message.redstonelink.target_not_set": "该按钮未连接任何核心。",
   "message.redstonelink.no_reachable_targets": "没有可达的已连接核心。",

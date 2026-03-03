@@ -1,6 +1,7 @@
 package com.makomi.block.entity;
 
 import com.makomi.block.LinkRedstoneDustCoreBlock;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -35,7 +36,7 @@ public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntit
 			return;
 		}
 
-		int targetPower = active ? 15 : 0;
+		int targetPower = active ? RedstoneLinkConfig.coreOutputPower() : 0;
 		if (state.getValue(RedStoneWireBlock.POWER) != targetPower) {
 			state = state.setValue(RedStoneWireBlock.POWER, targetPower);
 			level.setBlock(worldPosition, state, Block.UPDATE_ALL);

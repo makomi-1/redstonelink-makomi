@@ -2,6 +2,7 @@ package com.makomi.item;
 
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
 import java.util.Objects;
@@ -124,9 +125,9 @@ public class PairableBlockItem extends BlockItem {
 	}
 
 	/**
-	 * 判断当前是否允许打开配对界面：潜行 + 左手（副手）为空 + 右手触发。
+	 * 判断当前是否允许打开配对界面：交由配置策略统一判定。
 	 */
 	private boolean canOpenPairingUi(Player player, InteractionHand hand) {
-		return hand == InteractionHand.MAIN_HAND && player.isShiftKeyDown() && player.getOffhandItem().isEmpty();
+		return RedstoneLinkConfig.canOpenPairingByHeldItem(player, hand);
 	}
 }

@@ -1,5 +1,6 @@
 package com.makomi.block.entity;
 
+import com.makomi.config.RedstoneLinkConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -61,7 +62,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	protected int getPulseDurationTicks() {
-		return 4;
+		return RedstoneLinkConfig.pulseDurationTicks();
 	}
 
 	protected abstract void onActiveChanged(boolean active);

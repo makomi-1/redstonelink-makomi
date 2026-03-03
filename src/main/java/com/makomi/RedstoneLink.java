@@ -1,6 +1,7 @@
 package com.makomi;
 
 import com.makomi.command.ModCommands;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlockEntities;
@@ -22,6 +23,7 @@ public class RedstoneLink implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		RedstoneLinkConfig.load();
 		PairingNetwork.register();
 		ModBlocks.register();
 		ModBlockEntities.register();

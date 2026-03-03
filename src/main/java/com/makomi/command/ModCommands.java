@@ -1,6 +1,7 @@
 package com.makomi.command;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -202,8 +203,13 @@ public final class ModCommands {
 		if (!validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
 			return 0;
 		}
-		if (requireTargetExists && savedData.findNode(targetType, targetSerial).isEmpty()) {
+		boolean targetOffline = savedData.findNode(targetType, targetSerial).isEmpty();
+		if (requireTargetExists && targetOffline) {
 			source.sendFailure(Component.translatable("message.redstonelink.target_not_found", targetSerial));
+			return 0;
+		}
+		if (!requireTargetExists && targetOffline && !RedstoneLinkConfig.allowOfflineTargetBinding()) {
+			source.sendFailure(Component.translatable("message.redstonelink.offline_targets_blocked", Long.toString(targetSerial)));
 			return 0;
 		}
 
@@ -354,10 +360,16 @@ public final class ModCommands {
 			}
 			targets = parseResult.targets();
 		}
+		int maxTargets = RedstoneLinkConfig.maxTargetsPerSetLinks();
+		if (targets.size() > maxTargets) {
+			source.sendFailure(Component.translatable("message.redstonelink.too_many_targets", maxTargets));
+			return 0;
+		}
 
 		LinkNodeType targetType = sourceType == LinkNodeType.BUTTON ? LinkNodeType.CORE : LinkNodeType.BUTTON;
 		List<Long> unallocatedTargets = new ArrayList<>();
 		List<Long> retiredTargets = new ArrayList<>();
+		List<Long> offlineTargets = new ArrayList<>();
 		for (long targetSerial : targets) {
 			if (!savedData.isSerialAllocated(targetType, targetSerial)) {
 				unallocatedTargets.add(targetSerial);
@@ -365,6 +377,10 @@ public final class ModCommands {
 			}
 			if (savedData.isSerialRetired(targetType, targetSerial)) {
 				retiredTargets.add(targetSerial);
+				continue;
+			}
+			if (savedData.findNode(targetType, targetSerial).isEmpty()) {
+				offlineTargets.add(targetSerial);
 			}
 		}
 		if (!unallocatedTargets.isEmpty()) {
@@ -385,16 +401,21 @@ public final class ModCommands {
 			);
 			return 0;
 		}
+		boolean allowOfflineBinding = RedstoneLinkConfig.allowOfflineTargetBinding();
+		if (!allowOfflineBinding && !offlineTargets.isEmpty()) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.offline_targets_blocked",
+					formatSerialList(offlineTargets)
+				)
+			);
+			return 0;
+		}
 
 		savedData.clearLinksForNode(sourceType, sourceSerial);
-		List<Long> offlineTargets = new ArrayList<>();
 		int added = 0;
 		long lastTarget = 0L;
 		for (long targetSerial : targets) {
-			if (savedData.findNode(targetType, targetSerial).isEmpty()) {
-				offlineTargets.add(targetSerial);
-			}
-
 			boolean addedNow = sourceType == LinkNodeType.BUTTON
 				? savedData.toggleLink(sourceSerial, targetSerial)
 				: savedData.toggleLink(targetSerial, sourceSerial);
@@ -408,7 +429,7 @@ public final class ModCommands {
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 		final int addedCount = added;
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.set_links_done", addedCount), false);
-		if (!offlineTargets.isEmpty()) {
+		if (allowOfflineBinding && !offlineTargets.isEmpty()) {
 			String offline = offlineTargets.stream().map(String::valueOf).reduce((a, b) -> a + ", " + b).orElse("-");
 			source.sendSuccess(
 				() -> Component.translatable("message.redstonelink.offline_targets_saved", offline),

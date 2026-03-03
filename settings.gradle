@@ -1,10 +1,10 @@
 pluginManagement {
 	def applyProxyFromEnv = { String protocol, List<String> keys ->
-		for (String key : keys) {
-			if (System.getProperty("${protocol}.proxyHost")) {
-				return
-			}
+		String hostKey = "${protocol}.proxyHost"
+		String portKey = "${protocol}.proxyPort"
+		boolean foundEnvProxy = false
 
+		for (String key : keys) {
 			String raw = System.getenv(key)
 			if (!raw) {
 				continue
@@ -16,14 +16,21 @@ pluginManagement {
 					continue
 				}
 
-				System.setProperty("${protocol}.proxyHost", uri.host)
+				foundEnvProxy = true
+				System.setProperty(hostKey, uri.host)
 				if (uri.port > 0) {
-					System.setProperty("${protocol}.proxyPort", Integer.toString(uri.port))
+					System.setProperty(portKey, Integer.toString(uri.port))
+				} else {
+					System.clearProperty(portKey)
 				}
 				return
 			} catch (Exception ignored) {
 				// Ignore malformed proxy env and continue with defaults.
 			}
+		}
+
+		if (!foundEnvProxy && !System.getProperty(hostKey)) {
+			System.clearProperty(portKey)
 		}
 	}
 

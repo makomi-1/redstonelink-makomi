@@ -1,5 +1,6 @@
 package com.makomi.client.screen;
 
+import com.makomi.config.RedstoneLinkConfig;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,8 +15,6 @@ import net.minecraft.network.chat.Component;
 public abstract class AbstractMultiPairingScreen extends Screen {
 	private static final Component CONFIRM = Component.translatable("screen.redstonelink.pairing.confirm");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.pairing.clear");
-
-	private static final int MAX_TARGET_COUNT = 128;
 
 	protected final long sourceSerial;
 	protected final List<Long> currentTargets;
@@ -98,14 +97,15 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
-		TargetParseResult parseResult = parseTargets(serialInput.getValue());
+		int maxTargetCount = Math.max(1, RedstoneLinkConfig.maxTargetsPerSetLinks());
+		TargetParseResult parseResult = parseTargets(serialInput.getValue(), maxTargetCount);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			String invalidEntries = String.join(", ", parseResult.invalidEntries());
 			statusMessage = Component.translatable("screen.redstonelink.pairing.invalid_tokens", invalidEntries);
 			return;
 		}
 		if (parseResult.exceedLimit()) {
-			statusMessage = Component.translatable("screen.redstonelink.pairing.too_many", MAX_TARGET_COUNT);
+			statusMessage = Component.translatable("screen.redstonelink.pairing.too_many", maxTargetCount);
 			return;
 		}
 
@@ -123,7 +123,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		onClose();
 	}
 
-	protected static TargetParseResult parseTargets(String rawText) {
+	protected static TargetParseResult parseTargets(String rawText, int maxTargetCount) {
 		String text = rawText == null ? "" : rawText.trim();
 		if (text.isEmpty()) {
 			return new TargetParseResult(Set.of(), List.of(), false);
@@ -154,7 +154,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 				continue;
 			}
 			result.add(serial);
-			if (result.size() > MAX_TARGET_COUNT) {
+			if (result.size() > maxTargetCount) {
 				return new TargetParseResult(Set.of(), invalidEntries, true);
 			}
 		}
