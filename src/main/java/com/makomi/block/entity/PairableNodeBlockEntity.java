@@ -1,5 +1,6 @@
 package com.makomi.block.entity;
 
+import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import net.minecraft.core.BlockPos;
@@ -58,11 +59,25 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	}
 
 	public void unregisterNode() {
+		unregisterNode(false);
+	}
+
+	/**
+	 * 从在线节点表移除当前节点，并可选登记“待确认退役”。
+	 * <p>
+	 * 当节点由方块移除触发下线时，建议传入 {@code true}：
+	 * 若后续未发现对应掉落物实体，将由自动清理流程补做退役。
+	 * </p>
+	 */
+	public void unregisterNode(boolean enqueuePendingRetire) {
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
 		if (serial <= 0L) {
 			return;
+		}
+		if (enqueuePendingRetire) {
+			LinkNodeRetireEvents.enqueuePendingRetire(serverLevel, getNodeType(), serial, worldPosition);
 		}
 		LinkSavedData.get(serverLevel).removeNode(getNodeType(), serial);
 	}

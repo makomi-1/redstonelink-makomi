@@ -108,7 +108,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
 			if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
-				coreBlockEntity.unregisterNode();
+				coreBlockEntity.unregisterNode(true);
 			}
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);
@@ -125,7 +125,8 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	) {
 		// 核心红石粉只输出不接收输入：邻居变化时仅同步自身激活态功率，不走原版输入重算。
 		if (!state.canSurvive(level, pos)) {
-			dropResources(state, level, pos);
+			BlockEntity blockEntity = level.getBlockEntity(pos);
+			dropResources(state, level, pos, blockEntity);
 			level.removeBlock(pos, false);
 			return;
 		}

@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 /**
  * RedstoneLink 服务端配置读取器。
  * <p>
- * 配置文件路径：config/redstonelink-server.properties
+ * 配置文件路径：{@code config/redstonelink-server.properties}。
  * </p>
  */
 public final class RedstoneLinkConfig {
@@ -26,7 +26,7 @@ public final class RedstoneLinkConfig {
 	private static volatile Values values = Values.defaults();
 
 	/**
-	 * 发射器沿触发模式。
+	 * 发射器边沿触发模式。
 	 */
 	public enum EmitterEdgeMode {
 		RISING,
@@ -34,7 +34,11 @@ public final class RedstoneLinkConfig {
 		BOTH;
 
 		/**
-		 * 判断从旧电平到新电平是否需要触发联动。
+		 * 判断从旧电平切换到新电平时是否应触发联动。
+		 *
+		 * @param wasPowered 旧电平是否为高
+		 * @param hasSignal 新电平是否为高
+		 * @return 是否触发
 		 */
 		public boolean shouldTrigger(boolean wasPowered, boolean hasSignal) {
 			return switch (this) {
@@ -44,6 +48,12 @@ public final class RedstoneLinkConfig {
 			};
 		}
 
+		/**
+		 * 由配置值解析边沿模式。
+		 *
+		 * @param raw 配置文本
+		 * @return 解析后的模式，无法识别时返回 {@link #RISING}
+		 */
 		public static EmitterEdgeMode fromConfigValue(String raw) {
 			if (raw == null) {
 				return RISING;
@@ -77,50 +87,64 @@ public final class RedstoneLinkConfig {
 		LOGGER.info("配置加载完成: {}", CONFIG_PATH.toAbsolutePath());
 	}
 
+	/**
+	 * @return 核心脉冲持续时长（tick）
+	 */
 	public static int pulseDurationTicks() {
 		return values.pulseDurationTicks();
 	}
 
+	/**
+	 * @return 发射器边沿触发模式
+	 */
 	public static EmitterEdgeMode emitterEdgeMode() {
 		return values.emitterEdgeMode();
 	}
 
+	/**
+	 * @return 核心输出红石强度（0~15）
+	 */
 	public static int coreOutputPower() {
 		return values.coreOutputPower();
 	}
 
+	/**
+	 * @return 单次 set_links 允许的最大目标数
+	 */
 	public static int maxTargetsPerSetLinks() {
 		return values.maxTargetsPerSetLinks();
 	}
 
+	/**
+	 * @return 是否允许绑定离线目标
+	 */
 	public static boolean allowOfflineTargetBinding() {
 		return values.allowOfflineTargetBinding();
 	}
 
+	/**
+	 * @return 打开配对界面是否要求潜行
+	 */
 	public static boolean requireSneakToOpenPairing() {
 		return values.requireSneakToOpenPairing();
 	}
 
 	/**
-	 * 遥控器（Linker）打开配对 UI 时是否必须潜行。
+	 * @return 通过遥控器（Linker）打开配对界面是否要求潜行
 	 */
 	public static boolean requireSneakToOpenLinkerPairing() {
 		return values.requireSneakToOpenLinkerPairing();
 	}
 
+	/**
+	 * @return 打开配对界面是否要求副手为空
+	 */
 	public static boolean requireEmptyOffhandToOpenPairing() {
 		return values.requireEmptyOffhandToOpenPairing();
 	}
 
 	/**
-	 * 是否启用完整自动清理。
-	 */
-	public static boolean fullAutoCleanupEnabled() {
-		return values.fullAutoCleanupEnabled();
-	}
-
-	/**
-	 * 统一“手持物品打开配对 UI”条件。
+	 * 统一“手持物品打开配对界面”条件校验。
 	 */
 	public static boolean canOpenPairingByHeldItem(Player player, InteractionHand hand) {
 		if (hand != InteractionHand.MAIN_HAND) {
@@ -136,9 +160,9 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * 统一“遥控器打开配对 UI”条件。
+	 * 统一“遥控器打开配对界面”条件校验。
 	 * <p>
-	 * 与通用手持入口分离，避免全局潜行配置影响遥控器“站立触发”语义。
+	 * 与通用手持入口分离，避免全局潜行配置影响遥控器“站立右键触发”语义。
 	 * </p>
 	 */
 	public static boolean canOpenPairingByLinker(Player player, InteractionHand hand) {
@@ -155,9 +179,9 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * 统一“已放置方块打开配对 UI”条件。
+	 * 统一“已放置方块打开配对界面”条件校验。
 	 * <p>
-	 * 为避免误触，主手为空仍保持强制要求；潜行/副手条件由配置控制。
+	 * 为避免误触，主手为空始终为硬约束；潜行与副手条件由配置控制。
 	 * </p>
 	 */
 	public static boolean canOpenPairingByPlacedBlock(Player player) {
@@ -173,6 +197,9 @@ public final class RedstoneLinkConfig {
 		return true;
 	}
 
+	/**
+	 * 解析配置对象为运行时配置值。
+	 */
 	private static Values parse(Properties props) {
 		return new Values(
 			parseInt(props, "server.pulseDurationTicks", 4, 1, 40),
@@ -182,11 +209,13 @@ public final class RedstoneLinkConfig {
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
-			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true),
-			parseBoolean(props, "retire.fullAutoCleanup", false)
+			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
 		);
 	}
 
+	/**
+	 * 解析整型配置并做区间收敛。
+	 */
 	private static int parseInt(Properties props, String key, int defaultValue, int min, int max) {
 		String raw = props.getProperty(key);
 		if (raw == null) {
@@ -195,7 +224,7 @@ public final class RedstoneLinkConfig {
 		try {
 			int value = Integer.parseInt(raw.trim());
 			if (value < min || value > max) {
-				LOGGER.warn("配置 {}={} 越界，已夹紧到 [{}..{}]", key, value, min, max);
+				LOGGER.warn("配置 {}={} 越界，已夹紧到[{}..{}]", key, value, min, max);
 			}
 			return Math.max(min, Math.min(max, value));
 		} catch (NumberFormatException ex) {
@@ -204,6 +233,9 @@ public final class RedstoneLinkConfig {
 		}
 	}
 
+	/**
+	 * 解析布尔配置。
+	 */
 	private static boolean parseBoolean(Properties props, String key, boolean defaultValue) {
 		String raw = props.getProperty(key);
 		if (raw == null) {
@@ -217,6 +249,9 @@ public final class RedstoneLinkConfig {
 		return defaultValue;
 	}
 
+	/**
+	 * 若配置文件不存在，则写入默认模板。
+	 */
 	private static void ensureConfigFileExists() {
 		if (Files.exists(CONFIG_PATH)) {
 			return;
@@ -229,6 +264,9 @@ public final class RedstoneLinkConfig {
 		}
 	}
 
+	/**
+	 * 生成默认配置文件内容（双语注释）。
+	 */
 	private static String defaultConfigContent() {
 		return """
 			# RedstoneLink server config / RedstoneLink 服务器配置
@@ -239,7 +277,7 @@ public final class RedstoneLinkConfig {
 			server.pulseDurationTicks=4
 			
 			# server.emitterEdgeMode
-			# zh: 发射器红石边沿触发模式，可选 rising / falling / both。
+			# zh: 发射器红石边沿触发模式，可选：rising / falling / both。
 			# en: Emitter edge trigger mode: rising / falling / both.
 			server.emitterEdgeMode=rising
 			
@@ -273,13 +311,12 @@ public final class RedstoneLinkConfig {
 			# en: Require empty offhand to open pairing UI.
 			interaction.requireEmptyOffhandToOpenPairing=true
 
-			# retire.fullAutoCleanup
-			# zh: 是否启用完整自动清理。false=沿用当前实现；true=在当前实现基础上补齐“创造模式破坏方块即退役”。
-			# en: Enable full auto cleanup. false=use current behavior; true=add creative-break retire on top of current behavior.
-			retire.fullAutoCleanup=false
 			""";
 	}
 
+	/**
+	 * 运行时配置快照。
+	 */
 	private record Values(
 		int pulseDurationTicks,
 		EmitterEdgeMode emitterEdgeMode,
@@ -288,11 +325,13 @@ public final class RedstoneLinkConfig {
 		boolean allowOfflineTargetBinding,
 		boolean requireSneakToOpenPairing,
 		boolean requireSneakToOpenLinkerPairing,
-		boolean requireEmptyOffhandToOpenPairing,
-		boolean fullAutoCleanupEnabled
+		boolean requireEmptyOffhandToOpenPairing
 	) {
+		/**
+		 * @return 配置默认值
+		 */
 		private static Values defaults() {
-			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, true, true, true, false);
+			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, true, true, true);
 		}
 	}
 }

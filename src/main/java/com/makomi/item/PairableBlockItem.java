@@ -1,6 +1,7 @@
 package com.makomi.item;
 
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.network.PairingNetwork;
@@ -13,6 +14,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -117,6 +119,13 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
 		}
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+	}
+
+	@Override
+	public void onDestroyed(ItemEntity itemEntity) {
+		// 记录“伤害导致的实体丢弃”，用于退役判定中区分拾取与销毁路径。
+		LinkNodeRetireEvents.markDamageDiscard(itemEntity);
+		super.onDestroyed(itemEntity);
 	}
 
 	private void ensureSerial(Level level, ItemStack stack) {
