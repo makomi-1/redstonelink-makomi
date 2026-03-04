@@ -43,16 +43,22 @@ public final class LinkItemData {
 			if (savedData.isSerialRetired(type, serial)) {
 				long reallocated = savedData.allocateSerial(type);
 				setSerial(stack, reallocated);
+				// 统一标记为“销毁可退役候选”，覆盖创造栏直接取出的物品场景。
+				setDestroyRetireCandidate(stack, true);
 				return reallocated;
 			}
 			if (!savedData.isSerialAllocated(type, serial)) {
 				savedData.markSerialAllocated(type, serial);
 			}
+			// 统一标记为“销毁可退役候选”，覆盖创造栏直接取出的物品场景。
+			setDestroyRetireCandidate(stack, true);
 			return serial;
 		}
 
 		long allocated = savedData.allocateSerial(type);
 		setSerial(stack, allocated);
+		// 新分配序号后同步写入销毁退役候选标记，保证后续丢弃/销毁路径可识别。
+		setDestroyRetireCandidate(stack, true);
 		return allocated;
 	}
 
