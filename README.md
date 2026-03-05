@@ -5,6 +5,7 @@
 - 当前处于人工代码审查测试中，已知问题见[docs/issues/isusses_dev.md](./docs/issues/isusses_dev.md)
 - 使用本项目可能产生兼容性或稳定性风险，风险由使用者自行评估与承担。
 - gradle构建使用了代理设置，这可能导致构建失败
+- mixin-dust通过mixin注入原版代码
 
 ## 项目概览
 ![物品一览图](docs/物品一览图.png)
