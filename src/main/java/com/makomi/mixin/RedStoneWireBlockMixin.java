@@ -102,7 +102,8 @@ public class RedStoneWireBlockMixin {
 	}
 
 	/**
-	 * 桥接 updateIndirectNeighbourShapes 的第 2 处 state.is(this) 判定。
+	 * updateIndirectNeighbourShapes 的第 2 处（向下检查）不做跨类型桥接。
+	 * 目的：在高低差被阻断场景，避免向下链路放大邻居级联更新。
 	 */
 	@Redirect(
 		method = "updateIndirectNeighbourShapes",
@@ -113,11 +114,12 @@ public class RedStoneWireBlockMixin {
 		)
 	)
 	private boolean redirectIndirectWireEquivalence1(BlockState state, Block block) {
-		return isEquivalentWireState(state, block);
+		return state.is(block);
 	}
 
 	/**
-	 * 桥接 updateIndirectNeighbourShapes 的第 3 处 state.is(this) 判定。
+	 * 桥接 updateIndirectNeighbourShapes 的第 3 处（向上检查）state.is(this) 判定。
+	 * 被阻断时仍允许向上链路保持网络联通。
 	 */
 	@Redirect(
 		method = "updateIndirectNeighbourShapes",
@@ -132,18 +134,17 @@ public class RedStoneWireBlockMixin {
 	}
 
 	/**
-	 * 同类 wire 等价规则：
-	 * - 原始 state.is(block) 为 true 时不改变；
-	 * - block 为 RedStoneWireBlock 且 state 为“原版 wire 或顶面核心粉”时，视为同类。
+	 * 同类 wire 等价规则（用于邻居形态传播）：
+	 * - 保留原始 state.is(block) 语义；
+	 * - 仅在“原版 wire 正在更新”时，把顶面核心粉视作同类。
+	 *
+	 * 该单向桥接用于降低混合网络中的双向级联更新放大。
 	 */
 	private static boolean isEquivalentWireState(BlockState state, Block block) {
 		if (state.is(block)) {
 			return true;
 		}
-		if (!(block instanceof RedStoneWireBlock)) {
-			return false;
-		}
-		return isWireLikeState(state);
+		return block == Blocks.REDSTONE_WIRE && LinkRedstoneDustCoreBlock.isTopAttachedCoreDust(state);
 	}
 
 	/**
