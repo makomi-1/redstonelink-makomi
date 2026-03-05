@@ -406,7 +406,8 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 		boolean targetPowered = state.getValue(POWER) > 0;
 		if (state.getValue(POWERED) != targetPowered) {
-			level.setBlock(pos, state.setValue(POWERED, targetPowered), Block.UPDATE_CLIENTS);
+			// 仅同步材质位，不触发形态重算或邻居传播。
+			level.setBlock(pos, state.setValue(POWERED, targetPowered), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
 		}
 	}
 
