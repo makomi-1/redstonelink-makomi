@@ -3,7 +3,8 @@
 	"package": "com.makomi.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-		"ExampleMixin"
+		"ExampleMixin",
+		"RedStoneWireBlockMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
