@@ -161,11 +161,7 @@ public class RedStoneWireBlockMixin {
 		int signal = 0;
 		for (Direction direction : Direction.values()) {
 			BlockPos neighborPos = pos.relative(direction);
-			BlockState neighborState = level.getBlockState(neighborPos);
-			if (isWireLikeState(neighborState)) {
-				continue;
-			}
-			int neighborSignal = level.getSignal(neighborPos, direction);
+			int neighborSignal = getSignalWithoutWire(level, neighborPos, direction);
 			if (neighborSignal >= 15) {
 				return 15;
 			}
@@ -174,5 +170,45 @@ public class RedStoneWireBlockMixin {
 			}
 		}
 		return signal;
+	}
+
+	/**
+	 * 模拟 SignalGetter#getSignal，但会过滤 wire-like 输出，避免通过导体间接读到 wire 反馈。
+	 */
+	private static int getSignalWithoutWire(Level level, BlockPos pos, Direction direction) {
+		BlockState state = level.getBlockState(pos);
+		int signal = isWireLikeState(state) ? 0 : state.getSignal(level, pos, direction);
+		if (state.isRedstoneConductor(level, pos)) {
+			signal = Math.max(signal, getDirectSignalToWithoutWire(level, pos));
+		}
+		return signal;
+	}
+
+	/**
+	 * 模拟 SignalGetter#getDirectSignalTo，但会过滤 wire-like 作为信号源。
+	 */
+	private static int getDirectSignalToWithoutWire(Level level, BlockPos pos) {
+		int signal = 0;
+		for (Direction direction : Direction.values()) {
+			int direct = getDirectSignalWithoutWire(level, pos.relative(direction), direction);
+			if (direct >= 15) {
+				return 15;
+			}
+			if (direct > signal) {
+				signal = direct;
+			}
+		}
+		return signal;
+	}
+
+	/**
+	 * 模拟 SignalGetter#getDirectSignal，但会过滤 wire-like 方块。
+	 */
+	private static int getDirectSignalWithoutWire(Level level, BlockPos pos, Direction direction) {
+		BlockState state = level.getBlockState(pos);
+		if (isWireLikeState(state)) {
+			return 0;
+		}
+		return state.getDirectSignal(level, pos, direction);
 	}
 }
