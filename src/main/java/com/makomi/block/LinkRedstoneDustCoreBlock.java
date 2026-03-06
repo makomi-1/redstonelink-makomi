@@ -41,6 +41,13 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.joml.Vector3f;
 
+/**
+ * 核心红石粉方块。
+ * <p>
+ * 基于原版 {@link RedStoneWireBlock} 扩展：
+ * 顶面附着时尽量复用原版线网行为，侧面/底面附着时退化为仅输出不连线的定向节点。
+ * </p>
+ */
 public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements EntityBlock {
 	public static final DirectionProperty SUPPORT_FACE = DirectionProperty.create("support_face", Direction.values());
 	public static final BooleanProperty POWERED = BooleanProperty.create("powered");
@@ -76,6 +83,9 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		coreBlockEntity.setLinkData(serial);
 	}
 
+	/**
+	 * 掉落时回写序列号与链接快照，确保“挖起再放置”可保持身份连续性。
+	 */
 	@Override
 	protected List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
 		List<ItemStack> drops = new ArrayList<>(super.getDrops(state, builder));
@@ -108,6 +118,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
 			if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+				// 走“待确认退役”路径，避免正常掉落被误判为销毁。
 				coreBlockEntity.unregisterNode(true);
 			}
 		}
@@ -139,11 +150,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		}
 
 		// 侧面/底面：保持既有语义，不参与红石线连接计算。
-		BlockState normalizedState = normalizeForSupportFace(state);
-		if (!normalizedState.equals(level.getBlockState(pos))) {
-			level.setBlock(pos, normalizedState, Block.UPDATE_ALL);
-		}
-		syncPowerWithActiveState(level.getBlockState(pos), level, pos);
+		syncPowerWithActiveState(state, level, pos);
 	}
 
 	@Override
@@ -225,10 +232,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		}
 
 		BlockState normalizedState = normalizeForSupportFace(currentState);
-		if (!normalizedState.equals(level.getBlockState(pos))) {
-			level.setBlock(pos, normalizedState, Block.UPDATE_ALL);
-		}
-		syncPowerWithActiveState(level.getBlockState(pos), level, pos);
+		syncPowerWithActiveState(normalizedState, level, pos);
 	}
 
 	/**
@@ -306,6 +310,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	@Override
 	protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
 		if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+			// 脉冲模式到点回落由方块 tick 驱动。
 			coreBlockEntity.onPulseTick();
 		}
 	}
@@ -332,6 +337,12 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		level.addParticle(new DustParticleOptions(new Vector3f(red, green, blue), scale), x, y, z, 0.0D, 0.0D, 0.0D);
 	}
 
+	/**
+	 * 打开核心配对界面。
+	 * <p>
+	 * 若节点尚无序列号，会先分配序列号再下发打开界面网络包。
+	 * </p>
+	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
@@ -414,8 +425,30 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
 		int targetPower = isCoreActive(level, pos) ? RedstoneLinkConfig.coreOutputPower() : 0;
 		boolean targetPowered = targetPower > 0;
-		if (state.getValue(POWER) != targetPower || state.getValue(POWERED) != targetPowered) {
-			level.setBlock(pos, state.setValue(POWER, targetPower).setValue(POWERED, targetPowered), Block.UPDATE_ALL);
+		BlockState normalizedState = normalizeForSupportFace(state);
+		BlockState targetState = normalizedState.setValue(POWER, targetPower).setValue(POWERED, targetPowered);
+		BlockState currentState = level.getBlockState(pos);
+		if (!targetState.equals(currentState)) {
+			if (isNonTopAttached(targetState)) {
+				// 侧/底附着只做局部状态更新并手动通知附着目标邻居。
+				level.setBlock(pos, targetState, Block.UPDATE_ALL);
+				notifyAttachedNeighbor(level, pos, targetState);
+				return;
+			}
+			level.setBlock(pos, targetState, Block.UPDATE_ALL);
+		}
+	}
+
+	private static void notifyAttachedNeighbor(Level level, BlockPos pos, BlockState state) {
+		if (!isNonTopAttached(state)) {
+			return;
+		}
+		Direction supportDirection = state.getValue(SUPPORT_FACE);
+		BlockPos attachedPos = pos.relative(supportDirection);
+		Block block = state.getBlock();
+		level.updateNeighborsAt(attachedPos, block);
+		for (Direction direction : Direction.values()) {
+			level.updateNeighborsAt(attachedPos.relative(direction), block);
 		}
 	}
 }

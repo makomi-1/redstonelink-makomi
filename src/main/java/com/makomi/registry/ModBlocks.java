@@ -5,6 +5,7 @@ import com.makomi.block.LinkCoreBlock;
 import com.makomi.block.LinkPulseEmitterBlock;
 import com.makomi.block.LinkPulseButtonBlock;
 import com.makomi.block.LinkRedstoneDustCoreBlock;
+import com.makomi.block.LinkSyncEmitterBlock;
 import com.makomi.block.LinkTransparentCoreBlock;
 import com.makomi.block.LinkTransparentRedstoneDustCoreBlock;
 import com.makomi.block.LinkToggleEmitterBlock;
@@ -17,6 +18,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
+/**
+ * 模组方块注册表。
+ */
 public final class ModBlocks {
 	public static final LinkCoreBlock LINK_REDSTONE_CORE = register(
 		"link_redstone_core",
@@ -61,6 +65,11 @@ public final class ModBlocks {
 		new LinkPulseEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER))
 	);
 
+	public static final LinkSyncEmitterBlock LINK_SYNC_EMITTER = register(
+		"link_sync_emitter",
+		new LinkSyncEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER))
+	);
+
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(
 		"link_redstone_dust_core",
 		new LinkRedstoneDustCoreBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE))
@@ -83,6 +92,6 @@ public final class ModBlocks {
 	}
 
 	public static void register() {
-		// 触发类加载即可完成注册。
+		// 触发类加载即可完成静态字段注册。
 	}
 }
