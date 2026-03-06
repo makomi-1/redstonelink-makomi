@@ -10,6 +10,9 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 
+/**
+ * 模组物品注册表。
+ */
 public final class ModItems {
 	public static final Item REDSTONE_LINK_COMPONENT = register(
 		"redstone_link_component",
@@ -61,6 +64,11 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.LINK_PULSE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
 	);
 
+	public static final Item LINK_SYNC_EMITTER = register(
+		"link_sync_emitter",
+		new PairableBlockItem(ModBlocks.LINK_SYNC_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+	);
+
 	public static final Item REDSTONELINK_TOGGLE_LINKER = register(
 		"redstonelink_toggle_linker",
 		new LinkerItem(new Item.Properties().stacksTo(1), ApiActivationMode.TOGGLE)
@@ -83,6 +91,6 @@ public final class ModItems {
 	}
 
 	public static void register() {
-		// 触发类加载即可完成注册。
+		// 触发类加载即可完成静态字段注册。
 	}
 }

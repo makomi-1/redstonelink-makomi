@@ -473,7 +473,7 @@ public final class ModCommands {
 		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
 		savedData.findNode(sourceType, sourceSerial).ifPresent(node -> {
 			ServerLevel nodeLevel = sourceLevel.getServer().getLevel(node.dimension());
-			if (nodeLevel == null || !nodeLevel.hasChunkAt(node.pos())) {
+			if (nodeLevel == null || !nodeLevel.isLoaded(node.pos())) {
 				return;
 			}
 

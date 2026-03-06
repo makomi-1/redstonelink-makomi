@@ -181,7 +181,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	/**
 	 * 统一红石输入处理：按配置边沿触发绑定目标，避免持续高电平重复触发。
 	 */
-	private static void updatePoweredState(Level level, BlockPos pos, BlockState state) {
+	protected final void updatePoweredState(Level level, BlockPos pos, BlockState state) {
 		if (level.isClientSide) {
 			return;
 		}
@@ -191,9 +191,25 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 			return;
 		}
 
-		boolean shouldTrigger = RedstoneLinkConfig.emitterEdgeMode().shouldTrigger(wasPowered, hasSignal);
-		level.setBlock(pos, state.setValue(POWERED, hasSignal), Block.UPDATE_ALL);
-		if (shouldTrigger && level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+		BlockState updatedState = state.setValue(POWERED, hasSignal);
+		level.setBlock(pos, updatedState, Block.UPDATE_ALL);
+		if (shouldTriggerOnPoweredChange(wasPowered, hasSignal)) {
+			onSignalTriggered(level, pos, updatedState, wasPowered, hasSignal);
+		}
+	}
+
+	/**
+	 * 钩子：判定 POWERED 变化时是否触发联动。
+	 */
+	protected boolean shouldTriggerOnPoweredChange(boolean wasPowered, boolean hasSignal) {
+		return RedstoneLinkConfig.emitterEdgeMode().shouldTrigger(wasPowered, hasSignal);
+	}
+
+	/**
+	 * 钩子：触发成立后执行具体动作。
+	 */
+	protected void onSignalTriggered(Level level, BlockPos pos, BlockState updatedState, boolean wasPowered, boolean hasSignal) {
+		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
 			buttonBlockEntity.triggerLinkedTargets(null);
 		}
 	}

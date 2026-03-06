@@ -318,7 +318,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 			}
 
 			ServerLevel targetLevel = request.level().getServer().getLevel(node.dimension());
-			if (targetLevel == null || !targetLevel.hasChunkAt(node.pos())) {
+			if (targetLevel == null || !targetLevel.isLoaded(node.pos())) {
 				skippedOfflineCount++;
 				continue;
 			}
@@ -573,7 +573,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 			return false;
 		}
 		ServerLevel targetLevel = sourceLevel.getServer().getLevel(node.dimension());
-		return targetLevel != null && targetLevel.hasChunkAt(node.pos());
+		return targetLevel != null && targetLevel.isLoaded(node.pos());
 	}
 
 	private static void updateNodeLastTargetSerial(
@@ -585,7 +585,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
 		savedData.findNode(sourceType, sourceSerial).ifPresent(node -> {
 			ServerLevel nodeLevel = sourceLevel.getServer().getLevel(node.dimension());
-			if (nodeLevel == null || !nodeLevel.hasChunkAt(node.pos())) {
+			if (nodeLevel == null || !nodeLevel.isLoaded(node.pos())) {
 				return;
 			}
 			BlockEntity blockEntity = nodeLevel.getBlockEntity(node.pos());

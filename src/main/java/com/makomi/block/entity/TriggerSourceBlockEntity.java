@@ -12,6 +12,12 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
+/**
+ * 触发源节点基类。
+ * <p>
+ * 负责将按钮、拉杆等触发源的序列号映射到目标节点集合，并逐个下发触发。
+ * </p>
+ */
 public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 	protected TriggerSourceBlockEntity(
 		BlockEntityType<? extends PairableNodeBlockEntity> blockEntityType,
@@ -23,12 +29,32 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 
 	protected abstract LinkNodeType getTargetNodeType();
 
-	// 触发源默认采用切换语义；脉冲按钮会覆写为 PULSE（先激活后熄灭）。
+	// 触发源默认采用切换语义；脉冲按钮会覆盖为 PULSE（先激活后熄灭）。
 	protected ActivationMode getTriggerActivationMode() {
 		return ActivationMode.TOGGLE;
 	}
 
+	/**
+	 * 触发当前源节点已连接的所有目标。
+	 * <p>
+	 * 若目标节点失效（找不到方块实体类型），会从在线表中移除该节点快照。
+	 * </p>
+	 */
 	public void triggerLinkedTargets(Player player) {
+		dispatchToLinkedTargets(player, DispatchMode.ACTIVATION, false);
+	}
+
+	/**
+	 * 同步转发输入信号到已绑定目标。
+	 * <p>
+	 * 该路径只同步目标开关态，不执行 TOGGLE/PULSE 语义转换。
+	 * </p>
+	 */
+	public void forwardLinkedSignal(Player player, boolean signalOn) {
+		dispatchToLinkedTargets(player, DispatchMode.SYNC_SIGNAL, signalOn);
+	}
+
+	private void dispatchToLinkedTargets(Player player, DispatchMode dispatchMode, boolean signalOn) {
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
@@ -47,7 +73,6 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 		}
 
 		int triggeredCount = 0;
-
 		for (long targetSerial : linkedTargets) {
 			LinkSavedData.LinkNode node = savedData.findNode(getTargetNodeType(), targetSerial).orElse(null);
 			if (node == null) {
@@ -55,17 +80,23 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 			}
 
 			ServerLevel targetLevel = serverLevel.getServer().getLevel(node.dimension());
-			if (targetLevel == null || !targetLevel.hasChunkAt(node.pos())) {
+			if (targetLevel == null || !targetLevel.isLoaded(node.pos())) {
 				continue;
 			}
 
 			BlockEntity blockEntity = targetLevel.getBlockEntity(node.pos());
 			if (blockEntity instanceof ActivatableTargetBlockEntity targetBlockEntity) {
-				targetBlockEntity.triggerBySource(sourceSerial, getTriggerActivationMode());
+				if (dispatchMode == DispatchMode.ACTIVATION) {
+					targetBlockEntity.triggerBySource(sourceSerial, getTriggerActivationMode());
+				} else {
+					targetBlockEntity.syncBySource(sourceSerial, signalOn);
+				}
 				triggeredCount++;
-			} else {
-				savedData.removeNode(getTargetNodeType(), targetSerial);
+				continue;
 			}
+
+			// 节点快照与实际方块实体不一致时，清理脏在线节点记录。
+			savedData.removeNode(getTargetNodeType(), targetSerial);
 		}
 
 		if (triggeredCount == 0) {
@@ -77,5 +108,10 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 		if (player instanceof ServerPlayer serverPlayer) {
 			serverPlayer.sendSystemMessage(message);
 		}
+	}
+
+	private enum DispatchMode {
+		ACTIVATION,
+		SYNC_SIGNAL
 	}
 }

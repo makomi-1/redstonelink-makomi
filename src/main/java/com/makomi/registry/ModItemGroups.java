@@ -9,6 +9,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
 
+/**
+ * 模组创造模式物品栏分组注册。
+ */
 public final class ModItemGroups {
 	public static final CreativeModeTab REDSTONELINK = Registry.register(
 		BuiltInRegistries.CREATIVE_MODE_TAB,
@@ -27,6 +30,7 @@ public final class ModItemGroups {
 				output.accept(ModItems.LINK_PUSH_BUTTON, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_TOGGLE_EMITTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_PULSE_EMITTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.LINK_SYNC_EMITTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_TOGGLE_LINKER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_PULSE_LINKER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONE_LINK_COMPONENT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
@@ -42,6 +46,6 @@ public final class ModItemGroups {
 	}
 
 	public static void register() {
-		// Trigger class load to complete registration.
+		// 触发类加载即可完成静态字段注册。
 	}
 }

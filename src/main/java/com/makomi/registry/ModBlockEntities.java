@@ -6,6 +6,7 @@ import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
 import com.makomi.block.entity.LinkPulseEmitterBlockEntity;
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
+import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
 import com.makomi.block.entity.LinkTransparentCoreBlockEntity;
 import com.makomi.block.entity.LinkTransparentRedstoneDustCoreBlockEntity;
 import com.makomi.block.entity.LinkToggleButtonBlockEntity;
@@ -16,6 +17,9 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
+/**
+ * 模组方块实体类型注册表。
+ */
 public final class ModBlockEntities {
 	public static final BlockEntityType<LinkCoreBlockEntity> LINK_REDSTONE_CORE = register(
 		"link_redstone_core",
@@ -52,6 +56,11 @@ public final class ModBlockEntities {
 		BlockEntityType.Builder.of(LinkPulseEmitterBlockEntity::new, ModBlocks.LINK_PULSE_EMITTER).build(null)
 	);
 
+	public static final BlockEntityType<LinkSyncEmitterBlockEntity> LINK_SYNC_EMITTER = register(
+		"link_sync_emitter",
+		BlockEntityType.Builder.of(LinkSyncEmitterBlockEntity::new, ModBlocks.LINK_SYNC_EMITTER).build(null)
+	);
+
 	public static final BlockEntityType<LinkRedstoneDustCoreBlockEntity> LINK_REDSTONE_DUST_CORE = register(
 		"link_redstone_dust_core",
 		BlockEntityType.Builder.of(LinkRedstoneDustCoreBlockEntity::new, ModBlocks.LINK_REDSTONE_DUST_CORE).build(null)
@@ -77,6 +86,6 @@ public final class ModBlockEntities {
 	}
 
 	public static void register() {
-		// 触发类加载即可完成注册。
+		// 触发类加载即可完成静态字段注册。
 	}
 }
