@@ -5,6 +5,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
+/**
+ * 按钮源节点方块实体基类。
+ * <p>
+ * 固定声明自身为 BUTTON 节点，目标节点类型为 CORE。
+ * </p>
+ */
 public abstract class LinkButtonBlockEntity extends TriggerSourceBlockEntity {
 	protected LinkButtonBlockEntity(
 		BlockEntityType<? extends LinkButtonBlockEntity> blockEntityType,

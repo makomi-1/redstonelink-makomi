@@ -24,10 +24,19 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
+/**
+ * RedstoneLink 服务端命令入口。
+ * <p>
+ * 提供手持/节点配对、批量覆盖链接、审计信息与节点退役等运维能力。
+ * </p>
+ */
 public final class ModCommands {
 	private ModCommands() {
 	}
 
+	/**
+	 * 注册 /redstonelink 命令树。
+	 */
 	public static void register() {
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
 			Commands
@@ -119,6 +128,9 @@ public final class ModCommands {
 		));
 	}
 
+	/**
+	 * 使用手持可配对物执行单目标切换配对。
+	 */
 	private static int executePairByHand(CommandContext<CommandSourceStack> context, InteractionHand hand) {
 		CommandSourceStack source = context.getSource();
 		ServerPlayer player = source.getPlayer();
@@ -149,6 +161,9 @@ public final class ModCommands {
 		return result;
 	}
 
+	/**
+	 * 以节点序列号为源执行单目标切换配对。
+	 */
 	private static int executePairByNode(CommandContext<CommandSourceStack> context, LinkNodeType sourceType) {
 		CommandSourceStack source = context.getSource();
 		ServerPlayer player = source.getPlayer();
@@ -170,6 +185,9 @@ public final class ModCommands {
 		return result;
 	}
 
+	/**
+	 * 单目标链接更新核心流程（添加/移除/清空）。
+	 */
 	private static int executeLinkUpdate(
 		CommandSourceStack source,
 		ServerPlayer player,
@@ -229,6 +247,9 @@ public final class ModCommands {
 		return Command.SINGLE_SUCCESS;
 	}
 
+	/**
+	 * 输出当前链路审计信息到命令反馈。
+	 */
 	private static int executeAudit(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
 		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
@@ -282,6 +303,9 @@ public final class ModCommands {
 		return Command.SINGLE_SUCCESS;
 	}
 
+	/**
+	 * retire 命令第一阶段：仅提示确认，不执行退役。
+	 */
 	private static int executeRetireRequireConfirm(
 		CommandContext<CommandSourceStack> context,
 		LinkNodeType type
@@ -298,6 +322,9 @@ public final class ModCommands {
 		return 0;
 	}
 
+	/**
+	 * retire confirm 实际执行入口。
+	 */
 	private static int executeRetire(CommandContext<CommandSourceStack> context, LinkNodeType type) {
 		CommandSourceStack source = context.getSource();
 		long serial = LongArgumentType.getLong(context, "serial");
@@ -325,6 +352,9 @@ public final class ModCommands {
 		return type == LinkNodeType.BUTTON ? "button" : "core";
 	}
 
+	/**
+	 * 批量覆盖设置链接集合。
+	 */
 	private static int executeSetLinks(
 		CommandContext<CommandSourceStack> context,
 		LinkNodeType sourceType,
@@ -366,6 +396,7 @@ public final class ModCommands {
 			return 0;
 		}
 
+		// 分阶段校验目标：未分配、已退役、离线，分别给出可定位的失败提示。
 		LinkNodeType targetType = sourceType == LinkNodeType.BUTTON ? LinkNodeType.CORE : LinkNodeType.BUTTON;
 		List<Long> unallocatedTargets = new ArrayList<>();
 		List<Long> retiredTargets = new ArrayList<>();
@@ -412,6 +443,7 @@ public final class ModCommands {
 			return 0;
 		}
 
+		// set_links 语义为“覆盖集合”，因此先清空旧关系再写入新关系。
 		savedData.clearLinksForNode(sourceType, sourceSerial);
 		int added = 0;
 		long lastTarget = 0L;
@@ -439,6 +471,9 @@ public final class ModCommands {
 		return Command.SINGLE_SUCCESS;
 	}
 
+	/**
+	 * 同步玩家背包中同序列号物品的链接快照。
+	 */
 	private static void syncPlayerItemLinkSnapshot(
 		ServerPlayer player,
 		LinkSavedData savedData,
@@ -464,6 +499,9 @@ public final class ModCommands {
 		}
 	}
 
+	/**
+	 * 回写在线节点方块实体的最近目标序列号。
+	 */
 	private static void updateNodeLastTargetSerial(
 		ServerLevel sourceLevel,
 		LinkNodeType sourceType,
@@ -484,11 +522,15 @@ public final class ModCommands {
 		});
 	}
 
+	/**
+	 * 解析序列号列表文本（逗号/分号/空白分隔）。
+	 */
 	private static TargetParseResult parseTargetSerials(String rawText) {
 		if (rawText == null || rawText.isBlank()) {
 			return new TargetParseResult(Set.of(), List.of());
 		}
 
+		// 支持逗号、分号和空白混输，便于命令行快速粘贴序列号列表。
 		String[] tokens = rawText.trim().split("[,;\\s]+");
 		LinkedHashSet<Long> result = new LinkedHashSet<>();
 		List<String> invalidEntries = new ArrayList<>();
@@ -517,6 +559,9 @@ public final class ModCommands {
 		return new TargetParseResult(Set.copyOf(result), List.copyOf(invalidEntries));
 	}
 
+	/**
+	 * 校验源序列号处于已分配且未退役状态。
+	 */
 	private static boolean validateSourceSerialActive(
 		CommandSourceStack source,
 		LinkSavedData savedData,
@@ -534,6 +579,9 @@ public final class ModCommands {
 		return true;
 	}
 
+	/**
+	 * 校验目标序列号处于已分配且未退役状态。
+	 */
 	private static boolean validateTargetSerialActive(
 		CommandSourceStack source,
 		LinkSavedData savedData,
@@ -551,6 +599,9 @@ public final class ModCommands {
 		return true;
 	}
 
+	/**
+	 * 以稳定升序格式化序列号列表。
+	 */
 	private static String formatSerialList(List<Long> serials) {
 		if (serials.isEmpty()) {
 			return "-";
@@ -562,6 +613,9 @@ public final class ModCommands {
 			.orElse("-");
 	}
 
+	/**
+	 * 以稳定升序格式化序列号集合。
+	 */
 	private static String formatSerialSet(Set<Long> serials) {
 		if (serials.isEmpty()) {
 			return "-";

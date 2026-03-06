@@ -473,11 +473,17 @@ public final class LinkSavedData extends SavedData {
 		}
 	}
 
+	/**
+	 * 建立按钮与核心的双向索引关系。
+	 */
 	private void link(long buttonSerial, long coreSerial) {
 		buttonToCores.computeIfAbsent(buttonSerial, unused -> new HashSet<>()).add(coreSerial);
 		coreToButtons.computeIfAbsent(coreSerial, unused -> new HashSet<>()).add(buttonSerial);
 	}
 
+	/**
+	 * 修正下一可分配序列号，确保始终大于当前已知最大序列号。
+	 */
 	private void correctNextSerials() {
 		long maxButtonSerial = 0L;
 		long maxCoreSerial = 0L;
@@ -503,6 +509,9 @@ public final class LinkSavedData extends SavedData {
 		nextCoreSerial = Math.max(nextCoreSerial, maxCoreSerial + 1L);
 	}
 
+	/**
+	 * 从计数器分配序列号，并跳过在线/已分配/已退役序列号。
+	 */
 	private long allocateFromCounter(LinkNodeType type) {
 		Map<Long, LinkNode> onlineNodes = nodeMap(type);
 		Set<Long> allocatedSerials = allocatedSerialSet(type);
@@ -532,14 +541,23 @@ public final class LinkSavedData extends SavedData {
 		return serial;
 	}
 
+	/**
+	 * 按类型获取在线节点表。
+	 */
 	private Map<Long, LinkNode> nodeMap(LinkNodeType type) {
 		return type == LinkNodeType.BUTTON ? buttonNodes : coreNodes;
 	}
 
+	/**
+	 * 按类型获取已分配序列号集合。
+	 */
 	private Set<Long> allocatedSerialSet(LinkNodeType type) {
 		return type == LinkNodeType.BUTTON ? allocatedButtonSerials : allocatedCoreSerials;
 	}
 
+	/**
+	 * 按类型获取退役序列号集合。
+	 */
 	private Set<Long> retiredSerialSet(LinkNodeType type) {
 		return type == LinkNodeType.BUTTON ? retiredButtonSerials : retiredCoreSerials;
 	}
@@ -552,6 +570,9 @@ public final class LinkSavedData extends SavedData {
 		return retiredSerialSet(type).add(serial);
 	}
 
+	/**
+	 * 将已知节点与链接中出现过的序列号补登记到“已分配集合”。
+	 */
 	private void ensureKnownSerialsAllocated() {
 		for (long serial : coreNodes.keySet()) {
 			allocatedCoreSerials.add(serial);
@@ -567,6 +588,9 @@ public final class LinkSavedData extends SavedData {
 		}
 	}
 
+	/**
+	 * 从 NBT long array 读取序列号集合。
+	 */
 	private static void readSerialSet(CompoundTag tag, String key, Set<Long> output) {
 		if (!tag.contains(key, Tag.TAG_LONG_ARRAY)) {
 			return;
@@ -578,6 +602,9 @@ public final class LinkSavedData extends SavedData {
 		}
 	}
 
+	/**
+	 * 兼容旧版：根据 nextSerial 推导历史已分配范围。
+	 */
 	private static void populateLegacyAllocated(Set<Long> output, long nextSerial) {
 		long upperExclusive = Math.max(1L, nextSerial);
 		for (long serial = 1L; serial < upperExclusive; serial++) {
@@ -585,6 +612,9 @@ public final class LinkSavedData extends SavedData {
 		}
 	}
 
+	/**
+	 * 将序列号集合转为升序 long[]，用于稳定持久化。
+	 */
 	private static long[] sortedSerialArray(Set<Long> serials) {
 		return serials.stream()
 			.filter(value -> value != null && value > 0L)
@@ -593,6 +623,9 @@ public final class LinkSavedData extends SavedData {
 			.toArray();
 	}
 
+	/**
+	 * 求集合中的最大值；空集合返回 0。
+	 */
 	private static long maxValue(Set<Long> values) {
 		long max = 0L;
 		for (long value : values) {

@@ -24,6 +24,12 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
+/**
+ * 可配对方块物品基类。
+ * <p>
+ * 统一处理序列号分配、手持配对界面打开与物品销毁退役标记协作。
+ * </p>
+ */
 public class PairableBlockItem extends BlockItem implements PairableItem {
 	private final LinkNodeType nodeType;
 
@@ -86,6 +92,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 
 	@Override
 	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+		// 兜底确保任何获取路径下都能补齐节点序列号。
 		ensureSerial(level, stack);
 		super.inventoryTick(stack, level, entity, slotId, isSelected);
 	}
@@ -128,6 +135,9 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		super.onDestroyed(itemEntity);
 	}
 
+	/**
+	 * 仅在服务端写入序列号，避免客户端状态分叉。
+	 */
 	private void ensureSerial(Level level, ItemStack stack) {
 		if (level instanceof ServerLevel serverLevel) {
 			LinkItemData.ensureSerial(stack, serverLevel, nodeType);

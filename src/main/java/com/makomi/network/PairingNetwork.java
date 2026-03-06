@@ -13,6 +13,12 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
+/**
+ * 配对界面网络通道。
+ * <p>
+ * 负责注册 S2C Payload，并在服务端打开配对界面时下发“源序列号 + 当前目标集合”。
+ * </p>
+ */
 public final class PairingNetwork {
 	private PairingNetwork() {
 	}
@@ -22,18 +28,27 @@ public final class PairingNetwork {
 		PayloadTypeRegistry.playS2C().register(OpenCorePairingPayload.TYPE, OpenCorePairingPayload.CODEC);
 	}
 
+	/**
+	 * 打开按钮侧配对界面。
+	 */
 	public static void openButtonPairing(ServerPlayer player, long buttonSerial) {
 		List<Long> currentTargets = new ArrayList<>(LinkSavedData.get(player.serverLevel()).getLinkedCores(buttonSerial));
 		currentTargets.sort(Comparator.naturalOrder());
 		ServerPlayNetworking.send(player, new OpenButtonPairingPayload(buttonSerial, currentTargets));
 	}
 
+	/**
+	 * 打开核心侧配对界面。
+	 */
 	public static void openCorePairing(ServerPlayer player, long coreSerial) {
 		List<Long> currentTargets = new ArrayList<>(LinkSavedData.get(player.serverLevel()).getLinkedButtons(coreSerial));
 		currentTargets.sort(Comparator.naturalOrder());
 		ServerPlayNetworking.send(player, new OpenCorePairingPayload(coreSerial, currentTargets));
 	}
 
+	/**
+	 * 按钮配对界面打开包：sourceSerial 为按钮序列号，targets 为当前关联核心序列号列表。
+	 */
 	public record OpenButtonPairingPayload(long sourceSerial, List<Long> targets) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenButtonPairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_button_pairing")
@@ -67,6 +82,9 @@ public final class PairingNetwork {
 		}
 	}
 
+	/**
+	 * 核心配对界面打开包：sourceSerial 为核心序列号，targets 为当前关联按钮序列号列表。
+	 */
 	public record OpenCorePairingPayload(long sourceSerial, List<Long> targets) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_core_pairing")

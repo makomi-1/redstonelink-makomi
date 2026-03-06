@@ -9,6 +9,12 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
+/**
+ * 核心接收节点方块实体。
+ * <p>
+ * 接收来自按钮/遥控器的触发并维护 ACTIVE 方块状态，同时主动刷新周围红石邻接。
+ * </p>
+ */
 public class LinkCoreBlockEntity extends ActivatableTargetBlockEntity {
 	public LinkCoreBlockEntity(BlockPos blockPos, BlockState blockState) {
 		this(com.makomi.registry.ModBlockEntities.LINK_REDSTONE_CORE, blockPos, blockState);

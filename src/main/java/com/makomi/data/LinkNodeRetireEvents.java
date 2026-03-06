@@ -280,9 +280,6 @@ public final class LinkNodeRetireEvents {
 	 */
 	private static boolean hasMatchingStackInOnlinePlayers(MinecraftServer server, PendingKey key) {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			// 冗余设计-对应问题：创造模式物品栏存在其已放置的连接序号的物品，
-			// 其放置物被销毁后由于物品栏存在所以并不会被退休
-			
 			// 创造模式物品可由系统无限供给，不应作为“保留该序号”的判定依据。
 			if (player.getAbilities().instabuild) {
 				continue;
