@@ -32,6 +32,13 @@ import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 
+/**
+ * 核心节点方块。
+ * <p>
+ * 作为被触发目标输出红石功率：激活态输出配置功率，非激活态输出 0。
+ * 同时承载序列号持久化、配对界面打开与脉冲回落调度。
+ * </p>
+ */
 public class LinkCoreBlock extends BaseEntityBlock {
 	public static final MapCodec<LinkCoreBlock> CODEC = simpleCodec(LinkCoreBlock::new);
 	public static final BooleanProperty ACTIVE = BooleanProperty.create("active");
@@ -150,10 +157,14 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	@Override
 	protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
 		if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
+			// 脉冲模式到点回落。
 			coreBlockEntity.onPulseTick();
 		}
 	}
 
+	/**
+	 * 打开核心配对界面；若尚未分配序列号则先分配。
+	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;

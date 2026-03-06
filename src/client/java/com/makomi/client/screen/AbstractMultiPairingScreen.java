@@ -12,6 +12,13 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+/**
+ * 多目标配对界面抽象基类。
+ * <p>
+ * 统一输入框解析、目标数量校验与确认/清空按钮流程，
+ * 由子类决定命令前缀与文案（按钮侧或核心侧）。
+ * </p>
+ */
 public abstract class AbstractMultiPairingScreen extends Screen {
 	private static final Component CONFIRM = Component.translatable("screen.redstonelink.pairing.confirm");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.pairing.clear");
@@ -129,6 +136,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return new TargetParseResult(Set.of(), List.of(), false);
 		}
 
+		// 与命令侧保持一致，支持逗号/分号/空白混合作为分隔符。
 		String[] tokens = text.split("[,;\\s]+");
 		LinkedHashSet<Long> result = new LinkedHashSet<>();
 		List<String> invalidEntries = new ArrayList<>();

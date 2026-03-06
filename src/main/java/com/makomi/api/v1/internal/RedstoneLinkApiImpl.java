@@ -38,6 +38,10 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * RedstoneLink v1 API 内部实现。
+ * <p>
+ * 单实例同时承载 graph/trigger/query/adapter 四类能力，
+ * 对外统一暴露稳定语义，对内桥接 LinkSavedData 与方块实体执行。
+ * </p>
  */
 public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, QueryApi, AdapterRegistryApi {
 	private static final String REASON_SOURCE_SERIAL_UNALLOCATED = "message.redstonelink.source_serial_unallocated";
@@ -108,6 +112,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 			return LinkMutationResult.cancelled(decisionReasonKey(decision, REASON_LINK_CHANGE_CANCELLED));
 		}
 
+		// setLinks 采用覆盖语义：先过滤可用目标，再按差集执行增删。
 		LinkNodeType targetNodeType = sourceType.targetTypeForLink().toInternal();
 		boolean allowOfflineBinding = RedstoneLinkConfig.allowOfflineTargetBinding();
 		Set<Long> validTargets = new LinkedHashSet<>();
@@ -206,6 +211,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 			return LinkMutationResult.cancelled(decisionReasonKey(decision, REASON_LINK_CHANGE_CANCELLED));
 		}
 
+		// toggleLink 对竞态做容错：状态与期望不一致时补一次反向 toggle。
 		boolean linkedNow = toggleInternal(savedData, sourceNodeType, sourceSerial, targetSerial);
 		int addedCount = 0;
 		int removedCount = 0;
@@ -341,6 +347,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 				request.sourceType(),
 				request.activationMode()
 			)) {
+				// 非原生目标节点可由外部适配器承接触发。
 				triggeredCount++;
 				continue;
 			}
@@ -378,6 +385,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 			if (!adapter.supports(level, sourcePos, state, blockEntity)) {
 				continue;
 			}
+			// 适配器只负责解析 sourceSerial，统一触发流程仍走 emit。
 			long sourceSerial = adapter.resolveSourceSerial(level, sourcePos, state, blockEntity);
 			if (sourceSerial <= 0L) {
 				continue;
@@ -479,6 +487,11 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		}
 	}
 
+	/**
+	 * 通过外部目标适配器触发目标。
+	 *
+	 * @return 任一适配器成功触发即返回 true
+	 */
 	private boolean triggerByExternalTargetAdapters(
 		ServerLevel level,
 		BlockPos targetPos,
@@ -499,6 +512,9 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		return false;
 	}
 
+	/**
+	 * 目标序列号集合归一化：剔除 null/<=0 并去重。
+	 */
 	private static Set<Long> normalizeTargets(Set<Long> targets) {
 		if (targets == null || targets.isEmpty()) {
 			return Set.of();
@@ -512,10 +528,16 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		return Set.copyOf(normalized);
 	}
 
+	/**
+	 * 按源类型读取其目标集合（BUTTON->CORES, CORE->BUTTONS）。
+	 */
 	private static Set<Long> readLinkedTargets(LinkSavedData savedData, LinkNodeType sourceType, long sourceSerial) {
 		return sourceType == LinkNodeType.BUTTON ? savedData.getLinkedCores(sourceSerial) : savedData.getLinkedButtons(sourceSerial);
 	}
 
+	/**
+	 * 执行单次链接切换，返回切换后是否为“已关联”。
+	 */
 	private static boolean toggleInternal(LinkSavedData savedData, LinkNodeType sourceType, long sourceSerial, long targetSerial) {
 		return sourceType == LinkNodeType.BUTTON
 			? savedData.toggleLink(sourceSerial, targetSerial)
@@ -562,6 +584,9 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		return reason == null || reason.isBlank() ? fallbackReason : reason;
 	}
 
+	/**
+	 * 判断目标序列号当前是否可达（维度存在且区块已加载）。
+	 */
 	private static boolean isTargetReachableNow(
 		ServerLevel sourceLevel,
 		LinkSavedData savedData,
@@ -576,6 +601,9 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		return targetLevel != null && targetLevel.isLoaded(node.pos());
 	}
 
+	/**
+	 * 回写源节点最近目标序列号，供 UI 与排障信息展示。
+	 */
 	private static void updateNodeLastTargetSerial(
 		ServerLevel sourceLevel,
 		LinkNodeType sourceType,

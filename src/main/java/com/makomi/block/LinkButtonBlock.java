@@ -28,6 +28,13 @@ import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 
+/**
+ * 联动按钮基类。
+ * <p>
+ * 负责按钮节点序列号维护、掉落继承与“按下即触发目标”流程，
+ * 子类仅决定具体方块外观与对应方块实体类型。
+ * </p>
+ */
 public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock {
 	protected LinkButtonBlock(BlockBehaviour.Properties properties) {
 		this(BlockSetType.STONE, 20, properties);
@@ -100,6 +107,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	public void press(BlockState state, Level level, BlockPos pos, Player player) {
 		super.press(state, level, pos, player);
 		if (!level.isClientSide && level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+			// 仅在服务端触发，避免客户端预测导致重复触发。
 			buttonBlockEntity.triggerLinkedTargets(player);
 		}
 	}
@@ -134,6 +142,9 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 		return 0;
 	}
 
+	/**
+	 * 打开按钮配对界面；若尚未分配序列号则先分配。
+	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;

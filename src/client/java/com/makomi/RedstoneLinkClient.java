@@ -13,6 +13,12 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
 
+/**
+ * RedstoneLink 客户端入口。
+ * <p>
+ * 负责渲染层注册、本地 UI 打开钩子以及服务端配对包到界面的映射。
+ * </p>
+ */
 public class RedstoneLinkClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
@@ -40,6 +46,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenButtonPairingPayload.TYPE, (payload, context) -> {
+			// 网络线程切回客户端主线程后再操作 Screen。
 			context.client().execute(() -> {
 				Minecraft minecraft = Minecraft.getInstance();
 				if (minecraft.player != null) {
@@ -49,6 +56,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenCorePairingPayload.TYPE, (payload, context) -> {
+			// 网络线程切回客户端主线程后再操作 Screen。
 			context.client().execute(() -> {
 				Minecraft minecraft = Minecraft.getInstance();
 				if (minecraft.player != null) {

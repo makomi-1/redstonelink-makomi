@@ -28,6 +28,12 @@ import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 
+/**
+ * 联动拨杆方块。
+ * <p>
+ * 保留拨杆交互手感，但屏蔽原版红石输出，仅作为按钮源节点触发联动网络。
+ * </p>
+ */
 public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 	public LinkToggleLeverBlock(BlockBehaviour.Properties properties) {
 		super(properties);
@@ -127,6 +133,9 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 		return 0;
 	}
 
+	/**
+	 * 打开按钮配对界面；若尚未分配序列号则先分配。
+	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;

@@ -16,6 +16,13 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
+/**
+ * 可配对节点方块实体基类。
+ * <p>
+ * 统一维护节点序列号、最近目标序列号与“上线/下线到 LinkSavedData”的同步逻辑。
+ * 所有可进入红石联动图的方块实体都应继承该类。
+ * </p>
+ */
 public abstract class PairableNodeBlockEntity extends BlockEntity {
 	protected static final String KEY_SERIAL = "Serial";
 	private static final String KEY_LAST_TARGET_SERIAL = "LastTargetSerial";
@@ -39,6 +46,12 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		return lastTargetSerial;
 	}
 
+	/**
+	 * 设置节点序列号并刷新在线注册状态。
+	 * <p>
+	 * 若序列号发生变化，会先注销旧节点再注册新节点，避免同一方块实体残留旧映射。
+	 * </p>
+	 */
 	public void setLinkData(long serial) {
 		if (this.serial > 0L && this.serial != serial) {
 			unregisterNode();
@@ -94,6 +107,9 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 
 	protected abstract LinkNodeType getNodeType();
 
+	/**
+	 * 将当前节点写入在线节点表。
+	 */
 	protected void registerNode() {
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
@@ -136,6 +152,9 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		return saveWithoutMetadata(provider);
 	}
 
+	/**
+	 * 通知客户端刷新方块实体数据。
+	 */
 	protected void syncToClient() {
 		setChanged();
 		if (level != null && !level.isClientSide) {
