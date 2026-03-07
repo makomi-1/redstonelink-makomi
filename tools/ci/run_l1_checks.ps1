@@ -15,10 +15,8 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 function Get-GitStatusLines {
-    $lines = git status --porcelain
-    if ($null -eq $lines) { return @() }
-    if ($lines -is [string]) { return @($lines) }
-    return @($lines)
+    # 使用数组子表达式确保输出始终是数组；干净仓库时得到空数组而不是 $null。
+    return @(git status --porcelain)
 }
 
 function ConvertTo-JoinedStatusText {
@@ -32,7 +30,7 @@ function ConvertTo-JoinedStatusText {
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Push-Location $repoRoot
 try {
-    $beforeStatus = Get-GitStatusLines
+    $beforeStatus = @(Get-GitStatusLines)
     if ($StrictClean -and $beforeStatus.Count -gt 0) {
         Write-Error "Workspace is dirty but -StrictClean is enabled."
     }
@@ -45,7 +43,7 @@ try {
     }
 
     if (-not $SkipDriftCheck) {
-        $afterStatus = Get-GitStatusLines
+        $afterStatus = @(Get-GitStatusLines)
         $beforeText = ConvertTo-JoinedStatusText -Lines $beforeStatus
         $afterText = ConvertTo-JoinedStatusText -Lines $afterStatus
         if ($beforeText -ne $afterText) {
