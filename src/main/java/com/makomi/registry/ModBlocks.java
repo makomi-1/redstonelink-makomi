@@ -34,9 +34,12 @@ public final class ModBlocks {
 		new LinkTransparentCoreBlock(
 			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK)
 				.lightLevel(state -> 0)
+				// 显式声明“类玻璃”行为，避免仅依赖 noOcclusion 的隐式推断。
 				.noOcclusion()
 				.isViewBlocking((state, level, pos) -> false)
 				.isSuffocating((state, level, pos) -> false)
+				.isRedstoneConductor((state, level, pos) -> false)
+				.isValidSpawn((state, level, pos, entityType) -> false)
 		)
 	);
 

@@ -73,10 +73,72 @@ public class RedStoneWireBlockMixin {
 	}
 
 	/**
+	 * 桥接 updateIndirectNeighbourShapes 的第 1 处 state.is(this) 判定，统一走双向跨类型等价规则。
+	 */
+	@Redirect(
+		method = "updateIndirectNeighbourShapes",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z",
+			ordinal = 0
+		)
+	)
+	private boolean redirectIndirectWireEquivalence0(BlockState state, Block block) {
+		return isEquivalentWireState(state, block);
+	}
+
+	/**
+	 * 桥接 updateIndirectNeighbourShapes 的第 2 处 state.is(this) 判定，统一走双向跨类型等价规则。
+	 */
+	@Redirect(
+		method = "updateIndirectNeighbourShapes",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z",
+			ordinal = 1
+		)
+	)
+	private boolean redirectIndirectWireEquivalence1(BlockState state, Block block) {
+		return isEquivalentWireState(state, block);
+	}
+
+	/**
+	 * 桥接 updateIndirectNeighbourShapes 的第 3 处 state.is(this) 判定，统一走双向跨类型等价规则。
+	 */
+	@Redirect(
+		method = "updateIndirectNeighbourShapes",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z",
+			ordinal = 2
+		)
+	)
+	private boolean redirectIndirectWireEquivalence2(BlockState state, Block block) {
+		return isEquivalentWireState(state, block);
+	}
+
+	/**
 	 * 仅“原版 wire + 顶面核心粉”视为 wire-like。
 	 */
 	private static boolean isWireLikeState(BlockState state) {
 		return state.is(Blocks.REDSTONE_WIRE) || LinkRedstoneDustCoreBlock.isTopAttachedCoreDust(state);
+	}
+
+	/**
+	 * 双向跨类型等价规则：
+	 * 1. 原生 state.is(block) 为 true 时直接保持；
+	 * 2. 当目标 block 为任意 RedStoneWireBlock 且 state 为 wire-like 时，同样视为等价。
+	 *
+	 * 说明：该方法先行落地为公共判定入口，后续重定向点可统一复用，避免出现“单向判定”。
+	 */
+	private static boolean isEquivalentWireState(BlockState state, Block block) {
+		if (state.is(block)) {
+			return true;
+		}
+		if (!(block instanceof RedStoneWireBlock)) {
+			return false;
+		}
+		return isWireLikeState(state);
 	}
 
 	/**

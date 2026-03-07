@@ -407,18 +407,13 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	}
 
 	/**
-	 * 顶面材质状态同步：只将 POWERED 与 POWER>0 对齐，不参与功率计算。
+	 * 顶面材质由 blockstate 的 POWER 条件驱动。
+	 * 这里不再写回任何状态，避免由 setBlock 引入形态/邻居级联。
 	 */
 	private static void syncTopPoweredVisual(Level level, BlockPos pos) {
 		BlockState state = level.getBlockState(pos);
 		if (!(state.getBlock() instanceof LinkRedstoneDustCoreBlock) || isNonTopAttached(state)) {
 			return;
-		}
-
-		boolean targetPowered = state.getValue(POWER) > 0;
-		if (state.getValue(POWERED) != targetPowered) {
-			// 仅同步材质位，不触发形态重算或邻居传播。
-			level.setBlock(pos, state.setValue(POWERED, targetPowered), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
 		}
 	}
 
