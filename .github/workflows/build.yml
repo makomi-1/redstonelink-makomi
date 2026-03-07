@@ -1,14 +1,33 @@
-# Automatically build the project and run any configured tests for every push
-# and submitted pull request. This can help catch issues that only occur on
-# certain platforms or Java versions, and provides a first line of defence
-# against bad commits.
-
 name: build
-on: [pull_request, push]
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs:
+      sync_testmap:
+        description: 'Copy testmaps/default-test to run/saves/test before checks'
+        required: false
+        default: false
+        type: boolean
+      run_extended:
+        description: 'Run extended checks (check + remapJar)'
+        required: false
+        default: false
+        type: boolean
+      run_api_legacy:
+        description: 'Run legacy API tests (excluded from default test gate)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
     steps:
       - name: checkout repository
         uses: actions/checkout@v4
@@ -17,14 +36,102 @@ jobs:
       - name: setup jdk
         uses: actions/setup-java@v4
         with:
-          java-version: '25'
-          distribution: 'microsoft'
-      - name: make gradle wrapper executable
-        run: chmod +x ./gradlew
-      - name: build
-        run: ./gradlew build
-      - name: capture build artifacts
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: make scripts executable
+        if: runner.os != 'Windows'
+        run: chmod +x ./gradlew ./tools/ci/run_l1_checks.sh
+      - name: validate bash script syntax
+        if: runner.os != 'Windows'
+        run: bash -n ./tools/ci/run_l1_checks.sh
+      - name: validate powershell script syntax
+        shell: pwsh
+        run: |
+          $scriptPath = Join-Path $PWD "tools/ci/run_l1_checks.ps1"
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errors)
+          if ($errors -and $errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+      - name: lint bash script
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+          fi
+          shellcheck -S error ./tools/ci/run_l1_checks.sh
+      - name: lint powershell script
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
+            Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          }
+          $analysis = Invoke-ScriptAnalyzer -Path .\tools\ci\run_l1_checks.ps1 -Severity Error
+          if ($analysis -and $analysis.Count -gt 0) {
+            $analysis | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+            throw "PSScriptAnalyzer reported errors."
+          }
+      - name: optionally sync versioned test map
+        if: ${{ runner.os != 'Windows' && github.event_name == 'workflow_dispatch' && inputs.sync_testmap }}
+        shell: bash
+        run: |
+          MAP_BASELINE="testmaps/default-test"
+          TARGET_MAP="run/saves/test"
+          if [[ ! -d "$MAP_BASELINE" ]]; then
+            echo "sync_testmap=true but baseline map is missing: $MAP_BASELINE"
+            exit 1
+          fi
+          rm -rf "$TARGET_MAP"
+          mkdir -p "$(dirname "$TARGET_MAP")"
+          cp -a "$MAP_BASELINE" "$TARGET_MAP"
+      - name: run l1 checks (Linux)
+        if: runner.os != 'Windows'
+        run: ./tools/ci/run_l1_checks.sh --strict-clean
+      - name: run l1 checks (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\tools\ci\run_l1_checks.ps1 -StrictClean
+      - name: run api legacy tests (Linux)
+        if: ${{ runner.os != 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_api_legacy }}
+        run: ./gradlew --no-daemon testApiLegacy
+      - name: run api legacy tests (Windows)
+        if: ${{ runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_api_legacy }}
+        shell: pwsh
+        run: .\gradlew.bat --no-daemon testApiLegacy
+      - name: run extended checks (Linux)
+        if: ${{ runner.os != 'Windows' && ((github.event_name == 'workflow_dispatch' && inputs.run_extended) || (github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main'))) }}
+        run: ./gradlew --no-daemon check remapJar
+      - name: run extended checks (Windows)
+        if: ${{ runner.os == 'Windows' && ((github.event_name == 'workflow_dispatch' && inputs.run_extended) || (github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main'))) }}
+        shell: pwsh
+        run: .\gradlew.bat --no-daemon check remapJar
+      - name: upload stable-core test results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Artifacts
-          path: build/libs/
+          name: test-results-stable-core-${{ matrix.os }}
+          if-no-files-found: warn
+          path: |
+            build/test-results/test/**/*.xml
+            build/reports/tests/test/**
+      - name: upload api-legacy test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-api-legacy-${{ matrix.os }}
+          if-no-files-found: warn
+          path: |
+            build/test-results/testApiLegacy/**/*.xml
+            build/reports/tests/testApiLegacy/**
+      - name: upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.os }}
+          path: |
+            build/reports/**

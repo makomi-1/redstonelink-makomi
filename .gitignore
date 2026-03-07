@@ -43,6 +43,7 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+logs/
 
 plan
 agents/plans/05_后续迭代与测试路线.md

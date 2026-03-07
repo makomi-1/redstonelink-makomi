@@ -59,7 +59,12 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	
+
+	// Test baseline: JUnit 5
+	testImplementation platform("org.junit:junit-bom:5.10.2")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+
 }
 
 processResources {
@@ -84,6 +89,30 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
+}
+
+tasks.named("test", Test).configure {
+	description = "Run stable core contract tests (default verification gate)."
+	useJUnitPlatform {
+		includeTags "stable-core"
+	}
+}
+
+tasks.register("testStableCore") {
+	group = "verification"
+	description = "Alias entry for stable core contract suite."
+	dependsOn(tasks.named("test"))
+}
+
+tasks.register("testApiLegacy", Test) {
+	group = "verification"
+	description = "Run legacy API tests excluded from the default verification gate."
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	shouldRunAfter(tasks.named("test"))
+	useJUnitPlatform {
+		includeTags "api-legacy"
+	}
 }
 
 java {
