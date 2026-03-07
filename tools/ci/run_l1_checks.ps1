@@ -21,9 +21,13 @@ function Get-GitStatusLines {
 
 function ConvertTo-JoinedStatusText {
     param(
-        [Parameter(Mandatory = $true)]
-        [string[]]$Lines
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$Lines = @()
     )
+    if ($null -eq $Lines -or $Lines.Count -eq 0) {
+        return ""
+    }
     return (($Lines | Sort-Object) -join "`n")
 }
 
