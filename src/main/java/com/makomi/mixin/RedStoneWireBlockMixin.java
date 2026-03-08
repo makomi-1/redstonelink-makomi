@@ -58,6 +58,18 @@ public class RedStoneWireBlockMixin {
 	}
 
 	/**
+	 * 对 calculateTargetStrength 结果做兜底合并。
+	 * <p>
+	 * lithium 会重写 redstone wire 的取电细节路径，导致中途 Redirect 在部分分支可能不稳定；
+	 * 这里在 RETURN 统一执行一次 max 合并，确保顶面核心粉模拟输入不会丢失。
+	 * </p>
+	 */
+	@Inject(method = "calculateTargetStrength", at = @At("RETURN"), cancellable = true)
+	private void injectTopCoreTargetStrengthFallback(Level level, BlockPos pos, CallbackInfoReturnable<Integer> cir) {
+		mergeTopCoreSimulatedInput(level, pos, cir);
+	}
+
+	/**
 	 * 让顶面核心红石粉通过原版 shouldConnectTo 判定为“可连接红石线”。
 	 */
 	@Inject(
@@ -199,4 +211,17 @@ public class RedStoneWireBlockMixin {
 		}
 		return state.getDirectSignal(level, pos, direction);
 	}
+
+	/**
+	 * 将顶面核心粉模拟输入并入当前返回值。
+	 */
+	private static void mergeTopCoreSimulatedInput(Level level, BlockPos pos, CallbackInfoReturnable<Integer> cir) {
+		BlockState state = level.getBlockState(pos);
+		int simulatedInputPower = LinkRedstoneDustCoreBlock.getTopSimulatedInputPower(level, pos, state);
+		if (simulatedInputPower <= 0) {
+			return;
+		}
+		cir.setReturnValue(Math.max(cir.getReturnValueI(), simulatedInputPower));
+	}
+
 }
