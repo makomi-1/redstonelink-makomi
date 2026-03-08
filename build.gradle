@@ -79,7 +79,7 @@ dependencies {
 }
 
 processResources {
-	filteringCharset "UTF-8"
+	filteringCharset = "UTF-8"
 
 	def modMetadata = [
 		version: project.version,

@@ -1,6 +1,7 @@
 package com.makomi.command;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.compat.LithiumCompatHealth;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
@@ -99,6 +100,11 @@ public final class ModCommands {
 						)
 				)
 				.then(Commands.literal("audit").executes(ModCommands::executeAudit))
+				.then(
+					Commands
+						.literal("diag")
+						.then(Commands.literal("lithium").executes(ModCommands::executeLithiumDiag))
+				)
 				.then(
 					Commands
 						.literal("retire")
@@ -300,6 +306,27 @@ public final class ModCommands {
 			),
 			false
 		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 输出 lithium 兼容诊断快照与异常码。
+	 */
+	private static int executeLithiumDiag(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LithiumCompatHealth.LithiumDiagSnapshot snapshot = LithiumCompatHealth.snapshot();
+		source.sendSuccess(() -> Component.literal("[RedstoneLink/Diag] " + snapshot.toSummaryLine()), false);
+		if (snapshot.anomalyCode() != null) {
+			source.sendFailure(
+				Component.literal(
+					"[RedstoneLink/Diag]["
+						+ snapshot.anomalyCode()
+						+ "] "
+						+ snapshot.anomalyMessage()
+				)
+			);
+			return 0;
+		}
 		return Command.SINGLE_SUCCESS;
 	}
 

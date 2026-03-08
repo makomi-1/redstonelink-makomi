@@ -137,6 +137,13 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 是否启用 lithium 严格模式（发现关键异常时直接失败）
+	 */
+	public static boolean lithiumStrictMode() {
+		return values.lithiumStrictMode();
+	}
+
+	/**
 	 * @return 打开配对界面是否要求副手为空
 	 */
 	public static boolean requireEmptyOffhandToOpenPairing() {
@@ -209,7 +216,8 @@ public final class RedstoneLinkConfig {
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
-			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
+			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true),
+			parseBoolean(props, "compat.lithiumStrictMode", false)
 		);
 	}
 
@@ -311,6 +319,11 @@ public final class RedstoneLinkConfig {
 			# en: Require empty offhand to open pairing UI.
 			interaction.requireEmptyOffhandToOpenPairing=true
 
+			# compat.lithiumStrictMode
+			# zh: lithium 严格模式。true 时若检测到关键兼容异常（如动态方法缺失）将直接抛错中止启动。
+			# en: Lithium strict mode. If true, startup fails fast when critical compatibility anomalies are detected.
+			compat.lithiumStrictMode=false
+
 			""";
 	}
 
@@ -325,13 +338,14 @@ public final class RedstoneLinkConfig {
 		boolean allowOfflineTargetBinding,
 		boolean requireSneakToOpenPairing,
 		boolean requireSneakToOpenLinkerPairing,
-		boolean requireEmptyOffhandToOpenPairing
+		boolean requireEmptyOffhandToOpenPairing,
+		boolean lithiumStrictMode
 	) {
 		/**
 		 * @return 配置默认值
 		 */
 		private static Values defaults() {
-			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, true, true, true);
+			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, true, true, true, false);
 		}
 	}
 }

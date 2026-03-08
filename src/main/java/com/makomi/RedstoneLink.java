@@ -1,6 +1,7 @@
 package com.makomi;
 
 import com.makomi.command.ModCommands;
+import com.makomi.compat.LithiumCompatHealth;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.network.PairingNetwork;
@@ -26,6 +27,7 @@ public class RedstoneLink implements ModInitializer {
 	public void onInitialize() {
 		// 初始化顺序：配置 -> 网络 -> 注册表 -> 命令 -> 事件。
 		RedstoneLinkConfig.load();
+		LithiumCompatHealth.validateOnInitialize();
 		PairingNetwork.register();
 		ModBlocks.register();
 		ModBlockEntities.register();

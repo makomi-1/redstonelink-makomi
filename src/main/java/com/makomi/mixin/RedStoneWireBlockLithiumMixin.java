@@ -1,8 +1,7 @@
 package com.makomi.mixin;
 
 import com.makomi.block.LinkRedstoneDustCoreBlock;
-import com.mojang.logging.LogUtils;
-import java.util.concurrent.atomic.AtomicInteger;
+import com.makomi.compat.LithiumHitCounter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
@@ -18,7 +17,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.slf4j.Logger;
 
 /**
  * lithium 专用兼容注入：
@@ -26,12 +24,6 @@ import org.slf4j.Logger;
  */
 @Mixin(value = RedStoneWireBlock.class, priority = 1100)
 public class RedStoneWireBlockLithiumMixin {
-	private static final Logger LOGGER = LogUtils.getLogger();
-	private static final boolean ENABLE_LITHIUM_DEBUG_LOG = Boolean.getBoolean("redstonelink.debug.lithium.mixin");
-	private static final AtomicInteger LITHIUM_RECEIVED_POWER_IS_HITS = new AtomicInteger();
-	private static final AtomicInteger LITHIUM_POWER_FROM_SIDE_IS_HITS = new AtomicInteger();
-	private static final AtomicInteger LITHIUM_POWER_FROM_SIDE_VALUE_HITS = new AtomicInteger();
-	private static final AtomicInteger LITHIUM_STRONG_POWER_IS_HITS = new AtomicInteger();
 
 	/**
 	 * 桥接 getWireSignal 的“state.is(this)”硬编码：
@@ -75,7 +67,7 @@ public class RedStoneWireBlockLithiumMixin {
 	/**
 	 * lithium 二级兜底：对 getReceivedPower 返回值再做一次并入。
 	 */
-	@Inject(method = "getReceivedPower", at = @At("RETURN"), cancellable = true, require = 0)
+	@Inject(method = "getReceivedPower", at = @At("RETURN"), cancellable = true, require = 0, remap = false)
 	private void injectTopCoreReceivedPowerFallback(Level level, BlockPos pos, CallbackInfoReturnable<Integer> cir) {
 		mergeTopCoreSimulatedInput(level, pos, cir);
 	}
@@ -157,71 +149,81 @@ public class RedStoneWireBlockLithiumMixin {
 
 	/**
 	 * lithium 兼容：其 getReceivedPower 快路径只按 state.is(this) 识别同类 wire。
+	 * 仅按方法名匹配，降低外部运行环境命名空间差异导致的注入丢失概率。
 	 */
 	@Dynamic("Lithium 在运行时向 RedStoneWireBlock 注入该方法")
 	@Redirect(
-		method = "getReceivedPower(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)I",
+		method = "getReceivedPower",
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z"
+			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z",
+			remap = true
 		),
-		require = 0
+		require = 0,
+		remap = false
 	)
 	private boolean redirectLithiumReceivedPowerWireEquivalence(BlockState state, Block block) {
-		recordLithiumHit("getReceivedPower#is", LITHIUM_RECEIVED_POWER_IS_HITS);
+		LithiumHitCounter.recordReceivedPowerIs();
 		return isEquivalentWireState(state, block);
 	}
 
 	/**
 	 * lithium 兼容：桥接 getPowerFromSide 中全部 state.is(this) 判定。
-	 * 去除 ordinal 约束，降低不同 lithium 版本下的注入脆弱性。
+	 * 去除 ordinal 约束，并按方法名匹配，降低不同运行环境下的注入脆弱性。
 	 */
 	@Dynamic("Lithium 在运行时向 RedStoneWireBlock 注入该方法")
 	@Redirect(
-		method = "getPowerFromSide(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;Z)I",
+		method = "getPowerFromSide",
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z"
+			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z",
+			remap = true
 		),
-		require = 0
+		require = 0,
+		remap = false
 	)
 	private boolean redirectLithiumPowerFromSideWireEquivalence(BlockState state, Block block) {
-		recordLithiumHit("getPowerFromSide#is", LITHIUM_POWER_FROM_SIDE_IS_HITS);
+		LithiumHitCounter.recordPowerFromSideIs();
 		return isEquivalentWireState(state, block);
 	}
 
 	/**
 	 * lithium 兼容：桥接 getPowerFromSide 中全部 getValue(POWER) 读取。
-	 * 去除 ordinal 约束，避免调用点顺序变化导致的静默失效。
+	 * 去除 ordinal 约束，并按方法名匹配，避免调用点变化导致的静默失效。
 	 */
 	@Dynamic("Lithium 在运行时向 RedStoneWireBlock 注入该方法")
 	@Redirect(
-		method = "getPowerFromSide(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;Z)I",
+		method = "getPowerFromSide",
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/world/level/block/state/BlockState;getValue(Lnet/minecraft/world/level/block/state/properties/Property;)Ljava/lang/Comparable;"
+			target = "Lnet/minecraft/world/level/block/state/BlockState;getValue(Lnet/minecraft/world/level/block/state/properties/Property;)Ljava/lang/Comparable;",
+			remap = true
 		),
-		require = 0
+		require = 0,
+		remap = false
 	)
 	private Comparable<?> redirectLithiumPowerFromSideWirePowerValue(BlockState state, Property<?> property) {
-		recordLithiumHit("getPowerFromSide#getValue", LITHIUM_POWER_FROM_SIDE_VALUE_HITS);
+		LithiumHitCounter.recordPowerFromSideValue();
 		return getEquivalentWirePower(state, property);
 	}
 
 	/**
 	 * lithium 兼容：桥接 getStrongPowerTo 的 state.is(this) 判定，避免把 wire-like 当作直接信号源。
+	 * 按方法名匹配，降低环境差异导致的动态方法选择失败风险。
 	 */
 	@Dynamic("Lithium 在运行时向 RedStoneWireBlock 注入该方法")
 	@Redirect(
-		method = "getStrongPowerTo(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;)I",
+		method = "getStrongPowerTo",
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z"
+			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z",
+			remap = true
 		),
-		require = 0
+		require = 0,
+		remap = false
 	)
 	private boolean redirectLithiumStrongPowerToWireEquivalence(BlockState state, Block block) {
-		recordLithiumHit("getStrongPowerTo#is", LITHIUM_STRONG_POWER_IS_HITS);
+		LithiumHitCounter.recordStrongPowerToIs();
 		return isEquivalentWireState(state, block);
 	}
 
@@ -315,20 +317,6 @@ public class RedStoneWireBlockLithiumMixin {
 			return;
 		}
 		cir.setReturnValue(Math.max(cir.getReturnValueI(), simulatedInputPower));
-	}
-
-	/**
-	 * 仅在显式开启调试参数时打印命中统计：
-	 * JVM 参数：-Dredstonelink.debug.lithium.mixin=true
-	 */
-	private static void recordLithiumHit(String key, AtomicInteger counter) {
-		if (!ENABLE_LITHIUM_DEBUG_LOG) {
-			return;
-		}
-		int hits = counter.incrementAndGet();
-		if (hits <= 8 || hits % 64 == 0) {
-			LOGGER.info("[RedstoneLink/LithiumMixin] {} hit={}", key, hits);
-		}
 	}
 
 	/**
