@@ -52,7 +52,11 @@ AGENTS.md
 # 05 衍生文档（本地保留，不纳入提交）
 agents/plans/history/
 docs/runbooks/
+docs/experience/
+docs/runbooks/spark-usage.md
+docs/runbooks/in-game-test-scenarios.md
 
 
 redstonelink_plan.txt
 agents/
+.tmp/
