@@ -33,6 +33,8 @@ bin/
 run/*
 !run/saves/
 run/saves/*
+!run/saves/rl-test/
+!run/saves/rl-test/**
 !run/saves/test/
 !run/saves/test/**
 run/saves/test/session.lock
