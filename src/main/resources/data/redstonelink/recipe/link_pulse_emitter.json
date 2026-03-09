@@ -3,7 +3,7 @@
   "category": "redstone",
   "key": {
     "B": {
-      "item": "redstonelink:link_push_button"
+      "tag": "redstonelink:trigger_p_materials"
     },
     "L": {
       "item": "redstonelink:redstone_link_component"

@@ -2,8 +2,8 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "key": {
-    "R": {
-      "item": "minecraft:redstone"
+    "B": {
+      "tag": "redstonelink:trigger_s_materials"
     },
     "L": {
       "item": "redstonelink:redstone_link_component"
@@ -11,7 +11,7 @@
   },
   "pattern": [
     "   ",
-    "RL ",
+    "BL ",
     "   "
   ],
   "result": {
