@@ -35,6 +35,7 @@ import net.minecraft.world.phys.BlockHitResult;
  * </p>
  */
 public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
+	// 拉杆属于触发器类，实现上复用 LinkButtonBlockEntity（BUTTON 节点）链路。
 	public LinkToggleLeverBlock(BlockBehaviour.Properties properties) {
 		super(properties);
 	}

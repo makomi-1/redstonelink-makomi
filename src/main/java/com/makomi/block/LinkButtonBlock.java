@@ -36,6 +36,7 @@ import net.minecraft.world.phys.BlockHitResult;
  * </p>
  */
 public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock {
+	// 历史命名保留为 Button；语义上属于触发器类方块。
 	protected LinkButtonBlock(BlockBehaviour.Properties properties) {
 		this(BlockSetType.STONE, 20, properties);
 	}

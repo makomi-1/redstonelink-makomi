@@ -12,6 +12,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * </p>
  */
 public abstract class LinkButtonBlockEntity extends TriggerSourceBlockEntity {
+	// 历史命名保留为 Button；语义统一视为 TriggerSource（触发器源）节点。
 	protected LinkButtonBlockEntity(
 		BlockEntityType<? extends LinkButtonBlockEntity> blockEntityType,
 		BlockPos blockPos,
