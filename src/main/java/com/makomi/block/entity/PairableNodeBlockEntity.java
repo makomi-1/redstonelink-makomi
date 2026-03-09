@@ -47,6 +47,13 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	}
 
 	/**
+	 * 对外暴露节点类型，供命令与运维路径复用统一类型判断。
+	 */
+	public final LinkNodeType getLinkNodeType() {
+		return getNodeType();
+	}
+
+	/**
 	 * 设置节点序列号并刷新在线注册状态。
 	 * <p>
 	 * 若序列号发生变化，会先注销旧节点再注册新节点，避免同一方块实体残留旧映射。

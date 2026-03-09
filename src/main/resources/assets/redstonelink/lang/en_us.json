@@ -81,5 +81,15 @@
   "message.redstonelink.audit.button_retired_serials": "Button serials (retired): %s.",
   "message.redstonelink.retire.confirm": "Retire requires confirm: /redstonelink retire %s %s confirm",
   "message.redstonelink.retire.done": "Retired %s %s (node removed: %s, links removed: %s).",
-  "message.redstonelink.retire.no_change": "No data changed for %s %s."
+  "message.redstonelink.retire.no_change": "No data changed for %s %s.",
+  "message.redstonelink.place.replace_confirm": "[RedstoneLink] Detected %s non-air block replacements. Run /redstonelink place confirm to continue.",
+  "message.redstonelink.place.volume_exceeded": "[RedstoneLink] Placement volume is too large (%s), limit is %s.",
+  "message.redstonelink.place.chunks_not_loaded": "[RedstoneLink] Target area includes unloaded chunks. Load them first and retry.",
+  "message.redstonelink.place.no_pending": "[RedstoneLink] There is no pending placement to confirm.",
+  "message.redstonelink.place.pending_expired": "[RedstoneLink] Pending placement has expired. Please run the command again.",
+  "message.redstonelink.place.pending_dimension_changed": "[RedstoneLink] Dimension changed. Pending placement is invalid now.",
+  "message.redstonelink.place.dimension_mismatch": "[RedstoneLink] Dimension mismatch. Placement has been cancelled.",
+  "message.redstonelink.place.no_block_changed": "[RedstoneLink] No block changes were applied.",
+  "message.redstonelink.place.done": "[RedstoneLink] Placement complete. Updated %s blocks.",
+  "message.redstonelink.place.only_pairable_node": "[RedstoneLink] Only pairable node blocks from this mod are supported."
 }

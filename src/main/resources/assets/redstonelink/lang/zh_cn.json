@@ -81,5 +81,15 @@
   "message.redstonelink.audit.button_retired_serials": "按钮序号（已退役）: %s。",
   "message.redstonelink.retire.confirm": "退役需确认：/redstonelink retire %s %s confirm",
   "message.redstonelink.retire.done": "已退役 %s %s（节点移除: %s，连接移除: %s）。",
-  "message.redstonelink.retire.no_change": "%s %s 未产生数据变更。"
+  "message.redstonelink.retire.no_change": "%s %s 未产生数据变更。",
+  "message.redstonelink.place.replace_confirm": "[RedstoneLink] 检测到将替换 %s 个非空气方块。请执行 /redstonelink place confirm 再次确认。",
+  "message.redstonelink.place.volume_exceeded": "[RedstoneLink] 放置区域过大（%s），超过上限 %s。",
+  "message.redstonelink.place.chunks_not_loaded": "[RedstoneLink] 目标区域存在未加载区块，请先加载后再执行。",
+  "message.redstonelink.place.no_pending": "[RedstoneLink] 当前没有待确认的放置命令。",
+  "message.redstonelink.place.pending_expired": "[RedstoneLink] 待确认命令已过期，请重新执行。",
+  "message.redstonelink.place.pending_dimension_changed": "[RedstoneLink] 维度已变化，待确认命令已失效，请重新执行。",
+  "message.redstonelink.place.dimension_mismatch": "[RedstoneLink] 维度不一致，已取消本次放置。",
+  "message.redstonelink.place.no_block_changed": "[RedstoneLink] 未发生任何方块变化。",
+  "message.redstonelink.place.done": "[RedstoneLink] 放置完成，共更新 %s 个方块。",
+  "message.redstonelink.place.only_pairable_node": "[RedstoneLink] 仅支持放置本模组可配对节点方块。"
 }

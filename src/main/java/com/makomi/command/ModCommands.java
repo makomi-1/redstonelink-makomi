@@ -11,18 +11,31 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.blocks.BlockInput;
+import net.minecraft.commands.arguments.blocks.BlockStateArgument;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
@@ -32,6 +45,10 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * </p>
  */
 public final class ModCommands {
+	private static final int PLACE_BLOCK_FLAGS = 2;
+	private static final long PLACE_CONFIRM_TIMEOUT_MILLIS = 30_000L;
+	private static final Map<UUID, PendingPlacement> PENDING_PLACE_BY_PLAYER = new HashMap<>();
+
 	private ModCommands() {
 	}
 
@@ -98,6 +115,35 @@ public final class ModCommands {
 									)
 							)
 						)
+				)
+				.then(
+					Commands
+						.literal("place")
+						.then(
+							Commands
+								.literal("setblock")
+								.then(
+									Commands.argument("pos", BlockPosArgument.blockPos()).then(
+										Commands
+											.argument("block", BlockStateArgument.block(registryAccess))
+											.executes(ModCommands::executePlaceSetBlock)
+									)
+								)
+						)
+						.then(
+							Commands
+								.literal("fill")
+								.then(
+									Commands.argument("from", BlockPosArgument.blockPos()).then(
+										Commands.argument("to", BlockPosArgument.blockPos()).then(
+											Commands
+												.argument("block", BlockStateArgument.block(registryAccess))
+												.executes(ModCommands::executePlaceFill)
+										)
+									)
+								)
+						)
+						.then(Commands.literal("confirm").executes(ModCommands::executePlaceConfirm))
 				)
 				.then(Commands.literal("audit").executes(ModCommands::executeAudit))
 				.then(
@@ -256,6 +302,272 @@ public final class ModCommands {
 	/**
 	 * 输出当前链路审计信息到命令反馈。
 	 */
+	/**
+	 * 自定义 setblock：放置可配对节点，必要时触发非空气替换确认。
+	 */
+	private static int executePlaceSetBlock(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		CommandSourceStack source = context.getSource();
+		ServerPlayer player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+			return 0;
+		}
+
+		ServerLevel level = player.serverLevel();
+		BlockPos pos = BlockPosArgument.getLoadedBlockPos(context, "pos");
+		BlockInput input = BlockStateArgument.getBlock(context, "block");
+		if (!validatePairablePlacementInput(source, input, pos)) {
+			return 0;
+		}
+
+		int replaceCount = countPotentialReplaceNonAir(level, pos, pos, input);
+		PendingPlacement pendingPlacement = new PendingPlacement(
+			PlacementMode.SETBLOCK,
+			level.dimension(),
+			pos,
+			pos,
+			input,
+			replaceCount,
+			System.currentTimeMillis()
+		);
+		if (replaceCount > 0) {
+			PENDING_PLACE_BY_PLAYER.put(player.getUUID(), pendingPlacement);
+			source.sendFailure(Component.translatable("message.redstonelink.place.replace_confirm", replaceCount));
+			return 0;
+		}
+
+		return executePlacementNow(source, player, pendingPlacement);
+	}
+
+	/**
+	 * 自定义 fill：批量放置可配对节点，替换非空气时要求二次确认。
+	 */
+	private static int executePlaceFill(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		CommandSourceStack source = context.getSource();
+		ServerPlayer player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+			return 0;
+		}
+
+		ServerLevel level = player.serverLevel();
+		BlockPos from = BlockPosArgument.getLoadedBlockPos(context, "from");
+		BlockPos to = BlockPosArgument.getLoadedBlockPos(context, "to");
+		BlockPos min = minPos(from, to);
+		BlockPos max = maxPos(from, to);
+		BlockInput input = BlockStateArgument.getBlock(context, "block");
+		if (!validatePairablePlacementInput(source, input, min)) {
+			return 0;
+		}
+
+		long volume = blockVolume(min, max);
+		int limit = level.getGameRules().getInt(GameRules.RULE_COMMAND_MODIFICATION_BLOCK_LIMIT);
+		if (volume > limit) {
+			source.sendFailure(Component.translatable("message.redstonelink.place.volume_exceeded", volume, limit));
+			return 0;
+		}
+		if (!isPlacementAreaChunksLoaded(level, min, max)) {
+			source.sendFailure(Component.translatable("message.redstonelink.place.chunks_not_loaded"));
+			return 0;
+		}
+
+		int replaceCount = countPotentialReplaceNonAir(level, min, max, input);
+		PendingPlacement pendingPlacement = new PendingPlacement(
+			PlacementMode.FILL,
+			level.dimension(),
+			min,
+			max,
+			input,
+			replaceCount,
+			System.currentTimeMillis()
+		);
+		if (replaceCount > 0) {
+			PENDING_PLACE_BY_PLAYER.put(player.getUUID(), pendingPlacement);
+			source.sendFailure(Component.translatable("message.redstonelink.place.replace_confirm", replaceCount));
+			return 0;
+		}
+
+		return executePlacementNow(source, player, pendingPlacement);
+	}
+
+	/**
+	 * place confirm：确认并执行上一次待确认的 setblock/fill。
+	 */
+	private static int executePlaceConfirm(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		ServerPlayer player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+			return 0;
+		}
+
+		PendingPlacement pending = PENDING_PLACE_BY_PLAYER.get(player.getUUID());
+		if (pending == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.place.no_pending"));
+			return 0;
+		}
+		long elapsed = System.currentTimeMillis() - pending.createdAtMillis();
+		if (elapsed > PLACE_CONFIRM_TIMEOUT_MILLIS) {
+			PENDING_PLACE_BY_PLAYER.remove(player.getUUID());
+			source.sendFailure(Component.translatable("message.redstonelink.place.pending_expired"));
+			return 0;
+		}
+		if (!pending.dimension().equals(player.serverLevel().dimension())) {
+			PENDING_PLACE_BY_PLAYER.remove(player.getUUID());
+			source.sendFailure(Component.translatable("message.redstonelink.place.pending_dimension_changed"));
+			return 0;
+		}
+
+		PENDING_PLACE_BY_PLAYER.remove(player.getUUID());
+		return executePlacementNow(source, player, pending);
+	}
+
+	/**
+	 * 实际执行放置并在命令路径内补齐缺失序号。
+	 */
+	private static int executePlacementNow(CommandSourceStack source, ServerPlayer player, PendingPlacement pending) {
+		ServerLevel level = player.serverLevel();
+		if (!pending.dimension().equals(level.dimension())) {
+			source.sendFailure(Component.translatable("message.redstonelink.place.dimension_mismatch"));
+			return 0;
+		}
+
+		int changedCount = 0;
+		if (pending.mode() == PlacementMode.SETBLOCK) {
+			if (placeOne(level, pending.blockInput(), pending.from())) {
+				changedCount = 1;
+			}
+		} else {
+			for (BlockPos pos : BlockPos.betweenClosed(pending.from(), pending.to())) {
+				if (placeOne(level, pending.blockInput(), pos.immutable())) {
+					changedCount++;
+				}
+			}
+		}
+
+		if (changedCount <= 0) {
+			source.sendFailure(Component.translatable("message.redstonelink.place.no_block_changed"));
+			return 0;
+		}
+		final int updatedCount = changedCount;
+		source.sendSuccess(() -> Component.translatable("message.redstonelink.place.done", updatedCount), true);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 执行单点放置并补齐序号。
+	 */
+	private static boolean placeOne(ServerLevel level, BlockInput blockInput, BlockPos pos) {
+		boolean changed = blockInput.place(level, pos, PLACE_BLOCK_FLAGS);
+		if (!changed) {
+			return false;
+		}
+		initializeSerialForPlacedNode(level, pos);
+		return true;
+	}
+
+	/**
+	 * 命令放置路径下，为缺失序号的节点补齐序号。
+	 */
+	private static void initializeSerialForPlacedNode(ServerLevel level, BlockPos pos) {
+		if (!(level.getBlockEntity(pos) instanceof PairableNodeBlockEntity nodeBlockEntity)) {
+			return;
+		}
+		if (nodeBlockEntity.getSerial() > 0L) {
+			return;
+		}
+		long serial = LinkSavedData.get(level)
+			.resolvePlacementSerial(nodeBlockEntity.getLinkNodeType(), 0L, level.dimension(), pos);
+		if (serial > 0L) {
+			nodeBlockEntity.setLinkData(serial);
+		}
+	}
+
+	/**
+	 * 统计目标区域中会被替换的非空气方块数量。
+	 */
+	private static int countPotentialReplaceNonAir(ServerLevel level, BlockPos from, BlockPos to, BlockInput blockInput) {
+		BlockState targetState = blockInput.getState();
+		int count = 0;
+		for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
+			BlockState currentState = level.getBlockState(pos);
+			if (currentState.isAir()) {
+				continue;
+			}
+			if (!currentState.equals(targetState)) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * 限定 place 命令只接受可配对节点方块。
+	 */
+	private static boolean validatePairablePlacementInput(CommandSourceStack source, BlockInput blockInput, BlockPos samplePos) {
+		BlockState state = blockInput.getState();
+		if (!(state.getBlock() instanceof net.minecraft.world.level.block.EntityBlock entityBlock)) {
+			source.sendFailure(Component.translatable("message.redstonelink.place.only_pairable_node"));
+			return false;
+		}
+		BlockEntity blockEntity = entityBlock.newBlockEntity(samplePos, state);
+		if (!(blockEntity instanceof PairableNodeBlockEntity)) {
+			source.sendFailure(Component.translatable("message.redstonelink.place.only_pairable_node"));
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * 计算包围盒最小坐标。
+	 */
+	private static BlockPos minPos(BlockPos first, BlockPos second) {
+		return new BlockPos(
+			Math.min(first.getX(), second.getX()),
+			Math.min(first.getY(), second.getY()),
+			Math.min(first.getZ(), second.getZ())
+		);
+	}
+
+	/**
+	 * 计算包围盒最大坐标。
+	 */
+	private static BlockPos maxPos(BlockPos first, BlockPos second) {
+		return new BlockPos(
+			Math.max(first.getX(), second.getX()),
+			Math.max(first.getY(), second.getY()),
+			Math.max(first.getZ(), second.getZ())
+		);
+	}
+
+	/**
+	 * 计算包围盒内方块体积。
+	 */
+	private static long blockVolume(BlockPos min, BlockPos max) {
+		long sizeX = (long) max.getX() - min.getX() + 1L;
+		long sizeY = (long) max.getY() - min.getY() + 1L;
+		long sizeZ = (long) max.getZ() - min.getZ() + 1L;
+		return sizeX * sizeY * sizeZ;
+	}
+
+	/**
+	 * 使用区块源判断目标包围盒内区块是否全部已加载，避免使用弃用的 hasChunksAt。
+	 */
+	private static boolean isPlacementAreaChunksLoaded(ServerLevel level, BlockPos min, BlockPos max) {
+		int minChunkX = SectionPos.blockToSectionCoord(min.getX());
+		int maxChunkX = SectionPos.blockToSectionCoord(max.getX());
+		int minChunkZ = SectionPos.blockToSectionCoord(min.getZ());
+		int maxChunkZ = SectionPos.blockToSectionCoord(max.getZ());
+		for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+			for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+				if (!level.getChunkSource().hasChunk(chunkX, chunkZ)) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
 	private static int executeAudit(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
 		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
@@ -653,6 +965,21 @@ public final class ModCommands {
 			.reduce((left, right) -> left + ", " + right)
 			.orElse("-");
 	}
+
+	private enum PlacementMode {
+		SETBLOCK,
+		FILL,
+	}
+
+	private record PendingPlacement(
+		PlacementMode mode,
+		ResourceKey<Level> dimension,
+		BlockPos from,
+		BlockPos to,
+		BlockInput blockInput,
+		int replaceCount,
+		long createdAtMillis
+	) {}
 
 	private record TargetParseResult(Set<Long> targets, List<String> invalidEntries) {}
 }
