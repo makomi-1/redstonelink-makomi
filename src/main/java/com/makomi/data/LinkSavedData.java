@@ -289,6 +289,13 @@ public final class LinkSavedData extends SavedData {
 	}
 
 	/**
+	 * 获取指定节点类型的在线序列号集合。
+	 */
+	public Set<Long> getOnlineSerials(LinkNodeType type) {
+		return Set.copyOf(nodeMap(type).keySet());
+	}
+
+	/**
 	 * 切换按钮与核心之间的关联关系。
 	 *
 	 * @return true 表示本次切换后为“已关联”，false 表示切换后为“未关联”

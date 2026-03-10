@@ -7,15 +7,19 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.item.PairableItem;
+import com.makomi.util.SerialParseUtil;
+import com.makomi.util.ServerSerialValidationUtil;
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -45,6 +49,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * </p>
  */
 public final class ModCommands {
+	private static final int COMMAND_PERMISSION_LEVEL = 2;
+	private static final int NODE_LIST_DEFAULT_LIMIT = 50;
+	private static final int NODE_LIST_MAX_LIMIT = 1000;
+	private static final int SERIAL_LIST_MAX_ITEMS = 50;
+	private static final int SERIAL_LIST_MAX_CHARS = 300;
 	private static final int PLACE_BLOCK_FLAGS = 2;
 	private static final long PLACE_CONFIRM_TIMEOUT_MILLIS = 30_000L;
 	private static final Map<UUID, PendingPlacement> PENDING_PLACE_BY_PLAYER = new HashMap<>();
@@ -59,6 +68,7 @@ public final class ModCommands {
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
 			Commands
 				.literal("redstonelink")
+				.requires(source -> source.hasPermission(COMMAND_PERMISSION_LEVEL))
 				.then(
 					Commands
 						.literal("pair")
@@ -89,12 +99,32 @@ public final class ModCommands {
 								)
 							)
 						)
+						.then(
+							Commands.literal("triggersource").then(
+								Commands.argument("source_serial", LongArgumentType.longArg(1L)).then(
+									Commands.argument("target_serial", LongArgumentType.longArg(0L)).executes(
+										context -> executePairByNode(context, LinkNodeType.BUTTON)
+									)
+								)
+							)
+						)
 				)
 				.then(
 					Commands
 						.literal("set_links")
 						.then(
 							Commands.literal("button").then(
+								Commands.argument("source_serial", LongArgumentType.longArg(1L))
+									.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, false))
+									.then(
+										Commands.argument("targets", StringArgumentType.greedyString()).executes(
+											context -> executeSetLinks(context, LinkNodeType.BUTTON, true)
+										)
+									)
+							)
+						)
+						.then(
+							Commands.literal("triggersource").then(
 								Commands.argument("source_serial", LongArgumentType.longArg(1L))
 									.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, false))
 									.then(
@@ -118,6 +148,56 @@ public final class ModCommands {
 				)
 				.then(
 					Commands
+						.literal("node")
+						.then(
+							Commands
+								.literal("get")
+								.then(
+									Commands.argument("type", StringArgumentType.word()).then(
+										Commands
+											.argument("serial", LongArgumentType.longArg(1L))
+											.executes(ModCommands::executeNodeGet)
+									)
+								)
+						)
+						.then(
+							Commands
+								.literal("list")
+								.then(
+									Commands.argument("type", StringArgumentType.word()).then(
+										Commands.argument("scope", StringArgumentType.word())
+											.executes(ModCommands::executeNodeList)
+											.then(
+												Commands
+													.argument("limit", IntegerArgumentType.integer(1, NODE_LIST_MAX_LIMIT))
+													.executes(ModCommands::executeNodeList)
+													.then(
+														Commands
+															.argument("offset", IntegerArgumentType.integer(0))
+															.executes(ModCommands::executeNodeList)
+													)
+											)
+									)
+								)
+						)
+				)
+				.then(
+					Commands
+						.literal("link")
+						.then(
+							Commands
+								.literal("get")
+								.then(
+									Commands.argument("type", StringArgumentType.word()).then(
+										Commands
+											.argument("serial", LongArgumentType.longArg(1L))
+											.executes(ModCommands::executeLinkGet)
+									)
+								)
+						)
+				)
+				.then(
+					Commands
 						.literal("place")
 						.then(
 							Commands
@@ -127,6 +207,8 @@ public final class ModCommands {
 										Commands
 											.argument("block", BlockStateArgument.block(registryAccess))
 											.executes(ModCommands::executePlaceSetBlock)
+											.then(Commands.literal("dry_run").executes(ModCommands::executePlaceSetBlockDryRun))
+											.then(Commands.literal("force").executes(ModCommands::executePlaceSetBlockForce))
 									)
 								)
 						)
@@ -139,13 +221,29 @@ public final class ModCommands {
 											Commands
 												.argument("block", BlockStateArgument.block(registryAccess))
 												.executes(ModCommands::executePlaceFill)
+												.then(Commands.literal("dry_run").executes(ModCommands::executePlaceFillDryRun))
+												.then(Commands.literal("force").executes(ModCommands::executePlaceFillForce))
 										)
 									)
 								)
 						)
 						.then(Commands.literal("confirm").executes(ModCommands::executePlaceConfirm))
 				)
-				.then(Commands.literal("audit").executes(ModCommands::executeAudit))
+				.then(
+					Commands
+						.literal("audit")
+						.executes(ModCommands::executeAudit)
+						.then(
+							Commands
+								.literal("summary")
+								.executes(ModCommands::executeAuditSummaryText)
+								.then(
+									Commands
+										.argument("format", StringArgumentType.word())
+										.executes(ModCommands::executeAuditSummaryByFormat)
+								)
+						)
+				)
 				.then(
 					Commands
 						.literal("diag")
@@ -167,6 +265,17 @@ public final class ModCommands {
 						)
 						.then(
 							Commands.literal("button").then(
+								Commands.argument("serial", LongArgumentType.longArg(1L))
+									.executes(context -> executeRetireRequireConfirm(context, LinkNodeType.BUTTON))
+									.then(
+										Commands
+											.literal("confirm")
+											.executes(context -> executeRetire(context, LinkNodeType.BUTTON))
+									)
+							)
+						)
+						.then(
+							Commands.literal("triggersource").then(
 								Commands.argument("serial", LongArgumentType.longArg(1L))
 									.executes(context -> executeRetireRequireConfirm(context, LinkNodeType.BUTTON))
 									.then(
@@ -250,7 +359,7 @@ public final class ModCommands {
 		boolean requireTargetExists
 	) {
 		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
-		if (!validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
+		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
 			return 0;
 		}
 
@@ -270,7 +379,7 @@ public final class ModCommands {
 		}
 
 		LinkNodeType targetType = sourceType == LinkNodeType.BUTTON ? LinkNodeType.CORE : LinkNodeType.BUTTON;
-		if (!validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
+		if (!ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
 			return 0;
 		}
 		boolean targetOffline = savedData.findNode(targetType, targetSerial).isEmpty();
@@ -306,6 +415,31 @@ public final class ModCommands {
 	 * 自定义 setblock：放置可配对节点，必要时触发非空气替换确认。
 	 */
 	private static int executePlaceSetBlock(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceSetBlockInternal(context, false, false);
+	}
+
+	/**
+	 * 自定义 setblock 预检：仅输出替换影响，不执行放置。
+	 */
+	private static int executePlaceSetBlockDryRun(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceSetBlockInternal(context, true, false);
+	}
+
+	/**
+	 * 自定义 setblock 强制执行：跳过替换确认直接放置。
+	 */
+	private static int executePlaceSetBlockForce(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceSetBlockInternal(context, false, true);
+	}
+
+	/**
+	 * 自定义 setblock 执行入口：支持预检与强制执行。
+	 */
+	private static int executePlaceSetBlockInternal(
+		CommandContext<CommandSourceStack> context,
+		boolean dryRun,
+		boolean force
+	) throws CommandSyntaxException {
 		CommandSourceStack source = context.getSource();
 		ServerPlayer player = source.getPlayer();
 		if (player == null) {
@@ -321,6 +455,18 @@ public final class ModCommands {
 		}
 
 		int replaceCount = countPotentialReplaceNonAir(level, pos, pos, input);
+		if (dryRun) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.place.dry_run_setblock",
+					replaceCount,
+					Boolean.toString(replaceCount > 0)
+				),
+				false
+			);
+			return Command.SINGLE_SUCCESS;
+		}
+
 		PendingPlacement pendingPlacement = new PendingPlacement(
 			PlacementMode.SETBLOCK,
 			level.dimension(),
@@ -330,7 +476,7 @@ public final class ModCommands {
 			replaceCount,
 			System.currentTimeMillis()
 		);
-		if (replaceCount > 0) {
+		if (replaceCount > 0 && !force) {
 			PENDING_PLACE_BY_PLAYER.put(player.getUUID(), pendingPlacement);
 			source.sendFailure(Component.translatable("message.redstonelink.place.replace_confirm", replaceCount));
 			return 0;
@@ -343,6 +489,31 @@ public final class ModCommands {
 	 * 自定义 fill：批量放置可配对节点，替换非空气时要求二次确认。
 	 */
 	private static int executePlaceFill(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceFillInternal(context, false, false);
+	}
+
+	/**
+	 * 自定义 fill 预检：仅输出体积与替换影响，不执行放置。
+	 */
+	private static int executePlaceFillDryRun(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceFillInternal(context, true, false);
+	}
+
+	/**
+	 * 自定义 fill 强制执行：跳过替换确认直接放置。
+	 */
+	private static int executePlaceFillForce(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceFillInternal(context, false, true);
+	}
+
+	/**
+	 * 自定义 fill 执行入口：支持预检与强制执行。
+	 */
+	private static int executePlaceFillInternal(
+		CommandContext<CommandSourceStack> context,
+		boolean dryRun,
+		boolean force
+	) throws CommandSyntaxException {
 		CommandSourceStack source = context.getSource();
 		ServerPlayer player = source.getPlayer();
 		if (player == null) {
@@ -372,6 +543,19 @@ public final class ModCommands {
 		}
 
 		int replaceCount = countPotentialReplaceNonAir(level, min, max, input);
+		if (dryRun) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.place.dry_run_fill",
+					volume,
+					replaceCount,
+					Boolean.toString(replaceCount > 0)
+				),
+				false
+			);
+			return Command.SINGLE_SUCCESS;
+		}
+
 		PendingPlacement pendingPlacement = new PendingPlacement(
 			PlacementMode.FILL,
 			level.dimension(),
@@ -381,7 +565,7 @@ public final class ModCommands {
 			replaceCount,
 			System.currentTimeMillis()
 		);
-		if (replaceCount > 0) {
+		if (replaceCount > 0 && !force) {
 			PENDING_PLACE_BY_PLAYER.put(player.getUUID(), pendingPlacement);
 			source.sendFailure(Component.translatable("message.redstonelink.place.replace_confirm", replaceCount));
 			return 0;
@@ -568,10 +752,187 @@ public final class ModCommands {
 		return true;
 	}
 
-	private static int executeAudit(CommandContext<CommandSourceStack> context) {
+	/**
+	 * 查询单个节点详情。
+	 */
+	private static int executeNodeGet(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
+			return 0;
+		}
+
+		long serial = LongArgumentType.getLong(context, "serial");
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		boolean allocated = savedData.isSerialAllocated(type, serial);
+		boolean retired = savedData.isSerialRetired(type, serial);
+		var nodeOptional = savedData.findNode(type, serial);
+		boolean online = nodeOptional.isPresent();
+		String dimensionText = nodeOptional.map(node -> node.dimension().location().toString()).orElse("-");
+		String posText = nodeOptional.map(node -> formatBlockPos(node.pos())).orElse("-");
+		Set<Long> targets = readLinkedTargets(savedData, type, serial);
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.node.get",
+				typeCommandName(type),
+				serial,
+				Boolean.toString(allocated),
+				Boolean.toString(retired),
+				Boolean.toString(online),
+				dimensionText,
+				posText,
+				targets.size(),
+				formatSerialSet(targets)
+			),
+			false
+		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 查询节点序列号列表（active/retired/online）。
+	 */
+	private static int executeNodeList(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
+			return 0;
+		}
+		NodeListScope scope = parseNodeListScopeArg(source, StringArgumentType.getString(context, "scope"));
+		if (scope == null) {
+			return 0;
+		}
+
+		int limit = getOptionalIntArg(context, "limit", NODE_LIST_DEFAULT_LIMIT);
+		int offset = getOptionalIntArg(context, "offset", 0);
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		Set<Long> serialSet = switch (scope) {
+			case ACTIVE -> savedData.getActiveSerials(type);
+			case RETIRED -> savedData.getRetiredSerials(type);
+			case ONLINE -> savedData.getOnlineSerials(type);
+		};
+		List<Long> sortedSerials = serialSet.stream().sorted().toList();
+		int total = sortedSerials.size();
+		if (offset >= total) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.node.list",
+					typeCommandName(type),
+					scope.commandName(),
+					total,
+					0,
+					offset,
+					"-"
+				),
+				false
+			);
+			return Command.SINGLE_SUCCESS;
+		}
+
+		int endExclusive = Math.min(total, offset + limit);
+		List<Long> page = sortedSerials.subList(offset, endExclusive);
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.node.list",
+				typeCommandName(type),
+				scope.commandName(),
+				total,
+				page.size(),
+				offset,
+				formatSerialList(page)
+			),
+			false
+		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 查询单个源节点当前关联目标列表。
+	 */
+	private static int executeLinkGet(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
+			return 0;
+		}
+
+		long serial = LongArgumentType.getLong(context, "serial");
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		Set<Long> targets = readLinkedTargets(savedData, type, serial);
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.link.get",
+				typeCommandName(type),
+				serial,
+				targets.size(),
+				formatSerialSet(targets)
+			),
+			false
+		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 兼容历史入口：audit 默认输出文本摘要。
+	 */
+	private static int executeAudit(CommandContext<CommandSourceStack> context) {
+		return executeAuditSummary(context.getSource(), AuditOutputFormat.TEXT);
+	}
+
+	/**
+	 * audit summary 默认文本格式。
+	 */
+	private static int executeAuditSummaryText(CommandContext<CommandSourceStack> context) {
+		return executeAuditSummary(context.getSource(), AuditOutputFormat.TEXT);
+	}
+
+	/**
+	 * audit summary 指定输出格式（text/csv）。
+	 */
+	private static int executeAuditSummaryByFormat(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		AuditOutputFormat format = parseAuditOutputFormatArg(source, StringArgumentType.getString(context, "format"));
+		if (format == null) {
+			return 0;
+		}
+		return executeAuditSummary(source, format);
+	}
+
+	/**
+	 * 审计摘要统一输出实现。
+	 */
+	private static int executeAuditSummary(CommandSourceStack source, AuditOutputFormat outputFormat) {
 		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
 		LinkSavedData.AuditSnapshot snapshot = savedData.createAuditSnapshot();
+		if (outputFormat == AuditOutputFormat.CSV) {
+			source.sendSuccess(
+				() -> Component.literal(
+					"[RedstoneLink] online_core_nodes,online_button_nodes,total_links,links_with_missing_endpoint,linked_button_serial_count,linked_core_serial_count,active_core_serials,retired_core_serials,active_button_serials,retired_button_serials"
+				),
+				false
+			);
+			source.sendSuccess(
+				() -> Component.literal(
+					"[RedstoneLink] "
+						+ String.join(
+							",",
+							Integer.toString(snapshot.onlineCoreNodes()),
+							Integer.toString(snapshot.onlineButtonNodes()),
+							Integer.toString(snapshot.totalLinks()),
+							Integer.toString(snapshot.linksWithMissingEndpoint()),
+							Integer.toString(snapshot.linkedButtonSerialCount()),
+							Integer.toString(snapshot.linkedCoreSerialCount()),
+							formatSerialSetCsv(savedData.getActiveSerials(LinkNodeType.CORE)),
+							formatSerialSetCsv(savedData.getRetiredSerials(LinkNodeType.CORE)),
+							formatSerialSetCsv(savedData.getActiveSerials(LinkNodeType.BUTTON)),
+							formatSerialSetCsv(savedData.getRetiredSerials(LinkNodeType.BUTTON))
+						)
+				),
+				false
+			);
+			return Command.SINGLE_SUCCESS;
+		}
+
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.audit.summary",
@@ -651,6 +1012,10 @@ public final class ModCommands {
 	) {
 		CommandSourceStack source = context.getSource();
 		long serial = LongArgumentType.getLong(context, "serial");
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, type, serial)) {
+			return 0;
+		}
 		source.sendFailure(
 			Component.translatable(
 				"message.redstonelink.retire.confirm",
@@ -667,7 +1032,11 @@ public final class ModCommands {
 	private static int executeRetire(CommandContext<CommandSourceStack> context, LinkNodeType type) {
 		CommandSourceStack source = context.getSource();
 		long serial = LongArgumentType.getLong(context, "serial");
-		LinkSavedData.RetireResult result = LinkSavedData.get(source.getLevel()).retireNode(type, serial);
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, type, serial)) {
+			return 0;
+		}
+		LinkSavedData.RetireResult result = savedData.retireNode(type, serial);
 
 		if (!result.nodeRemoved() && result.linksRemoved() == 0 && !result.retiredMarked()) {
 			source.sendFailure(Component.translatable("message.redstonelink.retire.no_change", typeCommandName(type), serial));
@@ -708,7 +1077,7 @@ public final class ModCommands {
 
 		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
 		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
-		if (!validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
+		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
 			return 0;
 		}
 
@@ -865,90 +1234,113 @@ public final class ModCommands {
 	 * 解析序列号列表文本（逗号/分号/空白分隔）。
 	 */
 	private static TargetParseResult parseTargetSerials(String rawText) {
-		if (rawText == null || rawText.isBlank()) {
-			return new TargetParseResult(Set.of(), List.of());
-		}
-
-		// 支持逗号、分号和空白混输，便于命令行快速粘贴序列号列表。
-		String[] tokens = rawText.trim().split("[,;\\s]+");
-		LinkedHashSet<Long> result = new LinkedHashSet<>();
-		List<String> invalidEntries = new ArrayList<>();
-		for (String token : tokens) {
-			if (token.isBlank()) {
-				continue;
-			}
-			if (!token.matches("[0-9]+")) {
-				invalidEntries.add(token);
-				continue;
-			}
-
-			long serial;
-			try {
-				serial = Long.parseLong(token);
-			} catch (NumberFormatException ignored) {
-				invalidEntries.add(token);
-				continue;
-			}
-			if (serial <= 0L) {
-				invalidEntries.add(token);
-				continue;
-			}
-			result.add(serial);
-		}
-		return new TargetParseResult(Set.copyOf(result), List.copyOf(invalidEntries));
+		SerialParseUtil.TargetParseResult parsed = SerialParseUtil.parseTargets(rawText, Integer.MAX_VALUE);
+		return new TargetParseResult(parsed.targets(), parsed.invalidEntries());
 	}
 
 	/**
 	 * 校验源序列号处于已分配且未退役状态。
 	 */
-	private static boolean validateSourceSerialActive(
-		CommandSourceStack source,
+
+	/**
+	 * 解析节点类型参数。
+	 */
+	private static LinkNodeType parseNodeTypeArg(CommandSourceStack source, String rawType) {
+		String normalized = rawType == null ? "" : rawType.trim().toLowerCase(Locale.ROOT);
+		return switch (normalized) {
+			case "button", "triggersource", "trigger_source" -> LinkNodeType.BUTTON;
+			case "core" -> LinkNodeType.CORE;
+			default -> {
+				source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
+				yield null;
+			}
+		};
+	}
+
+	/**
+	 * 解析节点列表范围参数。
+	 */
+	private static NodeListScope parseNodeListScopeArg(CommandSourceStack source, String rawScope) {
+		String normalized = rawScope == null ? "" : rawScope.trim().toLowerCase(Locale.ROOT);
+		return switch (normalized) {
+			case "active" -> NodeListScope.ACTIVE;
+			case "retired" -> NodeListScope.RETIRED;
+			case "online" -> NodeListScope.ONLINE;
+			default -> {
+				source.sendFailure(Component.translatable("message.redstonelink.node.invalid_scope", rawScope));
+				yield null;
+			}
+		};
+	}
+
+	/**
+	 * 解析审计输出格式参数。
+	 */
+	private static AuditOutputFormat parseAuditOutputFormatArg(CommandSourceStack source, String rawFormat) {
+		String normalized = rawFormat == null ? "" : rawFormat.trim().toLowerCase(Locale.ROOT);
+		return switch (normalized) {
+			case "text" -> AuditOutputFormat.TEXT;
+			case "csv" -> AuditOutputFormat.CSV;
+			default -> {
+				source.sendFailure(Component.translatable("message.redstonelink.audit.invalid_format", rawFormat));
+				yield null;
+			}
+		};
+	}
+
+	/**
+	 * 读取可选整型参数，不存在时返回默认值。
+	 */
+	private static int getOptionalIntArg(
+		CommandContext<CommandSourceStack> context,
+		String argumentName,
+		int defaultValue
+	) {
+		try {
+			return IntegerArgumentType.getInteger(context, argumentName);
+		} catch (IllegalArgumentException ignored) {
+			return defaultValue;
+		}
+	}
+
+	/**
+	 * 读取源节点当前关联目标列表。
+	 */
+	private static Set<Long> readLinkedTargets(
 		LinkSavedData savedData,
 		LinkNodeType sourceType,
 		long sourceSerial
 	) {
-		if (sourceSerial <= 0L || !savedData.isSerialAllocated(sourceType, sourceSerial)) {
-			source.sendFailure(Component.translatable("message.redstonelink.source_serial_unallocated", sourceSerial));
-			return false;
-		}
-		if (savedData.isSerialRetired(sourceType, sourceSerial)) {
-			source.sendFailure(Component.translatable("message.redstonelink.source_serial_retired", sourceSerial));
-			return false;
-		}
-		return true;
+		return sourceType == LinkNodeType.BUTTON
+			? savedData.getLinkedCores(sourceSerial)
+			: savedData.getLinkedButtons(sourceSerial);
 	}
 
 	/**
-	 * 校验目标序列号处于已分配且未退役状态。
+	 * 序列化方块坐标文本。
 	 */
-	private static boolean validateTargetSerialActive(
-		CommandSourceStack source,
-		LinkSavedData savedData,
-		LinkNodeType targetType,
-		long targetSerial
-	) {
-		if (targetSerial <= 0L || !savedData.isSerialAllocated(targetType, targetSerial)) {
-			source.sendFailure(Component.translatable("message.redstonelink.target_serial_unallocated", targetSerial));
-			return false;
-		}
-		if (savedData.isSerialRetired(targetType, targetSerial)) {
-			source.sendFailure(Component.translatable("message.redstonelink.target_serial_retired", targetSerial));
-			return false;
-		}
-		return true;
+	private static String formatBlockPos(BlockPos pos) {
+		return pos.getX() + ", " + pos.getY() + ", " + pos.getZ();
 	}
 
 	/**
 	 * 以稳定升序格式化序列号列表。
 	 */
 	private static String formatSerialList(List<Long> serials) {
+		return formatSerialCollection(serials);
+	}
+
+	/**
+	 * 以“|”分隔格式化序列号集合，供 CSV 输出避免逗号冲突。
+	 */
+	private static String formatSerialSetCsv(Set<Long> serials) {
 		if (serials.isEmpty()) {
 			return "-";
 		}
 		return serials.stream()
 			.sorted()
 			.map(String::valueOf)
-			.reduce((left, right) -> left + ", " + right)
+			.reduce((left, right) -> left + "|" + right)
 			.orElse("-");
 	}
 
@@ -956,14 +1348,63 @@ public final class ModCommands {
 	 * 以稳定升序格式化序列号集合。
 	 */
 	private static String formatSerialSet(Set<Long> serials) {
+		return formatSerialCollection(serials);
+	}
+
+	/**
+	 * 统一格式化序列号集合，限制输出数量与总字符长度，避免命令反馈过长。
+	 */
+	private static String formatSerialCollection(Collection<Long> serials) {
 		if (serials.isEmpty()) {
 			return "-";
 		}
-		return serials.stream()
-			.sorted()
-			.map(String::valueOf)
-			.reduce((left, right) -> left + ", " + right)
-			.orElse("-");
+
+		List<Long> sortedSerials = serials.stream().sorted().toList();
+		StringBuilder builder = new StringBuilder();
+		int shownCount = 0;
+		for (Long serial : sortedSerials) {
+			if (shownCount >= SERIAL_LIST_MAX_ITEMS) {
+				break;
+			}
+			String token = String.valueOf(serial);
+			String separator = shownCount == 0 ? "" : ", ";
+			int appendedLength = builder.length() + separator.length() + token.length();
+			if (appendedLength > SERIAL_LIST_MAX_CHARS) {
+				break;
+			}
+			builder.append(separator).append(token);
+			shownCount++;
+		}
+
+		if (shownCount <= 0) {
+			return "-";
+		}
+		int omittedCount = sortedSerials.size() - shownCount;
+		if (omittedCount > 0) {
+			builder.append(", ... (+").append(omittedCount).append(" more)");
+		}
+		return builder.toString();
+	}
+
+	private enum NodeListScope {
+		ACTIVE("active"),
+		RETIRED("retired"),
+		ONLINE("online");
+
+		private final String commandName;
+
+		NodeListScope(String commandName) {
+			this.commandName = commandName;
+		}
+
+		public String commandName() {
+			return commandName;
+		}
+	}
+
+	private enum AuditOutputFormat {
+		TEXT,
+		CSV,
 	}
 
 	private enum PlacementMode {
