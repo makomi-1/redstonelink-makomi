@@ -47,7 +47,6 @@ replay_*.log
 *.jfr
 logs/
 
-plan
 agents/plans/05_后续迭代与测试路线.md
 AGENTS.md
 
@@ -62,3 +61,4 @@ docs/runbooks/in-game-test-scenarios.md
 redstonelink_plan.txt
 agents/
 .tmp/
+更新计划草稿与索引.md
