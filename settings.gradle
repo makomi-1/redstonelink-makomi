@@ -29,7 +29,9 @@ pluginManagement {
 			}
 		}
 
-		if (!foundEnvProxy && !System.getProperty(hostKey)) {
+		if (!foundEnvProxy) {
+			// When no env proxy is provided, clear both host and port to avoid stale JVM proxy settings.
+			System.clearProperty(hostKey)
 			System.clearProperty(portKey)
 		}
 	}
@@ -49,6 +51,18 @@ pluginManagement {
 		maven {
 			name = 'AliyunPublic'
 			url = 'https://maven.aliyun.com/repository/public'
+		}
+		maven {
+			name = 'TencentCloud'
+			url = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/'
+		}
+		maven {
+			name = 'HuaweiCloud'
+			url = 'https://repo.huaweicloud.com/repository/maven/'
+		}
+		maven {
+			name = 'NetEase'
+			url = 'https://mirrors.163.com/maven/repository/maven-public/'
 		}
 		mavenCentral()
 		gradlePluginPortal()
