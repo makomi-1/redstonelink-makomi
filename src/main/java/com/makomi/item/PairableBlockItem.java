@@ -113,9 +113,11 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 				serial > 0L ? Long.toString(serial) : "-"
 			)
 		);
-		String linkedText = linkedSerials.isEmpty()
-			? "-"
-			: linkedSerials.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
+		String linkedText = TooltipTextTruncateUtil.buildTargetsText(
+			linkedSerials,
+			TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
+		);
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.links",
@@ -126,13 +128,6 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
 		}
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
-	}
-
-	@Override
-	public void onDestroyed(ItemEntity itemEntity) {
-		// 记录“伤害导致的实体丢弃”，用于退役判定中区分拾取与销毁路径。
-		LinkNodeRetireEvents.markDamageDiscard(itemEntity);
-		super.onDestroyed(itemEntity);
 	}
 
 	/**
@@ -151,3 +146,4 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		return RedstoneLinkConfig.canOpenPairingByHeldItem(player, hand);
 	}
 }
+
