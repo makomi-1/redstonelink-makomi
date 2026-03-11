@@ -38,6 +38,31 @@ class LinkSavedDataIntegrationTest {
 	}
 
 	/**
+	 * 建立→解除→再绑定流程应保持一致性。
+	 */
+	@Test
+	void toggleLinkFlowShouldRemainConsistent() {
+		LinkSavedData data = new LinkSavedData();
+		long coreSerial = data.allocateSerial(LinkNodeType.CORE);
+		long buttonSerial = data.allocateSerial(LinkNodeType.BUTTON);
+		data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(30, 64, 30), LinkNodeType.CORE);
+		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(31, 64, 30), LinkNodeType.BUTTON);
+
+		boolean linked = data.toggleLink(buttonSerial, coreSerial);
+		assertTrue(linked);
+		assertTrue(data.getLinkedCores(buttonSerial).contains(coreSerial));
+
+		boolean unlinked = data.toggleLink(buttonSerial, coreSerial);
+		assertTrue(!unlinked);
+		assertTrue(data.getLinkedCores(buttonSerial).isEmpty());
+		assertTrue(data.getLinkedButtons(coreSerial).isEmpty());
+
+		boolean linkedAgain = data.toggleLink(buttonSerial, coreSerial);
+		assertTrue(linkedAgain);
+		assertTrue(data.getLinkedCores(buttonSerial).contains(coreSerial));
+	}
+
+	/**
 	 * 通过反射调用私有 load 方法，避免直接暴露内部接口。
 	 */
 	private static LinkSavedData invokeLoad(CompoundTag tag) {

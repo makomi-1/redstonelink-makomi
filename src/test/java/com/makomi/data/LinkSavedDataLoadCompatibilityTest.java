@@ -68,9 +68,7 @@ class LinkSavedDataLoadCompatibilityTest {
 	 */
 	@Test
 	void loadShouldSupportLegacyNextSerialFromFixture() throws Exception {
-		Path fixture = Path.of("src/test/resources/fixtures/nbt/link_saved_data_legacy.snbt");
-		String content = Files.readString(fixture, StandardCharsets.UTF_8);
-		CompoundTag legacy = TagParser.parseTag(content);
+		CompoundTag legacy = readFixture("src/test/resources/fixtures/nbt/link_saved_data_legacy.snbt");
 
 		LinkSavedData restored = invokeLoad(legacy);
 		long coreSerial = restored.allocateSerial(LinkNodeType.CORE);
@@ -78,6 +76,33 @@ class LinkSavedDataLoadCompatibilityTest {
 
 		assertEquals(5L, coreSerial);
 		assertEquals(5L, buttonSerial);
+	}
+
+	/**
+	 * 读取异常维度样例时，应过滤非法维度节点与非法按钮序列号。
+	 */
+	@Test
+	void loadShouldFilterInvalidDimensionFromFixture() throws Exception {
+		CompoundTag legacy = readFixture("src/test/resources/fixtures/nbt/link_saved_data_invalid_dimension.snbt");
+
+		LinkSavedData restored = invokeLoad(legacy);
+		assertTrue(restored.findNode(LinkNodeType.CORE, 9L).isPresent());
+		assertFalse(restored.findNode(LinkNodeType.BUTTON, 10L).isPresent());
+		assertEquals(Set.of(11L, 12L), restored.getLinkedCores(77L));
+		assertTrue(restored.getLinkedCores(0L).isEmpty());
+	}
+
+	/**
+	 * 读取缺字段样例时，应过滤无效节点并仅保留正数链接序列号。
+	 */
+	@Test
+	void loadShouldFilterMissingFieldsFromFixture() throws Exception {
+		CompoundTag legacy = readFixture("src/test/resources/fixtures/nbt/link_saved_data_missing_fields.snbt");
+
+		LinkSavedData restored = invokeLoad(legacy);
+		assertFalse(restored.findNode(LinkNodeType.BUTTON, 15L).isPresent());
+		assertTrue(restored.findNode(LinkNodeType.BUTTON, 16L).isPresent());
+		assertTrue(restored.getLinkedCores(16L).isEmpty());
 	}
 
 	/**
@@ -148,6 +173,15 @@ class LinkSavedDataLoadCompatibilityTest {
 	 */
 	private static LinkSavedData invokeLoad(CompoundTag tag) {
 		return invokeLoadViaMethodName("load", tag);
+	}
+
+	/**
+	 * 读取本地 SNBT fixture，并解析为 CompoundTag。
+	 */
+	private static CompoundTag readFixture(String relativePath) throws Exception {
+		Path fixture = Path.of(relativePath);
+		String content = Files.readString(fixture, StandardCharsets.UTF_8);
+		return TagParser.parseTag(content);
 	}
 
 	/**
