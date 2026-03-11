@@ -4,7 +4,7 @@
     {serial: 10L, dimension: "bad::dimension", pos: 0L, type: "BUTTON"}
   ],
   links: [
-    {buttonSerial: 77L, coreSerials: [L; 11, 12]},
-    {buttonSerial: 0L, coreSerials: [L; 1]}
+    {buttonSerial: 77L, coreSerials: [L; 11L, 12L]},
+    {buttonSerial: 0L, coreSerials: [L; 1L]}
   ]
 }

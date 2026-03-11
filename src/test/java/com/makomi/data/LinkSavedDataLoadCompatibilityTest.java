@@ -102,7 +102,7 @@ class LinkSavedDataLoadCompatibilityTest {
 		LinkSavedData restored = invokeLoad(legacy);
 		assertFalse(restored.findNode(LinkNodeType.BUTTON, 15L).isPresent());
 		assertTrue(restored.findNode(LinkNodeType.BUTTON, 16L).isPresent());
-		assertTrue(restored.getLinkedCores(16L).isEmpty());
+		assertEquals(Set.of(20L), restored.getLinkedCores(16L));
 	}
 
 	/**
