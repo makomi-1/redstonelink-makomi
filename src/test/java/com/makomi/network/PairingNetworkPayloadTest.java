@@ -80,4 +80,44 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.targets(), decoded.targets());
 		assertEquals(PairingNetwork.OpenCorePairingPayload.TYPE, decoded.type());
 	}
+
+	/**
+	 * 编解码时应保留空目标列表。
+	 */
+	@Test
+	void payloadCodecShouldAllowEmptyTargets() {
+		PairingNetwork.OpenButtonPairingPayload original = new PairingNetwork.OpenButtonPairingPayload(77L, List.of());
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		PairingNetwork.OpenButtonPairingPayload.CODEC.encode(buffer, original);
+		PairingNetwork.OpenButtonPairingPayload decoded = PairingNetwork.OpenButtonPairingPayload.CODEC.decode(buffer);
+
+		assertEquals(77L, decoded.sourceSerial());
+		assertEquals(List.of(), decoded.targets());
+	}
+
+	/**
+	 * 非法负载（size 为负数）应抛出异常。
+	 */
+	@Test
+	void payloadCodecShouldRejectNegativeSize() {
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeVarLong(1L);
+		buffer.writeVarInt(-1);
+
+		assertThrows(RuntimeException.class, () -> PairingNetwork.OpenCorePairingPayload.CODEC.decode(buffer));
+	}
+
+	/**
+	 * size 大于实际数据时应抛出异常。
+	 */
+	@Test
+	void payloadCodecShouldRejectTruncatedPayload() {
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeVarLong(1L);
+		buffer.writeVarInt(2);
+		buffer.writeVarLong(11L);
+
+		assertThrows(RuntimeException.class, () -> PairingNetwork.OpenButtonPairingPayload.CODEC.decode(buffer));
+	}
 }

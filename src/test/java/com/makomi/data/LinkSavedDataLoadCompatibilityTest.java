@@ -7,12 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.level.Level;
+import net.minecraft.nbt.TagParser;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -50,6 +54,23 @@ class LinkSavedDataLoadCompatibilityTest {
 	void loadShouldSupportLegacyNextSerialKey() {
 		CompoundTag legacy = new CompoundTag();
 		legacy.putLong("nextSerial", 5L);
+
+		LinkSavedData restored = invokeLoad(legacy);
+		long coreSerial = restored.allocateSerial(LinkNodeType.CORE);
+		long buttonSerial = restored.allocateSerial(LinkNodeType.BUTTON);
+
+		assertEquals(5L, coreSerial);
+		assertEquals(5L, buttonSerial);
+	}
+
+	/**
+	 * 读取版本化 SNBT 样例应保持 legacy nextSerial 兼容。
+	 */
+	@Test
+	void loadShouldSupportLegacyNextSerialFromFixture() throws Exception {
+		Path fixture = Path.of("src/test/resources/fixtures/nbt/link_saved_data_legacy.snbt");
+		String content = Files.readString(fixture, StandardCharsets.UTF_8);
+		CompoundTag legacy = TagParser.parseTag(content);
 
 		LinkSavedData restored = invokeLoad(legacy);
 		long coreSerial = restored.allocateSerial(LinkNodeType.CORE);
@@ -122,6 +143,9 @@ class LinkSavedDataLoadCompatibilityTest {
 		assertThrows(IllegalStateException.class, () -> invokeLoadViaMethodName("notExistingLoadMethod", new CompoundTag()));
 	}
 
+	/**
+	 * 使用默认方法名封装反射调用，便于测试复用。
+	 */
 	private static LinkSavedData invokeLoad(CompoundTag tag) {
 		return invokeLoadViaMethodName("load", tag);
 	}

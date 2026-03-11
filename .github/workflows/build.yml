@@ -14,6 +14,16 @@ on:
         required: false
         default: false
         type: boolean
+      run_extended_tests:
+        description: 'Run extended test suites (integration/client/slow)'
+        required: false
+        default: false
+        type: boolean
+      run_coverage:
+        description: 'Run extended suites and generate JaCoCo coverage report'
+        required: false
+        default: false
+        type: boolean
       run_api_legacy:
         description: 'Run legacy API tests (excluded from default test gate)'
         required: false
@@ -96,6 +106,20 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: .\tools\ci\run_l1_checks.ps1 -StrictClean
+      - name: run extended tests (Linux)
+        if: ${{ runner.os != 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_extended_tests }}
+        run: ./gradlew --no-daemon testExtended
+      - name: run extended tests (Windows)
+        if: ${{ runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_extended_tests }}
+        shell: pwsh
+        run: .\gradlew.bat --no-daemon testExtended
+      - name: run coverage report (Linux)
+        if: ${{ runner.os != 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_coverage }}
+        run: ./gradlew --no-daemon testCoverage
+      - name: run coverage report (Windows)
+        if: ${{ runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_coverage }}
+        shell: pwsh
+        run: .\gradlew.bat --no-daemon testCoverage
       - name: run api legacy tests (Linux)
         if: ${{ runner.os != 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_api_legacy }}
         run: ./gradlew --no-daemon testApiLegacy
@@ -119,6 +143,19 @@ jobs:
           path: |
             build/test-results/test/**/*.xml
             build/reports/tests/test/**
+      - name: upload extended test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-extended-${{ matrix.os }}
+          if-no-files-found: warn
+          path: |
+            build/test-results/testIntegration/**/*.xml
+            build/test-results/testClient/**/*.xml
+            build/test-results/testSlow/**/*.xml
+            build/reports/tests/testIntegration/**
+            build/reports/tests/testClient/**
+            build/reports/tests/testSlow/**
       - name: upload api-legacy test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -128,6 +165,15 @@ jobs:
           path: |
             build/test-results/testApiLegacy/**/*.xml
             build/reports/tests/testApiLegacy/**
+      - name: upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-${{ matrix.os }}
+          if-no-files-found: warn
+          path: |
+            build/jacoco/**
+            build/reports/jacoco/**
       - name: upload reports on failure
         if: failure()
         uses: actions/upload-artifact@v4

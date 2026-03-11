@@ -1,6 +1,7 @@
 plugins {
 	id 'fabric-loom' version "${loom_version}"
 	id 'maven-publish'
+	id 'jacoco'
 }
 
 version = project.mod_version
@@ -107,6 +108,82 @@ tasks.named("test", Test).configure {
 	useJUnitPlatform {
 		includeTags "stable-core"
 	}
+	finalizedBy(tasks.named("jacocoTestReport"))
+}
+
+jacoco {
+	toolVersion = "0.8.12"
+}
+
+tasks.named("jacocoTestReport", JacocoReport).configure {
+	group = "verification"
+	description = "Generate JaCoCo report for stable-core suite."
+	dependsOn(tasks.named("test"))
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+def taggedTestTasks = [
+	[name: "testIntegration", tag: "integration", description: "Run integration tests (non-default gate)."],
+	[name: "testClient", tag: "client", description: "Run client-only tests (non-default gate)."],
+	[name: "testSlow", tag: "slow", description: "Run slow regression tests (non-default gate)."]
+]
+
+taggedTestTasks.each { config ->
+	tasks.register(config.name, Test) {
+		group = "verification"
+		description = config.description
+		testClassesDirs = sourceSets.test.output.classesDirs
+		classpath = sourceSets.test.runtimeClasspath
+		shouldRunAfter(tasks.named("test"))
+		useJUnitPlatform {
+			includeTags config.tag
+		}
+	}
+}
+
+tasks.register("testExtended") {
+	group = "verification"
+	description = "Run stable-core plus non-default suites."
+	dependsOn(
+		tasks.named("test"),
+		tasks.named("testIntegration"),
+		tasks.named("testClient"),
+		tasks.named("testSlow")
+	)
+}
+
+def coverageTasks = [
+	tasks.named("test"),
+	tasks.named("testIntegration"),
+	tasks.named("testClient"),
+	tasks.named("testSlow")
+]
+
+tasks.register("testCoverageReport", JacocoReport) {
+	group = "verification"
+	description = "Generate merged JaCoCo report for stable-core and extended suites."
+	dependsOn(coverageTasks)
+	// 修复执行数据文件路径配置
+	executionData fileTree(dir: project.buildDir, includes: [
+		"jacoco/test.exec",
+		"jacoco/testIntegration.exec", 
+		"jacoco/testClient.exec",
+		"jacoco/testSlow.exec"
+	])
+	sourceSets(sourceSets.main)
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+tasks.register("testCoverage") {
+	group = "verification"
+	description = "Run extended suites and generate merged JaCoCo report."
+	dependsOn(tasks.named("testCoverageReport"))
 }
 
 tasks.register("testStableCore") {
