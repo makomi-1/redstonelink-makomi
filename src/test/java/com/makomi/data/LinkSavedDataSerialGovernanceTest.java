@@ -39,6 +39,38 @@ class LinkSavedDataSerialGovernanceTest {
 	}
 
 	/**
+	 * 放置冲突时（同序列号不同坐标）应重分配序列号。
+	 */
+	@Test
+	void resolvePlacementSerialShouldReassignOnPositionConflict() {
+		LinkSavedData data = new LinkSavedData();
+		long preferred = data.allocateSerial(LinkNodeType.CORE);
+		data.registerNode(preferred, Level.OVERWORLD, new BlockPos(100, 64, 100), LinkNodeType.CORE);
+
+		long resolved = data.resolvePlacementSerial(LinkNodeType.CORE, preferred, Level.OVERWORLD, new BlockPos(101, 64, 100));
+
+		assertTrue(resolved > 0L);
+		assertFalse(resolved == preferred);
+		assertTrue(data.isSerialAllocated(LinkNodeType.CORE, resolved));
+	}
+
+	/**
+	 * 放置坐标一致时应复用首选序列号。
+	 */
+	@Test
+	void resolvePlacementSerialShouldReuseWhenPositionMatches() {
+		LinkSavedData data = new LinkSavedData();
+		long preferred = data.allocateSerial(LinkNodeType.BUTTON);
+		BlockPos pos = new BlockPos(120, 64, 120);
+		data.registerNode(preferred, Level.OVERWORLD, pos, LinkNodeType.BUTTON);
+
+		long resolved = data.resolvePlacementSerial(LinkNodeType.BUTTON, preferred, Level.OVERWORLD, pos);
+
+		assertEquals(preferred, resolved);
+		assertTrue(data.isSerialAllocated(LinkNodeType.BUTTON, resolved));
+	}
+
+	/**
 	 * 已退役序列号应被分配器跳过。
 	 */
 	@Test

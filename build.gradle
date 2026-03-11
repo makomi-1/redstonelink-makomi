@@ -180,10 +180,75 @@ tasks.register("testCoverageReport", JacocoReport) {
 	}
 }
 
+tasks.register("testCoverageVerification", JacocoCoverageVerification) {
+	group = "verification"
+	description = "Verify coverage thresholds for selected packages."
+	dependsOn(coverageTasks)
+	// 统一覆盖率数据来源
+	executionData fileTree(dir: project.buildDir, includes: [
+		"jacoco/test.exec",
+		"jacoco/testIntegration.exec",
+		"jacoco/testClient.exec",
+		"jacoco/testSlow.exec"
+	])
+	sourceSets(sourceSets.main)
+	classDirectories.setFrom(
+		files(sourceSets.main.output).asFileTree.matching {
+			include "com/makomi/data/**"
+			include "com/makomi/util/**"
+			include "com/makomi/network/**"
+		}
+	)
+	violationRules {
+		rule {
+			element = "PACKAGE"
+			includes = ["com.makomi.data*"]
+			limit {
+				counter = "LINE"
+				value = "COVEREDRATIO"
+				minimum = 0.55
+			}
+			limit {
+				counter = "BRANCH"
+				value = "COVEREDRATIO"
+				minimum = 0.40
+			}
+		}
+		rule {
+			element = "PACKAGE"
+			includes = ["com.makomi.util*"]
+			limit {
+				counter = "LINE"
+				value = "COVEREDRATIO"
+				minimum = 0.45
+			}
+			limit {
+				counter = "BRANCH"
+				value = "COVEREDRATIO"
+				minimum = 0.35
+			}
+		}
+		rule {
+			element = "PACKAGE"
+			includes = ["com.makomi.network*"]
+			limit {
+				counter = "LINE"
+				value = "COVEREDRATIO"
+				minimum = 0.70
+			}
+			limit {
+				counter = "BRANCH"
+				value = "COVEREDRATIO"
+				minimum = 0.90
+			}
+		}
+	}
+}
+
 tasks.register("testCoverage") {
 	group = "verification"
-	description = "Run extended suites and generate merged JaCoCo report."
-	dependsOn(tasks.named("testCoverageReport"))
+	description = "Run extended suites, generate JaCoCo report, and verify coverage thresholds."
+	dependsOn(tasks.named("testCoverageReport"), tasks.named("testCoverageVerification"))
 }
 
 tasks.register("testStableCore") {
