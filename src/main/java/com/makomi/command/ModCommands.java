@@ -1,6 +1,7 @@
 package com.makomi.command;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.command.crosschunk.CrossChunkCommandRegistry;
 import com.makomi.compat.LithiumCompatHealth;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
@@ -286,6 +287,7 @@ public final class ModCommands {
 							)
 						)
 				)
+				.then(CrossChunkCommandRegistry.createRoot())
 		));
 	}
 

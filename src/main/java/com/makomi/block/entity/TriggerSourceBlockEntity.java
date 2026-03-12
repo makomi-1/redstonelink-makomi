@@ -1,5 +1,6 @@
 package com.makomi.block.entity;
 
+import com.makomi.data.CrossChunkDispatchService;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import java.util.Set;
@@ -72,7 +73,7 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 			return;
 		}
 
-		int triggeredCount = 0;
+		int handledCount = 0;
 		for (long targetSerial : linkedTargets) {
 			LinkSavedData.LinkNode node = savedData.findNode(getTargetNodeType(), targetSerial).orElse(null);
 			if (node == null) {
@@ -81,6 +82,24 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 
 			ServerLevel targetLevel = serverLevel.getServer().getLevel(node.dimension());
 			if (targetLevel == null || !targetLevel.isLoaded(node.pos())) {
+				boolean queued = dispatchMode == DispatchMode.ACTIVATION
+					? CrossChunkDispatchService.queueActivation(
+						serverLevel,
+						node,
+						getLinkNodeType(),
+						sourceSerial,
+						getTriggerActivationMode()
+					)
+					: CrossChunkDispatchService.queueSyncSignal(
+						serverLevel,
+						node,
+						getLinkNodeType(),
+						sourceSerial,
+						signalOn
+					);
+				if (queued) {
+					handledCount++;
+				}
 				continue;
 			}
 
@@ -91,7 +110,7 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 				} else {
 					targetBlockEntity.syncBySource(sourceSerial, signalOn);
 				}
-				triggeredCount++;
+				handledCount++;
 				continue;
 			}
 
@@ -99,7 +118,7 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 			savedData.removeNode(getTargetNodeType(), targetSerial);
 		}
 
-		if (triggeredCount == 0) {
+		if (handledCount == 0) {
 			sendPlayerMessage(player, Component.translatable("message.redstonelink.no_reachable_targets"));
 		}
 	}

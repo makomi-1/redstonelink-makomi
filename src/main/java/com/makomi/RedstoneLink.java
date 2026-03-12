@@ -3,6 +3,7 @@ package com.makomi;
 import com.makomi.command.ModCommands;
 import com.makomi.compat.LithiumCompatHealth;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CrossChunkDispatchService;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlockEntities;
@@ -35,6 +36,7 @@ public class RedstoneLink implements ModInitializer {
 		ModItemGroups.register();
 		ModCommands.register();
 		LinkNodeRetireEvents.register();
+		CrossChunkDispatchService.register();
 		LOGGER.info("RedstoneLink initialized");
 	}
 }

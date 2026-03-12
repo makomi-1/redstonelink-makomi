@@ -1,13 +1,21 @@
 package com.makomi.config;
 
 import com.makomi.RedstoneLink;
+import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkNodeType;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
@@ -16,14 +24,12 @@ import org.slf4j.LoggerFactory;
 
 /**
  * RedstoneLink 服务端配置读取器。
- * <p>
- * 配置文件路径：{@code config/redstonelink-server.properties}。
- * </p>
  */
 public final class RedstoneLinkConfig {
 	private static final Logger LOGGER = LoggerFactory.getLogger(RedstoneLink.MOD_ID + "/config");
 	private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("redstonelink-server.properties");
 	private static volatile Values values = Values.defaults();
+	private static volatile CrossChunkValues crossChunkValues = CrossChunkValues.defaults();
 
 	/**
 	 * 发射器边沿触发模式。
@@ -35,10 +41,6 @@ public final class RedstoneLinkConfig {
 
 		/**
 		 * 判断从旧电平切换到新电平时是否应触发联动。
-		 *
-		 * @param wasPowered 旧电平是否为高
-		 * @param hasSignal 新电平是否为高
-		 * @return 是否触发
 		 */
 		public boolean shouldTrigger(boolean wasPowered, boolean hasSignal) {
 			return switch (this) {
@@ -50,9 +52,6 @@ public final class RedstoneLinkConfig {
 
 		/**
 		 * 由配置值解析边沿模式。
-		 *
-		 * @param raw 配置文本
-		 * @return 解析后的模式，无法识别时返回 {@link #RISING}
 		 */
 		public static EmitterEdgeMode fromConfigValue(String raw) {
 			if (raw == null) {
@@ -62,6 +61,31 @@ public final class RedstoneLinkConfig {
 				case "falling" -> FALLING;
 				case "both" -> BOTH;
 				default -> RISING;
+			};
+		}
+	}
+
+	/**
+	 * 强制加载模式。
+	 */
+	public enum CrossChunkForceLoadMode {
+		ALL,
+		WHITELIST;
+
+		/**
+		 * 解析强制加载模式配置。
+		 *
+		 * @param raw 原始配置值
+		 * @return 解析后的模式，非法值回退为 WHITELIST
+		 */
+		public static CrossChunkForceLoadMode fromConfigValue(String raw) {
+			if (raw == null) {
+				return WHITELIST;
+			}
+			return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+				case "all" -> ALL;
+				case "whitelist" -> WHITELIST;
+				default -> WHITELIST;
 			};
 		}
 	}
@@ -80,10 +104,12 @@ public final class RedstoneLinkConfig {
 		} catch (IOException ex) {
 			LOGGER.warn("读取配置失败，回退默认值: {}", CONFIG_PATH.toAbsolutePath(), ex);
 			values = Values.defaults();
+			crossChunkValues = CrossChunkValues.defaults();
 			return;
 		}
 
 		values = parse(props);
+		crossChunkValues = parseCrossChunk(props);
 		LOGGER.info("配置加载完成: {}", CONFIG_PATH.toAbsolutePath());
 	}
 
@@ -137,7 +163,7 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * @return 是否启用 lithium 严格模式（发现关键异常时直接失败）
+	 * @return 是否启用 lithium 严格模式
 	 */
 	public static boolean lithiumStrictMode() {
 		return values.lithiumStrictMode();
@@ -148,6 +174,125 @@ public final class RedstoneLinkConfig {
 	 */
 	public static boolean requireEmptyOffhandToOpenPairing() {
 		return values.requireEmptyOffhandToOpenPairing();
+	}
+
+	/**
+	 * @return 跨区块 SYNC=ON 的 TTL（tick）
+	 */
+	public static int crossChunkSyncSignalTtlTicks() {
+		return crossChunkValues.syncSignalTtlTicks();
+	}
+
+	/**
+	 * @return Relay 缓存过期时长（tick）
+	 */
+	public static int crossChunkRelayExpireTicks() {
+		return crossChunkValues.relayExpireTicks();
+	}
+
+	/**
+	 * @return 是否启用中继缓冲
+	 */
+	public static boolean crossChunkRelayEnabled() {
+		return crossChunkValues.relayEnabled();
+	}
+
+	/**
+	 * @return 是否启用强制加载
+	 */
+	public static boolean crossChunkForceLoadEnabled() {
+		return crossChunkValues.forceLoadEnabled();
+	}
+
+	/**
+	 * @return 强制加载模式（all/whitelist）
+	 */
+	public static CrossChunkForceLoadMode crossChunkForceLoadMode() {
+		return crossChunkValues.forceLoadMode();
+	}
+
+	/**
+	 * @return 强制加载票据持续时长（tick）
+	 */
+	public static int crossChunkForceLoadTicketTicks() {
+		return crossChunkValues.forceLoadTicketTicks();
+	}
+
+	/**
+	 * @return 每 tick 最大强制加载次数
+	 */
+	public static int crossChunkForceLoadMaxPerTick() {
+		return crossChunkValues.forceLoadMaxPerTick();
+	}
+
+	/**
+	 * @return 每来源每 tick 最大强制加载次数
+	 */
+	public static int crossChunkForceLoadMaxPerSourcePerTick() {
+		return crossChunkValues.forceLoadMaxPerSourcePerTick();
+	}
+
+	/**
+	 * @return 是否启用跨区块命令树
+	 */
+	public static boolean crossChunkCommandEnabled() {
+		return crossChunkValues.commandEnabled();
+	}
+
+	/**
+	 * @return 跨区块命令权限等级
+	 */
+	public static int crossChunkCommandPermissionLevel() {
+		return crossChunkValues.commandPermissionLevel();
+	}
+
+	/**
+	 * @return 允许作为来源的类型集合
+	 */
+	public static Set<LinkNodeType> crossChunkAllowedSourceTypes() {
+		return crossChunkValues.allowedSourceTypes();
+	}
+
+	/**
+	 * @return 允许作为目标的类型集合
+	 */
+	public static Set<LinkNodeType> crossChunkAllowedTargetTypes() {
+		return crossChunkValues.allowedTargetTypes();
+	}
+
+	/**
+	 * @return 配置中的只读 preset 名称列表
+	 */
+	public static List<String> crossChunkPresetNames() {
+		return crossChunkValues.presets().keySet().stream().sorted().toList();
+	}
+
+	/**
+	 * 读取指定名称的只读 preset。
+	 */
+	public static Optional<CrossChunkPreset> crossChunkPreset(String presetName) {
+		if (presetName == null) {
+			return Optional.empty();
+		}
+		String normalized = presetName.trim().toLowerCase(Locale.ROOT);
+		if (normalized.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.ofNullable(crossChunkValues.presets().get(normalized));
+	}
+
+	/**
+	 * 判断给定类型+序号是否命中预设白名单。
+	 */
+	public static boolean crossChunkPresetContains(LinkNodeType type, long serial, LinkNodeSemantics.Role role) {
+		if (type == null || serial <= 0L || role == null) {
+			return false;
+		}
+		Map<LinkNodeType, Set<Long>> mergedBucket = role == LinkNodeSemantics.Role.SOURCE
+			? crossChunkValues.mergedPresetSources()
+			: crossChunkValues.mergedPresetTargets();
+		Set<Long> serials = mergedBucket.get(type);
+		return serials != null && serials.contains(serial);
 	}
 
 	/**
@@ -168,9 +313,6 @@ public final class RedstoneLinkConfig {
 
 	/**
 	 * 统一“遥控器打开配对界面”条件校验。
-	 * <p>
-	 * 与通用手持入口分离，避免全局潜行配置影响遥控器“站立右键触发”语义。
-	 * </p>
 	 */
 	public static boolean canOpenPairingByLinker(Player player, InteractionHand hand) {
 		if (hand != InteractionHand.MAIN_HAND) {
@@ -187,9 +329,6 @@ public final class RedstoneLinkConfig {
 
 	/**
 	 * 统一“已放置方块打开配对界面”条件校验。
-	 * <p>
-	 * 为避免误触，主手为空始终为硬约束；潜行与副手条件由配置控制。
-	 * </p>
 	 */
 	public static boolean canOpenPairingByPlacedBlock(Player player) {
 		if (!player.getMainHandItem().isEmpty()) {
@@ -205,7 +344,7 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * 解析配置对象为运行时配置值。
+	 * 解析基础配置快照。
 	 */
 	private static Values parse(Properties props) {
 		return new Values(
@@ -222,7 +361,243 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * 解析整型配置并做区间收敛。
+	 * 解析跨区块配置快照。
+	 */
+	private static CrossChunkValues parseCrossChunk(Properties props) {
+		Set<LinkNodeType> allowedSourceTypes = parseCrossChunkTypeSet(
+			props,
+			"crosschunk.whitelist.sourceTypes",
+			Set.of(LinkNodeType.BUTTON),
+			LinkNodeSemantics.Role.SOURCE
+		);
+		Set<LinkNodeType> allowedTargetTypes = parseCrossChunkTypeSet(
+			props,
+			"crosschunk.whitelist.targetTypes",
+			Set.of(LinkNodeType.CORE),
+			LinkNodeSemantics.Role.TARGET
+		);
+		Map<String, CrossChunkPreset> presets = parseCrossChunkPresets(props, allowedSourceTypes, allowedTargetTypes);
+		return new CrossChunkValues(
+			parseInt(props, "crosschunk.syncSignalTtlTicks", 40, 1, 72_000),
+			parseBoolean(props, "crosschunk.relay.enabled", true),
+			parseInt(props, "crosschunk.relayExpireTicks", 200, 1, 72_000),
+			parseBoolean(props, "crosschunk.forceLoad.enabled", true),
+			CrossChunkForceLoadMode.fromConfigValue(props.getProperty("crosschunk.forceLoad.mode", "whitelist")),
+			parseInt(props, "crosschunk.forceLoad.ticketTicks", 80, 1, 7_200),
+			parseInt(props, "crosschunk.forceLoad.maxPerTick", 8, 1, 128),
+			parseInt(props, "crosschunk.forceLoad.maxPerSourcePerTick", 2, 1, 32),
+			parseBoolean(props, "crosschunk.command.enabled", true),
+			parseInt(props, "crosschunk.command.permissionLevel", 2, 0, 4),
+			allowedSourceTypes,
+			allowedTargetTypes,
+			presets,
+			mergePresetBuckets(presets, LinkNodeSemantics.Role.SOURCE),
+			mergePresetBuckets(presets, LinkNodeSemantics.Role.TARGET)
+		);
+	}
+
+	/**
+	 * 解析跨区块类型集合配置。
+	 */
+	private static Set<LinkNodeType> parseCrossChunkTypeSet(
+		Properties props,
+		String key,
+		Set<LinkNodeType> defaults,
+		LinkNodeSemantics.Role role
+	) {
+		String raw = props.getProperty(key);
+		if (raw == null || raw.isBlank()) {
+			return Set.copyOf(defaults);
+		}
+
+		Set<LinkNodeType> parsedTypes = new HashSet<>();
+		for (String token : raw.split("[,;\\s]+")) {
+			if (token == null || token.isBlank()) {
+				continue;
+			}
+			Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseType(token);
+			if (parsedType.isEmpty()) {
+				LOGGER.warn("配置 {}={} 含有非法类型，已忽略", key, token);
+				continue;
+			}
+			if (!LinkNodeSemantics.isAllowedForRole(parsedType.get(), role)) {
+				LOGGER.warn("配置 {}={} 语义角色不匹配，已忽略", key, token);
+				continue;
+			}
+			parsedTypes.add(parsedType.get());
+		}
+		if (parsedTypes.isEmpty()) {
+			LOGGER.warn("配置 {} 未解析出有效类型，回退默认值", key);
+			return Set.copyOf(defaults);
+		}
+		return Set.copyOf(parsedTypes);
+	}
+
+	/**
+	 * 解析配置中的跨区块 preset 定义。
+	 */
+	private static Map<String, CrossChunkPreset> parseCrossChunkPresets(
+		Properties props,
+		Set<LinkNodeType> allowedSourceTypes,
+		Set<LinkNodeType> allowedTargetTypes
+	) {
+		final String keyPrefix = "crosschunk.preset.";
+		Map<String, MutablePreset> mutablePresets = new HashMap<>();
+		for (String propertyKey : props.stringPropertyNames()) {
+			if (!propertyKey.startsWith(keyPrefix)) {
+				continue;
+			}
+			String suffix = propertyKey.substring(keyPrefix.length());
+			int splitIndex = suffix.lastIndexOf('.');
+			if (splitIndex <= 0 || splitIndex >= suffix.length() - 1) {
+				continue;
+			}
+			String presetName = suffix.substring(0, splitIndex).trim().toLowerCase(Locale.ROOT);
+			String rolePart = suffix.substring(splitIndex + 1).trim().toLowerCase(Locale.ROOT);
+			if (presetName.isEmpty()) {
+				continue;
+			}
+			LinkNodeSemantics.Role role = switch (rolePart) {
+				case "sources" -> LinkNodeSemantics.Role.SOURCE;
+				case "targets" -> LinkNodeSemantics.Role.TARGET;
+				default -> null;
+			};
+			if (role == null) {
+				continue;
+			}
+			Set<LinkNodeType> allowedTypes = role == LinkNodeSemantics.Role.SOURCE
+				? allowedSourceTypes
+				: allowedTargetTypes;
+			Map<LinkNodeType, Set<Long>> parsedBucket = parsePresetBucket(
+				props.getProperty(propertyKey),
+				propertyKey,
+				role,
+				allowedTypes
+			);
+			if (parsedBucket.isEmpty()) {
+				continue;
+			}
+			MutablePreset mutablePreset = mutablePresets.computeIfAbsent(presetName, ignored -> new MutablePreset());
+			Map<LinkNodeType, Set<Long>> mutableBucket = role == LinkNodeSemantics.Role.SOURCE
+				? mutablePreset.sources
+				: mutablePreset.targets;
+			mergeBucket(mutableBucket, parsedBucket);
+		}
+
+		Map<String, CrossChunkPreset> snapshots = new HashMap<>();
+		for (Map.Entry<String, MutablePreset> entry : mutablePresets.entrySet()) {
+			Map<LinkNodeType, Set<Long>> sourceBucket = immutableBucket(entry.getValue().sources);
+			Map<LinkNodeType, Set<Long>> targetBucket = immutableBucket(entry.getValue().targets);
+			if (sourceBucket.isEmpty() && targetBucket.isEmpty()) {
+				continue;
+			}
+			snapshots.put(entry.getKey(), new CrossChunkPreset(sourceBucket, targetBucket));
+		}
+		return snapshots.isEmpty() ? Map.of() : Map.copyOf(snapshots);
+	}
+
+	/**
+	 * 解析单个 preset 的来源或目标条目。
+	 */
+	private static Map<LinkNodeType, Set<Long>> parsePresetBucket(
+		String raw,
+		String key,
+		LinkNodeSemantics.Role role,
+		Set<LinkNodeType> allowedTypes
+	) {
+		if (raw == null || raw.isBlank()) {
+			return Map.of();
+		}
+
+		Map<LinkNodeType, Set<Long>> parsedBucket = new HashMap<>();
+		for (String token : raw.split("[,;\\s]+")) {
+			if (token == null || token.isBlank()) {
+				continue;
+			}
+			int splitIndex = token.indexOf(':');
+			if (splitIndex <= 0 || splitIndex >= token.length() - 1) {
+				LOGGER.warn("配置 {}={} 格式非法，应为 type:serial，已忽略", key, token);
+				continue;
+			}
+			String typePart = token.substring(0, splitIndex);
+			String serialPart = token.substring(splitIndex + 1);
+			Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseType(typePart);
+			if (parsedType.isEmpty() || !LinkNodeSemantics.isAllowedForRole(parsedType.get(), role)) {
+				LOGGER.warn("配置 {}={} 类型非法或角色不匹配，已忽略", key, token);
+				continue;
+			}
+			if (!allowedTypes.contains(parsedType.get())) {
+				LOGGER.warn("配置 {}={} 未包含在允许类型列表中，已忽略", key, token);
+				continue;
+			}
+
+			long serial;
+			try {
+				serial = Long.parseLong(serialPart);
+			} catch (NumberFormatException ex) {
+				LOGGER.warn("配置 {}={} 序号不是合法整数，已忽略", key, token);
+				continue;
+			}
+			if (serial <= 0L) {
+				LOGGER.warn("配置 {}={} 序号必须大于 0，已忽略", key, token);
+				continue;
+			}
+			parsedBucket.computeIfAbsent(parsedType.get(), ignored -> new HashSet<>()).add(serial);
+		}
+		return immutableBucket(parsedBucket);
+	}
+
+	/**
+	 * 合并所有 preset 的来源或目标桶，供快速命中判断。
+	 */
+	private static Map<LinkNodeType, Set<Long>> mergePresetBuckets(
+		Map<String, CrossChunkPreset> presets,
+		LinkNodeSemantics.Role role
+	) {
+		if (presets.isEmpty()) {
+			return Map.of();
+		}
+		Map<LinkNodeType, Set<Long>> mergedBucket = new HashMap<>();
+		for (CrossChunkPreset preset : presets.values()) {
+			Map<LinkNodeType, Set<Long>> roleBucket = role == LinkNodeSemantics.Role.SOURCE
+				? preset.sources()
+				: preset.targets();
+			mergeBucket(mergedBucket, roleBucket);
+		}
+		return immutableBucket(mergedBucket);
+	}
+
+	/**
+	 * 将来源桶内容合并到目标桶。
+	 */
+	private static void mergeBucket(Map<LinkNodeType, Set<Long>> target, Map<LinkNodeType, Set<Long>> source) {
+		for (Map.Entry<LinkNodeType, Set<Long>> entry : source.entrySet()) {
+			if (entry.getValue() == null || entry.getValue().isEmpty()) {
+				continue;
+			}
+			target.computeIfAbsent(entry.getKey(), ignored -> new HashSet<>()).addAll(entry.getValue());
+		}
+	}
+
+	/**
+	 * 将可变桶转换为不可变快照。
+	 */
+	private static Map<LinkNodeType, Set<Long>> immutableBucket(Map<LinkNodeType, Set<Long>> source) {
+		if (source.isEmpty()) {
+			return Map.of();
+		}
+		Map<LinkNodeType, Set<Long>> snapshot = new HashMap<>();
+		for (Map.Entry<LinkNodeType, Set<Long>> entry : source.entrySet()) {
+			if (entry.getValue() == null || entry.getValue().isEmpty()) {
+				continue;
+			}
+			snapshot.put(entry.getKey(), Set.copyOf(entry.getValue()));
+		}
+		return snapshot.isEmpty() ? Map.of() : Map.copyOf(snapshot);
+	}
+
+	/**
+	 * 解析整数配置并做区间收敛。
 	 */
 	private static int parseInt(Properties props, String key, int defaultValue, int min, int max) {
 		String raw = props.getProperty(key);
@@ -232,7 +607,7 @@ public final class RedstoneLinkConfig {
 		try {
 			int value = Integer.parseInt(raw.trim());
 			if (value < min || value > max) {
-				LOGGER.warn("配置 {}={} 越界，已夹紧到[{}..{}]", key, value, min, max);
+				LOGGER.warn("配置 {}={} 越界，已夹紧到 [{}..{}]", key, value, min, max);
 			}
 			return Math.max(min, Math.min(max, value));
 		} catch (NumberFormatException ex) {
@@ -273,7 +648,7 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * 生成默认配置文件内容（双语注释）。
+	 * 生成默认配置文件内容。
 	 */
 	private static String defaultConfigContent() {
 		return """
@@ -311,7 +686,7 @@ public final class RedstoneLinkConfig {
 
 			# interaction.requireSneakToOpenLinkerPairing
 			# zh: 遥控器打开配对 UI 是否必须潜行。默认 true，避免与站立右键触发冲突。
-			# en: Require sneaking when opening pairing UI via linker. Default true to avoid conflict with standing right-click trigger.
+			# en: Require sneaking when opening pairing UI via linker.
 			interaction.requireSneakToOpenLinkerPairing=true
 			
 			# interaction.requireEmptyOffhandToOpenPairing
@@ -320,15 +695,81 @@ public final class RedstoneLinkConfig {
 			interaction.requireEmptyOffhandToOpenPairing=true
 
 			# compat.lithiumStrictMode
-			# zh: lithium 严格模式。true 时若检测到关键兼容异常（如动态方法缺失）将直接抛错中止启动。
-			# en: Lithium strict mode. If true, startup fails fast when critical compatibility anomalies are detected.
+			# zh: Lithium 严格模式。true 时若发现关键兼容异常将直接中止启动。
+			# en: Lithium strict mode. If true, startup fails fast on critical anomalies.
 			compat.lithiumStrictMode=false
+
+			# crosschunk.syncSignalTtlTicks
+			# zh: 跨区块 SYNC=ON 缓存保活时长（tick）。
+			# en: TTL in ticks for queued cross-chunk SYNC=ON events.
+			crosschunk.syncSignalTtlTicks=40
+
+			# crosschunk.relayExpireTicks
+			# zh: 跨区块 Relay 缓存通用过期时长（tick）。
+			# en: Common expiry ticks for relay cache entries.
+			crosschunk.relayExpireTicks=200
+
+			# crosschunk.relay.enabled
+			# zh: 是否启用 Relay 中继缓冲。
+			# en: Whether relay buffering is enabled.
+			crosschunk.relay.enabled=true
+
+			# crosschunk.forceLoad.enabled
+			# zh: 是否允许命中白名单时触发强制加载。
+			# en: Whether force-load is allowed when whitelist matches.
+			crosschunk.forceLoad.enabled=true
+
+			# crosschunk.forceLoad.mode
+			# zh: 强制加载模式，all=不依赖白名单，whitelist=仅白名单/preset 生效。
+			# en: Force-load mode, all or whitelist.
+			crosschunk.forceLoad.mode=whitelist
+
+			# crosschunk.forceLoad.ticketTicks
+			# zh: 强制加载票据保活时长（tick）。
+			# en: Lifetime of force-load ticket in ticks.
+			crosschunk.forceLoad.ticketTicks=80
+
+			# crosschunk.forceLoad.maxPerTick
+			# zh: 每 tick 最多执行的强制加载请求数量。
+			# en: Maximum force-load requests per tick.
+			crosschunk.forceLoad.maxPerTick=8
+
+			# crosschunk.forceLoad.maxPerSourcePerTick
+			# zh: 每个来源每 tick 最多执行的强制加载请求数量。
+			# en: Maximum force-load requests per source per tick.
+			crosschunk.forceLoad.maxPerSourcePerTick=2
+
+			# crosschunk.command.enabled
+			# zh: 是否启用 /redstonelink crosschunk 命令树。
+			# en: Whether /redstonelink crosschunk command tree is enabled.
+			crosschunk.command.enabled=true
+
+			# crosschunk.command.permissionLevel
+			# zh: /redstonelink crosschunk 命令所需权限等级（0~4）。
+			# en: Permission level required for /redstonelink crosschunk commands.
+			crosschunk.command.permissionLevel=2
+
+			# crosschunk.whitelist.sourceTypes
+			# zh: 允许作为来源的类型列表（逗号/空格分隔）。
+			# en: Allowed source types for cross-chunk whitelist.
+			crosschunk.whitelist.sourceTypes=triggersource
+
+			# crosschunk.whitelist.targetTypes
+			# zh: 允许作为目标的类型列表（逗号/空格分隔）。
+			# en: Allowed target types for cross-chunk whitelist.
+			crosschunk.whitelist.targetTypes=core
+
+			# crosschunk.preset.<name>.sources / crosschunk.preset.<name>.targets
+			# zh: 只读 preset，格式为 type:serial（逗号/空格分隔）。
+			# en: Read-only preset entries using type:serial format.
+			# crosschunk.preset.keypath.sources=triggersource:1001
+			# crosschunk.preset.keypath.targets=core:2001
 
 			""";
 	}
 
 	/**
-	 * 运行时配置快照。
+	 * 基础运行时配置快照。
 	 */
 	private record Values(
 		int pulseDurationTicks,
@@ -342,10 +783,67 @@ public final class RedstoneLinkConfig {
 		boolean lithiumStrictMode
 	) {
 		/**
-		 * @return 配置默认值
+		 * @return 基础配置默认值
 		 */
 		private static Values defaults() {
 			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, true, true, true, false);
 		}
+	}
+
+	/**
+	 * 跨区块只读 preset 快照。
+	 */
+	public record CrossChunkPreset(Map<LinkNodeType, Set<Long>> sources, Map<LinkNodeType, Set<Long>> targets) {}
+
+	/**
+	 * 跨区块运行时配置快照。
+	 */
+	private record CrossChunkValues(
+		int syncSignalTtlTicks,
+		boolean relayEnabled,
+		int relayExpireTicks,
+		boolean forceLoadEnabled,
+		CrossChunkForceLoadMode forceLoadMode,
+		int forceLoadTicketTicks,
+		int forceLoadMaxPerTick,
+		int forceLoadMaxPerSourcePerTick,
+		boolean commandEnabled,
+		int commandPermissionLevel,
+		Set<LinkNodeType> allowedSourceTypes,
+		Set<LinkNodeType> allowedTargetTypes,
+		Map<String, CrossChunkPreset> presets,
+		Map<LinkNodeType, Set<Long>> mergedPresetSources,
+		Map<LinkNodeType, Set<Long>> mergedPresetTargets
+	) {
+		/**
+		 * @return 跨区块配置默认值
+		 */
+		private static CrossChunkValues defaults() {
+			return new CrossChunkValues(
+				40,
+				true,
+				200,
+				true,
+				CrossChunkForceLoadMode.WHITELIST,
+				80,
+				8,
+				2,
+				true,
+				2,
+				Set.of(LinkNodeType.BUTTON),
+				Set.of(LinkNodeType.CORE),
+				Map.of(),
+				Map.of(),
+				Map.of()
+			);
+		}
+	}
+
+	/**
+	 * preset 解析过程中的可变中间态。
+	 */
+	private static final class MutablePreset {
+		private final Map<LinkNodeType, Set<Long>> sources = new HashMap<>();
+		private final Map<LinkNodeType, Set<Long>> targets = new HashMap<>();
 	}
 }
