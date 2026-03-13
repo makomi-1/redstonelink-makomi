@@ -93,7 +93,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 			return;
 		}
 
-		String listArg = targets.stream().map(String::valueOf).collect(Collectors.joining(","));
+		String listArg = targets.stream().map(String::valueOf).collect(Collectors.joining("/"));
 		minecraft.player.connection.sendCommand(base + " " + listArg);
 	}
 

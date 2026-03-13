@@ -1084,11 +1084,12 @@ public final class ModCommands {
 		}
 
 		Set<Long> targets;
+		int maxTargets = RedstoneLinkConfig.maxTargetsPerSetLinks();
 		if (!hasTargets) {
 			targets = Set.of();
 		} else {
 			String raw = StringArgumentType.getString(context, "targets");
-			TargetParseResult parseResult = parseTargetSerials(raw);
+			TargetParseResult parseResult = parseTargetSerials(raw, maxTargets);
 			if (!parseResult.invalidEntries().isEmpty()) {
 				source.sendFailure(
 					Component.translatable(
@@ -1098,9 +1099,21 @@ public final class ModCommands {
 				);
 				return 0;
 			}
+			if (parseResult.exceedLimit()) {
+				source.sendFailure(Component.translatable("message.redstonelink.too_many_targets", maxTargets));
+				return 0;
+			}
 			targets = parseResult.targets();
+			if (!parseResult.duplicateEntries().isEmpty()) {
+				source.sendSuccess(
+					() -> Component.translatable(
+						"message.redstonelink.duplicate_targets_deduped",
+						formatSerialCollection(parseResult.duplicateEntries())
+					),
+					false
+				);
+			}
 		}
-		int maxTargets = RedstoneLinkConfig.maxTargetsPerSetLinks();
 		if (targets.size() > maxTargets) {
 			source.sendFailure(Component.translatable("message.redstonelink.too_many_targets", maxTargets));
 			return 0;
@@ -1233,11 +1246,16 @@ public final class ModCommands {
 	}
 
 	/**
-	 * 解析序列号列表文本（逗号/分号/空白分隔）。
+	 * 解析序列号列表文本（`/` 分隔，支持 `N` 与 `A:B`）。
 	 */
-	private static TargetParseResult parseTargetSerials(String rawText) {
-		SerialParseUtil.TargetParseResult parsed = SerialParseUtil.parseTargets(rawText, Integer.MAX_VALUE);
-		return new TargetParseResult(parsed.targets(), parsed.invalidEntries());
+	private static TargetParseResult parseTargetSerials(String rawText, int maxTargetCount) {
+		SerialParseUtil.TargetParseResult parsed = SerialParseUtil.parseTargets(rawText, maxTargetCount);
+		return new TargetParseResult(
+			parsed.targets(),
+			parsed.invalidEntries(),
+			parsed.duplicateEntries(),
+			parsed.exceedLimit()
+		);
 	}
 
 	/**
@@ -1424,5 +1442,10 @@ public final class ModCommands {
 		long createdAtMillis
 	) {}
 
-	private record TargetParseResult(Set<Long> targets, List<String> invalidEntries) {}
+	private record TargetParseResult(
+		Set<Long> targets,
+		List<String> invalidEntries,
+		List<Long> duplicateEntries,
+		boolean exceedLimit
+	) {}
 }
