@@ -3,6 +3,7 @@ package com.makomi.block.entity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
+import com.makomi.config.RedstoneLinkConfig;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -92,6 +93,12 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 
 		if (dispatchSummary.handledCount() == 0) {
 			sendPlayerMessage(player, Component.translatable("message.redstonelink.no_reachable_targets"));
+			return;
+		}
+		if (RedstoneLinkConfig.crossChunkNotifyEnabled() && dispatchSummary.hasCrossChunkHandled()) {
+			for (Component line : LinkedTargetDispatchService.buildCrossChunkNotifyMessages(dispatchSummary)) {
+				sendPlayerMessage(player, line);
+			}
 		}
 	}
 

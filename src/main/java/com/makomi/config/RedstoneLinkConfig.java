@@ -90,6 +90,31 @@ public final class RedstoneLinkConfig {
 		}
 	}
 
+	/**
+	 * 跨区块提示展示模式。
+	 */
+	public enum CrossChunkNotifyMode {
+		SIMPLE,
+		DETAILED;
+
+		/**
+		 * 解析提示模式配置值。
+		 *
+		 * @param raw 原始配置值
+		 * @return 解析后的模式，非法值回退为 SIMPLE
+		 */
+		public static CrossChunkNotifyMode fromConfigValue(String raw) {
+			if (raw == null) {
+				return SIMPLE;
+			}
+			return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+				case "detailed" -> DETAILED;
+				case "simple" -> SIMPLE;
+				default -> SIMPLE;
+			};
+		}
+	}
+
 	private RedstoneLinkConfig() {
 	}
 
@@ -247,6 +272,20 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 是否启用跨区块接管提示
+	 */
+	public static boolean crossChunkNotifyEnabled() {
+		return crossChunkValues.notifyEnabled();
+	}
+
+	/**
+	 * @return 跨区块接管提示模式
+	 */
+	public static CrossChunkNotifyMode crossChunkNotifyMode() {
+		return crossChunkValues.notifyMode();
+	}
+
+	/**
 	 * @return 允许作为来源的类型集合
 	 */
 	public static Set<LinkNodeType> crossChunkAllowedSourceTypes() {
@@ -388,6 +427,8 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "crosschunk.forceLoad.maxPerSourcePerTick", 2, 1, 32),
 			parseBoolean(props, "crosschunk.command.enabled", true),
 			parseInt(props, "crosschunk.command.permissionLevel", 2, 0, 4),
+			parseBoolean(props, "crosschunk.notify.enabled", true),
+			CrossChunkNotifyMode.fromConfigValue(props.getProperty("crosschunk.notify.mode", "simple")),
 			allowedSourceTypes,
 			allowedTargetTypes,
 			presets,
@@ -749,6 +790,16 @@ public final class RedstoneLinkConfig {
 			# en: Permission level required for /redstonelink crosschunk commands.
 			crosschunk.command.permissionLevel=2
 
+			# crosschunk.notify.enabled
+			# zh: 鏄惁鍚敤璺ㄥ尯鍧楁帴绠＄敓鏁堟彁绀恒€?
+			# en: Whether to notify when cross-chunk takeover is accepted.
+			crosschunk.notify.enabled=true
+
+			# crosschunk.notify.mode
+			# zh: 璺ㄥ尯鍧楁彁绀烘ā寮忥細simple/detailed銆?
+			# en: Cross-chunk notify mode: simple/detailed.
+			crosschunk.notify.mode=simple
+
 			# crosschunk.whitelist.sourceTypes
 			# zh: 允许作为来源的类型列表（逗号/空格分隔）。
 			# en: Allowed source types for cross-chunk whitelist.
@@ -809,6 +860,8 @@ public final class RedstoneLinkConfig {
 		int forceLoadMaxPerSourcePerTick,
 		boolean commandEnabled,
 		int commandPermissionLevel,
+		boolean notifyEnabled,
+		CrossChunkNotifyMode notifyMode,
 		Set<LinkNodeType> allowedSourceTypes,
 		Set<LinkNodeType> allowedTargetTypes,
 		Map<String, CrossChunkPreset> presets,
@@ -830,6 +883,8 @@ public final class RedstoneLinkConfig {
 				2,
 				true,
 				2,
+				true,
+				CrossChunkNotifyMode.SIMPLE,
 				Set.of(LinkNodeType.BUTTON),
 				Set.of(LinkNodeType.CORE),
 				Map.of(),

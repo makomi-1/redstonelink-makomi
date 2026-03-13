@@ -47,7 +47,7 @@ public final class CrossChunkDispatchService {
 	 * @param activationMode 激活模式
 	 * @return 是否已接管该请求（入队或强制加载链路）
 	 */
-	public static boolean queueActivation(
+	public static QueueResult queueActivation(
 		ServerLevel sourceLevel,
 		LinkSavedData.LinkNode targetNode,
 		LinkNodeType sourceType,
@@ -55,7 +55,7 @@ public final class CrossChunkDispatchService {
 		ActivationMode activationMode
 	) {
 		if (activationMode == null) {
-			return false;
+			return QueueResult.rejected();
 		}
 		long ttlTicks = RedstoneLinkConfig.crossChunkRelayExpireTicks();
 		return queueDispatch(
@@ -80,7 +80,7 @@ public final class CrossChunkDispatchService {
 	 * @param signalOn 同步信号状态
 	 * @return 是否已接管该请求（入队或强制加载链路）
 	 */
-	public static boolean queueSyncSignal(
+	public static QueueResult queueSyncSignal(
 		ServerLevel sourceLevel,
 		LinkSavedData.LinkNode targetNode,
 		LinkNodeType sourceType,
@@ -102,7 +102,7 @@ public final class CrossChunkDispatchService {
 		);
 	}
 
-	private static boolean queueDispatch(
+	private static QueueResult queueDispatch(
 		ServerLevel sourceLevel,
 		LinkSavedData.LinkNode targetNode,
 		LinkNodeType sourceType,
@@ -113,16 +113,16 @@ public final class CrossChunkDispatchService {
 		long ttlTicks
 	) {
 		if (sourceLevel == null || targetNode == null || sourceType == null || dispatchKind == null || activationMode == null) {
-			return false;
+			return QueueResult.rejected();
 		}
 		if (sourceSerial <= 0L || targetNode.serial() <= 0L || ttlTicks <= 0L) {
-			return false;
+			return QueueResult.rejected();
 		}
 		if (!LinkNodeSemantics.isAllowedForRole(sourceType, LinkNodeSemantics.Role.SOURCE)) {
-			return false;
+			return QueueResult.rejected();
 		}
 		if (!LinkNodeSemantics.isAllowedForRole(targetNode.type(), LinkNodeSemantics.Role.TARGET)) {
-			return false;
+			return QueueResult.rejected();
 		}
 
 		DispatchState state = getOrCreateState(sourceLevel.getServer());
@@ -147,14 +147,14 @@ public final class CrossChunkDispatchService {
 		boolean relayEnabled = RedstoneLinkConfig.crossChunkRelayEnabled();
 		// 最终接管判定：中继开启或可进入强制加载链路，满足其一即可接管。
 		if (!relayEnabled && !canForceLoad) {
-			return false;
+			return QueueResult.rejected();
 		}
 
 		state.pendingByKey.put(key, pendingDispatch);
 		if (canForceLoad) {
 			tryForceLoad(sourceLevel.getServer(), state, pendingDispatch, sourceLevel.getGameTime());
 		}
-		return true;
+		return new QueueResult(true, canForceLoad);
 	}
 
 	private static void onServerTick(MinecraftServer server) {
@@ -328,6 +328,18 @@ public final class CrossChunkDispatchService {
 
 	private static DispatchState getOrCreateState(MinecraftServer server) {
 		return STATE_BY_SERVER.computeIfAbsent(server, ignored -> new DispatchState());
+	}
+
+	/**
+	 * 跨区块排队结果快照。
+	 *
+	 * @param accepted 是否接管请求（已入队或将尝试强加载）
+	 * @param forceLoadPlanned 是否命中强加载策略
+	 */
+	public record QueueResult(boolean accepted, boolean forceLoadPlanned) {
+		private static QueueResult rejected() {
+			return new QueueResult(false, false);
+		}
 	}
 
 	private enum DispatchKind {
