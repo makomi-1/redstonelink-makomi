@@ -4,7 +4,7 @@
 			"model": "redstonelink:block/link_redstone_core"
 		},
 		"active=true": {
-			"model": "redstonelink:block/link_redstone_core"
+			"model": "redstonelink:block/link_redstone_core_bright"
 		}
 	}
 }
