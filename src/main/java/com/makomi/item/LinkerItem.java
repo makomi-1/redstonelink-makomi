@@ -1,17 +1,14 @@
 package com.makomi.item;
 
-import com.makomi.api.v1.RedstoneLinkApi;
-import com.makomi.api.v1.model.ActorContext;
-import com.makomi.api.v1.model.ApiActivationMode;
-import com.makomi.api.v1.model.ApiNodeType;
-import com.makomi.api.v1.model.TriggerRequest;
-import com.makomi.api.v1.model.TriggerResult;
+import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.LinkedTargetDispatchService;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -37,15 +34,15 @@ import net.minecraft.world.level.Level;
  */
 public class LinkerItem extends Item implements PairableItem {
 	/**
-	 * 触发模式，由具体物品实例在注册时注入。
+	 * 触发模式（TOGGLE/PULSE），由具体物品实例在注册时注入。
 	 */
-	private final ApiActivationMode activationMode;
+	private final ActivationMode activationMode;
 
 	/**
 	 * @param properties 物品属性
 	 * @param activationMode 触发模式（TOGGLE/PULSE）
 	 */
-	public LinkerItem(Item.Properties properties, ApiActivationMode activationMode) {
+	public LinkerItem(Item.Properties properties, ActivationMode activationMode) {
 		super(properties);
 		this.activationMode = activationMode;
 	}
@@ -226,7 +223,7 @@ public class LinkerItem extends Item implements PairableItem {
 	}
 
 	/**
-	 * 通过 API 触发链路，保持与方块触发器一致的数据与事件语义。
+	 * 触发已连接目标并复用触发源同链路派发实现。
 	 */
 	private void triggerLinkedTargets(Level level, Player player, ItemStack stack) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
@@ -237,47 +234,34 @@ public class LinkerItem extends Item implements PairableItem {
 			return;
 		}
 
-		TriggerResult triggerResult = RedstoneLinkApi
-			.trigger()
-			.emit(new TriggerRequest(serverLevel, ApiNodeType.BUTTON, serial, activationMode, ActorContext.fromPlayer(player)));
+		LinkSavedData savedData = LinkSavedData.get(serverLevel);
+		if (!savedData.isSerialAllocated(LinkNodeType.BUTTON, serial)) {
+			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.source_serial_unallocated", serial));
+			return;
+		}
+		if (savedData.isSerialRetired(LinkNodeType.BUTTON, serial)) {
+			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.source_serial_retired", serial));
+			return;
+		}
 
+		Set<Long> linkedTargets = savedData.getLinkedCores(serial);
 		// 每次触发后都回写最新连接列表，确保物品提示信息与存档状态一致。
-		LinkItemData.setLinkedSerials(stack, LinkSavedData.get(serverLevel).getLinkedCores(serial));
-
-		// 仅 totalTargets=0 时提示“未设置目标”，避免掩盖真实失败原因。
-		if (triggerResult.totalTargets() == 0) {
+		LinkItemData.setLinkedSerials(stack, linkedTargets);
+		if (linkedTargets.isEmpty()) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));
 			return;
 		}
-		// 触发失败时优先使用 API 返回的 reasonKey 提示。
-		if (!triggerResult.success()) {
-			serverPlayer.sendSystemMessage(mapTriggerFailureMessage(triggerResult, serial));
-			return;
-		}
-		// 有目标但触发数量为 0，表示存在不可达目标（如维度/区块状态限制）。
-		if (triggerResult.triggeredCount() == 0) {
+
+		LinkedTargetDispatchService.DispatchSummary dispatchSummary = LinkedTargetDispatchService.dispatchActivation(
+			serverLevel,
+			LinkNodeType.BUTTON,
+			serial,
+			LinkNodeType.CORE,
+			linkedTargets,
+			activationMode
+		);
+		if (dispatchSummary.handledCount() == 0) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.no_reachable_targets"));
 		}
-	}
-
-	/**
-	 * 将触发失败结果映射为可读提示。
-	 * <p>
-	 * 对携带 source serial 占位符的消息补齐参数，其余 reasonKey 直接透传。
-	 * </p>
-	 */
-	private static Component mapTriggerFailureMessage(TriggerResult triggerResult, long sourceSerial) {
-		String reasonKey = triggerResult.reasonKey();
-		if (reasonKey == null || reasonKey.isBlank()) {
-			return Component.translatable("message.redstonelink.no_reachable_targets");
-		}
-		if (
-			"message.redstonelink.source_serial_unallocated".equals(reasonKey)
-				|| "message.redstonelink.source_serial_retired".equals(reasonKey)
-				|| "message.redstonelink.source_not_found".equals(reasonKey)
-		) {
-			return Component.translatable(reasonKey, sourceSerial);
-		}
-		return Component.translatable(reasonKey);
 	}
 }

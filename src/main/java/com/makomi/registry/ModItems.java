@@ -1,7 +1,7 @@
 package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
-import com.makomi.api.v1.model.ApiActivationMode;
+import com.makomi.block.entity.ActivationMode;
 import com.makomi.item.LinkerItem;
 import com.makomi.item.PairableBlockItem;
 import com.makomi.data.LinkNodeType;
@@ -71,12 +71,12 @@ public final class ModItems {
 
 	public static final Item REDSTONELINK_TOGGLE_LINKER = register(
 		"redstonelink_toggle_linker",
-		new LinkerItem(new Item.Properties().stacksTo(1), ApiActivationMode.TOGGLE)
+		new LinkerItem(new Item.Properties().stacksTo(1), ActivationMode.TOGGLE)
 	);
 
 	public static final Item REDSTONELINK_PULSE_LINKER = register(
 		"redstonelink_pulse_linker",
-		new LinkerItem(new Item.Properties().stacksTo(1), ApiActivationMode.PULSE)
+		new LinkerItem(new Item.Properties().stacksTo(1), ActivationMode.PULSE)
 	);
 
 	private ModItems() {

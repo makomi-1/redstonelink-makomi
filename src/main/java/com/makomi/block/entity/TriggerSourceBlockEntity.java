@@ -1,15 +1,14 @@
 package com.makomi.block.entity;
 
-import com.makomi.data.CrossChunkDispatchService;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.LinkedTargetDispatchService;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -73,52 +72,25 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 			return;
 		}
 
-		int handledCount = 0;
-		for (long targetSerial : linkedTargets) {
-			LinkSavedData.LinkNode node = savedData.findNode(getTargetNodeType(), targetSerial).orElse(null);
-			if (node == null) {
-				continue;
-			}
+		LinkedTargetDispatchService.DispatchSummary dispatchSummary = dispatchMode == DispatchMode.ACTIVATION
+			? LinkedTargetDispatchService.dispatchActivation(
+				serverLevel,
+				getLinkNodeType(),
+				sourceSerial,
+				getTargetNodeType(),
+				linkedTargets,
+				getTriggerActivationMode()
+			)
+			: LinkedTargetDispatchService.dispatchSyncSignal(
+				serverLevel,
+				getLinkNodeType(),
+				sourceSerial,
+				getTargetNodeType(),
+				linkedTargets,
+				signalOn
+			);
 
-			ServerLevel targetLevel = serverLevel.getServer().getLevel(node.dimension());
-			if (targetLevel == null || !targetLevel.isLoaded(node.pos())) {
-				boolean queued = dispatchMode == DispatchMode.ACTIVATION
-					? CrossChunkDispatchService.queueActivation(
-						serverLevel,
-						node,
-						getLinkNodeType(),
-						sourceSerial,
-						getTriggerActivationMode()
-					)
-					: CrossChunkDispatchService.queueSyncSignal(
-						serverLevel,
-						node,
-						getLinkNodeType(),
-						sourceSerial,
-						signalOn
-					);
-				if (queued) {
-					handledCount++;
-				}
-				continue;
-			}
-
-			BlockEntity blockEntity = targetLevel.getBlockEntity(node.pos());
-			if (blockEntity instanceof ActivatableTargetBlockEntity targetBlockEntity) {
-				if (dispatchMode == DispatchMode.ACTIVATION) {
-					targetBlockEntity.triggerBySource(sourceSerial, getTriggerActivationMode());
-				} else {
-					targetBlockEntity.syncBySource(sourceSerial, signalOn);
-				}
-				handledCount++;
-				continue;
-			}
-
-			// 节点快照与实际方块实体不一致时，清理脏在线节点记录。
-			savedData.removeNode(getTargetNodeType(), targetSerial);
-		}
-
-		if (handledCount == 0) {
+		if (dispatchSummary.handledCount() == 0) {
 			sendPlayerMessage(player, Component.translatable("message.redstonelink.no_reachable_targets"));
 		}
 	}
