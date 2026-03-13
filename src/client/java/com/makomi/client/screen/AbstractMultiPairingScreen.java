@@ -24,6 +24,16 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	private static final Component CONFIRM = Component.translatable("screen.redstonelink.pairing.confirm");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.pairing.clear");
 	/**
+	 * 输入框悬停提示：规则行。
+	 */
+	private static final Component INPUT_TOOLTIP_RULE = Component.translatable("screen.redstonelink.pairing.input_tooltip_rule");
+	/**
+	 * 输入框悬停提示：示例行。
+	 */
+	private static final Component INPUT_TOOLTIP_EXAMPLE = Component.translatable(
+		"screen.redstonelink.pairing.input_tooltip_example"
+	);
+	/**
 	 * “当前连接”在主界面的最大展示宽度（像素）。
 	 */
 	private static final int CURRENT_LINKS_LIST_MAX_WIDTH = 220;
@@ -35,6 +45,18 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * 悬停 tooltip 最多展示的结构化分段数。
 	 */
 	private static final int TOOLTIP_MAX_ITEMS = 100;
+	/**
+	 * 按钮行在 render 基准下的 Y 偏移。
+	 */
+	private static final int BUTTON_ROW_Y_OFFSET_RENDER = 102;
+	/**
+	 * 按钮高度（像素）。
+	 */
+	private static final int ACTION_BUTTON_HEIGHT = 20;
+	/**
+	 * 非法提示与按钮底部的间距（像素）。
+	 */
+	private static final int STATUS_MESSAGE_MARGIN = 4;
 
 	protected final long sourceSerial;
 	protected final List<Long> currentTargets;
@@ -56,10 +78,14 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 		serialInput = new EditBox(font, centerX - 110, baseY + 52, 220, 20, inputLabel());
 		serialInput.setMaxLength(512);
-		serialInput.setHint(inputHint());
-		serialInput.setValue(joinTargets(currentTargets));
-		addRenderableWidget(serialInput);
+
+		String initialInputText = joinTargets(currentTargets);
+		// 仅在非空场景回填并自动聚焦，空场景不抢焦点，避免光标跳动影响示例阅读。
+		if (!initialInputText.isEmpty()) {
+			serialInput.setValue(initialInputText);
+		}
 		setInitialFocus(serialInput);
+		addRenderableWidget(serialInput);
 
 		addRenderableWidget(Button.builder(CONFIRM, button -> submit()).bounds(centerX - 110, baseY + 80, 108, 20).build());
 		addRenderableWidget(Button.builder(CLEAR, button -> clearPair()).bounds(centerX + 2, baseY + 80, 108, 20).build());
@@ -82,10 +108,20 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		guiGraphics.drawString(font, inputLabel(), centerX - 110, baseY + 42, 0xFFFFFF, false);
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, baseY + 105, 0xFF6666);
+			// 锚定到按钮底部下方，保持靠近但不与按钮重合。
+			int statusMessageY = baseY + BUTTON_ROW_Y_OFFSET_RENDER + ACTION_BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
+			guiGraphics.drawCenteredString(font, statusMessage, centerX, statusMessageY, 0xFF6666);
 		}
-		if (!currentTargets.isEmpty()
-			&& isMouseOver(currentLinksX, currentLinksY, font.width(currentLinksLine), font.lineHeight, mouseX, mouseY)) {
+
+		if (isMouseOverInput(mouseX, mouseY)) {
+			List<Component> tooltipLines = buildInputTooltipLines();
+			if (!tooltipLines.isEmpty()) {
+				guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
+			}
+		} else if (
+			!currentTargets.isEmpty()
+				&& isMouseOver(currentLinksX, currentLinksY, font.width(currentLinksLine), font.lineHeight, mouseX, mouseY)
+		) {
 			List<Component> tooltipLines = buildTooltipLines(currentTargets);
 			if (!tooltipLines.isEmpty()) {
 				guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
@@ -108,8 +144,6 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	protected abstract Component inputLabel();
-
-	protected abstract Component inputHint();
 
 	protected abstract Component invalidInput();
 
@@ -289,6 +323,33 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	private boolean isMouseOver(int x, int y, int width, int height, int mouseX, int mouseY) {
 		return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
+	}
+
+	/**
+	 * 判断鼠标是否悬停在输入框区域内。
+	 */
+	private boolean isMouseOverInput(int mouseX, int mouseY) {
+		if (serialInput == null) {
+			return false;
+		}
+		return isMouseOver(
+			serialInput.getX(),
+			serialInput.getY(),
+			serialInput.getWidth(),
+			serialInput.getHeight(),
+			mouseX,
+			mouseY
+		);
+	}
+
+	/**
+	 * 构建输入框悬停提示（规则 + 示例），并按宽度自动换行。
+	 */
+	private List<Component> buildInputTooltipLines() {
+		List<Component> lines = new ArrayList<>(2);
+		lines.add(INPUT_TOOLTIP_RULE);
+		lines.add(INPUT_TOOLTIP_EXAMPLE);
+		return lines;
 	}
 
 	/**

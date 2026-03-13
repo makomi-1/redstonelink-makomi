@@ -8,19 +8,19 @@ import net.minecraft.network.chat.Component;
 /**
  * 核心节点（Core）配对界面。
  * <p>
- * 负责展示核心序列号、当前连接列表，并向服务端提交覆盖式 set_links 命令。
+ * 负责显示当前核心序列号与已连接目标，并向服务端发送覆盖式 {@code set_links} 命令。
+ * </p>
  */
 public class CorePairingScreen extends AbstractMultiPairingScreen {
 	private static final Component TITLE = Component.translatable("screen.redstonelink.core_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.core_pairing.input");
-	private static final Component INPUT_HINT = Component.translatable("screen.redstonelink.core_pairing.input_hint");
 	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.core_pairing.invalid");
 
 	/**
-	 * 基于明确的核心序列号和当前连接初始化界面。
+	 * 基于明确的来源序列号与当前连接初始化界面。
 	 *
-	 * @param sourceSerial 源核心序列号
-	 * @param currentTargets 当前目标序列号集合
+	 * @param sourceSerial 来源节点序列号
+	 * @param currentTargets 当前已连接目标序列号列表
 	 */
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets) {
 		super(TITLE, sourceSerial, currentTargets);
@@ -35,15 +35,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	/**
-	 * @return 输入框提示文本
-	 */
-	@Override
-	protected Component inputHint() {
-		return INPUT_HINT;
-	}
-
-	/**
-	 * @return 输入非法时的提示文本
+	 * @return 输入非法时提示文本
 	 */
 	@Override
 	protected Component invalidInput() {
@@ -51,10 +43,10 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	/**
-	 * 组装核心序列号展示行。
+	 * 组装来源节点序列号展示文本。
 	 *
-	 * @param sourceSerial 核心序列号
-	 * @return 本地化后的序列号描述
+	 * @param sourceSerial 来源节点序列号
+	 * @return 本地化后的序列号文本
 	 */
 	@Override
 	protected Component serialLine(long sourceSerial) {
@@ -65,10 +57,10 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	/**
-	 * 组装当前连接展示行。
+	 * 组装“当前连接”展示文本。
 	 *
 	 * @param currentTargets 当前目标序列号列表
-	 * @return 本地化后的连接描述
+	 * @return 本地化后的连接文本
 	 */
 	@Override
 	protected Component currentLinksLine(List<Long> currentTargets) {
@@ -77,10 +69,10 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	/**
-	 * 发送 set_links 覆盖命令。
+	 * 发送覆盖式 {@code set_links} 命令。
 	 *
-	 * @param sourceSerial 源核心序列号
-	 * @param targets 目标集合；为空时表示清空
+	 * @param sourceSerial 来源节点序列号
+	 * @param targets 目标序列号集合；为空表示清空
 	 */
 	@Override
 	protected void sendSetLinksCommand(long sourceSerial, Set<Long> targets) {
@@ -100,7 +92,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	/**
 	 * 发送清空连接命令。
 	 *
-	 * @param sourceSerial 源核心序列号
+	 * @param sourceSerial 来源节点序列号
 	 */
 	@Override
 	protected void sendClearLinksCommand(long sourceSerial) {
