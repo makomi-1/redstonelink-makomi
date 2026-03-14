@@ -34,6 +34,7 @@ public final class CrossChunkDispatchService {
 	 */
 	public static void register() {
 		ServerTickEvents.END_SERVER_TICK.register(CrossChunkDispatchService::onServerTick);
+		ServerLifecycleEvents.SERVER_STOPPING.register(CrossChunkDispatchService::releaseAllForcedChunksAndClearState);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> STATE_BY_SERVER.remove(server));
 	}
 
@@ -315,6 +316,33 @@ public final class CrossChunkDispatchService {
 			}
 			iterator.remove();
 		}
+	}
+
+	/**
+	 * 停服前主动释放当前服务端所有强制加载票据，并清理调度状态。
+	 * <p>
+	 * 用于兜底处理“未等到过期释放就停服”的场景，避免 forced chunk 状态跨重启残留。
+	 * </p>
+	 *
+	 * @param server 当前服务端
+	 */
+	private static void releaseAllForcedChunksAndClearState(MinecraftServer server) {
+		DispatchState state = STATE_BY_SERVER.get(server);
+		if (state == null) {
+			return;
+		}
+		for (ForcedChunkKey key : state.forcedChunksUntilTick.keySet()) {
+			ServerLevel level = server.getLevel(key.dimension());
+			if (level != null) {
+				level.setChunkForced(key.chunkX(), key.chunkZ(), false);
+			}
+		}
+		state.forcedChunksUntilTick.clear();
+		state.pendingByKey.clear();
+		state.forceLoadCountBySource.clear();
+		state.forceLoadCountThisTick = 0;
+		state.forceLoadWindowTick = Long.MIN_VALUE;
+		STATE_BY_SERVER.remove(server);
 	}
 
 	private static void resetForceLoadWindow(DispatchState state, long gameTime) {
