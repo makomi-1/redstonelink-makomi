@@ -1,10 +1,10 @@
 {
   nodes: [
-    {serial: 9L, dimension: "minecraft:overworld", pos: 0L, type: "CORE"},
-    {serial: 10L, dimension: "bad::dimension", pos: 0L, type: "BUTTON"}
+    {serial: 9L, dimension: "minecraft:overworld", pos: 0L, type: "core"},
+    {serial: 10L, dimension: "bad::dimension", pos: 0L, type: "triggerSource"}
   ],
   links: [
-    {buttonSerial: 77L, coreSerials: [L; 11L, 12L]},
-    {buttonSerial: 0L, coreSerials: [L; 1L]}
+    {sourceSerial: 77L, targetSerials: [L; 11L, 12L]},
+    {sourceSerial: 0L, targetSerials: [L; 1L]}
   ]
 }

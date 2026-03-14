@@ -1,0 +1,179 @@
+package com.makomi.data;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.makomi.block.entity.ActivationMode;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Map;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+/**
+ * CrossChunkDispatchService 参数守卫与状态机测试。
+ */
+@Tag("stable-core")
+class CrossChunkDispatchServiceTest {
+	/**
+	 * register 入口应可重复调用（仅注册回调，不抛异常）。
+	 */
+	@Test
+	void registerShouldBeCallable() {
+		CrossChunkDispatchService.register();
+		CrossChunkDispatchService.register();
+	}
+
+	/**
+	 * queueActivation 在 activationMode 为空时应直接拒绝。
+	 */
+	@Test
+	void queueActivationShouldRejectWhenActivationModeIsNull() {
+		CrossChunkDispatchService.QueueResult result = CrossChunkDispatchService.queueActivation(
+			null,
+			null,
+			LinkNodeType.BUTTON,
+			1L,
+			null
+		);
+		assertFalse(result.accepted());
+		assertFalse(result.forceLoadPlanned());
+	}
+
+	/**
+	 * queueDispatch 私有守卫在非法参数时应拒绝。
+	 */
+	@Test
+	void queueDispatchShouldRejectInvalidInputs() throws Exception {
+		Method queueDispatch = CrossChunkDispatchService.class.getDeclaredMethod(
+			"queueDispatch",
+			ServerLevel.class,
+			LinkSavedData.LinkNode.class,
+			LinkNodeType.class,
+			long.class,
+			Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKind"),
+			ActivationMode.class,
+			boolean.class,
+			long.class
+		);
+		queueDispatch.setAccessible(true);
+
+		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKind");
+		Object activationKind = java.util.Arrays
+			.stream(dispatchKindClass.getEnumConstants())
+			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
+			.findFirst()
+			.orElseThrow();
+		LinkSavedData.LinkNode targetCore = new LinkSavedData.LinkNode(20L, Level.OVERWORLD, BlockPos.ZERO, LinkNodeType.CORE);
+
+		CrossChunkDispatchService.QueueResult invalidLevel = (CrossChunkDispatchService.QueueResult) queueDispatch.invoke(
+			null,
+			null,
+			targetCore,
+			LinkNodeType.BUTTON,
+			1L,
+			activationKind,
+			ActivationMode.TOGGLE,
+			false,
+			40L
+		);
+		assertFalse(invalidLevel.accepted());
+
+		CrossChunkDispatchService.QueueResult invalidSourceSerial = (CrossChunkDispatchService.QueueResult) queueDispatch.invoke(
+			null,
+			null,
+			targetCore,
+			LinkNodeType.BUTTON,
+			0L,
+			activationKind,
+			ActivationMode.TOGGLE,
+			false,
+			40L
+		);
+		assertFalse(invalidSourceSerial.accepted());
+	}
+
+	/**
+	 * 私有 shouldForceLoad 在空上下文下应直接返回 false。
+	 */
+	@Test
+	void shouldForceLoadShouldReturnFalseForNullContext() throws Exception {
+		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingDispatch");
+		Method shouldForceLoad = CrossChunkDispatchService.class.getDeclaredMethod(
+			"shouldForceLoad",
+			ServerLevel.class,
+			pendingDispatchClass
+		);
+		shouldForceLoad.setAccessible(true);
+		boolean result = (boolean) shouldForceLoad.invoke(null, null, null);
+		assertFalse(result);
+	}
+
+	/**
+	 * force-load 窗口重置应区分“同 tick”与“新 tick”两种路径。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void resetForceLoadWindowShouldRespectTickBoundary() throws Exception {
+		Class<?> dispatchStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchState");
+		Constructor<?> constructor = dispatchStateClass.getDeclaredConstructor();
+		constructor.setAccessible(true);
+		Object state = constructor.newInstance();
+
+		Field windowTickField = dispatchStateClass.getDeclaredField("forceLoadWindowTick");
+		windowTickField.setAccessible(true);
+		Field countField = dispatchStateClass.getDeclaredField("forceLoadCountThisTick");
+		countField.setAccessible(true);
+		Field bySourceField = dispatchStateClass.getDeclaredField("forceLoadCountBySource");
+		bySourceField.setAccessible(true);
+		Map<Object, Integer> bySource = (Map<Object, Integer>) bySourceField.get(state);
+
+		Class<?> sourceKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$SourceKey");
+		Constructor<?> sourceKeyConstructor = sourceKeyClass.getDeclaredConstructor(LinkNodeType.class, long.class);
+		sourceKeyConstructor.setAccessible(true);
+		bySource.put(sourceKeyConstructor.newInstance(LinkNodeType.BUTTON, 1L), 1);
+		windowTickField.setLong(state, 200L);
+		countField.setInt(state, 5);
+
+		Method resetMethod = CrossChunkDispatchService.class.getDeclaredMethod("resetForceLoadWindow", dispatchStateClass, long.class);
+		resetMethod.setAccessible(true);
+		resetMethod.invoke(null, state, 200L);
+		assertEquals(5, countField.getInt(state));
+		assertEquals(1, bySource.size());
+
+		resetMethod.invoke(null, state, 201L);
+		assertEquals(201L, windowTickField.getLong(state));
+		assertEquals(0, countField.getInt(state));
+		assertTrue(bySource.isEmpty());
+	}
+
+	/**
+	 * releaseAllForcedChunksAndClearState 在存在空状态时应完成清理并移除缓存。
+	 */
+	@Test
+	void releaseAllForcedChunksShouldClearStateMap() throws Exception {
+		Method getOrCreateState = CrossChunkDispatchService.class.getDeclaredMethod("getOrCreateState", MinecraftServer.class);
+		getOrCreateState.setAccessible(true);
+		Object state = getOrCreateState.invoke(null, new Object[] { null });
+		assertNotNull(state);
+
+		Method releaseAll = CrossChunkDispatchService.class.getDeclaredMethod(
+			"releaseAllForcedChunksAndClearState",
+			MinecraftServer.class
+		);
+		releaseAll.setAccessible(true);
+		releaseAll.invoke(null, new Object[] { null });
+
+		Field stateByServerField = CrossChunkDispatchService.class.getDeclaredField("STATE_BY_SERVER");
+		stateByServerField.setAccessible(true);
+		Map<?, ?> stateByServer = (Map<?, ?>) stateByServerField.get(null);
+		assertFalse(stateByServer.containsKey(null));
+	}
+}

@@ -79,7 +79,7 @@ class LinkSavedDataLoadCompatibilityTest {
 	}
 
 	/**
-	 * 读取异常维度样例时，应过滤非法维度节点与非法按钮序列号。
+	 * 读取异常维度样例时，应过滤非法维度节点与非法来源序列号。
 	 */
 	@Test
 	void loadShouldFilterInvalidDimensionFromFixture() throws Exception {
@@ -117,21 +117,21 @@ class LinkSavedDataLoadCompatibilityTest {
 		validNode.putLong("serial", 9L);
 		validNode.putString("dimension", Level.OVERWORLD.location().toString());
 		validNode.putLong("pos", new BlockPos(1, 2, 3).asLong());
-		validNode.putString("type", "CORE");
+		validNode.putString("type", "core");
 		nodes.add(validNode);
 
 		CompoundTag invalidSerialNode = new CompoundTag();
 		invalidSerialNode.putLong("serial", 0L);
 		invalidSerialNode.putString("dimension", Level.OVERWORLD.location().toString());
 		invalidSerialNode.putLong("pos", new BlockPos(4, 5, 6).asLong());
-		invalidSerialNode.putString("type", "CORE");
+		invalidSerialNode.putString("type", "core");
 		nodes.add(invalidSerialNode);
 
 		CompoundTag invalidDimensionNode = new CompoundTag();
 		invalidDimensionNode.putLong("serial", 10L);
 		invalidDimensionNode.putString("dimension", "bad::dimension");
 		invalidDimensionNode.putLong("pos", new BlockPos(7, 8, 9).asLong());
-		invalidDimensionNode.putString("type", "BUTTON");
+		invalidDimensionNode.putString("type", "triggerSource");
 		nodes.add(invalidDimensionNode);
 
 		CompoundTag invalidTypeNode = new CompoundTag();
@@ -160,8 +160,8 @@ class LinkSavedDataLoadCompatibilityTest {
 
 		ListTag links = new ListTag();
 		CompoundTag linkEntry = new CompoundTag();
-		linkEntry.putLong("buttonSerial", 77L);
-		linkEntry.putLongArray("coreSerials", new long[] { 0L, 11L, -3L, 12L });
+		linkEntry.putLong("sourceSerial", 77L);
+		linkEntry.putLongArray("targetSerials", new long[] { 0L, 11L, -3L, 12L });
 		links.add(linkEntry);
 		dataTag.put("links", links);
 

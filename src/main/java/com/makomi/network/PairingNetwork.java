@@ -58,11 +58,21 @@ public final class PairingNetwork {
 			LinkSavedData.get(player.serverLevel()).getLinkedTargetsBySourceType(sourceType, sourceSerial)
 		);
 		currentTargets.sort(Comparator.naturalOrder());
+		ServerPlayNetworking.send(player, buildPayloadForSourceType(sourceType, sourceSerial, currentTargets));
+	}
+
+	/**
+	 * 按来源类型构建对应的配对 Payload。
+	 */
+	private static CustomPacketPayload buildPayloadForSourceType(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		List<Long> currentTargets
+	) {
 		if (sourceType == LinkNodeType.BUTTON) {
-			ServerPlayNetworking.send(player, new OpenTriggerSourcePairingPayload(sourceSerial, currentTargets));
-			return;
+			return new OpenTriggerSourcePairingPayload(sourceSerial, currentTargets);
 		}
-		ServerPlayNetworking.send(player, new OpenCorePairingPayload(sourceSerial, currentTargets));
+		return new OpenCorePairingPayload(sourceSerial, currentTargets);
 	}
 
 	/**
