@@ -94,11 +94,42 @@ public final class SemanticRolePolicy {
 		LinkNodeSemantics.Role role,
 		Set<LinkNodeType> allowedTypes
 	) {
-		var parsed = SemanticTypeAliasResolver.tryResolve(rawType);
-		if (parsed.isEmpty()) {
+		return validateParsedType(SemanticTypeAliasResolver.tryResolve(rawType), role, allowedTypes);
+	}
+
+	/**
+	 * 仅按标准 type 词表解析并校验类型是否满足角色与配置允许集。
+	 *
+	 * @param rawType 原始类型文本（仅接受 triggerSource/core，大小写不敏感）
+	 * @param role 语义角色
+	 * @param allowedTypes 配置允许集（null 表示不做该层校验）
+	 * @return 校验结果
+	 */
+	public static SemanticResult<LinkNodeType> resolveCanonicalType(
+		String rawType,
+		LinkNodeSemantics.Role role,
+		Set<LinkNodeType> allowedTypes
+	) {
+		return validateParsedType(SemanticTypeAliasResolver.tryResolveCanonical(rawType), role, allowedTypes);
+	}
+
+	/**
+	 * 基于已解析类型执行角色与配置允许集校验。
+	 *
+	 * @param parsedType 类型解析结果
+	 * @param role 语义角色
+	 * @param allowedTypes 配置允许集（null 表示不做该层校验）
+	 * @return 校验结果
+	 */
+	private static SemanticResult<LinkNodeType> validateParsedType(
+		java.util.Optional<LinkNodeType> parsedType,
+		LinkNodeSemantics.Role role,
+		Set<LinkNodeType> allowedTypes
+	) {
+		if (parsedType.isEmpty()) {
 			return SemanticResult.failure(SemanticError.INVALID_TYPE);
 		}
-		LinkNodeType type = parsed.get();
+		LinkNodeType type = parsedType.get();
 		if (!isAllowedForRole(type, role)) {
 			return SemanticResult.failure(SemanticError.ROLE_NOT_ALLOWED);
 		}

@@ -121,4 +121,44 @@ class SemanticRolePolicyTest {
 		assertFalse(invalidType.isSuccess());
 		assertEquals(SemanticError.INVALID_TYPE, invalidType.error());
 	}
+
+	/**
+	 * strict 校验应仅接受 canonical type，并继续覆盖角色与允许集约束。
+	 */
+	@Test
+	void resolveCanonicalTypeShouldValidateTypeRoleAndAllowedSet() {
+		SemanticRolePolicy.resetDefaultRoleRules();
+		SemanticResult<LinkNodeType> success = SemanticRolePolicy.resolveCanonicalType(
+			"TRIGGERSOURCE",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.BUTTON)
+		);
+		assertTrue(success.isSuccess());
+		assertEquals(LinkNodeType.BUTTON, success.value());
+		assertEquals(SemanticError.NONE, success.error());
+
+		SemanticResult<LinkNodeType> roleNotAllowed = SemanticRolePolicy.resolveCanonicalType(
+			"core",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.CORE)
+		);
+		assertFalse(roleNotAllowed.isSuccess());
+		assertEquals(SemanticError.ROLE_NOT_ALLOWED, roleNotAllowed.error());
+
+		SemanticResult<LinkNodeType> configNotAllowed = SemanticRolePolicy.resolveCanonicalType(
+			"triggerSource",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.CORE)
+		);
+		assertFalse(configNotAllowed.isSuccess());
+		assertEquals(SemanticError.CONFIG_NOT_ALLOWED, configNotAllowed.error());
+
+		SemanticResult<LinkNodeType> invalidAliasType = SemanticRolePolicy.resolveCanonicalType(
+			"button",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.BUTTON)
+		);
+		assertFalse(invalidAliasType.isSuccess());
+		assertEquals(SemanticError.INVALID_TYPE, invalidAliasType.error());
+	}
 }

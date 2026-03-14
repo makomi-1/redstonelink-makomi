@@ -122,4 +122,20 @@ public final class LinkNodeSemantics {
 	) {
 		return SemanticRolePolicy.resolveType(rawType, role, allowedTypes);
 	}
+
+	/**
+	 * 仅按标准 type 词表解析并校验是否满足角色与可选配置允许集。
+	 *
+	 * @param rawType 原始类型文本（仅接受 triggerSource/core，大小写不敏感）
+	 * @param role 角色方向
+	 * @param allowedTypes 配置允许集（null 表示不做该层校验）
+	 * @return 统一语义校验结果
+	 */
+	public static SemanticResult<LinkNodeType> resolveCanonicalTypeForRole(
+		String rawType,
+		Role role,
+		Set<LinkNodeType> allowedTypes
+	) {
+		return SemanticRolePolicy.resolveCanonicalType(rawType, role, allowedTypes);
+	}
 }

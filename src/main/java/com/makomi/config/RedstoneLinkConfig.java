@@ -601,7 +601,7 @@ public final class RedstoneLinkConfig {
 		LinkNodeSemantics.Role role,
 		Set<LinkNodeType> allowedTypes
 	) {
-		var semanticResult = LinkNodeSemantics.resolveTypeForRole(rawType, role, allowedTypes);
+		var semanticResult = LinkNodeSemantics.resolveCanonicalTypeForRole(rawType, role, allowedTypes);
 		if (semanticResult.isSuccess()) {
 			return Optional.of(semanticResult.value());
 		}
@@ -816,12 +816,12 @@ public final class RedstoneLinkConfig {
 			crosschunk.command.permissionLevel=2
 
 			# crosschunk.notify.enabled
-			# zh: 鏄惁鍚敤璺ㄥ尯鍧楁帴绠＄敓鏁堟彁绀恒€?
+			# zh: 是否启用跨区块接管生效提示。
 			# en: Whether to notify when cross-chunk takeover is accepted.
 			crosschunk.notify.enabled=true
 
 			# crosschunk.notify.mode
-			# zh: 璺ㄥ尯鍧楁彁绀烘ā寮忥細simple/detailed銆?
+			# zh: 跨区块提示模式：simple/detailed。
 			# en: Cross-chunk notify mode: simple/detailed.
 			crosschunk.notify.mode=simple
 
