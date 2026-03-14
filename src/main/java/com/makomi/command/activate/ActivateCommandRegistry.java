@@ -165,7 +165,7 @@ public final class ActivateCommandRegistry {
 		int handledTargets = 0;
 		int crossChunkHandled = 0;
 		for (long sourceSerial : sourceSerials) {
-			Set<Long> linkedTargets = savedData.getLinkedCores(sourceSerial);
+			Set<Long> linkedTargets = savedData.getLinkedTargetsBySourceType(LinkNodeType.BUTTON, sourceSerial);
 			if (linkedTargets.isEmpty()) {
 				continue;
 			}

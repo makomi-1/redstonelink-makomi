@@ -218,7 +218,7 @@ public class LinkerItem extends Item implements PairableItem {
 		if (serial <= 0L) {
 			return;
 		}
-		PairingNetwork.openButtonPairing(serverPlayer, serial);
+		PairingNetwork.openTriggerSourcePairing(serverPlayer, serial);
 		LinkItemData.setLinkedSerials(stack, LinkSavedData.get(serverLevel).getLinkedCores(serial));
 	}
 

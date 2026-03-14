@@ -2,7 +2,7 @@ package com.makomi;
 
 import com.makomi.client.ClientHooks;
 import com.makomi.client.screen.CorePairingScreen;
-import com.makomi.client.screen.LinkPairingScreen;
+import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlocks;
@@ -30,7 +30,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			if (minecraft.player == null) {
 				return;
 			}
-			minecraft.setScreen(new LinkPairingScreen(hand));
+			minecraft.setScreen(new TriggerSourcePairingScreen(hand));
 		});
 
 		ClientHooks.setNodePairingScreenOpener((nodeType, nodeSerial, currentTargetSerial) -> {
@@ -41,16 +41,16 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			if (nodeType == LinkNodeType.CORE) {
 				minecraft.setScreen(new CorePairingScreen(nodeSerial, List.of()));
 			} else {
-				minecraft.setScreen(new LinkPairingScreen(nodeSerial, List.of()));
+				minecraft.setScreen(new TriggerSourcePairingScreen(nodeSerial, List.of()));
 			}
 		});
 
-		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenButtonPairingPayload.TYPE, (payload, context) -> {
+		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, (payload, context) -> {
 			// 网络线程切回客户端主线程后再操作 Screen。
 			context.client().execute(() -> {
 				Minecraft minecraft = Minecraft.getInstance();
 				if (minecraft.player != null) {
-					minecraft.setScreen(new LinkPairingScreen(payload.sourceSerial(), payload.targets()));
+					minecraft.setScreen(new TriggerSourcePairingScreen(payload.sourceSerial(), payload.targets()));
 				}
 			});
 		});

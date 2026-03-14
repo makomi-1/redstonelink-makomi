@@ -9,12 +9,12 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 触发器（Button/Trigger）配对界面。
+ * 触发源（triggerSource）配对界面。
  * <p>
- * 负责显示当前触发器序列号与已连接目标，并向服务端发送覆盖式 {@code set_links} 命令。
+ * 负责显示当前触发源序列号与已连接目标，并向服务端发送覆盖式 {@code set_links} 命令。
  * </p>
  */
-public class LinkPairingScreen extends AbstractMultiPairingScreen {
+public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	private static final LinkNodeType SOURCE_TYPE = LinkNodeType.BUTTON;
 	private static final Component TITLE = Component.translatable("screen.redstonelink.button_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.button_pairing.input");
@@ -26,7 +26,7 @@ public class LinkPairingScreen extends AbstractMultiPairingScreen {
 	 * @param sourceSerial 来源节点序列号
 	 * @param currentTargets 当前已连接目标序列号列表
 	 */
-	public LinkPairingScreen(long sourceSerial, List<Long> currentTargets) {
+	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets) {
 		super(TITLE, sourceSerial, currentTargets);
 	}
 
@@ -35,7 +35,7 @@ public class LinkPairingScreen extends AbstractMultiPairingScreen {
 	 *
 	 * @param hand 手持槽位（主手/副手）
 	 */
-	public LinkPairingScreen(InteractionHand hand) {
+	public TriggerSourcePairingScreen(InteractionHand hand) {
 		this(resolveHeldSerial(hand), List.of());
 	}
 

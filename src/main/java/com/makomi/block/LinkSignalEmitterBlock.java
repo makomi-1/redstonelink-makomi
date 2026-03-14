@@ -174,7 +174,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 				buttonBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {
-				PairingNetwork.openButtonPairing(serverPlayer, serial);
+				PairingNetwork.openTriggerSourcePairing(serverPlayer, serial);
 			}
 		}
 	}

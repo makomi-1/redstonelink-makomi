@@ -54,11 +54,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
 			long serial = LinkItemData.getSerial(heldStack);
 			if (serial > 0L) {
-				if (nodeType == LinkNodeType.BUTTON) {
-					PairingNetwork.openButtonPairing(serverPlayer, serial);
-				} else if (nodeType == LinkNodeType.CORE) {
-					PairingNetwork.openCorePairing(serverPlayer, serial);
-				}
+				PairingNetwork.openPairingBySourceType(serverPlayer, nodeType, serial);
 			}
 		}
 		return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
@@ -77,11 +73,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
 				long serial = LinkItemData.getSerial(heldStack);
 				if (serial > 0L) {
-					if (nodeType == LinkNodeType.BUTTON) {
-						PairingNetwork.openButtonPairing(serverPlayer, serial);
-					} else {
-						PairingNetwork.openCorePairing(serverPlayer, serial);
-					}
+					PairingNetwork.openPairingBySourceType(serverPlayer, nodeType, serial);
 				}
 			}
 			return InteractionResult.sidedSuccess(level.isClientSide);

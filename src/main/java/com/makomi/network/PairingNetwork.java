@@ -1,6 +1,7 @@
 package com.makomi.network;
 
 import com.makomi.RedstoneLink;
+import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,55 +25,91 @@ public final class PairingNetwork {
 	}
 
 	public static void register() {
-		PayloadTypeRegistry.playS2C().register(OpenButtonPairingPayload.TYPE, OpenButtonPairingPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(OpenTriggerSourcePairingPayload.TYPE, OpenTriggerSourcePairingPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(OpenCorePairingPayload.TYPE, OpenCorePairingPayload.CODEC);
 	}
 
 	/**
-	 * 打开按钮侧配对界面。
+	 * 打开触发源侧配对界面。
 	 */
-	public static void openButtonPairing(ServerPlayer player, long buttonSerial) {
-		List<Long> currentTargets = new ArrayList<>(LinkSavedData.get(player.serverLevel()).getLinkedCores(buttonSerial));
-		currentTargets.sort(Comparator.naturalOrder());
-		ServerPlayNetworking.send(player, new OpenButtonPairingPayload(buttonSerial, currentTargets));
+	public static void openTriggerSourcePairing(ServerPlayer player, long sourceSerial) {
+		openPairingBySourceType(player, LinkNodeType.BUTTON, sourceSerial);
 	}
 
 	/**
-	 * 打开核心侧配对界面。
+	 * 打开核心侧配对界面（core 语义入口）。
 	 */
 	public static void openCorePairing(ServerPlayer player, long coreSerial) {
-		List<Long> currentTargets = new ArrayList<>(LinkSavedData.get(player.serverLevel()).getLinkedButtons(coreSerial));
-		currentTargets.sort(Comparator.naturalOrder());
-		ServerPlayNetworking.send(player, new OpenCorePairingPayload(coreSerial, currentTargets));
+		openPairingBySourceType(player, LinkNodeType.CORE, coreSerial);
 	}
 
 	/**
-	 * 按钮配对界面打开包：sourceSerial 为按钮序列号，targets 为当前关联核心序列号列表。
+	 * 按来源类型打开配对界面（命名语义化入口）。
+	 *
+	 * @param player 服务端玩家
+	 * @param sourceType 来源节点类型
+	 * @param sourceSerial 来源序列号
 	 */
-	public record OpenButtonPairingPayload(long sourceSerial, List<Long> targets) implements CustomPacketPayload {
-		public static final CustomPacketPayload.Type<OpenButtonPairingPayload> TYPE = new CustomPacketPayload.Type<>(
+	public static void openPairingBySourceType(ServerPlayer player, LinkNodeType sourceType, long sourceSerial) {
+		if (sourceType == null) {
+			return;
+		}
+		List<Long> currentTargets = new ArrayList<>(
+			LinkSavedData.get(player.serverLevel()).getLinkedTargetsBySourceType(sourceType, sourceSerial)
+		);
+		currentTargets.sort(Comparator.naturalOrder());
+		if (sourceType == LinkNodeType.BUTTON) {
+			ServerPlayNetworking.send(player, new OpenTriggerSourcePairingPayload(sourceSerial, currentTargets));
+			return;
+		}
+		ServerPlayNetworking.send(player, new OpenCorePairingPayload(sourceSerial, currentTargets));
+	}
+
+	/**
+	 * 通用配对 Payload 编码。
+	 */
+	private static void encodePayload(FriendlyByteBuf buffer, long sourceSerial, List<Long> targets) {
+		buffer.writeVarLong(sourceSerial);
+		buffer.writeVarInt(targets.size());
+		for (long target : targets) {
+			buffer.writeVarLong(target);
+		}
+	}
+
+	/**
+	 * 通用配对 Payload 解码。
+	 */
+	private static DecodedPayload decodePayload(FriendlyByteBuf buffer) {
+		long sourceSerial = buffer.readVarLong();
+		int size = buffer.readVarInt();
+		List<Long> targets = new ArrayList<>(size);
+		for (int i = 0; i < size; i++) {
+			targets.add(buffer.readVarLong());
+		}
+		return new DecodedPayload(sourceSerial, targets);
+	}
+
+	/**
+	 * 通用配对 Payload 解码结果。
+	 */
+	private record DecodedPayload(long sourceSerial, List<Long> targets) {}
+
+	/**
+	 * 触发源配对界面打开包：sourceSerial 为触发源序列号，targets 为当前关联核心序列号列表。
+	 */
+	public record OpenTriggerSourcePairingPayload(long sourceSerial, List<Long> targets) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<OpenTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_button_pairing")
 		);
-		public static final StreamCodec<FriendlyByteBuf, OpenButtonPairingPayload> CODEC = CustomPacketPayload.codec(
-			(payload, buffer) -> {
-				buffer.writeVarLong(payload.sourceSerial);
-				buffer.writeVarInt(payload.targets.size());
-				for (long target : payload.targets) {
-					buffer.writeVarLong(target);
-				}
-			},
+		public static final StreamCodec<FriendlyByteBuf, OpenTriggerSourcePairingPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> encodePayload(buffer, payload.sourceSerial, payload.targets),
 			buffer -> {
-				long sourceSerial = buffer.readVarLong();
-				int size = buffer.readVarInt();
-				List<Long> targets = new ArrayList<>(size);
-				for (int i = 0; i < size; i++) {
-					targets.add(buffer.readVarLong());
-				}
-				return new OpenButtonPairingPayload(sourceSerial, targets);
+				DecodedPayload payload = decodePayload(buffer);
+				return new OpenTriggerSourcePairingPayload(payload.sourceSerial(), payload.targets());
 			}
 		);
 
-		public OpenButtonPairingPayload {
+		public OpenTriggerSourcePairingPayload {
 			targets = List.copyOf(targets);
 		}
 
@@ -90,21 +127,10 @@ public final class PairingNetwork {
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_core_pairing")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenCorePairingPayload> CODEC = CustomPacketPayload.codec(
-			(payload, buffer) -> {
-				buffer.writeVarLong(payload.sourceSerial);
-				buffer.writeVarInt(payload.targets.size());
-				for (long target : payload.targets) {
-					buffer.writeVarLong(target);
-				}
-			},
+			(payload, buffer) -> encodePayload(buffer, payload.sourceSerial, payload.targets),
 			buffer -> {
-				long sourceSerial = buffer.readVarLong();
-				int size = buffer.readVarInt();
-				List<Long> targets = new ArrayList<>(size);
-				for (int i = 0; i < size; i++) {
-					targets.add(buffer.readVarLong());
-				}
-				return new OpenCorePairingPayload(sourceSerial, targets);
+				DecodedPayload payload = decodePayload(buffer);
+				return new OpenCorePairingPayload(payload.sourceSerial(), payload.targets());
 			}
 		);
 

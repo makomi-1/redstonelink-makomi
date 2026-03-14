@@ -601,7 +601,7 @@ public final class RedstoneLinkConfig {
 		LinkNodeSemantics.Role role,
 		Set<LinkNodeType> allowedTypes
 	) {
-		var semanticResult = LinkNodeSemantics.resolveCanonicalTypeForRole(rawType, role, allowedTypes);
+		var semanticResult = LinkNodeSemantics.resolveStrictTypeForRole(rawType, role, allowedTypes);
 		if (semanticResult.isSuccess()) {
 			return Optional.of(semanticResult.value());
 		}

@@ -339,6 +339,27 @@ public final class LinkSavedData extends SavedData {
 	}
 
 	/**
+	 * 以“来源/目标”语义切换关联关系。
+	 * <p>
+	 * 当来源类型为 BUTTON 时，按 BUTTON -> CORE 写入；
+	 * 当来源类型为 CORE 时，自动映射为 BUTTON -> CORE 底层索引。
+	 * </p>
+	 *
+	 * @param sourceType 来源节点类型
+	 * @param sourceSerial 来源序列号
+	 * @param targetSerial 目标序列号
+	 * @return true 表示本次切换后为“已关联”，false 表示切换后为“未关联”
+	 */
+	public boolean toggleLinkBySourceType(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
+		if (sourceType == null) {
+			return false;
+		}
+		return sourceType == LinkNodeType.BUTTON
+			? toggleLink(sourceSerial, targetSerial)
+			: toggleLink(targetSerial, sourceSerial);
+	}
+
+	/**
 	 * 解除按钮与核心的单条关联关系。
 	 */
 	public boolean unlink(long buttonSerial, long coreSerial) {
@@ -381,6 +402,26 @@ public final class LinkSavedData extends SavedData {
 			return Collections.emptySet();
 		}
 		return Set.copyOf(linked);
+	}
+
+	/**
+	 * 按“来源类型 + 来源序列号”查询目标集合。
+	 * <p>
+	 * 当来源类型为 BUTTON 时，返回关联 CORE 集合；
+	 * 当来源类型为 CORE 时，返回关联 BUTTON 集合。
+	 * </p>
+	 *
+	 * @param sourceType 来源节点类型
+	 * @param sourceSerial 来源序列号
+	 * @return 目标序列号集合
+	 */
+	public Set<Long> getLinkedTargetsBySourceType(LinkNodeType sourceType, long sourceSerial) {
+		if (sourceType == null) {
+			return Collections.emptySet();
+		}
+		return sourceType == LinkNodeType.BUTTON
+			? getLinkedCores(sourceSerial)
+			: getLinkedButtons(sourceSerial);
 	}
 
 	/**

@@ -120,7 +120,7 @@ public final class LinkNodeSemantics {
 		Role role,
 		Set<LinkNodeType> allowedTypes
 	) {
-		return SemanticRolePolicy.resolveType(rawType, role, allowedTypes);
+		return resolveCompatibleTypeForRole(rawType, role, allowedTypes);
 	}
 
 	/**
@@ -136,6 +136,38 @@ public final class LinkNodeSemantics {
 		Role role,
 		Set<LinkNodeType> allowedTypes
 	) {
-		return SemanticRolePolicy.resolveCanonicalType(rawType, role, allowedTypes);
+		return resolveStrictTypeForRole(rawType, role, allowedTypes);
+	}
+
+	/**
+	 * 按兼容词表（含历史别名）解析并校验是否满足角色与可选配置允许集。
+	 *
+	 * @param rawType 原始类型文本
+	 * @param role 角色方向
+	 * @param allowedTypes 配置允许集（null 表示不做该层校验）
+	 * @return 统一语义校验结果
+	 */
+	public static SemanticResult<LinkNodeType> resolveCompatibleTypeForRole(
+		String rawType,
+		Role role,
+		Set<LinkNodeType> allowedTypes
+	) {
+		return SemanticRolePolicy.resolveCompatibleTypeForRole(rawType, role, allowedTypes);
+	}
+
+	/**
+	 * 按严格词表（仅 triggerSource/core）解析并校验是否满足角色与可选配置允许集。
+	 *
+	 * @param rawType 原始类型文本
+	 * @param role 角色方向
+	 * @param allowedTypes 配置允许集（null 表示不做该层校验）
+	 * @return 统一语义校验结果
+	 */
+	public static SemanticResult<LinkNodeType> resolveStrictTypeForRole(
+		String rawType,
+		Role role,
+		Set<LinkNodeType> allowedTypes
+	) {
+		return SemanticRolePolicy.resolveStrictTypeForRole(rawType, role, allowedTypes);
 	}
 }

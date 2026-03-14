@@ -474,7 +474,7 @@ public final class CrossChunkCommandRegistry {
 		Set<LinkNodeType> allowedTypes = role == LinkNodeSemantics.Role.SOURCE
 			? RedstoneLinkConfig.crossChunkAllowedSourceTypes()
 			: RedstoneLinkConfig.crossChunkAllowedTargetTypes();
-		var semanticResult = LinkNodeSemantics.resolveTypeForRole(semanticTypeName, role, allowedTypes);
+		var semanticResult = LinkNodeSemantics.resolveStrictTypeForRole(semanticTypeName, role, allowedTypes);
 		if (semanticResult.isSuccess()) {
 			return semanticResult.value();
 		}

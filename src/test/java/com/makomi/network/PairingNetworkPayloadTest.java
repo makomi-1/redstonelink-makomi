@@ -18,12 +18,15 @@ import org.junit.jupiter.api.Test;
 class PairingNetworkPayloadTest {
 
 	/**
-	 * 按钮配对包 targets 应做不可变拷贝，避免外部修改污染消息体。
+	 * 触发源配对包 targets 应做不可变拷贝，避免外部修改污染消息体。
 	 */
 	@Test
-	void buttonPayloadShouldCopyAndFreezeTargets() {
+	void triggerSourcePayloadShouldCopyAndFreezeTargets() {
 		List<Long> source = new ArrayList<>(List.of(7L, 3L, 9L));
-		PairingNetwork.OpenButtonPairingPayload payload = new PairingNetwork.OpenButtonPairingPayload(100L, source);
+		PairingNetwork.OpenTriggerSourcePairingPayload payload = new PairingNetwork.OpenTriggerSourcePairingPayload(
+			100L,
+			source
+		);
 
 		assertNotSame(source, payload.targets());
 		assertEquals(List.of(7L, 3L, 9L), payload.targets());
@@ -50,19 +53,24 @@ class PairingNetworkPayloadTest {
 	}
 
 	/**
-	 * 按钮配对包编解码往返应保持字段一致。
+	 * 触发源配对包编解码往返应保持字段一致。
 	 */
 	@Test
-	void buttonPayloadCodecRoundTripShouldPreserveFields() {
-		PairingNetwork.OpenButtonPairingPayload original = new PairingNetwork.OpenButtonPairingPayload(123L, List.of(1L, 4L, 9L));
+	void triggerSourcePayloadCodecRoundTripShouldPreserveFields() {
+		PairingNetwork.OpenTriggerSourcePairingPayload original = new PairingNetwork.OpenTriggerSourcePairingPayload(
+			123L,
+			List.of(1L, 4L, 9L)
+		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
-		PairingNetwork.OpenButtonPairingPayload.CODEC.encode(buffer, original);
-		PairingNetwork.OpenButtonPairingPayload decoded = PairingNetwork.OpenButtonPairingPayload.CODEC.decode(buffer);
+		PairingNetwork.OpenTriggerSourcePairingPayload.CODEC.encode(buffer, original);
+		PairingNetwork.OpenTriggerSourcePairingPayload decoded = PairingNetwork.OpenTriggerSourcePairingPayload.CODEC.decode(
+			buffer
+		);
 
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targets(), decoded.targets());
-		assertEquals(PairingNetwork.OpenButtonPairingPayload.TYPE, decoded.type());
+		assertEquals(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, decoded.type());
 	}
 
 	/**
@@ -86,11 +94,16 @@ class PairingNetworkPayloadTest {
 	 */
 	@Test
 	void payloadCodecShouldAllowEmptyTargets() {
-		PairingNetwork.OpenButtonPairingPayload original = new PairingNetwork.OpenButtonPairingPayload(77L, List.of());
+		PairingNetwork.OpenTriggerSourcePairingPayload original = new PairingNetwork.OpenTriggerSourcePairingPayload(
+			77L,
+			List.of()
+		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
-		PairingNetwork.OpenButtonPairingPayload.CODEC.encode(buffer, original);
-		PairingNetwork.OpenButtonPairingPayload decoded = PairingNetwork.OpenButtonPairingPayload.CODEC.decode(buffer);
+		PairingNetwork.OpenTriggerSourcePairingPayload.CODEC.encode(buffer, original);
+		PairingNetwork.OpenTriggerSourcePairingPayload decoded = PairingNetwork.OpenTriggerSourcePairingPayload.CODEC.decode(
+			buffer
+		);
 
 		assertEquals(77L, decoded.sourceSerial());
 		assertEquals(List.of(), decoded.targets());
@@ -118,6 +131,7 @@ class PairingNetworkPayloadTest {
 		buffer.writeVarInt(2);
 		buffer.writeVarLong(11L);
 
-		assertThrows(RuntimeException.class, () -> PairingNetwork.OpenButtonPairingPayload.CODEC.decode(buffer));
+		assertThrows(RuntimeException.class, () -> PairingNetwork.OpenTriggerSourcePairingPayload.CODEC.decode(buffer));
 	}
+
 }

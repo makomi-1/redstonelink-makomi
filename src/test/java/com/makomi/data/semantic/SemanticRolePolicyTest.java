@@ -161,4 +161,39 @@ class SemanticRolePolicyTest {
 		assertFalse(invalidAliasType.isSuccess());
 		assertEquals(SemanticError.INVALID_TYPE, invalidAliasType.error());
 	}
+
+	/**
+	 * 新旧命名入口应保持等价行为（仅命名调整，不改变解析语义）。
+	 */
+	@Test
+	void namingAliasApisShouldKeepBehaviorEquivalent() {
+		SemanticRolePolicy.resetDefaultRoleRules();
+		SemanticResult<LinkNodeType> legacyCompatible = LinkNodeSemantics.resolveTypeForRole(
+			"button",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.BUTTON)
+		);
+		SemanticResult<LinkNodeType> newCompatible = LinkNodeSemantics.resolveCompatibleTypeForRole(
+			"button",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.BUTTON)
+		);
+		assertEquals(legacyCompatible.isSuccess(), newCompatible.isSuccess());
+		assertEquals(legacyCompatible.error(), newCompatible.error());
+		assertEquals(legacyCompatible.value(), newCompatible.value());
+
+		SemanticResult<LinkNodeType> legacyStrict = LinkNodeSemantics.resolveCanonicalTypeForRole(
+			"TRIGGERSOURCE",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.BUTTON)
+		);
+		SemanticResult<LinkNodeType> newStrict = LinkNodeSemantics.resolveStrictTypeForRole(
+			"TRIGGERSOURCE",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.BUTTON)
+		);
+		assertEquals(legacyStrict.isSuccess(), newStrict.isSuccess());
+		assertEquals(legacyStrict.error(), newStrict.error());
+		assertEquals(legacyStrict.value(), newStrict.value());
+	}
 }

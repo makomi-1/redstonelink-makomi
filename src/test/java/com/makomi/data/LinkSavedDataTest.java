@@ -98,6 +98,26 @@ class LinkSavedDataTest {
 	}
 
 	/**
+	 * 来源语义别名方法应与历史命名方法保持一致行为。
+	 */
+	@Test
+	void sourceSemanticAliasesShouldMatchLegacyAccessors() {
+		LinkSavedData data = new LinkSavedData();
+		long buttonSerial = 1001L;
+		long coreSerial = 2001L;
+
+		boolean linkedBySource = data.toggleLinkBySourceType(LinkNodeType.BUTTON, buttonSerial, coreSerial);
+		assertTrue(linkedBySource);
+		assertEquals(Set.of(coreSerial), data.getLinkedTargetsBySourceType(LinkNodeType.BUTTON, buttonSerial));
+		assertEquals(Set.of(buttonSerial), data.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial));
+
+		boolean toggledBackByCoreView = data.toggleLinkBySourceType(LinkNodeType.CORE, coreSerial, buttonSerial);
+		assertFalse(toggledBackByCoreView);
+		assertTrue(data.getLinkedCores(buttonSerial).isEmpty());
+		assertTrue(data.getLinkedButtons(coreSerial).isEmpty());
+	}
+
+	/**
 	 * 节点退役应清理关联链路并写入退役集合。
 	 */
 	@Test

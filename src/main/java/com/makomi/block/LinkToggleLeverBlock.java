@@ -148,7 +148,7 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 				buttonBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {
-				PairingNetwork.openButtonPairing(serverPlayer, serial);
+				PairingNetwork.openTriggerSourcePairing(serverPlayer, serial);
 			}
 		}
 	}

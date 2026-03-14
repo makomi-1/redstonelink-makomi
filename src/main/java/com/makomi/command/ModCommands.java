@@ -358,12 +358,7 @@ public final class ModCommands {
 			return 0;
 		}
 
-		boolean linkedNow;
-		if (sourceType == LinkNodeType.BUTTON) {
-			linkedNow = savedData.toggleLink(sourceSerial, targetSerial);
-		} else {
-			linkedNow = savedData.toggleLink(targetSerial, sourceSerial);
-		}
+		boolean linkedNow = savedData.toggleLinkBySourceType(sourceType, sourceSerial, targetSerial);
 
 		if (linkedNow) {
 			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
@@ -1181,9 +1176,7 @@ public final class ModCommands {
 		int added = 0;
 		long lastTarget = 0L;
 		for (long targetSerial : targets) {
-			boolean addedNow = sourceType == LinkNodeType.BUTTON
-				? savedData.toggleLink(sourceSerial, targetSerial)
-				: savedData.toggleLink(targetSerial, sourceSerial);
+			boolean addedNow = savedData.toggleLinkBySourceType(sourceType, sourceSerial, targetSerial);
 			if (addedNow) {
 				added++;
 				lastTarget = targetSerial;
@@ -1252,9 +1245,7 @@ public final class ModCommands {
 		LinkNodeType sourceType,
 		long sourceSerial
 	) {
-		Set<Long> linkedSerials = sourceType == LinkNodeType.BUTTON
-			? savedData.getLinkedCores(sourceSerial)
-			: savedData.getLinkedButtons(sourceSerial);
+		Set<Long> linkedSerials = savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
 
 		for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
 			ItemStack stack = player.getInventory().getItem(slot);
@@ -1377,9 +1368,7 @@ public final class ModCommands {
 		LinkNodeType sourceType,
 		long sourceSerial
 	) {
-		return sourceType == LinkNodeType.BUTTON
-			? savedData.getLinkedCores(sourceSerial)
-			: savedData.getLinkedButtons(sourceSerial);
+		return savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
 	}
 
 	/**
