@@ -2,8 +2,6 @@ package com.makomi.client.screen;
 
 import com.makomi.data.LinkItemData;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -84,21 +82,26 @@ public class LinkPairingScreen extends AbstractMultiPairingScreen {
 	 * 发送覆盖式 {@code set_links} 命令。
 	 *
 	 * @param sourceSerial 来源节点序列号
-	 * @param targets 目标序列号集合；为空表示清空
+	 * @param rawTargetsInput 输入框中的原始目标文本
+	 * @param targetCount 去重后的目标数量
 	 */
 	@Override
-	protected void sendSetLinksCommand(long sourceSerial, Set<Long> targets) {
+	protected void sendSetLinksCommand(long sourceSerial, String rawTargetsInput, int targetCount) {
 		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
 			return;
 		}
 		String base = "redstonelink set_links button " + sourceSerial;
-		if (targets.isEmpty()) {
+		String normalizedTargets = rawTargetsInput == null ? "" : rawTargetsInput.trim();
+		if (normalizedTargets.isEmpty()) {
 			minecraft.player.connection.sendCommand(base);
 			return;
 		}
 
-		String listArg = targets.stream().map(String::valueOf).collect(Collectors.joining("/"));
-		minecraft.player.connection.sendCommand(base + " " + listArg);
+		String command = base + " " + normalizedTargets;
+		if (targetCount > 1) {
+			command += " confirm";
+		}
+		minecraft.player.connection.sendCommand(command);
 	}
 
 	/**

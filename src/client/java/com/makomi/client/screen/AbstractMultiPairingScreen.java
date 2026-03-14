@@ -151,7 +151,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 	protected abstract Component currentLinksLine(List<Long> currentTargets);
 
-	protected abstract void sendSetLinksCommand(long sourceSerial, Set<Long> targets);
+	protected abstract void sendSetLinksCommand(long sourceSerial, String rawTargetsInput, int targetCount);
 
 	protected abstract void sendClearLinksCommand(long sourceSerial);
 
@@ -384,7 +384,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			);
 		}
 
-		sendSetLinksCommand(sourceSerial, parseResult.targets());
+		sendSetLinksCommand(sourceSerial, serialInput.getValue(), parseResult.targets().size());
 		onClose();
 	}
 

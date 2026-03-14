@@ -63,3 +63,4 @@ agents/
 .tmp/
 更新计划草稿与索引.md
 skills
+.trae/rules/*

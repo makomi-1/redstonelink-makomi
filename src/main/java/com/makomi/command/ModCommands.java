@@ -1,7 +1,9 @@
 package com.makomi.command;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.command.activate.ActivateCommandRegistry;
 import com.makomi.command.crosschunk.CrossChunkCommandRegistry;
+import com.makomi.command.retire.RetireBatchCommandRegistry;
 import com.makomi.compat.LithiumCompatHealth;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
@@ -111,42 +113,40 @@ public final class ModCommands {
 						)
 				)
 				.then(
-					Commands
-						.literal("set_links")
-						.then(
-							Commands.literal("button").then(
-								Commands.argument("source_serial", LongArgumentType.longArg(1L))
-									.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, false))
-									.then(
-										Commands.argument("targets", StringArgumentType.greedyString()).executes(
-											context -> executeSetLinks(context, LinkNodeType.BUTTON, true)
+						Commands
+							.literal("set_links")
+							.then(
+								Commands.literal("button").then(
+									Commands.argument("source_serial", LongArgumentType.longArg(1L))
+										.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, false))
+										.then(
+											Commands.argument("targets", StringArgumentType.greedyString())
+												.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, true))
 										)
-									)
+								)
 							)
-						)
-						.then(
-							Commands.literal("triggersource").then(
-								Commands.argument("source_serial", LongArgumentType.longArg(1L))
-									.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, false))
-									.then(
-										Commands.argument("targets", StringArgumentType.greedyString()).executes(
-											context -> executeSetLinks(context, LinkNodeType.BUTTON, true)
+							.then(
+								Commands.literal("triggersource").then(
+									Commands.argument("source_serial", LongArgumentType.longArg(1L))
+										.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, false))
+										.then(
+											Commands.argument("targets", StringArgumentType.greedyString())
+												.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, true))
 										)
-									)
+								)
 							)
-						)
-						.then(
-							Commands.literal("core").then(
-								Commands.argument("source_serial", LongArgumentType.longArg(1L))
-									.executes(context -> executeSetLinks(context, LinkNodeType.CORE, false))
-									.then(
-										Commands.argument("targets", StringArgumentType.greedyString()).executes(
-											context -> executeSetLinks(context, LinkNodeType.CORE, true)
+							.then(
+								Commands.literal("core").then(
+									Commands.argument("source_serial", LongArgumentType.longArg(1L))
+										.executes(context -> executeSetLinks(context, LinkNodeType.CORE, false))
+										.then(
+											Commands.argument("targets", StringArgumentType.greedyString())
+												.executes(context -> executeSetLinks(context, LinkNodeType.CORE, true))
 										)
-									)
+								)
 							)
-						)
-				)
+					)
+				.then(ActivateCommandRegistry.createRoot())
 				.then(
 					Commands
 						.literal("node")
@@ -286,6 +286,7 @@ public final class ModCommands {
 									)
 							)
 						)
+						.then(RetireBatchCommandRegistry.createBatchNode())
 				)
 				.then(CrossChunkCommandRegistry.createRoot())
 		));
@@ -1084,12 +1085,17 @@ public final class ModCommands {
 		}
 
 		Set<Long> targets;
+		String rawTargets = "";
+		boolean confirmed = false;
 		int maxTargets = RedstoneLinkConfig.maxTargetsPerSetLinks();
 		if (!hasTargets) {
 			targets = Set.of();
 		} else {
-			String raw = StringArgumentType.getString(context, "targets");
-			TargetParseResult parseResult = parseTargetSerials(raw, maxTargets);
+			String rawInput = StringArgumentType.getString(context, "targets");
+			ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(rawInput);
+			confirmed = confirmSuffixParseResult.confirmed();
+			rawTargets = confirmSuffixParseResult.payload();
+			TargetParseResult parseResult = parseTargetSerials(rawTargets, maxTargets);
 			if (!parseResult.invalidEntries().isEmpty()) {
 				source.sendFailure(
 					Component.translatable(
@@ -1167,6 +1173,23 @@ public final class ModCommands {
 		}
 
 		// set_links 语义为“覆盖集合”，因此先清空旧关系再写入新关系。
+		if (hasTargets && targets.size() > 1 && !confirmed) {
+			String confirmCommand = "redstonelink set_links "
+				+ typeCommandName(sourceType)
+				+ " "
+				+ sourceSerial
+				+ " "
+				+ rawTargets
+				+ " confirm";
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.set_links.confirm_required",
+					targets.size(),
+					confirmCommand
+				)
+			);
+			return 0;
+		}
 		savedData.clearLinksForNode(sourceType, sourceSerial);
 		int added = 0;
 		long lastTarget = 0L;
@@ -1192,6 +1215,33 @@ public final class ModCommands {
 			);
 		}
 		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 解析批量序列参数末尾的二次确认后缀（` confirm`）。
+	 *
+	 * @param rawText 原始参数文本
+	 * @return 去后缀后的文本与确认标记
+	 */
+	private static ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
+		String normalized = rawText == null ? "" : rawText.trim();
+		String suffix = " confirm";
+		if (normalized.endsWith(suffix)) {
+			String payload = normalized.substring(0, normalized.length() - suffix.length()).trim();
+			if (!payload.isEmpty()) {
+				return new ConfirmSuffixParseResult(payload, true);
+			}
+		}
+		return new ConfirmSuffixParseResult(normalized, false);
+	}
+
+	/**
+	 * 二次确认后缀解析结果。
+	 *
+	 * @param payload 去后缀后的有效参数文本
+	 * @param confirmed 是否携带确认后缀
+	 */
+	private record ConfirmSuffixParseResult(String payload, boolean confirmed) {
 	}
 
 	/**

@@ -6,6 +6,7 @@ import com.makomi.data.CrossChunkWhitelistSavedData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.util.SerialParseUtil;
 import com.makomi.util.ServerSerialValidationUtil;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -13,6 +14,7 @@ import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +33,8 @@ import net.minecraft.server.level.ServerLevel;
  * </p>
  */
 public final class CrossChunkCommandRegistry {
+	private static final int WHITELIST_SET_MAX_SERIALS = 1024;
+
 	private CrossChunkCommandRegistry() {
 	}
 
@@ -93,6 +97,18 @@ public final class CrossChunkCommandRegistry {
 								)
 							)
 					)
+						.then(
+							Commands
+								.literal("set")
+								.then(
+									Commands.argument("role", StringArgumentType.word()).then(
+										Commands.argument("type", StringArgumentType.word()).then(
+											Commands.argument("serials", StringArgumentType.greedyString())
+												.executes(CrossChunkCommandRegistry::executeWhitelistSet)
+										)
+									)
+								)
+						)
 			)
 			.then(
 				Commands
@@ -227,6 +243,135 @@ public final class CrossChunkCommandRegistry {
 			true
 		);
 		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 执行白名单批量覆盖（set）。
+	 */
+	private static int executeWhitelistSet(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		ParsedRoleAndType parsed = parseRoleAndType(context, source);
+		if (parsed == null) {
+			return 0;
+		}
+
+		ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(
+			StringArgumentType.getString(context, "serials")
+		);
+		String rawSerials = confirmSuffixParseResult.payload();
+		boolean confirmed = confirmSuffixParseResult.confirmed();
+		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, WHITELIST_SET_MAX_SERIALS);
+		if (!parseResult.invalidEntries().isEmpty()) {
+			source.sendFailure(Component.translatable(
+				"message.redstonelink.invalid_target_tokens",
+				String.join(", ", parseResult.invalidEntries())
+			));
+			return 0;
+		}
+		if (parseResult.exceedLimit()) {
+			source.sendFailure(Component.translatable(
+				"message.redstonelink.crosschunk.whitelist.set.too_many",
+				WHITELIST_SET_MAX_SERIALS
+			));
+			return 0;
+		}
+		Set<Long> targetSerials = parseResult.targets();
+		if (targetSerials.isEmpty()) {
+			source.sendFailure(Component.translatable("message.redstonelink.crosschunk.whitelist.set.empty"));
+			return 0;
+		}
+		if (!parseResult.duplicateEntries().isEmpty()) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.crosschunk.whitelist.set.duplicates_deduped",
+					formatSerialCollection(parseResult.duplicateEntries())
+				),
+				false
+			);
+		}
+
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		List<Long> invalidSerials = new ArrayList<>();
+		for (long serial : targetSerials) {
+			boolean active = savedData.isSerialAllocated(parsed.type(), serial) && !savedData.isSerialRetired(parsed.type(), serial);
+			if (!active) {
+				invalidSerials.add(serial);
+			}
+		}
+		if (!invalidSerials.isEmpty()) {
+			source.sendFailure(Component.translatable(
+				"message.redstonelink.crosschunk.whitelist.set.invalid_serials",
+				roleName(parsed.role()),
+				LinkNodeSemantics.toSemanticName(parsed.type()),
+				formatSerialCollection(invalidSerials)
+			));
+			return 0;
+		}
+
+		if (!confirmed) {
+			String confirmCommand = "redstonelink crosschunk whitelist set "
+				+ roleName(parsed.role())
+				+ " "
+				+ LinkNodeSemantics.toSemanticName(parsed.type())
+				+ " "
+				+ rawSerials
+				+ " confirm";
+			source.sendFailure(Component.translatable(
+				"message.redstonelink.crosschunk.whitelist.set.confirm_required",
+				targetSerials.size(),
+				confirmCommand
+			));
+			return 0;
+		}
+
+		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(source.getLevel());
+		int removed = whitelistSavedData.clear(parsed.type(), parsed.role());
+		int added = 0;
+		for (long serial : targetSerials) {
+			if (whitelistSavedData.add(parsed.type(), serial, parsed.role())) {
+				added++;
+			}
+		}
+		final int addedCount = added;
+		final int removedCount = removed;
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.crosschunk.whitelist.set.done",
+				roleName(parsed.role()),
+				LinkNodeSemantics.toSemanticName(parsed.type()),
+				addedCount,
+				removedCount
+			),
+			true
+		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 解析批量序列参数末尾的二次确认后缀（` confirm`）。
+	 *
+	 * @param rawText 原始参数文本
+	 * @return 去后缀后的文本与确认标记
+	 */
+	private static ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
+		String normalized = rawText == null ? "" : rawText.trim();
+		String suffix = " confirm";
+		if (normalized.endsWith(suffix)) {
+			String payload = normalized.substring(0, normalized.length() - suffix.length()).trim();
+			if (!payload.isEmpty()) {
+				return new ConfirmSuffixParseResult(payload, true);
+			}
+		}
+		return new ConfirmSuffixParseResult(normalized, false);
+	}
+
+	/**
+	 * 二次确认后缀解析结果。
+	 *
+	 * @param payload 去后缀后的有效参数文本
+	 * @param confirmed 是否携带确认后缀
+	 */
+	private record ConfirmSuffixParseResult(String payload, boolean confirmed) {
 	}
 
 	/**
@@ -384,6 +529,20 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static String formatSerialSet(Set<Long> serials) {
 		if (serials.isEmpty()) {
+			return "-";
+		}
+		return serials.stream()
+			.sorted()
+			.map(String::valueOf)
+			.reduce((left, right) -> left + ", " + right)
+			.orElse("-");
+	}
+
+	/**
+	 * 格式化序号集合（稳定升序、逗号分隔）。
+	 */
+	private static String formatSerialCollection(Collection<Long> serials) {
+		if (serials == null || serials.isEmpty()) {
 			return "-";
 		}
 		return serials.stream()
