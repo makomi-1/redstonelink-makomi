@@ -4,9 +4,11 @@ import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.activate.ActivateCommandRegistry;
 import com.makomi.command.crosschunk.CrossChunkCommandRegistry;
 import com.makomi.command.retire.RetireBatchCommandRegistry;
+import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.compat.LithiumCompatHealth;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.item.PairableItem;
@@ -94,19 +96,10 @@ public final class ModCommands {
 					Commands
 						.literal("pair_node")
 						.then(
-							Commands.literal("button").then(
+							Commands.argument("type", StringArgumentType.word()).then(
 								Commands.argument("source_serial", LongArgumentType.longArg(1L)).then(
 									Commands.argument("target_serial", LongArgumentType.longArg(0L)).executes(
-										context -> executePairByNode(context, LinkNodeType.BUTTON)
-									)
-								)
-							)
-						)
-						.then(
-							Commands.literal("triggersource").then(
-								Commands.argument("source_serial", LongArgumentType.longArg(1L)).then(
-									Commands.argument("target_serial", LongArgumentType.longArg(0L)).executes(
-										context -> executePairByNode(context, LinkNodeType.BUTTON)
+										ModCommands::executePairByNodeWithTypeArg
 									)
 								)
 							)
@@ -116,32 +109,12 @@ public final class ModCommands {
 						Commands
 							.literal("set_links")
 							.then(
-								Commands.literal("button").then(
+								Commands.argument("type", StringArgumentType.word()).then(
 									Commands.argument("source_serial", LongArgumentType.longArg(1L))
-										.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, false))
+										.executes(context -> executeSetLinksWithTypeArg(context, false))
 										.then(
 											Commands.argument("targets", StringArgumentType.greedyString())
-												.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, true))
-										)
-								)
-							)
-							.then(
-								Commands.literal("triggersource").then(
-									Commands.argument("source_serial", LongArgumentType.longArg(1L))
-										.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, false))
-										.then(
-											Commands.argument("targets", StringArgumentType.greedyString())
-												.executes(context -> executeSetLinks(context, LinkNodeType.BUTTON, true))
-										)
-								)
-							)
-							.then(
-								Commands.literal("core").then(
-									Commands.argument("source_serial", LongArgumentType.longArg(1L))
-										.executes(context -> executeSetLinks(context, LinkNodeType.CORE, false))
-										.then(
-											Commands.argument("targets", StringArgumentType.greedyString())
-												.executes(context -> executeSetLinks(context, LinkNodeType.CORE, true))
+												.executes(context -> executeSetLinksWithTypeArg(context, true))
 										)
 								)
 							)
@@ -254,35 +227,13 @@ public final class ModCommands {
 					Commands
 						.literal("retire")
 						.then(
-							Commands.literal("core").then(
+							Commands.argument("type", StringArgumentType.word()).then(
 								Commands.argument("serial", LongArgumentType.longArg(1L))
-									.executes(context -> executeRetireRequireConfirm(context, LinkNodeType.CORE))
+									.executes(ModCommands::executeRetireRequireConfirmWithTypeArg)
 									.then(
 										Commands
 											.literal("confirm")
-											.executes(context -> executeRetire(context, LinkNodeType.CORE))
-									)
-							)
-						)
-						.then(
-							Commands.literal("button").then(
-								Commands.argument("serial", LongArgumentType.longArg(1L))
-									.executes(context -> executeRetireRequireConfirm(context, LinkNodeType.BUTTON))
-									.then(
-										Commands
-											.literal("confirm")
-											.executes(context -> executeRetire(context, LinkNodeType.BUTTON))
-									)
-							)
-						)
-						.then(
-							Commands.literal("triggersource").then(
-								Commands.argument("serial", LongArgumentType.longArg(1L))
-									.executes(context -> executeRetireRequireConfirm(context, LinkNodeType.BUTTON))
-									.then(
-										Commands
-											.literal("confirm")
-											.executes(context -> executeRetire(context, LinkNodeType.BUTTON))
+											.executes(ModCommands::executeRetireWithTypeArg)
 									)
 							)
 						)
@@ -347,6 +298,18 @@ public final class ModCommands {
 			updateNodeLastTargetSerial(player.serverLevel(), sourceType, sourceSerial, targetSerial);
 		}
 		return result;
+	}
+
+	/**
+	 * 根据 type 参数执行节点单目标切换配对。
+	 */
+	private static int executePairByNodeWithTypeArg(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (sourceType == null) {
+			return 0;
+		}
+		return executePairByNode(context, sourceType);
 	}
 
 	/**
@@ -1030,6 +993,18 @@ public final class ModCommands {
 	}
 
 	/**
+	 * 根据 type 参数执行 retire 第一阶段确认提示。
+	 */
+	private static int executeRetireRequireConfirmWithTypeArg(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
+			return 0;
+		}
+		return executeRetireRequireConfirm(context, type);
+	}
+
+	/**
 	 * retire confirm 实际执行入口。
 	 */
 	private static int executeRetire(CommandContext<CommandSourceStack> context, LinkNodeType type) {
@@ -1059,8 +1034,20 @@ public final class ModCommands {
 		return Command.SINGLE_SUCCESS;
 	}
 
+	/**
+	 * 根据 type 参数执行 retire confirm。
+	 */
+	private static int executeRetireWithTypeArg(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
+			return 0;
+		}
+		return executeRetire(context, type);
+	}
+
 	private static String typeCommandName(LinkNodeType type) {
-		return type == LinkNodeType.BUTTON ? "button" : "core";
+		return LinkNodeSemantics.toSemanticName(type);
 	}
 
 	/**
@@ -1218,6 +1205,18 @@ public final class ModCommands {
 	}
 
 	/**
+	 * 根据 type 参数执行覆盖式 set_links。
+	 */
+	private static int executeSetLinksWithTypeArg(CommandContext<CommandSourceStack> context, boolean hasTargets) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (sourceType == null) {
+			return 0;
+		}
+		return executeSetLinks(context, sourceType, hasTargets);
+	}
+
+	/**
 	 * 解析批量序列参数末尾的二次确认后缀（` confirm`）。
 	 *
 	 * @param rawText 原始参数文本
@@ -1316,15 +1315,12 @@ public final class ModCommands {
 	 * 解析节点类型参数。
 	 */
 	private static LinkNodeType parseNodeTypeArg(CommandSourceStack source, String rawType) {
-		String normalized = rawType == null ? "" : rawType.trim().toLowerCase(Locale.ROOT);
-		return switch (normalized) {
-			case "button", "triggersource", "trigger_source" -> LinkNodeType.BUTTON;
-			case "core" -> LinkNodeType.CORE;
-			default -> {
-				source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
-				yield null;
-			}
-		};
+		var parsedType = LinkNodeSemantics.tryParseCanonicalType(rawType);
+		if (parsedType.isPresent()) {
+			return parsedType.get();
+		}
+		source.sendFailure(SemanticCommandMessageAdapter.invalidType(rawType));
+		return null;
 	}
 
 	/**

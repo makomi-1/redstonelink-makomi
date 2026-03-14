@@ -134,12 +134,21 @@ class LinkSavedDataLoadCompatibilityTest {
 		invalidDimensionNode.putString("type", "BUTTON");
 		nodes.add(invalidDimensionNode);
 
+		CompoundTag invalidTypeNode = new CompoundTag();
+		invalidTypeNode.putLong("serial", 11L);
+		invalidTypeNode.putString("dimension", Level.OVERWORLD.location().toString());
+		invalidTypeNode.putLong("pos", new BlockPos(10, 11, 12).asLong());
+		invalidTypeNode.putString("type", "unknown_type");
+		nodes.add(invalidTypeNode);
+
 		dataTag.put("nodes", nodes);
 
 		LinkSavedData restored = invokeLoad(dataTag);
 		assertTrue(restored.findNode(LinkNodeType.CORE, 9L).isPresent());
 		assertFalse(restored.findNode(LinkNodeType.CORE, 0L).isPresent());
 		assertFalse(restored.findNode(LinkNodeType.BUTTON, 10L).isPresent());
+		assertFalse(restored.findNode(LinkNodeType.CORE, 11L).isPresent());
+		assertFalse(restored.findNode(LinkNodeType.BUTTON, 11L).isPresent());
 	}
 
 	/**

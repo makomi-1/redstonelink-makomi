@@ -1,5 +1,7 @@
 package com.makomi.client.screen;
 
+import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkNodeType;
 import java.util.List;
 import net.minecraft.network.chat.Component;
 
@@ -10,6 +12,7 @@ import net.minecraft.network.chat.Component;
  * </p>
  */
 public class CorePairingScreen extends AbstractMultiPairingScreen {
+	private static final LinkNodeType SOURCE_TYPE = LinkNodeType.CORE;
 	private static final Component TITLE = Component.translatable("screen.redstonelink.core_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.core_pairing.input");
 	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.core_pairing.invalid");
@@ -78,7 +81,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
 			return;
 		}
-		String base = "redstonelink set_links core " + sourceSerial;
+		String base = setLinksBaseCommand(sourceSerial);
 		String normalizedTargets = rawTargetsInput == null ? "" : rawTargetsInput.trim();
 		if (normalizedTargets.isEmpty()) {
 			minecraft.player.connection.sendCommand(base);
@@ -102,6 +105,16 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
 			return;
 		}
-		minecraft.player.connection.sendCommand("redstonelink set_links core " + sourceSerial);
+		minecraft.player.connection.sendCommand(setLinksBaseCommand(sourceSerial));
+	}
+
+	/**
+	 * 构建 set_links 命令前缀。
+	 *
+	 * @param sourceSerial 来源序列号
+	 * @return 命令前缀文本
+	 */
+	private static String setLinksBaseCommand(long sourceSerial) {
+		return "redstonelink set_links " + LinkNodeSemantics.toCommandToken(SOURCE_TYPE) + " " + sourceSerial;
 	}
 }

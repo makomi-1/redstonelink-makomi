@@ -1,5 +1,6 @@
 package com.makomi.command.crosschunk;
 
+import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfig.CrossChunkPreset;
 import com.makomi.data.CrossChunkWhitelistSavedData;
@@ -17,7 +18,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -446,15 +446,15 @@ public final class CrossChunkCommandRegistry {
 			source.sendFailure(Component.translatable("message.redstonelink.crosschunk.invalid_role", "null"));
 			return null;
 		}
-		String normalized = rawRole.trim().toLowerCase(Locale.ROOT);
-		return switch (normalized) {
-			case "source", "sources", "triggersource" -> LinkNodeSemantics.Role.SOURCE;
-			case "target", "targets", "core" -> LinkNodeSemantics.Role.TARGET;
-			default -> {
-				source.sendFailure(Component.translatable("message.redstonelink.crosschunk.invalid_role", rawRole));
-				yield null;
-			}
-		};
+		String normalized = rawRole.trim();
+		if ("source".equalsIgnoreCase(normalized)) {
+			return LinkNodeSemantics.Role.SOURCE;
+		}
+		if ("target".equalsIgnoreCase(normalized)) {
+			return LinkNodeSemantics.Role.TARGET;
+		}
+		source.sendFailure(Component.translatable("message.redstonelink.crosschunk.invalid_role", rawRole));
+		return null;
 	}
 
 	/**
@@ -465,34 +465,28 @@ public final class CrossChunkCommandRegistry {
 		LinkNodeSemantics.Role role,
 		String rawType
 	) {
-		Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseType(rawType);
+		var parsedType = LinkNodeSemantics.tryParseCanonicalType(rawType);
 		if (parsedType.isEmpty()) {
-			source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
+			source.sendFailure(SemanticCommandMessageAdapter.invalidType(rawType));
 			return null;
 		}
-		LinkNodeType type = parsedType.get();
-		if (!LinkNodeSemantics.isAllowedForRole(type, role)) {
-			source.sendFailure(Component.translatable(
-				"message.redstonelink.crosschunk.invalid_type_for_role",
-				rawType,
-				roleName(role)
-			));
-			return null;
-		}
-
+		String semanticTypeName = LinkNodeSemantics.toSemanticName(parsedType.get());
 		Set<LinkNodeType> allowedTypes = role == LinkNodeSemantics.Role.SOURCE
 			? RedstoneLinkConfig.crossChunkAllowedSourceTypes()
 			: RedstoneLinkConfig.crossChunkAllowedTargetTypes();
-		if (!allowedTypes.contains(type)) {
-			source.sendFailure(Component.translatable(
-				"message.redstonelink.crosschunk.type_not_allowed",
-				rawType,
-				roleName(role),
-				formatAllowedTypes(allowedTypes)
-			));
-			return null;
+		var semanticResult = LinkNodeSemantics.resolveTypeForRole(semanticTypeName, role, allowedTypes);
+		if (semanticResult.isSuccess()) {
+			return semanticResult.value();
 		}
-		return type;
+		source.sendFailure(
+			SemanticCommandMessageAdapter.resolveTypeFailure(
+				semanticResult.error(),
+				semanticTypeName,
+				role,
+				allowedTypes
+			)
+		);
+		return null;
 	}
 
 	/**
@@ -508,20 +502,6 @@ public final class CrossChunkCommandRegistry {
 		return role == LinkNodeSemantics.Role.SOURCE
 			? ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, type, serial)
 			: ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, type, serial);
-	}
-
-	/**
-	 * 格式化可用类型集合。
-	 */
-	private static String formatAllowedTypes(Set<LinkNodeType> types) {
-		if (types.isEmpty()) {
-			return "-";
-		}
-		return types.stream()
-			.map(LinkNodeSemantics::toSemanticName)
-			.sorted()
-			.reduce((left, right) -> left + ", " + right)
-			.orElse("-");
 	}
 
 	/**

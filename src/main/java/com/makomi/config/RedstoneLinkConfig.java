@@ -456,13 +456,8 @@ public final class RedstoneLinkConfig {
 			if (token == null || token.isBlank()) {
 				continue;
 			}
-			Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseType(token);
+			Optional<LinkNodeType> parsedType = resolveConfigTypeToken(key, token, token, role, null);
 			if (parsedType.isEmpty()) {
-				LOGGER.warn("配置 {}={} 含有非法类型，已忽略", key, token);
-				continue;
-			}
-			if (!LinkNodeSemantics.isAllowedForRole(parsedType.get(), role)) {
-				LOGGER.warn("配置 {}={} 语义角色不匹配，已忽略", key, token);
 				continue;
 			}
 			parsedTypes.add(parsedType.get());
@@ -562,13 +557,14 @@ public final class RedstoneLinkConfig {
 			}
 			String typePart = token.substring(0, splitIndex);
 			String serialPart = token.substring(splitIndex + 1);
-			Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseType(typePart);
-			if (parsedType.isEmpty() || !LinkNodeSemantics.isAllowedForRole(parsedType.get(), role)) {
-				LOGGER.warn("配置 {}={} 类型非法或角色不匹配，已忽略", key, token);
-				continue;
-			}
-			if (!allowedTypes.contains(parsedType.get())) {
-				LOGGER.warn("配置 {}={} 未包含在允许类型列表中，已忽略", key, token);
+			Optional<LinkNodeType> parsedType = resolveConfigTypeToken(
+				key,
+				token,
+				typePart,
+				role,
+				allowedTypes
+			);
+			if (parsedType.isEmpty()) {
 				continue;
 			}
 
@@ -586,6 +582,35 @@ public final class RedstoneLinkConfig {
 			parsedBucket.computeIfAbsent(parsedType.get(), ignored -> new HashSet<>()).add(serial);
 		}
 		return immutableBucket(parsedBucket);
+	}
+
+	/**
+	 * 按语义中转层解析并校验配置中的节点类型 token。
+	 *
+	 * @param key 配置键
+	 * @param tokenText 原始 token（用于日志）
+	 * @param rawType 待解析类型文本
+	 * @param role 语义角色
+	 * @param allowedTypes 允许类型集合；null 表示不做该层校验
+	 * @return 解析后的类型；失败时返回 empty
+	 */
+	private static Optional<LinkNodeType> resolveConfigTypeToken(
+		String key,
+		String tokenText,
+		String rawType,
+		LinkNodeSemantics.Role role,
+		Set<LinkNodeType> allowedTypes
+	) {
+		var semanticResult = LinkNodeSemantics.resolveTypeForRole(rawType, role, allowedTypes);
+		if (semanticResult.isSuccess()) {
+			return Optional.of(semanticResult.value());
+		}
+		switch (semanticResult.error()) {
+			case ROLE_NOT_ALLOWED -> LOGGER.warn("配置 {}={} 语义角色不匹配，已忽略", key, tokenText);
+			case CONFIG_NOT_ALLOWED -> LOGGER.warn("配置 {}={} 未包含在允许类型列表中，已忽略", key, tokenText);
+			case INVALID_TYPE, NONE -> LOGGER.warn("配置 {}={} 含有非法类型，已忽略", key, tokenText);
+		}
+		return Optional.empty();
 	}
 
 	/**
@@ -803,7 +828,7 @@ public final class RedstoneLinkConfig {
 			# crosschunk.whitelist.sourceTypes
 			# zh: 允许作为来源的类型列表（逗号/空格分隔）。
 			# en: Allowed source types for cross-chunk whitelist.
-			crosschunk.whitelist.sourceTypes=triggersource
+			crosschunk.whitelist.sourceTypes=triggerSource
 
 			# crosschunk.whitelist.targetTypes
 			# zh: 允许作为目标的类型列表（逗号/空格分隔）。
@@ -813,7 +838,7 @@ public final class RedstoneLinkConfig {
 			# crosschunk.preset.<name>.sources / crosschunk.preset.<name>.targets
 			# zh: 只读 preset，格式为 type:serial（逗号/空格分隔）。
 			# en: Read-only preset entries using type:serial format.
-			# crosschunk.preset.keypath.sources=triggersource:1001
+			# crosschunk.preset.keypath.sources=triggerSource:1001
 			# crosschunk.preset.keypath.targets=core:2001
 
 			""";

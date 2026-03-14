@@ -99,7 +99,11 @@ public final class LinkSavedData extends SavedData {
 
 			ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
 			BlockPos pos = BlockPos.of(compound.getLong(KEY_POS));
-			LinkNodeType type = LinkNodeType.fromName(compound.getString(KEY_TYPE));
+			Optional<LinkNodeType> parsedType = parseStoredNodeType(compound);
+			if (parsedType.isEmpty()) {
+				continue;
+			}
+			LinkNodeType type = parsedType.get();
 			data.nodeMap(type).put(serial, new LinkNode(serial, dimension, pos, type));
 		}
 
@@ -138,6 +142,23 @@ public final class LinkSavedData extends SavedData {
 		data.ensureKnownSerialsAllocated();
 		data.correctNextSerials();
 		return data;
+	}
+
+	/**
+	 * 解析存档节点类型文本。
+	 * <p>
+	 * 为避免旧实现将非法类型静默回退为 CORE，这里统一走语义解析；
+	 * 解析失败的节点在 load 阶段直接过滤。
+	 * </p>
+	 *
+	 * @param compound 节点条目 NBT
+	 * @return 解析后的类型；非法时返回 empty
+	 */
+	private static Optional<LinkNodeType> parseStoredNodeType(CompoundTag compound) {
+		if (compound == null) {
+			return Optional.empty();
+		}
+		return LinkNodeSemantics.tryParseType(compound.getString(KEY_TYPE));
 	}
 
 	/**

@@ -1,7 +1,10 @@
 package com.makomi.data;
 
-import java.util.Locale;
+import com.makomi.data.semantic.SemanticRolePolicy;
+import com.makomi.data.semantic.SemanticTypeAliasResolver;
+import com.makomi.data.semantic.SemanticResult;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * LinkNode 语义工具类。
@@ -34,29 +37,17 @@ public final class LinkNodeSemantics {
 	 * @return 解析结果，无法识别时返回空
 	 */
 	public static Optional<LinkNodeType> tryParseType(String rawType) {
-		if (rawType == null) {
-			return Optional.empty();
-		}
-		String normalized = rawType.trim().toLowerCase(Locale.ROOT);
-		if (normalized.isEmpty()) {
-			return Optional.empty();
-		}
-		switch (normalized) {
-			case "triggersource", "trigger_source", "trigger-source", "button" -> {
-				return Optional.of(LinkNodeType.BUTTON);
-			}
-			case "core" -> {
-				return Optional.of(LinkNodeType.CORE);
-			}
-			default -> {
-				for (LinkNodeType value : LinkNodeType.values()) {
-					if (value.name().equalsIgnoreCase(normalized)) {
-						return Optional.of(value);
-					}
-				}
-				return Optional.empty();
-			}
-		}
+		return SemanticTypeAliasResolver.tryResolve(rawType);
+	}
+
+	/**
+	 * 仅按标准 type 词表解析（triggerSource/core，大小写不敏感）。
+	 *
+	 * @param rawType 原始类型文本
+	 * @return 解析结果；非标准词时返回 empty
+	 */
+	public static Optional<LinkNodeType> tryParseCanonicalType(String rawType) {
+		return SemanticTypeAliasResolver.tryResolveCanonical(rawType);
 	}
 
 	/**
@@ -67,13 +58,24 @@ public final class LinkNodeSemantics {
 	 * @return 是否允许
 	 */
 	public static boolean isAllowedForRole(LinkNodeType type, Role role) {
-		if (type == null || role == null) {
-			return false;
-		}
-		return switch (role) {
-			case SOURCE -> type == LinkNodeType.BUTTON;
-			case TARGET -> type == LinkNodeType.CORE;
-		};
+		return SemanticRolePolicy.isAllowedForRole(type, role);
+	}
+
+	/**
+	 * 注册角色语义校验规则。
+	 *
+	 * @param role 角色方向
+	 * @param rule 校验规则
+	 */
+	public static void registerRoleRule(Role role, SemanticRolePolicy.RoleTypeRule rule) {
+		SemanticRolePolicy.registerRoleRule(role, rule);
+	}
+
+	/**
+	 * 重置为默认角色语义规则。
+	 */
+	public static void resetDefaultRoleRules() {
+		SemanticRolePolicy.resetDefaultRoleRules();
 	}
 
 	/**
@@ -83,9 +85,41 @@ public final class LinkNodeSemantics {
 	 * @return 语义化名称
 	 */
 	public static String toSemanticName(LinkNodeType type) {
+		return SemanticTypeAliasResolver.toSemanticName(type);
+	}
+
+	/**
+	 * 将节点类型转换为命令侧使用的语义 token。
+	 * <p>
+	 * 该 token 统一使用小写且无分隔符，避免 GUI 端散落硬编码字符串。
+	 * </p>
+	 *
+	 * @param type 节点类型
+	 * @return 命令 token；未知类型返回 "unknown"
+	 */
+	public static String toCommandToken(LinkNodeType type) {
 		if (type == null) {
 			return "unknown";
 		}
-		return type == LinkNodeType.BUTTON ? "triggerSource" : "core";
+		return switch (type) {
+			case BUTTON -> "triggersource";
+			case CORE -> "core";
+		};
+	}
+
+	/**
+	 * 解析并校验类型是否满足角色与可选配置允许集。
+	 *
+	 * @param rawType 原始类型文本
+	 * @param role 角色方向
+	 * @param allowedTypes 配置允许集（null 表示不做该层校验）
+	 * @return 统一语义校验结果
+	 */
+	public static SemanticResult<LinkNodeType> resolveTypeForRole(
+		String rawType,
+		Role role,
+		Set<LinkNodeType> allowedTypes
+	) {
+		return SemanticRolePolicy.resolveType(rawType, role, allowedTypes);
 	}
 }

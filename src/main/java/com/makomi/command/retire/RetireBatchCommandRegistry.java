@@ -187,7 +187,7 @@ public final class RetireBatchCommandRegistry {
 	 * 解析退役目标类型参数。
 	 */
 	private static LinkNodeType parseNodeType(CommandSourceStack source, String rawType) {
-		return LinkNodeSemantics.tryParseType(rawType).orElseGet(() -> {
+		return LinkNodeSemantics.tryParseCanonicalType(rawType).orElseGet(() -> {
 			source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
 			return null;
 		});
@@ -197,7 +197,7 @@ public final class RetireBatchCommandRegistry {
 	 * 命令参数中的类型名称。
 	 */
 	private static String typeCommandName(LinkNodeType type) {
-		return type == LinkNodeType.BUTTON ? "button" : "core";
+		return LinkNodeSemantics.toSemanticName(type);
 	}
 
 	/**

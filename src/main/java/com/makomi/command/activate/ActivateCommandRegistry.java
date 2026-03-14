@@ -1,6 +1,7 @@
 package com.makomi.command.activate;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
@@ -44,13 +45,25 @@ public final class ActivateCommandRegistry {
 			.literal("activate")
 			.then(
 				Commands
-					.literal("triggersource")
+					.argument("type", StringArgumentType.word())
 					.then(
 						Commands
 							.argument("source_serials", StringArgumentType.greedyString())
-							.executes(ActivateCommandRegistry::executeBatchActivate)
+							.executes(ActivateCommandRegistry::executeBatchActivateWithTypeArg)
 					)
 			);
+	}
+
+	/**
+	 * 根据 type 参数执行批量激活入口。
+	 */
+	private static int executeBatchActivateWithTypeArg(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType sourceType = parseSourceTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (sourceType == null) {
+			return 0;
+		}
+		return executeBatchActivate(context);
 	}
 
 	/**
@@ -276,6 +289,22 @@ public final class ActivateCommandRegistry {
 				yield null;
 			}
 		};
+	}
+
+	/**
+	 * 解析并校验 activate 命令的来源类型参数。
+	 */
+	private static LinkNodeType parseSourceTypeArg(CommandSourceStack source, String rawType) {
+		var parsedType = LinkNodeSemantics.tryParseCanonicalType(rawType);
+		if (parsedType.isEmpty()) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
+			return null;
+		}
+		if (parsedType.get() != LinkNodeType.BUTTON) {
+			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
+			return null;
+		}
+		return parsedType.get();
 	}
 
 	/**
