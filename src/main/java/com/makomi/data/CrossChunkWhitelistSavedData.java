@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.HolderLookup;
@@ -169,7 +168,7 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 		ListTag listTag = root.getList(key, Tag.TAG_COMPOUND);
 		for (Tag entry : listTag) {
 			CompoundTag entryTag = (CompoundTag) entry;
-			Optional<LinkNodeType> type = LinkNodeSemantics.tryParseType(entryTag.getString(KEY_TYPE));
+			Optional<LinkNodeType> type = LinkNodeSemantics.tryParseCanonicalType(entryTag.getString(KEY_TYPE));
 			if (type.isEmpty()) {
 				continue;
 			}
@@ -198,7 +197,7 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 				continue;
 			}
 			CompoundTag entryTag = new CompoundTag();
-			entryTag.putString(KEY_TYPE, entry.getKey().name().toLowerCase(Locale.ROOT));
+			entryTag.putString(KEY_TYPE, LinkNodeSemantics.toSemanticName(entry.getKey()));
 			ListTag serialList = new ListTag();
 			for (Long serial : serials) {
 				if (serial == null || serial <= 0L) {

@@ -37,8 +37,8 @@ public final class LinkSavedData extends SavedData {
 	private static final String KEY_POS = "pos";
 	private static final String KEY_TYPE = "type";
 	private static final String KEY_LINKS = "links";
-	private static final String KEY_BUTTON_SERIAL = "buttonSerial";
-	private static final String KEY_CORE_SERIALS = "coreSerials";
+	private static final String KEY_SOURCE_SERIAL = "sourceSerial";
+	private static final String KEY_TARGET_SERIALS = "targetSerials";
 	private static final String KEY_ALLOCATED_CORE_SERIALS = "allocatedCoreSerials";
 	private static final String KEY_ALLOCATED_BUTTON_SERIALS = "allocatedButtonSerials";
 	private static final String KEY_RETIRED_CORE_SERIALS = "retiredCoreSerials";
@@ -110,16 +110,16 @@ public final class LinkSavedData extends SavedData {
 		ListTag linksTag = tag.getList(KEY_LINKS, Tag.TAG_COMPOUND);
 		for (Tag entryTag : linksTag) {
 			CompoundTag compound = (CompoundTag) entryTag;
-			long buttonSerial = compound.getLong(KEY_BUTTON_SERIAL);
-			if (buttonSerial <= 0L) {
+			long sourceSerial = compound.getLong(KEY_SOURCE_SERIAL);
+			if (sourceSerial <= 0L) {
 				continue;
 			}
 
-			for (long coreSerial : compound.getLongArray(KEY_CORE_SERIALS)) {
-				if (coreSerial <= 0L) {
+			for (long targetSerial : compound.getLongArray(KEY_TARGET_SERIALS)) {
+				if (targetSerial <= 0L) {
 					continue;
 				}
-				data.link(buttonSerial, coreSerial);
+				data.link(sourceSerial, targetSerial);
 			}
 		}
 
@@ -147,7 +147,7 @@ public final class LinkSavedData extends SavedData {
 	/**
 	 * 解析存档节点类型文本。
 	 * <p>
-	 * 为避免旧实现将非法类型静默回退为 CORE，这里统一走语义解析；
+	 * 当前采用 strict 语义解析（仅 triggerSource/core）；
 	 * 解析失败的节点在 load 阶段直接过滤。
 	 * </p>
 	 *
@@ -158,7 +158,7 @@ public final class LinkSavedData extends SavedData {
 		if (compound == null) {
 			return Optional.empty();
 		}
-		return LinkNodeSemantics.tryParseType(compound.getString(KEY_TYPE));
+		return LinkNodeSemantics.tryParseCanonicalType(compound.getString(KEY_TYPE));
 	}
 
 	/**
@@ -523,8 +523,8 @@ public final class LinkSavedData extends SavedData {
 				continue;
 			}
 			CompoundTag compound = new CompoundTag();
-			compound.putLong(KEY_BUTTON_SERIAL, entry.getKey());
-			compound.putLongArray(KEY_CORE_SERIALS, entry.getValue().stream().toList());
+			compound.putLong(KEY_SOURCE_SERIAL, entry.getKey());
+			compound.putLongArray(KEY_TARGET_SERIALS, entry.getValue().stream().toList());
 			linksTag.add(compound);
 		}
 		tag.put(KEY_LINKS, linksTag);
@@ -537,7 +537,7 @@ public final class LinkSavedData extends SavedData {
 			entry.putLong(KEY_SERIAL, node.serial());
 			entry.putString(KEY_DIMENSION, node.dimension().location().toString());
 			entry.putLong(KEY_POS, node.pos().asLong());
-			entry.putString(KEY_TYPE, node.type().name());
+			entry.putString(KEY_TYPE, LinkNodeSemantics.toSemanticName(node.type()));
 			nodesTag.add(entry);
 		}
 	}
