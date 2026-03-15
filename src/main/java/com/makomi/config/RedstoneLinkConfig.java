@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
  */
 public final class RedstoneLinkConfig {
 	private static final Logger LOGGER = LoggerFactory.getLogger(RedstoneLink.MOD_ID + "/config");
-	private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("redstonelink-server.properties");
+	private static final Path CONFIG_PATH = resolveConfigPath();
 	private static volatile Values values = Values.defaults();
 	private static volatile CrossChunkValues crossChunkValues = CrossChunkValues.defaults();
 
@@ -116,6 +116,21 @@ public final class RedstoneLinkConfig {
 	}
 
 	private RedstoneLinkConfig() {
+	}
+
+	/**
+	 * 解析配置文件路径。测试环境中 FabricLoader 可能不可用，此时回退到相对路径。
+	 */
+	private static Path resolveConfigPath() {
+		try {
+			FabricLoader loader = FabricLoader.getInstance();
+			if (loader != null && loader.getConfigDir() != null) {
+				return loader.getConfigDir().resolve("redstonelink-server.properties");
+			}
+		} catch (RuntimeException ignored) {
+			// 单元测试环境允许回退到默认相对路径。
+		}
+		return Path.of("config").resolve("redstonelink-server.properties");
 	}
 
 	/**
@@ -272,6 +287,13 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return /redstonelink 命令树权限等级（0~4）
+	 */
+	public static int commandPermissionLevel() {
+		return values.commandPermissionLevel();
+	}
+
+	/**
 	 * @return 是否启用跨区块接管提示
 	 */
 	public static boolean crossChunkNotifyEnabled() {
@@ -392,6 +414,7 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.coreOutputPower", 15, 0, 15),
 			parseInt(props, "server.maxTargetsPerSetLinks", 128, 1, 512),
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
+			parseInt(props, "server.command.permissionLevel", 2, 0, 4),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
 			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true),
@@ -744,6 +767,11 @@ public final class RedstoneLinkConfig {
 			# zh: 是否允许绑定离线目标（未加载区块/不在线端点）。
 			# en: Whether offline targets can be bound.
 			server.allowOfflineTargetBinding=true
+
+			# server.command.permissionLevel
+			# zh: /redstonelink 整个命令树所需权限等级（0~4）。
+			# en: Permission level required for the whole /redstonelink command tree (0~4).
+			server.command.permissionLevel=2
 			
 			# interaction.requireSneakToOpenPairing
 			# zh: 打开配对 UI 是否必须潜行。
@@ -853,6 +881,7 @@ public final class RedstoneLinkConfig {
 		int coreOutputPower,
 		int maxTargetsPerSetLinks,
 		boolean allowOfflineTargetBinding,
+		int commandPermissionLevel,
 		boolean requireSneakToOpenPairing,
 		boolean requireSneakToOpenLinkerPairing,
 		boolean requireEmptyOffhandToOpenPairing,
@@ -862,7 +891,7 @@ public final class RedstoneLinkConfig {
 		 * @return 基础配置默认值
 		 */
 		private static Values defaults() {
-			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, true, true, true, false);
+			return new Values(4, EmitterEdgeMode.RISING, 15, 128, true, 2, true, true, true, false);
 		}
 	}
 

@@ -5,6 +5,7 @@ import com.makomi.data.LinkNodeType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -12,7 +13,8 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * 核心红石粉节点方块实体。
  * <p>
- * 负责把 active 状态同步到 {@link LinkRedstoneDustCoreBlock}，并在侧/底附着场景补发邻居更新。
+ * 负责把 active 状态同步到 {@link LinkRedstoneDustCoreBlock}，
+ * 并在侧/底附着场景补发邻居更新。
  * </p>
  */
 public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntity {
@@ -48,7 +50,7 @@ public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntit
 			return;
 		}
 
-		// 侧/底附着额外补一次附着目标邻居刷新，确保输出立即可见。
+		// 侧/底附着额外补一次邻居刷新，确保输出立刻可见。
 		if (updatedState.getValue(LinkRedstoneDustCoreBlock.SUPPORT_FACE) == Direction.DOWN) {
 			return;
 		}
@@ -67,4 +69,17 @@ public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntit
 			serverLevel.scheduleTick(worldPosition, getBlockState().getBlock(), pulseTicks);
 		}
 	}
+
+	// @Override
+	// public void setLevel(Level level) {
+	// 	super.setLevel(level);
+	// 	if (level == null || level.isClientSide) {
+	// 		return;
+	// 	}
+	// 	// 兼容旧状态键迁移：挂载到维度后按 active 重算一次方块状态。
+	// 	BlockState state = level.getBlockState(worldPosition);
+	// 	if (state.getBlock() instanceof LinkRedstoneDustCoreBlock coreBlock) {
+	// 		coreBlock.onCoreActivationStateChanged(level, worldPosition);
+	// 	}
+	// }
 }

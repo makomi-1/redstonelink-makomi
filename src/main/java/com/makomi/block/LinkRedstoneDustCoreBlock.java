@@ -50,7 +50,7 @@ import org.joml.Vector3f;
  */
 public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements EntityBlock {
 	public static final DirectionProperty SUPPORT_FACE = DirectionProperty.create("support_face", Direction.values());
-	public static final BooleanProperty POWERED = BooleanProperty.create("powered");
+	public static final BooleanProperty ACTIVE = BooleanProperty.create("active");
 	private static final Vector3f BLUE_PARTICLE_BASE_COLOR = new Vector3f(0.36F, 0.66F, 1.0F);
 	private static final VoxelShape FLOOR_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 1.0D, 16.0D);
 	private static final VoxelShape CEILING_SHAPE = Block.box(0.0D, 15.0D, 0.0D, 16.0D, 16.0D, 16.0D);
@@ -61,7 +61,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 	public LinkRedstoneDustCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN).setValue(POWERED, false));
+		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN).setValue(ACTIVE, false));
 	}
 
 	@Override
@@ -156,7 +156,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		super.createBlockStateDefinition(builder);
-		builder.add(SUPPORT_FACE, POWERED);
+		builder.add(SUPPORT_FACE, ACTIVE);
 	}
 
 	@Override
@@ -415,13 +415,18 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		if (!(state.getBlock() instanceof LinkRedstoneDustCoreBlock) || isNonTopAttached(state)) {
 			return;
 		}
+		boolean targetActive = isCoreActive(level, pos);
+		if (state.getValue(ACTIVE) == targetActive) {
+			return;
+		}
+		level.setBlock(pos, state.setValue(ACTIVE, targetActive), Block.UPDATE_CLIENTS);
 	}
 
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
-		int targetPower = isCoreActive(level, pos) ? RedstoneLinkConfig.coreOutputPower() : 0;
-		boolean targetPowered = targetPower > 0;
+		boolean targetActive = isCoreActive(level, pos);
+		int targetPower = targetActive ? RedstoneLinkConfig.coreOutputPower() : 0;
 		BlockState normalizedState = normalizeForSupportFace(state);
-		BlockState targetState = normalizedState.setValue(POWER, targetPower).setValue(POWERED, targetPowered);
+		BlockState targetState = normalizedState.setValue(POWER, targetPower).setValue(ACTIVE, targetActive);
 		BlockState currentState = level.getBlockState(pos);
 		if (!targetState.equals(currentState)) {
 			if (isNonTopAttached(targetState)) {

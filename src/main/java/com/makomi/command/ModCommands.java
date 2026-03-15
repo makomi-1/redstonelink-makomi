@@ -55,7 +55,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * </p>
  */
 public final class ModCommands {
-	private static final int COMMAND_PERMISSION_LEVEL = 2;
 	private static final int NODE_LIST_DEFAULT_LIMIT = 50;
 	private static final int NODE_LIST_MAX_LIMIT = 1000;
 	private static final int SERIAL_LIST_MAX_ITEMS = 50;
@@ -74,7 +73,7 @@ public final class ModCommands {
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
 			Commands
 				.literal("redstonelink")
-				.requires(source -> source.hasPermission(COMMAND_PERMISSION_LEVEL))
+				.requires(source -> source.hasPermission(RedstoneLinkConfig.commandPermissionLevel()))
 				.then(
 					Commands
 						.literal("pair")
