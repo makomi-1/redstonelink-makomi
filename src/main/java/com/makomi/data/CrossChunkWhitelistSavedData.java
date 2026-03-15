@@ -154,6 +154,22 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 	}
 
 	/**
+	 * 按节点类型与序号强同步清理白名单（含 resident），覆盖 SOURCE/TARGET 全角色。
+	 *
+	 * @param type 节点类型
+	 * @param serial 节点序号
+	 * @return 是否至少移除了一侧白名单条目
+	 */
+	public boolean removeFromAllRoles(LinkNodeType type, long serial) {
+		if (type == null || serial <= 0L) {
+			return false;
+		}
+		boolean removedFromSource = remove(type, serial, LinkNodeSemantics.Role.SOURCE);
+		boolean removedFromTarget = remove(type, serial, LinkNodeSemantics.Role.TARGET);
+		return removedFromSource || removedFromTarget;
+	}
+
+	/**
 	 * 判断是否在白名单中。
 	 *
 	 * @param type 节点类型

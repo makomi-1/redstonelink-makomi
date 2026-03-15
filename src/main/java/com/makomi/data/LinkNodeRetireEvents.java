@@ -105,7 +105,7 @@ public final class LinkNodeRetireEvents {
 			if (savedData.findNode(key.nodeType(), key.serial()).isPresent()) {
 				return;
 			}
-			savedData.retireNode(key.nodeType(), key.serial());
+			LinkRetireCoordinator.retireAndSyncWhitelist(level, key.nodeType(), key.serial());
 		});
 
 		ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
@@ -141,7 +141,7 @@ public final class LinkNodeRetireEvents {
 			LinkNodeType nodeType = resolveNodeType(pairableNodeBlockEntity);
 			PendingKey key = new PendingKey(nodeType, serial);
 			cancelPending(serverLevel.getServer(), key);
-			LinkSavedData.get(serverLevel).retireNode(nodeType, serial);
+			LinkRetireCoordinator.retireAndSyncWhitelist(serverLevel, nodeType, serial);
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(LinkNodeRetireEvents::processPendingRetires);
@@ -248,7 +248,7 @@ public final class LinkNodeRetireEvents {
 					if (shouldSkipPendingRetire(server, savedData, entry)) {
 						continue;
 					}
-					savedData.retireNode(key.nodeType(), key.serial());
+					LinkRetireCoordinator.retireAndSyncWhitelist(overworld, key.nodeType(), key.serial());
 				}
 			}
 			recalculateNextDueTick(state);

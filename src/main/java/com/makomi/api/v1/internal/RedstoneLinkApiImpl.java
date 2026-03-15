@@ -21,6 +21,7 @@ import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -281,7 +282,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 			return new NodeRetireResult(false, 0, false);
 		}
 
-		LinkSavedData.RetireResult raw = LinkSavedData.get(level).retireNode(nodeType.toInternal(), serial);
+		LinkSavedData.RetireResult raw = LinkRetireCoordinator.retireAndSyncWhitelist(level, nodeType.toInternal(), serial);
 		NodeRetireResult result = new NodeRetireResult(raw.nodeRemoved(), raw.linksRemoved(), raw.retiredMarked());
 		if (result.nodeRemoved() || result.linksRemoved() > 0 || result.retiredMarked()) {
 			LinkEvents.NODE_RETIRED.invoker().onNodeRetired(level, nodeType, serial, actorContext, result);

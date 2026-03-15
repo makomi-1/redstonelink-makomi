@@ -2,6 +2,7 @@ package com.makomi.block.entity;
 
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -109,7 +110,7 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		if (serial <= 0L) {
 			return;
 		}
-		LinkSavedData.get(serverLevel).retireNode(getNodeType(), serial);
+		LinkRetireCoordinator.retireAndSyncWhitelist(serverLevel, getNodeType(), serial);
 	}
 
 	protected abstract LinkNodeType getNodeType();

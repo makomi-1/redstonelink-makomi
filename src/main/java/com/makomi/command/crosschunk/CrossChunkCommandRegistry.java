@@ -34,6 +34,7 @@ import net.minecraft.server.level.ServerLevel;
  */
 public final class CrossChunkCommandRegistry {
 	private static final int WHITELIST_SET_MAX_SERIALS = 1024;
+	private static final String WHITELIST_LIST_SEPARATOR = "------------------------------";
 
 	private CrossChunkCommandRegistry() {
 	}
@@ -265,27 +266,33 @@ public final class CrossChunkCommandRegistry {
 		if (parsed == null) {
 			return 0;
 		}
+		LinkSavedData linkSavedData = LinkSavedData.get(source.getLevel());
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(source.getLevel());
 		Set<Long> serials = whitelistSavedData.list(parsed.type(), parsed.role());
+		source.sendSuccess(() -> Component.literal(WHITELIST_LIST_SEPARATOR), false);
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.crosschunk.whitelist.list",
 				roleName(parsed.role()),
 				LinkNodeSemantics.toSemanticName(parsed.type()),
-				serials.size(),
-				formatSerialSet(serials)
+				serials.size()
 			),
 			false
 		);
-		Set<Long> residentSerials = whitelistSavedData.listResident(parsed.type(), parsed.role());
-		if (!residentSerials.isEmpty()) {
+		for (long serial : serials.stream().sorted().toList()) {
+			boolean resident = whitelistSavedData.isResident(parsed.type(), serial, parsed.role());
+			Optional<LinkSavedData.LinkNode> node = linkSavedData.findNode(parsed.type(), serial);
+			boolean online = node.isPresent();
+			String dimension = node.map(value -> value.dimension().location().toString()).orElse("-");
+			String chunk = node.map(value -> formatChunkPos(value.pos().getX(), value.pos().getZ())).orElse("-");
 			source.sendSuccess(
 				() -> Component.translatable(
-					"message.redstonelink.crosschunk.whitelist.list.resident",
-					roleName(parsed.role()),
-					LinkNodeSemantics.toSemanticName(parsed.type()),
-					residentSerials.size(),
-					formatSerialSet(residentSerials)
+					"message.redstonelink.crosschunk.whitelist.list.entry",
+					serial,
+					Boolean.toString(online),
+					residentModeName(resident),
+					dimension,
+					chunk
 				),
 				false
 			);
@@ -673,6 +680,15 @@ public final class CrossChunkCommandRegistry {
 			.map(String::valueOf)
 			.reduce((left, right) -> left + ", " + right)
 			.orElse("-");
+	}
+
+	/**
+	 * 格式化区块坐标文本（chunkX,chunkZ）。
+	 */
+	private static String formatChunkPos(int blockX, int blockZ) {
+		int chunkX = blockX >> 4;
+		int chunkZ = blockZ >> 4;
+		return chunkX + "," + chunkZ;
 	}
 
 	/**

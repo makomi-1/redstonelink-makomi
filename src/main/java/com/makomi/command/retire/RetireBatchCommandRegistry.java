@@ -2,6 +2,7 @@ package com.makomi.command.retire;
 
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import com.makomi.util.SerialParseUtil;
 import com.mojang.brigadier.Command;
@@ -128,7 +129,11 @@ public final class RetireBatchCommandRegistry {
 		int nodeRemovedCount = 0;
 		int linksRemoved = 0;
 		for (long serial : targetSerials) {
-			LinkSavedData.RetireResult retireResult = savedData.retireNode(type, serial);
+			LinkSavedData.RetireResult retireResult = LinkRetireCoordinator.retireAndSyncWhitelist(
+				source.getLevel(),
+				type,
+				serial
+			);
 			boolean changed = retireResult.nodeRemoved() || retireResult.linksRemoved() > 0 || retireResult.retiredMarked();
 			if (changed) {
 				changedCount++;

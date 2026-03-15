@@ -10,6 +10,7 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import com.makomi.item.PairableItem;
 import com.makomi.util.SerialParseUtil;
@@ -1009,7 +1010,7 @@ public final class ModCommands {
 		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, type, serial)) {
 			return 0;
 		}
-		LinkSavedData.RetireResult result = savedData.retireNode(type, serial);
+		LinkSavedData.RetireResult result = LinkRetireCoordinator.retireAndSyncWhitelist(source.getLevel(), type, serial);
 
 		if (!result.nodeRemoved() && result.linksRemoved() == 0 && !result.retiredMarked()) {
 			source.sendFailure(Component.translatable("message.redstonelink.retire.no_change", typeCommandName(type), serial));

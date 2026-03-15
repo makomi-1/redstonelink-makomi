@@ -68,6 +68,29 @@ class CrossChunkWhitelistSavedDataTest {
 	}
 
 	/**
+	 * 全角色清理应同时移除 source/target 的白名单与 resident 标记。
+	 */
+	@Test
+	void removeFromAllRolesShouldClearWhitelistAndResidentTogether() {
+		CrossChunkWhitelistSavedData data = new CrossChunkWhitelistSavedData();
+		assertTrue(data.add(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.SOURCE, true));
+		assertTrue(data.add(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.TARGET, true));
+		assertTrue(data.add(LinkNodeType.CORE, 41L, LinkNodeSemantics.Role.TARGET, true));
+
+		assertFalse(data.removeFromAllRoles(null, 31L));
+		assertFalse(data.removeFromAllRoles(LinkNodeType.BUTTON, 0L));
+		assertTrue(data.removeFromAllRoles(LinkNodeType.BUTTON, 31L));
+		assertFalse(data.removeFromAllRoles(LinkNodeType.BUTTON, 31L));
+
+		assertFalse(data.contains(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.contains(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.TARGET));
+		assertFalse(data.isResident(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.isResident(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.TARGET));
+		assertTrue(data.contains(LinkNodeType.CORE, 41L, LinkNodeSemantics.Role.TARGET));
+		assertTrue(data.isResident(LinkNodeType.CORE, 41L, LinkNodeSemantics.Role.TARGET));
+	}
+
+	/**
 	 * 保存时应输出 canonical type，并过滤空集合与非法序号。
 	 */
 	@Test

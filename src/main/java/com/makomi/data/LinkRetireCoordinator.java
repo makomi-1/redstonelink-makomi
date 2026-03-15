@@ -1,0 +1,39 @@
+package com.makomi.data;
+
+import net.minecraft.server.level.ServerLevel;
+
+/**
+ * 节点退役统一协调入口。
+ * <p>
+ * 负责将“退役主流程”与“白名单强同步清理”收口到单一入口，
+ * 避免调用方遗漏副作用处理。
+ * </p>
+ */
+public final class LinkRetireCoordinator {
+	// 工具类，防止实例化用法
+	private LinkRetireCoordinator() {
+	}
+
+	/**
+	 * 执行节点退役，并强同步清理跨区块白名单（含 resident）中的对应条目。
+	 *
+	 * @param level 服务端维度上下文
+	 * @param type 节点类型
+	 * @param serial 节点序号
+	 * @return 退役结果
+	 */
+	public static LinkSavedData.RetireResult retireAndSyncWhitelist(
+		ServerLevel level,
+		LinkNodeType type,
+		long serial
+	) {
+		if (level == null || type == null || serial <= 0L) {
+			return new LinkSavedData.RetireResult(false, 0, false);
+		}
+
+		LinkSavedData savedData = LinkSavedData.get(level);
+		LinkSavedData.RetireResult retireResult = savedData.retireNode(type, serial);
+		CrossChunkWhitelistSavedData.get(level).removeFromAllRoles(type, serial);
+		return retireResult;
+	}
+}
