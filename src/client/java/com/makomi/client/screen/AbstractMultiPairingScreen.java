@@ -1,6 +1,8 @@
 package com.makomi.client.screen;
 
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkNodeType;
 import com.makomi.util.SerialDisplayFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
@@ -151,9 +153,54 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 	protected abstract Component currentLinksLine(List<Long> currentTargets);
 
-	protected abstract void sendSetLinksCommand(long sourceSerial, String rawTargetsInput, int targetCount);
+	/**
+	 * @return set_links 命令的来源类型（triggerSource/core 语义入口）
+	 */
+	protected abstract LinkNodeType sourceType();
 
-	protected abstract void sendClearLinksCommand(long sourceSerial);
+	/**
+	 * 发送覆盖式 set_links 命令。
+	 *
+	 * @param sourceSerial 来源节点序列号
+	 * @param rawTargetsInput 输入框中的原始目标文本
+	 * @param targetCount 去重后的目标数量
+	 */
+	protected final void sendSetLinksCommand(long sourceSerial, String rawTargetsInput, int targetCount) {
+		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
+			return;
+		}
+		String base = setLinksBaseCommand(sourceSerial);
+		String normalizedTargets = rawTargetsInput == null ? "" : rawTargetsInput.trim();
+		if (normalizedTargets.isEmpty()) {
+			minecraft.player.connection.sendCommand(base);
+			return;
+		}
+
+		String command = base + " " + normalizedTargets;
+		if (targetCount > 1) {
+			command += " confirm";
+		}
+		minecraft.player.connection.sendCommand(command);
+	}
+
+	/**
+	 * 发送 clear_links 语义（通过空目标覆盖 set_links 实现）。
+	 *
+	 * @param sourceSerial 来源节点序列号
+	 */
+	protected final void sendClearLinksCommand(long sourceSerial) {
+		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
+			return;
+		}
+		minecraft.player.connection.sendCommand(setLinksBaseCommand(sourceSerial));
+	}
+
+	/**
+	 * 构建 set_links 命令前缀。
+	 */
+	private String setLinksBaseCommand(long sourceSerial) {
+		return "redstonelink set_links " + LinkNodeSemantics.toCommandToken(sourceType()) + " " + sourceSerial;
+	}
 
 	/**
 	 * 构建主界面“当前连接”结构化文本（`N`/`A:B` + `/`）。

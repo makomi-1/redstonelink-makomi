@@ -1074,7 +1074,7 @@ public final class ModCommands {
 			targets = Set.of();
 		} else {
 			String rawInput = StringArgumentType.getString(context, "targets");
-			ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(rawInput);
+			CommandSuffixParser.ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(rawInput);
 			confirmed = confirmSuffixParseResult.confirmed();
 			rawTargets = confirmSuffixParseResult.payload();
 			TargetParseResult parseResult = parseTargetSerials(rawTargets, maxTargets);
@@ -1215,16 +1215,8 @@ public final class ModCommands {
 	 * @param rawText 原始参数文本
 	 * @return 去后缀后的文本与确认标记
 	 */
-	private static ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
-		String normalized = rawText == null ? "" : rawText.trim();
-		String suffix = " confirm";
-		if (normalized.endsWith(suffix)) {
-			String payload = normalized.substring(0, normalized.length() - suffix.length()).trim();
-			if (!payload.isEmpty()) {
-				return new ConfirmSuffixParseResult(payload, true);
-			}
-		}
-		return new ConfirmSuffixParseResult(normalized, false);
+	private static CommandSuffixParser.ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
+		return CommandSuffixParser.parseConfirmOnly(rawText, false);
 	}
 
 	/**
@@ -1233,9 +1225,6 @@ public final class ModCommands {
 	 * @param payload 去后缀后的有效参数文本
 	 * @param confirmed 是否携带确认后缀
 	 */
-	private record ConfirmSuffixParseResult(String payload, boolean confirmed) {
-	}
-
 	/**
 	 * 同步玩家背包中同序列号物品的链接快照。
 	 */

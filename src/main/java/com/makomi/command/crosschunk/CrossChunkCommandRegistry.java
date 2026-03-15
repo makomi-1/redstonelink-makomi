@@ -1,5 +1,6 @@
 package com.makomi.command.crosschunk;
 
+import com.makomi.command.CommandSuffixParser;
 import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfig.CrossChunkPreset;
@@ -333,7 +334,7 @@ public final class CrossChunkCommandRegistry {
 			return 0;
 		}
 
-		ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(
+		CommandSuffixParser.ResidentConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(
 			StringArgumentType.getString(context, "serials")
 		);
 		String rawSerials = confirmSuffixParseResult.payload();
@@ -456,55 +457,8 @@ public final class CrossChunkCommandRegistry {
 	 * @param rawText 原始参数文本
 	 * @return 去后缀后的文本与确认标记
 	 */
-	private static ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
-		String normalized = rawText == null ? "" : rawText.trim();
-		boolean confirmed = false;
-		boolean resident = false;
-		boolean consumed;
-		do {
-			consumed = false;
-			String confirmSuffix = " confirm";
-			if (!confirmed && endsWithIgnoreCase(normalized, confirmSuffix)) {
-				confirmed = true;
-				normalized = normalized.substring(0, normalized.length() - confirmSuffix.length()).trim();
-				consumed = true;
-			}
-			String residentSuffix = " resident";
-			if (!resident && endsWithIgnoreCase(normalized, residentSuffix)) {
-				resident = true;
-				normalized = normalized.substring(0, normalized.length() - residentSuffix.length()).trim();
-				consumed = true;
-			}
-		} while (consumed);
-		if (normalized.isEmpty()) {
-			return new ConfirmSuffixParseResult("", resident, false);
-		}
-		return new ConfirmSuffixParseResult(normalized, resident, confirmed);
-	}
-
-	/**
-	 * 大小写不敏感的后缀匹配。
-	 */
-	private static boolean endsWithIgnoreCase(String text, String suffix) {
-		if (text == null || suffix == null) {
-			return false;
-		}
-		int textLength = text.length();
-		int suffixLength = suffix.length();
-		if (textLength < suffixLength) {
-			return false;
-		}
-		return text.regionMatches(true, textLength - suffixLength, suffix, 0, suffixLength);
-	}
-
-	/**
-	 * 二次确认后缀解析结果。
-	 *
-	 * @param payload 去后缀后的有效参数文本
-	 * @param resident 是否携带 resident 后缀
-	 * @param confirmed 是否携带确认后缀
-	 */
-	private record ConfirmSuffixParseResult(String payload, boolean resident, boolean confirmed) {
+	private static CommandSuffixParser.ResidentConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
+		return CommandSuffixParser.parseResidentAndConfirm(rawText, true);
 	}
 
 	/**

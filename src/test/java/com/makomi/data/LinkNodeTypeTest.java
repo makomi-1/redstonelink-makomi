@@ -12,14 +12,14 @@ import org.junit.jupiter.api.Test;
 class LinkNodeTypeTest {
 
 	/**
-	 * 已知节点类型应支持大小写无关解析。
+	 * 语义词表类型应支持大小写无关解析。
 	 */
 	@Test
 	void fromNameShouldBeCaseInsensitive() {
 		assertEquals(LinkNodeType.CORE, LinkNodeType.fromName("core"));
 		assertEquals(LinkNodeType.CORE, LinkNodeType.fromName("CoRe"));
-		assertEquals(LinkNodeType.BUTTON, LinkNodeType.fromName("button"));
-		assertEquals(LinkNodeType.BUTTON, LinkNodeType.fromName("BuTtOn"));
+		assertEquals(LinkNodeType.BUTTON, LinkNodeType.fromName("triggerSource"));
+		assertEquals(LinkNodeType.BUTTON, LinkNodeType.fromName("TRIGGERSOURCE"));
 	}
 
 	/**

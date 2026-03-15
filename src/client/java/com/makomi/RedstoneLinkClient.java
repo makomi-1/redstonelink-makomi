@@ -22,9 +22,24 @@ import net.minecraft.client.renderer.RenderType;
 public class RedstoneLinkClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, RenderType.cutout());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.cutout());
+		registerRenderLayers();
+		registerPairingScreenOpeners();
+		registerPairingPacketReceivers();
+	}
 
+	/**
+	 * 注册需要透明/裁切渲染的方块层级。
+	 */
+	private static void registerRenderLayers() {
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.cutout());
+	}
+
+	/**
+	 * 注册本地 GUI 打开入口。
+	 */
+	private static void registerPairingScreenOpeners() {
 		ClientHooks.setPairingScreenOpener(hand -> {
 			Minecraft minecraft = Minecraft.getInstance();
 			if (minecraft.player == null) {
@@ -34,35 +49,52 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		});
 
 		ClientHooks.setNodePairingScreenOpener((nodeType, nodeSerial, currentTargetSerial) -> {
-			Minecraft minecraft = Minecraft.getInstance();
-			if (minecraft.player == null) {
-				return;
-			}
-			if (nodeType == LinkNodeType.CORE) {
-				minecraft.setScreen(new CorePairingScreen(nodeSerial, List.of()));
-			} else {
-				minecraft.setScreen(new TriggerSourcePairingScreen(nodeSerial, List.of()));
-			}
+			openPairingScreenBySourceType(nodeType, nodeSerial, List.of());
 		});
+	}
 
+	/**
+	 * 注册来自服务端的配对界面打开包。
+	 */
+	private static void registerPairingPacketReceivers() {
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, (payload, context) -> {
 			// 网络线程切回客户端主线程后再操作 Screen。
 			context.client().execute(() -> {
-				Minecraft minecraft = Minecraft.getInstance();
-				if (minecraft.player != null) {
-					minecraft.setScreen(new TriggerSourcePairingScreen(payload.sourceSerial(), payload.targets()));
-				}
+				openPairingScreenBySourceType(LinkNodeType.BUTTON, payload.sourceSerial(), payload.targets());
 			});
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenCorePairingPayload.TYPE, (payload, context) -> {
 			// 网络线程切回客户端主线程后再操作 Screen。
 			context.client().execute(() -> {
-				Minecraft minecraft = Minecraft.getInstance();
-				if (minecraft.player != null) {
-					minecraft.setScreen(new CorePairingScreen(payload.sourceSerial(), payload.targets()));
-				}
+				openPairingScreenBySourceType(LinkNodeType.CORE, payload.sourceSerial(), payload.targets());
 			});
 		});
+	}
+
+	/**
+	 * 按来源类型打开配对界面。
+	 * <p>
+	 * triggerSource/core 语义映射保持不变：BUTTON 对应 triggerSource，CORE 对应 core。
+	 * </p>
+	 *
+	 * @param sourceType 来源类型
+	 * @param sourceSerial 来源序列号
+	 * @param currentTargets 当前目标列表
+	 */
+	private static void openPairingScreenBySourceType(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		List<Long> currentTargets
+	) {
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.player == null) {
+			return;
+		}
+		if (sourceType == LinkNodeType.CORE) {
+			minecraft.setScreen(new CorePairingScreen(sourceSerial, currentTargets));
+			return;
+		}
+		minecraft.setScreen(new TriggerSourcePairingScreen(sourceSerial, currentTargets));
 	}
 }

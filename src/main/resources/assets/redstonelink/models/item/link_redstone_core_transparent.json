@@ -1,4 +1,3 @@
 {
-  "render_type": "minecraft:translucent",
   "parent": "redstonelink:block/link_redstone_core_transparent_item"
 }

@@ -1,7 +1,6 @@
 package com.makomi.client.screen;
 
 import com.makomi.data.LinkItemData;
-import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import java.util.List;
 import net.minecraft.network.chat.Component;
@@ -11,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
 /**
  * 触发源（triggerSource）配对界面。
  * <p>
- * 负责显示当前触发源序列号与已连接目标，并向服务端发送覆盖式 {@code set_links} 命令。
+ * 负责显示当前触发源序列号与已连接目标，发送逻辑由抽象父类统一处理。
  * </p>
  */
 public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
@@ -21,7 +20,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.button_pairing.invalid");
 
 	/**
-	 * 基于明确的来源序列号与当前连接初始化界面。
+	 * 基于明确来源序列号与当前连接初始化界面。
 	 *
 	 * @param sourceSerial 来源节点序列号
 	 * @param currentTargets 当前已连接目标序列号列表
@@ -82,52 +81,11 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	/**
-	 * 发送覆盖式 {@code set_links} 命令。
-	 *
-	 * @param sourceSerial 来源节点序列号
-	 * @param rawTargetsInput 输入框中的原始目标文本
-	 * @param targetCount 去重后的目标数量
+	 * @return triggerSource 语义对应的来源类型（BUTTON）
 	 */
 	@Override
-	protected void sendSetLinksCommand(long sourceSerial, String rawTargetsInput, int targetCount) {
-		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
-			return;
-		}
-		String base = setLinksBaseCommand(sourceSerial);
-		String normalizedTargets = rawTargetsInput == null ? "" : rawTargetsInput.trim();
-		if (normalizedTargets.isEmpty()) {
-			minecraft.player.connection.sendCommand(base);
-			return;
-		}
-
-		String command = base + " " + normalizedTargets;
-		if (targetCount > 1) {
-			command += " confirm";
-		}
-		minecraft.player.connection.sendCommand(command);
-	}
-
-	/**
-	 * 发送清空连接命令。
-	 *
-	 * @param sourceSerial 来源节点序列号
-	 */
-	@Override
-	protected void sendClearLinksCommand(long sourceSerial) {
-		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
-			return;
-		}
-		minecraft.player.connection.sendCommand(setLinksBaseCommand(sourceSerial));
-	}
-
-	/**
-	 * 构建 set_links 命令前缀。
-	 *
-	 * @param sourceSerial 来源序列号
-	 * @return 命令前缀文本
-	 */
-	private static String setLinksBaseCommand(long sourceSerial) {
-		return "redstonelink set_links " + LinkNodeSemantics.toCommandToken(SOURCE_TYPE) + " " + sourceSerial;
+	protected LinkNodeType sourceType() {
+		return SOURCE_TYPE;
 	}
 
 	/**

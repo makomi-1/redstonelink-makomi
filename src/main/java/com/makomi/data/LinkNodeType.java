@@ -11,17 +11,12 @@ public enum LinkNodeType {
 	BUTTON;
 
 	/**
-	 * 将字符串名称解析为节点类型。
+	 * 将语义类型名称解析为节点类型。
 	 *
-	 * @param name 类型名称（大小写不敏感）
+	 * @param name 语义类型名称（仅支持 triggerSource/core，大小写不敏感）
 	 * @return 解析结果；无法识别时回退为 {@link #CORE}
 	 */
 	public static LinkNodeType fromName(String name) {
-		for (LinkNodeType value : values()) {
-			if (value.name().equalsIgnoreCase(name)) {
-				return value;
-			}
-		}
-		return CORE;
+		return LinkNodeSemantics.tryParseCanonicalType(name).orElse(CORE);
 	}
 }
