@@ -3,16 +3,20 @@ package com.makomi.data;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.TicketType;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
@@ -25,6 +29,19 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  */
 public final class CrossChunkDispatchService {
 	private static final Map<MinecraftServer, DispatchState> STATE_BY_SERVER = new IdentityHashMap<>();
+	private static final int TRANSIENT_TICKET_LEVEL = 2;
+	private static final int RESIDENT_TICKET_LEVEL = 2;
+	private static final TicketType<ChunkPos> TRANSIENT_TICKET_TYPE = TicketType.create(
+		"redstonelink_transient",
+		Comparator.comparingLong(ChunkPos::toLong)
+	);
+	private static final TicketType<ResidentTicketKey> RESIDENT_TICKET_TYPE = TicketType.create(
+		"redstonelink_resident",
+		Comparator
+			.comparing((ResidentTicketKey key) -> key.role().name())
+			.thenComparing(key -> key.type().name())
+			.thenComparingLong(ResidentTicketKey::serial)
+	);
 
 	private CrossChunkDispatchService() {
 	}
@@ -159,15 +176,13 @@ public final class CrossChunkDispatchService {
 	}
 
 	private static void onServerTick(MinecraftServer server) {
-		DispatchState state = STATE_BY_SERVER.get(server);
-		if (state == null) {
-			return;
-		}
 		long gameTime = server.overworld().getGameTime();
+		DispatchState state = getOrCreateState(server);
+		syncResidentTickets(server, state);
 		resetForceLoadWindow(state, gameTime);
 		releaseExpiredForcedChunks(server, state, gameTime);
 		processPendingDispatches(server, state, gameTime);
-		if (state.pendingByKey.isEmpty() && state.forcedChunksUntilTick.isEmpty()) {
+		if (state.pendingByKey.isEmpty() && state.forcedChunksUntilTick.isEmpty() && state.residentTickets.isEmpty()) {
 			STATE_BY_SERVER.remove(server);
 		}
 	}
@@ -266,6 +281,105 @@ public final class CrossChunkDispatchService {
 		);
 	}
 
+	/**
+	 * 同步 resident 白名单对应的常驻区块票据。
+	 * <p>
+	 * 仅操作本模组自有 TicketType，确保与其它模组强制加载来源隔离。
+	 * </p>
+	 */
+	private static void syncResidentTickets(MinecraftServer server, DispatchState state) {
+		Map<ResidentTicketKey, ResidentChunkKey> desiredTickets = collectDesiredResidentTickets(server);
+		if (!state.residentTickets.isEmpty()) {
+			Map<ResidentTicketKey, ResidentChunkKey> currentSnapshot = Map.copyOf(state.residentTickets);
+			for (Map.Entry<ResidentTicketKey, ResidentChunkKey> currentEntry : currentSnapshot.entrySet()) {
+				ResidentTicketKey key = currentEntry.getKey();
+				ResidentChunkKey currentChunk = currentEntry.getValue();
+				ResidentChunkKey desiredChunk = desiredTickets.remove(key);
+				if (desiredChunk != null && desiredChunk.equals(currentChunk)) {
+					continue;
+				}
+				removeResidentTicket(server, key, currentChunk);
+				state.residentTickets.remove(key);
+				if (desiredChunk != null && addResidentTicket(server, key, desiredChunk)) {
+					state.residentTickets.put(key, desiredChunk);
+				}
+			}
+		}
+		for (Map.Entry<ResidentTicketKey, ResidentChunkKey> desiredEntry : desiredTickets.entrySet()) {
+			if (addResidentTicket(server, desiredEntry.getKey(), desiredEntry.getValue())) {
+				state.residentTickets.put(desiredEntry.getKey(), desiredEntry.getValue());
+			}
+		}
+	}
+
+	/**
+	 * 释放当前服务端所有 resident 票据。
+	 */
+	private static void releaseResidentTickets(MinecraftServer server, DispatchState state) {
+		if (state.residentTickets.isEmpty()) {
+			return;
+		}
+		for (Map.Entry<ResidentTicketKey, ResidentChunkKey> entry : state.residentTickets.entrySet()) {
+			removeResidentTicket(server, entry.getKey(), entry.getValue());
+		}
+	}
+
+	/**
+	 * 汇总当前白名单 resident 条目期望持有的区块票据映射。
+	 */
+	private static Map<ResidentTicketKey, ResidentChunkKey> collectDesiredResidentTickets(MinecraftServer server) {
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) {
+			return Map.of();
+		}
+		LinkSavedData linkSavedData = LinkSavedData.get(overworld);
+		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(overworld);
+		Map<ResidentTicketKey, ResidentChunkKey> desired = new HashMap<>();
+		appendDesiredResidentTickets(
+			desired,
+			whitelistSavedData.residentSnapshot(LinkNodeSemantics.Role.SOURCE),
+			LinkNodeSemantics.Role.SOURCE,
+			linkSavedData
+		);
+		appendDesiredResidentTickets(
+			desired,
+			whitelistSavedData.residentSnapshot(LinkNodeSemantics.Role.TARGET),
+			LinkNodeSemantics.Role.TARGET,
+			linkSavedData
+		);
+		return desired;
+	}
+
+	/**
+	 * 将指定角色下 resident 条目追加到期望票据集合。
+	 */
+	private static void appendDesiredResidentTickets(
+		Map<ResidentTicketKey, ResidentChunkKey> desired,
+		Map<LinkNodeType, Set<Long>> residentByType,
+		LinkNodeSemantics.Role role,
+		LinkSavedData linkSavedData
+	) {
+		for (Map.Entry<LinkNodeType, Set<Long>> entry : residentByType.entrySet()) {
+			LinkNodeType type = entry.getKey();
+			if (!LinkNodeSemantics.isAllowedForRole(type, role)) {
+				continue;
+			}
+			for (Long serial : entry.getValue()) {
+				if (serial == null || serial <= 0L) {
+					continue;
+				}
+				LinkSavedData.LinkNode node = linkSavedData.findNode(type, serial).orElse(null);
+				if (node == null) {
+					continue;
+				}
+				int chunkX = node.pos().getX() >> 4;
+				int chunkZ = node.pos().getZ() >> 4;
+				ResidentTicketKey ticketKey = new ResidentTicketKey(role, type, serial);
+				desired.put(ticketKey, new ResidentChunkKey(node.dimension(), chunkX, chunkZ));
+			}
+		}
+	}
+
 	private static void tryForceLoad(
 		MinecraftServer server,
 		DispatchState state,
@@ -291,7 +405,7 @@ public final class CrossChunkDispatchService {
 
 		int chunkX = pending.pos().getX() >> 4;
 		int chunkZ = pending.pos().getZ() >> 4;
-		targetLevel.setChunkForced(chunkX, chunkZ, true);
+		addTransientTicket(targetLevel, chunkX, chunkZ);
 
 		ForcedChunkKey forcedChunkKey = new ForcedChunkKey(targetLevel.dimension(), chunkX, chunkZ);
 		long expireTick = gameTime + Math.max(1L, RedstoneLinkConfig.crossChunkForceLoadTicketTicks());
@@ -312,7 +426,7 @@ public final class CrossChunkDispatchService {
 			ForcedChunkKey key = entry.getKey();
 			ServerLevel level = server.getLevel(key.dimension());
 			if (level != null) {
-				level.setChunkForced(key.chunkX(), key.chunkZ(), false);
+				removeTransientTicket(level, key.chunkX(), key.chunkZ());
 			}
 			iterator.remove();
 		}
@@ -334,15 +448,66 @@ public final class CrossChunkDispatchService {
 		for (ForcedChunkKey key : state.forcedChunksUntilTick.keySet()) {
 			ServerLevel level = server.getLevel(key.dimension());
 			if (level != null) {
-				level.setChunkForced(key.chunkX(), key.chunkZ(), false);
+				removeTransientTicket(level, key.chunkX(), key.chunkZ());
 			}
 		}
+		releaseResidentTickets(server, state);
 		state.forcedChunksUntilTick.clear();
 		state.pendingByKey.clear();
+		state.residentTickets.clear();
 		state.forceLoadCountBySource.clear();
 		state.forceLoadCountThisTick = 0;
 		state.forceLoadWindowTick = Long.MIN_VALUE;
 		STATE_BY_SERVER.remove(server);
+	}
+
+	/**
+	 * 添加临时区块加载票据。
+	 */
+	private static void addTransientTicket(ServerLevel level, int chunkX, int chunkZ) {
+		ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
+		level.getChunkSource().addRegionTicket(TRANSIENT_TICKET_TYPE, chunkPos, TRANSIENT_TICKET_LEVEL, chunkPos);
+	}
+
+	/**
+	 * 释放临时区块加载票据。
+	 */
+	private static void removeTransientTicket(ServerLevel level, int chunkX, int chunkZ) {
+		ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
+		level.getChunkSource().removeRegionTicket(TRANSIENT_TICKET_TYPE, chunkPos, TRANSIENT_TICKET_LEVEL, chunkPos);
+	}
+
+	/**
+	 * 添加 resident 常驻区块票据。
+	 */
+	private static boolean addResidentTicket(
+		MinecraftServer server,
+		ResidentTicketKey ticketKey,
+		ResidentChunkKey chunkKey
+	) {
+		ServerLevel level = server.getLevel(chunkKey.dimension());
+		if (level == null) {
+			return false;
+		}
+		ChunkPos chunkPos = new ChunkPos(chunkKey.chunkX(), chunkKey.chunkZ());
+		level.getChunkSource().addRegionTicket(RESIDENT_TICKET_TYPE, chunkPos, RESIDENT_TICKET_LEVEL, ticketKey);
+		return true;
+	}
+
+	/**
+	 * 释放 resident 常驻区块票据。
+	 */
+	private static void removeResidentTicket(
+		MinecraftServer server,
+		ResidentTicketKey ticketKey,
+		ResidentChunkKey chunkKey
+	) {
+		ServerLevel level = server.getLevel(chunkKey.dimension());
+		if (level == null) {
+			return;
+		}
+		ChunkPos chunkPos = new ChunkPos(chunkKey.chunkX(), chunkKey.chunkZ());
+		level.getChunkSource().removeRegionTicket(RESIDENT_TICKET_TYPE, chunkPos, RESIDENT_TICKET_LEVEL, ticketKey);
 	}
 
 	private static void resetForceLoadWindow(DispatchState state, long gameTime) {
@@ -396,12 +561,17 @@ public final class CrossChunkDispatchService {
 
 	private record ForcedChunkKey(ResourceKey<Level> dimension, int chunkX, int chunkZ) {}
 
+	private record ResidentTicketKey(LinkNodeSemantics.Role role, LinkNodeType type, long serial) {}
+
+	private record ResidentChunkKey(ResourceKey<Level> dimension, int chunkX, int chunkZ) {}
+
 	/**
 	 * 单服调度状态缓存。
 	 */
 	private static final class DispatchState {
 		private final Map<DispatchKey, PendingDispatch> pendingByKey = new HashMap<>();
 		private final Map<ForcedChunkKey, Long> forcedChunksUntilTick = new HashMap<>();
+		private final Map<ResidentTicketKey, ResidentChunkKey> residentTickets = new HashMap<>();
 		private final Map<SourceKey, Integer> forceLoadCountBySource = new HashMap<>();
 		private long forceLoadWindowTick = Long.MIN_VALUE;
 		private int forceLoadCountThisTick;

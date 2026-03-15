@@ -36,6 +36,10 @@ class CrossChunkWhitelistSavedDataTest {
 		assertFalse(data.add(LinkNodeType.BUTTON, 1L, null));
 		assertTrue(data.add(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
 		assertFalse(data.add(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(data.add(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE, true));
+		assertTrue(data.isResident(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(data.add(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE, false));
+		assertFalse(data.isResident(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
 
 		assertTrue(data.contains(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
 		assertFalse(data.contains(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.TARGET));
@@ -51,13 +55,16 @@ class CrossChunkWhitelistSavedDataTest {
 		assertFalse(data.remove(null, 11L, LinkNodeSemantics.Role.SOURCE));
 		assertTrue(data.remove(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
 		assertFalse(data.contains(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.isResident(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
 
-		assertTrue(data.add(LinkNodeType.CORE, 21L, LinkNodeSemantics.Role.TARGET));
+		assertTrue(data.add(LinkNodeType.CORE, 21L, LinkNodeSemantics.Role.TARGET, true));
 		assertTrue(data.add(LinkNodeType.CORE, 22L, LinkNodeSemantics.Role.TARGET));
+		assertEquals(Set.of(21L), data.listResident(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET));
 		assertEquals(2, data.clear(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET));
 		assertEquals(0, data.clear(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET));
 		assertEquals(0, data.clear(null, LinkNodeSemantics.Role.TARGET));
 		assertEquals(0, data.clear(LinkNodeType.CORE, null));
+		assertTrue(data.listResident(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET).isEmpty());
 	}
 
 	/**
@@ -66,13 +73,16 @@ class CrossChunkWhitelistSavedDataTest {
 	@Test
 	void saveShouldWriteCanonicalTypeAndFilterInvalidSerials() throws Exception {
 		CrossChunkWhitelistSavedData data = new CrossChunkWhitelistSavedData();
-		assertTrue(data.add(LinkNodeType.BUTTON, 9L, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(data.add(LinkNodeType.BUTTON, 9L, LinkNodeSemantics.Role.SOURCE, true));
 		assertTrue(data.add(LinkNodeType.CORE, 7L, LinkNodeSemantics.Role.TARGET));
 
 		Map<LinkNodeType, Set<Long>> sourceBucket = readBucketMap(data, "sourceWhitelist");
+		Map<LinkNodeType, Set<Long>> sourceResidents = readBucketMap(data, "sourceResidents");
 		sourceBucket.put(LinkNodeType.CORE, new HashSet<>());
 		sourceBucket.get(LinkNodeType.BUTTON).add(null);
 		sourceBucket.get(LinkNodeType.BUTTON).add(-3L);
+		sourceResidents.get(LinkNodeType.BUTTON).add(null);
+		sourceResidents.get(LinkNodeType.BUTTON).add(-3L);
 
 		CompoundTag root = data.save(new CompoundTag(), null);
 		ListTag sourceList = root.getList("sources", net.minecraft.nbt.Tag.TAG_COMPOUND);
@@ -81,10 +91,12 @@ class CrossChunkWhitelistSavedDataTest {
 		CompoundTag sourceEntry = findTypeEntry(sourceList, "triggerSource");
 		assertNotNull(sourceEntry);
 		assertEquals(List.of(9L), toLongList(sourceEntry.getList("serials", net.minecraft.nbt.Tag.TAG_LONG)));
+		assertEquals(List.of(9L), toLongList(sourceEntry.getList("residentSerials", net.minecraft.nbt.Tag.TAG_LONG)));
 
 		CompoundTag targetEntry = findTypeEntry(targetList, "core");
 		assertNotNull(targetEntry);
 		assertEquals(List.of(7L), toLongList(targetEntry.getList("serials", net.minecraft.nbt.Tag.TAG_LONG)));
+		assertTrue(targetEntry.getList("residentSerials", net.minecraft.nbt.Tag.TAG_LONG).isEmpty());
 	}
 
 	/**
@@ -94,21 +106,35 @@ class CrossChunkWhitelistSavedDataTest {
 	void loadShouldIgnoreInvalidTypeAndSerialEntries() throws Exception {
 		CompoundTag root = new CompoundTag();
 		ListTag sources = new ListTag();
-		sources.add(entry("triggerSource", 1L, -2L, 1L));
+		CompoundTag triggerSourceEntry = entry("triggerSource", 1L, -2L, 1L);
+		ListTag sourceResidentSerials = new ListTag();
+		sourceResidentSerials.add(LongTag.valueOf(1L));
+		sourceResidentSerials.add(LongTag.valueOf(99L));
+		sourceResidentSerials.add(LongTag.valueOf(-3L));
+		triggerSourceEntry.put("residentSerials", sourceResidentSerials);
+		sources.add(triggerSourceEntry);
 		sources.add(entry("BUTTON", 5L));
 		sources.add(entry("core", -9L));
 		root.put("sources", sources);
 
 		ListTag targets = new ListTag();
-		targets.add(entry("core", 8L, 0L, 8L));
+		CompoundTag coreTargetEntry = entry("core", 8L, 0L, 8L);
+		ListTag targetResidentSerials = new ListTag();
+		targetResidentSerials.add(LongTag.valueOf(8L));
+		coreTargetEntry.put("residentSerials", targetResidentSerials);
+		targets.add(coreTargetEntry);
 		targets.add(entry("unknown", 3L));
 		root.put("targets", targets);
 
 		CrossChunkWhitelistSavedData loaded = invokeLoad(root);
 		assertEquals(Set.of(1L), loaded.list(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
 		assertEquals(Set.of(8L), loaded.list(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET));
+		assertEquals(Set.of(1L), loaded.listResident(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
+		assertEquals(Set.of(8L), loaded.listResident(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET));
 		assertTrue(loaded.list(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE).isEmpty());
 		assertTrue(loaded.list(LinkNodeType.BUTTON, LinkNodeSemantics.Role.TARGET).isEmpty());
+		assertTrue(loaded.listResident(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE).isEmpty());
+		assertTrue(loaded.listResident(LinkNodeType.BUTTON, LinkNodeSemantics.Role.TARGET).isEmpty());
 	}
 
 	private static CompoundTag entry(String type, long... serials) {

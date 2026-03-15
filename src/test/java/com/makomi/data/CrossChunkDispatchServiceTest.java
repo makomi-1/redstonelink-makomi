@@ -10,6 +10,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -175,5 +176,156 @@ class CrossChunkDispatchServiceTest {
 		stateByServerField.setAccessible(true);
 		Map<?, ?> stateByServer = (Map<?, ?>) stateByServerField.get(null);
 		assertFalse(stateByServer.containsKey(null));
+	}
+
+	/**
+	 * processPendingDispatches 应移除过期请求而无需访问服务端世界。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void processPendingDispatchesShouldRemoveExpiredEntry() throws Exception {
+		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKind");
+		Object activationKind = java.util.Arrays
+			.stream(dispatchKindClass.getEnumConstants())
+			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
+			.findFirst()
+			.orElseThrow();
+		Class<?> dispatchKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKey");
+		Constructor<?> dispatchKeyConstructor = dispatchKeyClass.getDeclaredConstructor(
+			LinkNodeType.class,
+			long.class,
+			LinkNodeType.class,
+			long.class,
+			dispatchKindClass
+		);
+		dispatchKeyConstructor.setAccessible(true);
+		Object dispatchKey = dispatchKeyConstructor.newInstance(
+			LinkNodeType.BUTTON,
+			5L,
+			LinkNodeType.CORE,
+			9L,
+			activationKind
+		);
+
+		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingDispatch");
+		Constructor<?> pendingDispatchConstructor = pendingDispatchClass.getDeclaredConstructor(
+			dispatchKeyClass,
+			net.minecraft.resources.ResourceKey.class,
+			BlockPos.class,
+			ActivationMode.class,
+			boolean.class,
+			long.class
+		);
+		pendingDispatchConstructor.setAccessible(true);
+		Object pendingDispatch = pendingDispatchConstructor.newInstance(
+			dispatchKey,
+			Level.OVERWORLD,
+			BlockPos.ZERO,
+			ActivationMode.TOGGLE,
+			false,
+			10L
+		);
+
+		Class<?> dispatchStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchState");
+		Constructor<?> stateConstructor = dispatchStateClass.getDeclaredConstructor();
+		stateConstructor.setAccessible(true);
+		Object state = stateConstructor.newInstance();
+		Field pendingByKeyField = dispatchStateClass.getDeclaredField("pendingByKey");
+		pendingByKeyField.setAccessible(true);
+		Map<Object, Object> pendingByKey = (Map<Object, Object>) pendingByKeyField.get(state);
+		pendingByKey.put(dispatchKey, pendingDispatch);
+
+		Method processPendingDispatches = CrossChunkDispatchService.class.getDeclaredMethod(
+			"processPendingDispatches",
+			MinecraftServer.class,
+			dispatchStateClass,
+			long.class
+		);
+		processPendingDispatches.setAccessible(true);
+		processPendingDispatches.invoke(null, null, state, 10L);
+
+		assertTrue(pendingByKey.isEmpty());
+	}
+
+	/**
+	 * appendDesiredResidentTickets 应按 role/type 约束构造常驻票据目标。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void appendDesiredResidentTicketsShouldBuildTicketBySemanticRole() throws Exception {
+		LinkSavedData linkSavedData = new LinkSavedData();
+		linkSavedData.registerNode(101L, Level.OVERWORLD, new BlockPos(33, 64, 49), LinkNodeType.BUTTON);
+
+		Class<?> residentTicketKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$ResidentTicketKey");
+		Class<?> residentChunkKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$ResidentChunkKey");
+		Method appendDesiredResidentTickets = CrossChunkDispatchService.class.getDeclaredMethod(
+			"appendDesiredResidentTickets",
+			Map.class,
+			Map.class,
+			LinkNodeSemantics.Role.class,
+			LinkSavedData.class
+		);
+		appendDesiredResidentTickets.setAccessible(true);
+
+		Map<Object, Object> desired = new java.util.HashMap<>();
+		appendDesiredResidentTickets.invoke(
+			null,
+			desired,
+			Map.of(LinkNodeType.BUTTON, Set.of(101L)),
+			LinkNodeSemantics.Role.SOURCE,
+			linkSavedData
+		);
+		assertEquals(1, desired.size());
+		Map.Entry<Object, Object> entry = desired.entrySet().iterator().next();
+		assertEquals(LinkNodeSemantics.Role.SOURCE, residentTicketKeyClass.getDeclaredMethod("role").invoke(entry.getKey()));
+		assertEquals(LinkNodeType.BUTTON, residentTicketKeyClass.getDeclaredMethod("type").invoke(entry.getKey()));
+		assertEquals(101L, residentTicketKeyClass.getDeclaredMethod("serial").invoke(entry.getKey()));
+		assertEquals(Level.OVERWORLD, residentChunkKeyClass.getDeclaredMethod("dimension").invoke(entry.getValue()));
+		assertEquals(2, residentChunkKeyClass.getDeclaredMethod("chunkX").invoke(entry.getValue()));
+		assertEquals(3, residentChunkKeyClass.getDeclaredMethod("chunkZ").invoke(entry.getValue()));
+
+		Map<Object, Object> roleFiltered = new java.util.HashMap<>();
+		appendDesiredResidentTickets.invoke(
+			null,
+			roleFiltered,
+			Map.of(LinkNodeType.BUTTON, Set.of(101L)),
+			LinkNodeSemantics.Role.TARGET,
+			linkSavedData
+		);
+		assertTrue(roleFiltered.isEmpty());
+	}
+
+	/**
+	 * resident 票据键应可稳定构造并暴露记录字段。
+	 */
+	@Test
+	void residentTicketRecordsShouldExposeFields() throws Exception {
+		Class<?> residentTicketKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$ResidentTicketKey");
+		Constructor<?> residentTicketKeyConstructor = residentTicketKeyClass.getDeclaredConstructor(
+			LinkNodeSemantics.Role.class,
+			LinkNodeType.class,
+			long.class
+		);
+		residentTicketKeyConstructor.setAccessible(true);
+		Object ticketKey = residentTicketKeyConstructor.newInstance(
+			LinkNodeSemantics.Role.SOURCE,
+			LinkNodeType.BUTTON,
+			101L
+		);
+		assertEquals(LinkNodeSemantics.Role.SOURCE, residentTicketKeyClass.getDeclaredMethod("role").invoke(ticketKey));
+		assertEquals(LinkNodeType.BUTTON, residentTicketKeyClass.getDeclaredMethod("type").invoke(ticketKey));
+		assertEquals(101L, residentTicketKeyClass.getDeclaredMethod("serial").invoke(ticketKey));
+
+		Class<?> residentChunkKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$ResidentChunkKey");
+		Constructor<?> residentChunkKeyConstructor = residentChunkKeyClass.getDeclaredConstructor(
+			net.minecraft.resources.ResourceKey.class,
+			int.class,
+			int.class
+		);
+		residentChunkKeyConstructor.setAccessible(true);
+		Object chunkKey = residentChunkKeyConstructor.newInstance(Level.OVERWORLD, 3, 7);
+		assertEquals(Level.OVERWORLD, residentChunkKeyClass.getDeclaredMethod("dimension").invoke(chunkKey));
+		assertEquals(3, residentChunkKeyClass.getDeclaredMethod("chunkX").invoke(chunkKey));
+		assertEquals(7, residentChunkKeyClass.getDeclaredMethod("chunkZ").invoke(chunkKey));
 	}
 }

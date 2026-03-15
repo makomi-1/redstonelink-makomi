@@ -49,19 +49,24 @@ public final class CrossChunkCommandRegistry {
 			.then(
 				Commands
 					.literal("whitelist")
-					.then(
-						Commands
-							.literal("add")
-							.then(
-								Commands.argument("role", StringArgumentType.word()).then(
-									Commands.argument("type", StringArgumentType.word()).then(
-										Commands.argument("serial", LongArgumentType.longArg(1L)).executes(
-											CrossChunkCommandRegistry::executeWhitelistAdd
+						.then(
+							Commands
+								.literal("add")
+								.then(
+									Commands.argument("role", StringArgumentType.word()).then(
+										Commands.argument("type", StringArgumentType.word()).then(
+											Commands
+												.argument("serial", LongArgumentType.longArg(1L))
+												.executes(CrossChunkCommandRegistry::executeWhitelistAdd)
+												.then(
+													Commands.literal("resident").executes(
+														CrossChunkCommandRegistry::executeWhitelistAddResident
+													)
+												)
 										)
 									)
 								)
-							)
-					)
+						)
 					.then(
 						Commands
 							.literal("remove")
@@ -128,6 +133,20 @@ public final class CrossChunkCommandRegistry {
 	 * 执行白名单新增。
 	 */
 	private static int executeWhitelistAdd(CommandContext<CommandSourceStack> context) {
+		return executeWhitelistAddInternal(context, false);
+	}
+
+	/**
+	 * 执行白名单新增（常驻模式）。
+	 */
+	private static int executeWhitelistAddResident(CommandContext<CommandSourceStack> context) {
+		return executeWhitelistAddInternal(context, true);
+	}
+
+	/**
+	 * 执行白名单新增（可选常驻）。
+	 */
+	private static int executeWhitelistAddInternal(CommandContext<CommandSourceStack> context, boolean resident) {
 		CommandSourceStack source = context.getSource();
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
@@ -141,10 +160,14 @@ public final class CrossChunkCommandRegistry {
 		if (!serialValid) {
 			return 0;
 		}
+		boolean residentDeferred = resident && linkSavedData.findNode(parsed.type(), serial).isEmpty();
 
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(level);
-		boolean changed = whitelistSavedData.add(parsed.type(), serial, parsed.role());
-		if (!changed) {
+		var upsertResult = whitelistSavedData.upsert(parsed.type(), serial, parsed.role(), resident);
+		if (!upsertResult.valid()) {
+			return 0;
+		}
+		if (!upsertResult.changed()) {
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.crosschunk.whitelist.exists",
 				roleName(parsed.role()),
@@ -152,6 +175,30 @@ public final class CrossChunkCommandRegistry {
 				serial
 			));
 			return 0;
+		}
+		if (!upsertResult.created()) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.crosschunk.whitelist.resident.updated",
+					roleName(parsed.role()),
+					LinkNodeSemantics.toSemanticName(parsed.type()),
+					serial,
+					residentModeName(resident)
+				),
+				true
+			);
+			if (residentDeferred) {
+				source.sendSuccess(
+					() -> Component.translatable(
+						"message.redstonelink.crosschunk.whitelist.resident.offline_serial",
+						roleName(parsed.role()),
+						LinkNodeSemantics.toSemanticName(parsed.type()),
+						serial
+					),
+					false
+				);
+			}
+			return Command.SINGLE_SUCCESS;
 		}
 		source.sendSuccess(
 			() -> Component.translatable(
@@ -162,6 +209,17 @@ public final class CrossChunkCommandRegistry {
 			),
 			true
 		);
+		if (residentDeferred) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.crosschunk.whitelist.resident.offline_serial",
+					roleName(parsed.role()),
+					LinkNodeSemantics.toSemanticName(parsed.type()),
+					serial
+				),
+				false
+			);
+		}
 		return Command.SINGLE_SUCCESS;
 	}
 
@@ -219,6 +277,19 @@ public final class CrossChunkCommandRegistry {
 			),
 			false
 		);
+		Set<Long> residentSerials = whitelistSavedData.listResident(parsed.type(), parsed.role());
+		if (!residentSerials.isEmpty()) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.crosschunk.whitelist.list.resident",
+					roleName(parsed.role()),
+					LinkNodeSemantics.toSemanticName(parsed.type()),
+					residentSerials.size(),
+					formatSerialSet(residentSerials)
+				),
+				false
+			);
+		}
 		return Command.SINGLE_SUCCESS;
 	}
 
@@ -259,6 +330,7 @@ public final class CrossChunkCommandRegistry {
 			StringArgumentType.getString(context, "serials")
 		);
 		String rawSerials = confirmSuffixParseResult.payload();
+		boolean resident = confirmSuffixParseResult.resident();
 		boolean confirmed = confirmSuffixParseResult.confirmed();
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, WHITELIST_SET_MAX_SERIALS);
 		if (!parseResult.invalidEntries().isEmpty()) {
@@ -307,6 +379,9 @@ public final class CrossChunkCommandRegistry {
 			));
 			return 0;
 		}
+		List<Long> offlineSerials = resident
+			? collectOfflineSerials(savedData, parsed.type(), targetSerials)
+			: List.of();
 
 		if (!confirmed) {
 			String confirmCommand = "redstonelink crosschunk whitelist set "
@@ -315,6 +390,7 @@ public final class CrossChunkCommandRegistry {
 				+ LinkNodeSemantics.toSemanticName(parsed.type())
 				+ " "
 				+ rawSerials
+				+ (resident ? " resident" : "")
 				+ " confirm";
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.crosschunk.whitelist.set.confirm_required",
@@ -328,7 +404,7 @@ public final class CrossChunkCommandRegistry {
 		int removed = whitelistSavedData.clear(parsed.type(), parsed.role());
 		int added = 0;
 		for (long serial : targetSerials) {
-			if (whitelistSavedData.add(parsed.type(), serial, parsed.role())) {
+			if (whitelistSavedData.add(parsed.type(), serial, parsed.role(), resident)) {
 				added++;
 			}
 		}
@@ -341,9 +417,29 @@ public final class CrossChunkCommandRegistry {
 				LinkNodeSemantics.toSemanticName(parsed.type()),
 				addedCount,
 				removedCount
+				),
+				true
+			);
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.crosschunk.whitelist.set.mode",
+				roleName(parsed.role()),
+				LinkNodeSemantics.toSemanticName(parsed.type()),
+				residentModeName(resident)
 			),
-			true
+			false
 		);
+		if (resident && !offlineSerials.isEmpty()) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.crosschunk.whitelist.resident.offline_serials",
+					roleName(parsed.role()),
+					LinkNodeSemantics.toSemanticName(parsed.type()),
+					formatSerialCollection(offlineSerials)
+				),
+				false
+			);
+		}
 		return Command.SINGLE_SUCCESS;
 	}
 
@@ -355,23 +451,53 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
 		String normalized = rawText == null ? "" : rawText.trim();
-		String suffix = " confirm";
-		if (normalized.endsWith(suffix)) {
-			String payload = normalized.substring(0, normalized.length() - suffix.length()).trim();
-			if (!payload.isEmpty()) {
-				return new ConfirmSuffixParseResult(payload, true);
+		boolean confirmed = false;
+		boolean resident = false;
+		boolean consumed;
+		do {
+			consumed = false;
+			String confirmSuffix = " confirm";
+			if (!confirmed && endsWithIgnoreCase(normalized, confirmSuffix)) {
+				confirmed = true;
+				normalized = normalized.substring(0, normalized.length() - confirmSuffix.length()).trim();
+				consumed = true;
 			}
+			String residentSuffix = " resident";
+			if (!resident && endsWithIgnoreCase(normalized, residentSuffix)) {
+				resident = true;
+				normalized = normalized.substring(0, normalized.length() - residentSuffix.length()).trim();
+				consumed = true;
+			}
+		} while (consumed);
+		if (normalized.isEmpty()) {
+			return new ConfirmSuffixParseResult("", resident, false);
 		}
-		return new ConfirmSuffixParseResult(normalized, false);
+		return new ConfirmSuffixParseResult(normalized, resident, confirmed);
+	}
+
+	/**
+	 * 大小写不敏感的后缀匹配。
+	 */
+	private static boolean endsWithIgnoreCase(String text, String suffix) {
+		if (text == null || suffix == null) {
+			return false;
+		}
+		int textLength = text.length();
+		int suffixLength = suffix.length();
+		if (textLength < suffixLength) {
+			return false;
+		}
+		return text.regionMatches(true, textLength - suffixLength, suffix, 0, suffixLength);
 	}
 
 	/**
 	 * 二次确认后缀解析结果。
 	 *
 	 * @param payload 去后缀后的有效参数文本
+	 * @param resident 是否携带 resident 后缀
 	 * @param confirmed 是否携带确认后缀
 	 */
-	private record ConfirmSuffixParseResult(String payload, boolean confirmed) {
+	private record ConfirmSuffixParseResult(String payload, boolean resident, boolean confirmed) {
 	}
 
 	/**
@@ -505,6 +631,23 @@ public final class CrossChunkCommandRegistry {
 	}
 
 	/**
+	 * 收集批量 resident 设置中的离线序号。
+	 */
+	private static List<Long> collectOfflineSerials(
+		LinkSavedData savedData,
+		LinkNodeType type,
+		Set<Long> serials
+	) {
+		List<Long> offlineSerials = new ArrayList<>();
+		for (long serial : serials) {
+			if (savedData.findNode(type, serial).isEmpty()) {
+				offlineSerials.add(serial);
+			}
+		}
+		return offlineSerials;
+	}
+
+	/**
 	 * 格式化序号集合。
 	 */
 	private static String formatSerialSet(Set<Long> serials) {
@@ -555,6 +698,13 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static String roleName(LinkNodeSemantics.Role role) {
 		return role == LinkNodeSemantics.Role.SOURCE ? "source" : "target";
+	}
+
+	/**
+	 * resident 模式展示文本。
+	 */
+	private static String residentModeName(boolean resident) {
+		return resident ? "on" : "off";
 	}
 
 	private record ParsedRoleAndType(LinkNodeSemantics.Role role, LinkNodeType type) {}
