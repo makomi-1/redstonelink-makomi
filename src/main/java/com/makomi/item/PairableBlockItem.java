@@ -123,6 +123,15 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	}
 
 	/**
+	 * 记录“物品实体由伤害销毁”的标记，供退役事件在卸载阶段区分销毁与拾取路径。
+	 */
+	@Override
+	public void onDestroyed(ItemEntity itemEntity) {
+		LinkNodeRetireEvents.markDamageDiscard(itemEntity);
+		super.onDestroyed(itemEntity);
+	}
+
+	/**
 	 * 仅在服务端写入序列号，避免客户端状态分叉。
 	 */
 	private void ensureSerial(Level level, ItemStack stack) {
