@@ -61,7 +61,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 	public LinkRedstoneDustCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN).setValue(ACTIVE, false));
+		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN));
 	}
 
 	@Override
@@ -310,6 +310,8 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	@Override
 	protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
 		if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+			// 顶面 ACTIVE 客户端同步（F3 观测态）按节流窗口落地。
+			coreBlockEntity.flushTopActiveClientSyncIfDue();
 			// 脉冲模式到点回落由方块 tick 驱动。
 			coreBlockEntity.onPulseTick();
 		}
@@ -416,10 +418,17 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			return;
 		}
 		boolean targetActive = isCoreActive(level, pos);
-		if (state.getValue(ACTIVE) == targetActive) {
+		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		level.setBlock(pos, state.setValue(ACTIVE, targetActive), Block.UPDATE_CLIENTS);
+		if (serverLevel.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+			coreBlockEntity.requestTopActiveClientSync(targetActive);
+			return;
+		}
+		// 方块实体异常缺失时兜底直写，避免观测态永久漂移。
+		if (state.getValue(ACTIVE) != targetActive) {
+			serverLevel.setBlock(pos, state.setValue(ACTIVE, targetActive), Block.UPDATE_CLIENTS);
+		}
 	}
 
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
