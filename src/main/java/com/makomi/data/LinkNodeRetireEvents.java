@@ -71,6 +71,8 @@ public final class LinkNodeRetireEvents {
 	 * <li>{@code ENTITY_LOAD}：发现匹配物品掉落实体时取消待退役；</li>
 	 * <li>{@code PlayerBlockBreakEvents.AFTER}：创造模式破坏已放置节点时立即退役；</li>
 	 * <li>{@code END_SERVER_TICK}：处理到期待退役任务；</li>
+	 * <li>{@code SERVER_STARTED}：从持久化镜像恢复待退役任务；</li>
+	 * <li>{@code SERVER_STOPPING}：停服前兜底处理已到期任务；</li>
 	 * <li>{@code SERVER_STOPPED}：清理该服务器的待退役状态。</li>
 	 * </ul>
 	 */
@@ -91,7 +93,7 @@ public final class LinkNodeRetireEvents {
 			PendingKey key = resolveUnloadKey(server, itemEntity);
 			boolean discardedByDamage = consumeDamageDiscardMark(server, entityId);
 			clearEntityKey(server, entityId);
- 			if (key == null) {
+			if (key == null) {
 				return;
 			}
 			if (reason == Entity.RemovalReason.DISCARDED
@@ -145,6 +147,8 @@ public final class LinkNodeRetireEvents {
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(LinkNodeRetireEvents::processPendingRetires);
+		ServerLifecycleEvents.SERVER_STARTED.register(LinkNodeRetireEvents::restorePendingRetires);
+		ServerLifecycleEvents.SERVER_STOPPING.register(LinkNodeRetireEvents::drainDuePendingRetiresOnStopping);
 		ServerLifecycleEvents.SERVER_STOPPED.register(PENDING_RETIRES::remove);
 	}
 
@@ -203,8 +207,10 @@ public final class LinkNodeRetireEvents {
 			return;
 		}
 
-		long expireTick = (long) server.getTickCount() + PENDING_RETIRE_GRACE_TICKS;
-		upsertPending(server, new PendingEntry(key, level.dimension(), pos.immutable(), expireTick));
+		long expireTick = level.getGameTime() + PENDING_RETIRE_GRACE_TICKS;
+		PendingEntry entry = new PendingEntry(key, level.dimension(), pos.immutable(), expireTick);
+		upsertPending(server, entry);
+		upsertPendingMirror(level, entry);
 	}
 
 	/**
@@ -224,16 +230,16 @@ public final class LinkNodeRetireEvents {
 			return;
 		}
 
-		long now = server.getTickCount();
-		if (now < state.nextDueTick) {
-			return;
-		}
-
 		ServerLevel overworld = server.overworld();
 		if (overworld == null) {
 			return;
 		}
+		long now = overworld.getGameTime();
+		if (now < state.nextDueTick) {
+			return;
+		}
 		LinkSavedData savedData = LinkSavedData.get(overworld);
+		PendingRetireQueueSavedData pendingMirror = PendingRetireQueueSavedData.get(overworld);
 
 		while (state.nextDueTick != NO_DUE_TICK && state.nextDueTick <= now) {
 			long dueTick = state.nextDueTick;
@@ -245,6 +251,7 @@ public final class LinkNodeRetireEvents {
 						continue;
 					}
 					state.pendingByKey.remove(key);
+					removePendingMirror(pendingMirror, key);
 					if (shouldSkipPendingRetire(server, savedData, entry)) {
 						continue;
 					}
@@ -393,6 +400,7 @@ public final class LinkNodeRetireEvents {
 		if (removed.expireTick() == state.nextDueTick && !state.bucketByExpireTick.containsKey(state.nextDueTick)) {
 			recalculateNextDueTick(state);
 		}
+		removePendingMirror(server, key);
 	}
 
 	/**
@@ -420,6 +428,67 @@ public final class LinkNodeRetireEvents {
 			}
 		}
 		state.nextDueTick = next;
+	}
+
+	/**
+	 * 将待退役任务同步到持久化镜像。
+	 */
+	private static void upsertPendingMirror(ServerLevel level, PendingEntry entry) {
+		PendingRetireQueueSavedData pendingMirror = PendingRetireQueueSavedData.get(level);
+		pendingMirror.upsert(entry.key().nodeType(), entry.key().serial(), entry.dimension(), entry.pos(), entry.expireTick());
+	}
+
+	/**
+	 * 从持久化镜像中移除待退役任务。
+	 */
+	private static void removePendingMirror(MinecraftServer server, PendingKey key) {
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) {
+			return;
+		}
+		removePendingMirror(PendingRetireQueueSavedData.get(overworld), key);
+	}
+
+	/**
+	 * 从已获取的持久化镜像中移除待退役任务。
+	 */
+	private static void removePendingMirror(PendingRetireQueueSavedData pendingMirror, PendingKey key) {
+		pendingMirror.remove(key.nodeType(), key.serial());
+	}
+
+	/**
+	 * 服务端启动后恢复待退役内存队列。
+	 */
+	private static void restorePendingRetires(MinecraftServer server) {
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) {
+			return;
+		}
+		PendingRetireQueueSavedData pendingMirror = PendingRetireQueueSavedData.get(overworld);
+		List<PendingRetireQueueSavedData.PendingRetireEntry> entries = pendingMirror.entriesSnapshot();
+		if (entries.isEmpty()) {
+			return;
+		}
+
+		PendingRetireState state = getOrCreateState(server);
+		state.pendingByKey.clear();
+		state.bucketByExpireTick.clear();
+		state.rememberedEntityKeys.clear();
+		state.damageDiscardedEntityIds.clear();
+		state.nextDueTick = NO_DUE_TICK;
+
+		for (PendingRetireQueueSavedData.PendingRetireEntry entry : entries) {
+			PendingKey key = new PendingKey(entry.nodeType(), entry.serial());
+			PendingEntry restoredEntry = new PendingEntry(key, entry.dimension(), entry.pos(), entry.expireTick());
+			upsertPending(server, restoredEntry);
+		}
+	}
+
+	/**
+	 * 停服前兜底处理一次“已到期”待退役任务。
+	 */
+	private static void drainDuePendingRetiresOnStopping(MinecraftServer server) {
+		processPendingRetires(server);
 	}
 
 	/**
