@@ -84,4 +84,36 @@ class LinkRedstoneDustCoreStateContractTest {
 		);
 		assertFalse(earlyReturnPattern.matcher(source).find());
 	}
+
+	/**
+	 * 方块实体不应再执行“中心+六方向”邻居通知，避免与方块侧重复扇出。
+	 */
+	@Test
+	void dustCoreBlockEntityShouldNotBroadcastNeighborsManually() throws Exception {
+		String source = Files.readString(
+			Path.of("src/main/java/com/makomi/block/entity/LinkRedstoneDustCoreBlockEntity.java"),
+			StandardCharsets.UTF_8
+		);
+		Pattern manualFanoutPattern = Pattern.compile(
+			"onActiveChanged\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*updateNeighborsAt\\(worldPosition",
+			Pattern.MULTILINE
+		);
+		assertFalse(manualFanoutPattern.matcher(source).find());
+	}
+
+	/**
+	 * 附着块通知应避免对六方向再扇出，降低重复通知量。
+	 */
+	@Test
+	void dustCoreNotifyAttachedNeighborShouldOnlyNotifyAttachedPos() throws Exception {
+		String source = Files.readString(
+			Path.of("src/main/java/com/makomi/block/LinkRedstoneDustCoreBlock.java"),
+			StandardCharsets.UTF_8
+		);
+		Pattern neighborFanoutPattern = Pattern.compile(
+			"notifyAttachedNeighbor\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*attachedPos\\.relative\\(direction\\)",
+			Pattern.MULTILINE
+		);
+		assertFalse(neighborFanoutPattern.matcher(source).find());
+	}
 }

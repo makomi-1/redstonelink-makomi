@@ -353,13 +353,10 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	}
 
 	private static void notifyAttachedNeighbor(Level level, BlockPos pos, BlockState state) {
-		// 顶面与非顶面统一执行“附着块+附着块周边”通知，保证隔块链路一致。
+		// 顶面与非顶面统一仅通知附着块，避免对附着块周边重复扇出。
 		Direction supportDirection = state.getValue(SUPPORT_FACE);
 		BlockPos attachedPos = pos.relative(supportDirection);
 		Block block = state.getBlock();
 		level.updateNeighborsAt(attachedPos, block);
-		for (Direction direction : Direction.values()) {
-			level.updateNeighborsAt(attachedPos.relative(direction), block);
-		}
 	}
 }
