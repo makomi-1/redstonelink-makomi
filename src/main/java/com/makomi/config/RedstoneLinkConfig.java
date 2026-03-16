@@ -175,13 +175,6 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * @return 顶面核心红石粉 ACTIVE 客户端同步节流窗口（tick）
-	 */
-	public static int topActiveSyncThrottleTicks() {
-		return values.topActiveSyncThrottleTicks();
-	}
-
-	/**
 	 * @return 单次 set_links 允许的最大目标数
 	 */
 	public static int maxTargetsPerSetLinks() {
@@ -419,7 +412,6 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.pulseDurationTicks", 4, 1, 40),
 			EmitterEdgeMode.fromConfigValue(props.getProperty("server.emitterEdgeMode", "rising")),
 			parseInt(props, "server.coreOutputPower", 15, 0, 15),
-			parseInt(props, "server.topActiveSyncThrottleTicks", 2, 1, 40),
 			parseInt(props, "server.maxTargetsPerSetLinks", 1024, 1, 4096),
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
 			parseInt(props, "server.command.permissionLevel", 2, 0, 4),
@@ -765,11 +757,6 @@ public final class RedstoneLinkConfig {
 			# zh: 核心输出红石强度（0~15）。
 			# en: Core redstone output power (0~15).
 			server.coreOutputPower=15
-
-			# server.topActiveSyncThrottleTicks
-			# zh: 顶面核心红石粉 ACTIVE 客户端同步节流窗口（tick），仅影响观测态通知频率。
-			# en: Throttle window (ticks) for top dust-core ACTIVE client sync notifications.
-			server.topActiveSyncThrottleTicks=2
 			
 			# server.maxTargetsPerSetLinks
 			# zh: 单次 set_links 允许设置的最大目标数。
@@ -892,7 +879,6 @@ public final class RedstoneLinkConfig {
 		int pulseDurationTicks,
 		EmitterEdgeMode emitterEdgeMode,
 		int coreOutputPower,
-		int topActiveSyncThrottleTicks,
 		int maxTargetsPerSetLinks,
 		boolean allowOfflineTargetBinding,
 		int commandPermissionLevel,
@@ -905,7 +891,7 @@ public final class RedstoneLinkConfig {
 		 * @return 基础配置默认值
 		 */
 		private static Values defaults() {
-			return new Values(4, EmitterEdgeMode.RISING, 15, 2, 1024, true, 2, true, true, true, false);
+			return new Values(4, EmitterEdgeMode.RISING, 15, 1024, true, 2, true, true, true, false);
 		}
 	}
 

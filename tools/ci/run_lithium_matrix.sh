@@ -44,7 +44,7 @@ if $run_client; then
   ./gradlew --no-daemon runClient
 
   echo "[LithiumMatrix] Smoke: with lithium -> runClient"
-  ./gradlew -PwithLithium=true -Dredstonelink.debug.lithium.mixin=true --no-daemon runClient
+  ./gradlew -PwithLithium=true --no-daemon runClient
 fi
 
 echo "[LithiumMatrix] All checks passed."

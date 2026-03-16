@@ -45,7 +45,8 @@ import org.joml.Vector3f;
  * 核心红石粉方块。
  * <p>
  * 基于原版 {@link RedStoneWireBlock} 扩展：
- * 顶面附着时尽量复用原版线网行为，侧面/底面附着时退化为仅输出不连线的定向节点。
+ * 所有附着面统一走“仅输出、不连线”的定向节点语义，
+ * 顶面仅保留附着与外形特性，不再保留独立计算分支。
  * </p>
  */
 public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements EntityBlock {
@@ -141,15 +142,6 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			level.removeBlock(pos, false);
 			return;
 		}
-
-		// 顶面：信号与形态计算完全走原版，再叠加核心触发态模拟输入。
-		if (!isNonTopAttached(state)) {
-			super.neighborChanged(state, level, pos, block, fromPos, movedByPiston);
-			syncTopPoweredVisual(level, pos);
-			return;
-		}
-
-		// 侧面/底面：保持既有语义，不参与红石线连接计算。
 		syncPowerWithActiveState(state, level, pos);
 	}
 
@@ -198,11 +190,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		BlockPos pos,
 		BlockPos neighborPos
 	) {
-		if (!isNonTopAttached(state)) {
-			return super.updateShape(state, direction, neighborState, level, pos, neighborPos);
-		}
-
-		// 侧面/底面附着时禁止连接态演算，避免任何连线或形状变化。
+		// 所有附着面统一不参与连接态演算，避免顶面和非顶面行为分叉。
 		if (!state.canSurvive(level, pos)) {
 			return Blocks.AIR.defaultBlockState();
 		}
@@ -225,20 +213,12 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
 		super.onPlace(state, level, pos, oldState, movedByPiston);
 		BlockState currentState = level.getBlockState(pos);
-		if (!isNonTopAttached(currentState)) {
-			// 顶面放置后保持原版结果，不额外强制写回。
-			syncTopPoweredVisual(level, pos);
-			return;
-		}
-
 		BlockState normalizedState = normalizeForSupportFace(currentState);
 		syncPowerWithActiveState(normalizedState, level, pos);
 	}
 
 	/**
 	 * 在核心触发态变化时刷新方块状态。
-	 * 顶面：先走原版重算，再并入模拟输入；
-	 * 侧面/底面：保持既有仅由 active 驱动的语义。
 	 */
 	public void onCoreActivationStateChanged(Level level, BlockPos pos) {
 		BlockState state = level.getBlockState(pos);
@@ -251,41 +231,25 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			level.removeBlock(pos, false);
 			return;
 		}
-
-		if (!isNonTopAttached(state)) {
-			super.neighborChanged(state, level, pos, this, pos, false);
-			syncTopPoweredVisual(level, pos);
-			return;
-		}
-
 		syncPowerWithActiveState(state, level, pos);
 	}
 
 	@Override
 	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		if (!isNonTopAttached(state)) {
-			return super.getSignal(state, level, pos, direction);
-		}
-		// C-1修正：非顶面附着时只向附着方向输出，激活对象即附着支撑方块。
+		// 所有附着面都只向附着反方向输出，确保路径一致。
 		return direction == state.getValue(SUPPORT_FACE).getOpposite() ? state.getValue(POWER) : 0;
 	}
 
 	@Override
 	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		if (!isNonTopAttached(state)) {
-			return super.getDirectSignal(state, level, pos, direction);
-		}
-		// 直接信号与弱信号保持一致，避免侧/底附着时出现方向不一致。
+		// 直接信号与弱信号保持一致，避免附着方向出现不一致。
 		return direction == state.getValue(SUPPORT_FACE).getOpposite() ? state.getValue(POWER) : 0;
 	}
 
 	@Override
 	protected boolean isSignalSource(BlockState state) {
-		if (isNonTopAttached(state)) {
-			// 让红石粉连接判定完全忽略侧面/底面附着核心粉。
-			return false;
-		}
-		return super.isSignalSource(state);
+		// 统一关闭“红石线同类连接”信号源判定，避免顶面路径再次特殊化。
+		return false;
 	}
 
 	@Override
@@ -310,8 +274,6 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	@Override
 	protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
 		if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
-			// 顶面 ACTIVE 客户端同步（F3 观测态）按节流窗口落地。
-			coreBlockEntity.flushTopActiveClientSyncIfDue();
 			// 脉冲模式到点回落由方块 tick 驱动。
 			coreBlockEntity.onPulseTick();
 		}
@@ -365,38 +327,8 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		return level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity && coreBlockEntity.isActive();
 	}
 
-	/**
-	 * 供原版红石粉计算注入点调用：仅顶面核心红石粉返回模拟输入功率。
-	 */
-	public static int getTopSimulatedInputPower(BlockGetter level, BlockPos pos, BlockState state) {
-		if (!isTopAttachedCoreDust(state)) {
-			return 0;
-		}
-		return isCoreActive(level, pos) ? RedstoneLinkConfig.coreOutputPower() : 0;
-	}
-
-	/**
-	 * 供原版 wire 连接判定调用：仅顶面核心红石粉可按“红石线同类”参与连接。
-	 */
-	public static boolean isTopAttachedCoreDust(BlockState state) {
-		return state.getBlock() instanceof LinkRedstoneDustCoreBlock && !isNonTopAttached(state);
-	}
-
-	/**
-	 * 供原版 wire 网络传播调用：顶面核心红石粉按当前 POWER 返回线网功率。
-	 */
-	public static int getTopAttachedWireSignal(BlockState state) {
-		if (!isTopAttachedCoreDust(state)) {
-			return 0;
-		}
-		return state.getValue(POWER);
-	}
-
 	private static BlockState normalizeForSupportFace(BlockState state) {
-		if (!isNonTopAttached(state)) {
-			return state;
-		}
-		// C-1：侧面和底面附着不参与与其他红石粉连接交互，四向连接全部固定为 none。
+		// 所有附着面均不参与与其他红石粉连接交互，四向连接固定为 none。
 		return state
 			.setValue(NORTH, RedstoneSide.NONE)
 			.setValue(EAST, RedstoneSide.NONE)
@@ -404,32 +336,6 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			.setValue(WEST, RedstoneSide.NONE);
 	}
 
-	private static boolean isNonTopAttached(BlockState state) {
-		return state.getValue(SUPPORT_FACE) != Direction.DOWN;
-	}
-
-	/**
-	 * 顶面材质由 blockstate 的 POWER 条件驱动。
-	 * 这里不再写回任何状态，避免由 setBlock 引入形态/邻居级联。
-	 */
-	private static void syncTopPoweredVisual(Level level, BlockPos pos) {
-		BlockState state = level.getBlockState(pos);
-		if (!(state.getBlock() instanceof LinkRedstoneDustCoreBlock) || isNonTopAttached(state)) {
-			return;
-		}
-		boolean targetActive = isCoreActive(level, pos);
-		if (!(level instanceof ServerLevel serverLevel)) {
-			return;
-		}
-		if (serverLevel.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
-			coreBlockEntity.requestTopActiveClientSync(targetActive);
-			return;
-		}
-		// 方块实体异常缺失时兜底直写，避免观测态永久漂移。
-		if (state.getValue(ACTIVE) != targetActive) {
-			serverLevel.setBlock(pos, state.setValue(ACTIVE, targetActive), Block.UPDATE_CLIENTS);
-		}
-	}
 
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
 		boolean targetActive = isCoreActive(level, pos);
@@ -437,21 +343,17 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		BlockState normalizedState = normalizeForSupportFace(state);
 		BlockState targetState = normalizedState.setValue(POWER, targetPower).setValue(ACTIVE, targetActive);
 		BlockState currentState = level.getBlockState(pos);
-		if (!targetState.equals(currentState)) {
-			if (isNonTopAttached(targetState)) {
-				// 侧/底附着只做局部状态更新并手动通知附着目标邻居。
-				level.setBlock(pos, targetState, Block.UPDATE_ALL);
-				notifyAttachedNeighbor(level, pos, targetState);
-				return;
-			}
+		if (!targetState.equals(currentState)) {		
+			// 做局部状态更新并手动通知附着目标邻居。
 			level.setBlock(pos, targetState, Block.UPDATE_ALL);
+			notifyAttachedNeighbor(level, pos, targetState);
+			return;
+				
 		}
 	}
 
 	private static void notifyAttachedNeighbor(Level level, BlockPos pos, BlockState state) {
-		if (!isNonTopAttached(state)) {
-			return;
-		}
+		// 顶面与非顶面统一执行“附着块+附着块周边”通知，保证隔块链路一致。
 		Direction supportDirection = state.getValue(SUPPORT_FACE);
 		BlockPos attachedPos = pos.relative(supportDirection);
 		Block block = state.getBlock();

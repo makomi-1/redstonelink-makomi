@@ -2,7 +2,6 @@ package com.makomi.compat;
 
 import com.makomi.RedstoneLink;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.compat.LithiumHitCounter.LithiumHitStats;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +18,7 @@ import org.slf4j.LoggerFactory;
  * <p>
  * 目标：
  * 1. 在启动期尽早识别“关键动态方法缺失”；
- * 2. 在命令诊断中输出命中统计与异常码，降低静默失效定位成本。
+ * 2. 在命令诊断中输出签名校验异常码，降低静默失效定位成本。
  * </p>
  */
 public final class LithiumCompatHealth {
@@ -27,15 +26,6 @@ public final class LithiumCompatHealth {
 	 * 动态方法缺失（高风险，可能导致 require=0 静默跳过）。
 	 */
 	public static final String CODE_DYNAMIC_METHOD_MISSING = "RL-LI-001";
-	/**
-	 * 动态路径命中总数为 0（可能未触发，也可能注入未生效）。
-	 */
-	public static final String CODE_DYNAMIC_HIT_ZERO = "RL-LI-002";
-	/**
-	 * 动态路径出现“部分命中为 0”的不均衡状态（可能存在行为漂移）。
-	 */
-	public static final String CODE_DYNAMIC_HIT_PARTIAL = "RL-LI-003";
-
 	private static final Logger LOGGER = LoggerFactory.getLogger(RedstoneLink.MOD_ID + "/lithium-health");
 	private static final List<MethodSignatureCheck> REQUIRED_DYNAMIC_SIGNATURES = List.of(
 		new MethodSignatureCheck("getReceivedPower(Level, BlockPos) -> int", int.class, Level.class, BlockPos.class),
@@ -88,15 +78,12 @@ public final class LithiumCompatHealth {
 		boolean lithiumLoaded = FabricLoader.getInstance().isModLoaded("lithium");
 		boolean strictMode = RedstoneLinkConfig.lithiumStrictMode();
 		List<String> missingDynamicSignatures = lithiumLoaded ? findMissingDynamicSignatures() : List.of();
-		LithiumHitStats hitStats = LithiumHitCounter.snapshot();
-
-		String anomalyCode = resolveAnomalyCode(lithiumLoaded, missingDynamicSignatures, hitStats);
+		String anomalyCode = resolveAnomalyCode(lithiumLoaded, missingDynamicSignatures);
 		String anomalyMessage = resolveAnomalyMessage(anomalyCode);
 		return new LithiumDiagSnapshot(
 			lithiumLoaded,
 			strictMode,
 			missingDynamicSignatures,
-			hitStats,
 			anomalyCode,
 			anomalyMessage
 		);
@@ -130,22 +117,14 @@ public final class LithiumCompatHealth {
 	/**
 	 * 推导当前异常码。
 	 */
-	private static String resolveAnomalyCode(boolean lithiumLoaded, List<String> missingDynamicSignatures, LithiumHitStats hitStats) {
+	private static String resolveAnomalyCode(boolean lithiumLoaded, List<String> missingDynamicSignatures) {
 		if (!lithiumLoaded) {
 			return null;
 		}
 		if (!missingDynamicSignatures.isEmpty()) {
 			return CODE_DYNAMIC_METHOD_MISSING;
 		}
-		if (hitStats.totalHits() == 0) {
-			return CODE_DYNAMIC_HIT_ZERO;
-		}
-
-		boolean partialZero = hitStats.receivedPowerIsHits() == 0
-			|| hitStats.powerFromSideIsHits() == 0
-			|| hitStats.powerFromSideValueHits() == 0
-			|| hitStats.strongPowerToIsHits() == 0;
-		return partialZero ? CODE_DYNAMIC_HIT_PARTIAL : null;
+		return null;
 	}
 
 	/**
@@ -158,10 +137,6 @@ public final class LithiumCompatHealth {
 		return switch (anomalyCode) {
 			case CODE_DYNAMIC_METHOD_MISSING ->
 				"关键动态方法缺失，可能因签名变化导致注入静默失效。";
-			case CODE_DYNAMIC_HIT_ZERO ->
-				"关键动态路径命中为 0；若已进行红石触发测试仍为 0，需排查注入是否生效。";
-			case CODE_DYNAMIC_HIT_PARTIAL ->
-				"关键动态路径命中不均衡，可能存在优先级冲突或行为漂移。";
 			default -> "未知兼容异常。";
 		};
 	}
@@ -173,7 +148,6 @@ public final class LithiumCompatHealth {
 		boolean lithiumLoaded,
 		boolean strictMode,
 		List<String> missingDynamicSignatures,
-		LithiumHitStats hitStats,
 		String anomalyCode,
 		String anomalyMessage
 	) {
@@ -187,17 +161,7 @@ public final class LithiumCompatHealth {
 				+ strictMode
 				+ ", missingDynamicSignatures="
 				+ missingDynamicSignatures
-				+ ", hits={receivedPowerIs="
-				+ hitStats.receivedPowerIsHits()
-				+ ", powerFromSideIs="
-				+ hitStats.powerFromSideIsHits()
-				+ ", powerFromSideValue="
-				+ hitStats.powerFromSideValueHits()
-				+ ", strongPowerToIs="
-				+ hitStats.strongPowerToIsHits()
-				+ ", total="
-				+ hitStats.totalHits()
-				+ "}, anomalyCode="
+				+ ", anomalyCode="
 				+ (anomalyCode == null ? "-" : anomalyCode);
 		}
 	}

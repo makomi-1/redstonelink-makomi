@@ -3,6 +3,7 @@ package com.makomi.block;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -66,5 +67,21 @@ class LinkRedstoneDustCoreStateContractTest {
 			Pattern.MULTILINE
 		);
 		assertTrue(pattern.matcher(source).find());
+	}
+
+	/**
+	 * 附着块通知链路应覆盖顶面与非顶面，避免出现“隔着方块不生效”。
+	 */
+	@Test
+	void dustCoreNotifyAttachedNeighborShouldNotEarlyReturnForTopFace() throws Exception {
+		String source = Files.readString(
+			Path.of("src/main/java/com/makomi/block/LinkRedstoneDustCoreBlock.java"),
+			StandardCharsets.UTF_8
+		);
+		Pattern earlyReturnPattern = Pattern.compile(
+			"notifyAttachedNeighbor\\s*\\([^)]*\\)\\s*\\{\\s*if\\s*\\(!isNonTopAttached\\(state\\)\\)\\s*\\{\\s*return;",
+			Pattern.MULTILINE | Pattern.DOTALL
+		);
+		assertFalse(earlyReturnPattern.matcher(source).find());
 	}
 }

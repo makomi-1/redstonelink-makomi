@@ -36,7 +36,7 @@ try {
 		Invoke-Gradle -GradleArgs @("--no-daemon", "runClient")
 
 		Write-Host "[LithiumMatrix] Smoke: with lithium -> runClient"
-		Invoke-Gradle -GradleArgs @("-PwithLithium=true", "-Dredstonelink.debug.lithium.mixin=true", "--no-daemon", "runClient")
+		Invoke-Gradle -GradleArgs @("-PwithLithium=true", "--no-daemon", "runClient")
 	}
 
 	Write-Host "[LithiumMatrix] All checks passed."
