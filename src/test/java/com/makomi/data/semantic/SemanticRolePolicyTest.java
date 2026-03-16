@@ -17,13 +17,13 @@ import org.junit.jupiter.api.Test;
 @Tag("stable-core")
 class SemanticRolePolicyTest {
 	/**
-	 * 常见别名应可解析为稳定类型。
+	 * 类型解析应仅接受 canonical 词表。
 	 */
 	@Test
-	void aliasResolverShouldResolveKnownTypeAliases() {
-		assertEquals(Optional.of(LinkNodeType.BUTTON), SemanticTypeAliasResolver.tryResolve("triggersource"));
-		assertEquals(Optional.of(LinkNodeType.BUTTON), SemanticTypeAliasResolver.tryResolve("trigger_source"));
-		assertEquals(Optional.of(LinkNodeType.BUTTON), SemanticTypeAliasResolver.tryResolve("button"));
+	void typeResolverShouldOnlyAcceptCanonicalTokens() {
+		assertEquals(Optional.of(LinkNodeType.TRIGGER_SOURCE), SemanticTypeAliasResolver.tryResolve("triggersource"));
+		assertEquals(Optional.empty(), SemanticTypeAliasResolver.tryResolve("trigger_source"));
+		assertEquals(Optional.empty(), SemanticTypeAliasResolver.tryResolve("button"));
 		assertEquals(Optional.of(LinkNodeType.CORE), SemanticTypeAliasResolver.tryResolve("core"));
 		assertEquals(Optional.empty(), SemanticTypeAliasResolver.tryResolve("unknown_type"));
 	}
@@ -33,8 +33,8 @@ class SemanticRolePolicyTest {
 	 */
 	@Test
 	void canonicalTypeResolverShouldOnlyAcceptCanonicalTokens() {
-		assertEquals(Optional.of(LinkNodeType.BUTTON), LinkNodeSemantics.tryParseCanonicalType("triggerSource"));
-		assertEquals(Optional.of(LinkNodeType.BUTTON), LinkNodeSemantics.tryParseCanonicalType("TRIGGERSOURCE"));
+		assertEquals(Optional.of(LinkNodeType.TRIGGER_SOURCE), LinkNodeSemantics.tryParseCanonicalType("triggerSource"));
+		assertEquals(Optional.of(LinkNodeType.TRIGGER_SOURCE), LinkNodeSemantics.tryParseCanonicalType("TRIGGERSOURCE"));
 		assertEquals(Optional.of(LinkNodeType.CORE), LinkNodeSemantics.tryParseCanonicalType("core"));
 		assertEquals(Optional.of(LinkNodeType.CORE), LinkNodeSemantics.tryParseCanonicalType("CORE"));
 		assertEquals(Optional.empty(), LinkNodeSemantics.tryParseCanonicalType("button"));
@@ -47,21 +47,21 @@ class SemanticRolePolicyTest {
 	 */
 	@Test
 	void commandTokenShouldMatchSemanticNames() {
-		assertEquals("triggersource", LinkNodeSemantics.toCommandToken(LinkNodeType.BUTTON));
+		assertEquals("triggersource", LinkNodeSemantics.toCommandToken(LinkNodeType.TRIGGER_SOURCE));
 		assertEquals("core", LinkNodeSemantics.toCommandToken(LinkNodeType.CORE));
 		assertEquals("unknown", LinkNodeSemantics.toCommandToken(null));
 	}
 
 	/**
-	 * 角色语义隔离应保持 SOURCE=BUTTON、TARGET=CORE。
+	 * 角色语义隔离应保持 SOURCE=TRIGGER_SOURCE、TARGET=CORE。
 	 */
 	@Test
 	void rolePolicyShouldEnforceSemanticIsolation() {
 		SemanticRolePolicy.resetDefaultRoleRules();
-		assertTrue(SemanticRolePolicy.isAllowedForRole(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(SemanticRolePolicy.isAllowedForRole(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.SOURCE));
 		assertFalse(SemanticRolePolicy.isAllowedForRole(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE));
 		assertTrue(SemanticRolePolicy.isAllowedForRole(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET));
-		assertFalse(SemanticRolePolicy.isAllowedForRole(LinkNodeType.BUTTON, LinkNodeSemantics.Role.TARGET));
+		assertFalse(SemanticRolePolicy.isAllowedForRole(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.TARGET));
 	}
 
 	/**
@@ -75,10 +75,10 @@ class SemanticRolePolicyTest {
 			candidateType -> candidateType == LinkNodeType.CORE
 		);
 		assertTrue(SemanticRolePolicy.isAllowedForRole(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(SemanticRolePolicy.isAllowedForRole(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(SemanticRolePolicy.isAllowedForRole(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.SOURCE));
 
 		SemanticRolePolicy.resetDefaultRoleRules();
-		assertTrue(SemanticRolePolicy.isAllowedForRole(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(SemanticRolePolicy.isAllowedForRole(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.SOURCE));
 		assertFalse(SemanticRolePolicy.isAllowedForRole(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE));
 	}
 
@@ -89,12 +89,12 @@ class SemanticRolePolicyTest {
 	void resolveTypeShouldValidateTypeRoleAndAllowedSet() {
 		SemanticRolePolicy.resetDefaultRoleRules();
 		SemanticResult<LinkNodeType> success = SemanticRolePolicy.resolveType(
-			"button",
+			"triggerSource",
 			LinkNodeSemantics.Role.SOURCE,
-			Set.of(LinkNodeType.BUTTON)
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
 		);
 		assertTrue(success.isSuccess());
-		assertEquals(LinkNodeType.BUTTON, success.value());
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, success.value());
 		assertEquals(SemanticError.NONE, success.error());
 
 		SemanticResult<LinkNodeType> roleNotAllowed = SemanticRolePolicy.resolveType(
@@ -106,7 +106,7 @@ class SemanticRolePolicyTest {
 		assertEquals(SemanticError.ROLE_NOT_ALLOWED, roleNotAllowed.error());
 
 		SemanticResult<LinkNodeType> configNotAllowed = SemanticRolePolicy.resolveType(
-			"button",
+			"triggerSource",
 			LinkNodeSemantics.Role.SOURCE,
 			Set.of(LinkNodeType.CORE)
 		);
@@ -116,7 +116,7 @@ class SemanticRolePolicyTest {
 		SemanticResult<LinkNodeType> invalidType = SemanticRolePolicy.resolveType(
 			"not_exists",
 			LinkNodeSemantics.Role.SOURCE,
-			Set.of(LinkNodeType.BUTTON)
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
 		);
 		assertFalse(invalidType.isSuccess());
 		assertEquals(SemanticError.INVALID_TYPE, invalidType.error());
@@ -131,10 +131,10 @@ class SemanticRolePolicyTest {
 		SemanticResult<LinkNodeType> success = SemanticRolePolicy.resolveCanonicalType(
 			"TRIGGERSOURCE",
 			LinkNodeSemantics.Role.SOURCE,
-			Set.of(LinkNodeType.BUTTON)
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
 		);
 		assertTrue(success.isSuccess());
-		assertEquals(LinkNodeType.BUTTON, success.value());
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, success.value());
 		assertEquals(SemanticError.NONE, success.error());
 
 		SemanticResult<LinkNodeType> roleNotAllowed = SemanticRolePolicy.resolveCanonicalType(
@@ -156,7 +156,7 @@ class SemanticRolePolicyTest {
 		SemanticResult<LinkNodeType> invalidAliasType = SemanticRolePolicy.resolveCanonicalType(
 			"button",
 			LinkNodeSemantics.Role.SOURCE,
-			Set.of(LinkNodeType.BUTTON)
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
 		);
 		assertFalse(invalidAliasType.isSuccess());
 		assertEquals(SemanticError.INVALID_TYPE, invalidAliasType.error());
@@ -169,14 +169,14 @@ class SemanticRolePolicyTest {
 	void namingAliasApisShouldKeepBehaviorEquivalent() {
 		SemanticRolePolicy.resetDefaultRoleRules();
 		SemanticResult<LinkNodeType> legacyCompatible = LinkNodeSemantics.resolveTypeForRole(
-			"button",
+			"triggerSource",
 			LinkNodeSemantics.Role.SOURCE,
-			Set.of(LinkNodeType.BUTTON)
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
 		);
 		SemanticResult<LinkNodeType> newCompatible = LinkNodeSemantics.resolveCompatibleTypeForRole(
-			"button",
+			"triggerSource",
 			LinkNodeSemantics.Role.SOURCE,
-			Set.of(LinkNodeType.BUTTON)
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
 		);
 		assertEquals(legacyCompatible.isSuccess(), newCompatible.isSuccess());
 		assertEquals(legacyCompatible.error(), newCompatible.error());
@@ -185,15 +185,29 @@ class SemanticRolePolicyTest {
 		SemanticResult<LinkNodeType> legacyStrict = LinkNodeSemantics.resolveCanonicalTypeForRole(
 			"TRIGGERSOURCE",
 			LinkNodeSemantics.Role.SOURCE,
-			Set.of(LinkNodeType.BUTTON)
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
 		);
 		SemanticResult<LinkNodeType> newStrict = LinkNodeSemantics.resolveStrictTypeForRole(
 			"TRIGGERSOURCE",
 			LinkNodeSemantics.Role.SOURCE,
-			Set.of(LinkNodeType.BUTTON)
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
 		);
 		assertEquals(legacyStrict.isSuccess(), newStrict.isSuccess());
 		assertEquals(legacyStrict.error(), newStrict.error());
 		assertEquals(legacyStrict.value(), newStrict.value());
+
+		SemanticResult<LinkNodeType> legacyInvalid = LinkNodeSemantics.resolveTypeForRole(
+			"button",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
+		);
+		SemanticResult<LinkNodeType> newInvalid = LinkNodeSemantics.resolveCompatibleTypeForRole(
+			"button",
+			LinkNodeSemantics.Role.SOURCE,
+			Set.of(LinkNodeType.TRIGGER_SOURCE)
+		);
+		assertFalse(legacyInvalid.isSuccess());
+		assertFalse(newInvalid.isSuccess());
+		assertEquals(legacyInvalid.error(), newInvalid.error());
 	}
 }

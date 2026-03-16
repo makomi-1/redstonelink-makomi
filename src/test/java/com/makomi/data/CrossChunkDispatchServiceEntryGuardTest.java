@@ -19,7 +19,7 @@ class CrossChunkDispatchServiceEntryGuardTest {
 		CrossChunkDispatchService.QueueResult result = CrossChunkDispatchService.queueActivation(
 			null,
 			null,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			null
 		);
@@ -61,7 +61,7 @@ class CrossChunkDispatchServiceEntryGuardTest {
 		CrossChunkDispatchService.QueueResult missingTargetNode = CrossChunkDispatchService.queueSyncSignal(
 			null,
 			null,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			true
 		);

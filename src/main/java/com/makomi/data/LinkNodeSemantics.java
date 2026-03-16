@@ -18,7 +18,7 @@ public final class LinkNodeSemantics {
 	 */
 	public enum Role {
 		/**
-		 * 来源（triggerSource -> BUTTON）。
+		 * 来源（triggerSource -> TRIGGER_SOURCE）。
 		 */
 		SOURCE,
 		/**
@@ -32,6 +32,9 @@ public final class LinkNodeSemantics {
 
 	/**
 	 * 解析配置或命令中的节点类型文本。
+	 * <p>
+	 * 仅接受 triggerSource/core（大小写不敏感）。
+	 * </p>
 	 *
 	 * @param rawType 原始类型文本
 	 * @return 解析结果，无法识别时返回空
@@ -102,7 +105,7 @@ public final class LinkNodeSemantics {
 			return "unknown";
 		}
 		return switch (type) {
-			case BUTTON -> "triggersource";
+			case TRIGGER_SOURCE -> "triggersource";
 			case CORE -> "core";
 		};
 	}
@@ -140,7 +143,10 @@ public final class LinkNodeSemantics {
 	}
 
 	/**
-	 * 按兼容词表（含历史别名）解析并校验是否满足角色与可选配置允许集。
+	 * 按 canonical 词表解析并校验是否满足角色与可选配置允许集。
+	 * <p>
+	 * 该入口名保留为兼容命名，但行为与 strict 入口一致。
+	 * </p>
 	 *
 	 * @param rawType 原始类型文本
 	 * @param role 角色方向

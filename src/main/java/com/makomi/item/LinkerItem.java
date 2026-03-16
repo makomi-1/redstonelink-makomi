@@ -54,7 +54,7 @@ public class LinkerItem extends Item implements PairableItem {
 	 */
 	@Override
 	public LinkNodeType getNodeType() {
-		return LinkNodeType.BUTTON;
+		return LinkNodeType.TRIGGER_SOURCE;
 	}
 
 	/**
@@ -199,7 +199,7 @@ public class LinkerItem extends Item implements PairableItem {
 	 */
 	private static void ensureSerial(Level level, ItemStack stack) {
 		if (level instanceof ServerLevel serverLevel) {
-			LinkItemData.ensureSerial(stack, serverLevel, LinkNodeType.BUTTON);
+			LinkItemData.ensureSerial(stack, serverLevel, LinkNodeType.TRIGGER_SOURCE);
 		}
 	}
 
@@ -235,11 +235,11 @@ public class LinkerItem extends Item implements PairableItem {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(serverLevel);
-		if (!savedData.isSerialAllocated(LinkNodeType.BUTTON, serial)) {
+		if (!savedData.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, serial)) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.source_serial_unallocated", serial));
 			return;
 		}
-		if (savedData.isSerialRetired(LinkNodeType.BUTTON, serial)) {
+		if (savedData.isSerialRetired(LinkNodeType.TRIGGER_SOURCE, serial)) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.source_serial_retired", serial));
 			return;
 		}
@@ -254,7 +254,7 @@ public class LinkerItem extends Item implements PairableItem {
 
 		LinkedTargetDispatchService.DispatchSummary dispatchSummary = LinkedTargetDispatchService.dispatchActivation(
 			serverLevel,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			serial,
 			LinkNodeType.CORE,
 			linkedTargets,

@@ -60,7 +60,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, (payload, context) -> {
 			// 网络线程切回客户端主线程后再操作 Screen。
 			context.client().execute(() -> {
-				openPairingScreenBySourceType(LinkNodeType.BUTTON, payload.sourceSerial(), payload.targets());
+				openPairingScreenBySourceType(LinkNodeType.TRIGGER_SOURCE, payload.sourceSerial(), payload.targets());
 			});
 		});
 
@@ -75,7 +75,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	/**
 	 * 按来源类型打开配对界面。
 	 * <p>
-	 * triggerSource/core 语义映射保持不变：BUTTON 对应 triggerSource，CORE 对应 core。
+	 * triggerSource/core 语义映射保持不变：TRIGGER_SOURCE 对应 triggerSource，CORE 对应 core。
 	 * </p>
 	 *
 	 * @param sourceType 来源类型

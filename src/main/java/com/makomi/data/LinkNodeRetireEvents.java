@@ -492,7 +492,7 @@ public final class LinkNodeRetireEvents {
 	 */
 	private static LinkNodeType resolveNodeType(PairableNodeBlockEntity blockEntity) {
 		if (blockEntity instanceof TriggerSourceBlockEntity) {
-			return LinkNodeType.BUTTON;
+			return LinkNodeType.TRIGGER_SOURCE;
 		}
 		return LinkNodeType.CORE;
 	}

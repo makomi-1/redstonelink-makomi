@@ -40,7 +40,7 @@ class CrossChunkDispatchServiceTest {
 		CrossChunkDispatchService.QueueResult result = CrossChunkDispatchService.queueActivation(
 			null,
 			null,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			null
 		);
@@ -78,7 +78,7 @@ class CrossChunkDispatchServiceTest {
 			null,
 			null,
 			targetCore,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			activationKind,
 			ActivationMode.TOGGLE,
@@ -91,7 +91,7 @@ class CrossChunkDispatchServiceTest {
 			null,
 			null,
 			targetCore,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			0L,
 			activationKind,
 			ActivationMode.TOGGLE,
@@ -139,7 +139,7 @@ class CrossChunkDispatchServiceTest {
 		Class<?> sourceKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$SourceKey");
 		Constructor<?> sourceKeyConstructor = sourceKeyClass.getDeclaredConstructor(LinkNodeType.class, long.class);
 		sourceKeyConstructor.setAccessible(true);
-		bySource.put(sourceKeyConstructor.newInstance(LinkNodeType.BUTTON, 1L), 1);
+		bySource.put(sourceKeyConstructor.newInstance(LinkNodeType.TRIGGER_SOURCE, 1L), 1);
 		windowTickField.setLong(state, 200L);
 		countField.setInt(state, 5);
 
@@ -200,7 +200,7 @@ class CrossChunkDispatchServiceTest {
 		);
 		dispatchKeyConstructor.setAccessible(true);
 		Object dispatchKey = dispatchKeyConstructor.newInstance(
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			5L,
 			LinkNodeType.CORE,
 			9L,
@@ -254,7 +254,7 @@ class CrossChunkDispatchServiceTest {
 	@SuppressWarnings("unchecked")
 	void appendDesiredResidentTicketsShouldBuildTicketBySemanticRole() throws Exception {
 		LinkSavedData linkSavedData = new LinkSavedData();
-		linkSavedData.registerNode(101L, Level.OVERWORLD, new BlockPos(33, 64, 49), LinkNodeType.BUTTON);
+		linkSavedData.registerNode(101L, Level.OVERWORLD, new BlockPos(33, 64, 49), LinkNodeType.TRIGGER_SOURCE);
 
 		Class<?> residentTicketKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$ResidentTicketKey");
 		Class<?> residentChunkKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$ResidentChunkKey");
@@ -271,14 +271,14 @@ class CrossChunkDispatchServiceTest {
 		appendDesiredResidentTickets.invoke(
 			null,
 			desired,
-			Map.of(LinkNodeType.BUTTON, Set.of(101L)),
+			Map.of(LinkNodeType.TRIGGER_SOURCE, Set.of(101L)),
 			LinkNodeSemantics.Role.SOURCE,
 			linkSavedData
 		);
 		assertEquals(1, desired.size());
 		Map.Entry<Object, Object> entry = desired.entrySet().iterator().next();
 		assertEquals(LinkNodeSemantics.Role.SOURCE, residentTicketKeyClass.getDeclaredMethod("role").invoke(entry.getKey()));
-		assertEquals(LinkNodeType.BUTTON, residentTicketKeyClass.getDeclaredMethod("type").invoke(entry.getKey()));
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, residentTicketKeyClass.getDeclaredMethod("type").invoke(entry.getKey()));
 		assertEquals(101L, residentTicketKeyClass.getDeclaredMethod("serial").invoke(entry.getKey()));
 		assertEquals(Level.OVERWORLD, residentChunkKeyClass.getDeclaredMethod("dimension").invoke(entry.getValue()));
 		assertEquals(2, residentChunkKeyClass.getDeclaredMethod("chunkX").invoke(entry.getValue()));
@@ -288,7 +288,7 @@ class CrossChunkDispatchServiceTest {
 		appendDesiredResidentTickets.invoke(
 			null,
 			roleFiltered,
-			Map.of(LinkNodeType.BUTTON, Set.of(101L)),
+			Map.of(LinkNodeType.TRIGGER_SOURCE, Set.of(101L)),
 			LinkNodeSemantics.Role.TARGET,
 			linkSavedData
 		);
@@ -309,11 +309,11 @@ class CrossChunkDispatchServiceTest {
 		residentTicketKeyConstructor.setAccessible(true);
 		Object ticketKey = residentTicketKeyConstructor.newInstance(
 			LinkNodeSemantics.Role.SOURCE,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			101L
 		);
 		assertEquals(LinkNodeSemantics.Role.SOURCE, residentTicketKeyClass.getDeclaredMethod("role").invoke(ticketKey));
-		assertEquals(LinkNodeType.BUTTON, residentTicketKeyClass.getDeclaredMethod("type").invoke(ticketKey));
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, residentTicketKeyClass.getDeclaredMethod("type").invoke(ticketKey));
 		assertEquals(101L, residentTicketKeyClass.getDeclaredMethod("serial").invoke(ticketKey));
 
 		Class<?> residentChunkKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$ResidentChunkKey");

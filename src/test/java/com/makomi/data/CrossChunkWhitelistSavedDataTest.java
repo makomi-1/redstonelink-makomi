@@ -32,30 +32,30 @@ class CrossChunkWhitelistSavedDataTest {
 		CrossChunkWhitelistSavedData data = new CrossChunkWhitelistSavedData();
 
 		assertFalse(data.add(null, 1L, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(data.add(LinkNodeType.BUTTON, 0L, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(data.add(LinkNodeType.BUTTON, 1L, null));
-		assertTrue(data.add(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(data.add(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
-		assertTrue(data.add(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE, true));
-		assertTrue(data.isResident(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
-		assertTrue(data.add(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE, false));
-		assertFalse(data.isResident(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.add(LinkNodeType.TRIGGER_SOURCE, 0L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.add(LinkNodeType.TRIGGER_SOURCE, 1L, null));
+		assertTrue(data.add(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.add(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(data.add(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE, true));
+		assertTrue(data.isResident(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(data.add(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE, false));
+		assertFalse(data.isResident(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE));
 
-		assertTrue(data.contains(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(data.contains(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.TARGET));
-		assertFalse(data.contains(LinkNodeType.BUTTON, -1L, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(data.contains(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.contains(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.TARGET));
+		assertFalse(data.contains(LinkNodeType.TRIGGER_SOURCE, -1L, LinkNodeSemantics.Role.SOURCE));
 
-		Set<Long> sourceSerials = data.list(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE);
+		Set<Long> sourceSerials = data.list(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.SOURCE);
 		assertEquals(Set.of(11L), sourceSerials);
 		assertThrows(UnsupportedOperationException.class, () -> sourceSerials.add(12L));
 		assertTrue(data.list(null, LinkNodeSemantics.Role.SOURCE).isEmpty());
-		assertTrue(data.list(LinkNodeType.BUTTON, null).isEmpty());
+		assertTrue(data.list(LinkNodeType.TRIGGER_SOURCE, null).isEmpty());
 
-		assertFalse(data.remove(LinkNodeType.BUTTON, 99L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.remove(LinkNodeType.TRIGGER_SOURCE, 99L, LinkNodeSemantics.Role.SOURCE));
 		assertFalse(data.remove(null, 11L, LinkNodeSemantics.Role.SOURCE));
-		assertTrue(data.remove(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(data.contains(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(data.isResident(LinkNodeType.BUTTON, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(data.remove(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.contains(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.isResident(LinkNodeType.TRIGGER_SOURCE, 11L, LinkNodeSemantics.Role.SOURCE));
 
 		assertTrue(data.add(LinkNodeType.CORE, 21L, LinkNodeSemantics.Role.TARGET, true));
 		assertTrue(data.add(LinkNodeType.CORE, 22L, LinkNodeSemantics.Role.TARGET));
@@ -73,19 +73,19 @@ class CrossChunkWhitelistSavedDataTest {
 	@Test
 	void removeFromAllRolesShouldClearWhitelistAndResidentTogether() {
 		CrossChunkWhitelistSavedData data = new CrossChunkWhitelistSavedData();
-		assertTrue(data.add(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.SOURCE, true));
-		assertTrue(data.add(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.TARGET, true));
+		assertTrue(data.add(LinkNodeType.TRIGGER_SOURCE, 31L, LinkNodeSemantics.Role.SOURCE, true));
+		assertTrue(data.add(LinkNodeType.TRIGGER_SOURCE, 31L, LinkNodeSemantics.Role.TARGET, true));
 		assertTrue(data.add(LinkNodeType.CORE, 41L, LinkNodeSemantics.Role.TARGET, true));
 
 		assertFalse(data.removeFromAllRoles(null, 31L));
-		assertFalse(data.removeFromAllRoles(LinkNodeType.BUTTON, 0L));
-		assertTrue(data.removeFromAllRoles(LinkNodeType.BUTTON, 31L));
-		assertFalse(data.removeFromAllRoles(LinkNodeType.BUTTON, 31L));
+		assertFalse(data.removeFromAllRoles(LinkNodeType.TRIGGER_SOURCE, 0L));
+		assertTrue(data.removeFromAllRoles(LinkNodeType.TRIGGER_SOURCE, 31L));
+		assertFalse(data.removeFromAllRoles(LinkNodeType.TRIGGER_SOURCE, 31L));
 
-		assertFalse(data.contains(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(data.contains(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.TARGET));
-		assertFalse(data.isResident(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(data.isResident(LinkNodeType.BUTTON, 31L, LinkNodeSemantics.Role.TARGET));
+		assertFalse(data.contains(LinkNodeType.TRIGGER_SOURCE, 31L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.contains(LinkNodeType.TRIGGER_SOURCE, 31L, LinkNodeSemantics.Role.TARGET));
+		assertFalse(data.isResident(LinkNodeType.TRIGGER_SOURCE, 31L, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(data.isResident(LinkNodeType.TRIGGER_SOURCE, 31L, LinkNodeSemantics.Role.TARGET));
 		assertTrue(data.contains(LinkNodeType.CORE, 41L, LinkNodeSemantics.Role.TARGET));
 		assertTrue(data.isResident(LinkNodeType.CORE, 41L, LinkNodeSemantics.Role.TARGET));
 	}
@@ -96,16 +96,16 @@ class CrossChunkWhitelistSavedDataTest {
 	@Test
 	void saveShouldWriteCanonicalTypeAndFilterInvalidSerials() throws Exception {
 		CrossChunkWhitelistSavedData data = new CrossChunkWhitelistSavedData();
-		assertTrue(data.add(LinkNodeType.BUTTON, 9L, LinkNodeSemantics.Role.SOURCE, true));
+		assertTrue(data.add(LinkNodeType.TRIGGER_SOURCE, 9L, LinkNodeSemantics.Role.SOURCE, true));
 		assertTrue(data.add(LinkNodeType.CORE, 7L, LinkNodeSemantics.Role.TARGET));
 
 		Map<LinkNodeType, Set<Long>> sourceBucket = readBucketMap(data, "sourceWhitelist");
 		Map<LinkNodeType, Set<Long>> sourceResidents = readBucketMap(data, "sourceResidents");
 		sourceBucket.put(LinkNodeType.CORE, new HashSet<>());
-		sourceBucket.get(LinkNodeType.BUTTON).add(null);
-		sourceBucket.get(LinkNodeType.BUTTON).add(-3L);
-		sourceResidents.get(LinkNodeType.BUTTON).add(null);
-		sourceResidents.get(LinkNodeType.BUTTON).add(-3L);
+		sourceBucket.get(LinkNodeType.TRIGGER_SOURCE).add(null);
+		sourceBucket.get(LinkNodeType.TRIGGER_SOURCE).add(-3L);
+		sourceResidents.get(LinkNodeType.TRIGGER_SOURCE).add(null);
+		sourceResidents.get(LinkNodeType.TRIGGER_SOURCE).add(-3L);
 
 		CompoundTag root = data.save(new CompoundTag(), null);
 		ListTag sourceList = root.getList("sources", net.minecraft.nbt.Tag.TAG_COMPOUND);
@@ -136,7 +136,7 @@ class CrossChunkWhitelistSavedDataTest {
 		sourceResidentSerials.add(LongTag.valueOf(-3L));
 		triggerSourceEntry.put("residentSerials", sourceResidentSerials);
 		sources.add(triggerSourceEntry);
-		sources.add(entry("BUTTON", 5L));
+		sources.add(entry("TRIGGER_SOURCE", 5L));
 		sources.add(entry("core", -9L));
 		root.put("sources", sources);
 
@@ -150,14 +150,14 @@ class CrossChunkWhitelistSavedDataTest {
 		root.put("targets", targets);
 
 		CrossChunkWhitelistSavedData loaded = invokeLoad(root);
-		assertEquals(Set.of(1L), loaded.list(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
+		assertEquals(Set.of(1L), loaded.list(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.SOURCE));
 		assertEquals(Set.of(8L), loaded.list(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET));
-		assertEquals(Set.of(1L), loaded.listResident(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
+		assertEquals(Set.of(1L), loaded.listResident(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.SOURCE));
 		assertEquals(Set.of(8L), loaded.listResident(LinkNodeType.CORE, LinkNodeSemantics.Role.TARGET));
 		assertTrue(loaded.list(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE).isEmpty());
-		assertTrue(loaded.list(LinkNodeType.BUTTON, LinkNodeSemantics.Role.TARGET).isEmpty());
+		assertTrue(loaded.list(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.TARGET).isEmpty());
 		assertTrue(loaded.listResident(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE).isEmpty());
-		assertTrue(loaded.listResident(LinkNodeType.BUTTON, LinkNodeSemantics.Role.TARGET).isEmpty());
+		assertTrue(loaded.listResident(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.TARGET).isEmpty());
 	}
 
 	private static CompoundTag entry(String type, long... serials) {

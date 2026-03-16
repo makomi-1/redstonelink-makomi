@@ -8,7 +8,7 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * 按钮源节点方块实体基类。
  * <p>
- * 固定声明自身为 BUTTON 节点，目标节点类型为 CORE。
+ * 固定声明自身为 TRIGGER_SOURCE 节点，目标节点类型为 CORE。
  * </p>
  */
 public abstract class LinkButtonBlockEntity extends TriggerSourceBlockEntity {
@@ -23,7 +23,7 @@ public abstract class LinkButtonBlockEntity extends TriggerSourceBlockEntity {
 
 	@Override
 	protected LinkNodeType getNodeType() {
-		return LinkNodeType.BUTTON;
+		return LinkNodeType.TRIGGER_SOURCE;
 	}
 
 	@Override

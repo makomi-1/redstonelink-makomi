@@ -22,18 +22,18 @@ class LinkSavedDataSerialGovernanceTest {
 	void retireNodeShouldClearLinksAndMarkRetired() {
 		LinkSavedData data = new LinkSavedData();
 		long coreSerial = data.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = data.allocateSerial(LinkNodeType.BUTTON);
+		long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(5, 64, 5), LinkNodeType.CORE);
-		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(6, 64, 5), LinkNodeType.BUTTON);
+		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(6, 64, 5), LinkNodeType.TRIGGER_SOURCE);
 		data.toggleLink(buttonSerial, coreSerial);
 
-		LinkSavedData.RetireResult result = data.retireNode(LinkNodeType.BUTTON, buttonSerial);
+		LinkSavedData.RetireResult result = data.retireNode(LinkNodeType.TRIGGER_SOURCE, buttonSerial);
 
 		assertTrue(result.nodeRemoved());
 		assertEquals(1, result.linksRemoved());
 		assertTrue(result.retiredMarked());
-		assertTrue(data.isSerialAllocated(LinkNodeType.BUTTON, buttonSerial));
-		assertTrue(data.isSerialRetired(LinkNodeType.BUTTON, buttonSerial));
+		assertTrue(data.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, buttonSerial));
+		assertTrue(data.isSerialRetired(LinkNodeType.TRIGGER_SOURCE, buttonSerial));
 		assertTrue(data.getLinkedCores(buttonSerial).isEmpty());
 		assertTrue(data.getLinkedButtons(coreSerial).isEmpty());
 	}
@@ -60,14 +60,14 @@ class LinkSavedDataSerialGovernanceTest {
 	@Test
 	void resolvePlacementSerialShouldReuseWhenPositionMatches() {
 		LinkSavedData data = new LinkSavedData();
-		long preferred = data.allocateSerial(LinkNodeType.BUTTON);
+		long preferred = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		BlockPos pos = new BlockPos(120, 64, 120);
-		data.registerNode(preferred, Level.OVERWORLD, pos, LinkNodeType.BUTTON);
+		data.registerNode(preferred, Level.OVERWORLD, pos, LinkNodeType.TRIGGER_SOURCE);
 
-		long resolved = data.resolvePlacementSerial(LinkNodeType.BUTTON, preferred, Level.OVERWORLD, pos);
+		long resolved = data.resolvePlacementSerial(LinkNodeType.TRIGGER_SOURCE, preferred, Level.OVERWORLD, pos);
 
 		assertEquals(preferred, resolved);
-		assertTrue(data.isSerialAllocated(LinkNodeType.BUTTON, resolved));
+		assertTrue(data.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, resolved));
 	}
 
 	/**
@@ -91,11 +91,11 @@ class LinkSavedDataSerialGovernanceTest {
 	void clearLinksShouldRemoveBothSides() {
 		LinkSavedData data = new LinkSavedData();
 		long coreSerial = data.allocateSerial(LinkNodeType.CORE);
-		long buttonA = data.allocateSerial(LinkNodeType.BUTTON);
-		long buttonB = data.allocateSerial(LinkNodeType.BUTTON);
+		long buttonA = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+		long buttonB = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(10, 64, 10), LinkNodeType.CORE);
-		data.registerNode(buttonA, Level.OVERWORLD, new BlockPos(11, 64, 10), LinkNodeType.BUTTON);
-		data.registerNode(buttonB, Level.OVERWORLD, new BlockPos(12, 64, 10), LinkNodeType.BUTTON);
+		data.registerNode(buttonA, Level.OVERWORLD, new BlockPos(11, 64, 10), LinkNodeType.TRIGGER_SOURCE);
+		data.registerNode(buttonB, Level.OVERWORLD, new BlockPos(12, 64, 10), LinkNodeType.TRIGGER_SOURCE);
 		data.toggleLink(buttonA, coreSerial);
 		data.toggleLink(buttonB, coreSerial);
 
@@ -114,9 +114,9 @@ class LinkSavedDataSerialGovernanceTest {
 	void auditSnapshotShouldCountMissingEndpoints() {
 		LinkSavedData data = new LinkSavedData();
 		long coreSerial = data.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = data.allocateSerial(LinkNodeType.BUTTON);
+		long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(20, 64, 20), LinkNodeType.CORE);
-		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(21, 64, 20), LinkNodeType.BUTTON);
+		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(21, 64, 20), LinkNodeType.TRIGGER_SOURCE);
 		data.toggleLink(buttonSerial, coreSerial);
 
 		LinkSavedData.AuditSnapshot healthy = data.createAuditSnapshot();

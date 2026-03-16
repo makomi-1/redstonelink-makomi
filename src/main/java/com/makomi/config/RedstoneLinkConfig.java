@@ -437,7 +437,7 @@ public final class RedstoneLinkConfig {
 		Set<LinkNodeType> allowedSourceTypes = parseCrossChunkTypeSet(
 			props,
 			"crosschunk.whitelist.sourceTypes",
-			Set.of(LinkNodeType.BUTTON),
+			Set.of(LinkNodeType.TRIGGER_SOURCE),
 			LinkNodeSemantics.Role.SOURCE
 		);
 		Set<LinkNodeType> allowedTargetTypes = parseCrossChunkTypeSet(
@@ -953,7 +953,7 @@ public final class RedstoneLinkConfig {
 				2,
 				true,
 				CrossChunkNotifyMode.SIMPLE,
-				Set.of(LinkNodeType.BUTTON),
+				Set.of(LinkNodeType.TRIGGER_SOURCE),
 				Set.of(LinkNodeType.CORE),
 				Map.of(),
 				Map.of(),

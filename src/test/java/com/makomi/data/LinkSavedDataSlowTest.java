@@ -33,9 +33,9 @@ class LinkSavedDataSlowTest {
 		}
 
 		for (int i = 0; i < 80; i++) {
-			long buttonSerial = data.allocateSerial(LinkNodeType.BUTTON);
+			long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 			buttonSerials.add(buttonSerial);
-			data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(60 + i, 64, 60), LinkNodeType.BUTTON);
+			data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(60 + i, 64, 60), LinkNodeType.TRIGGER_SOURCE);
 			for (int j = 0; j < 3; j++) {
 				long coreSerial = coreSerials.get((i + j) % coreSerials.size());
 				data.toggleLink(buttonSerial, coreSerial);
@@ -46,7 +46,7 @@ class LinkSavedDataSlowTest {
 		LinkSavedData restored = invokeLoad(saved);
 
 		assertEquals(coreSerials.size(), restored.getOnlineSerials(LinkNodeType.CORE).size());
-		assertEquals(buttonSerials.size(), restored.getOnlineSerials(LinkNodeType.BUTTON).size());
+		assertEquals(buttonSerials.size(), restored.getOnlineSerials(LinkNodeType.TRIGGER_SOURCE).size());
 		for (long buttonSerial : buttonSerials) {
 			assertEquals(3, restored.getLinkedCores(buttonSerial).size());
 		}

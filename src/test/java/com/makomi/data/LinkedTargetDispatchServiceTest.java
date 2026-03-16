@@ -24,7 +24,7 @@ class LinkedTargetDispatchServiceTest {
 	void dispatchActivationShouldReturnEmptySummaryWhenModeIsNull() {
 		LinkedTargetDispatchService.DispatchSummary summary = LinkedTargetDispatchService.dispatchActivation(
 			null,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			LinkNodeType.CORE,
 			Set.of(10L, 20L),
@@ -43,7 +43,7 @@ class LinkedTargetDispatchServiceTest {
 	void dispatchShouldRejectInvalidArguments() {
 		LinkedTargetDispatchService.DispatchSummary nullLevel = LinkedTargetDispatchService.dispatchActivation(
 			null,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			LinkNodeType.CORE,
 			Set.of(100L),
@@ -53,7 +53,7 @@ class LinkedTargetDispatchServiceTest {
 
 		LinkedTargetDispatchService.DispatchSummary emptyTargets = LinkedTargetDispatchService.dispatchSyncSignal(
 			null,
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			LinkNodeType.CORE,
 			Set.of(),
@@ -70,7 +70,7 @@ class LinkedTargetDispatchServiceTest {
 		assertTrue(LinkedTargetDispatchService.buildCrossChunkNotifyMessages(null).isEmpty());
 
 		LinkedTargetDispatchService.DispatchSummary summary = new LinkedTargetDispatchService.DispatchSummary(
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			LinkNodeType.CORE,
 			2,
@@ -125,7 +125,7 @@ class LinkedTargetDispatchServiceTest {
 	@Test
 	void dispatchSummaryShouldReportCrossChunkHandledCount() {
 		LinkedTargetDispatchService.DispatchSummary summary = new LinkedTargetDispatchService.DispatchSummary(
-			LinkNodeType.BUTTON,
+			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			LinkNodeType.CORE,
 			3,

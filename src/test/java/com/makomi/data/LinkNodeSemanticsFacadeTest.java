@@ -19,11 +19,12 @@ class LinkNodeSemanticsFacadeTest {
 	 */
 	@Test
 	void parseAndNameFacadeShouldMatchCanonicalSemantics() {
-		assertEquals(Optional.of(LinkNodeType.BUTTON), LinkNodeSemantics.tryParseType("button"));
-		assertEquals(Optional.of(LinkNodeType.BUTTON), LinkNodeSemantics.tryParseCanonicalType("triggerSource"));
+		assertEquals(Optional.of(LinkNodeType.TRIGGER_SOURCE), LinkNodeSemantics.tryParseType("triggerSource"));
+		assertEquals(Optional.empty(), LinkNodeSemantics.tryParseType("button"));
+		assertEquals(Optional.of(LinkNodeType.TRIGGER_SOURCE), LinkNodeSemantics.tryParseCanonicalType("triggerSource"));
 		assertEquals(Optional.of(LinkNodeType.CORE), LinkNodeSemantics.tryParseCanonicalType("core"));
-		assertEquals(Optional.empty(), LinkNodeSemantics.tryParseCanonicalType("BUTTON"));
-		assertEquals("triggerSource", LinkNodeSemantics.toSemanticName(LinkNodeType.BUTTON));
+		assertEquals(Optional.empty(), LinkNodeSemantics.tryParseCanonicalType("TRIGGER_SOURCE"));
+		assertEquals("triggerSource", LinkNodeSemantics.toSemanticName(LinkNodeType.TRIGGER_SOURCE));
 		assertEquals("core", LinkNodeSemantics.toSemanticName(LinkNodeType.CORE));
 	}
 
@@ -33,7 +34,7 @@ class LinkNodeSemanticsFacadeTest {
 	@Test
 	void roleAndResolveFacadeShouldDelegateToSemanticPolicy() {
 		LinkNodeSemantics.resetDefaultRoleRules();
-		assertTrue(LinkNodeSemantics.isAllowedForRole(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
+		assertTrue(LinkNodeSemantics.isAllowedForRole(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.SOURCE));
 		assertFalse(LinkNodeSemantics.isAllowedForRole(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE));
 
 		LinkNodeSemantics.registerRoleRule(
@@ -41,25 +42,30 @@ class LinkNodeSemanticsFacadeTest {
 			candidateType -> candidateType == LinkNodeType.CORE
 		);
 		assertTrue(LinkNodeSemantics.isAllowedForRole(LinkNodeType.CORE, LinkNodeSemantics.Role.SOURCE));
-		assertFalse(LinkNodeSemantics.isAllowedForRole(LinkNodeType.BUTTON, LinkNodeSemantics.Role.SOURCE));
+		assertFalse(LinkNodeSemantics.isAllowedForRole(LinkNodeType.TRIGGER_SOURCE, LinkNodeSemantics.Role.SOURCE));
 		LinkNodeSemantics.resetDefaultRoleRules();
 
 		assertTrue(
-			LinkNodeSemantics.resolveTypeForRole("button", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.BUTTON)).isSuccess()
-		);
-		assertTrue(
 			LinkNodeSemantics
-				.resolveCompatibleTypeForRole("trigger_source", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.BUTTON))
+				.resolveTypeForRole("triggerSource", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.TRIGGER_SOURCE))
+				.isSuccess()
+		);
+		assertFalse(
+			LinkNodeSemantics.resolveTypeForRole("button", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.TRIGGER_SOURCE)).isSuccess()
+		);
+		assertFalse(
+			LinkNodeSemantics
+				.resolveCompatibleTypeForRole("trigger_source", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.TRIGGER_SOURCE))
 				.isSuccess()
 		);
 		assertTrue(
 			LinkNodeSemantics
-				.resolveCanonicalTypeForRole("triggerSource", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.BUTTON))
+				.resolveCanonicalTypeForRole("triggerSource", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.TRIGGER_SOURCE))
 				.isSuccess()
 		);
 		assertTrue(
 			LinkNodeSemantics
-				.resolveStrictTypeForRole("triggerSource", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.BUTTON))
+				.resolveStrictTypeForRole("triggerSource", LinkNodeSemantics.Role.SOURCE, Set.of(LinkNodeType.TRIGGER_SOURCE))
 				.isSuccess()
 		);
 	}

@@ -23,7 +23,7 @@ class InternalStateRecordConstructionTest {
 		Class<?> pendingKeyClass = Class.forName("com.makomi.data.LinkNodeRetireEvents$PendingKey");
 		Constructor<?> pendingKeyConstructor = pendingKeyClass.getDeclaredConstructor(LinkNodeType.class, long.class);
 		pendingKeyConstructor.setAccessible(true);
-		Object pendingKey = pendingKeyConstructor.newInstance(LinkNodeType.BUTTON, 10L);
+		Object pendingKey = pendingKeyConstructor.newInstance(LinkNodeType.TRIGGER_SOURCE, 10L);
 		assertNotNull(pendingKey);
 
 		Class<?> pendingEntryClass = Class.forName("com.makomi.data.LinkNodeRetireEvents$PendingEntry");
@@ -66,7 +66,7 @@ class InternalStateRecordConstructionTest {
 			dispatchKindClass
 		);
 		dispatchKeyConstructor.setAccessible(true);
-		Object dispatchKey = dispatchKeyConstructor.newInstance(LinkNodeType.BUTTON, 1L, LinkNodeType.CORE, 2L, activationKind);
+		Object dispatchKey = dispatchKeyConstructor.newInstance(LinkNodeType.TRIGGER_SOURCE, 1L, LinkNodeType.CORE, 2L, activationKind);
 		assertNotNull(dispatchKey);
 
 		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingDispatch");

@@ -144,8 +144,8 @@ public final class ActivateCommandRegistry {
 		LinkSavedData savedData = LinkSavedData.get(serverLevel);
 		List<Long> invalidSources = new ArrayList<>();
 		for (long sourceSerial : sourceSerials) {
-			boolean active = savedData.isSerialAllocated(LinkNodeType.BUTTON, sourceSerial)
-				&& !savedData.isSerialRetired(LinkNodeType.BUTTON, sourceSerial);
+			boolean active = savedData.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, sourceSerial)
+				&& !savedData.isSerialRetired(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
 			if (!active) {
 				invalidSources.add(sourceSerial);
 			}
@@ -165,14 +165,14 @@ public final class ActivateCommandRegistry {
 		int handledTargets = 0;
 		int crossChunkHandled = 0;
 		for (long sourceSerial : sourceSerials) {
-			Set<Long> linkedTargets = savedData.getLinkedTargetsBySourceType(LinkNodeType.BUTTON, sourceSerial);
+			Set<Long> linkedTargets = savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
 			if (linkedTargets.isEmpty()) {
 				continue;
 			}
 			sourcesWithLinks++;
 			LinkedTargetDispatchService.DispatchSummary summary = LinkedTargetDispatchService.dispatchActivation(
 				serverLevel,
-				LinkNodeType.BUTTON,
+				LinkNodeType.TRIGGER_SOURCE,
 				sourceSerial,
 				LinkNodeType.CORE,
 				linkedTargets,
@@ -300,7 +300,7 @@ public final class ActivateCommandRegistry {
 			source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
 			return null;
 		}
-		if (parsedType.get() != LinkNodeType.BUTTON) {
+		if (parsedType.get() != LinkNodeType.TRIGGER_SOURCE) {
 			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
 			return null;
 		}

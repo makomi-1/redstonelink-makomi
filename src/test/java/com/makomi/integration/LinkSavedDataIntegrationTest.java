@@ -23,16 +23,16 @@ class LinkSavedDataIntegrationTest {
 	void saveAndLoadShouldPreserveLinkTopology() {
 		LinkSavedData data = new LinkSavedData();
 		long coreSerial = data.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = data.allocateSerial(LinkNodeType.BUTTON);
+		long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(10, 64, 10), LinkNodeType.CORE);
-		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(11, 64, 10), LinkNodeType.BUTTON);
+		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(11, 64, 10), LinkNodeType.TRIGGER_SOURCE);
 		data.toggleLink(buttonSerial, coreSerial);
 
 		CompoundTag saved = data.save(new CompoundTag(), null);
 		LinkSavedData restored = invokeLoad(saved);
 
 		assertTrue(restored.findNode(LinkNodeType.CORE, coreSerial).isPresent());
-		assertTrue(restored.findNode(LinkNodeType.BUTTON, buttonSerial).isPresent());
+		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, buttonSerial).isPresent());
 		assertTrue(restored.getLinkedCores(buttonSerial).contains(coreSerial));
 		assertTrue(restored.getLinkedButtons(coreSerial).contains(buttonSerial));
 	}
@@ -44,9 +44,9 @@ class LinkSavedDataIntegrationTest {
 	void toggleLinkFlowShouldRemainConsistent() {
 		LinkSavedData data = new LinkSavedData();
 		long coreSerial = data.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = data.allocateSerial(LinkNodeType.BUTTON);
+		long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(30, 64, 30), LinkNodeType.CORE);
-		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(31, 64, 30), LinkNodeType.BUTTON);
+		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(31, 64, 30), LinkNodeType.TRIGGER_SOURCE);
 
 		boolean linked = data.toggleLink(buttonSerial, coreSerial);
 		assertTrue(linked);

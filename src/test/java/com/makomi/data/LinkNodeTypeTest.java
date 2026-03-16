@@ -18,8 +18,8 @@ class LinkNodeTypeTest {
 	void fromNameShouldBeCaseInsensitive() {
 		assertEquals(LinkNodeType.CORE, LinkNodeType.fromName("core"));
 		assertEquals(LinkNodeType.CORE, LinkNodeType.fromName("CoRe"));
-		assertEquals(LinkNodeType.BUTTON, LinkNodeType.fromName("triggerSource"));
-		assertEquals(LinkNodeType.BUTTON, LinkNodeType.fromName("TRIGGERSOURCE"));
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, LinkNodeType.fromName("triggerSource"));
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, LinkNodeType.fromName("TRIGGERSOURCE"));
 	}
 
 	/**

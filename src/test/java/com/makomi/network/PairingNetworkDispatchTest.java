@@ -46,7 +46,7 @@ class PairingNetworkDispatchTest {
 	 */
 	@Test
 	void buildPayloadForSourceTypeShouldMapButtonToTriggerSourcePayload() throws Exception {
-		CustomPacketPayload payload = invokeBuildPayload(LinkNodeType.BUTTON, 11L, List.of(3L, 7L));
+		CustomPacketPayload payload = invokeBuildPayload(LinkNodeType.TRIGGER_SOURCE, 11L, List.of(3L, 7L));
 		PairingNetwork.OpenTriggerSourcePairingPayload typedPayload = assertInstanceOf(
 			PairingNetwork.OpenTriggerSourcePairingPayload.class,
 			payload

@@ -23,7 +23,7 @@ class LinkSavedDataTest {
 	private static final ResourceKey<Level> DIMENSION = Level.OVERWORLD;
 
 	/**
-	 * CORE 与 BUTTON 应维护各自独立的序列号计数器。
+	 * CORE 与 TRIGGER_SOURCE 应维护各自独立的序列号计数器。
 	 */
 	@Test
 	void allocateSerialShouldUseIndependentCountersByType() {
@@ -31,15 +31,15 @@ class LinkSavedDataTest {
 
 		long core1 = data.allocateSerial(LinkNodeType.CORE);
 		long core2 = data.allocateSerial(LinkNodeType.CORE);
-		long button1 = data.allocateSerial(LinkNodeType.BUTTON);
-		long button2 = data.allocateSerial(LinkNodeType.BUTTON);
+		long button1 = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+		long button2 = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 
 		assertEquals(1L, core1);
 		assertEquals(2L, core2);
 		assertEquals(1L, button1);
 		assertEquals(2L, button2);
 		assertTrue(data.isSerialAllocated(LinkNodeType.CORE, core1));
-		assertTrue(data.isSerialAllocated(LinkNodeType.BUTTON, button1));
+		assertTrue(data.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, button1));
 	}
 
 	/**
@@ -106,9 +106,9 @@ class LinkSavedDataTest {
 		long buttonSerial = 1001L;
 		long coreSerial = 2001L;
 
-		boolean linkedBySource = data.toggleLinkBySourceType(LinkNodeType.BUTTON, buttonSerial, coreSerial);
+		boolean linkedBySource = data.toggleLinkBySourceType(LinkNodeType.TRIGGER_SOURCE, buttonSerial, coreSerial);
 		assertTrue(linkedBySource);
-		assertEquals(Set.of(coreSerial), data.getLinkedTargetsBySourceType(LinkNodeType.BUTTON, buttonSerial));
+		assertEquals(Set.of(coreSerial), data.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, buttonSerial));
 		assertEquals(Set.of(buttonSerial), data.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial));
 
 		boolean toggledBackByCoreView = data.toggleLinkBySourceType(LinkNodeType.CORE, coreSerial, buttonSerial);
@@ -147,7 +147,7 @@ class LinkSavedDataTest {
 		long onlineCore = 11L;
 		long offlineCore = 12L;
 
-		data.registerNode(onlineButton, DIMENSION, new BlockPos(0, 64, 0), LinkNodeType.BUTTON);
+		data.registerNode(onlineButton, DIMENSION, new BlockPos(0, 64, 0), LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(onlineCore, DIMENSION, new BlockPos(1, 64, 0), LinkNodeType.CORE);
 		data.toggleLink(onlineButton, onlineCore);
 		data.toggleLink(onlineButton, offlineCore);
@@ -208,11 +208,11 @@ class LinkSavedDataTest {
 
 		data.toggleLink(button, coreA);
 		data.toggleLink(button, coreB);
-		LinkSavedData.RetireResult result = data.retireNode(LinkNodeType.BUTTON, button);
+		LinkSavedData.RetireResult result = data.retireNode(LinkNodeType.TRIGGER_SOURCE, button);
 
 		assertEquals(2, result.linksRemoved());
 		assertTrue(result.retiredMarked());
-		assertTrue(data.isSerialRetired(LinkNodeType.BUTTON, button));
+		assertTrue(data.isSerialRetired(LinkNodeType.TRIGGER_SOURCE, button));
 		assertEquals(0, data.getLinkedCores(button).size());
 		assertEquals(0, data.getLinkedButtons(coreA).size());
 		assertEquals(0, data.getLinkedButtons(coreB).size());

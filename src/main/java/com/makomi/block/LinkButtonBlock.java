@@ -62,7 +62,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 			return;
 		}
 
-		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.BUTTON, pos);
+		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.TRIGGER_SOURCE, pos);
 		buttonBlockEntity.setLinkData(serial);
 	}
 
@@ -153,7 +153,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
 			long serial = buttonBlockEntity.getSerial();
 			if (serial <= 0L) {
-				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.BUTTON);
+				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 				buttonBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {

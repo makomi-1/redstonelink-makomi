@@ -1,43 +1,26 @@
 package com.makomi.data.semantic;
 
 import com.makomi.data.LinkNodeType;
-import java.util.Locale;
 import java.util.Optional;
 
 /**
- * 节点类型语义别名解析器。
+ * 节点类型语义解析器。
  */
 public final class SemanticTypeAliasResolver {
 	private SemanticTypeAliasResolver() {
 	}
 
 	/**
-	 * 按语义别名解析节点类型。
+	 * 按 canonical 语义词表解析节点类型。
+	 * <p>
+	 * 仅接受 triggerSource/core（大小写不敏感），不再接受历史别名。
+	 * </p>
 	 *
 	 * @param rawType 原始类型文本
 	 * @return 解析结果；无法识别时返回空
 	 */
 	public static Optional<LinkNodeType> tryResolve(String rawType) {
-		if (rawType == null) {
-			return Optional.empty();
-		}
-		String normalized = rawType.trim().toLowerCase(Locale.ROOT);
-		if (normalized.isEmpty()) {
-			return Optional.empty();
-		}
-		switch (normalized) {
-			case "triggersource", "trigger_source", "trigger-source", "button":
-				return Optional.of(LinkNodeType.BUTTON);
-			case "core":
-				return Optional.of(LinkNodeType.CORE);
-			default:
-				for (LinkNodeType value : LinkNodeType.values()) {
-					if (value.name().equalsIgnoreCase(normalized)) {
-						return Optional.of(value);
-					}
-				}
-				return Optional.empty();
-		}
+		return tryResolveCanonical(rawType);
 	}
 
 	/**
@@ -55,7 +38,7 @@ public final class SemanticTypeAliasResolver {
 			return Optional.empty();
 		}
 		if ("triggerSource".equalsIgnoreCase(normalized)) {
-			return Optional.of(LinkNodeType.BUTTON);
+			return Optional.of(LinkNodeType.TRIGGER_SOURCE);
 		}
 		if ("core".equalsIgnoreCase(normalized)) {
 			return Optional.of(LinkNodeType.CORE);
@@ -73,6 +56,6 @@ public final class SemanticTypeAliasResolver {
 		if (type == null) {
 			return "unknown";
 		}
-		return type == LinkNodeType.BUTTON ? "triggerSource" : "core";
+		return type == LinkNodeType.TRIGGER_SOURCE ? "triggerSource" : "core";
 	}
 }

@@ -341,8 +341,8 @@ public final class LinkSavedData extends SavedData {
 	/**
 	 * 以“来源/目标”语义切换关联关系。
 	 * <p>
-	 * 当来源类型为 BUTTON 时，按 BUTTON -> CORE 写入；
-	 * 当来源类型为 CORE 时，自动映射为 BUTTON -> CORE 底层索引。
+	 * 当来源类型为 TRIGGER_SOURCE 时，按 TRIGGER_SOURCE -> CORE 写入；
+	 * 当来源类型为 CORE 时，自动映射为 TRIGGER_SOURCE -> CORE 底层索引。
 	 * </p>
 	 *
 	 * @param sourceType 来源节点类型
@@ -354,7 +354,7 @@ public final class LinkSavedData extends SavedData {
 		if (sourceType == null) {
 			return false;
 		}
-		return sourceType == LinkNodeType.BUTTON
+		return sourceType == LinkNodeType.TRIGGER_SOURCE
 			? toggleLink(sourceSerial, targetSerial)
 			: toggleLink(targetSerial, sourceSerial);
 	}
@@ -407,8 +407,8 @@ public final class LinkSavedData extends SavedData {
 	/**
 	 * 按“来源类型 + 来源序列号”查询目标集合。
 	 * <p>
-	 * 当来源类型为 BUTTON 时，返回关联 CORE 集合；
-	 * 当来源类型为 CORE 时，返回关联 BUTTON 集合。
+	 * 当来源类型为 TRIGGER_SOURCE 时，返回关联 CORE 集合；
+	 * 当来源类型为 CORE 时，返回关联 TRIGGER_SOURCE 集合。
 	 * </p>
 	 *
 	 * @param sourceType 来源节点类型
@@ -419,7 +419,7 @@ public final class LinkSavedData extends SavedData {
 		if (sourceType == null) {
 			return Collections.emptySet();
 		}
-		return sourceType == LinkNodeType.BUTTON
+		return sourceType == LinkNodeType.TRIGGER_SOURCE
 			? getLinkedCores(sourceSerial)
 			: getLinkedButtons(sourceSerial);
 	}
@@ -435,7 +435,7 @@ public final class LinkSavedData extends SavedData {
 		}
 
 		int removed = 0;
-		if (type == LinkNodeType.BUTTON) {
+		if (type == LinkNodeType.TRIGGER_SOURCE) {
 			Set<Long> cores = buttonToCores.remove(serial);
 			if (cores == null || cores.isEmpty()) {
 				return 0;
@@ -585,7 +585,7 @@ public final class LinkSavedData extends SavedData {
 		Map<Long, LinkNode> onlineNodes = nodeMap(type);
 		Set<Long> allocatedSerials = allocatedSerialSet(type);
 		Set<Long> retiredSerials = retiredSerialSet(type);
-		if (type == LinkNodeType.BUTTON) {
+		if (type == LinkNodeType.TRIGGER_SOURCE) {
 			while (
 				onlineNodes.containsKey(nextButtonSerial)
 					|| allocatedSerials.contains(nextButtonSerial)
@@ -614,21 +614,21 @@ public final class LinkSavedData extends SavedData {
 	 * 按类型获取在线节点表。
 	 */
 	private Map<Long, LinkNode> nodeMap(LinkNodeType type) {
-		return type == LinkNodeType.BUTTON ? buttonNodes : coreNodes;
+		return type == LinkNodeType.TRIGGER_SOURCE ? buttonNodes : coreNodes;
 	}
 
 	/**
 	 * 按类型获取已分配序列号集合。
 	 */
 	private Set<Long> allocatedSerialSet(LinkNodeType type) {
-		return type == LinkNodeType.BUTTON ? allocatedButtonSerials : allocatedCoreSerials;
+		return type == LinkNodeType.TRIGGER_SOURCE ? allocatedButtonSerials : allocatedCoreSerials;
 	}
 
 	/**
 	 * 按类型获取退役序列号集合。
 	 */
 	private Set<Long> retiredSerialSet(LinkNodeType type) {
-		return type == LinkNodeType.BUTTON ? retiredButtonSerials : retiredCoreSerials;
+		return type == LinkNodeType.TRIGGER_SOURCE ? retiredButtonSerials : retiredCoreSerials;
 	}
 
 	private boolean markAllocatedInternal(LinkNodeType type, long serial) {

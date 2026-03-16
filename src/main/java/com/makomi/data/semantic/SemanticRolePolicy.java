@@ -13,7 +13,7 @@ import java.util.Set;
  * 该类同时提供：
  * </p>
  * <ul>
- *   <li>默认语义隔离规则（triggerSource=BUTTON、core=CORE）；</li>
+ *   <li>默认语义隔离规则（triggerSource=TRIGGER_SOURCE、core=CORE）；</li>
  *   <li>可注册的角色校验规则，便于后续扩展新语义。</li>
  * </ul>
  */
@@ -59,7 +59,7 @@ public final class SemanticRolePolicy {
 	 */
 	public static synchronized void resetDefaultRoleRules() {
 		ROLE_RULES.clear();
-		ROLE_RULES.put(LinkNodeSemantics.Role.SOURCE, candidateType -> candidateType == LinkNodeType.BUTTON);
+		ROLE_RULES.put(LinkNodeSemantics.Role.SOURCE, candidateType -> candidateType == LinkNodeType.TRIGGER_SOURCE);
 		ROLE_RULES.put(LinkNodeSemantics.Role.TARGET, candidateType -> candidateType == LinkNodeType.CORE);
 	}
 
@@ -114,7 +114,10 @@ public final class SemanticRolePolicy {
 	}
 
 	/**
-	 * 按兼容词表（含历史别名）解析并校验类型是否满足角色与配置允许集。
+	 * 按 canonical 词表解析并校验类型是否满足角色与配置允许集。
+	 * <p>
+	 * 该入口名保留为兼容命名，但行为与 strict 入口一致。
+	 * </p>
 	 *
 	 * @param rawType 原始类型文本
 	 * @param role 语义角色

@@ -2,7 +2,12 @@ package com.makomi.block;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.regex.Pattern;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import org.junit.jupiter.api.BeforeAll;
@@ -45,5 +50,21 @@ class LinkRedstoneDustCoreStateContractTest {
 	@Test
 	void coreBlockAndDustCoreShouldUseSameActiveKeyName() {
 		assertEquals(LinkCoreBlock.ACTIVE.getName(), LinkRedstoneDustCoreBlock.ACTIVE.getName());
+	}
+
+	/**
+	 * 构造器应显式声明 ACTIVE 默认值为 false，避免默认态漂移。
+	 */
+	@Test
+	void dustCoreConstructorShouldSetDefaultActiveToFalse() throws Exception {
+		String source = Files.readString(
+			Path.of("src/main/java/com/makomi/block/LinkRedstoneDustCoreBlock.java"),
+			StandardCharsets.UTF_8
+		);
+		Pattern pattern = Pattern.compile(
+			"registerDefaultState\\(defaultBlockState\\(\\)\\s*\\.setValue\\(SUPPORT_FACE,\\s*Direction\\.DOWN\\)\\s*\\.setValue\\(ACTIVE,\\s*false\\)\\)",
+			Pattern.MULTILINE
+		);
+		assertTrue(pattern.matcher(source).find());
 	}
 }

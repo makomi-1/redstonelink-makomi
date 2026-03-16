@@ -42,9 +42,9 @@ class LinkSavedDataPerformanceSlowTest {
 		}
 
 		for (int i = 0; i < BUTTON_COUNT; i++) {
-			long buttonSerial = data.allocateSerial(LinkNodeType.BUTTON);
+			long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 			buttonSerials.add(buttonSerial);
-			data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(1, 64, i), LinkNodeType.BUTTON);
+			data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(1, 64, i), LinkNodeType.TRIGGER_SOURCE);
 			for (int j = 0; j < LINKS_PER_BUTTON; j++) {
 				long coreSerial = coreSerials.get((i + j) % coreSerials.size());
 				data.toggleLink(buttonSerial, coreSerial);

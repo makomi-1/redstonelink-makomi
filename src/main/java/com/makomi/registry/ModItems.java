@@ -41,32 +41,32 @@ public final class ModItems {
 
 	public static final Item LINK_TOGGLE_BUTTON = register(
 		"link_toggle_button",
-		new PairableBlockItem(ModBlocks.LINK_TOGGLE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+		new PairableBlockItem(ModBlocks.LINK_TOGGLE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
 	public static final Item LINK_TOGGLE_LEVER = register(
 		"link_toggle_lever",
-		new PairableBlockItem(ModBlocks.LINK_TOGGLE_LEVER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+		new PairableBlockItem(ModBlocks.LINK_TOGGLE_LEVER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
 	public static final Item LINK_PUSH_BUTTON = register(
 		"link_push_button",
-		new PairableBlockItem(ModBlocks.LINK_PUSH_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+		new PairableBlockItem(ModBlocks.LINK_PUSH_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
 	public static final Item LINK_TOGGLE_EMITTER = register(
 		"link_toggle_emitter",
-		new PairableBlockItem(ModBlocks.LINK_TOGGLE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+		new PairableBlockItem(ModBlocks.LINK_TOGGLE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
 	public static final Item LINK_PULSE_EMITTER = register(
 		"link_pulse_emitter",
-		new PairableBlockItem(ModBlocks.LINK_PULSE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+		new PairableBlockItem(ModBlocks.LINK_PULSE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
 	public static final Item LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
-		new PairableBlockItem(ModBlocks.LINK_SYNC_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.BUTTON)
+		new PairableBlockItem(ModBlocks.LINK_SYNC_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
 	public static final Item REDSTONELINK_TOGGLE_LINKER = register(

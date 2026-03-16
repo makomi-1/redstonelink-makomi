@@ -261,7 +261,7 @@ public final class ModCommands {
 		}
 
 		LinkNodeType selfType = pairableItem.getNodeType();
-		if (selfType != LinkNodeType.BUTTON) {
+		if (selfType != LinkNodeType.TRIGGER_SOURCE) {
 			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
 			return 0;
 		}
@@ -286,7 +286,7 @@ public final class ModCommands {
 			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
 			return 0;
 		}
-		if (sourceType != LinkNodeType.BUTTON) {
+		if (sourceType != LinkNodeType.TRIGGER_SOURCE) {
 			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
 			return 0;
 		}
@@ -344,7 +344,7 @@ public final class ModCommands {
 			return Command.SINGLE_SUCCESS;
 		}
 
-		LinkNodeType targetType = sourceType == LinkNodeType.BUTTON ? LinkNodeType.CORE : LinkNodeType.BUTTON;
+		LinkNodeType targetType = sourceType == LinkNodeType.TRIGGER_SOURCE ? LinkNodeType.CORE : LinkNodeType.TRIGGER_SOURCE;
 		if (!ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
 			return 0;
 		}
@@ -885,8 +885,8 @@ public final class ModCommands {
 							Integer.toString(snapshot.linkedCoreSerialCount()),
 							formatSerialSetCsv(savedData.getActiveSerials(LinkNodeType.CORE)),
 							formatSerialSetCsv(savedData.getRetiredSerials(LinkNodeType.CORE)),
-							formatSerialSetCsv(savedData.getActiveSerials(LinkNodeType.BUTTON)),
-							formatSerialSetCsv(savedData.getRetiredSerials(LinkNodeType.BUTTON))
+							formatSerialSetCsv(savedData.getActiveSerials(LinkNodeType.TRIGGER_SOURCE)),
+							formatSerialSetCsv(savedData.getRetiredSerials(LinkNodeType.TRIGGER_SOURCE))
 						)
 				),
 				false
@@ -929,14 +929,14 @@ public final class ModCommands {
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.audit.button_active_serials",
-				formatSerialSet(savedData.getActiveSerials(LinkNodeType.BUTTON))
+				formatSerialSet(savedData.getActiveSerials(LinkNodeType.TRIGGER_SOURCE))
 			),
 			false
 		);
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.audit.button_retired_serials",
-				formatSerialSet(savedData.getRetiredSerials(LinkNodeType.BUTTON))
+				formatSerialSet(savedData.getRetiredSerials(LinkNodeType.TRIGGER_SOURCE))
 			),
 			false
 		);
@@ -1108,7 +1108,7 @@ public final class ModCommands {
 		}
 
 		// 分阶段校验目标：未分配、已退役、离线，分别给出可定位的失败提示。
-		LinkNodeType targetType = sourceType == LinkNodeType.BUTTON ? LinkNodeType.CORE : LinkNodeType.BUTTON;
+		LinkNodeType targetType = sourceType == LinkNodeType.TRIGGER_SOURCE ? LinkNodeType.CORE : LinkNodeType.TRIGGER_SOURCE;
 		List<Long> unallocatedTargets = new ArrayList<>();
 		List<Long> retiredTargets = new ArrayList<>();
 		List<Long> offlineTargets = new ArrayList<>();

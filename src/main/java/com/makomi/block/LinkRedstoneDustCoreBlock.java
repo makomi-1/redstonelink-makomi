@@ -61,7 +61,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 	public LinkRedstoneDustCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN));
+		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN).setValue(ACTIVE, false));
 	}
 
 	@Override

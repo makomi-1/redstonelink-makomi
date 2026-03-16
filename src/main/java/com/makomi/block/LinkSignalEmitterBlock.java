@@ -37,7 +37,7 @@ import net.minecraft.world.phys.BlockHitResult;
  * 3. 支持按配置策略打开按钮配对界面。
  */
 public abstract class LinkSignalEmitterBlock extends Block implements EntityBlock {
-	// 发射器属于触发器类，实现上复用 LinkButtonBlockEntity（BUTTON 节点）链路。
+	// 发射器属于触发器类，实现上复用 LinkButtonBlockEntity（TRIGGER_SOURCE 节点）链路。
 	public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
 
 	protected LinkSignalEmitterBlock(BlockBehaviour.Properties properties) {
@@ -65,7 +65,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 			return;
 		}
 
-		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.BUTTON, pos);
+		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.TRIGGER_SOURCE, pos);
 		buttonBlockEntity.setLinkData(serial);
 	}
 
@@ -170,7 +170,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
 			long serial = buttonBlockEntity.getSerial();
 			if (serial <= 0L) {
-				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.BUTTON);
+				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 				buttonBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {

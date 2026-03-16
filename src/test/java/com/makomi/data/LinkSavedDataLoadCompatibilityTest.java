@@ -33,22 +33,22 @@ class LinkSavedDataLoadCompatibilityTest {
 	void saveAndLoadRoundTripShouldPreserveTopology() {
 		LinkSavedData source = new LinkSavedData();
 		long coreSerial = source.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = source.allocateSerial(LinkNodeType.BUTTON);
+		long buttonSerial = source.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		source.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(20, 64, 20), LinkNodeType.CORE);
-		source.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(21, 64, 20), LinkNodeType.BUTTON);
+		source.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(21, 64, 20), LinkNodeType.TRIGGER_SOURCE);
 		source.toggleLink(buttonSerial, coreSerial);
 
 		CompoundTag saved = source.save(new CompoundTag(), null);
 		LinkSavedData restored = invokeLoad(saved);
 
 		assertTrue(restored.findNode(LinkNodeType.CORE, coreSerial).isPresent());
-		assertTrue(restored.findNode(LinkNodeType.BUTTON, buttonSerial).isPresent());
+		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, buttonSerial).isPresent());
 		assertTrue(restored.getLinkedCores(buttonSerial).contains(coreSerial));
 		assertTrue(restored.getLinkedButtons(coreSerial).contains(buttonSerial));
 	}
 
 	/**
-	 * 兼容旧版本 nextSerial 字段：CORE/BUTTON 都应从旧计数器继续分配。
+	 * 兼容旧版本 nextSerial 字段：CORE/TRIGGER_SOURCE 都应从旧计数器继续分配。
 	 */
 	@Test
 	void loadShouldSupportLegacyNextSerialKey() {
@@ -57,7 +57,7 @@ class LinkSavedDataLoadCompatibilityTest {
 
 		LinkSavedData restored = invokeLoad(legacy);
 		long coreSerial = restored.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = restored.allocateSerial(LinkNodeType.BUTTON);
+		long buttonSerial = restored.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 
 		assertEquals(5L, coreSerial);
 		assertEquals(5L, buttonSerial);
@@ -72,7 +72,7 @@ class LinkSavedDataLoadCompatibilityTest {
 
 		LinkSavedData restored = invokeLoad(legacy);
 		long coreSerial = restored.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = restored.allocateSerial(LinkNodeType.BUTTON);
+		long buttonSerial = restored.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 
 		assertEquals(5L, coreSerial);
 		assertEquals(5L, buttonSerial);
@@ -87,7 +87,7 @@ class LinkSavedDataLoadCompatibilityTest {
 
 		LinkSavedData restored = invokeLoad(legacy);
 		assertTrue(restored.findNode(LinkNodeType.CORE, 9L).isPresent());
-		assertFalse(restored.findNode(LinkNodeType.BUTTON, 10L).isPresent());
+		assertFalse(restored.findNode(LinkNodeType.TRIGGER_SOURCE, 10L).isPresent());
 		assertEquals(Set.of(11L, 12L), restored.getLinkedCores(77L));
 		assertTrue(restored.getLinkedCores(0L).isEmpty());
 	}
@@ -100,8 +100,8 @@ class LinkSavedDataLoadCompatibilityTest {
 		CompoundTag legacy = readFixture("src/test/resources/fixtures/nbt/link_saved_data_missing_fields.snbt");
 
 		LinkSavedData restored = invokeLoad(legacy);
-		assertFalse(restored.findNode(LinkNodeType.BUTTON, 15L).isPresent());
-		assertTrue(restored.findNode(LinkNodeType.BUTTON, 16L).isPresent());
+		assertFalse(restored.findNode(LinkNodeType.TRIGGER_SOURCE, 15L).isPresent());
+		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, 16L).isPresent());
 		assertEquals(Set.of(20L), restored.getLinkedCores(16L));
 	}
 
@@ -146,9 +146,9 @@ class LinkSavedDataLoadCompatibilityTest {
 		LinkSavedData restored = invokeLoad(dataTag);
 		assertTrue(restored.findNode(LinkNodeType.CORE, 9L).isPresent());
 		assertFalse(restored.findNode(LinkNodeType.CORE, 0L).isPresent());
-		assertFalse(restored.findNode(LinkNodeType.BUTTON, 10L).isPresent());
+		assertFalse(restored.findNode(LinkNodeType.TRIGGER_SOURCE, 10L).isPresent());
 		assertFalse(restored.findNode(LinkNodeType.CORE, 11L).isPresent());
-		assertFalse(restored.findNode(LinkNodeType.BUTTON, 11L).isPresent());
+		assertFalse(restored.findNode(LinkNodeType.TRIGGER_SOURCE, 11L).isPresent());
 	}
 
 	/**

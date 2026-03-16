@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
  * </p>
  */
 public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
-	private static final LinkNodeType SOURCE_TYPE = LinkNodeType.BUTTON;
+	private static final LinkNodeType SOURCE_TYPE = LinkNodeType.TRIGGER_SOURCE;
 	private static final Component TITLE = Component.translatable("screen.redstonelink.button_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.button_pairing.input");
 	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.button_pairing.invalid");
@@ -81,7 +81,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	/**
-	 * @return triggerSource 语义对应的来源类型（BUTTON）
+	 * @return triggerSource 语义对应的来源类型（TRIGGER_SOURCE）
 	 */
 	@Override
 	protected LinkNodeType sourceType() {

@@ -13,14 +13,14 @@ public enum ApiNodeType {
 	 * 转换为内部使用的节点类型。
 	 */
 	public LinkNodeType toInternal() {
-		return this == BUTTON ? LinkNodeType.BUTTON : LinkNodeType.CORE;
+		return this == BUTTON ? LinkNodeType.TRIGGER_SOURCE : LinkNodeType.CORE;
 	}
 
 	/**
 	 * 将内部节点类型转换为对外节点类型。
 	 */
 	public static ApiNodeType fromInternal(LinkNodeType internalType) {
-		return internalType == LinkNodeType.BUTTON ? BUTTON : CORE;
+		return internalType == LinkNodeType.TRIGGER_SOURCE ? BUTTON : CORE;
 	}
 
 	/**

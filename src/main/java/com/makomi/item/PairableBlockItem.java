@@ -69,7 +69,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		Player player = context.getPlayer();
 		if (player != null
 			&& canOpenPairingUi(player, context.getHand())
-			&& (nodeType == LinkNodeType.BUTTON || nodeType == LinkNodeType.CORE)) {
+			&& (nodeType == LinkNodeType.TRIGGER_SOURCE || nodeType == LinkNodeType.CORE)) {
 			if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
 				long serial = LinkItemData.getSerial(heldStack);
 				if (serial > 0L) {
@@ -116,7 +116,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 				linkedText
 			)
 		);
-		if (nodeType == LinkNodeType.BUTTON || nodeType == LinkNodeType.CORE) {
+		if (nodeType == LinkNodeType.TRIGGER_SOURCE || nodeType == LinkNodeType.CORE) {
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
 		}
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);

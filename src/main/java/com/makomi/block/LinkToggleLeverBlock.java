@@ -35,7 +35,7 @@ import net.minecraft.world.phys.BlockHitResult;
  * </p>
  */
 public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
-	// 拉杆属于触发器类，实现上复用 LinkButtonBlockEntity（BUTTON 节点）链路。
+	// 拉杆属于触发器类，实现上复用 LinkButtonBlockEntity（TRIGGER_SOURCE 节点）链路。
 	public LinkToggleLeverBlock(BlockBehaviour.Properties properties) {
 		super(properties);
 	}
@@ -55,7 +55,7 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 			return;
 		}
 
-		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.BUTTON, pos);
+		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.TRIGGER_SOURCE, pos);
 		buttonBlockEntity.setLinkData(serial);
 	}
 
@@ -144,7 +144,7 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
 			long serial = buttonBlockEntity.getSerial();
 			if (serial <= 0L) {
-				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.BUTTON);
+				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 				buttonBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {

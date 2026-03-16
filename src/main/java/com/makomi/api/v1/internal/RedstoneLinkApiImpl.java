@@ -530,17 +530,17 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 	}
 
 	/**
-	 * 按源类型读取其目标集合（BUTTON->CORES, CORE->BUTTONS）。
+	 * 按源类型读取其目标集合（TRIGGER_SOURCE->CORES, CORE->TRIGGER_SOURCES）。
 	 */
 	private static Set<Long> readLinkedTargets(LinkSavedData savedData, LinkNodeType sourceType, long sourceSerial) {
-		return sourceType == LinkNodeType.BUTTON ? savedData.getLinkedCores(sourceSerial) : savedData.getLinkedButtons(sourceSerial);
+		return sourceType == LinkNodeType.TRIGGER_SOURCE ? savedData.getLinkedCores(sourceSerial) : savedData.getLinkedButtons(sourceSerial);
 	}
 
 	/**
 	 * 执行单次链接切换，返回切换后是否为“已关联”。
 	 */
 	private static boolean toggleInternal(LinkSavedData savedData, LinkNodeType sourceType, long sourceSerial, long targetSerial) {
-		return sourceType == LinkNodeType.BUTTON
+		return sourceType == LinkNodeType.TRIGGER_SOURCE
 			? savedData.toggleLink(sourceSerial, targetSerial)
 			: savedData.toggleLink(targetSerial, sourceSerial);
 	}

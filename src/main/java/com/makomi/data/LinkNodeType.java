@@ -3,12 +3,12 @@ package com.makomi.data;
 /**
  * 联动节点类型。
  * <p>
- * CORE 表示目标核心节点，BUTTON 表示触发源节点。
+ * CORE 表示目标核心节点，TRIGGER_SOURCE 表示触发源节点。
  * </p>
  */
 public enum LinkNodeType {
 	CORE,
-	BUTTON;
+	TRIGGER_SOURCE;
 
 	/**
 	 * 将语义类型名称解析为节点类型。

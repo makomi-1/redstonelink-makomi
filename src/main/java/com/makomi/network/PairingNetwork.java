@@ -33,7 +33,7 @@ public final class PairingNetwork {
 	 * 打开触发源侧配对界面。
 	 */
 	public static void openTriggerSourcePairing(ServerPlayer player, long sourceSerial) {
-		openPairingBySourceType(player, LinkNodeType.BUTTON, sourceSerial);
+		openPairingBySourceType(player, LinkNodeType.TRIGGER_SOURCE, sourceSerial);
 	}
 
 	/**
@@ -69,7 +69,7 @@ public final class PairingNetwork {
 		long sourceSerial,
 		List<Long> currentTargets
 	) {
-		if (sourceType == LinkNodeType.BUTTON) {
+		if (sourceType == LinkNodeType.TRIGGER_SOURCE) {
 			return new OpenTriggerSourcePairingPayload(sourceSerial, currentTargets);
 		}
 		return new OpenCorePairingPayload(sourceSerial, currentTargets);
