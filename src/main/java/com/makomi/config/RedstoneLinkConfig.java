@@ -203,13 +203,6 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * @return 是否启用 lithium 严格模式
-	 */
-	public static boolean lithiumStrictMode() {
-		return values.lithiumStrictMode();
-	}
-
-	/**
 	 * @return 打开配对界面是否要求副手为空
 	 */
 	public static boolean requireEmptyOffhandToOpenPairing() {
@@ -417,8 +410,7 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.command.permissionLevel", 2, 0, 4),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
-			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true),
-			parseBoolean(props, "compat.lithiumStrictMode", false)
+			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
 		);
 	}
 
@@ -788,11 +780,6 @@ public final class RedstoneLinkConfig {
 			# en: Require empty offhand to open pairing UI.
 			interaction.requireEmptyOffhandToOpenPairing=true
 
-			# compat.lithiumStrictMode
-			# zh: Lithium 严格模式。true 时若发现关键兼容异常将直接中止启动。
-			# en: Lithium strict mode. If true, startup fails fast on critical anomalies.
-			compat.lithiumStrictMode=false
-
 			# crosschunk.syncSignalTtlTicks
 			# zh: 跨区块 SYNC=ON 缓存保活时长（tick）。
 			# en: TTL in ticks for queued cross-chunk SYNC=ON events.
@@ -884,14 +871,13 @@ public final class RedstoneLinkConfig {
 		int commandPermissionLevel,
 		boolean requireSneakToOpenPairing,
 		boolean requireSneakToOpenLinkerPairing,
-		boolean requireEmptyOffhandToOpenPairing,
-		boolean lithiumStrictMode
+		boolean requireEmptyOffhandToOpenPairing
 	) {
 		/**
 		 * @return 基础配置默认值
 		 */
 		private static Values defaults() {
-			return new Values(4, EmitterEdgeMode.RISING, 15, 1024, true, 2, true, true, true, false);
+			return new Values(4, EmitterEdgeMode.RISING, 15, 1024, true, 2, true, true, true);
 		}
 	}
 

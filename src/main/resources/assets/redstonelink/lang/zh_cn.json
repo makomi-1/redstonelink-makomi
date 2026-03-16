@@ -13,6 +13,7 @@
   "item.redstonelink.redstonelink_toggle_linker": "连接切换遥控器",
   "item.redstonelink.redstonelink_pulse_linker": "连接脉冲遥控器",
   "item.redstonelink.redstone_link_component": "红石连接原件",
+  "item.redstonelink.rl-icon": "RL 图标",
   "block.redstonelink.link_redstone_core": "连接红石核心",
   "block.redstonelink.link_redstone_core_transparent": "连接红石核心（透明）",
   "block.redstonelink.link_redstone_dust_core": "连接红石粉核心",

@@ -19,7 +19,7 @@ public final class ModItemGroups {
 		FabricItemGroup
 			.builder()
 			.title(Component.translatable("itemGroup.redstonelink"))
-			.icon(() -> new ItemStack(ModItems.LINK_REDSTONE_CORE))
+			.icon(() -> new ItemStack(ModItems.RL_ICON))
 			.displayItems((parameters, output) -> {
 				output.accept(ModItems.LINK_REDSTONE_CORE, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_REDSTONE_CORE_TRANSPARENT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);

@@ -14,6 +14,14 @@ import net.minecraft.world.item.Item;
  * 模组物品注册表。
  */
 public final class ModItems {
+	/**
+	 * 创造模式分组图标专用物品，不在物品栏展示列表中输出。
+	 */
+	public static final Item RL_ICON = register(
+		"rl-icon",
+		new Item(new Item.Properties())
+	);
+
 	public static final Item REDSTONE_LINK_COMPONENT = register(
 		"redstone_link_component",
 		new Item(new Item.Properties())

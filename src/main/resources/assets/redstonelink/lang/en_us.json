@@ -13,6 +13,7 @@
   "item.redstonelink.redstonelink_toggle_linker": "Linked Toggle Linker",
   "item.redstonelink.redstonelink_pulse_linker": "Linked Pulse Linker",
   "item.redstonelink.redstone_link_component": "Redstone Link Component",
+  "item.redstonelink.rl-icon": "RL Icon",
   "block.redstonelink.link_redstone_core": "Linked Redstone Core",
   "block.redstonelink.link_redstone_core_transparent": "Linked Redstone Core (Transparent)",
   "block.redstonelink.link_redstone_dust_core": "Linked Redstone Dust Core",
