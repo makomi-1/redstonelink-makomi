@@ -212,6 +212,10 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	@Override
 	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
 		super.onPlace(state, level, pos, oldState, movedByPiston);
+		if (level instanceof ServerLevel serverLevel) {
+			// 兜底补号调度：覆盖 setPlacedBy 未触发（如命令放置）导致的无序号场景。
+			serverLevel.scheduleTick(pos, state.getBlock(), 1);
+		}
 		BlockState currentState = level.getBlockState(pos);
 		BlockState normalizedState = normalizeForSupportFace(currentState);
 		syncPowerWithActiveState(normalizedState, level, pos);
@@ -274,6 +278,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	@Override
 	protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
 		if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+			ensureCoreSerialAssigned(level, coreBlockEntity);
 			// 脉冲模式到点回落由方块 tick 驱动。
 			coreBlockEntity.onPulseTick();
 		}
@@ -312,11 +317,8 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			return;
 		}
 		if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+			ensureCoreSerialAssigned(serverLevel, coreBlockEntity);
 			long serial = coreBlockEntity.getSerial();
-			if (serial <= 0L) {
-				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.CORE);
-				coreBlockEntity.setLinkData(serial);
-			}
 			if (serial > 0L) {
 				PairingNetwork.openCorePairing(serverPlayer, serial);
 			}
@@ -334,6 +336,20 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			.setValue(EAST, RedstoneSide.NONE)
 			.setValue(SOUTH, RedstoneSide.NONE)
 			.setValue(WEST, RedstoneSide.NONE);
+	}
+
+	/**
+	 * 确保核心节点已分配序号。
+	 * <p>
+	 * 作为放置与交互链路的兜底，避免因非常规放置路径导致客户端无法外显短码。
+	 * </p>
+	 */
+	private static void ensureCoreSerialAssigned(ServerLevel level, LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+		if (coreBlockEntity.getSerial() > 0L) {
+			return;
+		}
+		long serial = LinkSavedData.get(level).allocateSerial(LinkNodeType.CORE);
+		coreBlockEntity.setLinkData(serial);
 	}
 
 

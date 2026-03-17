@@ -1,4 +1,5 @@
 {
+	"render_type": "minecraft:translucent",
 	"parent": "minecraft:item/generated",
 	"textures": {
 		"layer0": "redstonelink:item/link_redstone_dust_core_blue"

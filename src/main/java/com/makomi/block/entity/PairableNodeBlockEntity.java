@@ -4,6 +4,9 @@ import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -27,9 +30,13 @@ import net.minecraft.world.level.block.state.BlockState;
 public abstract class PairableNodeBlockEntity extends BlockEntity {
 	protected static final String KEY_SERIAL = "Serial";
 	private static final String KEY_LAST_TARGET_SERIAL = "LastTargetSerial";
+	private static final String KEY_LINKED_TARGET_SERIALS = "LinkedTargetSerials";
 
 	private long serial;
 	private long lastTargetSerial;
+	private long cachedDisplaySerial = Long.MIN_VALUE;
+	private String cachedDisplayText = "";
+	private List<Long> linkedTargetSerialsSnapshot = List.of();
 
 	protected PairableNodeBlockEntity(
 		BlockEntityType<? extends PairableNodeBlockEntity> blockEntityType,
@@ -45,6 +52,29 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 
 	public long getLastTargetSerial() {
 		return lastTargetSerial;
+	}
+
+	/**
+	 * 获取“当前连接”客户端快照（按升序）。
+	 * <p>
+	 * 该列表由服务端在方块实体同步包中下发，供客户端近外显与 tooltip 风格展示复用。
+	 * </p>
+	 */
+	public List<Long> getLinkedTargetSerialsSnapshot() {
+		return linkedTargetSerialsSnapshot;
+	}
+
+	/**
+	 * 获取用于客户端外显的序号文本（十进制分组格式）。
+	 */
+	public String getSerialDisplayText() {
+		long currentSerial = serial;
+		if (cachedDisplaySerial == currentSerial) {
+			return cachedDisplayText;
+		}
+		cachedDisplaySerial = currentSerial;
+		cachedDisplayText = formatSerialDisplayText(currentSerial);
+		return cachedDisplayText;
 	}
 
 	/**
@@ -81,6 +111,13 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 
 	public void unregisterNode() {
 		unregisterNode(false);
+	}
+
+	/**
+	 * 强制同步当前节点数据到客户端。
+	 */
+	public final void forceSyncToClient() {
+		syncToClient();
 	}
 
 	/**
@@ -137,16 +174,27 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		if (tag.contains(KEY_LAST_TARGET_SERIAL, Tag.TAG_LONG)) {
 			lastTargetSerial = Math.max(0L, tag.getLong(KEY_LAST_TARGET_SERIAL));
 		}
+		if (tag.contains(KEY_LINKED_TARGET_SERIALS, Tag.TAG_LONG_ARRAY)) {
+			linkedTargetSerialsSnapshot = normalizeLinkedTargetSnapshot(tag.getLongArray(KEY_LINKED_TARGET_SERIALS));
+		} else {
+			linkedTargetSerialsSnapshot = List.of();
+		}
 	}
 
 	@Override
 	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
 		super.saveAdditional(tag, provider);
+		if (level instanceof ServerLevel) {
+			linkedTargetSerialsSnapshot = resolveLinkedTargetSerialsSnapshot();
+		}
 		if (serial > 0L) {
 			tag.putLong(KEY_SERIAL, serial);
 		}
 		if (lastTargetSerial > 0L) {
 			tag.putLong(KEY_LAST_TARGET_SERIAL, lastTargetSerial);
+		}
+		if (!linkedTargetSerialsSnapshot.isEmpty()) {
+			tag.putLongArray(KEY_LINKED_TARGET_SERIALS, linkedTargetSerialsSnapshot);
 		}
 	}
 
@@ -169,5 +217,54 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 			BlockState state = getBlockState();
 			level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
 		}
+	}
+
+	/**
+	 * 将序号转为十进制分组文本，便于快速阅读。
+	 */
+	private static String formatSerialDisplayText(long serial) {
+		if (serial <= 0L) {
+			return "";
+		}
+		return String.format(Locale.ROOT, "%,d", serial);
+	}
+
+	/**
+	 * 基于服务端当前链路快照构建“当前连接”列表（升序）。
+	 */
+	private List<Long> resolveLinkedTargetSerialsSnapshot() {
+		if (!(level instanceof ServerLevel serverLevel) || serial <= 0L) {
+			return List.of();
+		}
+		List<Long> targets = new ArrayList<>(LinkSavedData.get(serverLevel).getLinkedTargetsBySourceType(getNodeType(), serial));
+		targets.removeIf(value -> value == null || value <= 0L);
+		targets.sort(Long::compareTo);
+		return targets.isEmpty() ? List.of() : List.copyOf(targets);
+	}
+
+	/**
+	 * 规范化“当前连接”快照，过滤非法值并按升序去重。
+	 */
+	private static List<Long> normalizeLinkedTargetSnapshot(long[] rawTargets) {
+		if (rawTargets == null || rawTargets.length == 0) {
+			return List.of();
+		}
+		List<Long> targets = new ArrayList<>(rawTargets.length);
+		for (long value : rawTargets) {
+			if (value > 0L) {
+				targets.add(value);
+			}
+		}
+		targets.sort(Long::compareTo);
+		List<Long> deduplicated = new ArrayList<>(targets.size());
+		long previous = Long.MIN_VALUE;
+		for (long value : targets) {
+			if (value == previous) {
+				continue;
+			}
+			deduplicated.add(value);
+			previous = value;
+		}
+		return deduplicated.isEmpty() ? List.of() : List.copyOf(deduplicated);
 	}
 }

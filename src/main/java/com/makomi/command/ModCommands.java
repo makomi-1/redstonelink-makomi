@@ -23,6 +23,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -862,7 +863,7 @@ public final class ModCommands {
 		if (outputFormat == AuditOutputFormat.CSV) {
 			source.sendSuccess(
 				() -> Component.literal(
-					"[RedstoneLink] online_core_nodes,online_button_nodes,total_links,links_with_missing_endpoint,linked_button_serial_count,linked_core_serial_count,active_core_serials,retired_core_serials,active_button_serials,retired_button_serials"
+					"[RedstoneLink] online_core_nodes,online_trigger_source_nodes,total_links,links_with_missing_endpoint,linked_trigger_source_serial_count,linked_core_serial_count,active_core_serials,retired_core_serials,active_trigger_source_serials,retired_trigger_source_serials"
 				),
 				false
 			);
@@ -1145,6 +1146,7 @@ public final class ModCommands {
 			);
 			return 0;
 		}
+		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
 		savedData.clearLinksForNode(sourceType, sourceSerial);
 		int added = 0;
 		long lastTarget = 0L;
@@ -1157,6 +1159,7 @@ public final class ModCommands {
 		}
 
 		updateNodeLastTargetSerial(player.serverLevel(), sourceType, sourceSerial, lastTarget);
+		syncAffectedNodeLinkSnapshots(player.serverLevel(), targetType, previousTargets, targets);
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 		final int addedCount = added;
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.set_links_done", addedCount), false);
@@ -1243,6 +1246,49 @@ public final class ModCommands {
 			BlockEntity blockEntity = nodeLevel.getBlockEntity(node.pos());
 			if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
 				pairableNodeBlockEntity.setLastTargetSerial(targetSerial);
+				// 即使最近目标未变化，也强制推送一次客户端快照，确保近外显链接信息及时刷新。
+				pairableNodeBlockEntity.forceSyncToClient();
+			}
+		});
+	}
+
+	/**
+	 * 同步受影响节点（来源 + 目标集合）的客户端链接快照。
+	 */
+	private static void syncAffectedNodeLinkSnapshots(
+		ServerLevel sourceLevel,
+		LinkNodeType targetType,
+		Set<Long> previousTargets,
+		Set<Long> currentTargets
+	) {
+		Set<Long> affectedTargets = new HashSet<>();
+		if (previousTargets != null) {
+			affectedTargets.addAll(previousTargets);
+		}
+		if (currentTargets != null) {
+			affectedTargets.addAll(currentTargets);
+		}
+		for (long targetSerial : affectedTargets) {
+			syncNodeLinkSnapshot(sourceLevel, targetType, targetSerial);
+		}
+	}
+
+	/**
+	 * 按类型+序号定位在线节点，并触发一次方块实体客户端同步。
+	 */
+	private static void syncNodeLinkSnapshot(ServerLevel sourceLevel, LinkNodeType nodeType, long serial) {
+		if (sourceLevel == null || nodeType == null || serial <= 0L) {
+			return;
+		}
+		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
+		savedData.findNode(nodeType, serial).ifPresent(node -> {
+			ServerLevel nodeLevel = sourceLevel.getServer().getLevel(node.dimension());
+			if (nodeLevel == null || !nodeLevel.isLoaded(node.pos())) {
+				return;
+			}
+			BlockEntity blockEntity = nodeLevel.getBlockEntity(node.pos());
+			if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
+				pairableNodeBlockEntity.forceSyncToClient();
 			}
 		});
 	}

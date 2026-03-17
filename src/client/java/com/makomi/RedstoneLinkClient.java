@@ -1,17 +1,28 @@
 package com.makomi;
 
 import com.makomi.client.ClientHooks;
+import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
+import com.makomi.client.render.LinkCoreShortCodeRenderer;
+import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.screen.CorePairingScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
+import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
+import net.minecraft.network.chat.Component;
 
 /**
  * RedstoneLink 客户端入口。
@@ -20,20 +31,84 @@ import net.minecraft.client.renderer.RenderType;
  * </p>
  */
 public class RedstoneLinkClient implements ClientModInitializer {
+	private static final String KEY_CATEGORY = "key.categories.redstonelink";
+	private static final String KEY_TOGGLE_SERIAL_OVERLAY = "key.redstonelink.toggle_serial_overlay";
+	private static KeyMapping toggleSerialOverlayKey;
+
 	@Override
 	public void onInitializeClient() {
+		RedstoneLinkClientDisplayConfig.load();
 		registerRenderLayers();
+		registerBlockEntityRenderers();
+		registerHudRenderers();
+		registerClientKeyBindings();
 		registerPairingScreenOpeners();
 		registerPairingPacketReceivers();
+		RedstoneLink.LOGGER.info("RedstoneLink client initialized");
 	}
 
 	/**
 	 * 注册需要透明/裁切渲染的方块层级。
 	 */
 	private static void registerRenderLayers() {
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_TOGGLE_EMITTER, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_PULSE_EMITTER, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SYNC_EMITTER, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.translucent());
+	}
+
+	/**
+	 * 注册方块实体渲染器。
+	 */
+	private static void registerBlockEntityRenderers() {
+		// 使用原版注册入口，避免依赖已废弃的 Fabric 渲染器注册 API。
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE_TRANSPARENT, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE_TRANSPARENT, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkCoreShortCodeRenderer::new);
+	}
+
+	/**
+	 * 注册 HUD 序号外显渲染器。
+	 */
+	private static void registerHudRenderers() {
+		HudRenderCallback.EVENT.register(LinkSerialHudOverlayRenderer::onHudRender);
+	}
+
+	/**
+	 * 注册客户端按键：
+	 * <p>
+	 * `K` 键按“远 -> 近 -> 远+近 -> 关闭”切换序号外显模式，并将状态写回客户端配置。
+	 * </p>
+	 */
+	private static void registerClientKeyBindings() {
+		InputConstants.Key defaultToggleKey = RedstoneLinkClientDisplayConfig.serialOverlayToggleKey();
+		toggleSerialOverlayKey = KeyBindingHelper.registerKeyBinding(
+			new KeyMapping(
+				KEY_TOGGLE_SERIAL_OVERLAY,
+				defaultToggleKey.getType(),
+				defaultToggleKey.getValue(),
+				KEY_CATEGORY
+			)
+		);
+
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			while (toggleSerialOverlayKey.consumeClick()) {
+				RedstoneLinkClientDisplayConfig.SerialOverlayMode mode = RedstoneLinkClientDisplayConfig.cycleSerialOverlayMode();
+				if (client.player != null) {
+					client.player.displayClientMessage(
+						Component.translatable(mode.messageKey()),
+						true
+					);
+				}
+			}
+		});
 	}
 
 	/**

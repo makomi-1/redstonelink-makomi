@@ -25,7 +25,7 @@ public final class ModBlocks {
 	public static final LinkCoreBlock LINK_REDSTONE_CORE = register(
 		"link_redstone_core",
 		new LinkCoreBlock(
-			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).lightLevel(state -> 0)
+			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).lightLevel(state -> 0).noOcclusion()
 		)
 	);
 
@@ -60,17 +60,17 @@ public final class ModBlocks {
 
 	public static final LinkToggleEmitterBlock LINK_TOGGLE_EMITTER = register(
 		"link_toggle_emitter",
-		new LinkToggleEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER))
+		new LinkToggleEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
 	);
 
 	public static final LinkPulseEmitterBlock LINK_PULSE_EMITTER = register(
 		"link_pulse_emitter",
-		new LinkPulseEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER))
+		new LinkPulseEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
 	);
 
 	public static final LinkSyncEmitterBlock LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
-		new LinkSyncEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER))
+		new LinkSyncEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
 	);
 
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(
