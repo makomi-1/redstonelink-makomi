@@ -3,9 +3,11 @@ package com.makomi.command;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.activate.ActivateCommandRegistry;
 import com.makomi.command.crosschunk.CrossChunkCommandRegistry;
+import com.makomi.command.privacy.CurrentLinksPrivacyCommandRegistry;
 import com.makomi.command.retire.RetireBatchCommandRegistry;
 import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -234,6 +236,7 @@ public final class ModCommands {
 						)
 						.then(RetireBatchCommandRegistry.createBatchNode())
 				)
+				.then(CurrentLinksPrivacyCommandRegistry.createRoot())
 				.then(CrossChunkCommandRegistry.createRoot())
 		));
 	}
@@ -288,11 +291,7 @@ public final class ModCommands {
 
 		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
 		long targetSerial = LongArgumentType.getLong(context, "target_serial");
-		int result = executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, true, true);
-		if (result == Command.SINGLE_SUCCESS) {
-			updateNodeLastTargetSerial(player.serverLevel(), sourceType, sourceSerial, targetSerial);
-		}
-		return result;
+		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, true, true);
 	}
 
 	/**
@@ -1149,16 +1148,13 @@ public final class ModCommands {
 		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
 		savedData.clearLinksForNode(sourceType, sourceSerial);
 		int added = 0;
-		long lastTarget = 0L;
 		for (long targetSerial : targets) {
 			boolean addedNow = savedData.toggleLinkBySourceType(sourceType, sourceSerial, targetSerial);
 			if (addedNow) {
 				added++;
-				lastTarget = targetSerial;
 			}
 		}
 
-		updateNodeLastTargetSerial(player.serverLevel(), sourceType, sourceSerial, lastTarget);
 		syncAffectedNodeLinkSnapshots(player.serverLevel(), targetType, previousTargets, targets);
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 		final int addedCount = added;
@@ -1211,6 +1207,12 @@ public final class ModCommands {
 		long sourceSerial
 	) {
 		Set<Long> linkedSerials = savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
+		Set<Long> snapshotTargets = CurrentLinksPrivacyService.resolveItemSnapshotTargets(
+			player.serverLevel(),
+			sourceType,
+			sourceSerial,
+			linkedSerials
+		);
 
 		for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
 			ItemStack stack = player.getInventory().getItem(slot);
@@ -1223,33 +1225,8 @@ public final class ModCommands {
 			if (LinkItemData.getNodeType(stack).orElse(null) != sourceType) {
 				continue;
 			}
-			LinkItemData.setLinkedSerials(stack, linkedSerials);
+			LinkItemData.setLinkedSerials(stack, snapshotTargets);
 		}
-	}
-
-	/**
-	 * 回写在线节点方块实体的最近目标序列号。
-	 */
-	private static void updateNodeLastTargetSerial(
-		ServerLevel sourceLevel,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		long targetSerial
-	) {
-		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
-		savedData.findNode(sourceType, sourceSerial).ifPresent(node -> {
-			ServerLevel nodeLevel = sourceLevel.getServer().getLevel(node.dimension());
-			if (nodeLevel == null || !nodeLevel.isLoaded(node.pos())) {
-				return;
-			}
-
-			BlockEntity blockEntity = nodeLevel.getBlockEntity(node.pos());
-			if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
-				pairableNodeBlockEntity.setLastTargetSerial(targetSerial);
-				// 即使最近目标未变化，也强制推送一次客户端快照，确保近外显链接信息及时刷新。
-				pairableNodeBlockEntity.forceSyncToClient();
-			}
-		});
 	}
 
 	/**

@@ -3,11 +3,17 @@ package com.makomi.client.render;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
+import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.network.PairingNetwork;
 import com.makomi.util.SerialDisplayFormatUtil;
 import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -62,9 +68,29 @@ public final class LinkSerialHudOverlayRenderer {
 	 */
 	private static final int CROSSHAIR_OFFSET_Y = 250;
 	/**
+	 * 同一节点“当前连接”请求最小间隔（毫秒），用于限流。
+	 */
+	private static final long CURRENT_LINKS_REQUEST_INTERVAL_MILLIS = 250L;
+	/**
+	 * “当前连接”快照缓存存活时长（毫秒）。
+	 */
+	private static final long CURRENT_LINKS_CACHE_TTL_MILLIS = 1500L;
+	/**
+	 * “当前连接”缓存最大条目数，超过后按最旧过期时间裁剪。
+	 */
+	private static final int CURRENT_LINKS_CACHE_MAX_ENTRIES = 256;
+	/**
 	 * 近外显文本缓存，避免每帧重复格式化连接信息。
 	 */
 	private static CachedNearOverlayLines cachedNearOverlayLines = CachedNearOverlayLines.empty();
+	/**
+	 * “当前连接”缓存（按维度+坐标+来源类型+来源序号）。
+	 */
+	private static final Map<OverlayTargetKey, CachedCurrentLinksSnapshot> currentLinksSnapshotCache = new HashMap<>();
+	/**
+	 * “当前连接”请求节流表（按维度+坐标+来源类型+来源序号）。
+	 */
+	private static final Map<OverlayTargetKey, Long> currentLinksRequestDeadlines = new HashMap<>();
 	/**
 	 * 位置缩放缓存宽度。
 	 */
@@ -79,6 +105,36 @@ public final class LinkSerialHudOverlayRenderer {
 	private static float cachedPositionScale = 1.0F;
 
 	private LinkSerialHudOverlayRenderer() {
+	}
+
+	/**
+	 * 接收服务端下发的“当前连接”快照并写入本地缓存。
+	 *
+	 * @param dimensionKey 维度键
+	 * @param blockPosLong 方块坐标压缩值
+	 * @param sourceType 语义类型（triggerSource/core）
+	 * @param sourceSerial 来源序号
+	 * @param linkedTargets 可见目标列表（已脱敏）
+	 */
+	public static void updateCurrentLinksSnapshot(
+		String dimensionKey,
+		long blockPosLong,
+		String sourceType,
+		long sourceSerial,
+		List<Long> linkedTargets
+	) {
+		Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseCanonicalType(sourceType);
+		if (parsedType.isEmpty() || sourceSerial <= 0L || dimensionKey == null || dimensionKey.isBlank()) {
+			return;
+		}
+		OverlayTargetKey targetKey = new OverlayTargetKey(dimensionKey, blockPosLong, parsedType.get(), sourceSerial);
+		long now = System.currentTimeMillis();
+		currentLinksSnapshotCache.put(
+			targetKey,
+			new CachedCurrentLinksSnapshot(now + CURRENT_LINKS_CACHE_TTL_MILLIS, normalizeLinkedTargets(linkedTargets))
+		);
+		currentLinksRequestDeadlines.remove(targetKey);
+		trimCurrentLinksCacheIfNeeded();
 	}
 
 	/**
@@ -98,26 +154,27 @@ public final class LinkSerialHudOverlayRenderer {
 		}
 
 		BlockHitResult blockHitResult = (BlockHitResult) minecraft.hitResult;
-		double maxDistance = RedstoneLinkClientDisplayConfig.serialOverlayNearDistance();
-		double centerX = blockHitResult.getBlockPos().getX() + 0.5D;
-		double centerY = blockHitResult.getBlockPos().getY() + 0.5D;
-		double centerZ = blockHitResult.getBlockPos().getZ() + 0.5D;
-		if (minecraft.player.distanceToSqr(centerX, centerY, centerZ) > maxDistance * maxDistance) {
-			return;
-		}
-
 		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockHitResult.getBlockPos());
 		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
 			return;
 		}
-		String serialText = pairableNodeBlockEntity.getSerialDisplayText();
+		String serialText = LinkSerialOverlayRenderCommon.resolveDisplaySerialText(pairableNodeBlockEntity);
 		if (serialText.isEmpty()) {
+			return;
+		}
+		double maxDistance = RedstoneLinkClientDisplayConfig.serialOverlayNearDistance();
+		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, pairableNodeBlockEntity, maxDistance)) {
 			return;
 		}
 
 		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
 		String dimensionKey = minecraft.level.dimension().location().toString();
 		long blockPosLong = blockHitResult.getBlockPos().asLong();
+		List<Long> linkedTargetsSnapshot = resolveCurrentLinksSnapshotWithLazyRequest(
+			pairableNodeBlockEntity,
+			dimensionKey,
+			blockPosLong
+		);
 		String languageSignature = translate(KEY_NEAR_OVERLAY_STATUS_LINE, "");
 		List<String> displayLines = buildNearOverlayLines(
 			pairableNodeBlockEntity,
@@ -125,12 +182,13 @@ public final class LinkSerialHudOverlayRenderer {
 			minecraft.font,
 			dimensionKey,
 			blockPosLong,
+			linkedTargetsSnapshot,
 			languageSignature
 		);
 		if (displayLines.isEmpty()) {
 			return;
 		}
-		int textColor = LinkCoreShortCodeRenderer.resolveNodeTextColor(nodeType);
+		int textColor = LinkSerialOverlayRenderCommon.resolveNodeTextColor(nodeType);
 		drawCenteredWithDeepBackground(
 			guiGraphics,
 			minecraft.font,
@@ -236,6 +294,113 @@ public final class LinkSerialHudOverlayRenderer {
 	}
 
 	/**
+	 * 懒加载获取“当前连接”快照：优先读缓存，过期后按节流规则发起网络请求。
+	 */
+	private static List<Long> resolveCurrentLinksSnapshotWithLazyRequest(
+		PairableNodeBlockEntity pairableNodeBlockEntity,
+		String dimensionKey,
+		long blockPosLong
+	) {
+		if (pairableNodeBlockEntity == null || dimensionKey == null || dimensionKey.isBlank()) {
+			return List.of();
+		}
+		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
+		long sourceSerial = pairableNodeBlockEntity.getSerial();
+		if (nodeType == null || sourceSerial <= 0L) {
+			return List.of();
+		}
+
+		long now = System.currentTimeMillis();
+		cleanupExpiredCurrentLinksCache(now);
+		OverlayTargetKey targetKey = new OverlayTargetKey(dimensionKey, blockPosLong, nodeType, sourceSerial);
+		CachedCurrentLinksSnapshot cachedSnapshot = currentLinksSnapshotCache.get(targetKey);
+		if (cachedSnapshot != null && cachedSnapshot.expireAtMillis() >= now) {
+			return cachedSnapshot.linkedTargets();
+		}
+
+		requestCurrentLinksSnapshotIfAllowed(targetKey, now);
+		return cachedSnapshot == null ? List.of() : cachedSnapshot.linkedTargets();
+	}
+
+	/**
+	 * 按节流规则请求服务端下发“当前连接”快照。
+	 */
+	private static void requestCurrentLinksSnapshotIfAllowed(OverlayTargetKey targetKey, long now) {
+		Long nextAllowedMillis = currentLinksRequestDeadlines.get(targetKey);
+		if (nextAllowedMillis != null && nextAllowedMillis > now) {
+			return;
+		}
+		currentLinksRequestDeadlines.put(targetKey, now + CURRENT_LINKS_REQUEST_INTERVAL_MILLIS);
+		ClientPlayNetworking.send(
+			new PairingNetwork.RequestCurrentLinksPayload(
+				targetKey.dimensionKey(),
+				targetKey.blockPosLong(),
+				LinkNodeSemantics.toSemanticName(targetKey.nodeType()),
+				targetKey.sourceSerial()
+			)
+		);
+	}
+
+	/**
+	 * 清理过期缓存与过期请求节流记录。
+	 */
+	private static void cleanupExpiredCurrentLinksCache(long now) {
+		currentLinksSnapshotCache.entrySet().removeIf(entry -> entry.getValue().expireAtMillis() < now);
+		currentLinksRequestDeadlines.entrySet().removeIf(entry -> entry.getValue() < now);
+	}
+
+	/**
+	 * 当缓存条目过多时按最旧过期时间裁剪，避免无限增长。
+	 */
+	private static void trimCurrentLinksCacheIfNeeded() {
+		if (currentLinksSnapshotCache.size() <= CURRENT_LINKS_CACHE_MAX_ENTRIES) {
+			return;
+		}
+		OverlayTargetKey oldestKey = null;
+		long oldestExpireAt = Long.MAX_VALUE;
+		for (Map.Entry<OverlayTargetKey, CachedCurrentLinksSnapshot> entry : currentLinksSnapshotCache.entrySet()) {
+			long expireAtMillis = entry.getValue().expireAtMillis();
+			if (expireAtMillis < oldestExpireAt) {
+				oldestExpireAt = expireAtMillis;
+				oldestKey = entry.getKey();
+			}
+		}
+		if (oldestKey != null) {
+			currentLinksSnapshotCache.remove(oldestKey);
+			currentLinksRequestDeadlines.remove(oldestKey);
+		}
+	}
+
+	/**
+	 * 规范化网络下发目标序号：过滤非法值、升序去重。
+	 */
+	private static List<Long> normalizeLinkedTargets(List<Long> linkedTargets) {
+		if (linkedTargets == null || linkedTargets.isEmpty()) {
+			return List.of();
+		}
+		List<Long> values = new ArrayList<>(linkedTargets.size());
+		for (Long value : linkedTargets) {
+			if (value != null && value > 0L) {
+				values.add(value);
+			}
+		}
+		if (values.isEmpty()) {
+			return List.of();
+		}
+		values.sort(Long::compareTo);
+		List<Long> deduplicated = new ArrayList<>(values.size());
+		long previous = Long.MIN_VALUE;
+		for (long value : values) {
+			if (value == previous) {
+				continue;
+			}
+			deduplicated.add(value);
+			previous = value;
+		}
+		return deduplicated.isEmpty() ? List.of() : List.copyOf(deduplicated);
+	}
+
+	/**
 	 * 生成近外显三行文本：
 	 * 1. [物品名]序号
 	 * 2. 激活状态（ON/OFF）
@@ -247,10 +412,10 @@ public final class LinkSerialHudOverlayRenderer {
 		Font font,
 		String dimensionKey,
 		long blockPosLong,
+		List<Long> linkedTargetsSnapshot,
 		String languageSignature
 	) {
 		ActivationStatusToken activationStatusToken = resolveActivationStatusToken(pairableNodeBlockEntity);
-		List<Long> linkedTargetsSnapshot = pairableNodeBlockEntity.getLinkedTargetSerialsSnapshot();
 		Block block = pairableNodeBlockEntity.getBlockState().getBlock();
 		int fontIdentity = System.identityHashCode(font);
 		CachedNearOverlayLines cached = cachedNearOverlayLines;
@@ -401,6 +566,26 @@ public final class LinkSerialHudOverlayRenderer {
 	private enum ActivationStatusToken {
 		ON,
 		OFF
+	}
+
+	/**
+	 * “当前连接”缓存键（维度 + 坐标 + 来源类型 + 来源序号）。
+	 */
+	private record OverlayTargetKey(
+		String dimensionKey,
+		long blockPosLong,
+		LinkNodeType nodeType,
+		long sourceSerial
+	) {
+	}
+
+	/**
+	 * “当前连接”缓存值。
+	 *
+	 * @param expireAtMillis 过期时间戳
+	 * @param linkedTargets 可见连接快照
+	 */
+	private record CachedCurrentLinksSnapshot(long expireAtMillis, List<Long> linkedTargets) {
 	}
 
 	/**

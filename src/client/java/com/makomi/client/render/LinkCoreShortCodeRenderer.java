@@ -21,14 +21,14 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> implements BlockEntityRenderer<T> {
 	private static final float TEXT_SCALE = 0.03F;
-	private static final int CORE_TEXT_COLOR = 0xFF5DD7FF;
-	private static final int TRIGGER_SOURCE_TEXT_COLOR = 0xFFFFC66A;
-	private static final int DEFAULT_TEXT_COLOR = 0xFFFFFFFF;
-	private static final int SEE_THROUGH_ALPHA = 0x20;
-	private static final int BACKGROUND_COLOR = 0x40000000;
+	private static final int BACKGROUND_COLOR = 0x80000000;
 	private static final int FULL_BRIGHT = 0x00F000F0;
-	private static final double FACE_OFFSET = 0.56D;
+	private static final double FACE_OFFSET = 0.80D;
 	private static final double BLOCK_TOP_TEXT_Y = 1.25D;
+	/**
+	 * 文本面板沿相机朝向的前推量，降低与方块面重叠导致的背景淡化。
+	 */
+
 
 	private final Font font;
 
@@ -49,25 +49,18 @@ public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> 
 			return;
 		}
 
-		String serialText = blockEntity.getSerialDisplayText();
+		String serialText = LinkSerialOverlayRenderCommon.resolveDisplaySerialText(blockEntity);
 		if (serialText.isEmpty()) {
 			return;
 		}
 		LinkNodeType nodeType = blockEntity.getLinkNodeType();
 		String displayText = serialText;
-		int textColor = resolveNodeTextColor(nodeType);
-		int seeThroughColor = withAlpha(textColor, SEE_THROUGH_ALPHA);
+		int textColor = LinkSerialOverlayRenderCommon.resolveNodeTextColor(nodeType);
+		int backgroundGlyphColor = withAlpha(textColor, 0x00);
 
 		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.player == null) {
-			return;
-		}
 		int maxDistance = RedstoneLinkClientDisplayConfig.serialOverlayMaxDistance();
-		double maxDistanceSqr = (double) maxDistance * maxDistance;
-		double centerX = blockEntity.getBlockPos().getX() + 0.5D;
-		double centerY = blockEntity.getBlockPos().getY() + 0.5D;
-		double centerZ = blockEntity.getBlockPos().getZ() + 0.5D;
-		if (minecraft.player.distanceToSqr(centerX, centerY, centerZ) > maxDistanceSqr) {
+		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
 			return;
 		}
 
@@ -87,6 +80,7 @@ public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> 
 			poseStack.translate(0.5D, BLOCK_TOP_TEXT_Y, 0.5D);
 		}
 		poseStack.mulPose(minecraft.getEntityRenderDispatcher().cameraOrientation());
+
 		float textScale = TEXT_SCALE * RedstoneLinkClientDisplayConfig.serialOverlayFontScale();
 		poseStack.scale(textScale, -textScale, textScale);
 
@@ -95,11 +89,11 @@ public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> 
 			displayText,
 			textStartX,
 			0.0F,
-			seeThroughColor,
+			backgroundGlyphColor,
 			false,
 			poseStack.last().pose(),
 			buffer,
-			Font.DisplayMode.SEE_THROUGH,
+			Font.DisplayMode.POLYGON_OFFSET,
 			BACKGROUND_COLOR,
 			FULL_BRIGHT
 		);
@@ -111,7 +105,7 @@ public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> 
 			false,
 			poseStack.last().pose(),
 			buffer,
-			Font.DisplayMode.NORMAL,
+			Font.DisplayMode.SEE_THROUGH,
 			0,
 			FULL_BRIGHT
 		);
@@ -122,19 +116,6 @@ public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> 
 	@Override
 	public int getViewDistance() {
 		return RedstoneLinkClientDisplayConfig.serialOverlayMaxDistance();
-	}
-
-	/**
-	 * 按节点类型返回固定文本颜色，用于不同类型外显快速区分。
-	 */
-	public static int resolveNodeTextColor(LinkNodeType nodeType) {
-		if (nodeType == LinkNodeType.CORE) {
-			return CORE_TEXT_COLOR;
-		}
-		if (nodeType == LinkNodeType.TRIGGER_SOURCE) {
-			return TRIGGER_SOURCE_TEXT_COLOR;
-		}
-		return DEFAULT_TEXT_COLOR;
 	}
 
 	/**

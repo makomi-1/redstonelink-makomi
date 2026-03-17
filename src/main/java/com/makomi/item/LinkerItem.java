@@ -2,6 +2,7 @@ package com.makomi.item;
 
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -219,7 +220,16 @@ public class LinkerItem extends Item implements PairableItem {
 			return;
 		}
 		PairingNetwork.openTriggerSourcePairing(serverPlayer, serial);
-		LinkItemData.setLinkedSerials(stack, LinkSavedData.get(serverLevel).getLinkedCores(serial));
+		Set<Long> linkedTargets = LinkSavedData.get(serverLevel).getLinkedCores(serial);
+		LinkItemData.setLinkedSerials(
+			stack,
+			CurrentLinksPrivacyService.resolveItemSnapshotTargets(
+				serverLevel,
+				LinkNodeType.TRIGGER_SOURCE,
+				serial,
+				linkedTargets
+			)
+		);
 	}
 
 	/**
@@ -246,7 +256,15 @@ public class LinkerItem extends Item implements PairableItem {
 
 		Set<Long> linkedTargets = savedData.getLinkedCores(serial);
 		// 每次触发后都回写最新连接列表，确保物品提示信息与存档状态一致。
-		LinkItemData.setLinkedSerials(stack, linkedTargets);
+		LinkItemData.setLinkedSerials(
+			stack,
+			CurrentLinksPrivacyService.resolveItemSnapshotTargets(
+				serverLevel,
+				LinkNodeType.TRIGGER_SOURCE,
+				serial,
+				linkedTargets
+			)
+		);
 		if (linkedTargets.isEmpty()) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));
 			return;

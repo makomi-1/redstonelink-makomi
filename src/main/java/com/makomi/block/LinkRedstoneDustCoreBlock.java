@@ -2,6 +2,7 @@ package com.makomi.block;
 
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -108,7 +109,15 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
 				if (coreBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
-					LinkItemData.setLinkedSerials(drop, LinkSavedData.get(serverLevel).getLinkedButtons(serial));
+					LinkItemData.setLinkedSerials(
+						drop,
+						CurrentLinksPrivacyService.resolveItemSnapshotTargets(
+							serverLevel,
+							LinkNodeType.CORE,
+							serial,
+							LinkSavedData.get(serverLevel).getLinkedButtons(serial)
+						)
+					);
 				}
 			}
 		}

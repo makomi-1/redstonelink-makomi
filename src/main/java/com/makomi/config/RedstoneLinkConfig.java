@@ -287,6 +287,20 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 近外显“当前连接”保密模式
+	 */
+	public static CurrentLinksPrivacyMode currentLinksPrivacyMode() {
+		return values.currentLinksPrivacyMode();
+	}
+
+	/**
+	 * @return 查看被加密“当前连接”所需权限等级（0~4）
+	 */
+	public static int currentLinksPrivacyViewPermissionLevel() {
+		return values.currentLinksPrivacyViewPermissionLevel();
+	}
+
+	/**
 	 * @return 是否启用跨区块接管提示
 	 */
 	public static boolean crossChunkNotifyEnabled() {
@@ -408,6 +422,8 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.maxTargetsPerSetLinks", 1024, 1, 4096),
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
 			parseInt(props, "server.command.permissionLevel", 2, 0, 4),
+			CurrentLinksPrivacyMode.fromConfigValue(props.getProperty("server.currentLinksPrivacy.mode", "plain")),
+			parseInt(props, "server.currentLinksPrivacy.viewPermissionLevel", 2, 0, 4),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
 			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
@@ -764,6 +780,16 @@ public final class RedstoneLinkConfig {
 			# zh: /redstonelink 整个命令树所需权限等级（0~4）。
 			# en: Permission level required for the whole /redstonelink command tree (0~4).
 			server.command.permissionLevel=2
+
+			# server.currentLinksPrivacy.mode
+			# zh: 近外显“当前连接”保密模式：hidden=全部保密，masked=仅名单保密，plain=全部解密。
+			# en: Privacy mode for near-overlay current links: hidden/masked/plain.
+			server.currentLinksPrivacy.mode=plain
+
+			# server.currentLinksPrivacy.viewPermissionLevel
+			# zh: 查看被加密“当前连接”所需权限等级（0~4）。
+			# en: Permission level required to view masked current links (0~4).
+			server.currentLinksPrivacy.viewPermissionLevel=2
 			
 			# interaction.requireSneakToOpenPairing
 			# zh: 打开配对 UI 是否必须潜行。
@@ -869,6 +895,8 @@ public final class RedstoneLinkConfig {
 		int maxTargetsPerSetLinks,
 		boolean allowOfflineTargetBinding,
 		int commandPermissionLevel,
+		CurrentLinksPrivacyMode currentLinksPrivacyMode,
+		int currentLinksPrivacyViewPermissionLevel,
 		boolean requireSneakToOpenPairing,
 		boolean requireSneakToOpenLinkerPairing,
 		boolean requireEmptyOffhandToOpenPairing
@@ -877,7 +905,34 @@ public final class RedstoneLinkConfig {
 		 * @return 基础配置默认值
 		 */
 		private static Values defaults() {
-			return new Values(4, EmitterEdgeMode.RISING, 15, 1024, true, 2, true, true, true);
+			return new Values(4, EmitterEdgeMode.RISING, 15, 1024, true, 2, CurrentLinksPrivacyMode.PLAIN, 2, true, true, true);
+		}
+	}
+
+	/**
+	 * 近外显“当前连接”保密模式。
+	 */
+	public enum CurrentLinksPrivacyMode {
+		HIDDEN,
+		MASKED,
+		PLAIN;
+
+		/**
+		 * 解析保密模式配置值。
+		 *
+		 * @param raw 原始配置值
+		 * @return 解析后的模式，非法值回退为 PLAIN
+		 */
+		public static CurrentLinksPrivacyMode fromConfigValue(String raw) {
+			if (raw == null) {
+				return PLAIN;
+			}
+			return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+				case "hidden" -> HIDDEN;
+				case "masked" -> MASKED;
+				case "plain" -> PLAIN;
+				default -> PLAIN;
+			};
 		}
 	}
 

@@ -1,6 +1,8 @@
 package com.makomi.data;
 
+import com.makomi.block.entity.PairableNodeBlockEntity;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * 节点退役统一协调入口。
@@ -32,8 +34,39 @@ public final class LinkRetireCoordinator {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
+		// 退役前仅抓取退役源节点在线快照，避免向受影响目标集合逐个强同步。
+		LinkSavedData.LinkNode sourceNodeSnapshot = savedData.findNode(type, serial).orElse(null);
 		LinkSavedData.RetireResult retireResult = savedData.retireNode(type, serial);
 		CrossChunkWhitelistSavedData.get(level).removeFromAllRoles(type, serial);
+		CurrentLinksPrivacySavedData.get(level).remove(type, serial);
+		if (hasRetireChanges(retireResult)) {
+			syncNodeSnapshot(level, sourceNodeSnapshot);
+		}
 		return retireResult;
+	}
+
+	/**
+	 * 判断本次退役是否产生可见变更。
+	 */
+	private static boolean hasRetireChanges(LinkSavedData.RetireResult retireResult) {
+		return retireResult != null
+			&& (retireResult.nodeRemoved() || retireResult.linksRemoved() > 0 || retireResult.retiredMarked());
+	}
+
+	/**
+	 * 按节点在线快照同步方块实体到客户端。
+	 */
+	private static void syncNodeSnapshot(ServerLevel level, LinkSavedData.LinkNode node) {
+		if (level == null || node == null || node.dimension() == null || node.pos() == null) {
+			return;
+		}
+		ServerLevel nodeLevel = level.getServer().getLevel(node.dimension());
+		if (nodeLevel == null || !nodeLevel.isLoaded(node.pos())) {
+			return;
+		}
+		BlockEntity blockEntity = nodeLevel.getBlockEntity(node.pos());
+		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
+			pairableNodeBlockEntity.forceSyncToClient();
+		}
 	}
 }

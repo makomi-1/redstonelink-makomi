@@ -2,6 +2,7 @@ package com.makomi.block;
 
 import com.makomi.block.entity.LinkButtonBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -90,7 +91,15 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
 				if (buttonBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
-					LinkItemData.setLinkedSerials(drop, LinkSavedData.get(serverLevel).getLinkedCores(serial));
+					LinkItemData.setLinkedSerials(
+						drop,
+						CurrentLinksPrivacyService.resolveItemSnapshotTargets(
+							serverLevel,
+							LinkNodeType.TRIGGER_SOURCE,
+							serial,
+							LinkSavedData.get(serverLevel).getLinkedCores(serial)
+						)
+					);
 				}
 			}
 		}

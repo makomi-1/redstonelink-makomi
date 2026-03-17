@@ -69,6 +69,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE_TRANSPARENT, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE_TRANSPARENT, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_BUTTON, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_PUSH_BUTTON, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_LEVER, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkCoreShortCodeRenderer::new);
@@ -143,6 +146,18 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			// 网络线程切回客户端主线程后再操作 Screen。
 			context.client().execute(() -> {
 				openPairingScreenBySourceType(LinkNodeType.CORE, payload.sourceSerial(), payload.targets());
+			});
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.CurrentLinksSnapshotPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> {
+				LinkSerialHudOverlayRenderer.updateCurrentLinksSnapshot(
+					payload.dimensionKey(),
+					payload.blockPos(),
+					payload.sourceType(),
+					payload.sourceSerial(),
+					payload.targets()
+				);
 			});
 		});
 	}

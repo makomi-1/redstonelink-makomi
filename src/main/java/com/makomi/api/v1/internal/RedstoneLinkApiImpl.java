@@ -18,7 +18,6 @@ import com.makomi.api.v1.service.LinkGraphApi;
 import com.makomi.api.v1.service.QueryApi;
 import com.makomi.api.v1.service.TriggerApi;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
-import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkRetireCoordinator;
@@ -161,7 +160,6 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		}
 
 		Set<Long> appliedTargets = readLinkedTargets(savedData, sourceNodeType, sourceSerial);
-		updateNodeLastTargetSerial(level, sourceNodeType, sourceSerial, findLastTarget(appliedTargets));
 		LinkMutationResult result = LinkMutationResult.success(addedCount, removedCount, appliedTargets, rejectedTargets);
 
 		LinkEvents.AFTER_SET_LINKS
@@ -231,7 +229,6 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		}
 
 		Set<Long> appliedTargets = readLinkedTargets(savedData, sourceNodeType, sourceSerial);
-		updateNodeLastTargetSerial(level, sourceNodeType, sourceSerial, findLastTarget(appliedTargets));
 		LinkMutationResult result = LinkMutationResult.success(addedCount, removedCount, appliedTargets, Set.of());
 
 		LinkEvents.AFTER_SET_LINKS
@@ -266,7 +263,6 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		}
 
 		int removedCount = savedData.clearLinksForNode(sourceNodeType, sourceSerial);
-		updateNodeLastTargetSerial(level, sourceNodeType, sourceSerial, 0L);
 		LinkMutationResult result = LinkMutationResult.success(0, removedCount, Set.of(), Set.of());
 
 		LinkEvents.AFTER_SET_LINKS.invoker().afterSetLinks(level, sourceType, sourceSerial, Set.of(), actorContext, result);
@@ -545,14 +541,6 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 			: savedData.toggleLink(targetSerial, sourceSerial);
 	}
 
-	private static long findLastTarget(Set<Long> targets) {
-		long result = 0L;
-		for (long target : targets) {
-			result = Math.max(result, target);
-		}
-		return result;
-	}
-
 	private static String validateSourceSerial(LinkSavedData savedData, LinkNodeType sourceType, long sourceSerial) {
 		if (sourceSerial <= 0L || !savedData.isSerialAllocated(sourceType, sourceSerial)) {
 			return REASON_SOURCE_SERIAL_UNALLOCATED;
@@ -600,28 +588,6 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		}
 		ServerLevel targetLevel = sourceLevel.getServer().getLevel(node.dimension());
 		return targetLevel != null && targetLevel.isLoaded(node.pos());
-	}
-
-	/**
-	 * 回写源节点最近目标序列号，供 UI 与排障信息展示。
-	 */
-	private static void updateNodeLastTargetSerial(
-		ServerLevel sourceLevel,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		long targetSerial
-	) {
-		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
-		savedData.findNode(sourceType, sourceSerial).ifPresent(node -> {
-			ServerLevel nodeLevel = sourceLevel.getServer().getLevel(node.dimension());
-			if (nodeLevel == null || !nodeLevel.isLoaded(node.pos())) {
-				return;
-			}
-			BlockEntity blockEntity = nodeLevel.getBlockEntity(node.pos());
-			if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
-				pairableNodeBlockEntity.setLastTargetSerial(targetSerial);
-			}
-		});
 	}
 
 	private List<ExternalTriggerAdapter> snapshotTriggerAdapters() {
