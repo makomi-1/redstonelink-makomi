@@ -2,7 +2,7 @@ package com.makomi.data;
 
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfig.CurrentLinksPrivacyMode;
-import java.util.ArrayList;
+import com.makomi.util.SerialCollectionFormatUtil;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -25,7 +25,33 @@ public final class CurrentLinksPrivacyService {
 	 * @return true 表示可查看明文；false 表示应返回空值（"-"）
 	 */
 	public static boolean canViewCurrentLinks(ServerPlayer player, LinkNodeType sourceType, long sourceSerial) {
-		if (player == null || sourceType == null || sourceSerial <= 0L) {
+		if (player == null) {
+			return false;
+		}
+		return canViewCurrentLinks(
+			player.serverLevel(),
+			sourceType,
+			sourceSerial,
+			player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
+		);
+	}
+
+	/**
+	 * 判定命令或系统上下文是否可查看指定节点“当前连接”明文。
+	 *
+	 * @param level 服务端世界
+	 * @param sourceType 来源节点类型（triggerSource/core）
+	 * @param sourceSerial 来源序号
+	 * @param hasViewPermission 是否具备查看受控连接权限
+	 * @return true 表示可查看明文；false 表示应返回空值（"-"）
+	 */
+	public static boolean canViewCurrentLinks(
+		ServerLevel level,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		boolean hasViewPermission
+	) {
+		if (level == null || sourceType == null || sourceSerial <= 0L) {
 			return false;
 		}
 
@@ -37,11 +63,11 @@ public final class CurrentLinksPrivacyService {
 			return true;
 		}
 
-		CurrentLinksPrivacySavedData privacySavedData = CurrentLinksPrivacySavedData.get(player.serverLevel());
+		CurrentLinksPrivacySavedData privacySavedData = CurrentLinksPrivacySavedData.get(level);
 		if (!privacySavedData.contains(sourceType, sourceSerial)) {
 			return true;
 		}
-		return player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel());
+		return hasViewPermission;
 	}
 
 	/**
@@ -56,10 +82,47 @@ public final class CurrentLinksPrivacyService {
 		long sourceSerial,
 		Set<Long> linkedTargets
 	) {
-		if (!canViewCurrentLinks(player, sourceType, sourceSerial)) {
+		if (player == null) {
 			return List.of();
 		}
-		return normalizeAsSortedList(linkedTargets);
+		return resolveVisibleCurrentLinksSnapshot(
+			player.serverLevel(),
+			sourceType,
+			sourceSerial,
+			linkedTargets,
+			player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
+		);
+	}
+
+	/**
+	 * 解析“对当前上下文可见”的当前连接快照（升序去重）。
+	 * <p>
+	 * 用于命令读取等非玩家上下文，统一复用 GUI/近外显同一脱敏规则。
+	 * </p>
+	 *
+	 * @param level 服务端世界
+	 * @param sourceType 来源节点类型（triggerSource/core）
+	 * @param sourceSerial 来源序号
+	 * @param linkedTargets 原始目标集合
+	 * @param hasViewPermission 是否具备查看受控连接权限
+	 * @return 过滤后的可见目标序号列表
+	 */
+	public static List<Long> resolveVisibleCurrentLinksSnapshot(
+		ServerLevel level,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> linkedTargets,
+		boolean hasViewPermission
+	) {
+		if (!canViewCurrentLinks(level, sourceType, sourceSerial, hasViewPermission)) {
+			return List.of();
+		}
+		return filterVisibleTargetSerials(
+			level,
+			sourceType,
+			linkedTargets,
+			hasViewPermission
+		);
 	}
 
 	/**
@@ -77,7 +140,12 @@ public final class CurrentLinksPrivacyService {
 		if (isCurrentLinksMaskedForItemSnapshot(level, sourceType, sourceSerial)) {
 			return Set.of();
 		}
-		return normalizeAsSortedSet(linkedTargets);
+		// 物品快照默认按“无查看权限”策略脱敏，避免高权限玩家写入后外流。
+		List<Long> visibleTargets = filterVisibleTargetSerials(level, sourceType, linkedTargets, false);
+		if (visibleTargets.isEmpty()) {
+			return Set.of();
+		}
+		return Set.copyOf(new LinkedHashSet<>(visibleTargets));
 	}
 
 	/**
@@ -98,42 +166,53 @@ public final class CurrentLinksPrivacyService {
 	}
 
 	/**
-	 * 归一化为升序列表：过滤非正数并去重。
+	 * 过滤“当前连接”目标序号：
+	 * <p>
+	 * 1) 统一先做正数+去重+升序归一化；<br/>
+	 * 2) 在 masked 模式下按目标节点加密名单逐项剔除；<br/>
+	 * 3) 拥有查看权限时不过滤目标级受控项。
+	 * </p>
+	 *
+	 * @param level 服务端世界
+	 * @param sourceType 来源类型（用于推导目标类型）
+	 * @param linkedTargets 原始目标集合
+	 * @param allowMaskedTargets 是否允许显示目标级受控项
+	 * @return 过滤后的不可变升序列表
 	 */
-	private static List<Long> normalizeAsSortedList(Set<Long> linkedTargets) {
-		if (linkedTargets == null || linkedTargets.isEmpty()) {
+	private static List<Long> filterVisibleTargetSerials(
+		ServerLevel level,
+		LinkNodeType sourceType,
+		Set<Long> linkedTargets,
+		boolean allowMaskedTargets
+	) {
+		List<Long> normalizedTargets = SerialCollectionFormatUtil.normalizePositiveDistinctSorted(linkedTargets);
+		if (normalizedTargets.isEmpty()) {
 			return List.of();
 		}
-		List<Long> normalized = new ArrayList<>(linkedTargets.size());
-		for (Long value : linkedTargets) {
-			if (value != null && value > 0L) {
-				normalized.add(value);
-			}
+		CurrentLinksPrivacyMode mode = RedstoneLinkConfig.currentLinksPrivacyMode();
+		if (mode == CurrentLinksPrivacyMode.PLAIN) {
+			return normalizedTargets;
 		}
-		if (normalized.isEmpty()) {
+		if (mode == CurrentLinksPrivacyMode.HIDDEN) {
 			return List.of();
 		}
-		normalized.sort(Long::compareTo);
-		long previous = Long.MIN_VALUE;
-		List<Long> deduplicated = new ArrayList<>(normalized.size());
-		for (long value : normalized) {
-			if (value == previous) {
-				continue;
-			}
-			deduplicated.add(value);
-			previous = value;
+		if (allowMaskedTargets || level == null || sourceType == null) {
+			return normalizedTargets;
 		}
-		return deduplicated.isEmpty() ? List.of() : List.copyOf(deduplicated);
+
+		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
+		if (targetType == null) {
+			return List.of();
+		}
+
+		CurrentLinksPrivacySavedData privacySavedData = CurrentLinksPrivacySavedData.get(level);
+		List<Long> filtered = new java.util.ArrayList<>(normalizedTargets.size());
+		for (long targetSerial : normalizedTargets) {
+			if (!privacySavedData.contains(targetType, targetSerial)) {
+				filtered.add(targetSerial);
+			}
+		}
+		return filtered.isEmpty() ? List.of() : List.copyOf(filtered);
 	}
 
-	/**
-	 * 归一化为升序集合：过滤非正数并去重。
-	 */
-	private static Set<Long> normalizeAsSortedSet(Set<Long> linkedTargets) {
-		List<Long> normalized = normalizeAsSortedList(linkedTargets);
-		if (normalized.isEmpty()) {
-			return Set.of();
-		}
-		return Set.copyOf(new LinkedHashSet<>(normalized));
-	}
 }

@@ -1,6 +1,7 @@
 package com.makomi.command.privacy;
 
 import com.makomi.command.CommandSuffixParser;
+import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.data.CurrentLinksPrivacySavedData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -302,10 +303,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 	 * 解析并校验类型参数（仅接受 triggerSource/core）。
 	 */
 	private static LinkNodeType parseType(CommandSourceStack source, String rawType) {
-		return LinkNodeSemantics.tryParseCanonicalType(rawType).orElseGet(() -> {
-			source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
-			return null;
-		});
+		return CommandNodeTypeParseUtil.parseCanonicalTypeOrSendDefaultFailure(source, rawType);
 	}
 
 	/**

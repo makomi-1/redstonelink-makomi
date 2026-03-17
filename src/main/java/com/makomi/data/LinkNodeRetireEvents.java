@@ -1,7 +1,6 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
-import com.makomi.block.entity.TriggerSourceBlockEntity;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -140,7 +139,7 @@ public final class LinkNodeRetireEvents {
 			if (serial <= 0L) {
 				return;
 			}
-			LinkNodeType nodeType = resolveNodeType(pairableNodeBlockEntity);
+			LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
 			PendingKey key = new PendingKey(nodeType, serial);
 			cancelPending(serverLevel.getServer(), key);
 			LinkRetireCoordinator.retireAndSyncWhitelist(serverLevel, nodeType, serial);
@@ -554,16 +553,6 @@ public final class LinkNodeRetireEvents {
 	 */
 	private static PendingRetireState getOrCreateState(MinecraftServer server) {
 		return PENDING_RETIRES.computeIfAbsent(server, ignored -> new PendingRetireState());
-	}
-
-	/**
-	 * 根据方块实体类型推断节点类型。
-	 */
-	private static LinkNodeType resolveNodeType(PairableNodeBlockEntity blockEntity) {
-		if (blockEntity instanceof TriggerSourceBlockEntity) {
-			return LinkNodeType.TRIGGER_SOURCE;
-		}
-		return LinkNodeType.CORE;
 	}
 
 	/**

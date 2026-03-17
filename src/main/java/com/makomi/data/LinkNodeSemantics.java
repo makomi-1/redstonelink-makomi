@@ -111,6 +111,22 @@ public final class LinkNodeSemantics {
 	}
 
 	/**
+	 * 根据来源类型推导目标类型，统一 triggerSource/core 方向映射。
+	 *
+	 * @param sourceType 来源节点类型
+	 * @return 目标节点类型；未知类型时返回 null
+	 */
+	public static LinkNodeType resolveTargetTypeForSource(LinkNodeType sourceType) {
+		if (sourceType == LinkNodeType.TRIGGER_SOURCE) {
+			return LinkNodeType.CORE;
+		}
+		if (sourceType == LinkNodeType.CORE) {
+			return LinkNodeType.TRIGGER_SOURCE;
+		}
+		return null;
+	}
+
+	/**
 	 * 解析并校验类型是否满足角色与可选配置允许集。
 	 *
 	 * @param rawType 原始类型文本

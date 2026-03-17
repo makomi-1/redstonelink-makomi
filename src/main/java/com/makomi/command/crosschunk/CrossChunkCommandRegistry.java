@@ -1,6 +1,7 @@
 package com.makomi.command.crosschunk;
 
 import com.makomi.command.CommandSuffixParser;
+import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfig.CrossChunkPreset;
@@ -553,12 +554,15 @@ public final class CrossChunkCommandRegistry {
 		LinkNodeSemantics.Role role,
 		String rawType
 	) {
-		var parsedType = LinkNodeSemantics.tryParseCanonicalType(rawType);
-		if (parsedType.isEmpty()) {
-			source.sendFailure(SemanticCommandMessageAdapter.invalidType(rawType));
+		LinkNodeType parsedType = CommandNodeTypeParseUtil.parseCanonicalTypeOrSendFailure(
+			source,
+			rawType,
+			SemanticCommandMessageAdapter::invalidType
+		);
+		if (parsedType == null) {
 			return null;
 		}
-		String semanticTypeName = LinkNodeSemantics.toSemanticName(parsedType.get());
+		String semanticTypeName = LinkNodeSemantics.toSemanticName(parsedType);
 		Set<LinkNodeType> allowedTypes = role == LinkNodeSemantics.Role.SOURCE
 			? RedstoneLinkConfig.crossChunkAllowedSourceTypes()
 			: RedstoneLinkConfig.crossChunkAllowedTargetTypes();

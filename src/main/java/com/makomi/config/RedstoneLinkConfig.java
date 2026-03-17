@@ -422,7 +422,7 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.maxTargetsPerSetLinks", 1024, 1, 4096),
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
 			parseInt(props, "server.command.permissionLevel", 2, 0, 4),
-			CurrentLinksPrivacyMode.fromConfigValue(props.getProperty("server.currentLinksPrivacy.mode", "plain")),
+			CurrentLinksPrivacyMode.fromConfigValue(props.getProperty("server.currentLinksPrivacy.mode", "masked")),
 			parseInt(props, "server.currentLinksPrivacy.viewPermissionLevel", 2, 0, 4),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
@@ -783,8 +783,10 @@ public final class RedstoneLinkConfig {
 
 			# server.currentLinksPrivacy.mode
 			# zh: 近外显“当前连接”保密模式：hidden=全部保密，masked=仅名单保密，plain=全部解密。
+			# zh: 注意：plain 模式下历史物品 NBT 快照不会因后续切回 masked/hidden 自动重写，建议默认使用 masked。
 			# en: Privacy mode for near-overlay current links: hidden/masked/plain.
-			server.currentLinksPrivacy.mode=plain
+			# en: Note: historical item-NBT snapshots written in plain mode are not automatically rewritten after switching back to masked/hidden.
+			server.currentLinksPrivacy.mode=masked
 
 			# server.currentLinksPrivacy.viewPermissionLevel
 			# zh: 查看被加密“当前连接”所需权限等级（0~4）。

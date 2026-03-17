@@ -1,6 +1,7 @@
 package com.makomi.command.activate;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -295,16 +296,15 @@ public final class ActivateCommandRegistry {
 	 * 解析并校验 activate 命令的来源类型参数。
 	 */
 	private static LinkNodeType parseSourceTypeArg(CommandSourceStack source, String rawType) {
-		var parsedType = LinkNodeSemantics.tryParseCanonicalType(rawType);
-		if (parsedType.isEmpty()) {
-			source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
+		LinkNodeType parsedType = CommandNodeTypeParseUtil.parseCanonicalTypeOrSendDefaultFailure(source, rawType);
+		if (parsedType == null) {
 			return null;
 		}
-		if (parsedType.get() != LinkNodeType.TRIGGER_SOURCE) {
+		if (parsedType != LinkNodeType.TRIGGER_SOURCE) {
 			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
 			return null;
 		}
-		return parsedType.get();
+		return parsedType;
 	}
 
 	/**

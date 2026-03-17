@@ -1,6 +1,7 @@
 package com.makomi.command.retire;
 
 import com.makomi.command.CommandSuffixParser;
+import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkRetireCoordinator;
@@ -182,10 +183,7 @@ public final class RetireBatchCommandRegistry {
 	 * 解析退役目标类型参数。
 	 */
 	private static LinkNodeType parseNodeType(CommandSourceStack source, String rawType) {
-		return LinkNodeSemantics.tryParseCanonicalType(rawType).orElseGet(() -> {
-			source.sendFailure(Component.translatable("message.redstonelink.node.invalid_type", rawType));
-			return null;
-		});
+		return CommandNodeTypeParseUtil.parseCanonicalTypeOrSendDefaultFailure(source, rawType);
 	}
 
 	/**

@@ -339,7 +339,7 @@ public final class ModCommands {
 			return Command.SINGLE_SUCCESS;
 		}
 
-		LinkNodeType targetType = sourceType == LinkNodeType.TRIGGER_SOURCE ? LinkNodeType.CORE : LinkNodeType.TRIGGER_SOURCE;
+		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
 		if (!ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
 			return 0;
 		}
@@ -726,7 +726,14 @@ public final class ModCommands {
 		boolean online = nodeOptional.isPresent();
 		String dimensionText = nodeOptional.map(node -> node.dimension().location().toString()).orElse("-");
 		String posText = nodeOptional.map(node -> formatBlockPos(node.pos())).orElse("-");
-		Set<Long> targets = readLinkedTargets(savedData, type, serial);
+		Set<Long> rawTargets = readLinkedTargets(savedData, type, serial);
+		List<Long> visibleTargets = CurrentLinksPrivacyService.resolveVisibleCurrentLinksSnapshot(
+			source.getLevel(),
+			type,
+			serial,
+			rawTargets,
+			source.hasPermission(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
+		);
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.node.get",
@@ -737,8 +744,8 @@ public final class ModCommands {
 				Boolean.toString(online),
 				dimensionText,
 				posText,
-				targets.size(),
-				formatSerialSet(targets)
+				visibleTargets.size(),
+				formatSerialList(visibleTargets)
 			),
 			false
 		);
@@ -814,14 +821,21 @@ public final class ModCommands {
 
 		long serial = LongArgumentType.getLong(context, "serial");
 		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
-		Set<Long> targets = readLinkedTargets(savedData, type, serial);
+		Set<Long> rawTargets = readLinkedTargets(savedData, type, serial);
+		List<Long> visibleTargets = CurrentLinksPrivacyService.resolveVisibleCurrentLinksSnapshot(
+			source.getLevel(),
+			type,
+			serial,
+			rawTargets,
+			source.hasPermission(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
+		);
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.link.get",
 				typeCommandName(type),
 				serial,
-				targets.size(),
-				formatSerialSet(targets)
+				visibleTargets.size(),
+				formatSerialList(visibleTargets)
 			),
 			false
 		);
@@ -1082,7 +1096,7 @@ public final class ModCommands {
 		}
 
 		// 分阶段校验目标：未分配、已退役、离线，分别给出可定位的失败提示。
-		LinkNodeType targetType = sourceType == LinkNodeType.TRIGGER_SOURCE ? LinkNodeType.CORE : LinkNodeType.TRIGGER_SOURCE;
+		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
 		List<Long> unallocatedTargets = new ArrayList<>();
 		List<Long> retiredTargets = new ArrayList<>();
 		List<Long> offlineTargets = new ArrayList<>();
@@ -1292,12 +1306,11 @@ public final class ModCommands {
 	 * 解析节点类型参数。
 	 */
 	private static LinkNodeType parseNodeTypeArg(CommandSourceStack source, String rawType) {
-		var parsedType = LinkNodeSemantics.tryParseCanonicalType(rawType);
-		if (parsedType.isPresent()) {
-			return parsedType.get();
-		}
-		source.sendFailure(SemanticCommandMessageAdapter.invalidType(rawType));
-		return null;
+		return CommandNodeTypeParseUtil.parseCanonicalTypeOrSendFailure(
+			source,
+			rawType,
+			SemanticCommandMessageAdapter::invalidType
+		);
 	}
 
 	/**
