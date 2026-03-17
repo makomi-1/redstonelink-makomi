@@ -8,6 +8,7 @@ import com.makomi.data.CrossChunkWhitelistSavedData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.util.SerialCollectionFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import com.makomi.util.ServerSerialValidationUtil;
 import com.mojang.brigadier.Command;
@@ -16,7 +17,6 @@ import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -207,7 +207,8 @@ public final class CrossChunkCommandRegistry {
 				"message.redstonelink.crosschunk.whitelist.added",
 				roleName(parsed.role()),
 				LinkNodeSemantics.toSemanticName(parsed.type()),
-				serial
+				serial,
+				residentModeName(resident)
 			),
 			true
 		);
@@ -364,7 +365,7 @@ public final class CrossChunkCommandRegistry {
 			source.sendSuccess(
 				() -> Component.translatable(
 					"message.redstonelink.crosschunk.whitelist.set.duplicates_deduped",
-					formatSerialCollection(parseResult.duplicateEntries())
+					SerialCollectionFormatUtil.formatSortedCsv(parseResult.duplicateEntries())
 				),
 				false
 			);
@@ -383,7 +384,7 @@ public final class CrossChunkCommandRegistry {
 				"message.redstonelink.crosschunk.whitelist.set.invalid_serials",
 				roleName(parsed.role()),
 				LinkNodeSemantics.toSemanticName(parsed.type()),
-				formatSerialCollection(invalidSerials)
+				SerialCollectionFormatUtil.formatSortedCsv(invalidSerials)
 			));
 			return 0;
 		}
@@ -443,7 +444,7 @@ public final class CrossChunkCommandRegistry {
 					"message.redstonelink.crosschunk.whitelist.resident.offline_serials",
 					roleName(parsed.role()),
 					LinkNodeSemantics.toSemanticName(parsed.type()),
-					formatSerialCollection(offlineSerials)
+					SerialCollectionFormatUtil.formatSortedCsv(offlineSerials)
 				),
 				false
 			);
@@ -609,34 +610,6 @@ public final class CrossChunkCommandRegistry {
 	}
 
 	/**
-	 * 格式化序号集合。
-	 */
-	private static String formatSerialSet(Set<Long> serials) {
-		if (serials.isEmpty()) {
-			return "-";
-		}
-		return serials.stream()
-			.sorted()
-			.map(String::valueOf)
-			.reduce((left, right) -> left + ", " + right)
-			.orElse("-");
-	}
-
-	/**
-	 * 格式化序号集合（稳定升序、逗号分隔）。
-	 */
-	private static String formatSerialCollection(Collection<Long> serials) {
-		if (serials == null || serials.isEmpty()) {
-			return "-";
-		}
-		return serials.stream()
-			.sorted()
-			.map(String::valueOf)
-			.reduce((left, right) -> left + ", " + right)
-			.orElse("-");
-	}
-
-	/**
 	 * 格式化区块坐标文本（chunkX,chunkZ）。
 	 */
 	private static String formatChunkPos(int blockX, int blockZ) {
@@ -657,7 +630,7 @@ public final class CrossChunkCommandRegistry {
 			.stream()
 			.sorted(Comparator.comparing(entry -> entry.getKey().name()))
 			.forEach(entry -> {
-				String serialText = formatSerialSet(entry.getValue());
+				String serialText = SerialCollectionFormatUtil.formatSortedCsv(entry.getValue());
 				lines.add(LinkNodeSemantics.toSemanticName(entry.getKey()) + ":" + serialText);
 			});
 		return String.join(" | ", lines);

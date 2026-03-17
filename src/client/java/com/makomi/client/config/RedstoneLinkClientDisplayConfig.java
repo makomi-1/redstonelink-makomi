@@ -27,6 +27,7 @@ public final class RedstoneLinkClientDisplayConfig {
 	private static final String KEY_SERIAL_OVERLAY_MAX_DISTANCE = "client.serialOverlayMaxDistance";
 	private static final String KEY_SERIAL_OVERLAY_FONT_SCALE = "client.serialOverlayFontScale";
 	private static final String KEY_SERIAL_OVERLAY_TOGGLE_KEY = "client.serialOverlayToggleKey";
+	private static final String KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH = "client.serialOverlayFarSeeThrough";
 	private static final SerialOverlayMode DEFAULT_SERIAL_OVERLAY_MODE = SerialOverlayMode.FAR_ONLY;
 	private static final int DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE = 24;
 	private static final int MIN_SERIAL_OVERLAY_MAX_DISTANCE = 4;
@@ -34,6 +35,7 @@ public final class RedstoneLinkClientDisplayConfig {
 	private static final float DEFAULT_SERIAL_OVERLAY_FONT_SCALE = 1.0F;
 	private static final float MIN_SERIAL_OVERLAY_FONT_SCALE = 0.50F;
 	private static final float MAX_SERIAL_OVERLAY_FONT_SCALE = 3.00F;
+	private static final boolean DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH = false;
 	private static final int NEAR_OVERLAY_MAX_DISTANCE = 8;
 	private static final String DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY = "key.keyboard.k";
 	private static final Path CONFIG_PATH = resolveConfigPath();
@@ -42,6 +44,7 @@ public final class RedstoneLinkClientDisplayConfig {
 	private static volatile int serialOverlayMaxDistance = DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE;
 	private static volatile float serialOverlayFontScale = DEFAULT_SERIAL_OVERLAY_FONT_SCALE;
 	private static volatile InputConstants.Key serialOverlayToggleKey = InputConstants.getKey(DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY);
+	private static volatile boolean serialOverlayFarSeeThrough = DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH;
 
 	/**
 	 * 客户端序号外显模式。
@@ -107,6 +110,7 @@ public final class RedstoneLinkClientDisplayConfig {
 			serialOverlayMode = DEFAULT_SERIAL_OVERLAY_MODE;
 			serialOverlayMaxDistance = DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE;
 			serialOverlayFontScale = DEFAULT_SERIAL_OVERLAY_FONT_SCALE;
+			serialOverlayFarSeeThrough = DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH;
 			return;
 		}
 
@@ -129,6 +133,11 @@ public final class RedstoneLinkClientDisplayConfig {
 			properties,
 			KEY_SERIAL_OVERLAY_TOGGLE_KEY,
 			DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY
+		);
+		serialOverlayFarSeeThrough = parseBoolean(
+			properties,
+			KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH,
+			DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH
 		);
 		LOGGER.info("客户端显示配置加载完成: {}", CONFIG_PATH.toAbsolutePath());
 	}
@@ -183,6 +192,13 @@ public final class RedstoneLinkClientDisplayConfig {
 	}
 
 	/**
+	 * @return 远外显文字是否启用穿透渲染（SEE_THROUGH）
+	 */
+	public static boolean isFarOverlaySeeThroughEnabled() {
+		return serialOverlayFarSeeThrough;
+	}
+
+	/**
 	 * 按“远 -> 近 -> 远+近 -> 关闭”切换序号外显模式，并持久化到客户端配置文件。
 	 *
 	 * @return 切换后的外显模式
@@ -194,6 +210,16 @@ public final class RedstoneLinkClientDisplayConfig {
 	}
 
 	/**
+	 * 更新远外显穿透显示状态，并持久化到客户端配置文件。
+	 *
+	 * @param seeThrough 是否启用穿透
+	 */
+	public static void setFarOverlaySeeThroughEnabled(boolean seeThrough) {
+		serialOverlayFarSeeThrough = seeThrough;
+		saveCurrentValues();
+	}
+
+	/**
 	 * 持久化当前显示配置。
 	 */
 	private static void saveCurrentValues() {
@@ -201,7 +227,13 @@ public final class RedstoneLinkClientDisplayConfig {
 			Files.createDirectories(CONFIG_PATH.getParent());
 			Files.writeString(
 				CONFIG_PATH,
-				buildConfigContent(serialOverlayMode, serialOverlayMaxDistance, serialOverlayFontScale, serialOverlayToggleKey.getName()),
+				buildConfigContent(
+					serialOverlayMode,
+					serialOverlayMaxDistance,
+					serialOverlayFontScale,
+					serialOverlayToggleKey.getName(),
+					serialOverlayFarSeeThrough
+				),
 				StandardCharsets.UTF_8
 			);
 		} catch (IOException ex) {
@@ -239,7 +271,8 @@ public final class RedstoneLinkClientDisplayConfig {
 					DEFAULT_SERIAL_OVERLAY_MODE,
 					DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE,
 					DEFAULT_SERIAL_OVERLAY_FONT_SCALE,
-					DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY
+					DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY,
+					DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH
 				),
 				StandardCharsets.UTF_8
 			);
@@ -255,7 +288,8 @@ public final class RedstoneLinkClientDisplayConfig {
 		SerialOverlayMode overlayMode,
 		int overlayMaxDistance,
 		float overlayFontScale,
-		String overlayToggleKey
+		String overlayToggleKey,
+		boolean farSeeThrough
 	) {
 		return """
 			# RedstoneLink client display config / RedstoneLink 客户端显示配置
@@ -279,7 +313,18 @@ public final class RedstoneLinkClientDisplayConfig {
 			# zh: 序号外显开关按键（推荐使用 key.keyboard.k 这种完整键名，单字母如 K 也可）。
 			# en: Toggle key for serial overlay (prefer full key name like key.keyboard.k; single letter like K is also accepted).
 			client.serialOverlayToggleKey=%s
-			""".formatted(overlayMode.configToken(), overlayMaxDistance, overlayFontScale, overlayToggleKey);
+
+			# client.serialOverlayFarSeeThrough
+			# zh: 远外显文本是否穿透方块显示（true=穿透，false=被遮挡）。
+			# en: Whether far overlay text ignores occlusion (true=see-through, false=occluded).
+			client.serialOverlayFarSeeThrough=%s
+			""".formatted(
+				overlayMode.configToken(),
+				overlayMaxDistance,
+				overlayFontScale,
+				overlayToggleKey,
+				Boolean.toString(farSeeThrough)
+			);
 	}
 
 	/**

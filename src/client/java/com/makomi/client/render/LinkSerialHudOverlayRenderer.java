@@ -6,6 +6,7 @@ import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
+import com.makomi.util.SerialCollectionFormatUtil;
 import com.makomi.util.SerialDisplayFormatUtil;
 import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.ArrayList;
@@ -375,29 +376,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * 规范化网络下发目标序号：过滤非法值、升序去重。
 	 */
 	private static List<Long> normalizeLinkedTargets(List<Long> linkedTargets) {
-		if (linkedTargets == null || linkedTargets.isEmpty()) {
-			return List.of();
-		}
-		List<Long> values = new ArrayList<>(linkedTargets.size());
-		for (Long value : linkedTargets) {
-			if (value != null && value > 0L) {
-				values.add(value);
-			}
-		}
-		if (values.isEmpty()) {
-			return List.of();
-		}
-		values.sort(Long::compareTo);
-		List<Long> deduplicated = new ArrayList<>(values.size());
-		long previous = Long.MIN_VALUE;
-		for (long value : values) {
-			if (value == previous) {
-				continue;
-			}
-			deduplicated.add(value);
-			previous = value;
-		}
-		return deduplicated.isEmpty() ? List.of() : List.copyOf(deduplicated);
+		return SerialCollectionFormatUtil.normalizePositiveDistinctSorted(linkedTargets);
 	}
 
 	/**

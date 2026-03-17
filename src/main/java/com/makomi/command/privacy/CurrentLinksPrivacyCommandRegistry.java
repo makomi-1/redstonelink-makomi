@@ -5,6 +5,7 @@ import com.makomi.data.CurrentLinksPrivacySavedData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.util.SerialCollectionFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.LongArgumentType;
@@ -12,7 +13,6 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.commands.CommandSourceStack;
@@ -171,7 +171,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 				"message.redstonelink.privacy.current_links.mask.list",
 				LinkNodeSemantics.toSemanticName(type),
 				serials.size(),
-				formatSerialCollection(serials)
+				SerialCollectionFormatUtil.formatSortedCsv(serials)
 			),
 			false
 		);
@@ -219,7 +219,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 			source.sendSuccess(
 				() -> Component.translatable(
 					"message.redstonelink.batch_serials_deduped",
-					formatSerialCollection(parseResult.duplicateEntries())
+					SerialCollectionFormatUtil.formatSortedCsv(parseResult.duplicateEntries())
 				),
 				false
 			);
@@ -237,7 +237,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 				Component.translatable(
 					"message.redstonelink.privacy.current_links.mask.set.invalid_serials",
 					LinkNodeSemantics.toSemanticName(type),
-					formatSerialCollection(invalidSerials)
+					SerialCollectionFormatUtil.formatSortedCsv(invalidSerials)
 				)
 			);
 			return 0;
@@ -330,17 +330,4 @@ public final class CurrentLinksPrivacyCommandRegistry {
 		return false;
 	}
 
-	/**
-	 * 格式化序号集合（稳定升序、逗号分隔）。
-	 */
-	private static String formatSerialCollection(Collection<Long> serials) {
-		if (serials == null || serials.isEmpty()) {
-			return "-";
-		}
-		return serials.stream()
-			.sorted()
-			.map(String::valueOf)
-			.reduce((left, right) -> left + ", " + right)
-			.orElse("-");
-	}
 }

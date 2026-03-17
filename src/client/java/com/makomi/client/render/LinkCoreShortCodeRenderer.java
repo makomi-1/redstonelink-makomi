@@ -26,9 +26,9 @@ public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> 
 	private static final double FACE_OFFSET = 0.80D;
 	private static final double BLOCK_TOP_TEXT_Y = 1.25D;
 	/**
-	 * 文本面板沿相机朝向的前推量，降低与方块面重叠导致的背景淡化。
+	 * 前景文字相对背景的微小 Z 偏移，避免同层渲染时出现背景压字。
 	 */
-
+	private static final float FOREGROUND_Z_BIAS = 0.5F;
 
 	private final Font font;
 
@@ -97,6 +97,11 @@ public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> 
 			BACKGROUND_COLOR,
 			FULL_BRIGHT
 		);
+		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.isFarOverlaySeeThroughEnabled()
+			? Font.DisplayMode.SEE_THROUGH
+			: Font.DisplayMode.POLYGON_OFFSET;
+		poseStack.pushPose();
+		poseStack.translate(0.0D, 0.0D, FOREGROUND_Z_BIAS);
 		font.drawInBatch(
 			displayText,
 			textStartX,
@@ -105,10 +110,11 @@ public final class LinkCoreShortCodeRenderer<T extends PairableNodeBlockEntity> 
 			false,
 			poseStack.last().pose(),
 			buffer,
-			Font.DisplayMode.SEE_THROUGH,
+			foregroundDisplayMode,
 			0,
 			FULL_BRIGHT
 		);
+		poseStack.popPose();
 
 		poseStack.popPose();
 	}

@@ -14,6 +14,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import com.makomi.item.PairableItem;
+import com.makomi.util.SerialCollectionFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import com.makomi.util.ServerSerialValidationUtil;
 import com.mojang.brigadier.Command;
@@ -1395,35 +1396,11 @@ public final class ModCommands {
 	 * 统一格式化序列号集合，限制输出数量与总字符长度，避免命令反馈过长。
 	 */
 	private static String formatSerialCollection(Collection<Long> serials) {
-		if (serials.isEmpty()) {
-			return "-";
-		}
-
-		List<Long> sortedSerials = serials.stream().sorted().toList();
-		StringBuilder builder = new StringBuilder();
-		int shownCount = 0;
-		for (Long serial : sortedSerials) {
-			if (shownCount >= SERIAL_LIST_MAX_ITEMS) {
-				break;
-			}
-			String token = String.valueOf(serial);
-			String separator = shownCount == 0 ? "" : ", ";
-			int appendedLength = builder.length() + separator.length() + token.length();
-			if (appendedLength > SERIAL_LIST_MAX_CHARS) {
-				break;
-			}
-			builder.append(separator).append(token);
-			shownCount++;
-		}
-
-		if (shownCount <= 0) {
-			return "-";
-		}
-		int omittedCount = sortedSerials.size() - shownCount;
-		if (omittedCount > 0) {
-			builder.append(", ... (+").append(omittedCount).append(" more)");
-		}
-		return builder.toString();
+		return SerialCollectionFormatUtil.formatSortedCsvLimited(
+			serials,
+			SERIAL_LIST_MAX_ITEMS,
+			SERIAL_LIST_MAX_CHARS
+		);
 	}
 
 	private enum NodeListScope {

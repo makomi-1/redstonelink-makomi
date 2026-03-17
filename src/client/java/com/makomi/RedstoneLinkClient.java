@@ -10,9 +10,14 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.context.CommandContext;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -33,6 +38,7 @@ import net.minecraft.network.chat.Component;
 public class RedstoneLinkClient implements ClientModInitializer {
 	private static final String KEY_CATEGORY = "key.categories.redstonelink";
 	private static final String KEY_TOGGLE_SERIAL_OVERLAY = "key.redstonelink.toggle_serial_overlay";
+	private static final String CLIENT_DISPLAY_COMMAND_ROOT = "rlclient";
 	private static KeyMapping toggleSerialOverlayKey;
 
 	@Override
@@ -42,6 +48,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerBlockEntityRenderers();
 		registerHudRenderers();
 		registerClientKeyBindings();
+		registerClientDisplayCommands();
 		registerPairingScreenOpeners();
 		registerPairingPacketReceivers();
 		RedstoneLink.LOGGER.info("RedstoneLink client initialized");
@@ -112,6 +119,54 @@ public class RedstoneLinkClient implements ClientModInitializer {
 				}
 			}
 		});
+	}
+
+	/**
+	 * 注册客户端独立命令根：
+	 * <p>
+	 * `/rlclient display far_overlay occluded|see_through` 仅影响本地显示配置，不依赖服务端命令树。
+	 * </p>
+	 */
+	private static void registerClientDisplayCommands() {
+		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
+			ClientCommandManager
+				.literal(CLIENT_DISPLAY_COMMAND_ROOT)
+				.then(
+					ClientCommandManager
+						.literal("display")
+						.then(
+							ClientCommandManager
+								.literal("far_overlay")
+								.then(
+									ClientCommandManager
+										.literal("occluded")
+										.executes(context -> executeSetFarOverlayDisplayMode(context, false))
+								)
+								.then(
+									ClientCommandManager
+										.literal("see_through")
+										.executes(context -> executeSetFarOverlayDisplayMode(context, true))
+								)
+						)
+				)
+		));
+	}
+
+	/**
+	 * 执行客户端远外显模式切换并即时反馈。
+	 */
+	private static int executeSetFarOverlayDisplayMode(
+		CommandContext<FabricClientCommandSource> context,
+		boolean seeThrough
+	) {
+		RedstoneLinkClientDisplayConfig.setFarOverlaySeeThroughEnabled(seeThrough);
+		Component modeLabel = Component.translatable(
+			seeThrough
+				? "message.redstonelink.display.far_overlay.mode.see_through"
+				: "message.redstonelink.display.far_overlay.mode.occluded"
+		);
+		context.getSource().sendFeedback(Component.translatable("message.redstonelink.display.far_overlay.updated", modeLabel));
+		return Command.SINGLE_SUCCESS;
 	}
 
 	/**

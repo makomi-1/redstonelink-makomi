@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.makomi.util.SerialNbtCodecUtil;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -126,10 +127,10 @@ public final class LinkSavedData extends SavedData {
 		boolean hasAllocatedCore = tag.contains(KEY_ALLOCATED_CORE_SERIALS, Tag.TAG_LONG_ARRAY);
 		boolean hasAllocatedButton = tag.contains(KEY_ALLOCATED_BUTTON_SERIALS, Tag.TAG_LONG_ARRAY);
 		if (hasAllocatedCore) {
-			readSerialSet(tag, KEY_ALLOCATED_CORE_SERIALS, data.allocatedCoreSerials);
+			SerialNbtCodecUtil.readSerialSet(tag, KEY_ALLOCATED_CORE_SERIALS, data.allocatedCoreSerials);
 		}
 		if (hasAllocatedButton) {
-			readSerialSet(tag, KEY_ALLOCATED_BUTTON_SERIALS, data.allocatedButtonSerials);
+			SerialNbtCodecUtil.readSerialSet(tag, KEY_ALLOCATED_BUTTON_SERIALS, data.allocatedButtonSerials);
 		}
 		if (!hasAllocatedCore) {
 			populateLegacyAllocated(data.allocatedCoreSerials, data.nextCoreSerial);
@@ -137,8 +138,8 @@ public final class LinkSavedData extends SavedData {
 		if (!hasAllocatedButton) {
 			populateLegacyAllocated(data.allocatedButtonSerials, data.nextButtonSerial);
 		}
-		readSerialSet(tag, KEY_RETIRED_CORE_SERIALS, data.retiredCoreSerials);
-		readSerialSet(tag, KEY_RETIRED_BUTTON_SERIALS, data.retiredButtonSerials);
+		SerialNbtCodecUtil.readSerialSet(tag, KEY_RETIRED_CORE_SERIALS, data.retiredCoreSerials);
+		SerialNbtCodecUtil.readSerialSet(tag, KEY_RETIRED_BUTTON_SERIALS, data.retiredButtonSerials);
 		data.ensureKnownSerialsAllocated();
 		data.correctNextSerials();
 		return data;
@@ -507,10 +508,10 @@ public final class LinkSavedData extends SavedData {
 	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
 		tag.putLong(KEY_NEXT_CORE_SERIAL, nextCoreSerial);
 		tag.putLong(KEY_NEXT_BUTTON_SERIAL, nextButtonSerial);
-		tag.putLongArray(KEY_ALLOCATED_CORE_SERIALS, sortedSerialArray(allocatedCoreSerials));
-		tag.putLongArray(KEY_ALLOCATED_BUTTON_SERIALS, sortedSerialArray(allocatedButtonSerials));
-		tag.putLongArray(KEY_RETIRED_CORE_SERIALS, sortedSerialArray(retiredCoreSerials));
-		tag.putLongArray(KEY_RETIRED_BUTTON_SERIALS, sortedSerialArray(retiredButtonSerials));
+		tag.putLongArray(KEY_ALLOCATED_CORE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(allocatedCoreSerials));
+		tag.putLongArray(KEY_ALLOCATED_BUTTON_SERIALS, SerialNbtCodecUtil.toSortedLongArray(allocatedButtonSerials));
+		tag.putLongArray(KEY_RETIRED_CORE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(retiredCoreSerials));
+		tag.putLongArray(KEY_RETIRED_BUTTON_SERIALS, SerialNbtCodecUtil.toSortedLongArray(retiredButtonSerials));
 
 		ListTag nodesTag = new ListTag();
 		saveNodeMap(nodesTag, coreNodes);
@@ -658,20 +659,6 @@ public final class LinkSavedData extends SavedData {
 	}
 
 	/**
-	 * 从 NBT long array 读取序列号集合。
-	 */
-	private static void readSerialSet(CompoundTag tag, String key, Set<Long> output) {
-		if (!tag.contains(key, Tag.TAG_LONG_ARRAY)) {
-			return;
-		}
-		for (long serial : tag.getLongArray(key)) {
-			if (serial > 0L) {
-				output.add(serial);
-			}
-		}
-	}
-
-	/**
 	 * 兼容旧版：根据 nextSerial 推导历史已分配范围。
 	 */
 	private static void populateLegacyAllocated(Set<Long> output, long nextSerial) {
@@ -679,17 +666,6 @@ public final class LinkSavedData extends SavedData {
 		for (long serial = 1L; serial < upperExclusive; serial++) {
 			output.add(serial);
 		}
-	}
-
-	/**
-	 * 将序列号集合转为升序 long[]，用于稳定持久化。
-	 */
-	private static long[] sortedSerialArray(Set<Long> serials) {
-		return serials.stream()
-			.filter(value -> value != null && value > 0L)
-			.mapToLong(Long::longValue)
-			.sorted()
-			.toArray();
 	}
 
 	/**

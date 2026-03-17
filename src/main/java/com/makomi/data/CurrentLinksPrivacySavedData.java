@@ -1,11 +1,11 @@
 package com.makomi.data;
 
+import com.makomi.util.SerialNbtCodecUtil;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
@@ -40,8 +40,8 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 
 	private static CurrentLinksPrivacySavedData load(CompoundTag tag, HolderLookup.Provider provider) {
 		CurrentLinksPrivacySavedData data = new CurrentLinksPrivacySavedData();
-		readSerialSet(tag, KEY_MASKED_TRIGGER_SOURCE_SERIALS, data.maskedTriggerSourceSerials);
-		readSerialSet(tag, KEY_MASKED_CORE_SERIALS, data.maskedCoreSerials);
+		SerialNbtCodecUtil.readSerialSet(tag, KEY_MASKED_TRIGGER_SOURCE_SERIALS, data.maskedTriggerSourceSerials);
+		SerialNbtCodecUtil.readSerialSet(tag, KEY_MASKED_CORE_SERIALS, data.maskedCoreSerials);
 		return data;
 	}
 
@@ -140,8 +140,8 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 
 	@Override
 	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
-		tag.putLongArray(KEY_MASKED_TRIGGER_SOURCE_SERIALS, toSortedLongArray(maskedTriggerSourceSerials));
-		tag.putLongArray(KEY_MASKED_CORE_SERIALS, toSortedLongArray(maskedCoreSerials));
+		tag.putLongArray(KEY_MASKED_TRIGGER_SOURCE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(maskedTriggerSourceSerials));
+		tag.putLongArray(KEY_MASKED_CORE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(maskedCoreSerials));
 		return tag;
 	}
 
@@ -168,28 +168,4 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 		return normalized.isEmpty() ? Set.of() : Set.copyOf(normalized);
 	}
 
-	/**
-	 * 从 NBT long array 读取序号集合。
-	 */
-	private static void readSerialSet(CompoundTag tag, String key, Set<Long> output) {
-		if (!tag.contains(key, Tag.TAG_LONG_ARRAY)) {
-			return;
-		}
-		for (long serial : tag.getLongArray(key)) {
-			if (serial > 0L) {
-				output.add(serial);
-			}
-		}
-	}
-
-	/**
-	 * 序号集合转升序 long[]，便于稳定持久化。
-	 */
-	private static long[] toSortedLongArray(Set<Long> serials) {
-		return serials.stream()
-			.filter(value -> value != null && value > 0L)
-			.mapToLong(Long::longValue)
-			.sorted()
-			.toArray();
-	}
 }
