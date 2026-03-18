@@ -13,7 +13,8 @@ import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
-import com.makomi.item.PairableItem;
+import com.makomi.data.LinkWriteControlService;
+import com.makomi.data.LinkWriteProtectedSavedData;
 import com.makomi.util.SerialCollectionFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import com.makomi.util.ServerSerialValidationUtil;
@@ -21,6 +22,7 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.ArrayList;
@@ -44,7 +46,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
@@ -54,7 +55,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 /**
  * RedstoneLink 服务端命令入口。
  * <p>
- * 提供手持/节点配对、批量覆盖链接、审计信息与节点退役等运维能力。
+ * 提供链接管理、审计信息与节点退役等运维能力。
  * </p>
  */
 public final class ModCommands {
@@ -62,6 +63,7 @@ public final class ModCommands {
 	private static final int NODE_LIST_MAX_LIMIT = 1000;
 	private static final int SERIAL_LIST_MAX_ITEMS = 50;
 	private static final int SERIAL_LIST_MAX_CHARS = 300;
+	private static final int WRITE_CONTROL_PROTECTED_SET_MAX_SERIALS = 4096;
 	private static final int PLACE_BLOCK_FLAGS = 2;
 	private static final long PLACE_CONFIRM_TIMEOUT_MILLIS = 30_000L;
 	private static final Map<UUID, PendingPlacement> PENDING_PLACE_BY_PLAYER = new HashMap<>();
@@ -77,37 +79,6 @@ public final class ModCommands {
 			Commands
 				.literal("redstonelink")
 				.requires(source -> source.hasPermission(RedstoneLinkConfig.commandPermissionLevel()))
-				.then(
-					Commands
-						.literal("pair")
-						.then(
-							Commands.literal("main").then(
-								Commands.argument("serial", LongArgumentType.longArg(0L)).executes(
-									context -> executePairByHand(context, InteractionHand.MAIN_HAND)
-								)
-							)
-						)
-						.then(
-							Commands.literal("off").then(
-								Commands.argument("serial", LongArgumentType.longArg(0L)).executes(
-									context -> executePairByHand(context, InteractionHand.OFF_HAND)
-								)
-							)
-						)
-				)
-				.then(
-					Commands
-						.literal("pair_node")
-						.then(
-							Commands.argument("type", StringArgumentType.word()).then(
-								Commands.argument("source_serial", LongArgumentType.longArg(1L)).then(
-									Commands.argument("target_serial", LongArgumentType.longArg(0L)).executes(
-										ModCommands::executePairByNodeWithTypeArg
-									)
-								)
-							)
-						)
-				)
 				.then(
 					ActivateCommandRegistry.createRoot()
 				)
@@ -266,73 +237,257 @@ public final class ModCommands {
 						.then(RetireBatchCommandRegistry.createBatchNode())
 				)
 				.then(CurrentLinksPrivacyCommandRegistry.createRoot())
+				.then(createWriteControlRoot())
 				.then(CrossChunkCommandRegistry.createRoot())
 		));
 	}
 
 	/**
-	 * 使用手持可配对物执行单目标切换配对。
+	 * 构建 `write_control` 命令树根节点。
 	 */
-	private static int executePairByHand(CommandContext<CommandSourceStack> context, InteractionHand hand) {
-		CommandSourceStack source = context.getSource();
-		ServerPlayer player = source.getPlayer();
-		if (player == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
-			return 0;
-		}
-
-		ItemStack heldStack = player.getItemInHand(hand);
-		if (!(heldStack.getItem() instanceof PairableItem pairableItem)) {
-			source.sendFailure(Component.translatable("message.redstonelink.not_pairable"));
-			return 0;
-		}
-
-		LinkNodeType selfType = pairableItem.getNodeType();
-		if (selfType != LinkNodeType.TRIGGER_SOURCE) {
-			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
-			return 0;
-		}
-
-		long selfSerial = LinkItemData.ensureSerial(heldStack, player.serverLevel(), selfType);
-		long targetSerial = LongArgumentType.getLong(context, "serial");
-
-		int result = executeLinkUpdate(source, player, selfType, selfSerial, targetSerial, false, false, LinkUpdateMode.TOGGLE);
-		if (result == Command.SINGLE_SUCCESS) {
-			LinkItemData.setPairSerial(heldStack, targetSerial);
-		}
-		return result;
+	private static LiteralArgumentBuilder<CommandSourceStack> createWriteControlRoot() {
+		return Commands
+			.literal("write_control")
+			.requires(source -> source.hasPermission(RedstoneLinkConfig.linkWriteProtectedManagePermissionLevel()))
+			.then(
+				Commands
+					.literal("protected")
+					.then(
+						Commands
+							.literal("add")
+							.then(
+								Commands.argument("type", StringArgumentType.word()).then(
+									Commands.argument("serial", LongArgumentType.longArg(1L)).executes(
+										ModCommands::executeWriteProtectedAdd
+									)
+								)
+							)
+					)
+					.then(
+						Commands
+							.literal("remove")
+							.then(
+								Commands.argument("type", StringArgumentType.word()).then(
+									Commands.argument("serial", LongArgumentType.longArg(1L)).executes(
+										ModCommands::executeWriteProtectedRemove
+									)
+								)
+							)
+					)
+					.then(
+						Commands
+							.literal("list")
+							.then(
+								Commands.argument("type", StringArgumentType.word()).executes(
+									ModCommands::executeWriteProtectedList
+								)
+							)
+					)
+					.then(
+						Commands
+							.literal("set")
+							.then(
+								Commands.argument("type", StringArgumentType.word()).then(
+									Commands.argument("serials", StringArgumentType.greedyString()).executes(
+										ModCommands::executeWriteProtectedSet
+									)
+								)
+							)
+					)
+			);
 	}
 
 	/**
-	 * 以节点序列号为源执行单目标切换配对。
+	 * 执行 write_control protected add。
 	 */
-	private static int executePairByNode(CommandContext<CommandSourceStack> context, LinkNodeType sourceType) {
+	private static int executeWriteProtectedAdd(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
-		ServerPlayer player = source.getPlayer();
-		if (player == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
 			return 0;
 		}
-		if (sourceType != LinkNodeType.TRIGGER_SOURCE) {
-			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
+		long serial = LongArgumentType.getLong(context, "serial");
+		LinkSavedData linkSavedData = LinkSavedData.get(source.getLevel());
+		if (!validateWriteProtectedActiveSerial(source, linkSavedData, type, serial)) {
 			return 0;
 		}
 
-		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
-		long targetSerial = LongArgumentType.getLong(context, "target_serial");
-		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, true, true, LinkUpdateMode.TOGGLE);
+		LinkWriteProtectedSavedData protectedSavedData = LinkWriteProtectedSavedData.get(source.getLevel());
+		boolean changed = protectedSavedData.add(type, serial);
+		if (!changed) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.write_control.protected.exists",
+					typeCommandName(type),
+					serial
+				)
+			);
+			return 0;
+		}
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.write_control.protected.added",
+				typeCommandName(type),
+				serial
+			),
+			true
+		);
+		return Command.SINGLE_SUCCESS;
 	}
 
 	/**
-	 * 根据 type 参数执行节点单目标切换配对。
+	 * 执行 write_control protected remove。
 	 */
-	private static int executePairByNodeWithTypeArg(CommandContext<CommandSourceStack> context) {
+	private static int executeWriteProtectedRemove(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
-		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
-		if (sourceType == null) {
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
 			return 0;
 		}
-		return executePairByNode(context, sourceType);
+		long serial = LongArgumentType.getLong(context, "serial");
+		LinkWriteProtectedSavedData protectedSavedData = LinkWriteProtectedSavedData.get(source.getLevel());
+		boolean changed = protectedSavedData.remove(type, serial);
+		if (!changed) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.write_control.protected.not_found",
+					typeCommandName(type),
+					serial
+				)
+			);
+			return 0;
+		}
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.write_control.protected.removed",
+				typeCommandName(type),
+				serial
+			),
+			true
+		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 执行 write_control protected list。
+	 */
+	private static int executeWriteProtectedList(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
+			return 0;
+		}
+		Set<Long> serials = LinkWriteProtectedSavedData.get(source.getLevel()).list(type);
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.write_control.protected.list",
+				typeCommandName(type),
+				serials.size(),
+				formatSerialCollection(serials)
+			),
+			false
+		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 执行 write_control protected set（批量覆盖，支持 confirm 二次确认）。
+	 */
+	private static int executeWriteProtectedSet(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (type == null) {
+			return 0;
+		}
+
+		CommandSuffixParser.ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(
+			StringArgumentType.getString(context, "serials")
+		);
+		String rawSerials = confirmSuffixParseResult.payload();
+		boolean confirmed = confirmSuffixParseResult.confirmed();
+		TargetParseResult parseResult = parseTargetSerials(rawSerials, WRITE_CONTROL_PROTECTED_SET_MAX_SERIALS);
+		if (!parseResult.invalidEntries().isEmpty()) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.invalid_target_tokens",
+					String.join(", ", parseResult.invalidEntries())
+				)
+			);
+			return 0;
+		}
+		if (parseResult.exceedLimit()) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.write_control.protected.set.too_many",
+					WRITE_CONTROL_PROTECTED_SET_MAX_SERIALS
+				)
+			);
+			return 0;
+		}
+
+		Set<Long> targetSerials = parseResult.targets();
+		if (targetSerials.isEmpty()) {
+			source.sendFailure(Component.translatable("message.redstonelink.write_control.protected.set.empty"));
+			return 0;
+		}
+		if (!parseResult.duplicateEntries().isEmpty()) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.batch_serials_deduped",
+					formatSerialCollection(parseResult.duplicateEntries())
+				),
+				false
+			);
+		}
+
+		LinkSavedData linkSavedData = LinkSavedData.get(source.getLevel());
+		List<Long> invalidSerials = new ArrayList<>();
+		for (long serial : targetSerials) {
+			if (!isWriteProtectedActiveSerial(linkSavedData, type, serial)) {
+				invalidSerials.add(serial);
+			}
+		}
+		if (!invalidSerials.isEmpty()) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.write_control.protected.set.invalid_serials",
+					typeCommandName(type),
+					formatSerialCollection(invalidSerials)
+				)
+			);
+			return 0;
+		}
+
+		if (!confirmed) {
+			String confirmCommand = "redstonelink write_control protected set "
+				+ typeCommandName(type)
+				+ " "
+				+ rawSerials
+				+ " confirm";
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.write_control.protected.set.confirm_required",
+					targetSerials.size(),
+					confirmCommand
+				)
+			);
+			return 0;
+		}
+
+		LinkWriteProtectedSavedData protectedSavedData = LinkWriteProtectedSavedData.get(source.getLevel());
+		LinkWriteProtectedSavedData.ReplaceProtectedResult replaceResult = protectedSavedData.replace(type, targetSerials);
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.write_control.protected.set.done",
+				typeCommandName(type),
+				targetSerials.size(),
+				replaceResult.addedCount(),
+				replaceResult.removedCount(),
+				replaceResult.changedCount()
+			),
+			true
+		);
+		return Command.SINGLE_SUCCESS;
 	}
 
 	/**
@@ -351,7 +506,7 @@ public final class ModCommands {
 		}
 		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
 		long targetSerial = LongArgumentType.getLong(context, "target_serial");
-		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, false, false, LinkUpdateMode.ADD);
+		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, LinkUpdateMode.ADD);
 	}
 
 	/**
@@ -370,14 +525,13 @@ public final class ModCommands {
 		}
 		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
 		long targetSerial = LongArgumentType.getLong(context, "target_serial");
-		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, false, false, LinkUpdateMode.REMOVE);
+		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, LinkUpdateMode.REMOVE);
 	}
 
 	/**
 	 * 单目标更新模式。
 	 */
 	private enum LinkUpdateMode {
-		TOGGLE,
 		ADD,
 		REMOVE
 	}
@@ -391,8 +545,6 @@ public final class ModCommands {
 		LinkNodeType sourceType,
 		long sourceSerial,
 		long targetSerial,
-		boolean requireSourceExists,
-		boolean requireTargetExists,
 		LinkUpdateMode updateMode
 	) {
 		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
@@ -400,12 +552,11 @@ public final class ModCommands {
 			return 0;
 		}
 
-		if (requireSourceExists && savedData.findNode(sourceType, sourceSerial).isEmpty()) {
-			source.sendFailure(Component.translatable("message.redstonelink.source_not_found", sourceSerial));
-			return 0;
-		}
-
 		if (targetSerial <= 0L) {
+			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
+			if (!checkLinkWriteAllowed(source, player, sourceType, sourceSerial, previousTargets, 0)) {
+				return 0;
+			}
 			int removed = savedData.clearLinksForNode(sourceType, sourceSerial);
 			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 			source.sendSuccess(
@@ -416,6 +567,23 @@ public final class ModCommands {
 		}
 
 		if (updateMode == LinkUpdateMode.REMOVE) {
+			Set<Long> previousTargets = savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
+			if (!previousTargets.contains(targetSerial)) {
+				source.sendFailure(Component.translatable("message.redstonelink.link_not_exists"));
+				return 0;
+			}
+			int nextTargetCount = Math.max(0, previousTargets.size() - 1);
+			if (!checkLinkWriteAllowed(
+				source,
+				player,
+				sourceType,
+				sourceSerial,
+				Set.of(targetSerial),
+				nextTargetCount,
+				true
+			)) {
+				return 0;
+			}
 			boolean removedNow = savedData.removeLinkBySourceType(sourceType, sourceSerial, targetSerial);
 			if (!removedNow) {
 				source.sendFailure(Component.translatable("message.redstonelink.link_not_exists"));
@@ -425,37 +593,35 @@ public final class ModCommands {
 			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 			return Command.SINGLE_SUCCESS;
 		}
+		if (updateMode != LinkUpdateMode.ADD) {
+			throw new IllegalStateException("Unsupported link update mode: " + updateMode);
+		}
 
 		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
 		if (!ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
 			return 0;
 		}
 		boolean targetOffline = savedData.findNode(targetType, targetSerial).isEmpty();
-		if (requireTargetExists && targetOffline) {
-			source.sendFailure(Component.translatable("message.redstonelink.target_not_found", targetSerial));
-			return 0;
-		}
-		if (!requireTargetExists && targetOffline && !RedstoneLinkConfig.allowOfflineTargetBinding()) {
+		if (targetOffline && !RedstoneLinkConfig.allowOfflineTargetBinding()) {
 			source.sendFailure(Component.translatable("message.redstonelink.offline_targets_blocked", Long.toString(targetSerial)));
 			return 0;
 		}
-
-		if (updateMode == LinkUpdateMode.ADD) {
-			boolean addedNow = savedData.addLinkBySourceType(sourceType, sourceSerial, targetSerial);
-			if (!addedNow) {
-				source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
-				return 0;
-			}
-			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
-			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
-			return Command.SINGLE_SUCCESS;
+		Set<Long> currentTargets = savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
+		if (currentTargets.contains(targetSerial)) {
+			source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
+			return 0;
+		}
+		int nextTargetCount = currentTargets.size() + 1;
+		if (!checkLinkWriteAllowed(source, player, sourceType, sourceSerial, Set.of(targetSerial), nextTargetCount)) {
+			return 0;
 		}
 
-		boolean linkedNow = savedData.toggleLinkBySourceType(sourceType, sourceSerial, targetSerial);
-		source.sendSuccess(
-			() -> Component.translatable(linkedNow ? "message.redstonelink.link_added" : "message.redstonelink.link_removed"),
-			false
-		);
+		boolean addedNow = savedData.addLinkBySourceType(sourceType, sourceSerial, targetSerial);
+		if (!addedNow) {
+			source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
+			return 0;
+		}
+		source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 		return Command.SINGLE_SUCCESS;
 	}
@@ -1238,6 +1404,14 @@ public final class ModCommands {
 			return 0;
 		}
 
+		// 先按“覆盖后设置量 + 受影响集合”执行写入权限判定，避免越权覆盖。
+		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
+		Set<Long> affectedTargets = new HashSet<>(previousTargets);
+		affectedTargets.addAll(targets);
+		if (!checkLinkWriteAllowed(source, player, sourceType, sourceSerial, affectedTargets, targets.size())) {
+			return 0;
+		}
+
 		// link set 语义为“覆盖集合”，底层按差异增量应用，避免无效全量重写。
 		if (hasTargets && targets.size() > 1 && !confirmed) {
 			String confirmCommand = "redstonelink link set "
@@ -1256,7 +1430,6 @@ public final class ModCommands {
 			);
 			return 0;
 		}
-		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
 		LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceLinksBySourceType(sourceType, sourceSerial, targets);
 
 		syncAffectedNodeLinkSnapshots(player.serverLevel(), targetType, previousTargets, targets);
@@ -1385,6 +1558,94 @@ public final class ModCommands {
 			parsed.duplicateEntries(),
 			parsed.exceedLimit()
 		);
+	}
+
+	/**
+	 * 统一执行写入控制判定并返回是否允许继续写入。
+	 */
+	private static boolean checkLinkWriteAllowed(
+		CommandSourceStack source,
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> affectedTargets,
+		int setSize
+	) {
+		return checkLinkWriteAllowed(source, player, sourceType, sourceSerial, affectedTargets, setSize, false);
+	}
+
+	/**
+	 * 统一执行写入控制判定并返回是否允许继续写入。
+	 * <p>
+	 * 当 bypassLimitedSetSize=true 时，仅跳过 limited 模式的“最大设置量”限制，
+	 * 仍保留 readonly 与 protected 两类控制。
+	 * </p>
+	 */
+	private static boolean checkLinkWriteAllowed(
+		CommandSourceStack source,
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> affectedTargets,
+		int setSize,
+		boolean bypassLimitedSetSize
+	) {
+		LinkWriteControlService.WriteDecision decision = LinkWriteControlService.evaluate(
+			player.serverLevel(),
+			sourceType,
+			sourceSerial,
+			affectedTargets,
+			setSize,
+			bypassLimitedSetSize || player.hasPermissions(RedstoneLinkConfig.linkWriteLimitedPermissionLevel()),
+			player.hasPermissions(RedstoneLinkConfig.linkWriteProtectedPermissionLevel())
+		);
+		if (decision.allowed()) {
+			return true;
+		}
+		LinkWriteControlService.DenyReason denyReason = decision.denyReason();
+		if (denyReason == LinkWriteControlService.DenyReason.LIMITED_MAX_SET_SIZE) {
+			source.sendFailure(Component.translatable("message.redstonelink.permission.insufficient"));
+			return false;
+		}
+		if (denyReason == LinkWriteControlService.DenyReason.PROTECTED_SERIAL) {
+			source.sendFailure(Component.translatable("message.redstonelink.permission.insufficient"));
+			return false;
+		}
+		source.sendFailure(Component.translatable("message.redstonelink.write_control.deny.readonly"));
+		return false;
+	}
+
+	/**
+	 * 校验受控名单命令中的序号是否处于激活状态。
+	 */
+	private static boolean validateWriteProtectedActiveSerial(
+		CommandSourceStack source,
+		LinkSavedData savedData,
+		LinkNodeType type,
+		long serial
+	) {
+		if (isWriteProtectedActiveSerial(savedData, type, serial)) {
+			return true;
+		}
+		source.sendFailure(
+			Component.translatable(
+				"message.redstonelink.write_control.protected.invalid_serial",
+				typeCommandName(type),
+				serial
+			)
+		);
+		return false;
+	}
+
+	/**
+	 * 判断受控名单命令输入的序号是否为已分配且未退役。
+	 */
+	private static boolean isWriteProtectedActiveSerial(LinkSavedData savedData, LinkNodeType type, long serial) {
+		return savedData != null
+			&& type != null
+			&& serial > 0L
+			&& savedData.isSerialAllocated(type, serial)
+			&& !savedData.isSerialRetired(type, serial);
 	}
 
 	/**

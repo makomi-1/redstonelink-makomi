@@ -301,6 +301,48 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 管理“当前连接加密名单”命令所需权限等级（0~4）
+	 */
+	public static int currentLinksPrivacyManagePermissionLevel() {
+		return values.currentLinksPrivacyManagePermissionLevel();
+	}
+
+	/**
+	 * @return 链接写入控制模式（full/limited/readonly）
+	 */
+	public static LinkWriteControlMode linkWriteControlMode() {
+		return values.linkWriteControlMode();
+	}
+
+	/**
+	 * @return limited 模式下允许越过“最大设置量”限制的权限等级（0~4）
+	 */
+	public static int linkWriteLimitedPermissionLevel() {
+		return values.linkWriteLimitedPermissionLevel();
+	}
+
+	/**
+	 * @return limited 模式下单次 set 允许的最大“目标设置量”
+	 */
+	public static int linkWriteLimitedMaxSetSize() {
+		return values.linkWriteLimitedMaxSetSize();
+	}
+
+	/**
+	 * @return 命中受控名单后允许写入所需权限等级（0~4）
+	 */
+	public static int linkWriteProtectedPermissionLevel() {
+		return values.linkWriteProtectedPermissionLevel();
+	}
+
+	/**
+	 * @return 维护受控名单命令所需权限等级（0~4）
+	 */
+	public static int linkWriteProtectedManagePermissionLevel() {
+		return values.linkWriteProtectedManagePermissionLevel();
+	}
+
+	/**
 	 * @return 是否启用跨区块接管提示
 	 */
 	public static boolean crossChunkNotifyEnabled() {
@@ -424,6 +466,12 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.command.permissionLevel", 2, 0, 4),
 			CurrentLinksPrivacyMode.fromConfigValue(props.getProperty("server.currentLinksPrivacy.mode", "masked")),
 			parseInt(props, "server.currentLinksPrivacy.viewPermissionLevel", 2, 0, 4),
+			parseInt(props, "server.currentLinksPrivacy.managePermissionLevel", 2, 0, 4),
+			LinkWriteControlMode.fromConfigValue(props.getProperty("server.linkWriteControl.mode", "full")),
+			parseInt(props, "server.linkWriteControl.limited.permissionLevel", 2, 0, 4),
+			parseInt(props, "server.linkWriteControl.limited.maxSetSize", 64, 1, 4096),
+			parseInt(props, "server.linkWriteControl.protected.permissionLevel", 2, 0, 4),
+			parseInt(props, "server.linkWriteControl.protected.managePermissionLevel", 2, 0, 4),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
 			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
@@ -792,6 +840,36 @@ public final class RedstoneLinkConfig {
 			# zh: 查看被加密“当前连接”所需权限等级（0~4）。
 			# en: Permission level required to view masked current links (0~4).
 			server.currentLinksPrivacy.viewPermissionLevel=2
+
+			# server.currentLinksPrivacy.managePermissionLevel
+			# zh: 管理“当前连接加密名单”命令所需权限等级（0~4）。
+			# en: Permission level required for current-links mask management commands (0~4).
+			server.currentLinksPrivacy.managePermissionLevel=2
+
+			# server.linkWriteControl.mode
+			# zh: 链接写入控制模式：full=全量写入，limited=限量写入，readonly=只读。
+			# en: Link write-control mode: full / limited / readonly.
+			server.linkWriteControl.mode=full
+
+			# server.linkWriteControl.limited.permissionLevel
+			# zh: limited 模式下越过“最大设置量”限制所需权限等级（0~4）。
+			# en: Permission level to bypass limited-mode max set-size restriction (0~4).
+			server.linkWriteControl.limited.permissionLevel=2
+
+			# server.linkWriteControl.limited.maxSetSize
+			# zh: limited 模式下单次 set 允许的最大目标设置量。
+			# en: Maximum target set-size allowed per single set operation in limited mode.
+			server.linkWriteControl.limited.maxSetSize=64
+
+			# server.linkWriteControl.protected.permissionLevel
+			# zh: 命中受控名单时允许写入所需权限等级（0~4）。
+			# en: Permission level required to write when touching protected serials (0~4).
+			server.linkWriteControl.protected.permissionLevel=2
+
+			# server.linkWriteControl.protected.managePermissionLevel
+			# zh: 管理受控名单命令所需权限等级（0~4）。
+			# en: Permission level required for protected-list management commands (0~4).
+			server.linkWriteControl.protected.managePermissionLevel=2
 			
 			# interaction.requireSneakToOpenPairing
 			# zh: 打开配对 UI 是否必须潜行。
@@ -899,6 +977,12 @@ public final class RedstoneLinkConfig {
 		int commandPermissionLevel,
 		CurrentLinksPrivacyMode currentLinksPrivacyMode,
 		int currentLinksPrivacyViewPermissionLevel,
+		int currentLinksPrivacyManagePermissionLevel,
+		LinkWriteControlMode linkWriteControlMode,
+		int linkWriteLimitedPermissionLevel,
+		int linkWriteLimitedMaxSetSize,
+		int linkWriteProtectedPermissionLevel,
+		int linkWriteProtectedManagePermissionLevel,
 		boolean requireSneakToOpenPairing,
 		boolean requireSneakToOpenLinkerPairing,
 		boolean requireEmptyOffhandToOpenPairing
@@ -907,7 +991,52 @@ public final class RedstoneLinkConfig {
 		 * @return 基础配置默认值
 		 */
 		private static Values defaults() {
-			return new Values(4, EmitterEdgeMode.RISING, 15, 1024, true, 2, CurrentLinksPrivacyMode.PLAIN, 2, true, true, true);
+			return new Values(
+				4,
+				EmitterEdgeMode.RISING,
+				15,
+				1024,
+				true,
+				2,
+				CurrentLinksPrivacyMode.PLAIN,
+				2,
+				2,
+				LinkWriteControlMode.FULL,
+				2,
+				64,
+				2,
+				2,
+				true,
+				true,
+				true
+			);
+		}
+	}
+
+	/**
+	 * 链接写入控制模式。
+	 */
+	public enum LinkWriteControlMode {
+		FULL,
+		LIMITED,
+		READONLY;
+
+		/**
+		 * 解析写入控制模式配置值。
+		 *
+		 * @param raw 原始配置值
+		 * @return 解析后的模式，非法值回退为 FULL
+		 */
+		public static LinkWriteControlMode fromConfigValue(String raw) {
+			if (raw == null) {
+				return FULL;
+			}
+			return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+				case "limited" -> LIMITED;
+				case "readonly" -> READONLY;
+				case "full" -> FULL;
+				default -> FULL;
+			};
 		}
 	}
 

@@ -39,6 +39,7 @@ public final class LinkRetireCoordinator {
 		LinkSavedData.RetireResult retireResult = savedData.retireNode(type, serial);
 		CrossChunkWhitelistSavedData.get(level).removeFromAllRoles(type, serial);
 		CurrentLinksPrivacySavedData.get(level).remove(type, serial);
+		LinkWriteProtectedSavedData.get(level).remove(type, serial);
 		if (hasRetireChanges(retireResult)) {
 			syncNodeSnapshot(level, sourceNodeSnapshot);
 		}

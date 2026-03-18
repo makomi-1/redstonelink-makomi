@@ -2,6 +2,7 @@ package com.makomi.command.privacy;
 
 import com.makomi.command.CommandSuffixParser;
 import com.makomi.command.CommandNodeTypeParseUtil;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CurrentLinksPrivacySavedData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -38,6 +39,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
 			.literal("privacy")
+			.requires(source -> source.hasPermission(RedstoneLinkConfig.currentLinksPrivacyManagePermissionLevel()))
 			.then(
 				Commands
 					.literal("current_links")
