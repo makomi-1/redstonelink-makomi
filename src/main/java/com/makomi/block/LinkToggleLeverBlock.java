@@ -12,8 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -28,6 +30,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
+import org.joml.Vector3f;
 
 /**
  * 联动拨杆方块。
@@ -36,6 +39,8 @@ import net.minecraft.world.phys.BlockHitResult;
  * </p>
  */
 public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
+	private static final Vector3f ORANGE_PARTICLE_BASE_COLOR = new Vector3f(1.0F, 0.58F, 0.16F);
+
 	// 拉杆属于触发器类，实现上复用 LinkButtonBlockEntity（TRIGGER_SOURCE 节点）链路。
 	public LinkToggleLeverBlock(BlockBehaviour.Properties properties) {
 		super(properties);
@@ -119,8 +124,16 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
 
+		if (level.isClientSide) {
+			// 客户端点击预览阶段不走父类红色粒子逻辑，改为“仅在切换为激活时”发橙色粒子。
+			if (!state.getValue(POWERED)) {
+				spawnOrangeParticle(level, pos, level.random, 0.98F, 0.36F);
+			}
+			return InteractionResult.SUCCESS;
+		}
+
 		InteractionResult result = super.useWithoutItem(state, level, pos, player, hitResult);
-		if (!level.isClientSide && result.consumesAction()) {
+		if (result.consumesAction()) {
 			if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
 				buttonBlockEntity.triggerLinkedTargets(player);
 			}
@@ -141,6 +154,37 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 	@Override
 	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
 		return 0;
+	}
+
+	/**
+	 * 激活态橙色粒子：仅调整视觉反馈，不改变拉杆触发与网络行为。
+	 */
+	@Override
+	public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
+		if (!state.getValue(POWERED) || random.nextFloat() > 0.30F) {
+			return;
+		}
+
+		spawnOrangeParticle(level, pos, random, 0.82F, 0.30F);
+	}
+
+	/**
+	 * 统一橙色粒子生成逻辑。
+	 *
+	 * @param baseIntensity 基础亮度
+	 * @param baseScale 粒子基础尺寸
+	 */
+	private static void spawnOrangeParticle(Level level, BlockPos pos, RandomSource random, float baseIntensity, float baseScale) {
+		float intensity = baseIntensity + random.nextFloat() * Math.max(0.0F, 1.0F - baseIntensity);
+		float red = ORANGE_PARTICLE_BASE_COLOR.x() * intensity;
+		float green = ORANGE_PARTICLE_BASE_COLOR.y() * intensity;
+		float blue = ORANGE_PARTICLE_BASE_COLOR.z() * intensity;
+		float scale = baseScale + random.nextFloat() * 0.12F;
+
+		double x = pos.getX() + 0.5D + (random.nextDouble() - 0.5D) * 0.45D;
+		double y = pos.getY() + 0.5D + (random.nextDouble() - 0.5D) * 0.30D;
+		double z = pos.getZ() + 0.5D + (random.nextDouble() - 0.5D) * 0.45D;
+		level.addParticle(new DustParticleOptions(new Vector3f(red, green, blue), scale), x, y, z, 0.0D, 0.0D, 0.0D);
 	}
 
 	/**
