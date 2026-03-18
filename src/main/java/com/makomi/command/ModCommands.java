@@ -83,11 +83,12 @@ public final class ModCommands {
 					Commands
 						.literal("node")
 						.then(
-							ActivateCommandRegistry.createRoot()
+							ActivateCommandRegistry.createRoot().requires(ModCommands::hasOtherCommandPermission)
 						)
 						.then(
 							Commands
 								.literal("retire")
+								.requires(ModCommands::hasOtherCommandPermission)
 								.then(
 									Commands.argument("type", StringArgumentType.word()).then(
 										Commands.argument("serial", LongArgumentType.longArg(1L))
@@ -104,6 +105,7 @@ public final class ModCommands {
 						.then(
 							Commands
 								.literal("get")
+								.requires(ModCommands::hasOtherCommandPermission)
 								.then(
 									Commands.argument("type", StringArgumentType.word()).then(
 										Commands
@@ -115,6 +117,7 @@ public final class ModCommands {
 						.then(
 							Commands
 								.literal("list")
+								.requires(ModCommands::hasOtherCommandPermission)
 								.then(
 									Commands.argument("type", StringArgumentType.word()).then(
 										Commands.argument("scope", StringArgumentType.word())
@@ -179,6 +182,7 @@ public final class ModCommands {
 						.then(
 							Commands
 								.literal("get")
+								.requires(ModCommands::hasOtherCommandPermission)
 								.then(
 									Commands.argument("type", StringArgumentType.word()).then(
 										Commands
@@ -193,6 +197,7 @@ public final class ModCommands {
 				.then(
 					Commands
 						.literal("place")
+						.requires(ModCommands::hasOtherCommandPermission)
 						.then(
 							Commands
 								.literal("setblock")
@@ -226,6 +231,7 @@ public final class ModCommands {
 				.then(
 					Commands
 						.literal("audit")
+						.requires(ModCommands::hasOtherCommandPermission)
 						.executes(ModCommands::executeAudit)
 						.then(
 							Commands
@@ -240,6 +246,13 @@ public final class ModCommands {
 				)
 				.then(CrossChunkCommandRegistry.createRoot())
 		));
+	}
+
+	/**
+	 * 统一“其他权限”命令组权限校验。
+	 */
+	private static boolean hasOtherCommandPermission(CommandSourceStack source) {
+		return source.hasPermission(RedstoneLinkConfig.otherCommandPermissionLevel());
 	}
 
 	/**

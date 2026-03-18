@@ -287,6 +287,13 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return “其他权限”命令组所需权限等级（0~4）
+	 */
+	public static int otherCommandPermissionLevel() {
+		return values.otherCommandPermissionLevel();
+	}
+
+	/**
 	 * @return 近外显“当前连接”保密模式
 	 */
 	public static CurrentLinksPrivacyMode currentLinksPrivacyMode() {
@@ -463,11 +470,12 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.coreOutputPower", 15, 0, 15),
 			parseInt(props, "server.maxTargetsPerSetLinks", 1024, 1, 4096),
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
-			parseInt(props, "server.command.permissionLevel", 2, 0, 4),
+			parseInt(props, "server.command.permissionLevel", 0, 0, 4),
+			parseInt(props, "server.command.otherPermissionLevel", 2, 0, 4),
 			CurrentLinksPrivacyMode.fromConfigValue(props.getProperty("server.currentLinksPrivacy.mode", "masked")),
 			parseInt(props, "server.currentLinksPrivacy.viewPermissionLevel", 2, 0, 4),
 			parseInt(props, "server.currentLinksPrivacy.managePermissionLevel", 2, 0, 4),
-			LinkWriteControlMode.fromConfigValue(props.getProperty("server.linkWriteControl.mode", "full")),
+			LinkWriteControlMode.fromConfigValue(props.getProperty("server.linkWriteControl.mode", "limited")),
 			parseInt(props, "server.linkWriteControl.limited.permissionLevel", 2, 0, 4),
 			parseInt(props, "server.linkWriteControl.limited.maxSetSize", 64, 1, 4096),
 			parseInt(props, "server.linkWriteControl.protected.permissionLevel", 2, 0, 4),
@@ -827,7 +835,14 @@ public final class RedstoneLinkConfig {
 			# server.command.permissionLevel
 			# zh: /redstonelink 整个命令树所需权限等级（0~4）。
 			# en: Permission level required for the whole /redstonelink command tree (0~4).
-			server.command.permissionLevel=2
+			server.command.permissionLevel=0
+
+			# server.command.otherPermissionLevel
+			# zh: “其他权限”命令组所需权限等级（0~4），默认 2（普通玩家不开放）。
+			# zh: 管控范围：node activate、place 批量放置、node retire（含 batch）、audit 审阅、node get/list、link get。
+			# en: Permission level for the "other-permissions" command group (0~4), default 2 (not open to regular players).
+			# en: Scope: node activate, place, node retire (including batch), audit, node get/list, and link get.
+			server.command.otherPermissionLevel=2
 
 			# server.currentLinksPrivacy.mode
 			# zh: 近外显“当前连接”保密模式：hidden=全部保密，masked=仅名单保密，plain=全部解密。
@@ -849,7 +864,7 @@ public final class RedstoneLinkConfig {
 			# server.linkWriteControl.mode
 			# zh: 链接写入控制模式：full=全量写入，limited=限量写入，readonly=只读。
 			# en: Link write-control mode: full / limited / readonly.
-			server.linkWriteControl.mode=full
+			server.linkWriteControl.mode=limited
 
 			# server.linkWriteControl.limited.permissionLevel
 			# zh: limited 模式下越过“最大设置量”限制所需权限等级（0~4）。
@@ -975,6 +990,7 @@ public final class RedstoneLinkConfig {
 		int maxTargetsPerSetLinks,
 		boolean allowOfflineTargetBinding,
 		int commandPermissionLevel,
+		int otherCommandPermissionLevel,
 		CurrentLinksPrivacyMode currentLinksPrivacyMode,
 		int currentLinksPrivacyViewPermissionLevel,
 		int currentLinksPrivacyManagePermissionLevel,
@@ -997,11 +1013,12 @@ public final class RedstoneLinkConfig {
 				15,
 				1024,
 				true,
+				0,
 				2,
 				CurrentLinksPrivacyMode.PLAIN,
 				2,
 				2,
-				LinkWriteControlMode.FULL,
+				LinkWriteControlMode.LIMITED,
 				2,
 				64,
 				2,

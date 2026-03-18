@@ -14,11 +14,11 @@ import org.junit.jupiter.api.Test;
 class RedstoneLinkConfigCommandPermissionLevelTest {
 
 	/**
-	 * 缺省配置应回退到默认权限等级 2。
+	 * 缺省配置应回退到默认权限等级 0。
 	 */
 	@Test
 	void parseShouldUseDefaultPermissionLevelWhenPropertyMissing() throws Exception {
-		assertEquals(2, parsePermissionLevel(null));
+		assertEquals(0, parsePermissionLevel(null));
 	}
 
 	/**
@@ -38,11 +38,11 @@ class RedstoneLinkConfigCommandPermissionLevelTest {
 	}
 
 	/**
-	 * 非法字符串应回退到默认权限等级 2。
+	 * 非法字符串应回退到默认权限等级 0。
 	 */
 	@Test
 	void parseShouldFallbackToDefaultWhenPermissionLevelIsInvalid() throws Exception {
-		assertEquals(2, parsePermissionLevel("not-a-number"));
+		assertEquals(0, parsePermissionLevel("not-a-number"));
 	}
 
 	/**
