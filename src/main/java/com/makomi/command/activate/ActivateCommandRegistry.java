@@ -2,6 +2,7 @@ package com.makomi.command.activate;
 
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.command.CommandNodeTypeParseUtil;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -28,8 +29,6 @@ import net.minecraft.server.level.ServerLevel;
  * </p>
  */
 public final class ActivateCommandRegistry {
-	private static final int MAX_BATCH_SOURCE_SERIALS = 1024;
-
 	private ActivateCommandRegistry() {
 	}
 
@@ -103,10 +102,11 @@ public final class ActivateCommandRegistry {
 			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
 			return 0;
 		}
+		int maxBatchSourceSerials = RedstoneLinkConfig.activateBatchMaxSerials();
 
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(
 			rawSourceSerials,
-			MAX_BATCH_SOURCE_SERIALS
+			maxBatchSourceSerials
 		);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(
@@ -121,7 +121,7 @@ public final class ActivateCommandRegistry {
 			source.sendFailure(
 				Component.translatable(
 					"message.redstonelink.activate.batch.too_many_sources",
-					MAX_BATCH_SOURCE_SERIALS
+					maxBatchSourceSerials
 				)
 			);
 			return 0;

@@ -2,6 +2,7 @@ package com.makomi.command.retire;
 
 import com.makomi.command.CommandSuffixParser;
 import com.makomi.command.CommandNodeTypeParseUtil;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkRetireCoordinator;
@@ -23,8 +24,6 @@ import net.minecraft.network.chat.Component;
  * 批量退役命令注册器。
  */
 public final class RetireBatchCommandRegistry {
-	private static final int MAX_BATCH_RETIRE_SERIALS = 1024;
-
 	private RetireBatchCommandRegistry() {
 	}
 
@@ -57,7 +56,8 @@ public final class RetireBatchCommandRegistry {
 		);
 		String rawSerials = confirmSuffixParseResult.payload();
 		boolean confirmed = confirmSuffixParseResult.confirmed();
-		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, MAX_BATCH_RETIRE_SERIALS);
+		int maxBatchRetireSerials = RedstoneLinkConfig.retireBatchMaxSerials();
+		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxBatchRetireSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(
 				Component.translatable(
@@ -71,7 +71,7 @@ public final class RetireBatchCommandRegistry {
 			source.sendFailure(
 				Component.translatable(
 					"message.redstonelink.retire.batch.too_many",
-					MAX_BATCH_RETIRE_SERIALS
+					maxBatchRetireSerials
 				)
 			);
 			return 0;

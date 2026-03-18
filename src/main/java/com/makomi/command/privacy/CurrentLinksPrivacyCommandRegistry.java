@@ -28,8 +28,6 @@ import net.minecraft.network.chat.Component;
  * </p>
  */
 public final class CurrentLinksPrivacyCommandRegistry {
-	private static final int MASK_SET_MAX_SERIALS = 1024;
-
 	private CurrentLinksPrivacyCommandRegistry() {
 	}
 
@@ -196,7 +194,8 @@ public final class CurrentLinksPrivacyCommandRegistry {
 		);
 		String rawSerials = confirmSuffixParseResult.payload();
 		boolean confirmed = confirmSuffixParseResult.confirmed();
-		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, MASK_SET_MAX_SERIALS);
+		int maxMaskSetSerials = RedstoneLinkConfig.currentLinksMaskSetMaxSerials();
+		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxMaskSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(
 				Component.translatable(
@@ -208,7 +207,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 		}
 		if (parseResult.exceedLimit()) {
 			source.sendFailure(
-				Component.translatable("message.redstonelink.privacy.current_links.mask.set.too_many", MASK_SET_MAX_SERIALS)
+				Component.translatable("message.redstonelink.privacy.current_links.mask.set.too_many", maxMaskSetSerials)
 			);
 			return 0;
 		}

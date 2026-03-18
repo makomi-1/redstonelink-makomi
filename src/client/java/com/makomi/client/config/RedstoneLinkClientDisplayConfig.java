@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 /**
  * 客户端显示配置读取器。
  * <p>
- * 仅管理“序号外显”相关的本地展示配置，不参与服务端逻辑判断。
+ * 管理本地“序号外显 + 配对输入框”配置，不参与服务端逻辑判断。
  * </p>
  */
 public final class RedstoneLinkClientDisplayConfig {
@@ -28,6 +28,7 @@ public final class RedstoneLinkClientDisplayConfig {
 	private static final String KEY_SERIAL_OVERLAY_FONT_SCALE = "client.serialOverlayFontScale";
 	private static final String KEY_SERIAL_OVERLAY_TOGGLE_KEY = "client.serialOverlayToggleKey";
 	private static final String KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH = "client.serialOverlayFarSeeThrough";
+	private static final String KEY_PAIRING_INPUT_MAX_LENGTH = "client.pairingInputMaxLength";
 	private static final SerialOverlayMode DEFAULT_SERIAL_OVERLAY_MODE = SerialOverlayMode.FAR_ONLY;
 	private static final int DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE = 24;
 	private static final int MIN_SERIAL_OVERLAY_MAX_DISTANCE = 4;
@@ -36,6 +37,9 @@ public final class RedstoneLinkClientDisplayConfig {
 	private static final float MIN_SERIAL_OVERLAY_FONT_SCALE = 0.50F;
 	private static final float MAX_SERIAL_OVERLAY_FONT_SCALE = 3.00F;
 	private static final boolean DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH = false;
+	private static final int DEFAULT_PAIRING_INPUT_MAX_LENGTH = 1024;
+	private static final int MIN_PAIRING_INPUT_MAX_LENGTH = 64;
+	private static final int MAX_PAIRING_INPUT_MAX_LENGTH = 32768;
 	private static final int NEAR_OVERLAY_MAX_DISTANCE = 8;
 	private static final String DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY = "key.keyboard.k";
 	private static final Path CONFIG_PATH = resolveConfigPath();
@@ -45,6 +49,7 @@ public final class RedstoneLinkClientDisplayConfig {
 	private static volatile float serialOverlayFontScale = DEFAULT_SERIAL_OVERLAY_FONT_SCALE;
 	private static volatile InputConstants.Key serialOverlayToggleKey = InputConstants.getKey(DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY);
 	private static volatile boolean serialOverlayFarSeeThrough = DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH;
+	private static volatile int pairingInputMaxLength = DEFAULT_PAIRING_INPUT_MAX_LENGTH;
 
 	/**
 	 * 客户端序号外显模式。
@@ -111,6 +116,7 @@ public final class RedstoneLinkClientDisplayConfig {
 			serialOverlayMaxDistance = DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE;
 			serialOverlayFontScale = DEFAULT_SERIAL_OVERLAY_FONT_SCALE;
 			serialOverlayFarSeeThrough = DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH;
+			pairingInputMaxLength = DEFAULT_PAIRING_INPUT_MAX_LENGTH;
 			return;
 		}
 
@@ -138,6 +144,13 @@ public final class RedstoneLinkClientDisplayConfig {
 			properties,
 			KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH,
 			DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH
+		);
+		pairingInputMaxLength = parseInt(
+			properties,
+			KEY_PAIRING_INPUT_MAX_LENGTH,
+			DEFAULT_PAIRING_INPUT_MAX_LENGTH,
+			MIN_PAIRING_INPUT_MAX_LENGTH,
+			MAX_PAIRING_INPUT_MAX_LENGTH
 		);
 		LOGGER.info("客户端显示配置加载完成: {}", CONFIG_PATH.toAbsolutePath());
 	}
@@ -199,6 +212,13 @@ public final class RedstoneLinkClientDisplayConfig {
 	}
 
 	/**
+	 * @return 配对输入框最大允许输入长度（字符）
+	 */
+	public static int pairingInputMaxLength() {
+		return pairingInputMaxLength;
+	}
+
+	/**
 	 * 按“远 -> 近 -> 远+近 -> 关闭”切换序号外显模式，并持久化到客户端配置文件。
 	 *
 	 * @return 切换后的外显模式
@@ -232,7 +252,8 @@ public final class RedstoneLinkClientDisplayConfig {
 					serialOverlayMaxDistance,
 					serialOverlayFontScale,
 					serialOverlayToggleKey.getName(),
-					serialOverlayFarSeeThrough
+					serialOverlayFarSeeThrough,
+					pairingInputMaxLength
 				),
 				StandardCharsets.UTF_8
 			);
@@ -272,7 +293,8 @@ public final class RedstoneLinkClientDisplayConfig {
 					DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE,
 					DEFAULT_SERIAL_OVERLAY_FONT_SCALE,
 					DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY,
-					DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH
+					DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH,
+					DEFAULT_PAIRING_INPUT_MAX_LENGTH
 				),
 				StandardCharsets.UTF_8
 			);
@@ -289,7 +311,8 @@ public final class RedstoneLinkClientDisplayConfig {
 		int overlayMaxDistance,
 		float overlayFontScale,
 		String overlayToggleKey,
-		boolean farSeeThrough
+		boolean farSeeThrough,
+		int pairingInputMaxLength
 	) {
 		return """
 			# RedstoneLink client display config / RedstoneLink 客户端显示配置
@@ -318,12 +341,18 @@ public final class RedstoneLinkClientDisplayConfig {
 			# zh: 远外显文本是否穿透方块显示（true=穿透，false=被遮挡）。
 			# en: Whether far overlay text ignores occlusion (true=see-through, false=occluded).
 			client.serialOverlayFarSeeThrough=%s
+
+			# client.pairingInputMaxLength
+			# zh: 配对输入框最大输入长度（字符），范围 64~32768，默认 1024。
+			# en: Maximum input length (chars) for pairing textbox, range 64~32768, default 1024.
+			client.pairingInputMaxLength=%s
 			""".formatted(
 				overlayMode.configToken(),
 				overlayMaxDistance,
 				overlayFontScale,
 				overlayToggleKey,
-				Boolean.toString(farSeeThrough)
+				Boolean.toString(farSeeThrough),
+				pairingInputMaxLength
 			);
 	}
 

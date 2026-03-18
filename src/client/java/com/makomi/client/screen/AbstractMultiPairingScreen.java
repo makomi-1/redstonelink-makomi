@@ -1,14 +1,12 @@
 package com.makomi.client.screen;
 
-import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.util.SerialDisplayFormatUtil;
-import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -79,7 +77,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int baseY = height / 2 - 42;
 
 		serialInput = new EditBox(font, centerX - 110, baseY + 52, 220, 20, inputLabel());
-		serialInput.setMaxLength(512);
+		serialInput.setMaxLength(RedstoneLinkClientDisplayConfig.pairingInputMaxLength());
 
 		String initialInputText = joinTargets(currentTargets);
 		// 仅在非空场景回填并自动聚焦，空场景不抢焦点，避免光标跳动影响示例阅读。
@@ -163,9 +161,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 *
 	 * @param sourceSerial 来源节点序列号
 	 * @param rawTargetsInput 输入框中的原始目标文本
-	 * @param targetCount 去重后的目标数量
 	 */
-	protected final void sendSetLinksCommand(long sourceSerial, String rawTargetsInput, int targetCount) {
+	protected final void sendSetLinksCommand(long sourceSerial, String rawTargetsInput) {
 		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
 			return;
 		}
@@ -176,10 +173,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
-		String command = base + " " + normalizedTargets;
-		if (targetCount > 1) {
-			command += " confirm";
-		}
+		// 客户端不再按数量做业务裁决；非空输入统一追加 confirm，最终由服务端判定是否执行。
+		String command = base + " " + normalizedTargets + " confirm";
 		minecraft.player.connection.sendCommand(command);
 	}
 
@@ -408,30 +403,13 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
-		int maxTargetCount = Math.max(1, RedstoneLinkConfig.maxTargetsPerSetLinks());
-		TargetParseResult parseResult = parseTargets(serialInput.getValue(), maxTargetCount);
-		if (!parseResult.invalidEntries().isEmpty()) {
-			String invalidEntries = String.join(", ", parseResult.invalidEntries());
-			statusMessage = Component.translatable("screen.redstonelink.pairing.invalid_tokens", invalidEntries);
+		List<String> invalidEntries = collectInvalidTargetTokens(serialInput.getValue());
+		if (!invalidEntries.isEmpty()) {
+			statusMessage = Component.translatable("screen.redstonelink.pairing.invalid_tokens", String.join(", ", invalidEntries));
 			return;
-		}
-		if (parseResult.exceedLimit()) {
-			statusMessage = Component.translatable("screen.redstonelink.pairing.too_many", maxTargetCount);
-			return;
-		}
-		if (!parseResult.duplicateEntries().isEmpty() && minecraft != null && minecraft.player != null) {
-			String duplicates = parseResult.duplicateEntries()
-				.stream()
-				.sorted()
-				.map(String::valueOf)
-				.collect(Collectors.joining(", "));
-			minecraft.player.displayClientMessage(
-				Component.translatable("message.redstonelink.duplicate_targets_deduped", duplicates),
-				false
-			);
 		}
 
-		sendSetLinksCommand(sourceSerial, serialInput.getValue(), parseResult.targets().size());
+		sendSetLinksCommand(sourceSerial, serialInput.getValue());
 		onClose();
 	}
 
@@ -449,14 +427,6 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
-	 * 解析输入框目标文本。
-	 */
-	protected static TargetParseResult parseTargets(String rawText, int maxTargetCount) {
-		SerialParseUtil.TargetParseResult parsed = SerialParseUtil.parseTargets(rawText, maxTargetCount);
-		return new TargetParseResult(parsed.targets(), parsed.invalidEntries(), parsed.duplicateEntries(), parsed.exceedLimit());
-	}
-
-	/**
 	 * 将目标序号列表转换为结构化输入文本。
 	 */
 	protected static String joinTargets(List<Long> targets) {
@@ -467,12 +437,61 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
-	 * 输入解析结果。
+	 * 收集输入中的非法分段（只做语法校验，不做数量裁决）。
 	 */
-	protected record TargetParseResult(
-		Set<Long> targets,
-		List<String> invalidEntries,
-		List<Long> duplicateEntries,
-		boolean exceedLimit
-	) {}
+	private static List<String> collectInvalidTargetTokens(String rawText) {
+		String text = rawText == null ? "" : rawText.trim();
+		if (text.isEmpty()) {
+			return List.of();
+		}
+		List<String> invalidEntries = new ArrayList<>();
+		String[] tokens = text.split("/", -1);
+		for (String rawToken : tokens) {
+			String token = rawToken == null ? "" : rawToken.trim();
+			if (token.isEmpty()) {
+				continue;
+			}
+			if (!isValidTargetToken(token)) {
+				invalidEntries.add(rawToken);
+			}
+		}
+		return invalidEntries;
+	}
+
+	/**
+	 * 校验单个分段：支持 `N` 或 `A:B` 且必须为正整数。
+	 */
+	private static boolean isValidTargetToken(String token) {
+		int colonIndex = token.indexOf(':');
+		if (colonIndex < 0) {
+			return parsePositiveLong(token) != null;
+		}
+		if (colonIndex != token.lastIndexOf(':')) {
+			return false;
+		}
+		Long start = parsePositiveLong(token.substring(0, colonIndex));
+		Long end = parsePositiveLong(token.substring(colonIndex + 1));
+		return start != null && end != null && start <= end;
+	}
+
+	/**
+	 * 解析正整数字符串（仅语法校验用）。
+	 */
+	private static Long parsePositiveLong(String text) {
+		if (text == null || text.isBlank()) {
+			return null;
+		}
+		for (int i = 0; i < text.length(); i++) {
+			char ch = text.charAt(i);
+			if (ch < '0' || ch > '9') {
+				return null;
+			}
+		}
+		try {
+			long value = Long.parseLong(text);
+			return value > 0L ? value : null;
+		} catch (NumberFormatException ex) {
+			return null;
+		}
+	}
 }

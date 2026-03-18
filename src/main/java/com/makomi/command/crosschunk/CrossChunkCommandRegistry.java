@@ -35,7 +35,6 @@ import net.minecraft.server.level.ServerLevel;
  * </p>
  */
 public final class CrossChunkCommandRegistry {
-	private static final int WHITELIST_SET_MAX_SERIALS = 1024;
 	private static final String WHITELIST_LIST_SEPARATOR = "------------------------------";
 
 	private CrossChunkCommandRegistry() {
@@ -342,7 +341,8 @@ public final class CrossChunkCommandRegistry {
 		String rawSerials = confirmSuffixParseResult.payload();
 		boolean resident = confirmSuffixParseResult.resident();
 		boolean confirmed = confirmSuffixParseResult.confirmed();
-		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, WHITELIST_SET_MAX_SERIALS);
+		int maxWhitelistSetSerials = RedstoneLinkConfig.crossChunkWhitelistSetMaxSerials();
+		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxWhitelistSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.invalid_target_tokens",
@@ -353,7 +353,7 @@ public final class CrossChunkCommandRegistry {
 		if (parseResult.exceedLimit()) {
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.crosschunk.whitelist.set.too_many",
-				WHITELIST_SET_MAX_SERIALS
+				maxWhitelistSetSerials
 			));
 			return 0;
 		}

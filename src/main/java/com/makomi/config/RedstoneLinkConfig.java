@@ -350,6 +350,48 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return `link set` 目标输入文本最大长度（字符）
+	 */
+	public static int linkSetMaxInputLength() {
+		return values.linkSetMaxInputLength();
+	}
+
+	/**
+	 * @return `node activate` 批量来源序号上限
+	 */
+	public static int activateBatchMaxSerials() {
+		return values.activateBatchMaxSerials();
+	}
+
+	/**
+	 * @return `node retire batch` 批量序号上限
+	 */
+	public static int retireBatchMaxSerials() {
+		return values.retireBatchMaxSerials();
+	}
+
+	/**
+	 * @return `link privacy current_links mask set` 批量序号上限
+	 */
+	public static int currentLinksMaskSetMaxSerials() {
+		return values.currentLinksMaskSetMaxSerials();
+	}
+
+	/**
+	 * @return `link write_control protected set` 批量序号上限
+	 */
+	public static int writeControlProtectedSetMaxSerials() {
+		return values.writeControlProtectedSetMaxSerials();
+	}
+
+	/**
+	 * @return `crosschunk whitelist set` 批量序号上限
+	 */
+	public static int crossChunkWhitelistSetMaxSerials() {
+		return values.crossChunkWhitelistSetMaxSerials();
+	}
+
+	/**
 	 * @return 是否启用跨区块接管提示
 	 */
 	public static boolean crossChunkNotifyEnabled() {
@@ -480,6 +522,12 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.linkWriteControl.limited.maxSetSize", 64, 1, 4096),
 			parseInt(props, "server.linkWriteControl.protected.permissionLevel", 2, 0, 4),
 			parseInt(props, "server.linkWriteControl.protected.managePermissionLevel", 2, 0, 4),
+			parseInt(props, "server.command.linkSet.maxInputLength", 1024, 64, 32768),
+			parseInt(props, "server.command.activate.batchMaxSerials", 1024, 1, 65536),
+			parseInt(props, "server.command.retire.batchMaxSerials", 1024, 1, 65536),
+			parseInt(props, "server.command.privacy.currentLinksMask.maxSetSerials", 1024, 1, 65536),
+			parseInt(props, "server.command.writeControl.protected.maxSetSerials", 1024, 1, 65536),
+			parseInt(props, "server.command.crosschunk.whitelist.maxSetSerials", 1024, 1, 65536),
 			parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
 			parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
@@ -885,6 +933,36 @@ public final class RedstoneLinkConfig {
 			# zh: 管理受控名单命令所需权限等级（0~4）。
 			# en: Permission level required for protected-list management commands (0~4).
 			server.linkWriteControl.protected.managePermissionLevel=2
+
+			# server.command.linkSet.maxInputLength
+			# zh: `link set` 的 targets 原始输入最大长度（字符），超出直接拒绝。
+			# en: Maximum raw targets input length (characters) for `link set`; over limit is rejected.
+			server.command.linkSet.maxInputLength=1024
+
+			# server.command.activate.batchMaxSerials
+			# zh: `node activate` 批量来源序号上限。
+			# en: Maximum source serial count for `node activate` batch input.
+			server.command.activate.batchMaxSerials=1024
+
+			# server.command.retire.batchMaxSerials
+			# zh: `node retire batch` 批量序号上限。
+			# en: Maximum serial count for `node retire batch`.
+			server.command.retire.batchMaxSerials=1024
+
+			# server.command.privacy.currentLinksMask.maxSetSerials
+			# zh: `link privacy current_links mask set` 批量序号上限。
+			# en: Maximum serial count for `link privacy current_links mask set`.
+			server.command.privacy.currentLinksMask.maxSetSerials=1024
+
+			# server.command.writeControl.protected.maxSetSerials
+			# zh: `link write_control protected set` 批量序号上限。
+			# en: Maximum serial count for `link write_control protected set`.
+			server.command.writeControl.protected.maxSetSerials=1024
+
+			# server.command.crosschunk.whitelist.maxSetSerials
+			# zh: `crosschunk whitelist set` 批量序号上限。
+			# en: Maximum serial count for `crosschunk whitelist set`.
+			server.command.crosschunk.whitelist.maxSetSerials=1024
 			
 			# interaction.requireSneakToOpenPairing
 			# zh: 打开配对 UI 是否必须潜行。
@@ -999,6 +1077,12 @@ public final class RedstoneLinkConfig {
 		int linkWriteLimitedMaxSetSize,
 		int linkWriteProtectedPermissionLevel,
 		int linkWriteProtectedManagePermissionLevel,
+		int linkSetMaxInputLength,
+		int activateBatchMaxSerials,
+		int retireBatchMaxSerials,
+		int currentLinksMaskSetMaxSerials,
+		int writeControlProtectedSetMaxSerials,
+		int crossChunkWhitelistSetMaxSerials,
 		boolean requireSneakToOpenPairing,
 		boolean requireSneakToOpenLinkerPairing,
 		boolean requireEmptyOffhandToOpenPairing
@@ -1023,6 +1107,12 @@ public final class RedstoneLinkConfig {
 				64,
 				2,
 				2,
+				1024,
+				1024,
+				1024,
+				1024,
+				1024,
+				1024,
 				true,
 				true,
 				true

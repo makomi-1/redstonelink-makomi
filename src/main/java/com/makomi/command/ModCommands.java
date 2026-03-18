@@ -63,7 +63,6 @@ public final class ModCommands {
 	private static final int NODE_LIST_MAX_LIMIT = 1000;
 	private static final int SERIAL_LIST_MAX_ITEMS = 50;
 	private static final int SERIAL_LIST_MAX_CHARS = 300;
-	private static final int WRITE_CONTROL_PROTECTED_SET_MAX_SERIALS = 4096;
 	private static final int PLACE_BLOCK_FLAGS = 2;
 	private static final long PLACE_CONFIRM_TIMEOUT_MILLIS = 30_000L;
 	private static final Map<UUID, PendingPlacement> PENDING_PLACE_BY_PLAYER = new HashMap<>();
@@ -418,7 +417,8 @@ public final class ModCommands {
 		);
 		String rawSerials = confirmSuffixParseResult.payload();
 		boolean confirmed = confirmSuffixParseResult.confirmed();
-		TargetParseResult parseResult = parseTargetSerials(rawSerials, WRITE_CONTROL_PROTECTED_SET_MAX_SERIALS);
+		int maxSetSerials = RedstoneLinkConfig.writeControlProtectedSetMaxSerials();
+		TargetParseResult parseResult = parseTargetSerials(rawSerials, maxSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(
 				Component.translatable(
@@ -432,7 +432,7 @@ public final class ModCommands {
 			source.sendFailure(
 				Component.translatable(
 					"message.redstonelink.write_control.protected.set.too_many",
-					WRITE_CONTROL_PROTECTED_SET_MAX_SERIALS
+					maxSetSerials
 				)
 			);
 			return 0;
@@ -1340,6 +1340,11 @@ public final class ModCommands {
 			CommandSuffixParser.ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(rawInput);
 			confirmed = confirmSuffixParseResult.confirmed();
 			rawTargets = confirmSuffixParseResult.payload();
+			int maxInputLength = RedstoneLinkConfig.linkSetMaxInputLength();
+			if (rawTargets.length() > maxInputLength) {
+				source.sendFailure(Component.translatable("message.redstonelink.link.set.input_too_long", maxInputLength));
+				return 0;
+			}
 			TargetParseResult parseResult = parseTargetSerials(rawTargets, maxTargets);
 			if (!parseResult.invalidEntries().isEmpty()) {
 				source.sendFailure(
