@@ -247,7 +247,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 		}
 
 		if (!confirmed) {
-			String confirmCommand = "redstonelink privacy current_links mask set "
+			String confirmCommand = "redstonelink link privacy current_links mask set "
 				+ LinkNodeSemantics.toSemanticName(type)
 				+ " "
 				+ rawSerials

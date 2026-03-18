@@ -109,7 +109,7 @@
   "message.redstonelink.audit.core_retired_serials": "[RedstoneLink] 核心序号（已退役）: %s。",
   "message.redstonelink.audit.button_active_serials": "[RedstoneLink] triggerSource 序号（已分配且未退役）: %s。",
   "message.redstonelink.audit.button_retired_serials": "[RedstoneLink] triggerSource 序号（已退役）: %s。",
-  "message.redstonelink.retire.confirm": "[RedstoneLink] 退役需确认：/redstonelink retire %s %s confirm",
+  "message.redstonelink.retire.confirm": "[RedstoneLink] 退役需确认：/redstonelink node retire %s %s confirm",
   "message.redstonelink.retire.done": "[RedstoneLink] 已退役 %s %s（节点移除: %s，连接移除: %s）。",
   "message.redstonelink.retire.no_change": "[RedstoneLink] %s %s 未产生数据变更。",
   "message.redstonelink.retire.batch.too_many": "[RedstoneLink] 批量退役数量过多，最多 %s 项。",

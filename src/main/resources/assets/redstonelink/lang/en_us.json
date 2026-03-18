@@ -109,7 +109,7 @@
   "message.redstonelink.audit.core_retired_serials": "[RedstoneLink] Core serials (retired): %s.",
   "message.redstonelink.audit.button_active_serials": "[RedstoneLink] triggerSource serials (allocated & active): %s.",
   "message.redstonelink.audit.button_retired_serials": "[RedstoneLink] triggerSource serials (retired): %s.",
-  "message.redstonelink.retire.confirm": "[RedstoneLink] Retire requires confirm: /redstonelink retire %s %s confirm",
+  "message.redstonelink.retire.confirm": "[RedstoneLink] Retire requires confirm: /redstonelink node retire %s %s confirm",
   "message.redstonelink.retire.done": "[RedstoneLink] Retired %s %s (node removed: %s, links removed: %s).",
   "message.redstonelink.retire.no_change": "[RedstoneLink] No data changed for %s %s.",
   "message.redstonelink.retire.batch.too_many": "[RedstoneLink] Too many batch retire serials, max %s.",

@@ -80,11 +80,27 @@ public final class ModCommands {
 				.literal("redstonelink")
 				.requires(source -> source.hasPermission(RedstoneLinkConfig.commandPermissionLevel()))
 				.then(
-					ActivateCommandRegistry.createRoot()
-				)
-				.then(
 					Commands
 						.literal("node")
+						.then(
+							ActivateCommandRegistry.createRoot()
+						)
+						.then(
+							Commands
+								.literal("retire")
+								.then(
+									Commands.argument("type", StringArgumentType.word()).then(
+										Commands.argument("serial", LongArgumentType.longArg(1L))
+											.executes(ModCommands::executeRetireRequireConfirmWithTypeArg)
+											.then(
+												Commands
+													.literal("confirm")
+													.executes(ModCommands::executeRetireWithTypeArg)
+											)
+									)
+								)
+								.then(RetireBatchCommandRegistry.createBatchNode())
+						)
 						.then(
 							Commands
 								.literal("get")
@@ -171,6 +187,8 @@ public final class ModCommands {
 									)
 								)
 						)
+						.then(CurrentLinksPrivacyCommandRegistry.createRoot())
+						.then(createWriteControlRoot())
 				)
 				.then(
 					Commands
@@ -220,24 +238,6 @@ public final class ModCommands {
 								)
 						)
 				)
-				.then(
-					Commands
-						.literal("retire")
-						.then(
-							Commands.argument("type", StringArgumentType.word()).then(
-								Commands.argument("serial", LongArgumentType.longArg(1L))
-									.executes(ModCommands::executeRetireRequireConfirmWithTypeArg)
-									.then(
-										Commands
-											.literal("confirm")
-											.executes(ModCommands::executeRetireWithTypeArg)
-									)
-							)
-						)
-						.then(RetireBatchCommandRegistry.createBatchNode())
-				)
-				.then(CurrentLinksPrivacyCommandRegistry.createRoot())
-				.then(createWriteControlRoot())
 				.then(CrossChunkCommandRegistry.createRoot())
 		));
 	}
@@ -459,7 +459,7 @@ public final class ModCommands {
 		}
 
 		if (!confirmed) {
-			String confirmCommand = "redstonelink write_control protected set "
+			String confirmCommand = "redstonelink link write_control protected set "
 				+ typeCommandName(type)
 				+ " "
 				+ rawSerials

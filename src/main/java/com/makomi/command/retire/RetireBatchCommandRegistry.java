@@ -111,7 +111,7 @@ public final class RetireBatchCommandRegistry {
 		}
 
 		if (!confirmed) {
-			String confirmCommand = "redstonelink retire batch "
+			String confirmCommand = "redstonelink node retire batch "
 				+ typeCommandName(type)
 				+ " "
 				+ rawSerials
