@@ -109,20 +109,8 @@ public final class ModCommands {
 						)
 				)
 				.then(
-						Commands
-							.literal("set_links")
-							.then(
-								Commands.argument("type", StringArgumentType.word()).then(
-									Commands.argument("source_serial", LongArgumentType.longArg(1L))
-										.executes(context -> executeSetLinksWithTypeArg(context, false))
-										.then(
-											Commands.argument("targets", StringArgumentType.greedyString())
-												.executes(context -> executeSetLinksWithTypeArg(context, true))
-										)
-								)
-							)
-					)
-				.then(ActivateCommandRegistry.createRoot())
+					ActivateCommandRegistry.createRoot()
+				)
 				.then(
 					Commands
 						.literal("node")
@@ -161,6 +149,46 @@ public final class ModCommands {
 				.then(
 					Commands
 						.literal("link")
+						.then(
+							Commands
+								.literal("add")
+								.then(
+									Commands.argument("type", StringArgumentType.word()).then(
+										Commands.argument("source_serial", LongArgumentType.longArg(1L)).then(
+											Commands
+												.argument("target_serial", LongArgumentType.longArg(1L))
+												.executes(ModCommands::executeLinkAddWithTypeArg)
+										)
+									)
+								)
+						)
+						.then(
+							Commands
+								.literal("remove")
+								.then(
+									Commands.argument("type", StringArgumentType.word()).then(
+										Commands.argument("source_serial", LongArgumentType.longArg(1L)).then(
+											Commands
+												.argument("target_serial", LongArgumentType.longArg(1L))
+												.executes(ModCommands::executeLinkRemoveWithTypeArg)
+										)
+									)
+								)
+						)
+						.then(
+							Commands
+								.literal("set")
+								.then(
+									Commands.argument("type", StringArgumentType.word()).then(
+										Commands.argument("source_serial", LongArgumentType.longArg(1L))
+											.executes(context -> executeLinkSetWithTypeArg(context, false))
+											.then(
+												Commands.argument("targets", StringArgumentType.greedyString())
+													.executes(context -> executeLinkSetWithTypeArg(context, true))
+											)
+									)
+								)
+						)
 						.then(
 							Commands
 								.literal("get")
@@ -268,7 +296,7 @@ public final class ModCommands {
 		long selfSerial = LinkItemData.ensureSerial(heldStack, player.serverLevel(), selfType);
 		long targetSerial = LongArgumentType.getLong(context, "serial");
 
-		int result = executeLinkUpdate(source, player, selfType, selfSerial, targetSerial, false, false);
+		int result = executeLinkUpdate(source, player, selfType, selfSerial, targetSerial, false, false, LinkUpdateMode.TOGGLE);
 		if (result == Command.SINGLE_SUCCESS) {
 			LinkItemData.setPairSerial(heldStack, targetSerial);
 		}
@@ -292,7 +320,7 @@ public final class ModCommands {
 
 		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
 		long targetSerial = LongArgumentType.getLong(context, "target_serial");
-		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, true, true);
+		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, true, true, LinkUpdateMode.TOGGLE);
 	}
 
 	/**
@@ -308,6 +336,53 @@ public final class ModCommands {
 	}
 
 	/**
+	 * 根据 type 参数执行单条增量添加。
+	 */
+	private static int executeLinkAddWithTypeArg(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		ServerPlayer player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+			return 0;
+		}
+		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (sourceType == null) {
+			return 0;
+		}
+		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
+		long targetSerial = LongArgumentType.getLong(context, "target_serial");
+		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, false, false, LinkUpdateMode.ADD);
+	}
+
+	/**
+	 * 根据 type 参数执行单条增量移除。
+	 */
+	private static int executeLinkRemoveWithTypeArg(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		ServerPlayer player = source.getPlayer();
+		if (player == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+			return 0;
+		}
+		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (sourceType == null) {
+			return 0;
+		}
+		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
+		long targetSerial = LongArgumentType.getLong(context, "target_serial");
+		return executeLinkUpdate(source, player, sourceType, sourceSerial, targetSerial, false, false, LinkUpdateMode.REMOVE);
+	}
+
+	/**
+	 * 单目标更新模式。
+	 */
+	private enum LinkUpdateMode {
+		TOGGLE,
+		ADD,
+		REMOVE
+	}
+
+	/**
 	 * 单目标链接更新核心流程（添加/移除/清空）。
 	 */
 	private static int executeLinkUpdate(
@@ -317,7 +392,8 @@ public final class ModCommands {
 		long sourceSerial,
 		long targetSerial,
 		boolean requireSourceExists,
-		boolean requireTargetExists
+		boolean requireTargetExists,
+		LinkUpdateMode updateMode
 	) {
 		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
 		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
@@ -339,6 +415,17 @@ public final class ModCommands {
 			return Command.SINGLE_SUCCESS;
 		}
 
+		if (updateMode == LinkUpdateMode.REMOVE) {
+			boolean removedNow = savedData.removeLinkBySourceType(sourceType, sourceSerial, targetSerial);
+			if (!removedNow) {
+				source.sendFailure(Component.translatable("message.redstonelink.link_not_exists"));
+				return 0;
+			}
+			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_removed"), false);
+			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
+			return Command.SINGLE_SUCCESS;
+		}
+
 		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
 		if (!ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
 			return 0;
@@ -353,13 +440,22 @@ public final class ModCommands {
 			return 0;
 		}
 
-		boolean linkedNow = savedData.toggleLinkBySourceType(sourceType, sourceSerial, targetSerial);
-
-		if (linkedNow) {
+		if (updateMode == LinkUpdateMode.ADD) {
+			boolean addedNow = savedData.addLinkBySourceType(sourceType, sourceSerial, targetSerial);
+			if (!addedNow) {
+				source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
+				return 0;
+			}
 			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
-		} else {
-			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_removed"), false);
+			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
+			return Command.SINGLE_SUCCESS;
 		}
+
+		boolean linkedNow = savedData.toggleLinkBySourceType(sourceType, sourceSerial, targetSerial);
+		source.sendSuccess(
+			() -> Component.translatable(linkedNow ? "message.redstonelink.link_added" : "message.redstonelink.link_removed"),
+			false
+		);
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 		return Command.SINGLE_SUCCESS;
 	}
@@ -1034,9 +1130,9 @@ public final class ModCommands {
 	}
 
 	/**
-	 * 批量覆盖设置链接集合。
+	 * `link set` 批量覆盖设置链接集合。
 	 */
-	private static int executeSetLinks(
+	private static int executeLinkSet(
 		CommandContext<CommandSourceStack> context,
 		LinkNodeType sourceType,
 		boolean hasTargets
@@ -1142,9 +1238,9 @@ public final class ModCommands {
 			return 0;
 		}
 
-		// set_links 语义为“覆盖集合”，因此先清空旧关系再写入新关系。
+		// link set 语义为“覆盖集合”，底层按差异增量应用，避免无效全量重写。
 		if (hasTargets && targets.size() > 1 && !confirmed) {
-			String confirmCommand = "redstonelink set_links "
+			String confirmCommand = "redstonelink link set "
 				+ typeCommandName(sourceType)
 				+ " "
 				+ sourceSerial
@@ -1161,19 +1257,12 @@ public final class ModCommands {
 			return 0;
 		}
 		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
-		savedData.clearLinksForNode(sourceType, sourceSerial);
-		int added = 0;
-		for (long targetSerial : targets) {
-			boolean addedNow = savedData.toggleLinkBySourceType(sourceType, sourceSerial, targetSerial);
-			if (addedNow) {
-				added++;
-			}
-		}
+		LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceLinksBySourceType(sourceType, sourceSerial, targets);
 
 		syncAffectedNodeLinkSnapshots(player.serverLevel(), targetType, previousTargets, targets);
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
-		final int addedCount = added;
-		source.sendSuccess(() -> Component.translatable("message.redstonelink.set_links_done", addedCount), false);
+		final int currentTargetCount = replaceResult.currentCount();
+		source.sendSuccess(() -> Component.translatable("message.redstonelink.set_links_done", currentTargetCount), false);
 		if (allowOfflineBinding && !offlineTargets.isEmpty()) {
 			String offline = offlineTargets.stream().map(String::valueOf).reduce((a, b) -> a + ", " + b).orElse("-");
 			source.sendSuccess(
@@ -1185,15 +1274,15 @@ public final class ModCommands {
 	}
 
 	/**
-	 * 根据 type 参数执行覆盖式 set_links。
+	 * 根据 type 参数执行覆盖式 `link set`。
 	 */
-	private static int executeSetLinksWithTypeArg(CommandContext<CommandSourceStack> context, boolean hasTargets) {
+	private static int executeLinkSetWithTypeArg(CommandContext<CommandSourceStack> context, boolean hasTargets) {
 		CommandSourceStack source = context.getSource();
 		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (sourceType == null) {
 			return 0;
 		}
-		return executeSetLinks(context, sourceType, hasTargets);
+		return executeLinkSet(context, sourceType, hasTargets);
 	}
 
 	/**

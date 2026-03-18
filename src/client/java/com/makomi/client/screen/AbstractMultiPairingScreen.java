@@ -154,12 +154,12 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected abstract Component currentLinksLine(List<Long> currentTargets);
 
 	/**
-	 * @return set_links 命令的来源类型（triggerSource/core 语义入口）
+	 * @return `link set` 命令的来源类型（triggerSource/core 语义入口）
 	 */
 	protected abstract LinkNodeType sourceType();
 
 	/**
-	 * 发送覆盖式 set_links 命令。
+	 * 发送覆盖式 `link set` 命令。
 	 *
 	 * @param sourceSerial 来源节点序列号
 	 * @param rawTargetsInput 输入框中的原始目标文本
@@ -184,7 +184,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
-	 * 发送 clear_links 语义（通过空目标覆盖 set_links 实现）。
+	 * 发送 clear_links 语义（通过空目标覆盖 `link set` 实现）。
 	 *
 	 * @param sourceSerial 来源节点序列号
 	 */
@@ -196,10 +196,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
-	 * 构建 set_links 命令前缀。
+	 * 构建 `link set` 命令前缀。
 	 */
 	private String setLinksBaseCommand(long sourceSerial) {
-		return "redstonelink set_links " + LinkNodeSemantics.toCommandToken(sourceType()) + " " + sourceSerial;
+		return "redstonelink link set " + LinkNodeSemantics.toCommandToken(sourceType()) + " " + sourceSerial;
 	}
 
 	/**
@@ -400,7 +400,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
-	 * 提交覆盖式 set_links。
+	 * 提交覆盖式 `link set`。
 	 */
 	private void submit() {
 		if (sourceSerial <= 0L) {

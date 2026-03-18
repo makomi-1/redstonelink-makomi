@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.util.SerialNbtCodecUtil;
+import com.makomi.util.IncrementalReplacePlanUtil;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -92,36 +93,25 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 	 *
 	 * @param type 节点类型
 	 * @param serials 新序号集合
-	 * @return 发生变化的条目数量（新增+移除）
+	 * @return 覆盖结果（新增/移除/总变更）
 	 */
-	public int replace(LinkNodeType type, Set<Long> serials) {
+	public ReplaceMaskResult replace(LinkNodeType type, Set<Long> serials) {
 		if (type == null) {
-			return 0;
+			return new ReplaceMaskResult(0, 0, 0);
 		}
 		Set<Long> targetBucket = bucket(type);
 		Set<Long> normalized = normalizeSerialSet(serials);
-
-		int removed = 0;
-		for (long existing : targetBucket) {
-			if (!normalized.contains(existing)) {
-				removed++;
-			}
+		IncrementalReplacePlanUtil.SetReplacePlan<Long> plan = IncrementalReplacePlanUtil.buildSetReplacePlan(
+			targetBucket,
+			normalized
+		);
+		if (!plan.changed()) {
+			return new ReplaceMaskResult(0, 0, 0);
 		}
-		int added = 0;
-		for (long value : normalized) {
-			if (!targetBucket.contains(value)) {
-				added++;
-			}
-		}
-		int changed = removed + added;
-		if (changed == 0) {
-			return 0;
-		}
-
-		targetBucket.clear();
-		targetBucket.addAll(normalized);
+		targetBucket.removeAll(plan.toRemove());
+		targetBucket.addAll(plan.toAdd());
 		setDirty();
-		return changed;
+		return new ReplaceMaskResult(plan.addedCount(), plan.removedCount(), plan.changedCount());
 	}
 
 	/**
@@ -167,5 +157,10 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 		}
 		return normalized.isEmpty() ? Set.of() : Set.copyOf(normalized);
 	}
+
+	/**
+	 * mask set 覆盖结果记录。
+	 */
+	public record ReplaceMaskResult(int addedCount, int removedCount, int changedCount) {}
 
 }

@@ -411,15 +411,14 @@ public final class CrossChunkCommandRegistry {
 		}
 
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(source.getLevel());
-		int removed = whitelistSavedData.clear(parsed.type(), parsed.role());
-		int added = 0;
-		for (long serial : targetSerials) {
-			if (whitelistSavedData.add(parsed.type(), serial, parsed.role(), resident)) {
-				added++;
-			}
-		}
-		final int addedCount = added;
-		final int removedCount = removed;
+		CrossChunkWhitelistSavedData.ReplaceWhitelistResult replaceResult = whitelistSavedData.replace(
+			parsed.type(),
+			parsed.role(),
+			targetSerials,
+			resident
+		);
+		final int addedCount = replaceResult.addedCount();
+		final int removedCount = replaceResult.removedCount();
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.crosschunk.whitelist.set.done",

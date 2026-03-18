@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.util.SerialNbtCodecUtil;
+import com.makomi.util.IncrementalReplacePlanUtil;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -361,6 +362,103 @@ public final class LinkSavedData extends SavedData {
 	}
 
 	/**
+	 * 以“来源/目标”语义新增单条关联关系。
+	 * <p>
+	 * 当来源类型为 TRIGGER_SOURCE 时，按 TRIGGER_SOURCE -> CORE 写入；<br/>
+	 * 当来源类型为 CORE 时，自动映射为 TRIGGER_SOURCE -> CORE 底层索引。
+	 * </p>
+	 *
+	 * @param sourceType 来源节点类型
+	 * @param sourceSerial 来源序列号
+	 * @param targetSerial 目标序列号
+	 * @return true 表示本次新增成功；false 表示已存在或参数无效
+	 */
+	public boolean addLinkBySourceType(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
+		if (sourceType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+			return false;
+		}
+		long buttonSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
+		long coreSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? targetSerial : sourceSerial;
+		Set<Long> linkedCores = buttonToCores.computeIfAbsent(buttonSerial, unused -> new HashSet<>());
+		if (linkedCores.contains(coreSerial)) {
+			return false;
+		}
+		link(buttonSerial, coreSerial);
+		setDirty();
+		return true;
+	}
+
+	/**
+	 * 以“来源/目标”语义移除单条关联关系。
+	 * <p>
+	 * 当来源类型为 TRIGGER_SOURCE 时，按 TRIGGER_SOURCE -> CORE 删除；<br/>
+	 * 当来源类型为 CORE 时，自动映射为 TRIGGER_SOURCE -> CORE 底层索引。
+	 * </p>
+	 *
+	 * @param sourceType 来源节点类型
+	 * @param sourceSerial 来源序列号
+	 * @param targetSerial 目标序列号
+	 * @return true 表示本次移除成功；false 表示不存在或参数无效
+	 */
+	public boolean removeLinkBySourceType(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
+		if (sourceType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+			return false;
+		}
+		long buttonSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
+		long coreSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? targetSerial : sourceSerial;
+		boolean removed = unlink(buttonSerial, coreSerial);
+		if (removed) {
+			setDirty();
+		}
+		return removed;
+	}
+
+	/**
+	 * 以“覆盖集合”语义增量替换来源节点的目标集合。
+	 * <p>
+	 * 该方法仅应用最小差异（新增/移除），并在存在变更时统一标记一次脏数据。
+	 * </p>
+	 *
+	 * @param sourceType 来源节点类型
+	 * @param sourceSerial 来源序列号
+	 * @param targetSerials 新目标集合
+	 * @return 覆盖结果（当前数量/新增/移除/总变更）
+	 */
+	public ReplaceLinksResult replaceLinksBySourceType(LinkNodeType sourceType, long sourceSerial, Set<Long> targetSerials) {
+		if (sourceType == null || sourceSerial <= 0L) {
+			return new ReplaceLinksResult(0, 0, 0, 0);
+		}
+		Set<Long> currentTargets = new HashSet<>(getLinkedTargetsBySourceType(sourceType, sourceSerial));
+		Set<Long> normalizedTargets = normalizePositiveSerials(targetSerials);
+		IncrementalReplacePlanUtil.SetReplacePlan<Long> plan = IncrementalReplacePlanUtil.buildSetReplacePlan(
+			currentTargets,
+			normalizedTargets
+		);
+		if (!plan.changed()) {
+			return new ReplaceLinksResult(currentTargets.size(), 0, 0, 0);
+		}
+
+		int removed = 0;
+		for (long targetSerial : plan.toRemove()) {
+			if (removeLinkWithoutDirtyBySourceType(sourceType, sourceSerial, targetSerial)) {
+				removed++;
+			}
+		}
+		int added = 0;
+		for (long targetSerial : plan.toAdd()) {
+			if (addLinkWithoutDirtyBySourceType(sourceType, sourceSerial, targetSerial)) {
+				added++;
+			}
+		}
+
+		if (added > 0 || removed > 0) {
+			setDirty();
+		}
+		int currentCount = currentTargets.size() - removed + added;
+		return new ReplaceLinksResult(currentCount, added, removed, added + removed);
+	}
+
+	/**
 	 * 解除按钮与核心的单条关联关系。
 	 */
 	public boolean unlink(long buttonSerial, long coreSerial) {
@@ -474,6 +572,35 @@ public final class LinkSavedData extends SavedData {
 			setDirty();
 		}
 		return removed;
+	}
+
+	/**
+	 * 以“来源/目标”语义新增关联（不触发 setDirty）。
+	 */
+	private boolean addLinkWithoutDirtyBySourceType(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
+		if (sourceType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+			return false;
+		}
+		long buttonSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
+		long coreSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? targetSerial : sourceSerial;
+		Set<Long> linkedCores = buttonToCores.computeIfAbsent(buttonSerial, unused -> new HashSet<>());
+		if (linkedCores.contains(coreSerial)) {
+			return false;
+		}
+		link(buttonSerial, coreSerial);
+		return true;
+	}
+
+	/**
+	 * 以“来源/目标”语义移除关联（不触发 setDirty）。
+	 */
+	private boolean removeLinkWithoutDirtyBySourceType(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
+		if (sourceType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+			return false;
+		}
+		long buttonSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
+		long coreSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? targetSerial : sourceSerial;
+		return unlink(buttonSerial, coreSerial);
 	}
 
 	/**
@@ -680,6 +807,22 @@ public final class LinkSavedData extends SavedData {
 	}
 
 	/**
+	 * 规范化输入集合：仅保留正序号并去重。
+	 */
+	private static Set<Long> normalizePositiveSerials(Set<Long> serials) {
+		if (serials == null || serials.isEmpty()) {
+			return Set.of();
+		}
+		Set<Long> normalized = new HashSet<>();
+		for (Long serial : serials) {
+			if (serial != null && serial > 0L) {
+				normalized.add(serial);
+			}
+		}
+		return normalized.isEmpty() ? Set.of() : Set.copyOf(normalized);
+	}
+
+	/**
 	 * 在线节点快照记录。
 	 */
 	public record LinkNode(long serial, ResourceKey<Level> dimension, BlockPos pos, LinkNodeType type) {}
@@ -700,4 +843,9 @@ public final class LinkSavedData extends SavedData {
 		int linkedButtonSerialCount,
 		int linkedCoreSerialCount
 	) {}
+
+	/**
+	 * 覆盖式替换链接结果记录。
+	 */
+	public record ReplaceLinksResult(int currentCount, int addedCount, int removedCount, int changedCount) {}
 }

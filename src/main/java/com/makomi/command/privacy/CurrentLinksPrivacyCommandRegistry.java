@@ -261,23 +261,10 @@ public final class CurrentLinksPrivacyCommandRegistry {
 		}
 
 		CurrentLinksPrivacySavedData privacySavedData = CurrentLinksPrivacySavedData.get(source.getLevel());
-		Set<Long> before = privacySavedData.list(type);
-		int changed = privacySavedData.replace(type, targetSerials);
-		int added = 0;
-		int removed = 0;
-		for (long serial : targetSerials) {
-			if (!before.contains(serial)) {
-				added++;
-			}
-		}
-		for (long serial : before) {
-			if (!targetSerials.contains(serial)) {
-				removed++;
-			}
-		}
-		final int finalAdded = added;
-		final int finalRemoved = removed;
-		final int finalChanged = changed;
+		CurrentLinksPrivacySavedData.ReplaceMaskResult replaceResult = privacySavedData.replace(type, targetSerials);
+		final int finalAdded = replaceResult.addedCount();
+		final int finalRemoved = replaceResult.removedCount();
+		final int finalChanged = replaceResult.changedCount();
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.privacy.current_links.mask.set.done",

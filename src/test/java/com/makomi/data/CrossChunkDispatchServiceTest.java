@@ -251,7 +251,6 @@ class CrossChunkDispatchServiceTest {
 	 * appendDesiredResidentTickets 应按 role/type 约束构造常驻票据目标。
 	 */
 	@Test
-	@SuppressWarnings("unchecked")
 	void appendDesiredResidentTicketsShouldBuildTicketBySemanticRole() throws Exception {
 		LinkSavedData linkSavedData = new LinkSavedData();
 		linkSavedData.registerNode(101L, Level.OVERWORLD, new BlockPos(33, 64, 49), LinkNodeType.TRIGGER_SOURCE);

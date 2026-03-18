@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.makomi.util.IncrementalReplacePlanUtil;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -268,6 +269,88 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 		return removed;
 	}
 
+	/**
+	 * 以“覆盖集合”语义增量替换白名单。
+	 * <p>
+	 * 与 clear+add 语义对齐：最终 resident 状态由参数统一决定，
+	 * 即最终白名单中的序号全部 resident=on 或全部 resident=off。
+	 * </p>
+	 *
+	 * @param type 节点类型
+	 * @param role 角色方向
+	 * @param serials 新白名单集合
+	 * @param resident 最终 resident 模式
+	 * @return 覆盖结果（新增/移除/resident 变更/总变更）
+	 */
+	public ReplaceWhitelistResult replace(
+		LinkNodeType type,
+		LinkNodeSemantics.Role role,
+		Set<Long> serials,
+		boolean resident
+	) {
+		if (type == null || role == null) {
+			return new ReplaceWhitelistResult(0, 0, 0, 0);
+		}
+		Map<LinkNodeType, Set<Long>> whitelistBucket = bucket(role);
+		Map<LinkNodeType, Set<Long>> residentBucket = residentBucket(role);
+		Set<Long> currentWhitelist = whitelistBucket.getOrDefault(type, Set.of());
+		Set<Long> normalizedTargets = normalizePositiveSerialSet(serials);
+		IncrementalReplacePlanUtil.SetReplacePlan<Long> plan = IncrementalReplacePlanUtil.buildSetReplacePlan(
+			currentWhitelist,
+			normalizedTargets
+		);
+
+		Set<Long> whitelistSerials = new HashSet<>(currentWhitelist);
+		Set<Long> residentSerials = new HashSet<>(residentBucket.getOrDefault(type, Set.of()));
+		int added = 0;
+		int removed = 0;
+		int residentChanged = 0;
+
+		for (long serial : plan.toRemove()) {
+			if (whitelistSerials.remove(serial)) {
+				removed++;
+			}
+			if (residentSerials.remove(serial)) {
+				residentChanged++;
+			}
+		}
+		for (long serial : plan.toAdd()) {
+			if (whitelistSerials.add(serial)) {
+				added++;
+			}
+			if (resident && residentSerials.add(serial)) {
+				residentChanged++;
+			}
+		}
+		for (long serial : plan.unchanged()) {
+			if (resident) {
+				if (residentSerials.add(serial)) {
+					residentChanged++;
+				}
+				continue;
+			}
+			if (residentSerials.remove(serial)) {
+				residentChanged++;
+			}
+		}
+
+		if (whitelistSerials.isEmpty()) {
+			whitelistBucket.remove(type);
+		} else {
+			whitelistBucket.put(type, whitelistSerials);
+		}
+		if (residentSerials.isEmpty()) {
+			residentBucket.remove(type);
+		} else {
+			residentBucket.put(type, residentSerials);
+		}
+		int changed = added + removed + residentChanged;
+		if (changed > 0) {
+			setDirty();
+		}
+		return new ReplaceWhitelistResult(added, removed, residentChanged, changed);
+	}
+
 	@Override
 	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
 		writeBucket(tag, KEY_SOURCES, sourceWhitelist, sourceResidents);
@@ -392,6 +475,22 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 	}
 
 	/**
+	 * 规范化输入集合：仅保留正序号并去重。
+	 */
+	private static Set<Long> normalizePositiveSerialSet(Set<Long> serials) {
+		if (serials == null || serials.isEmpty()) {
+			return Set.of();
+		}
+		Set<Long> normalized = new HashSet<>();
+		for (Long serial : serials) {
+			if (serial != null && serial > 0L) {
+				normalized.add(serial);
+			}
+		}
+		return normalized.isEmpty() ? Set.of() : Set.copyOf(normalized);
+	}
+
+	/**
 	 * 白名单 upsert 变更结果。
 	 *
 	 * @param valid 输入参数是否有效
@@ -407,4 +506,19 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 			return created || residentChanged;
 		}
 	}
+
+	/**
+	 * 覆盖式替换结果。
+	 *
+	 * @param addedCount 新增白名单数量
+	 * @param removedCount 移除白名单数量
+	 * @param residentChangedCount resident 状态变更数量
+	 * @param changedCount 总变更数量（新增+移除+resident 变更）
+	 */
+	public record ReplaceWhitelistResult(
+		int addedCount,
+		int removedCount,
+		int residentChangedCount,
+		int changedCount
+	) {}
 }

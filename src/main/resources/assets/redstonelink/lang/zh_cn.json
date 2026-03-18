@@ -64,6 +64,8 @@
   "message.redstonelink.target_not_found": "[RedstoneLink] 未找到目标序号 %s。",
   "message.redstonelink.link_added": "[RedstoneLink] 已添加连接。",
   "message.redstonelink.link_removed": "[RedstoneLink] 已移除连接。",
+  "message.redstonelink.link_already_exists": "[RedstoneLink] 连接已存在，无需重复添加。",
+  "message.redstonelink.link_not_exists": "[RedstoneLink] 连接不存在，无法移除。",
   "message.redstonelink.links_cleared": "[RedstoneLink] 已清空全部连接（移除 %s 条）。",
   "message.redstonelink.set_links_done": "[RedstoneLink] 连接已替换，当前目标数量：%s。",
   "message.redstonelink.set_links.confirm_required": "[RedstoneLink] 检测到批量覆盖（%s 项），请再次确认：/%s",

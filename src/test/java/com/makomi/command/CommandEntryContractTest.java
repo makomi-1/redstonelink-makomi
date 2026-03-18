@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 @Tag("stable-core")
 class CommandEntryContractTest {
 	/**
-	 * set_links 的 confirm 后缀应被识别并剥离。
+	 * link set 的 confirm 后缀应被识别并剥离。
 	 */
 	@Test
 	void modCommandsConfirmSuffixShouldParseAndStripSuffix() throws Exception {
@@ -25,7 +25,7 @@ class CommandEntryContractTest {
 	}
 
 	/**
-	 * set_links 后缀解析保持大小写敏感，防止误匹配非标准指令。
+	 * link set 后缀解析保持大小写敏感，防止误匹配非标准指令。
 	 */
 	@Test
 	void modCommandsConfirmSuffixShouldKeepCaseSensitiveBehavior() throws Exception {
