@@ -155,12 +155,6 @@
     },
     "done": true
   },
-  "minecraft:adventure/adventuring_time": {
-    "criteria": {
-      "minecraft:plains": "2026-03-14 15:14:11 +0800"
-    },
-    "done": false
-  },
   "minecraft:recipes/decorations/white_bed": {
     "criteria": {
       "has_white_wool": "2026-03-14 15:14:10 +0800"
@@ -220,6 +214,12 @@
       "has_redstone": "2026-03-14 15:14:10 +0800"
     },
     "done": true
+  },
+  "minecraft:adventure/adventuring_time": {
+    "criteria": {
+      "minecraft:plains": "2026-03-14 15:14:11 +0800"
+    },
+    "done": false
   },
   "DataVersion": 3955
 }
