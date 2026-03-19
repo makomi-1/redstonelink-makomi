@@ -75,7 +75,7 @@ class InternalStateRecordConstructionTest {
 			Class.forName("net.minecraft.resources.ResourceKey"),
 			BlockPos.class,
 			ActivationMode.class,
-			boolean.class,
+			int.class,
 			long.class
 		);
 		pendingDispatchConstructor.setAccessible(true);
@@ -84,7 +84,7 @@ class InternalStateRecordConstructionTest {
 			Level.OVERWORLD,
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,
-			false,
+			0,
 			80L
 		);
 		assertNotNull(pendingDispatch);

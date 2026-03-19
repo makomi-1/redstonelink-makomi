@@ -53,7 +53,7 @@ class CrossChunkDispatchServiceEntryGuardTest {
 			null,
 			null,
 			1L,
-			true
+			15
 		);
 		assertFalse(missingSourceType.accepted());
 		assertFalse(missingSourceType.forceLoadPlanned());
@@ -63,7 +63,7 @@ class CrossChunkDispatchServiceEntryGuardTest {
 			null,
 			LinkNodeType.TRIGGER_SOURCE,
 			1L,
-			true
+			15
 		);
 		assertFalse(missingTargetNode.accepted());
 		assertFalse(missingTargetNode.forceLoadPlanned());

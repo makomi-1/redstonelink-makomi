@@ -51,7 +51,7 @@ public final class LinkedTargetDispatchService {
 			targetSerials,
 			DispatchKind.ACTIVATION,
 			activationMode,
-			false
+			0
 		);
 	}
 
@@ -63,7 +63,7 @@ public final class LinkedTargetDispatchService {
 	 * @param sourceSerial 来源节点序号
 	 * @param targetType 目标节点类型
 	 * @param targetSerials 目标序号集合
-	 * @param signalOn 同步输入状态
+	 * @param signalStrength 同步输入强度（0~15）
 	 * @return 派发汇总
 	 */
 	public static DispatchSummary dispatchSyncSignal(
@@ -72,8 +72,9 @@ public final class LinkedTargetDispatchService {
 		long sourceSerial,
 		LinkNodeType targetType,
 		Set<Long> targetSerials,
-		boolean signalOn
+		int signalStrength
 	) {
+		int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
 		return dispatchInternal(
 			sourceLevel,
 			sourceType,
@@ -82,7 +83,7 @@ public final class LinkedTargetDispatchService {
 			targetSerials,
 			DispatchKind.SYNC_SIGNAL,
 			ActivationMode.TOGGLE,
-			signalOn
+			normalizedStrength
 		);
 	}
 
@@ -93,14 +94,14 @@ public final class LinkedTargetDispatchService {
 	 * @return 需发送给玩家的多行提示
 	 */
 	public static List<Component> buildCrossChunkNotifyMessages(DispatchSummary summary) {
-		if (summary == null || !summary.hasCrossChunkHandled()) {
+		if (summary == null || !summary.hasForceLoadHandled()) {
 			return List.of();
 		}
 		int displayLimit = RedstoneLinkConfig.crossChunkNotifyMode() == RedstoneLinkConfig.CrossChunkNotifyMode.DETAILED
 			? 50
 			: 3;
 		List<Component> lines = new ArrayList<>();
-		lines.add(Component.translatable("message.redstonelink.crosschunk.notify.header", summary.crossChunkHandledCount()));
+		lines.add(Component.translatable("message.redstonelink.crosschunk.notify.header", summary.forceLoadHandledCount()));
 		lines.add(
 			Component.translatable(
 				"message.redstonelink.crosschunk.notify.source",
@@ -113,14 +114,6 @@ public final class LinkedTargetDispatchService {
 				Component.translatable(
 					"message.redstonelink.crosschunk.notify.force_load_targets",
 					formatNotifyTargets(summary.targetType(), summary.forceLoadTargetSerials(), displayLimit)
-				)
-			);
-		}
-		if (!summary.relayTargetSerials().isEmpty()) {
-			lines.add(
-				Component.translatable(
-					"message.redstonelink.crosschunk.notify.relay_targets",
-					formatNotifyTargets(summary.targetType(), summary.relayTargetSerials(), displayLimit)
 				)
 			);
 		}
@@ -138,7 +131,7 @@ public final class LinkedTargetDispatchService {
 		Set<Long> targetSerials,
 		DispatchKind dispatchKind,
 		ActivationMode activationMode,
-		boolean syncSignalOn
+		int syncSignalStrength
 	) {
 		if (
 			sourceLevel == null
@@ -186,7 +179,7 @@ public final class LinkedTargetDispatchService {
 						node,
 						sourceType,
 						sourceSerial,
-						syncSignalOn
+						syncSignalStrength
 					);
 				if (queueResult.accepted()) {
 					handledCount++;
@@ -209,7 +202,7 @@ public final class LinkedTargetDispatchService {
 			if (dispatchKind == DispatchKind.ACTIVATION) {
 				targetBlockEntity.triggerBySource(sourceSerial, activationMode);
 			} else {
-				targetBlockEntity.syncBySource(sourceSerial, syncSignalOn);
+				targetBlockEntity.syncBySource(sourceSerial, syncSignalStrength);
 			}
 			handledCount++;
 		}
@@ -278,6 +271,20 @@ public final class LinkedTargetDispatchService {
 		List<Long> forceLoadTargetSerials,
 		List<Long> relayTargetSerials
 	) {
+		/**
+		 * @return 强加载接管数量
+		 */
+		public int forceLoadHandledCount() {
+			return forceLoadTargetSerials.size();
+		}
+
+		/**
+		 * @return 是否发生强加载接管
+		 */
+		public boolean hasForceLoadHandled() {
+			return forceLoadHandledCount() > 0;
+		}
+
 		/**
 		 * @return 跨区块接管总数量（强加载 + 中继缓冲）
 		 */

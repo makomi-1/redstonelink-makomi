@@ -27,9 +27,41 @@ public class LinkSyncEmitterBlock extends LinkSignalEmitterBlock {
 	}
 
 	@Override
-	protected void onSignalTriggered(Level level, BlockPos pos, BlockState updatedState, boolean wasPowered, boolean hasSignal) {
+	protected boolean shouldTriggerOnSignalStateUnchanged(
+		BlockState state,
+		Level level,
+		BlockPos pos,
+		boolean hasSignal,
+		int signalStrength
+	) {
+		if (!hasSignal) {
+			return false;
+		}
+		if (!(level.getBlockEntity(pos) instanceof LinkSyncEmitterBlockEntity blockEntity)) {
+			return false;
+		}
+		// POWERED 未变化但输入强度变化时，仍需按最新强度转发一次。
+		int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+		return blockEntity.getLastObservedSignalStrength() != normalizedStrength;
+	}
+
+	@Override
+	protected void onSignalTriggered(
+		Level level,
+		BlockPos pos,
+		BlockState updatedState,
+		boolean wasPowered,
+		boolean hasSignal,
+		int signalStrength
+	) {
+		if (level.getBlockEntity(pos) instanceof LinkSyncEmitterBlockEntity blockEntity) {
+			int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+			blockEntity.setLastObservedSignalStrength(normalizedStrength);
+			blockEntity.forwardLinkedSignal(null, normalizedStrength);
+			return;
+		}
 		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-			buttonBlockEntity.forwardLinkedSignal(null, hasSignal);
+			buttonBlockEntity.forwardLinkedSignal(null, Math.max(0, Math.min(15, signalStrength)));
 		}
 	}
 }

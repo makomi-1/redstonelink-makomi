@@ -57,7 +57,7 @@ class LinkedTargetDispatchServiceTest {
 			1L,
 			LinkNodeType.CORE,
 			Set.of(),
-			true
+			15
 		);
 		assertEquals(0, emptyTargets.totalTargets());
 	}

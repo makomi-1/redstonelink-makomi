@@ -42,7 +42,7 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 	 * </p>
 	 */
 	public void triggerLinkedTargets(Player player) {
-		dispatchToLinkedTargets(player, DispatchMode.ACTIVATION, false);
+		dispatchToLinkedTargets(player, DispatchMode.ACTIVATION, 0);
 	}
 
 	/**
@@ -52,10 +52,21 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 	 * </p>
 	 */
 	public void forwardLinkedSignal(Player player, boolean signalOn) {
-		dispatchToLinkedTargets(player, DispatchMode.SYNC_SIGNAL, signalOn);
+		forwardLinkedSignal(player, signalOn ? 15 : 0);
 	}
 
-	private void dispatchToLinkedTargets(Player player, DispatchMode dispatchMode, boolean signalOn) {
+	/**
+	 * 同步转发输入强度到已绑定目标。
+	 *
+	 * @param player 触发玩家（可空）
+	 * @param signalStrength 输入强度（会被归一到 0~15）
+	 */
+	public void forwardLinkedSignal(Player player, int signalStrength) {
+		int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+		dispatchToLinkedTargets(player, DispatchMode.SYNC_SIGNAL, normalizedStrength);
+	}
+
+	private void dispatchToLinkedTargets(Player player, DispatchMode dispatchMode, int signalStrength) {
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
@@ -88,14 +99,14 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 				sourceSerial,
 				getTargetNodeType(),
 				linkedTargets,
-				signalOn
+				signalStrength
 			);
 
 		if (dispatchSummary.handledCount() == 0) {
 			sendPlayerMessage(player, Component.translatable("message.redstonelink.no_reachable_targets"));
 			return;
 		}
-		if (RedstoneLinkConfig.crossChunkNotifyEnabled() && dispatchSummary.hasCrossChunkHandled()) {
+		if (RedstoneLinkConfig.crossChunkNotifyEnabled() && dispatchSummary.hasForceLoadHandled()) {
 			for (Component line : LinkedTargetDispatchService.buildCrossChunkNotifyMessages(dispatchSummary)) {
 				sendPlayerMessage(player, line);
 			}

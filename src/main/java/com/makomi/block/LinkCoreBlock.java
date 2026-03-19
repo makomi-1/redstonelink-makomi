@@ -131,12 +131,12 @@ public class LinkCoreBlock extends BaseEntityBlock {
 
 	@Override
 	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return state.getValue(ACTIVE) ? RedstoneLinkConfig.coreOutputPower() : 0;
+		return resolveOutputPower(state, level, pos);
 	}
 
 	@Override
 	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return state.getValue(ACTIVE) ? RedstoneLinkConfig.coreOutputPower() : 0;
+		return resolveOutputPower(state, level, pos);
 	}
 
 	@Override
@@ -188,6 +188,19 @@ public class LinkCoreBlock extends BaseEntityBlock {
 				PairingNetwork.openCorePairing(serverPlayer, serial);
 			}
 		}
+	}
+
+	/**
+	 * 解析核心输出功率。
+	 * <p>
+	 * 优先读取目标实体解析结果（可承载 sync 强度）；实体缺失时回退到旧逻辑。
+	 * </p>
+	 */
+	private static int resolveOutputPower(BlockState state, BlockGetter level, BlockPos pos) {
+		if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
+			return coreBlockEntity.getResolvedOutputPower();
+		}
+		return state.getValue(ACTIVE) ? RedstoneLinkConfig.coreOutputPower() : 0;
 	}
 
 }

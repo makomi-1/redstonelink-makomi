@@ -334,10 +334,6 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		}
 	}
 
-	private static boolean isCoreActive(BlockGetter level, BlockPos pos) {
-		return level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity && coreBlockEntity.isActive();
-	}
-
 	private static BlockState normalizeForSupportFace(BlockState state) {
 		// 所有附着面均不参与与其他红石粉连接交互，四向连接固定为 none。
 		return state
@@ -363,8 +359,8 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
-		boolean targetActive = isCoreActive(level, pos);
-		int targetPower = targetActive ? RedstoneLinkConfig.coreOutputPower() : 0;
+		int targetPower = getCoreResolvedPower(level, pos);
+		boolean targetActive = targetPower > 0;
 		BlockState normalizedState = normalizeForSupportFace(state);
 		BlockState targetState = normalizedState.setValue(POWER, targetPower).setValue(ACTIVE, targetActive);
 		BlockState currentState = level.getBlockState(pos);
@@ -375,6 +371,13 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			return;
 				
 		}
+	}
+
+	private static int getCoreResolvedPower(BlockGetter level, BlockPos pos) {
+		if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+			return coreBlockEntity.getResolvedOutputPower();
+		}
+		return 0;
 	}
 
 	private static void notifyAttachedNeighbor(Level level, BlockPos pos, BlockState state) {

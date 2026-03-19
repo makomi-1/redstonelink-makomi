@@ -190,22 +190,34 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 
 	/**
 	 * 统一红石输入处理：按配置边沿触发绑定目标，避免持续高电平重复触发。
+	 * 同步信号按邻居最大强度变化触发
 	 */
 	protected final void updatePoweredState(Level level, BlockPos pos, BlockState state) {
 		if (level.isClientSide) {
 			return;
 		}
-		boolean hasSignal = level.hasNeighborSignal(pos);
+		int signalStrength = resolveInputSignalStrength(level, pos);
+		boolean hasSignal = signalStrength > 0;
 		boolean wasPowered = state.getValue(POWERED);
 		if (hasSignal == wasPowered) {
+			if (shouldTriggerOnSignalStateUnchanged(state, level, pos, hasSignal, signalStrength)) {
+				onSignalTriggered(level, pos, state, wasPowered, hasSignal, signalStrength);
+			}
 			return;
 		}
 
 		BlockState updatedState = state.setValue(POWERED, hasSignal);
 		level.setBlock(pos, updatedState, Block.UPDATE_ALL);
 		if (shouldTriggerOnPoweredChange(wasPowered, hasSignal)) {
-			onSignalTriggered(level, pos, updatedState, wasPowered, hasSignal);
+			onSignalTriggered(level, pos, updatedState, wasPowered, hasSignal, signalStrength);
 		}
+	}
+
+	/**
+	 * 解析当前输入强度。
+	 */
+	protected int resolveInputSignalStrength(Level level, BlockPos pos) {
+		return Math.max(0, level.getBestNeighborSignal(pos));
 	}
 
 	/**
@@ -216,9 +228,29 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	}
 
 	/**
+	 * 钩子：POWERED 未变化时，是否仍需触发联动（例如同步模式强度变化）。
+	 */
+	protected boolean shouldTriggerOnSignalStateUnchanged(
+		BlockState state,
+		Level level,
+		BlockPos pos,
+		boolean hasSignal,
+		int signalStrength
+	) {
+		return false;
+	}
+
+	/**
 	 * 钩子：触发成立后执行具体动作。
 	 */
-	protected void onSignalTriggered(Level level, BlockPos pos, BlockState updatedState, boolean wasPowered, boolean hasSignal) {
+	protected void onSignalTriggered(
+		Level level,
+		BlockPos pos,
+		BlockState updatedState,
+		boolean wasPowered,
+		boolean hasSignal,
+		int signalStrength
+	) {
 		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
 			buttonBlockEntity.triggerLinkedTargets(null);
 		}

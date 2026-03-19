@@ -83,7 +83,7 @@ public final class CrossChunkDispatchService {
 			sourceSerial,
 			DispatchKind.ACTIVATION,
 			activationMode,
-			false,
+			0,
 			ttlTicks
 		);
 	}
@@ -95,7 +95,7 @@ public final class CrossChunkDispatchService {
 	 * @param targetNode 目标节点快照
 	 * @param sourceType 源节点类型
 	 * @param sourceSerial 源节点序号
-	 * @param signalOn 同步信号状态
+	 * @param signalStrength 同步信号强度（0~15）
 	 * @return 是否已接管该请求（入队或强制加载链路）
 	 */
 	public static QueueResult queueSyncSignal(
@@ -103,9 +103,10 @@ public final class CrossChunkDispatchService {
 		LinkSavedData.LinkNode targetNode,
 		LinkNodeType sourceType,
 		long sourceSerial,
-		boolean signalOn
+		int signalStrength
 	) {
-		long ttlTicks = signalOn
+		int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+		long ttlTicks = normalizedStrength > 0
 			? RedstoneLinkConfig.crossChunkSyncSignalTtlTicks()
 			: RedstoneLinkConfig.crossChunkRelayExpireTicks();
 		return queueDispatch(
@@ -115,7 +116,7 @@ public final class CrossChunkDispatchService {
 			sourceSerial,
 			DispatchKind.SYNC_SIGNAL,
 			ActivationMode.TOGGLE,
-			signalOn,
+			normalizedStrength,
 			ttlTicks
 		);
 	}
@@ -127,7 +128,7 @@ public final class CrossChunkDispatchService {
 		long sourceSerial,
 		DispatchKind dispatchKind,
 		ActivationMode activationMode,
-		boolean syncSignalOn,
+		int syncSignalStrength,
 		long ttlTicks
 	) {
 		if (sourceLevel == null || targetNode == null || sourceType == null || dispatchKind == null || activationMode == null) {
@@ -157,7 +158,7 @@ public final class CrossChunkDispatchService {
 			targetNode.dimension(),
 			targetNode.pos(),
 			activationMode,
-			syncSignalOn,
+			Math.max(0, Math.min(15, syncSignalStrength)),
 			expireTick
 		);
 
@@ -220,7 +221,7 @@ public final class CrossChunkDispatchService {
 		}
 
 		if (pending.key().dispatchKind() == DispatchKind.SYNC_SIGNAL) {
-			targetBlockEntity.syncBySource(pending.key().sourceSerial(), pending.syncSignalOn());
+			targetBlockEntity.syncBySource(pending.key().sourceSerial(), pending.syncSignalStrength());
 		} else {
 			targetBlockEntity.triggerBySource(pending.key().sourceSerial(), pending.activationMode());
 		}
@@ -553,7 +554,7 @@ public final class CrossChunkDispatchService {
 		ResourceKey<Level> dimension,
 		BlockPos pos,
 		ActivationMode activationMode,
-		boolean syncSignalOn,
+		int syncSignalStrength,
 		long expireGameTick
 	) {}
 

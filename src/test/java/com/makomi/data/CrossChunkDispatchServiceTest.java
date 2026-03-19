@@ -61,7 +61,7 @@ class CrossChunkDispatchServiceTest {
 			long.class,
 			Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKind"),
 			ActivationMode.class,
-			boolean.class,
+			int.class,
 			long.class
 		);
 		queueDispatch.setAccessible(true);
@@ -82,7 +82,7 @@ class CrossChunkDispatchServiceTest {
 			1L,
 			activationKind,
 			ActivationMode.TOGGLE,
-			false,
+			0,
 			40L
 		);
 		assertFalse(invalidLevel.accepted());
@@ -95,7 +95,7 @@ class CrossChunkDispatchServiceTest {
 			0L,
 			activationKind,
 			ActivationMode.TOGGLE,
-			false,
+			0,
 			40L
 		);
 		assertFalse(invalidSourceSerial.accepted());
@@ -213,7 +213,7 @@ class CrossChunkDispatchServiceTest {
 			net.minecraft.resources.ResourceKey.class,
 			BlockPos.class,
 			ActivationMode.class,
-			boolean.class,
+			int.class,
 			long.class
 		);
 		pendingDispatchConstructor.setAccessible(true);
@@ -222,7 +222,7 @@ class CrossChunkDispatchServiceTest {
 			Level.OVERWORLD,
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,
-			false,
+			0,
 			10L
 		);
 

@@ -138,7 +138,7 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 			if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
 				// 拉杆改为同步语义：目标状态始终与拉杆当前状态对齐。
 				boolean signalOn = level.getBlockState(pos).getValue(POWERED);
-				buttonBlockEntity.forwardLinkedSignal(player, signalOn);
+				buttonBlockEntity.forwardLinkedSignal(player, signalOn ? 15 : 0);
 			}
 		}
 		return result;

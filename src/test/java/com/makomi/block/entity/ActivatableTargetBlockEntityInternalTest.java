@@ -34,28 +34,30 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 同步源聚合计数应按 sourceSerial + signalOn 语义稳定更新。
+	 * 同步源强度聚合应按 sourceSerial + strength 语义稳定更新。
 	 */
 	@Test
-	void updateSyncSignalStateShouldTrackOnSourceCount() {
+	void updateSyncSignalStrengthShouldTrackMaxStrength() {
 		TestTargetEntity target = createTarget();
 
-		invokeUpdateSyncSignalState(target, 1L, true);
-		assertEquals(1, getIntField(target, "syncSignalOnSourceCount"));
+		invokeUpdateSyncSignalStrength(target, 1L, 7);
+		assertEquals(7, getIntField(target, "syncSignalMaxStrength"));
 
-		// 同一 source 重复置 true 不应重复计数。
-		invokeUpdateSyncSignalState(target, 1L, true);
-		assertEquals(1, getIntField(target, "syncSignalOnSourceCount"));
+		// 同一 source 提升强度应更新 max。
+		invokeUpdateSyncSignalStrength(target, 1L, 10);
+		assertEquals(10, getIntField(target, "syncSignalMaxStrength"));
 
-		invokeUpdateSyncSignalState(target, 2L, true);
-		assertEquals(2, getIntField(target, "syncSignalOnSourceCount"));
+		// 第二来源更低强度不应改变 max。
+		invokeUpdateSyncSignalStrength(target, 2L, 3);
+		assertEquals(10, getIntField(target, "syncSignalMaxStrength"));
 
-		invokeUpdateSyncSignalState(target, 1L, false);
-		assertEquals(1, getIntField(target, "syncSignalOnSourceCount"));
+		// 移除最大来源后，应回落到剩余来源最大值。
+		invokeUpdateSyncSignalStrength(target, 1L, 0);
+		assertEquals(3, getIntField(target, "syncSignalMaxStrength"));
 
 		// sourceSerial<=0 视为全量重置路径。
-		invokeUpdateSyncSignalState(target, 0L, false);
-		assertEquals(0, getIntField(target, "syncSignalOnSourceCount"));
+		invokeUpdateSyncSignalStrength(target, 0L, 0);
+		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
 	}
 
 	/**
@@ -129,8 +131,13 @@ class ActivatableTargetBlockEntityInternalTest {
 		return new TestTargetEntity(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
 	}
 
-	private static void invokeUpdateSyncSignalState(TestTargetEntity target, long sourceSerial, boolean signalOn) {
-		invoke(target, "updateSyncSignalState", new Class<?>[] { long.class, boolean.class }, new Object[] { sourceSerial, signalOn });
+	private static void invokeUpdateSyncSignalStrength(TestTargetEntity target, long sourceSerial, int signalStrength) {
+		invoke(
+			target,
+			"updateSyncSignalStrength",
+			new Class<?>[] { long.class, int.class },
+			new Object[] { sourceSerial, signalStrength }
+		);
 	}
 
 	private static boolean invokeAcceptByPriority(TestTargetEntity target, int priority) {
