@@ -150,7 +150,7 @@ public final class RedstoneLinkConfig {
 
 		values = parse(props);
 		crossChunkValues = parseCrossChunk(props);
-		LOGGER.info("配置加载完成: {}", CONFIG_PATH.toAbsolutePath());
+		LOGGER.info("Config loaded: {}", CONFIG_PATH.toAbsolutePath());
 	}
 
 	/**
@@ -291,6 +291,97 @@ public final class RedstoneLinkConfig {
 	 */
 	public static int otherCommandPermissionLevel() {
 		return values.otherCommandPermissionLevel();
+	}
+
+	/**
+	 * @return 是否启用命令频率防护
+	 */
+	public static boolean commandRateLimitEnabled() {
+		return values.commandRateLimitEnabled();
+	}
+
+	/**
+	 * @return 命令频率防护窗口长度（tick）
+	 */
+	public static int commandRateLimitWindowTicks() {
+		return values.commandRateLimitWindowTicks();
+	}
+
+	/**
+	 * @return 全局窗口容量（所有来源共享）
+	 */
+	public static int commandRateLimitGlobalCapacity() {
+		return values.commandRateLimitGlobalCapacity();
+	}
+
+	/**
+	 * 按权限等级计算层级窗口容量。
+	 *
+	 * @param permissionLevel 权限等级（0~4）
+	 * @return 对应层级容量
+	 */
+	public static int commandRateLimitTierCapacity(int permissionLevel) {
+		return resolveRateLimitCapacity(
+			values.commandRateLimitTierBaseCapacity(),
+			values.commandRateLimitTierStepPerLevel(),
+			permissionLevel
+		);
+	}
+
+	/**
+	 * 按权限等级计算“来源个体”窗口容量。
+	 *
+	 * @param permissionLevel 权限等级（0~4）
+	 * @return 对应个体容量
+	 */
+	public static int commandRateLimitActorCapacity(int permissionLevel) {
+		return resolveRateLimitCapacity(
+			values.commandRateLimitActorBaseCapacity(),
+			values.commandRateLimitActorStepPerLevel(),
+			permissionLevel
+		);
+	}
+
+	/**
+	 * 按权限等级计算 `link` 组个体窗口容量。
+	 *
+	 * @param permissionLevel 权限等级（0~4）
+	 * @return link 组容量
+	 */
+	public static int commandRateLimitActorLinkRwCapacity(int permissionLevel) {
+		return resolveRateLimitCapacity(
+			values.commandRateLimitActorGroupLinkRwBaseCapacity(),
+			values.commandRateLimitActorGroupLinkRwStepPerLevel(),
+			permissionLevel
+		);
+	}
+
+	/**
+	 * 按权限等级计算 `crosschunk` 组个体窗口容量。
+	 *
+	 * @param permissionLevel 权限等级（0~4）
+	 * @return crosschunk 组容量
+	 */
+	public static int commandRateLimitActorCrossChunkCapacity(int permissionLevel) {
+		return resolveRateLimitCapacity(
+			values.commandRateLimitActorGroupCrossChunkBaseCapacity(),
+			values.commandRateLimitActorGroupCrossChunkStepPerLevel(),
+			permissionLevel
+		);
+	}
+
+	/**
+	 * 按权限等级计算 `other` 组个体窗口容量。
+	 *
+	 * @param permissionLevel 权限等级（0~4）
+	 * @return other 组容量
+	 */
+	public static int commandRateLimitActorOtherCapacity(int permissionLevel) {
+		return resolveRateLimitCapacity(
+			values.commandRateLimitActorGroupOtherBaseCapacity(),
+			values.commandRateLimitActorGroupOtherStepPerLevel(),
+			permissionLevel
+		);
 	}
 
 	/**
@@ -514,6 +605,19 @@ public final class RedstoneLinkConfig {
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
 			parseInt(props, "server.command.permissionLevel", 0, 0, 4),
 			parseInt(props, "server.command.otherPermissionLevel", 2, 0, 4),
+			parseBoolean(props, "server.command.rateLimit.enabled", true),
+			parseInt(props, "server.command.rateLimit.windowTicks", 20, 1, 2000),
+			parseInt(props, "server.command.rateLimit.global.capacity", 3072, 1, 200_000),
+			parseInt(props, "server.command.rateLimit.tier.baseCapacity", 600, 1, 200_000),
+			parseInt(props, "server.command.rateLimit.tier.stepPerLevel", 400, 0, 200_000),
+			parseInt(props, "server.command.rateLimit.actor.baseCapacity", 24, 1, 200_000),
+			parseInt(props, "server.command.rateLimit.actor.stepPerLevel", 16, 0, 200_000),
+			parseInt(props, "server.command.rateLimit.actorGroup.linkRw.baseCapacity", 12, 1, 200_000),
+			parseInt(props, "server.command.rateLimit.actorGroup.linkRw.stepPerLevel", 8, 0, 200_000),
+			parseInt(props, "server.command.rateLimit.actorGroup.crosschunk.baseCapacity", 4, 1, 200_000),
+			parseInt(props, "server.command.rateLimit.actorGroup.crosschunk.stepPerLevel", 3, 0, 200_000),
+			parseInt(props, "server.command.rateLimit.actorGroup.other.baseCapacity", 6, 1, 200_000),
+			parseInt(props, "server.command.rateLimit.actorGroup.other.stepPerLevel", 4, 0, 200_000),
 			CurrentLinksPrivacyMode.fromConfigValue(props.getProperty("server.currentLinksPrivacy.mode", "masked")),
 			parseInt(props, "server.currentLinksPrivacy.viewPermissionLevel", 2, 0, 4),
 			parseInt(props, "server.currentLinksPrivacy.managePermissionLevel", 2, 0, 4),
@@ -834,6 +938,20 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * 根据权限等级解析分层限流容量。
+	 *
+	 * @param baseCapacity 0 级基础容量
+	 * @param stepPerLevel 每提升 1 级权限增加容量
+	 * @param permissionLevel 权限等级（0~4）
+	 * @return 对应权限等级容量，最小 1
+	 */
+	private static int resolveRateLimitCapacity(int baseCapacity, int stepPerLevel, int permissionLevel) {
+		int clampedLevel = Math.max(0, Math.min(4, permissionLevel));
+		long resolved = (long) baseCapacity + (long) stepPerLevel * clampedLevel;
+		return (int) Math.max(1L, resolved);
+	}
+
+	/**
 	 * 若配置文件不存在，则写入默认模板。
 	 */
 	private static void ensureConfigFileExists() {
@@ -855,6 +973,7 @@ public final class RedstoneLinkConfig {
 		return """
 			# RedstoneLink server config / RedstoneLink 服务器配置
 			#
+			# --- [基础与核心 / Core Runtime] ---------------------------------------
 			# server.pulseDurationTicks
 			# zh: 核心脉冲持续时长（tick），PULSE 模式触发后保持激活的时间。
 			# en: Pulse duration (ticks) for core activation in PULSE mode.
@@ -880,6 +999,7 @@ public final class RedstoneLinkConfig {
 			# en: Whether offline targets can be bound.
 			server.allowOfflineTargetBinding=true
 
+			# --- [命令权限与限流 / Command Permission & Rate Limit] -----------------
 			# server.command.permissionLevel
 			# zh: /redstonelink 整个命令树所需权限等级（0~4）。
 			# en: Permission level required for the whole /redstonelink command tree (0~4).
@@ -892,6 +1012,57 @@ public final class RedstoneLinkConfig {
 			# en: Scope: node activate, place, node retire (including batch), audit, node get/list, and link get.
 			server.command.otherPermissionLevel=2
 
+			# server.command.rateLimit.enabled
+			# zh: 是否启用命令频率防护（分层限流）。
+			# en: Whether to enable layered command rate limiting.
+			server.command.rateLimit.enabled=true
+
+			# server.command.rateLimit.windowTicks
+			# zh: 限流窗口长度（tick），范围 1~2000，建议保持 20（约 1 秒）。
+			# en: Rate-limit window length in ticks, range 1~2000; 20 ticks is about 1 second.
+			server.command.rateLimit.windowTicks=20
+
+			# server.command.rateLimit.global.capacity
+			# zh: 全局窗口容量（所有来源共享），范围 1~200000。
+			# en: Global window capacity shared by all actors, range 1~200000.
+			server.command.rateLimit.global.capacity=3072
+
+			# server.command.rateLimit.tier.baseCapacity
+			# server.command.rateLimit.tier.stepPerLevel
+			# zh: 权限层级窗口容量 = base + permissionLevel * step，base 范围 1~200000，step 范围 0~200000。
+			# en: Tier capacity formula: base + permissionLevel * step; base range 1~200000, step range 0~200000.
+			server.command.rateLimit.tier.baseCapacity=600
+			server.command.rateLimit.tier.stepPerLevel=400
+
+			# server.command.rateLimit.actor.baseCapacity
+			# server.command.rateLimit.actor.stepPerLevel
+			# zh: 来源个体窗口容量 = base + permissionLevel * step，base 范围 1~200000，step 范围 0~200000。
+			# en: Actor capacity formula: base + permissionLevel * step; base range 1~200000, step range 0~200000.
+			server.command.rateLimit.actor.baseCapacity=24
+			server.command.rateLimit.actor.stepPerLevel=16
+
+			# server.command.rateLimit.actorGroup.linkRw.baseCapacity
+			# server.command.rateLimit.actorGroup.linkRw.stepPerLevel
+			# zh: link 读写组个体容量公式（一期覆盖 link add/remove/set 与 write_control protected），base 范围 1~200000，step 范围 0~200000。
+			# en: Actor-group formula for link write/read group; base range 1~200000, step range 0~200000.
+			server.command.rateLimit.actorGroup.linkRw.baseCapacity=12
+			server.command.rateLimit.actorGroup.linkRw.stepPerLevel=8
+
+			# server.command.rateLimit.actorGroup.crosschunk.baseCapacity
+			# server.command.rateLimit.actorGroup.crosschunk.stepPerLevel
+			# zh: crosschunk 组个体容量公式，base 范围 1~200000，step 范围 0~200000。
+			# en: Actor-group formula for crosschunk group; base range 1~200000, step range 0~200000.
+			server.command.rateLimit.actorGroup.crosschunk.baseCapacity=4
+			server.command.rateLimit.actorGroup.crosschunk.stepPerLevel=3
+
+			# server.command.rateLimit.actorGroup.other.baseCapacity
+			# server.command.rateLimit.actorGroup.other.stepPerLevel
+			# zh: 其他权限组个体容量公式（activate/retire/place/audit/node/link 查询），base 范围 1~200000，step 范围 0~200000。
+			# en: Actor-group formula for other-permissions group; base range 1~200000, step range 0~200000.
+			server.command.rateLimit.actorGroup.other.baseCapacity=6
+			server.command.rateLimit.actorGroup.other.stepPerLevel=4
+
+			# --- [当前连接隐私 / Current Links Privacy] -----------------------------
 			# server.currentLinksPrivacy.mode
 			# zh: 近外显“当前连接”保密模式：hidden=全部保密，masked=仅名单保密，plain=全部解密。
 			# zh: 注意：plain 模式下历史物品 NBT 快照不会因后续切回 masked/hidden 自动重写，建议默认使用 masked。
@@ -909,6 +1080,7 @@ public final class RedstoneLinkConfig {
 			# en: Permission level required for current-links mask management commands (0~4).
 			server.currentLinksPrivacy.managePermissionLevel=2
 
+			# --- [连接写控与输入上限 / Link Write Control & Input Limits] ----------
 			# server.linkWriteControl.mode
 			# zh: 链接写入控制模式：full=全量写入，limited=限量写入，readonly=只读。
 			# en: Link write-control mode: full / limited / readonly.
@@ -964,6 +1136,7 @@ public final class RedstoneLinkConfig {
 			# en: Maximum serial count for `crosschunk whitelist set`.
 			server.command.crosschunk.whitelist.maxSetSerials=1024
 			
+			# --- [交互行为 / Interaction] -------------------------------------------
 			# interaction.requireSneakToOpenPairing
 			# zh: 打开配对 UI 是否必须潜行。
 			# en: Require sneaking to open pairing UI.
@@ -979,6 +1152,7 @@ public final class RedstoneLinkConfig {
 			# en: Require empty offhand to open pairing UI.
 			interaction.requireEmptyOffhandToOpenPairing=true
 
+			# --- [跨区块调度与命令 / Cross-Chunk Relay & Commands] ------------------
 			# crosschunk.syncSignalTtlTicks
 			# zh: 跨区块 SYNC=ON 缓存保活时长（tick）。
 			# en: TTL in ticks for queued cross-chunk SYNC=ON events.
@@ -1069,6 +1243,19 @@ public final class RedstoneLinkConfig {
 		boolean allowOfflineTargetBinding,
 		int commandPermissionLevel,
 		int otherCommandPermissionLevel,
+		boolean commandRateLimitEnabled,
+		int commandRateLimitWindowTicks,
+		int commandRateLimitGlobalCapacity,
+		int commandRateLimitTierBaseCapacity,
+		int commandRateLimitTierStepPerLevel,
+		int commandRateLimitActorBaseCapacity,
+		int commandRateLimitActorStepPerLevel,
+		int commandRateLimitActorGroupLinkRwBaseCapacity,
+		int commandRateLimitActorGroupLinkRwStepPerLevel,
+		int commandRateLimitActorGroupCrossChunkBaseCapacity,
+		int commandRateLimitActorGroupCrossChunkStepPerLevel,
+		int commandRateLimitActorGroupOtherBaseCapacity,
+		int commandRateLimitActorGroupOtherStepPerLevel,
 		CurrentLinksPrivacyMode currentLinksPrivacyMode,
 		int currentLinksPrivacyViewPermissionLevel,
 		int currentLinksPrivacyManagePermissionLevel,
@@ -1099,6 +1286,19 @@ public final class RedstoneLinkConfig {
 				true,
 				0,
 				2,
+				true,
+				20,
+				1024,
+				96,
+				64,
+				24,
+				16,
+				12,
+				8,
+				4,
+				3,
+				6,
+				4,
 				CurrentLinksPrivacyMode.PLAIN,
 				2,
 				2,

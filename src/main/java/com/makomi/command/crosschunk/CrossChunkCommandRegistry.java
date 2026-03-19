@@ -2,6 +2,7 @@ package com.makomi.command.crosschunk;
 
 import com.makomi.command.CommandSuffixParser;
 import com.makomi.command.CommandNodeTypeParseUtil;
+import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfig.CrossChunkPreset;
@@ -150,6 +151,15 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static int executeWhitelistAddInternal(CommandContext<CommandSourceStack> context, boolean resident) {
 		CommandSourceStack source = context.getSource();
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.CROSSCHUNK,
+				1
+			)
+		) {
+			return 0;
+		}
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
 			return 0;
@@ -231,6 +241,15 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static int executeWhitelistRemove(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.CROSSCHUNK,
+				1
+			)
+		) {
+			return 0;
+		}
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
 			return 0;
@@ -264,6 +283,15 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static int executeWhitelistList(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.CROSSCHUNK,
+				1
+			)
+		) {
+			return 0;
+		}
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
 			return 0;
@@ -307,6 +335,15 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static int executeWhitelistClear(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.CROSSCHUNK,
+				1
+			)
+		) {
+			return 0;
+		}
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
 			return 0;
@@ -360,6 +397,16 @@ public final class CrossChunkCommandRegistry {
 		Set<Long> targetSerials = parseResult.targets();
 		if (targetSerials.isEmpty()) {
 			source.sendFailure(Component.translatable("message.redstonelink.crosschunk.whitelist.set.empty"));
+			return 0;
+		}
+		int commandCost = CommandRateLimitService.computeBatchCost(4, targetSerials.size(), 64);
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.CROSSCHUNK,
+				commandCost
+			)
+		) {
 			return 0;
 		}
 		if (!parseResult.duplicateEntries().isEmpty()) {
@@ -467,6 +514,15 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static int executePresetList(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.CROSSCHUNK,
+				1
+			)
+		) {
+			return 0;
+		}
 		List<String> presetNames = RedstoneLinkConfig.crossChunkPresetNames();
 		if (presetNames.isEmpty()) {
 			source.sendSuccess(
@@ -487,6 +543,15 @@ public final class CrossChunkCommandRegistry {
 	 */
 	private static int executePresetShow(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.CROSSCHUNK,
+				1
+			)
+		) {
+			return 0;
+		}
 		String presetName = StringArgumentType.getString(context, "name");
 		Optional<CrossChunkPreset> preset = RedstoneLinkConfig.crossChunkPreset(presetName);
 		if (preset.isEmpty()) {

@@ -314,6 +314,9 @@ public final class ModCommands {
 	 */
 	private static int executeWriteProtectedAdd(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.LINK_RW, 1)) {
+			return 0;
+		}
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
@@ -352,6 +355,9 @@ public final class ModCommands {
 	 */
 	private static int executeWriteProtectedRemove(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.LINK_RW, 1)) {
+			return 0;
+		}
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
@@ -385,6 +391,9 @@ public final class ModCommands {
 	 */
 	private static int executeWriteProtectedList(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.LINK_RW, 1)) {
+			return 0;
+		}
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
@@ -441,6 +450,16 @@ public final class ModCommands {
 		Set<Long> targetSerials = parseResult.targets();
 		if (targetSerials.isEmpty()) {
 			source.sendFailure(Component.translatable("message.redstonelink.write_control.protected.set.empty"));
+			return 0;
+		}
+		int commandCost = CommandRateLimitService.computeBatchCost(3, targetSerials.size(), 64);
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.LINK_RW,
+				commandCost
+			)
+		) {
 			return 0;
 		}
 		if (!parseResult.duplicateEntries().isEmpty()) {
@@ -513,6 +532,9 @@ public final class ModCommands {
 			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
 			return 0;
 		}
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.LINK_RW, 1)) {
+			return 0;
+		}
 		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (sourceType == null) {
 			return 0;
@@ -530,6 +552,9 @@ public final class ModCommands {
 		ServerPlayer player = source.getPlayer();
 		if (player == null) {
 			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+			return 0;
+		}
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.LINK_RW, 1)) {
 			return 0;
 		}
 		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
@@ -677,6 +702,9 @@ public final class ModCommands {
 			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
 			return 0;
 		}
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
 
 		ServerLevel level = player.serverLevel();
 		BlockPos pos = BlockPosArgument.getLoadedBlockPos(context, "pos");
@@ -772,6 +800,17 @@ public final class ModCommands {
 			source.sendFailure(Component.translatable("message.redstonelink.place.chunks_not_loaded"));
 			return 0;
 		}
+		int boundedVolume = volume > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) volume;
+		int commandCost = CommandRateLimitService.computeBatchCost(dryRun ? 2 : 3, boundedVolume, 256);
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.OTHER,
+				commandCost
+			)
+		) {
+			return 0;
+		}
 
 		int replaceCount = countPotentialReplaceNonAir(level, min, max, input);
 		if (dryRun) {
@@ -830,6 +869,18 @@ public final class ModCommands {
 		if (!pending.dimension().equals(player.serverLevel().dimension())) {
 			PENDING_PLACE_BY_PLAYER.remove(player.getUUID());
 			source.sendFailure(Component.translatable("message.redstonelink.place.pending_dimension_changed"));
+			return 0;
+		}
+		long pendingVolume = blockVolume(pending.from(), pending.to());
+		int boundedVolume = pendingVolume > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) pendingVolume;
+		int commandCost = CommandRateLimitService.computeBatchCost(2, boundedVolume, 256);
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.OTHER,
+				commandCost
+			)
+		) {
 			return 0;
 		}
 
@@ -988,6 +1039,9 @@ public final class ModCommands {
 	 */
 	private static int executeNodeGet(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
@@ -1032,6 +1086,9 @@ public final class ModCommands {
 	 */
 	private static int executeNodeList(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
@@ -1089,6 +1146,9 @@ public final class ModCommands {
 	 */
 	private static int executeLinkGet(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
@@ -1147,6 +1207,9 @@ public final class ModCommands {
 	 * 审计摘要统一输出实现。
 	 */
 	private static int executeAuditSummary(CommandSourceStack source, AuditOutputFormat outputFormat) {
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
 		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
 		LinkSavedData.AuditSnapshot snapshot = savedData.createAuditSnapshot();
 		if (outputFormat == AuditOutputFormat.CSV) {
@@ -1255,6 +1318,9 @@ public final class ModCommands {
 	 */
 	private static int executeRetireRequireConfirmWithTypeArg(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
@@ -1297,6 +1363,9 @@ public final class ModCommands {
 	 */
 	private static int executeRetireWithTypeArg(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
@@ -1372,6 +1441,16 @@ public final class ModCommands {
 		}
 		if (targets.size() > maxTargets) {
 			source.sendFailure(Component.translatable("message.redstonelink.too_many_targets", maxTargets));
+			return 0;
+		}
+		int commandCost = CommandRateLimitService.computeBatchCost(2, targets.size(), 64);
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.LINK_RW,
+				commandCost
+			)
+		) {
 			return 0;
 		}
 

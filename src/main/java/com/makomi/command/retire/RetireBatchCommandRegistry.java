@@ -2,6 +2,7 @@ package com.makomi.command.retire;
 
 import com.makomi.command.CommandSuffixParser;
 import com.makomi.command.CommandNodeTypeParseUtil;
+import com.makomi.command.CommandRateLimitService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -79,6 +80,16 @@ public final class RetireBatchCommandRegistry {
 		Set<Long> targetSerials = parseResult.targets();
 		if (targetSerials.isEmpty()) {
 			source.sendFailure(Component.translatable("message.redstonelink.retire.batch.empty"));
+			return 0;
+		}
+		int commandCost = CommandRateLimitService.computeBatchCost(3, targetSerials.size(), 64);
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.OTHER,
+				commandCost
+			)
+		) {
 			return 0;
 		}
 		if (!parseResult.duplicateEntries().isEmpty()) {

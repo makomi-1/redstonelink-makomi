@@ -2,6 +2,7 @@ package com.makomi.command.activate;
 
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.command.CommandNodeTypeParseUtil;
+import com.makomi.command.CommandRateLimitService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -130,6 +131,16 @@ public final class ActivateCommandRegistry {
 		Set<Long> sourceSerials = parseResult.targets();
 		if (sourceSerials.isEmpty()) {
 			source.sendFailure(Component.translatable("message.redstonelink.activate.batch.empty"));
+			return 0;
+		}
+		int commandCost = CommandRateLimitService.computeBatchCost(2, sourceSerials.size(), 64);
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.OTHER,
+				commandCost
+			)
+		) {
 			return 0;
 		}
 		if (!parseResult.duplicateEntries().isEmpty()) {

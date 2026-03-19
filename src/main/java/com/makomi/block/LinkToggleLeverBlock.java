@@ -35,7 +35,8 @@ import org.joml.Vector3f;
 /**
  * 联动拨杆方块。
  * <p>
- * 保留拨杆交互手感，但屏蔽原版红石输出，仅作为按钮源节点触发联动网络。
+ * 保留拨杆交互手感，但屏蔽原版红石输出，
+ * 仅作为 triggerSource 节点将目标状态同步对齐到当前拨杆状态（sync 语义）。
  * </p>
  */
 public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
@@ -135,7 +136,9 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 		InteractionResult result = super.useWithoutItem(state, level, pos, player, hitResult);
 		if (result.consumesAction()) {
 			if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-				buttonBlockEntity.triggerLinkedTargets(player);
+				// 拉杆改为同步语义：目标状态始终与拉杆当前状态对齐。
+				boolean signalOn = level.getBlockState(pos).getValue(POWERED);
+				buttonBlockEntity.forwardLinkedSignal(player, signalOn);
 			}
 		}
 		return result;
@@ -157,7 +160,7 @@ public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
 	}
 
 	/**
-	 * 激活态橙色粒子：仅调整视觉反馈，不改变拉杆触发与网络行为。
+	 * 激活态橙色粒子：仅调整视觉反馈，不改变拉杆“状态对齐”语义。
 	 */
 	@Override
 	public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
