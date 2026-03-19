@@ -65,6 +65,8 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		Object crossChunkValuesSnapshot = parseCrossChunkValues(new Properties());
 		assertTrue(readBoolean(crossChunkValuesSnapshot, "commandEnabled"));
 		assertEquals(2, readInt(crossChunkValuesSnapshot, "commandPermissionLevel"));
+		assertEquals(500, readInt(crossChunkValuesSnapshot, "dispatchMaxPerTick"));
+		assertTrue(readBoolean(crossChunkValuesSnapshot, "syncSignalPersistent"));
 	}
 
 	/**
@@ -92,6 +94,38 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		properties.setProperty("crosschunk.command.enabled", "not-a-boolean");
 		Object crossChunkValuesSnapshot = parseCrossChunkValues(properties);
 		assertTrue(readBoolean(crossChunkValuesSnapshot, "commandEnabled"));
+	}
+
+	/**
+	 * 跨区块每 tick 派发预算应执行 1~20000 的边界夹紧。
+	 */
+	@Test
+	void parseCrossChunkShouldClampDispatchMaxPerTickToRange() throws Exception {
+		Properties lowProperties = new Properties();
+		lowProperties.setProperty("crosschunk.dispatch.maxPerTick", "-9");
+		Object lowSnapshot = parseCrossChunkValues(lowProperties);
+		assertEquals(1, readInt(lowSnapshot, "dispatchMaxPerTick"));
+
+		Properties highProperties = new Properties();
+		highProperties.setProperty("crosschunk.dispatch.maxPerTick", "900000");
+		Object highSnapshot = parseCrossChunkValues(highProperties);
+		assertEquals(20_000, readInt(highSnapshot, "dispatchMaxPerTick"));
+	}
+
+	/**
+	 * SYNC 持久化开关应支持显式配置，并在非法值时回退默认 true。
+	 */
+	@Test
+	void parseCrossChunkShouldApplySyncSignalPersistentFlag() throws Exception {
+		Properties disabled = new Properties();
+		disabled.setProperty("crosschunk.syncSignalPersistent", "false");
+		Object disabledSnapshot = parseCrossChunkValues(disabled);
+		assertFalse(readBoolean(disabledSnapshot, "syncSignalPersistent"));
+
+		Properties invalid = new Properties();
+		invalid.setProperty("crosschunk.syncSignalPersistent", "invalid");
+		Object invalidSnapshot = parseCrossChunkValues(invalid);
+		assertTrue(readBoolean(invalidSnapshot, "syncSignalPersistent"));
 	}
 
 	/**

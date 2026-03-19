@@ -78,9 +78,20 @@ class ActivatableTargetBlockEntityInternalTest {
 	@Test
 	void acceptByPriorityShouldRejectLowerPriority() {
 		TestTargetEntity target = createTarget();
+		setField(target, "authorityTimeKey", ActivatableTargetBlockEntity.TimeKey.of(10L, 0));
+		setField(target, "authorityMode", ActivatableTargetBlockEntity.EffectiveMode.PULSE);
+		setField(target, "pulseUntilGameTime", 20L);
+		setField(target, "arbitrationTimeKey", ActivatableTargetBlockEntity.TimeKey.of(10L, 0));
 		setField(target, "arbitrationPriority", 2);
 
-		boolean accepted = invokeAcceptByPriority(target, 1);
+		boolean accepted = invokeAcceptByPriority(
+			target,
+			10L,
+			0,
+			1,
+			ActivatableTargetBlockEntity.EffectiveMode.TOGGLE,
+			0L
+		);
 		assertFalse(accepted);
 		assertEquals(2, getIntField(target, "arbitrationPriority"));
 	}
@@ -91,14 +102,18 @@ class ActivatableTargetBlockEntityInternalTest {
 	@Test
 	void acceptByPriorityShouldResetTickMergeCachesOnUpgrade() {
 		TestTargetEntity target = createTarget();
+		setField(target, "authorityTimeKey", ActivatableTargetBlockEntity.TimeKey.of(10L, 0));
+		setField(target, "authorityMode", ActivatableTargetBlockEntity.EffectiveMode.TOGGLE);
+		setField(target, "arbitrationTimeKey", ActivatableTargetBlockEntity.TimeKey.of(10L, 0));
 		setField(target, "arbitrationPriority", 1);
 		setField(target, "tickResolvedInitialized", true);
 		setField(target, "toggleMergeInitialized", true);
 		setField(target, "toggleMergeParity", true);
 
-		boolean accepted = invokeAcceptByPriority(target, 3);
+		boolean accepted = invokeAcceptByPriority(target, 10L, 0, 3, ActivatableTargetBlockEntity.EffectiveMode.SYNC, 1L);
 		assertTrue(accepted);
 		assertEquals(3, getIntField(target, "arbitrationPriority"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, getField(target, "authorityMode"));
 		assertFalse(getBooleanField(target, "tickResolvedInitialized"));
 		assertFalse(getBooleanField(target, "toggleMergeInitialized"));
 		assertFalse(getBooleanField(target, "toggleMergeParity"));
@@ -115,6 +130,9 @@ class ActivatableTargetBlockEntityInternalTest {
 		setField(source, "pulseUntilGameTime", 40L);
 		setField(source, "pulseEpoch", 2L);
 		setField(source, "pulseResetArmed", true);
+		setField(source, "authorityMode", ActivatableTargetBlockEntity.EffectiveMode.PULSE);
+		setField(source, "authorityTimeKey", ActivatableTargetBlockEntity.TimeKey.of(40L, 0));
+		setField(source, "authoritySeq", 7L);
 
 		CompoundTag tag = new CompoundTag();
 		source.saveForTest(tag);
@@ -144,7 +162,7 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 运行态生效模式应严格遵循 SYNC > PULSE > TOGGLE > NONE。
+	 * 运行态生效模式应由 authority 决定，并与结构真值一致。
 	 */
 	@Test
 	void getEffectiveModeShouldFollowPriority() {
@@ -152,16 +170,63 @@ class ActivatableTargetBlockEntityInternalTest {
 		setField(target, "syncSignalMaxStrength", 8);
 		setField(target, "pulseUntilGameTime", 20L);
 		setField(target, "toggleState", true);
+		setField(target, "authorityMode", ActivatableTargetBlockEntity.EffectiveMode.SYNC);
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
 
-		setField(target, "syncSignalMaxStrength", 0);
+		setField(target, "authorityMode", ActivatableTargetBlockEntity.EffectiveMode.PULSE);
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
 
+		setField(target, "syncSignalMaxStrength", 0);
 		setField(target, "pulseUntilGameTime", 0L);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+
+		setField(target, "authorityMode", ActivatableTargetBlockEntity.EffectiveMode.TOGGLE);
+		setField(target, "toggleState", true);
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
 
 		setField(target, "toggleState", false);
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+	}
+
+	/**
+	 * 后到事件应按时间键覆盖先到事件，避免 SYNC 常驻压制后续触发。
+	 */
+	@Test
+	void laterToggleShouldOverrideEarlierSyncByTimeKey() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+
+		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
+		// 结构真值保留：仅运行态 authority 切换。
+		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
+	}
+
+	/**
+	 * 同时间键冲突应按固定优先级处理：SYNC > PULSE > TOGGLE。
+	 */
+	@Test
+	void sameTimeKeyShouldUseFixedModePriority() {
+		TestTargetEntity target = createTarget();
+		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(20L, 0, 1L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
+
+		target.syncBySource(1L, 9, ActivatableTargetBlockEntity.EventMeta.of(20L, 0, 1L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+	}
+
+	/**
+	 * TOGGLE 基准应取当前 active：当外显为亮且 toggleState 为 false 时，首次 TOGGLE 应直接回落。
+	 */
+	@Test
+	void toggleMergeShouldUseActiveAsBaseState() {
+		TestTargetEntity target = createTarget();
+		setField(target, "active", true);
+		setField(target, "toggleState", false);
+
+		invoke(target, "applyToggleMerged", new Class<?>[] {}, new Object[] {});
+		assertFalse(getBooleanField(target, "toggleState"));
 	}
 
 	/**
@@ -187,6 +252,9 @@ class ActivatableTargetBlockEntityInternalTest {
 		invokeUpdateSyncSignalStrength(source, 1L, 12);
 		invokeUpdateSyncSignalStrength(source, 2L, 12);
 		invokeUpdateSyncSignalStrength(source, 3L, 4);
+		setField(source, "authorityMode", ActivatableTargetBlockEntity.EffectiveMode.SYNC);
+		setField(source, "authorityTimeKey", ActivatableTargetBlockEntity.TimeKey.of(12L, 0));
+		setField(source, "authoritySeq", 3L);
 
 		CompoundTag tag = new CompoundTag();
 		source.saveForTest(tag);
@@ -213,8 +281,25 @@ class ActivatableTargetBlockEntityInternalTest {
 		);
 	}
 
-	private static boolean invokeAcceptByPriority(TestTargetEntity target, int priority) {
-		return (Boolean) invoke(target, "acceptByPriority", new Class<?>[] { int.class }, new Object[] { priority });
+	private static boolean invokeAcceptByPriority(
+		TestTargetEntity target,
+		long tick,
+		int slot,
+		int priority,
+		ActivatableTargetBlockEntity.EffectiveMode mode,
+		long seq
+	) {
+		return (Boolean) invoke(
+			target,
+			"acceptByPriority",
+			new Class<?>[] {
+				ActivatableTargetBlockEntity.TimeKey.class,
+				int.class,
+				ActivatableTargetBlockEntity.EffectiveMode.class,
+				long.class
+			},
+			new Object[] { ActivatableTargetBlockEntity.TimeKey.of(tick, slot), priority, mode, seq }
+		);
 	}
 
 	private static Object invoke(Object target, String methodName, Class<?>[] paramTypes, Object[] args) {

@@ -1,13 +1,16 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SignalStrengths;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -73,6 +76,22 @@ public final class CrossChunkDispatchService {
 		long sourceSerial,
 		ActivationMode activationMode
 	) {
+		long enqueueTick = sourceLevel == null ? 0L : sourceLevel.getGameTime();
+		return queueActivation(sourceLevel, targetNode, sourceType, sourceSerial, activationMode, enqueueTick, 0);
+	}
+
+	/**
+	 * 记录激活语义（TOGGLE/PULSE）的延迟派发请求（携带时间键）。
+	 */
+	public static QueueResult queueActivation(
+		ServerLevel sourceLevel,
+		LinkSavedData.LinkNode targetNode,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		ActivationMode activationMode,
+		long enqueueGameTick,
+		int enqueueGameSlot
+	) {
 		if (activationMode == null) {
 			return QueueResult.rejected();
 		}
@@ -82,9 +101,11 @@ public final class CrossChunkDispatchService {
 			targetNode,
 			sourceType,
 			sourceSerial,
-			DispatchKind.ACTIVATION,
+			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION,
 			activationMode,
 			0,
+			enqueueGameTick,
+			enqueueGameSlot,
 			ttlTicks
 		);
 	}
@@ -106,18 +127,134 @@ public final class CrossChunkDispatchService {
 		long sourceSerial,
 		int signalStrength
 	) {
+		long enqueueTick = sourceLevel == null ? 0L : sourceLevel.getGameTime();
+		return queueSyncSignal(sourceLevel, targetNode, sourceType, sourceSerial, signalStrength, enqueueTick, 0);
+	}
+
+	/**
+	 * 记录 SYNC 语义的延迟派发请求（携带时间键）。
+	 */
+	public static QueueResult queueSyncSignal(
+		ServerLevel sourceLevel,
+		LinkSavedData.LinkNode targetNode,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		int signalStrength,
+		long enqueueGameTick,
+		int enqueueGameSlot
+	) {
 		int normalizedStrength = SignalStrengths.clamp(signalStrength);
-		long ttlTicks = normalizedStrength > 0
-			? RedstoneLinkConfig.crossChunkSyncSignalTtlTicks()
-			: RedstoneLinkConfig.crossChunkRelayExpireTicks();
+		long ttlTicks = resolveSyncTtlTicks(normalizedStrength);
 		return queueDispatch(
 			sourceLevel,
 			targetNode,
 			sourceType,
 			sourceSerial,
-			DispatchKind.SYNC_SIGNAL,
+			CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL,
 			ActivationMode.TOGGLE,
 			normalizedStrength,
+			enqueueGameTick,
+			enqueueGameSlot,
+			ttlTicks
+		);
+	}
+
+	/**
+	 * 批量记录激活语义（TOGGLE/PULSE）的延迟派发请求。
+	 *
+	 * @param sourceLevel 源节点所在维度
+	 * @param targetNodes 目标节点快照列表
+	 * @param sourceType 源节点类型
+	 * @param sourceSerial 源节点序号
+	 * @param activationMode 激活模式
+	 * @return 与输入一一对应的排队结果
+	 */
+	public static List<QueueResult> queueActivationBatch(
+		ServerLevel sourceLevel,
+		List<LinkSavedData.LinkNode> targetNodes,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		ActivationMode activationMode
+	) {
+		long enqueueTick = sourceLevel == null ? 0L : sourceLevel.getGameTime();
+		return queueActivationBatch(sourceLevel, targetNodes, sourceType, sourceSerial, activationMode, enqueueTick, 0);
+	}
+
+	/**
+	 * 批量记录激活语义（TOGGLE/PULSE）的延迟派发请求（携带时间键）。
+	 */
+	public static List<QueueResult> queueActivationBatch(
+		ServerLevel sourceLevel,
+		List<LinkSavedData.LinkNode> targetNodes,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		ActivationMode activationMode,
+		long enqueueGameTick,
+		int enqueueGameSlot
+	) {
+		if (activationMode == null) {
+			return queueRejectedResults(targetNodes);
+		}
+		long ttlTicks = RedstoneLinkConfig.crossChunkRelayExpireTicks();
+		return queueDispatchBatch(
+			sourceLevel,
+			targetNodes,
+			sourceType,
+			sourceSerial,
+			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION,
+			activationMode,
+			0,
+			enqueueGameTick,
+			enqueueGameSlot,
+			ttlTicks
+		);
+	}
+
+	/**
+	 * 批量记录 SYNC 语义的延迟派发请求。
+	 *
+	 * @param sourceLevel 源节点所在维度
+	 * @param targetNodes 目标节点快照列表
+	 * @param sourceType 源节点类型
+	 * @param sourceSerial 源节点序号
+	 * @param signalStrength 同步信号强度（0~15）
+	 * @return 与输入一一对应的排队结果
+	 */
+	public static List<QueueResult> queueSyncSignalBatch(
+		ServerLevel sourceLevel,
+		List<LinkSavedData.LinkNode> targetNodes,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		int signalStrength
+	) {
+		long enqueueTick = sourceLevel == null ? 0L : sourceLevel.getGameTime();
+		return queueSyncSignalBatch(sourceLevel, targetNodes, sourceType, sourceSerial, signalStrength, enqueueTick, 0);
+	}
+
+	/**
+	 * 批量记录 SYNC 语义的延迟派发请求（携带时间键）。
+	 */
+	public static List<QueueResult> queueSyncSignalBatch(
+		ServerLevel sourceLevel,
+		List<LinkSavedData.LinkNode> targetNodes,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		int signalStrength,
+		long enqueueGameTick,
+		int enqueueGameSlot
+	) {
+		int normalizedStrength = SignalStrengths.clamp(signalStrength);
+		long ttlTicks = resolveSyncTtlTicks(normalizedStrength);
+		return queueDispatchBatch(
+			sourceLevel,
+			targetNodes,
+			sourceType,
+			sourceSerial,
+			CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL,
+			ActivationMode.TOGGLE,
+			normalizedStrength,
+			enqueueGameTick,
+			enqueueGameSlot,
 			ttlTicks
 		);
 	}
@@ -127,9 +264,11 @@ public final class CrossChunkDispatchService {
 		LinkSavedData.LinkNode targetNode,
 		LinkNodeType sourceType,
 		long sourceSerial,
-		DispatchKind dispatchKind,
+		CrossChunkDispatchQueueSavedData.DispatchKind dispatchKind,
 		ActivationMode activationMode,
 		int syncSignalStrength,
+		long enqueueGameTick,
+		int enqueueGameSlot,
 		long ttlTicks
 	) {
 		if (sourceLevel == null || targetNode == null || sourceType == null || dispatchKind == null || activationMode == null) {
@@ -145,65 +284,265 @@ public final class CrossChunkDispatchService {
 			return QueueResult.rejected();
 		}
 
-		DispatchState state = getOrCreateState(sourceLevel.getServer());
-		long expireTick = sourceLevel.getGameTime() + Math.max(1L, ttlTicks);
-		DispatchKey key = new DispatchKey(
+		long normalizedEnqueueTick = Math.max(0L, enqueueGameTick);
+		int normalizedEnqueueSlot = Math.max(0, enqueueGameSlot);
+		long expireTick = resolveExpireTick(normalizedEnqueueTick, ttlTicks);
+		CrossChunkDispatchQueueSavedData.DispatchKey key = new CrossChunkDispatchQueueSavedData.DispatchKey(
 			sourceType,
 			sourceSerial,
 			targetNode.type(),
 			targetNode.serial(),
 			dispatchKind
 		);
-		PendingDispatch pendingDispatch = new PendingDispatch(
-			key,
-			targetNode.dimension(),
-			targetNode.pos(),
-			activationMode,
-			SignalStrengths.clamp(syncSignalStrength),
-			expireTick
-		);
-
-		boolean canForceLoad = shouldForceLoad(sourceLevel, pendingDispatch);
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pendingPreview =
+			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+				key,
+				targetNode.dimension(),
+				targetNode.pos(),
+				activationMode,
+				SignalStrengths.clamp(syncSignalStrength),
+				normalizedEnqueueTick,
+				normalizedEnqueueSlot,
+				expireTick,
+				1L
+			);
 		boolean relayEnabled = RedstoneLinkConfig.crossChunkRelayEnabled();
+		boolean canForceLoad = shouldForceLoad(sourceLevel, pendingPreview);
 		// 最终接管判定：中继开启或可进入强制加载链路，满足其一即可接管。
 		if (!relayEnabled && !canForceLoad) {
 			return QueueResult.rejected();
 		}
 
-		state.pendingByKey.put(key, pendingDispatch);
+		CrossChunkDispatchQueueSavedData queueData = CrossChunkDispatchQueueSavedData.get(sourceLevel);
+		CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = queueData.upsertPending(
+			key,
+			targetNode.dimension(),
+			targetNode.pos(),
+			activationMode,
+			SignalStrengths.clamp(syncSignalStrength),
+			normalizedEnqueueTick,
+			normalizedEnqueueSlot,
+			expireTick
+		);
+		if (!upsertResult.accepted()) {
+			return QueueResult.rejected();
+		}
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pendingDispatch = upsertResult.entry();
+
+		DispatchState state = getOrCreateState(sourceLevel.getServer());
 		if (canForceLoad) {
 			tryForceLoad(sourceLevel.getServer(), state, pendingDispatch, sourceLevel.getGameTime());
 		}
 		return new QueueResult(true, canForceLoad);
 	}
 
+	private static List<QueueResult> queueDispatchBatch(
+		ServerLevel sourceLevel,
+		List<LinkSavedData.LinkNode> targetNodes,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		CrossChunkDispatchQueueSavedData.DispatchKind dispatchKind,
+		ActivationMode activationMode,
+		int syncSignalStrength,
+		long enqueueGameTick,
+		int enqueueGameSlot,
+		long ttlTicks
+	) {
+		if (
+			sourceLevel == null
+				|| sourceType == null
+				|| dispatchKind == null
+				|| activationMode == null
+				|| sourceSerial <= 0L
+				|| ttlTicks <= 0L
+				|| targetNodes == null
+				|| targetNodes.isEmpty()
+		) {
+			return queueRejectedResults(targetNodes);
+		}
+		if (!LinkNodeSemantics.isAllowedForRole(sourceType, LinkNodeSemantics.Role.SOURCE)) {
+			return queueRejectedResults(targetNodes);
+		}
+
+		long gameTime = Math.max(0L, enqueueGameTick);
+		int gameSlot = Math.max(0, enqueueGameSlot);
+		long expireTick = resolveExpireTick(gameTime, ttlTicks);
+		boolean relayEnabled = RedstoneLinkConfig.crossChunkRelayEnabled();
+		List<QueueResult> queueResults = new ArrayList<>(targetNodes.size());
+		List<BatchCandidate> candidates = new ArrayList<>(targetNodes.size());
+		List<CrossChunkDispatchQueueSavedData.PendingUpsertRequest> requests = new ArrayList<>();
+
+		for (LinkSavedData.LinkNode targetNode : targetNodes) {
+			queueResults.add(QueueResult.rejected());
+			if (targetNode == null || targetNode.serial() <= 0L) {
+				candidates.add(BatchCandidate.rejected());
+				continue;
+			}
+			if (!LinkNodeSemantics.isAllowedForRole(targetNode.type(), LinkNodeSemantics.Role.TARGET)) {
+				candidates.add(BatchCandidate.rejected());
+				continue;
+			}
+			CrossChunkDispatchQueueSavedData.DispatchKey key = new CrossChunkDispatchQueueSavedData.DispatchKey(
+				sourceType,
+				sourceSerial,
+				targetNode.type(),
+				targetNode.serial(),
+				dispatchKind
+			);
+			CrossChunkDispatchQueueSavedData.PendingDispatchEntry pendingPreview =
+				new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+					key,
+					targetNode.dimension(),
+					targetNode.pos(),
+					activationMode,
+					SignalStrengths.clamp(syncSignalStrength),
+					gameTime,
+					gameSlot,
+					expireTick,
+					1L
+				);
+			boolean canForceLoad = shouldForceLoad(sourceLevel, pendingPreview);
+			if (!relayEnabled && !canForceLoad) {
+				candidates.add(BatchCandidate.rejected());
+				continue;
+			}
+			requests.add(
+				new CrossChunkDispatchQueueSavedData.PendingUpsertRequest(
+					key,
+					targetNode.dimension(),
+					targetNode.pos(),
+					activationMode,
+					SignalStrengths.clamp(syncSignalStrength),
+					gameTime,
+					gameSlot,
+					expireTick
+				)
+			);
+			candidates.add(new BatchCandidate(requests.size() - 1, canForceLoad));
+		}
+
+		if (requests.isEmpty()) {
+			return List.copyOf(queueResults);
+		}
+
+		CrossChunkDispatchQueueSavedData queueData = CrossChunkDispatchQueueSavedData.get(sourceLevel);
+		List<CrossChunkDispatchQueueSavedData.UpsertResult> upsertResults = queueData.upsertPendingBatch(requests);
+		DispatchState state = getOrCreateState(sourceLevel.getServer());
+		for (int index = 0; index < candidates.size(); index++) {
+			BatchCandidate candidate = candidates.get(index);
+			if (candidate.requestIndex() < 0 || candidate.requestIndex() >= upsertResults.size()) {
+				continue;
+			}
+			CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = upsertResults.get(candidate.requestIndex());
+			if (!upsertResult.accepted() || upsertResult.entry() == null) {
+				continue;
+			}
+			if (candidate.forceLoadPlanned()) {
+				tryForceLoad(sourceLevel.getServer(), state, upsertResult.entry(), gameTime);
+			}
+			queueResults.set(index, new QueueResult(true, candidate.forceLoadPlanned()));
+		}
+		return List.copyOf(queueResults);
+	}
+
+	private static long resolveSyncTtlTicks(int normalizedStrength) {
+		if (RedstoneLinkConfig.crossChunkSyncSignalPersistent()) {
+			return Long.MAX_VALUE;
+		}
+		return normalizedStrength > 0
+			? RedstoneLinkConfig.crossChunkSyncSignalTtlTicks()
+			: RedstoneLinkConfig.crossChunkRelayExpireTicks();
+	}
+
+	private static long resolveExpireTick(long gameTime, long ttlTicks) {
+		if (ttlTicks == Long.MAX_VALUE) {
+			return Long.MAX_VALUE;
+		}
+		return gameTime + Math.max(1L, ttlTicks);
+	}
+
+	private static List<QueueResult> queueRejectedResults(List<LinkSavedData.LinkNode> targetNodes) {
+		if (targetNodes == null || targetNodes.isEmpty()) {
+			return List.of();
+		}
+		List<QueueResult> queueResults = new ArrayList<>(targetNodes.size());
+		for (int index = 0; index < targetNodes.size(); index++) {
+			queueResults.add(QueueResult.rejected());
+		}
+		return List.copyOf(queueResults);
+	}
+
 	private static void onServerTick(MinecraftServer server) {
+		if (server == null || server.overworld() == null) {
+			return;
+		}
 		long gameTime = server.overworld().getGameTime();
 		DispatchState state = getOrCreateState(server);
+		CrossChunkDispatchQueueSavedData queueData = CrossChunkDispatchQueueSavedData.get(server.overworld());
 		syncResidentTickets(server, state);
 		resetForceLoadWindow(state, gameTime);
 		releaseExpiredForcedChunks(server, state, gameTime);
-		processPendingDispatches(server, state, gameTime);
-		if (state.pendingByKey.isEmpty() && state.forcedChunksUntilTick.isEmpty() && state.residentTickets.isEmpty()) {
+		processPendingDispatches(server, state, queueData, gameTime);
+		if (queueData.pendingSize() <= 0 && state.forcedChunksUntilTick.isEmpty() && state.residentTickets.isEmpty()) {
 			STATE_BY_SERVER.remove(server);
 		}
 	}
 
-	private static void processPendingDispatches(MinecraftServer server, DispatchState state, long gameTime) {
-		Iterator<Map.Entry<DispatchKey, PendingDispatch>> iterator = state.pendingByKey.entrySet().iterator();
-		while (iterator.hasNext()) {
-			PendingDispatch pending = iterator.next().getValue();
+	private static void processPendingDispatches(
+		MinecraftServer server,
+		DispatchState state,
+		CrossChunkDispatchQueueSavedData queueData,
+		long gameTime
+	) {
+		if (queueData == null) {
+			return;
+		}
+		queueData.purgeExpired(gameTime);
+		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> snapshot = queueData.pendingEntriesSnapshot();
+		if (snapshot.isEmpty()) {
+			state.pendingCursor = 0L;
+			return;
+		}
+
+		int budget = Math.max(1, RedstoneLinkConfig.crossChunkDispatchMaxPerTick());
+		int snapshotSize = snapshot.size();
+		int startIndex = Math.floorMod(state.pendingCursor, snapshotSize);
+		int processed = 0;
+		int visited = 0;
+		while (visited < snapshotSize && processed < budget) {
+			int currentIndex = (startIndex + visited) % snapshotSize;
+			CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending = snapshot.get(currentIndex);
+			visited++;
+			processed++;
 			if (pending.expireGameTick() <= gameTime) {
-				iterator.remove();
+				queueData.removePending(pending.key());
 				continue;
 			}
-			if (tryDispatch(server, state, pending, gameTime)) {
-				iterator.remove();
+			if (queueData.isStaleByAcceptedVersion(pending.key(), pending.version())) {
+				queueData.removePending(pending.key());
+				continue;
+			}
+			if (tryDispatch(server, state, queueData, pending, gameTime)) {
+				queueData.removePending(pending.key());
 			}
 		}
+		if (queueData.pendingSize() <= 0) {
+			state.pendingCursor = 0L;
+			return;
+		}
+		state.pendingCursor = state.pendingCursor + processed;
 	}
 
-	private static boolean tryDispatch(MinecraftServer server, DispatchState state, PendingDispatch pending, long gameTime) {
+	private static boolean tryDispatch(
+		MinecraftServer server,
+		DispatchState state,
+		CrossChunkDispatchQueueSavedData queueData,
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
+		long gameTime
+	) {
+		if (queueData.isStaleByAcceptedVersion(pending.key(), pending.version())) {
+			return true;
+		}
 		ServerLevel targetLevel = server.getLevel(pending.dimension());
 		if (targetLevel == null) {
 			return false;
@@ -221,15 +560,27 @@ public final class CrossChunkDispatchService {
 			return true;
 		}
 
-		if (pending.key().dispatchKind() == DispatchKind.SYNC_SIGNAL) {
-			targetBlockEntity.syncBySource(pending.key().sourceSerial(), pending.syncSignalStrength());
+		if (pending.key().dispatchKind() == CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL) {
+			targetBlockEntity.syncBySource(
+				pending.key().sourceSerial(),
+				pending.syncSignalStrength(),
+				EventMeta.of(pending.enqueueGameTick(), pending.enqueueGameSlot(), pending.version())
+			);
 		} else {
-			targetBlockEntity.triggerBySource(pending.key().sourceSerial(), pending.activationMode());
+			targetBlockEntity.triggerBySource(
+				pending.key().sourceSerial(),
+				pending.activationMode(),
+				EventMeta.of(pending.enqueueGameTick(), pending.enqueueGameSlot(), pending.version())
+			);
 		}
+		queueData.markAccepted(pending.key(), pending.version());
 		return true;
 	}
 
-	private static boolean shouldForceLoad(ServerLevel contextLevel, PendingDispatch pending) {
+	private static boolean shouldForceLoad(
+		ServerLevel contextLevel,
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending
+	) {
 		if (contextLevel == null || pending == null) {
 			return false;
 		}
@@ -253,7 +604,10 @@ public final class CrossChunkDispatchService {
 	/**
 	 * 校验是否命中运行态白名单或只读 preset。
 	 */
-	private static boolean matchWhitelistOrPreset(ServerLevel contextLevel, PendingDispatch pending) {
+	private static boolean matchWhitelistOrPreset(
+		ServerLevel contextLevel,
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending
+	) {
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(contextLevel);
 		boolean whitelistMatched = whitelistSavedData.contains(
 			pending.key().sourceType(),
@@ -385,7 +739,7 @@ public final class CrossChunkDispatchService {
 	private static void tryForceLoad(
 		MinecraftServer server,
 		DispatchState state,
-		PendingDispatch pending,
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
 		long gameTime
 	) {
 		resetForceLoadWindow(state, gameTime);
@@ -455,11 +809,11 @@ public final class CrossChunkDispatchService {
 		}
 		releaseResidentTickets(server, state);
 		state.forcedChunksUntilTick.clear();
-		state.pendingByKey.clear();
 		state.residentTickets.clear();
 		state.forceLoadCountBySource.clear();
 		state.forceLoadCountThisTick = 0;
 		state.forceLoadWindowTick = Long.MIN_VALUE;
+		state.pendingCursor = 0L;
 		STATE_BY_SERVER.remove(server);
 	}
 
@@ -537,28 +891,6 @@ public final class CrossChunkDispatchService {
 		}
 	}
 
-	private enum DispatchKind {
-		ACTIVATION,
-		SYNC_SIGNAL
-	}
-
-	private record DispatchKey(
-		LinkNodeType sourceType,
-		long sourceSerial,
-		LinkNodeType targetType,
-		long targetSerial,
-		DispatchKind dispatchKind
-	) {}
-
-	private record PendingDispatch(
-		DispatchKey key,
-		ResourceKey<Level> dimension,
-		BlockPos pos,
-		ActivationMode activationMode,
-		int syncSignalStrength,
-		long expireGameTick
-	) {}
-
 	private record SourceKey(LinkNodeType sourceType, long sourceSerial) {}
 
 	private record ForcedChunkKey(ResourceKey<Level> dimension, int chunkX, int chunkZ) {}
@@ -567,15 +899,21 @@ public final class CrossChunkDispatchService {
 
 	private record ResidentChunkKey(ResourceKey<Level> dimension, int chunkX, int chunkZ) {}
 
+	private record BatchCandidate(int requestIndex, boolean forceLoadPlanned) {
+		private static BatchCandidate rejected() {
+			return new BatchCandidate(-1, false);
+		}
+	}
+
 	/**
 	 * 单服调度状态缓存。
 	 */
 	private static final class DispatchState {
-		private final Map<DispatchKey, PendingDispatch> pendingByKey = new HashMap<>();
 		private final Map<ForcedChunkKey, Long> forcedChunksUntilTick = new HashMap<>();
 		private final Map<ResidentTicketKey, ResidentChunkKey> residentTickets = new HashMap<>();
 		private final Map<SourceKey, Integer> forceLoadCountBySource = new HashMap<>();
 		private long forceLoadWindowTick = Long.MIN_VALUE;
 		private int forceLoadCountThisTick;
+		private long pendingCursor;
 	}
 }

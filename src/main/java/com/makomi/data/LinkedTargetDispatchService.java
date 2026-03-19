@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SignalStrengths;
@@ -153,9 +154,14 @@ public final class LinkedTargetDispatchService {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
+		long eventTick = Math.max(0L, sourceLevel.getGameTime());
+		int eventSlot = 0;
+		EventMeta immediateEventMeta = EventMeta.of(eventTick, eventSlot, 0L);
 		int handledCount = 0;
 		List<Long> forceLoadTargetSerials = new ArrayList<>();
 		List<Long> relayTargetSerials = new ArrayList<>();
+		List<Long> pendingTargetSerials = new ArrayList<>();
+		List<LinkSavedData.LinkNode> pendingTargetNodes = new ArrayList<>();
 		for (long targetSerial : targetSerials) {
 			if (targetSerial <= 0L) {
 				continue;
@@ -167,29 +173,8 @@ public final class LinkedTargetDispatchService {
 
 			ServerLevel targetLevel = sourceLevel.getServer().getLevel(node.dimension());
 			if (targetLevel == null || !targetLevel.isLoaded(node.pos())) {
-				CrossChunkDispatchService.QueueResult queueResult = dispatchKind == DispatchKind.ACTIVATION
-					? CrossChunkDispatchService.queueActivation(
-						sourceLevel,
-						node,
-						sourceType,
-						sourceSerial,
-						activationMode
-					)
-					: CrossChunkDispatchService.queueSyncSignal(
-						sourceLevel,
-						node,
-						sourceType,
-						sourceSerial,
-						syncSignalStrength
-					);
-				if (queueResult.accepted()) {
-					handledCount++;
-					if (queueResult.forceLoadPlanned()) {
-						forceLoadTargetSerials.add(targetSerial);
-					} else {
-						relayTargetSerials.add(targetSerial);
-					}
-				}
+				pendingTargetSerials.add(targetSerial);
+				pendingTargetNodes.add(node);
 				continue;
 			}
 
@@ -201,12 +186,48 @@ public final class LinkedTargetDispatchService {
 			}
 
 			if (dispatchKind == DispatchKind.ACTIVATION) {
-				targetBlockEntity.triggerBySource(sourceSerial, activationMode);
+				targetBlockEntity.triggerBySource(sourceSerial, activationMode, immediateEventMeta);
 			} else {
-				targetBlockEntity.syncBySource(sourceSerial, syncSignalStrength);
+				targetBlockEntity.syncBySource(sourceSerial, syncSignalStrength, immediateEventMeta);
 			}
 			handledCount++;
 		}
+
+		if (!pendingTargetNodes.isEmpty()) {
+			List<CrossChunkDispatchService.QueueResult> queueResults = dispatchKind == DispatchKind.ACTIVATION
+				? CrossChunkDispatchService.queueActivationBatch(
+					sourceLevel,
+					pendingTargetNodes,
+					sourceType,
+					sourceSerial,
+					activationMode,
+					eventTick,
+					eventSlot
+				)
+				: CrossChunkDispatchService.queueSyncSignalBatch(
+					sourceLevel,
+					pendingTargetNodes,
+					sourceType,
+					sourceSerial,
+					syncSignalStrength,
+					eventTick,
+					eventSlot
+				);
+			int resultCount = Math.min(queueResults.size(), pendingTargetSerials.size());
+			for (int index = 0; index < resultCount; index++) {
+				CrossChunkDispatchService.QueueResult queueResult = queueResults.get(index);
+				if (!queueResult.accepted()) {
+					continue;
+				}
+				handledCount++;
+				if (queueResult.forceLoadPlanned()) {
+					forceLoadTargetSerials.add(pendingTargetSerials.get(index));
+				} else {
+					relayTargetSerials.add(pendingTargetSerials.get(index));
+				}
+			}
+		}
+
 		return new DispatchSummary(
 			sourceType,
 			sourceSerial,

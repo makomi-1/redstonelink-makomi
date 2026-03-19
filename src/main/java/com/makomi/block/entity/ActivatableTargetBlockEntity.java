@@ -13,6 +13,7 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -33,6 +34,10 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private static final String KEY_SYNC_SOURCE_SERIAL = "Serial";
 	private static final String KEY_SYNC_SOURCE_STRENGTH = "Strength";
 	private static final String KEY_SYNC_MAX_SOURCES = "SyncMaxSources";
+	private static final String KEY_AUTHORITY_MODE = "AuthorityMode";
+	private static final String KEY_AUTHORITY_TICK = "AuthorityTick";
+	private static final String KEY_AUTHORITY_SLOT = "AuthoritySlot";
+	private static final String KEY_AUTHORITY_SEQ = "AuthoritySeq";
 
 	private static final int PRIORITY_TOGGLE = 1;
 	private static final int PRIORITY_PULSE = 2;
@@ -47,8 +52,13 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	// 脉冲回落任务是否仍有效；用于让 SYNC 能失效已排队的历史回落 tick。
 	private boolean pulseResetArmed;
 
-	// 同 tick 仲裁帧：用于优先级覆盖与轻量合并。
-	private long arbitrationGameTime = Long.MIN_VALUE;
+	// 运行态 authority：先比时间键，再比同粒度固定优先级（SYNC > PULSE > TOGGLE）。
+	private TimeKey authorityTimeKey = TimeKey.minValue();
+	private EffectiveMode authorityMode = EffectiveMode.NONE;
+	private long authoritySeq;
+
+	// 同时间键仲裁帧：用于优先级覆盖与轻量合并。
+	private TimeKey arbitrationTimeKey = TimeKey.minValue();
 	private int arbitrationPriority = Integer.MIN_VALUE;
 	private boolean tickResolvedInitialized;
 	private boolean tickResolvedState;
@@ -73,6 +83,57 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		TOGGLE,
 		PULSE,
 		SYNC
+	}
+
+	/**
+	 * 时间键：默认粒度为 tick，slot 预留给未来 tick 细分。
+	 */
+	public record TimeKey(long tick, int slot) implements Comparable<TimeKey> {
+		private static final TimeKey MIN_VALUE = new TimeKey(Long.MIN_VALUE, Integer.MIN_VALUE);
+
+		public TimeKey {
+			tick = Math.max(0L, tick);
+			slot = Math.max(0, slot);
+		}
+
+		public static TimeKey of(long tick, int slot) {
+			return new TimeKey(tick, slot);
+		}
+
+		public static TimeKey minValue() {
+			return MIN_VALUE;
+		}
+
+		@Override
+		public int compareTo(TimeKey other) {
+			if (other == null) {
+				return 1;
+			}
+			int tickCompare = Long.compare(tick, other.tick);
+			if (tickCompare != 0) {
+				return tickCompare;
+			}
+			return Integer.compare(slot, other.slot);
+		}
+	}
+
+	/**
+	 * 事件元数据：用于可扩展时间粒度仲裁与防旧观测。
+	 */
+	public record EventMeta(TimeKey timeKey, long seq) {
+		public EventMeta {
+			timeKey = timeKey == null ? TimeKey.of(0L, 0) : timeKey;
+			seq = Math.max(0L, seq);
+		}
+
+		public static EventMeta of(long tick, int slot, long seq) {
+			return new EventMeta(TimeKey.of(tick, slot), seq);
+		}
+
+		public static EventMeta now(Level level) {
+			long tick = level == null ? 0L : Math.max(0L, level.getGameTime());
+			return of(tick, 0, 0L);
+		}
 	}
 
 	protected ActivatableTargetBlockEntity(
@@ -136,32 +197,31 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 返回当前运行态实际生效模式。
 	 * <p>
-	 * 裁决顺序固定为：SYNC > PULSE > TOGGLE > NONE。
+	 * 裁决顺序为：先按时间键，再按同粒度固定优先级 `SYNC > PULSE > TOGGLE`。
 	 * </p>
 	 */
 	public final EffectiveMode getEffectiveMode() {
-		if (syncSignalMaxStrength > 0) {
-			return EffectiveMode.SYNC;
-		}
-		if (isPulseTruthActive()) {
-			return EffectiveMode.PULSE;
-		}
-		if (toggleState) {
-			return EffectiveMode.TOGGLE;
-		}
-		return EffectiveMode.NONE;
+		return resolveAuthorityEffectiveMode();
 	}
 
 	public final void triggerByPlayer() {
-		applyActivation(0L, configuredMode);
+		triggerByPlayer(EventMeta.now(level));
+	}
+
+	public final void triggerByPlayer(EventMeta eventMeta) {
+		applyActivation(0L, configuredMode, normalizeEventMeta(eventMeta));
 	}
 
 	public final void triggerBySource(long sourceSerial) {
-		applyActivation(sourceSerial, configuredMode);
+		triggerBySource(sourceSerial, configuredMode, EventMeta.now(level));
 	}
 
 	public final void triggerBySource(long sourceSerial, ActivationMode triggerMode) {
-		applyActivation(sourceSerial, triggerMode == null ? configuredMode : triggerMode);
+		triggerBySource(sourceSerial, triggerMode, EventMeta.now(level));
+	}
+
+	public final void triggerBySource(long sourceSerial, ActivationMode triggerMode, EventMeta eventMeta) {
+		applyActivation(sourceSerial, triggerMode == null ? configuredMode : triggerMode, normalizeEventMeta(eventMeta));
 	}
 
 	/**
@@ -171,7 +231,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * </p>
 	 */
 	public final void syncBySource(long sourceSerial, boolean signalOn) {
-		syncBySource(sourceSerial, signalOn ? 15 : 0);
+		syncBySource(sourceSerial, signalOn ? 15 : 0, EventMeta.now(level));
 	}
 
 	/**
@@ -184,10 +244,15 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * @param signalStrength 输入强度（会被归一到 0~15）
 	 */
 	public final void syncBySource(long sourceSerial, int signalStrength) {
+		syncBySource(sourceSerial, signalStrength, EventMeta.now(level));
+	}
+
+	public final void syncBySource(long sourceSerial, int signalStrength, EventMeta eventMeta) {
 		if (!canBeTriggeredBy(sourceSerial)) {
 			return;
 		}
-		if (!acceptByPriority(PRIORITY_SYNC)) {
+		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
+		if (!acceptByPriority(normalizedMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, normalizedMeta.seq())) {
 			return;
 		}
 
@@ -222,6 +287,12 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 		pulseResetArmed = false;
 		pulseUntilGameTime = 0L;
+		// 脉冲窗口结束时，若当前 authority 为 PULSE，则在当前时间键落回 NONE。
+		if (authorityMode == EffectiveMode.PULSE) {
+			authorityMode = EffectiveMode.NONE;
+			authorityTimeKey = TimeKey.of(now, 0);
+			authoritySeq = 0L;
+		}
 		applyDerivedStateFromTruth();
 	}
 
@@ -250,13 +321,15 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * PULSE 模式会立即激活并调度自动回落，TOGGLE 模式按同 tick 奇偶合并后结算。
 	 * </p>
 	 */
-	private void applyActivation(long sourceSerial, ActivationMode mode) {
+	private void applyActivation(long sourceSerial, ActivationMode mode, EventMeta eventMeta) {
 		if (!canBeTriggeredBy(sourceSerial)) {
 			return;
 		}
+		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
 
 		int priority = mode == ActivationMode.PULSE ? PRIORITY_PULSE : PRIORITY_TOGGLE;
-		if (!acceptByPriority(priority)) {
+		EffectiveMode incomingMode = mode == ActivationMode.PULSE ? EffectiveMode.PULSE : EffectiveMode.TOGGLE;
+		if (!acceptByPriority(normalizedMeta.timeKey(), priority, incomingMode, normalizedMeta.seq())) {
 			return;
 		}
 
@@ -274,7 +347,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private void applyToggleMerged() {
 		if (!toggleMergeInitialized) {
 			toggleMergeInitialized = true;
-			toggleMergeBaseActive = toggleState;
+			// TOGGLE 语义以“当前外显 active”为翻转基准，而不是历史锁存位。
+			toggleMergeBaseActive = active;
 			toggleMergeParity = false;
 		}
 		toggleMergeParity = !toggleMergeParity;
@@ -308,6 +382,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * </p>
 	 */
 	private void applyDerivedStateFromTruth() {
+		normalizeAuthorityByTruth();
 		int resolvedPower = resolveDerivedOutputPowerFromTruth();
 		applyResolvedState(resolvedPower > 0, resolvedPower);
 	}
@@ -316,7 +391,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 计算结构真值对应的输出功率。
 	 */
 	private int resolveDerivedOutputPowerFromTruth() {
-		return switch (getEffectiveMode()) {
+		return switch (resolveAuthorityEffectiveMode()) {
 			case SYNC -> normalizeSignalStrength(syncSignalMaxStrength);
 			case PULSE, TOGGLE -> getDefaultActiveOutputPower();
 			case NONE -> 0;
@@ -348,7 +423,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 		int normalizedPower = normalizeSignalStrength(resolvedPower);
 		boolean powerChanged = setResolvedOutputPower(normalizedPower);
-		beginArbitrationFrame();
+		beginArbitrationFrame(authorityTimeKey);
 		if (tickResolvedInitialized && tickResolvedState == resolvedActive && tickResolvedPower == normalizedPower) {
 			return;
 		}
@@ -372,33 +447,45 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 仅在同一个 gameTime 内按优先级裁决：SYNC > PULSE > TOGGLE。
 	 * </p>
 	 */
-	private boolean acceptByPriority(int incomingPriority) {
-		beginArbitrationFrame();
-		if (incomingPriority < arbitrationPriority) {
+	private boolean acceptByPriority(TimeKey eventTimeKey, int incomingPriority, EffectiveMode incomingMode, long incomingSeq) {
+		TimeKey normalizedTimeKey = eventTimeKey == null ? TimeKey.of(0L, 0) : eventTimeKey;
+		long normalizedSeq = Math.max(0L, incomingSeq);
+		int timeCompare = normalizedTimeKey.compareTo(authorityTimeKey);
+		if (timeCompare < 0) {
 			return false;
 		}
-		if (incomingPriority > arbitrationPriority) {
+
+		beginArbitrationFrame(normalizedTimeKey);
+		if (timeCompare == 0 && incomingPriority < getPriorityOfEffectiveMode(resolveAuthorityEffectiveMode())) {
+			return false;
+		}
+
+		if (timeCompare > 0 || incomingPriority > arbitrationPriority || incomingMode != authorityMode) {
+			authorityMode = incomingMode == null ? EffectiveMode.NONE : incomingMode;
+			authorityTimeKey = normalizedTimeKey;
+			authoritySeq = normalizedSeq;
 			arbitrationPriority = incomingPriority;
 			// 更高优先级覆盖时，清空同 tick 低优先级的合并缓存。
 			tickResolvedInitialized = false;
 			toggleMergeInitialized = false;
 			toggleMergeParity = false;
+			return true;
 		}
+		if (normalizedSeq > authoritySeq) {
+			authoritySeq = normalizedSeq;
+		}
+		arbitrationPriority = Math.max(arbitrationPriority, incomingPriority);
 		return true;
 	}
 
 	/**
 	 * 进入同 tick 仲裁帧，tick 切换时重置轻量合并缓存。
 	 */
-	private void beginArbitrationFrame() {
-		if (level == null) {
+	private void beginArbitrationFrame(TimeKey timeKey) {
+		if (timeKey == null || timeKey.equals(arbitrationTimeKey)) {
 			return;
 		}
-		long gameTime = level.getGameTime();
-		if (gameTime == arbitrationGameTime) {
-			return;
-		}
-		arbitrationGameTime = gameTime;
+		arbitrationTimeKey = timeKey;
 		arbitrationPriority = Integer.MIN_VALUE;
 		tickResolvedInitialized = false;
 		tickResolvedPower = 0;
@@ -449,6 +536,53 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			}
 		}
 		return maxStrength;
+	}
+
+	/**
+	 * 按 authority 与当前结构真值计算运行态生效模式。
+	 */
+	private EffectiveMode resolveAuthorityEffectiveMode() {
+		return switch (authorityMode) {
+			case SYNC -> syncSignalMaxStrength > 0 ? EffectiveMode.SYNC : EffectiveMode.NONE;
+			case PULSE -> isPulseTruthActive() ? EffectiveMode.PULSE : EffectiveMode.NONE;
+			case TOGGLE -> toggleState ? EffectiveMode.TOGGLE : EffectiveMode.NONE;
+			case NONE -> EffectiveMode.NONE;
+		};
+	}
+
+	/**
+	 * 结构真值变化后，校正 authority 的有效性。
+	 */
+	private void normalizeAuthorityByTruth() {
+		if (resolveAuthorityEffectiveMode() != EffectiveMode.NONE) {
+			return;
+		}
+		if (authorityMode != EffectiveMode.NONE) {
+			authorityMode = EffectiveMode.NONE;
+			authoritySeq = 0L;
+		}
+	}
+
+	/**
+	 * 将配置触发模式映射为同粒度仲裁优先级。
+	 */
+	private static int getPriorityOfEffectiveMode(EffectiveMode mode) {
+		if (mode == null) {
+			return Integer.MIN_VALUE;
+		}
+		return switch (mode) {
+			case SYNC -> PRIORITY_SYNC;
+			case PULSE -> PRIORITY_PULSE;
+			case TOGGLE -> PRIORITY_TOGGLE;
+			case NONE -> Integer.MIN_VALUE;
+		};
+	}
+
+	/**
+	 * 兜底归一化事件元数据，避免空入参污染仲裁。
+	 */
+	private EventMeta normalizeEventMeta(EventMeta eventMeta) {
+		return eventMeta == null ? EventMeta.now(level) : eventMeta;
 	}
 
 	/**
@@ -504,6 +638,13 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (tag.contains(KEY_CONFIGURED_MODE)) {
 			configuredMode = ActivationMode.fromName(tag.getString(KEY_CONFIGURED_MODE));
 		}
+		if (tag.contains(KEY_AUTHORITY_MODE, Tag.TAG_STRING)) {
+			authorityMode = parseEffectiveMode(tag.getString(KEY_AUTHORITY_MODE));
+		} else {
+			authorityMode = deriveLegacyAuthorityModeFromTruth();
+		}
+		authorityTimeKey = TimeKey.of(Math.max(0L, tag.getLong(KEY_AUTHORITY_TICK)), Math.max(0, tag.getInt(KEY_AUTHORITY_SLOT)));
+		authoritySeq = Math.max(0L, tag.getLong(KEY_AUTHORITY_SEQ));
 		// 脉冲窗口跨重启后若已过期，读档即回收。
 		if (level != null && pulseUntilGameTime > 0L && level.getGameTime() >= pulseUntilGameTime) {
 			pulseUntilGameTime = 0L;
@@ -512,7 +653,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		rebuildDerivedCacheFromTruth();
 
 		// 运行时缓存不持久化，读档后重置。
-		arbitrationGameTime = Long.MIN_VALUE;
+		arbitrationTimeKey = TimeKey.minValue();
 		arbitrationPriority = Integer.MIN_VALUE;
 		tickResolvedInitialized = false;
 		tickResolvedPower = 0;
@@ -550,14 +691,44 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			tag.putLongArray(KEY_SYNC_MAX_SOURCES, serialArray);
 		}
 		tag.putString(KEY_CONFIGURED_MODE, configuredMode.name());
+		tag.putString(KEY_AUTHORITY_MODE, authorityMode.name());
+		tag.putLong(KEY_AUTHORITY_TICK, Math.max(0L, authorityTimeKey.tick()));
+		tag.putInt(KEY_AUTHORITY_SLOT, Math.max(0, authorityTimeKey.slot()));
+		tag.putLong(KEY_AUTHORITY_SEQ, Math.max(0L, authoritySeq));
 	}
 
 	/**
 	 * 读档时按结构真值重建派生缓存（active/output）。
 	 */
 	private void rebuildDerivedCacheFromTruth() {
+		normalizeAuthorityByTruth();
 		resolvedOutputPower = normalizeSignalStrength(resolveDerivedOutputPowerFromTruth());
 		active = resolvedOutputPower > 0;
+	}
+
+	private static EffectiveMode parseEffectiveMode(String raw) {
+		if (raw == null || raw.isBlank()) {
+			return EffectiveMode.NONE;
+		}
+		for (EffectiveMode mode : EffectiveMode.values()) {
+			if (mode.name().equalsIgnoreCase(raw.trim())) {
+				return mode;
+			}
+		}
+		return EffectiveMode.NONE;
+	}
+
+	private EffectiveMode deriveLegacyAuthorityModeFromTruth() {
+		if (syncSignalMaxStrength > 0) {
+			return EffectiveMode.SYNC;
+		}
+		if (isPulseTruthActive()) {
+			return EffectiveMode.PULSE;
+		}
+		if (toggleState) {
+			return EffectiveMode.TOGGLE;
+		}
+		return EffectiveMode.NONE;
 	}
 
 	/**

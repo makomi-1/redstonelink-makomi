@@ -46,18 +46,18 @@ class InternalStateRecordConstructionTest {
 	}
 
 	/**
-	 * CrossChunkDispatchService 内部记录体应可构造并保持字段值。
+	 * 跨区块调度相关内部记录体应可构造并保持字段值。
 	 */
 	@Test
 	void crossChunkInternalRecordsShouldConstructWithExpectedValues() throws Exception {
-		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKind");
+		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchKind");
 		Object activationKind = java.util.Arrays
 			.stream(dispatchKindClass.getEnumConstants())
 			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
 			.findFirst()
 			.orElseThrow();
 
-		Class<?> dispatchKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKey");
+		Class<?> dispatchKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchKey");
 		Constructor<?> dispatchKeyConstructor = dispatchKeyClass.getDeclaredConstructor(
 			LinkNodeType.class,
 			long.class,
@@ -69,13 +69,16 @@ class InternalStateRecordConstructionTest {
 		Object dispatchKey = dispatchKeyConstructor.newInstance(LinkNodeType.TRIGGER_SOURCE, 1L, LinkNodeType.CORE, 2L, activationKind);
 		assertNotNull(dispatchKey);
 
-		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingDispatch");
+		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$PendingDispatchEntry");
 		Constructor<?> pendingDispatchConstructor = pendingDispatchClass.getDeclaredConstructor(
 			dispatchKeyClass,
 			Class.forName("net.minecraft.resources.ResourceKey"),
 			BlockPos.class,
 			ActivationMode.class,
 			int.class,
+			long.class,
+			int.class,
+			long.class,
 			long.class
 		);
 		pendingDispatchConstructor.setAccessible(true);
@@ -85,7 +88,11 @@ class InternalStateRecordConstructionTest {
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,
 			0,
+			40L,
+			0,
 			80L
+			,
+			1L
 		);
 		assertNotNull(pendingDispatch);
 		assertEquals(80L, pendingDispatchClass.getDeclaredMethod("expireGameTick").invoke(pendingDispatch));

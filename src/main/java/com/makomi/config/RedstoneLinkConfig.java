@@ -217,10 +217,24 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 是否启用 SYNC 信号的不限时持久化（true=不受 TTL 过期影响）
+	 */
+	public static boolean crossChunkSyncSignalPersistent() {
+		return crossChunkValues.syncSignalPersistent();
+	}
+
+	/**
 	 * @return Relay 缓存过期时长（tick）
 	 */
 	public static int crossChunkRelayExpireTicks() {
 		return crossChunkValues.relayExpireTicks();
+	}
+
+	/**
+	 * @return 每 tick 跨区块持久队列最大处理条目数
+	 */
+	public static int crossChunkDispatchMaxPerTick() {
+		return crossChunkValues.dispatchMaxPerTick();
 	}
 
 	/**
@@ -657,8 +671,10 @@ public final class RedstoneLinkConfig {
 		Map<String, CrossChunkPreset> presets = parseCrossChunkPresets(props, allowedSourceTypes, allowedTargetTypes);
 		return new CrossChunkValues(
 			parseInt(props, "crosschunk.syncSignalTtlTicks", 40, 1, 72_000),
+			parseBoolean(props, "crosschunk.syncSignalPersistent", true),
 			parseBoolean(props, "crosschunk.relay.enabled", true),
 			parseInt(props, "crosschunk.relayExpireTicks", 200, 1, 72_000),
+			parseInt(props, "crosschunk.dispatch.maxPerTick", 500, 1, 20_000),
 			parseBoolean(props, "crosschunk.forceLoad.enabled", true),
 			CrossChunkForceLoadMode.fromConfigValue(props.getProperty("crosschunk.forceLoad.mode", "whitelist")),
 			parseInt(props, "crosschunk.forceLoad.ticketTicks", 80, 1, 7_200),
@@ -1154,18 +1170,28 @@ public final class RedstoneLinkConfig {
 
 			# --- [跨区块调度与命令 / Cross-Chunk Relay & Commands] ------------------
 			# crosschunk.syncSignalTtlTicks
-			# zh: 跨区块 SYNC=ON 缓存保活时长（tick）。
-			# en: TTL in ticks for queued cross-chunk SYNC=ON events.
+			# zh: 跨区块 SYNC 信号 TTL（tick），仅在 syncSignalPersistent=false 时生效。
+			# en: TTL for queued cross-chunk SYNC events; only used when syncSignalPersistent=false.
 			crosschunk.syncSignalTtlTicks=40
 
+			# crosschunk.syncSignalPersistent
+			# zh: 是否启用 SYNC 信号不限时持久化。true=不受 TTL 过期影响，按“最新状态”等待投递。
+			# en: Whether SYNC uses unlimited persistence. true means latest-state delivery without TTL expiry.
+			crosschunk.syncSignalPersistent=true
+
 			# crosschunk.relayExpireTicks
-			# zh: 跨区块 Relay 缓存通用过期时长（tick）。
-			# en: Common expiry ticks for relay cache entries.
+			# zh: 跨区块持久队列通用过期时长（tick，键名沿用 relay）。
+			# en: Common expiry ticks for persisted cross-chunk queue entries.
 			crosschunk.relayExpireTicks=200
 
+			# crosschunk.dispatch.maxPerTick
+			# zh: 每 tick 从跨区块持久队列最多处理的条目数，范围 1~20000。
+			# en: Maximum persisted cross-chunk queue entries processed per tick, range 1~20000.
+			crosschunk.dispatch.maxPerTick=500
+
 			# crosschunk.relay.enabled
-			# zh: 是否启用 Relay 中继缓冲。
-			# en: Whether relay buffering is enabled.
+			# zh: 是否启用跨区块持久队列主路径（键名沿用 relay）。
+			# en: Whether persisted cross-chunk queue path is enabled (legacy key name: relay).
 			crosschunk.relay.enabled=true
 
 			# crosschunk.forceLoad.enabled
@@ -1384,8 +1410,10 @@ public final class RedstoneLinkConfig {
 	 */
 	private record CrossChunkValues(
 		int syncSignalTtlTicks,
+		boolean syncSignalPersistent,
 		boolean relayEnabled,
 		int relayExpireTicks,
+		int dispatchMaxPerTick,
 		boolean forceLoadEnabled,
 		CrossChunkForceLoadMode forceLoadMode,
 		int forceLoadTicketTicks,
@@ -1408,7 +1436,9 @@ public final class RedstoneLinkConfig {
 			return new CrossChunkValues(
 				40,
 				true,
+				true,
 				200,
+				500,
 				true,
 				CrossChunkForceLoadMode.WHITELIST,
 				80,

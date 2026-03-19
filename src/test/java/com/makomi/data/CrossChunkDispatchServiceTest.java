@@ -59,14 +59,16 @@ class CrossChunkDispatchServiceTest {
 			LinkSavedData.LinkNode.class,
 			LinkNodeType.class,
 			long.class,
-			Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKind"),
+			Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchKind"),
 			ActivationMode.class,
+			int.class,
+			long.class,
 			int.class,
 			long.class
 		);
 		queueDispatch.setAccessible(true);
 
-		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKind");
+		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchKind");
 		Object activationKind = java.util.Arrays
 			.stream(dispatchKindClass.getEnumConstants())
 			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
@@ -83,6 +85,8 @@ class CrossChunkDispatchServiceTest {
 			activationKind,
 			ActivationMode.TOGGLE,
 			0,
+			0L,
+			0,
 			40L
 		);
 		assertFalse(invalidLevel.accepted());
@@ -96,6 +100,8 @@ class CrossChunkDispatchServiceTest {
 			activationKind,
 			ActivationMode.TOGGLE,
 			0,
+			0L,
+			0,
 			40L
 		);
 		assertFalse(invalidSourceSerial.accepted());
@@ -106,7 +112,7 @@ class CrossChunkDispatchServiceTest {
 	 */
 	@Test
 	void shouldForceLoadShouldReturnFalseForNullContext() throws Exception {
-		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingDispatch");
+		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$PendingDispatchEntry");
 		Method shouldForceLoad = CrossChunkDispatchService.class.getDeclaredMethod(
 			"shouldForceLoad",
 			ServerLevel.class,
@@ -182,69 +188,134 @@ class CrossChunkDispatchServiceTest {
 	 * processPendingDispatches 应移除过期请求而无需访问服务端世界。
 	 */
 	@Test
-	@SuppressWarnings("unchecked")
 	void processPendingDispatchesShouldRemoveExpiredEntry() throws Exception {
-		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKind");
-		Object activationKind = java.util.Arrays
-			.stream(dispatchKindClass.getEnumConstants())
-			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
-			.findFirst()
-			.orElseThrow();
-		Class<?> dispatchKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchKey");
-		Constructor<?> dispatchKeyConstructor = dispatchKeyClass.getDeclaredConstructor(
-			LinkNodeType.class,
-			long.class,
-			LinkNodeType.class,
-			long.class,
-			dispatchKindClass
-		);
-		dispatchKeyConstructor.setAccessible(true);
-		Object dispatchKey = dispatchKeyConstructor.newInstance(
-			LinkNodeType.TRIGGER_SOURCE,
-			5L,
-			LinkNodeType.CORE,
-			9L,
-			activationKind
-		);
-
-		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingDispatch");
-		Constructor<?> pendingDispatchConstructor = pendingDispatchClass.getDeclaredConstructor(
-			dispatchKeyClass,
-			net.minecraft.resources.ResourceKey.class,
-			BlockPos.class,
-			ActivationMode.class,
-			int.class,
-			long.class
-		);
-		pendingDispatchConstructor.setAccessible(true);
-		Object pendingDispatch = pendingDispatchConstructor.newInstance(
-			dispatchKey,
-			Level.OVERWORLD,
-			BlockPos.ZERO,
-			ActivationMode.TOGGLE,
-			0,
-			10L
-		);
-
 		Class<?> dispatchStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchState");
 		Constructor<?> stateConstructor = dispatchStateClass.getDeclaredConstructor();
 		stateConstructor.setAccessible(true);
 		Object state = stateConstructor.newInstance();
-		Field pendingByKeyField = dispatchStateClass.getDeclaredField("pendingByKey");
-		pendingByKeyField.setAccessible(true);
-		Map<Object, Object> pendingByKey = (Map<Object, Object>) pendingByKeyField.get(state);
-		pendingByKey.put(dispatchKey, pendingDispatch);
+		CrossChunkDispatchQueueSavedData queueData = new CrossChunkDispatchQueueSavedData();
+		CrossChunkDispatchQueueSavedData.DispatchKey key = new CrossChunkDispatchQueueSavedData.DispatchKey(
+			LinkNodeType.TRIGGER_SOURCE,
+			5L,
+			LinkNodeType.CORE,
+			9L,
+			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
+		);
+		CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = queueData.upsertPending(
+			key,
+			Level.OVERWORLD,
+			BlockPos.ZERO,
+			ActivationMode.TOGGLE,
+			0,
+			0L,
+			0,
+			10L
+		);
+		assertTrue(upsertResult.accepted());
 
 		Method processPendingDispatches = CrossChunkDispatchService.class.getDeclaredMethod(
 			"processPendingDispatches",
 			MinecraftServer.class,
 			dispatchStateClass,
+			CrossChunkDispatchQueueSavedData.class,
 			long.class
 		);
 		processPendingDispatches.setAccessible(true);
-		processPendingDispatches.invoke(null, null, state, 10L);
+		processPendingDispatches.invoke(null, null, state, queueData, 10L);
 
-		assertTrue(pendingByKey.isEmpty());
+		assertTrue(queueData.pendingEntriesSnapshot().isEmpty());
+	}
+
+	/**
+	 * processPendingDispatches 应按版本护栏移除已过时条目。
+	 */
+	@Test
+	void processPendingDispatchesShouldDropStaleByAcceptedVersion() throws Exception {
+		Class<?> dispatchStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchState");
+		Constructor<?> stateConstructor = dispatchStateClass.getDeclaredConstructor();
+		stateConstructor.setAccessible(true);
+		Object state = stateConstructor.newInstance();
+		CrossChunkDispatchQueueSavedData queueData = new CrossChunkDispatchQueueSavedData();
+		CrossChunkDispatchQueueSavedData.DispatchKey key = new CrossChunkDispatchQueueSavedData.DispatchKey(
+			LinkNodeType.TRIGGER_SOURCE,
+			7L,
+			LinkNodeType.CORE,
+			17L,
+			CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+		);
+		CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = queueData.upsertPending(
+			key,
+			Level.OVERWORLD,
+			BlockPos.ZERO,
+			ActivationMode.TOGGLE,
+			15,
+			0L,
+			0,
+			200L
+		);
+		assertTrue(upsertResult.accepted());
+		assertTrue(queueData.markAccepted(key, upsertResult.entry().version()));
+
+		Method processPendingDispatches = CrossChunkDispatchService.class.getDeclaredMethod(
+			"processPendingDispatches",
+			MinecraftServer.class,
+			dispatchStateClass,
+			CrossChunkDispatchQueueSavedData.class,
+			long.class
+		);
+		processPendingDispatches.setAccessible(true);
+		processPendingDispatches.invoke(null, null, state, queueData, 100L);
+
+		assertTrue(queueData.pendingEntriesSnapshot().isEmpty());
+	}
+
+	/**
+	 * processPendingDispatches 应遵循每 tick 预算（默认 500）推进游标，避免单 tick 全量扫描。
+	 */
+	@Test
+	void processPendingDispatchesShouldRespectDispatchBudget() throws Exception {
+		Class<?> dispatchStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchState");
+		Constructor<?> stateConstructor = dispatchStateClass.getDeclaredConstructor();
+		stateConstructor.setAccessible(true);
+		Object state = stateConstructor.newInstance();
+
+		CrossChunkDispatchQueueSavedData queueData = new CrossChunkDispatchQueueSavedData();
+		for (int index = 0; index < 520; index++) {
+			CrossChunkDispatchQueueSavedData.DispatchKey key = new CrossChunkDispatchQueueSavedData.DispatchKey(
+				LinkNodeType.TRIGGER_SOURCE,
+				10_000L + index,
+				LinkNodeType.CORE,
+				20_000L + index,
+				CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
+			);
+			CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = queueData.upsertPending(
+				key,
+				Level.OVERWORLD,
+				new BlockPos(index, 64, index),
+				ActivationMode.TOGGLE,
+				0,
+				0L,
+				0,
+				1000L
+			);
+			assertTrue(upsertResult.accepted());
+			assertTrue(queueData.markAccepted(key, upsertResult.entry().version()));
+		}
+
+		Method processPendingDispatches = CrossChunkDispatchService.class.getDeclaredMethod(
+			"processPendingDispatches",
+			MinecraftServer.class,
+			dispatchStateClass,
+			CrossChunkDispatchQueueSavedData.class,
+			long.class
+		);
+		processPendingDispatches.setAccessible(true);
+		processPendingDispatches.invoke(null, null, state, queueData, 100L);
+
+		Field pendingCursorField = dispatchStateClass.getDeclaredField("pendingCursor");
+		pendingCursorField.setAccessible(true);
+		assertEquals(500L, pendingCursorField.getLong(state));
+		assertEquals(20, queueData.pendingSize());
 	}
 
 	/**
