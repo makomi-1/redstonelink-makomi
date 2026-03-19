@@ -3,6 +3,7 @@ package com.makomi.data;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.util.SignalStrengths;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -105,7 +106,7 @@ public final class CrossChunkDispatchService {
 		long sourceSerial,
 		int signalStrength
 	) {
-		int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+		int normalizedStrength = SignalStrengths.clamp(signalStrength);
 		long ttlTicks = normalizedStrength > 0
 			? RedstoneLinkConfig.crossChunkSyncSignalTtlTicks()
 			: RedstoneLinkConfig.crossChunkRelayExpireTicks();
@@ -158,7 +159,7 @@ public final class CrossChunkDispatchService {
 			targetNode.dimension(),
 			targetNode.pos(),
 			activationMode,
-			Math.max(0, Math.min(15, syncSignalStrength)),
+			SignalStrengths.clamp(syncSignalStrength),
 			expireTick
 		);
 

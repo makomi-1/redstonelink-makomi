@@ -192,6 +192,7 @@
   "message.redstonelink.node.invalid_scope": "[RedstoneLink] Invalid node list scope: %s (supported: active/retired/online).",
   "message.redstonelink.audit.invalid_format": "[RedstoneLink] Invalid audit format: %s (supported: text/csv).",
   "message.redstonelink.node.get": "[RedstoneLink/Node] type=%s, serial=%s, allocated=%s, retired=%s, online=%s, dimension=%s, pos=%s, linked=%s, targets=%s.",
+  "message.redstonelink.node.get.runtime": "[RedstoneLink/Node] runtime configuredMode=%s, effectiveMode=%s, active=%s, resolvedStrength=%s, output=%s, maxSources=%s.",
   "message.redstonelink.node.list": "[RedstoneLink/Node] type=%s, scope=%s, total=%s, returned=%s, offset=%s, serials=%s.",
   "message.redstonelink.link.get": "[RedstoneLink/Link] source_type=%s, source_serial=%s, target_count=%s, targets=%s.",
   "tag.item.redstonelink.trigger_p_materials": "Trigger P Materials",

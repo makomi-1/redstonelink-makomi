@@ -1,5 +1,6 @@
 package com.makomi.command;
 
+import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.activate.ActivateCommandRegistry;
 import com.makomi.command.crosschunk.CrossChunkCommandRegistry;
@@ -1078,7 +1079,38 @@ public final class ModCommands {
 			),
 			false
 		);
+		sendNodeRuntimeSnapshot(source, nodeOptional.orElse(null));
 		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 输出目标节点运行态快照（P2 三层结果模型可观测项）。
+	 */
+	private static void sendNodeRuntimeSnapshot(CommandSourceStack source, LinkSavedData.LinkNode node) {
+		if (source == null || node == null) {
+			return;
+		}
+		ServerLevel nodeLevel = source.getServer().getLevel(node.dimension());
+		if (nodeLevel == null || !nodeLevel.isLoaded(node.pos())) {
+			return;
+		}
+		BlockEntity blockEntity = nodeLevel.getBlockEntity(node.pos());
+		if (!(blockEntity instanceof ActivatableTargetBlockEntity targetBlockEntity)) {
+			return;
+		}
+
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.node.get.runtime",
+				targetBlockEntity.getConfiguredMode().name().toLowerCase(Locale.ROOT),
+				targetBlockEntity.getEffectiveMode().name().toLowerCase(Locale.ROOT),
+				Boolean.toString(targetBlockEntity.isActive()),
+				targetBlockEntity.getResolvedStrength(),
+				targetBlockEntity.getResolvedOutputPower(),
+				formatSerialList(targetBlockEntity.getSyncMaxSourceSerialsSnapshot())
+			),
+			false
+		);
 	}
 
 	/**

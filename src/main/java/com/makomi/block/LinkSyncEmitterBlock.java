@@ -2,6 +2,7 @@ package com.makomi.block;
 
 import com.makomi.block.entity.LinkButtonBlockEntity;
 import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
+import com.makomi.util.SignalStrengths;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -21,27 +22,19 @@ public class LinkSyncEmitterBlock extends LinkSignalEmitterBlock {
 	}
 
 	@Override
-	protected boolean shouldTriggerOnPoweredChange(boolean wasPowered, boolean hasSignal) {
-		// 同步模式需同时处理上升沿与下降沿，确保目标状态可及时对齐输入。
-		return true;
-	}
-
-	@Override
-	protected boolean shouldTriggerOnSignalStateUnchanged(
+	protected boolean shouldTriggerOnSignalUpdate(
 		BlockState state,
 		Level level,
 		BlockPos pos,
+		boolean wasPowered,
 		boolean hasSignal,
 		int signalStrength
 	) {
-		if (!hasSignal) {
-			return false;
-		}
 		if (!(level.getBlockEntity(pos) instanceof LinkSyncEmitterBlockEntity blockEntity)) {
 			return false;
 		}
-		// POWERED 未变化但输入强度变化时，仍需按最新强度转发一次。
-		int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+		// 同步模式统一按“输入强度变化”触发，边沿变化属于强度变化子集。
+		int normalizedStrength = SignalStrengths.clamp(signalStrength);
 		return blockEntity.getLastObservedSignalStrength() != normalizedStrength;
 	}
 
@@ -55,13 +48,13 @@ public class LinkSyncEmitterBlock extends LinkSignalEmitterBlock {
 		int signalStrength
 	) {
 		if (level.getBlockEntity(pos) instanceof LinkSyncEmitterBlockEntity blockEntity) {
-			int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+			int normalizedStrength = SignalStrengths.clamp(signalStrength);
 			blockEntity.setLastObservedSignalStrength(normalizedStrength);
 			blockEntity.forwardLinkedSignal(null, normalizedStrength);
 			return;
 		}
 		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-			buttonBlockEntity.forwardLinkedSignal(null, Math.max(0, Math.min(15, signalStrength)));
+			buttonBlockEntity.forwardLinkedSignal(null, SignalStrengths.clamp(signalStrength));
 		}
 	}
 }

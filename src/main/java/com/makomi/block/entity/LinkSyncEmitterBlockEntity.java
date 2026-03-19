@@ -1,5 +1,6 @@
 package com.makomi.block.entity;
 
+import com.makomi.util.SignalStrengths;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -24,6 +25,6 @@ public class LinkSyncEmitterBlockEntity extends LinkButtonBlockEntity {
 	 * 记录最近一次已转发的输入强度。
 	 */
 	public void setLastObservedSignalStrength(int signalStrength) {
-		lastObservedSignalStrength = Math.max(0, Math.min(15, signalStrength));
+		lastObservedSignalStrength = SignalStrengths.clamp(signalStrength);
 	}
 }

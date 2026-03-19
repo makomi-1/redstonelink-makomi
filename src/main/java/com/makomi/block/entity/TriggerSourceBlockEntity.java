@@ -3,6 +3,7 @@ package com.makomi.block.entity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
+import com.makomi.util.SignalStrengths;
 import com.makomi.config.RedstoneLinkConfig;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -62,7 +63,7 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 	 * @param signalStrength 输入强度（会被归一到 0~15）
 	 */
 	public void forwardLinkedSignal(Player player, int signalStrength) {
-		int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+		int normalizedStrength = SignalStrengths.clamp(signalStrength);
 		dispatchToLinkedTargets(player, DispatchMode.SYNC_SIGNAL, normalizedStrength);
 	}
 

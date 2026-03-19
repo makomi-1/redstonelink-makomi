@@ -1,11 +1,18 @@
 package com.makomi.block.entity;
 
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.util.SignalStrengths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -17,17 +24,25 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEntity {
 	private static final String KEY_ACTIVE = "Active";
-	private static final String KEY_ACTIVATION_MODE = "ActivationMode";
-	private static final String KEY_PULSE_EXPIRE_GAME_TIME = "PulseExpireGameTime";
+	private static final String KEY_CONFIGURED_MODE = "ConfiguredMode";
+	private static final String KEY_PULSE_UNTIL_GAME_TIME = "PulseExpireGameTime";
+	private static final String KEY_PULSE_EPOCH = "PulseEpoch";
+	private static final String KEY_TOGGLE_STATE = "ToggleState";
 	private static final String KEY_RESOLVED_OUTPUT_POWER = "ResolvedOutputPower";
+	private static final String KEY_SYNC_SOURCE_STRENGTHS = "SyncSourceStrengths";
+	private static final String KEY_SYNC_SOURCE_SERIAL = "Serial";
+	private static final String KEY_SYNC_SOURCE_STRENGTH = "Strength";
+	private static final String KEY_SYNC_MAX_SOURCES = "SyncMaxSources";
 
 	private static final int PRIORITY_TOGGLE = 1;
 	private static final int PRIORITY_PULSE = 2;
 	private static final int PRIORITY_SYNC = 3;
 
 	private boolean active;
-	private ActivationMode activationMode = ActivationMode.TOGGLE;
-	private long pulseExpireGameTime;
+	private ActivationMode configuredMode = ActivationMode.TOGGLE;
+	private long pulseUntilGameTime;
+	private long pulseEpoch;
+	private boolean toggleState;
 	private int resolvedOutputPower;
 	// 脉冲回落任务是否仍有效；用于让 SYNC 能失效已排队的历史回落 tick。
 	private boolean pulseResetArmed;
@@ -47,6 +62,18 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	// SYNC 多源聚合缓存：sourceSerial -> signalStrength(0~15)，最终态采用 max 强度。
 	private final Map<Long, Integer> syncSignalStrengthBySource = new HashMap<>();
 	private int syncSignalMaxStrength;
+	// 并列最大强度来源集合：用于稳定审计输出，不依赖事件到达顺序。
+	private final Set<Long> syncSignalMaxSources = new TreeSet<>();
+
+	/**
+	 * 运行态生效模式（用于可观测，不参与额外仲裁）。
+	 */
+	public enum EffectiveMode {
+		NONE,
+		TOGGLE,
+		PULSE,
+		SYNC
+	}
 
 	protected ActivatableTargetBlockEntity(
 		BlockEntityType<? extends PairableNodeBlockEntity> blockEntityType,
@@ -71,28 +98,70 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		return active ? resolvedOutputPower : 0;
 	}
 
-	public final ActivationMode getActivationMode() {
-		return activationMode;
+	/**
+	 * 返回当前主结果强度（0~15）。
+	 * <p>
+	 * P2 三层结果模型中的主结果：与最终输出强度一致。
+	 * </p>
+	 */
+	public final int getResolvedStrength() {
+		return getResolvedOutputPower();
 	}
 
-	public final void setActivationMode(ActivationMode activationMode) {
-		if (activationMode == null || this.activationMode == activationMode) {
+	/**
+	 * 返回当前并列最大强度来源快照（升序）。
+	 * <p>
+	 * 仅用于可观测/审计，不参与裁决主流程。
+	 * </p>
+	 */
+	public final List<Long> getSyncMaxSourceSerialsSnapshot() {
+		if (syncSignalMaxSources.isEmpty()) {
+			return List.of();
+		}
+		return List.copyOf(new ArrayList<>(syncSignalMaxSources));
+	}
+
+	public final ActivationMode getConfiguredMode() {
+		return configuredMode;
+	}
+
+	public final void setConfiguredMode(ActivationMode configuredMode) {
+		if (configuredMode == null || this.configuredMode == configuredMode) {
 			return;
 		}
-		this.activationMode = activationMode;
+		this.configuredMode = configuredMode;
 		syncToClient();
 	}
 
+	/**
+	 * 返回当前运行态实际生效模式。
+	 * <p>
+	 * 裁决顺序固定为：SYNC > PULSE > TOGGLE > NONE。
+	 * </p>
+	 */
+	public final EffectiveMode getEffectiveMode() {
+		if (syncSignalMaxStrength > 0) {
+			return EffectiveMode.SYNC;
+		}
+		if (isPulseTruthActive()) {
+			return EffectiveMode.PULSE;
+		}
+		if (toggleState) {
+			return EffectiveMode.TOGGLE;
+		}
+		return EffectiveMode.NONE;
+	}
+
 	public final void triggerByPlayer() {
-		applyActivation(0L, activationMode);
+		applyActivation(0L, configuredMode);
 	}
 
 	public final void triggerBySource(long sourceSerial) {
-		applyActivation(sourceSerial, activationMode);
+		applyActivation(sourceSerial, configuredMode);
 	}
 
 	public final void triggerBySource(long sourceSerial, ActivationMode triggerMode) {
-		applyActivation(sourceSerial, triggerMode == null ? activationMode : triggerMode);
+		applyActivation(sourceSerial, triggerMode == null ? configuredMode : triggerMode);
 	}
 
 	/**
@@ -125,9 +194,9 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		int normalizedStrength = normalizeSignalStrength(signalStrength);
 		updateSyncSignalStrength(sourceSerial, normalizedStrength);
 		// 同步语义不应受历史脉冲回落影响。
-		pulseExpireGameTime = 0L;
+		pulseUntilGameTime = 0L;
 		pulseResetArmed = false;
-		applyResolvedState(syncSignalMaxStrength > 0, syncSignalMaxStrength);
+		applyDerivedStateFromTruth();
 	}
 
 	public final void onPulseTick() {
@@ -141,19 +210,19 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 		if (!active) {
 			pulseResetArmed = false;
-			pulseExpireGameTime = 0L;
+			pulseUntilGameTime = 0L;
 			return;
 		}
 
 		long now = level.getGameTime();
-		if (now < pulseExpireGameTime) {
-			long remaining = pulseExpireGameTime - now;
+		if (now < pulseUntilGameTime) {
+			long remaining = pulseUntilGameTime - now;
 			schedulePulseReset((int) Math.max(1L, remaining));
 			return;
 		}
 		pulseResetArmed = false;
-		pulseExpireGameTime = 0L;
-		applyResolvedState(false, 0);
+		pulseUntilGameTime = 0L;
+		applyDerivedStateFromTruth();
 	}
 
 	protected boolean canBeTriggeredBy(long sourceSerial) {
@@ -205,12 +274,12 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private void applyToggleMerged() {
 		if (!toggleMergeInitialized) {
 			toggleMergeInitialized = true;
-			toggleMergeBaseActive = active;
+			toggleMergeBaseActive = toggleState;
 			toggleMergeParity = false;
 		}
 		toggleMergeParity = !toggleMergeParity;
-		boolean resolved = toggleMergeParity ? !toggleMergeBaseActive : toggleMergeBaseActive;
-		applyResolvedState(resolved, resolved ? getDefaultActiveOutputPower() : 0);
+		toggleState = toggleMergeParity ? !toggleMergeBaseActive : toggleMergeBaseActive;
+		applyDerivedStateFromTruth();
 	}
 
 	/**
@@ -218,17 +287,53 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 */
 	private void applyPulseMerged() {
 		int pulseTicks = Math.max(1, getPulseDurationTicks());
+		pulseEpoch++;
 		pulseResetArmed = true;
 		if (level != null) {
 			long nextExpireTime = level.getGameTime() + pulseTicks;
-			if (nextExpireTime > pulseExpireGameTime) {
-				pulseExpireGameTime = nextExpireTime;
+			if (nextExpireTime > pulseUntilGameTime) {
+				pulseUntilGameTime = nextExpireTime;
 				schedulePulseReset(pulseTicks);
 			}
 		} else {
 			schedulePulseReset(pulseTicks);
 		}
-		applyResolvedState(true, getDefaultActiveOutputPower());
+		applyDerivedStateFromTruth();
+	}
+
+	/**
+	 * 按结构真值推导当前结果态，并统一写回缓存。
+	 * <p>
+	 * 类间优先级固定：SYNC > PULSE > TOGGLE。
+	 * </p>
+	 */
+	private void applyDerivedStateFromTruth() {
+		int resolvedPower = resolveDerivedOutputPowerFromTruth();
+		applyResolvedState(resolvedPower > 0, resolvedPower);
+	}
+
+	/**
+	 * 计算结构真值对应的输出功率。
+	 */
+	private int resolveDerivedOutputPowerFromTruth() {
+		return switch (getEffectiveMode()) {
+			case SYNC -> normalizeSignalStrength(syncSignalMaxStrength);
+			case PULSE, TOGGLE -> getDefaultActiveOutputPower();
+			case NONE -> 0;
+		};
+	}
+
+	/**
+	 * 判断脉冲结构真值是否处于生效窗口。
+	 */
+	private boolean isPulseTruthActive() {
+		if (pulseUntilGameTime <= 0L) {
+			return false;
+		}
+		if (level == null) {
+			return true;
+		}
+		return level.getGameTime() < pulseUntilGameTime;
 	}
 
 	/**
@@ -308,6 +413,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		int normalizedStrength = normalizeSignalStrength(signalStrength);
 		if (sourceSerial <= 0L) {
 			syncSignalStrengthBySource.clear();
+			syncSignalMaxSources.clear();
 			syncSignalMaxStrength = normalizedStrength;
 			return;
 		}
@@ -317,17 +423,29 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		} else {
 			syncSignalStrengthBySource.put(sourceSerial, normalizedStrength);
 		}
-		syncSignalMaxStrength = recalculateSyncMaxStrength();
+		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
 	}
 
 	/**
 	 * 重算当前同步源 max 强度。
 	 */
-	private int recalculateSyncMaxStrength() {
+	private int recalculateSyncMaxStrengthAndSources() {
 		int maxStrength = 0;
-		for (Integer strength : syncSignalStrengthBySource.values()) {
-			if (strength != null && strength > maxStrength) {
+		syncSignalMaxSources.clear();
+		for (Map.Entry<Long, Integer> entry : syncSignalStrengthBySource.entrySet()) {
+			Long sourceSerial = entry.getKey();
+			Integer strength = entry.getValue();
+			if (sourceSerial == null || sourceSerial <= 0L || strength == null || strength <= 0) {
+				continue;
+			}
+			if (strength > maxStrength) {
 				maxStrength = strength;
+				syncSignalMaxSources.clear();
+				syncSignalMaxSources.add(sourceSerial);
+				continue;
+			}
+			if (strength == maxStrength) {
+				syncSignalMaxSources.add(sourceSerial);
 			}
 		}
 		return maxStrength;
@@ -337,7 +455,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 归一化输入强度，避免异常值污染聚合。
 	 */
 	private static int normalizeSignalStrength(int signalStrength) {
-		return Math.max(0, Math.min(15, signalStrength));
+		return SignalStrengths.clamp(signalStrength);
 	}
 
 	/**
@@ -370,20 +488,28 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	@Override
 	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
 		super.loadAdditional(tag, provider);
-		active = tag.getBoolean(KEY_ACTIVE);
-		pulseExpireGameTime = tag.getLong(KEY_PULSE_EXPIRE_GAME_TIME);
-		pulseResetArmed = pulseExpireGameTime > 0L;
-		if (!active) {
-			resolvedOutputPower = 0;
-		} else if (tag.contains(KEY_RESOLVED_OUTPUT_POWER)) {
-			resolvedOutputPower = normalizeSignalStrength(tag.getInt(KEY_RESOLVED_OUTPUT_POWER));
-		} else {
-			// 兼容旧存档：历史版本仅持久化 active，不持久化输出功率。
-			resolvedOutputPower = getDefaultActiveOutputPower();
+		pulseUntilGameTime = Math.max(0L, tag.getLong(KEY_PULSE_UNTIL_GAME_TIME));
+		pulseEpoch = Math.max(0L, tag.getLong(KEY_PULSE_EPOCH));
+		toggleState = tag.getBoolean(KEY_TOGGLE_STATE);
+		loadSyncSourceStrengths(tag);
+		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
+		if (syncSignalMaxStrength <= 0 && tag.contains(KEY_SYNC_MAX_SOURCES, Tag.TAG_LONG_ARRAY)) {
+			syncSignalMaxSources.clear();
+			for (long sourceSerial : tag.getLongArray(KEY_SYNC_MAX_SOURCES)) {
+				if (sourceSerial > 0L) {
+					syncSignalMaxSources.add(sourceSerial);
+				}
+			}
 		}
-		if (tag.contains(KEY_ACTIVATION_MODE)) {
-			activationMode = ActivationMode.fromName(tag.getString(KEY_ACTIVATION_MODE));
+		if (tag.contains(KEY_CONFIGURED_MODE)) {
+			configuredMode = ActivationMode.fromName(tag.getString(KEY_CONFIGURED_MODE));
 		}
+		// 脉冲窗口跨重启后若已过期，读档即回收。
+		if (level != null && pulseUntilGameTime > 0L && level.getGameTime() >= pulseUntilGameTime) {
+			pulseUntilGameTime = 0L;
+		}
+		pulseResetArmed = pulseUntilGameTime > 0L;
+		rebuildDerivedCacheFromTruth();
 
 		// 运行时缓存不持久化，读档后重置。
 		arbitrationGameTime = Long.MIN_VALUE;
@@ -392,23 +518,94 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		tickResolvedPower = 0;
 		toggleMergeInitialized = false;
 		toggleMergeParity = false;
-		syncSignalStrengthBySource.clear();
-		syncSignalMaxStrength = 0;
 	}
 
 	@Override
 	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
 		super.saveAdditional(tag, provider);
+		// 派生缓存：保留写入便于观测，但不再作为主真值来源。
 		if (active) {
 			tag.putBoolean(KEY_ACTIVE, true);
-		}
-		if (pulseExpireGameTime > 0L) {
-			tag.putLong(KEY_PULSE_EXPIRE_GAME_TIME, pulseExpireGameTime);
 		}
 		if (resolvedOutputPower > 0) {
 			tag.putInt(KEY_RESOLVED_OUTPUT_POWER, normalizeSignalStrength(resolvedOutputPower));
 		}
-		tag.putString(KEY_ACTIVATION_MODE, activationMode.name());
+		// 结构真值持久化：SYNC 来源表 + PULSE 窗口 + TOGGLE 锁存态 + maxSources。
+		if (pulseUntilGameTime > 0L) {
+			tag.putLong(KEY_PULSE_UNTIL_GAME_TIME, pulseUntilGameTime);
+		}
+		if (pulseEpoch > 0L) {
+			tag.putLong(KEY_PULSE_EPOCH, pulseEpoch);
+		}
+		if (toggleState) {
+			tag.putBoolean(KEY_TOGGLE_STATE, true);
+		}
+		writeSyncSourceStrengths(tag);
+		if (!syncSignalMaxSources.isEmpty()) {
+			long[] serialArray = new long[syncSignalMaxSources.size()];
+			int index = 0;
+			for (Long sourceSerial : syncSignalMaxSources) {
+				serialArray[index++] = sourceSerial;
+			}
+			tag.putLongArray(KEY_SYNC_MAX_SOURCES, serialArray);
+		}
+		tag.putString(KEY_CONFIGURED_MODE, configuredMode.name());
+	}
+
+	/**
+	 * 读档时按结构真值重建派生缓存（active/output）。
+	 */
+	private void rebuildDerivedCacheFromTruth() {
+		resolvedOutputPower = normalizeSignalStrength(resolveDerivedOutputPowerFromTruth());
+		active = resolvedOutputPower > 0;
+	}
+
+	/**
+	 * 序列化 SYNC 来源强度表（sourceSerial -> strength）。
+	 */
+	private void writeSyncSourceStrengths(CompoundTag tag) {
+		if (syncSignalStrengthBySource.isEmpty()) {
+			return;
+		}
+		ListTag sourceList = new ListTag();
+		syncSignalStrengthBySource
+			.entrySet()
+			.stream()
+			.sorted(Map.Entry.comparingByKey())
+			.forEach(entry -> {
+				long sourceSerial = entry.getKey() == null ? 0L : entry.getKey();
+				int strength = entry.getValue() == null ? 0 : entry.getValue();
+				if (sourceSerial <= 0L || strength <= 0) {
+					return;
+				}
+				CompoundTag sourceTag = new CompoundTag();
+				sourceTag.putLong(KEY_SYNC_SOURCE_SERIAL, sourceSerial);
+				sourceTag.putInt(KEY_SYNC_SOURCE_STRENGTH, normalizeSignalStrength(strength));
+				sourceList.add(sourceTag);
+			});
+		if (!sourceList.isEmpty()) {
+			tag.put(KEY_SYNC_SOURCE_STRENGTHS, sourceList);
+		}
+	}
+
+	/**
+	 * 反序列化 SYNC 来源强度表。
+	 */
+	private void loadSyncSourceStrengths(CompoundTag tag) {
+		syncSignalStrengthBySource.clear();
+		if (!tag.contains(KEY_SYNC_SOURCE_STRENGTHS, Tag.TAG_LIST)) {
+			return;
+		}
+		ListTag sourceList = tag.getList(KEY_SYNC_SOURCE_STRENGTHS, Tag.TAG_COMPOUND);
+		for (int index = 0; index < sourceList.size(); index++) {
+			CompoundTag sourceTag = sourceList.getCompound(index);
+			long sourceSerial = sourceTag.getLong(KEY_SYNC_SOURCE_SERIAL);
+			int strength = normalizeSignalStrength(sourceTag.getInt(KEY_SYNC_SOURCE_STRENGTH));
+			if (sourceSerial <= 0L || strength <= 0) {
+				continue;
+			}
+			syncSignalStrengthBySource.put(sourceSerial, strength);
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ package com.makomi.data;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.util.SignalStrengths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -74,7 +75,7 @@ public final class LinkedTargetDispatchService {
 		Set<Long> targetSerials,
 		int signalStrength
 	) {
-		int normalizedStrength = Math.max(0, Math.min(15, signalStrength));
+		int normalizedStrength = SignalStrengths.clamp(signalStrength);
 		return dispatchInternal(
 			sourceLevel,
 			sourceType,

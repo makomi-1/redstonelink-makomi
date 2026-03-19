@@ -32,7 +32,7 @@ public final class RedstoneLinkConfig {
 	private static volatile CrossChunkValues crossChunkValues = CrossChunkValues.defaults();
 
 	/**
-	 * 发射器边沿触发模式。
+	 * 发射器边沿触发模式（仅 toggle/pulse）。
 	 */
 	public enum EmitterEdgeMode {
 		RISING,
@@ -161,7 +161,7 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * @return 发射器边沿触发模式
+	 * @return 发射器边沿触发模式（仅 toggle/pulse 发射器）
 	 */
 	public static EmitterEdgeMode emitterEdgeMode() {
 		return values.emitterEdgeMode();
@@ -980,8 +980,8 @@ public final class RedstoneLinkConfig {
 			server.pulseDurationTicks=4
 			
 			# server.emitterEdgeMode
-			# zh: 发射器红石边沿触发模式，可选：rising / falling / both。
-			# en: Emitter edge trigger mode: rising / falling / both.
+			# zh: 发射器红石边沿触发模式（仅 toggle/pulse 生效），可选：rising / falling / both。
+			# en: Emitter edge trigger mode for toggle/pulse emitters: rising / falling / both.
 			server.emitterEdgeMode=rising
 			
 			# server.coreOutputPower

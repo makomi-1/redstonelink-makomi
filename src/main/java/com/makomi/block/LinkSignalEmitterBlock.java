@@ -189,8 +189,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	}
 
 	/**
-	 * 统一红石输入处理：按配置边沿触发绑定目标，避免持续高电平重复触发。
-	 * 同步信号按邻居最大强度变化触发
+	 * 统一红石输入处理：基于一次输入采样判定是否触发绑定目标，避免持续高电平重复触发。
 	 */
 	protected final void updatePoweredState(Level level, BlockPos pos, BlockState state) {
 		if (level.isClientSide) {
@@ -199,8 +198,9 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		int signalStrength = resolveInputSignalStrength(level, pos);
 		boolean hasSignal = signalStrength > 0;
 		boolean wasPowered = state.getValue(POWERED);
+		boolean shouldTrigger = shouldTriggerOnSignalUpdate(state, level, pos, wasPowered, hasSignal, signalStrength);
 		if (hasSignal == wasPowered) {
-			if (shouldTriggerOnSignalStateUnchanged(state, level, pos, hasSignal, signalStrength)) {
+			if (shouldTrigger) {
 				onSignalTriggered(level, pos, state, wasPowered, hasSignal, signalStrength);
 			}
 			return;
@@ -208,7 +208,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 
 		BlockState updatedState = state.setValue(POWERED, hasSignal);
 		level.setBlock(pos, updatedState, Block.UPDATE_ALL);
-		if (shouldTriggerOnPoweredChange(wasPowered, hasSignal)) {
+		if (shouldTrigger) {
 			onSignalTriggered(level, pos, updatedState, wasPowered, hasSignal, signalStrength);
 		}
 	}
@@ -221,23 +221,21 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	}
 
 	/**
-	 * 钩子：判定 POWERED 变化时是否触发联动。
+	 * 钩子：基于本次输入采样决定是否触发。
+	 * <p>
+	 * 默认语义：按配置边沿模式（rising/falling/both）在 POWERED 变化时触发；
+	 * 同态不触发。同步发射器可覆盖为“强度变化驱动”。
+	 * </p>
 	 */
-	protected boolean shouldTriggerOnPoweredChange(boolean wasPowered, boolean hasSignal) {
-		return RedstoneLinkConfig.emitterEdgeMode().shouldTrigger(wasPowered, hasSignal);
-	}
-
-	/**
-	 * 钩子：POWERED 未变化时，是否仍需触发联动（例如同步模式强度变化）。
-	 */
-	protected boolean shouldTriggerOnSignalStateUnchanged(
+	protected boolean shouldTriggerOnSignalUpdate(
 		BlockState state,
 		Level level,
 		BlockPos pos,
+		boolean wasPowered,
 		boolean hasSignal,
 		int signalStrength
 	) {
-		return false;
+		return wasPowered != hasSignal && RedstoneLinkConfig.emitterEdgeMode().shouldTrigger(wasPowered, hasSignal);
 	}
 
 	/**

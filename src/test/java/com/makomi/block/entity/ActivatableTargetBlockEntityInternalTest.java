@@ -8,6 +8,8 @@ import com.makomi.data.LinkNodeType;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.Set;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -42,22 +44,32 @@ class ActivatableTargetBlockEntityInternalTest {
 
 		invokeUpdateSyncSignalStrength(target, 1L, 7);
 		assertEquals(7, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(1L), getLongSetField(target, "syncSignalMaxSources"));
 
 		// 同一 source 提升强度应更新 max。
 		invokeUpdateSyncSignalStrength(target, 1L, 10);
 		assertEquals(10, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(1L), getLongSetField(target, "syncSignalMaxSources"));
 
 		// 第二来源更低强度不应改变 max。
 		invokeUpdateSyncSignalStrength(target, 2L, 3);
 		assertEquals(10, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(1L), getLongSetField(target, "syncSignalMaxSources"));
+
+		// 同强度并列来源应全部进入 maxSources 集合。
+		invokeUpdateSyncSignalStrength(target, 2L, 10);
+		assertEquals(10, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(1L, 2L), getLongSetField(target, "syncSignalMaxSources"));
 
 		// 移除最大来源后，应回落到剩余来源最大值。
 		invokeUpdateSyncSignalStrength(target, 1L, 0);
-		assertEquals(3, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(10, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(2L), getLongSetField(target, "syncSignalMaxSources"));
 
 		// sourceSerial<=0 视为全量重置路径。
 		invokeUpdateSyncSignalStrength(target, 0L, 0);
 		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
+		assertTrue(getLongSetField(target, "syncSignalMaxSources").isEmpty());
 	}
 
 	/**
@@ -93,24 +105,28 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * NBT 读写应保持 Active / ActivationMode / PulseExpireGameTime 一致。
+	 * NBT 读写应保持结构真值（toggle/pulse）一致，并可重建派生态。
 	 */
 	@Test
 	void saveAndLoadShouldPreserveActivationSnapshot() {
 		TestTargetEntity source = createTarget();
-		setField(source, "active", true);
-		setField(source, "activationMode", ActivationMode.PULSE);
-		setField(source, "pulseExpireGameTime", 40L);
+		setField(source, "toggleState", true);
+		setField(source, "configuredMode", ActivationMode.PULSE);
+		setField(source, "pulseUntilGameTime", 40L);
+		setField(source, "pulseEpoch", 2L);
 		setField(source, "pulseResetArmed", true);
 
 		CompoundTag tag = new CompoundTag();
 		source.saveForTest(tag);
+		assertTrue(tag.contains("ConfiguredMode"));
+		assertFalse(tag.contains("ActivationMode"));
 
 		TestTargetEntity restored = createTarget();
 		restored.loadForTest(tag);
 		assertTrue(getBooleanField(restored, "active"));
-		assertEquals(ActivationMode.PULSE, getField(restored, "activationMode"));
-		assertEquals(40L, getLongField(restored, "pulseExpireGameTime"));
+		assertEquals(ActivationMode.PULSE, getField(restored, "configuredMode"));
+		assertEquals(40L, getLongField(restored, "pulseUntilGameTime"));
+		assertEquals(2L, getLongField(restored, "pulseEpoch"));
 		assertTrue(getBooleanField(restored, "pulseResetArmed"));
 	}
 
@@ -121,10 +137,67 @@ class ActivatableTargetBlockEntityInternalTest {
 	void loadShouldFallbackToToggleWhenActivationModeInvalid() {
 		TestTargetEntity target = createTarget();
 		CompoundTag tag = new CompoundTag();
-		tag.putString("ActivationMode", "invalid_mode");
+		tag.putString("ConfiguredMode", "invalid_mode");
 
 		target.loadForTest(tag);
-		assertEquals(ActivationMode.TOGGLE, getField(target, "activationMode"));
+		assertEquals(ActivationMode.TOGGLE, getField(target, "configuredMode"));
+	}
+
+	/**
+	 * 运行态生效模式应严格遵循 SYNC > PULSE > TOGGLE > NONE。
+	 */
+	@Test
+	void getEffectiveModeShouldFollowPriority() {
+		TestTargetEntity target = createTarget();
+		setField(target, "syncSignalMaxStrength", 8);
+		setField(target, "pulseUntilGameTime", 20L);
+		setField(target, "toggleState", true);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+
+		setField(target, "syncSignalMaxStrength", 0);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
+
+		setField(target, "pulseUntilGameTime", 0L);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
+
+		setField(target, "toggleState", false);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+	}
+
+	/**
+	 * 已移除旧缓存回放：缺失结构真值时，不再依赖 Active/默认功率回退。
+	 */
+	@Test
+	void loadShouldNotFallbackDefaultPowerWhenResolvedPowerMissing() {
+		TestTargetEntity target = createTarget();
+		CompoundTag tag = new CompoundTag();
+		tag.putBoolean("Active", true);
+
+		target.loadForTest(tag);
+		assertFalse(getBooleanField(target, "active"));
+		assertEquals(0, getIntField(target, "resolvedOutputPower"));
+	}
+
+	/**
+	 * SYNC 来源表与并列最大来源应可持久化并在读档后重建。
+	 */
+	@Test
+	void saveAndLoadShouldPreserveSyncTruthSnapshot() {
+		TestTargetEntity source = createTarget();
+		invokeUpdateSyncSignalStrength(source, 1L, 12);
+		invokeUpdateSyncSignalStrength(source, 2L, 12);
+		invokeUpdateSyncSignalStrength(source, 3L, 4);
+
+		CompoundTag tag = new CompoundTag();
+		source.saveForTest(tag);
+
+		TestTargetEntity restored = createTarget();
+		restored.loadForTest(tag);
+		assertEquals(12, getIntField(restored, "syncSignalMaxStrength"));
+		assertEquals(Set.of(1L, 2L), getLongSetField(restored, "syncSignalMaxSources"));
+		assertEquals(12, getIntField(restored, "resolvedOutputPower"));
+		assertTrue(getBooleanField(restored, "active"));
+		assertEquals(3, getLongIntMapField(restored, "syncSignalStrengthBySource").size());
 	}
 
 	private static TestTargetEntity createTarget() {
@@ -174,6 +247,16 @@ class ActivatableTargetBlockEntityInternalTest {
 
 	private static boolean getBooleanField(Object target, String fieldName) {
 		return (Boolean) getField(target, fieldName);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Set<Long> getLongSetField(Object target, String fieldName) {
+		return (Set<Long>) getField(target, fieldName);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<Long, Integer> getLongIntMapField(Object target, String fieldName) {
+		return (Map<Long, Integer>) getField(target, fieldName);
 	}
 
 	private static void setField(Object target, String fieldName, Object value) {

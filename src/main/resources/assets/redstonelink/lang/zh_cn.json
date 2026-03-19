@@ -192,6 +192,7 @@
   "message.redstonelink.node.invalid_scope": "[RedstoneLink] 节点列表范围无效: %s（仅支持 active/retired/online）。",
   "message.redstonelink.audit.invalid_format": "[RedstoneLink] 审计格式无效: %s（仅支持 text/csv）。",
   "message.redstonelink.node.get": "[RedstoneLink/Node] 类型=%s，序号=%s，已分配=%s，已退役=%s，在线=%s，维度=%s，坐标=%s，目标数=%s，目标列表=%s。",
+  "message.redstonelink.node.get.runtime": "[RedstoneLink/Node] 运行态 configuredMode=%s，effectiveMode=%s，激活=%s，resolvedStrength=%s，output=%s，maxSources=%s。",
   "message.redstonelink.node.list": "[RedstoneLink/Node] 类型=%s，范围=%s，总数=%s，本页=%s，偏移=%s，序号=%s。",
   "message.redstonelink.link.get": "[RedstoneLink/Link] 源类型=%s，源序号=%s，目标数=%s，目标列表=%s。",
   "tag.item.redstonelink.trigger_p_materials": "触发器 P 材料",
