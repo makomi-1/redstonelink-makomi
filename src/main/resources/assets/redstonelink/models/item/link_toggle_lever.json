@@ -1,6 +1,0 @@
-{
-  "parent": "minecraft:item/generated",
-  "textures": {
-    "layer0": "redstonelink:item/link_toggle_lever_blue_overlay"
-  }
-}

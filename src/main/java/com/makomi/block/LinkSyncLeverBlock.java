@@ -1,7 +1,7 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.LinkButtonBlockEntity;
-import com.makomi.block.entity.LinkToggleLeverBlockEntity;
+import com.makomi.block.entity.LinkSyncLeverBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkItemData;
@@ -33,23 +33,23 @@ import net.minecraft.world.phys.BlockHitResult;
 import org.joml.Vector3f;
 
 /**
- * 联动拨杆方块。
+ * 连接同步拉杆方块。
  * <p>
  * 保留拨杆交互手感，但屏蔽原版红石输出，
  * 仅作为 triggerSource 节点将目标状态同步对齐到当前拨杆状态（sync 语义）。
  * </p>
  */
-public class LinkToggleLeverBlock extends LeverBlock implements EntityBlock {
+public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 	private static final Vector3f ORANGE_PARTICLE_BASE_COLOR = new Vector3f(1.0F, 0.58F, 0.16F);
 
 	// 拉杆属于触发器类，实现上复用 LinkButtonBlockEntity（TRIGGER_SOURCE 节点）链路。
-	public LinkToggleLeverBlock(BlockBehaviour.Properties properties) {
+	public LinkSyncLeverBlock(BlockBehaviour.Properties properties) {
 		super(properties);
 	}
 
 	@Override
 	public BlockEntity newBlockEntity(BlockPos blockPos, BlockState blockState) {
-		return new LinkToggleLeverBlockEntity(blockPos, blockState);
+		return new LinkSyncLeverBlockEntity(blockPos, blockState);
 	}
 
 	@Override

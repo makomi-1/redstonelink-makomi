@@ -78,7 +78,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE_TRANSPARENT, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_BUTTON, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PUSH_BUTTON, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_LEVER, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_LEVER, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkCoreShortCodeRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkCoreShortCodeRenderer::new);

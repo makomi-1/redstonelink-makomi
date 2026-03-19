@@ -1,9 +1,9 @@
 {
   "ambientocclusion": false,
   "textures": {
-    "particle": "redstonelink:block/link_toggle_lever_base_blue_overlay",
-    "base": "redstonelink:block/link_toggle_lever_base_blue_overlay",
-    "lever": "redstonelink:block/link_toggle_lever_blue_overlay"
+    "particle": "redstonelink:block/link_sync_lever_base_blue_overlay",
+    "base": "redstonelink:block/link_sync_lever_base_blue_overlay",
+    "lever": "redstonelink:block/link_sync_lever_blue_overlay"
   },
   "elements": [
     {

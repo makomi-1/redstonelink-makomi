@@ -10,7 +10,7 @@ import com.makomi.block.LinkTransparentCoreBlock;
 import com.makomi.block.LinkTransparentRedstoneDustCoreBlock;
 import com.makomi.block.LinkToggleEmitterBlock;
 import com.makomi.block.LinkToggleButtonBlock;
-import com.makomi.block.LinkToggleLeverBlock;
+import com.makomi.block.LinkSyncLeverBlock;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -48,9 +48,9 @@ public final class ModBlocks {
 		new LinkToggleButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_BUTTON))
 	);
 
-	public static final LinkToggleLeverBlock LINK_TOGGLE_LEVER = register(
-		"link_toggle_lever",
-		new LinkToggleLeverBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.LEVER))
+	public static final LinkSyncLeverBlock LINK_SYNC_LEVER = register(
+		"link_sync_lever",
+		new LinkSyncLeverBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.LEVER))
 	);
 
 	public static final LinkPulseButtonBlock LINK_PUSH_BUTTON = register(

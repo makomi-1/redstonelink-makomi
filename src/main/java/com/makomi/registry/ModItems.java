@@ -52,9 +52,9 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.LINK_TOGGLE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
-	public static final Item LINK_TOGGLE_LEVER = register(
-		"link_toggle_lever",
-		new PairableBlockItem(ModBlocks.LINK_TOGGLE_LEVER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	public static final Item LINK_SYNC_LEVER = register(
+		"link_sync_lever",
+		new PairableBlockItem(ModBlocks.LINK_SYNC_LEVER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
 	public static final Item LINK_PUSH_BUTTON = register(

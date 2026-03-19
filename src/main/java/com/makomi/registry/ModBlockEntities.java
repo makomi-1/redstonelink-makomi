@@ -11,7 +11,7 @@ import com.makomi.block.entity.LinkTransparentCoreBlockEntity;
 import com.makomi.block.entity.LinkTransparentRedstoneDustCoreBlockEntity;
 import com.makomi.block.entity.LinkToggleButtonBlockEntity;
 import com.makomi.block.entity.LinkToggleEmitterBlockEntity;
-import com.makomi.block.entity.LinkToggleLeverBlockEntity;
+import com.makomi.block.entity.LinkSyncLeverBlockEntity;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -36,9 +36,9 @@ public final class ModBlockEntities {
 		BlockEntityType.Builder.of(LinkToggleButtonBlockEntity::new, ModBlocks.LINK_TOGGLE_BUTTON).build(null)
 	);
 
-	public static final BlockEntityType<LinkToggleLeverBlockEntity> LINK_TOGGLE_LEVER = register(
-		"link_toggle_lever",
-		BlockEntityType.Builder.of(LinkToggleLeverBlockEntity::new, ModBlocks.LINK_TOGGLE_LEVER).build(null)
+	public static final BlockEntityType<LinkSyncLeverBlockEntity> LINK_SYNC_LEVER = register(
+		"link_sync_lever",
+		BlockEntityType.Builder.of(LinkSyncLeverBlockEntity::new, ModBlocks.LINK_SYNC_LEVER).build(null)
 	);
 
 	public static final BlockEntityType<LinkPulseButtonBlockEntity> LINK_PUSH_BUTTON = register(
