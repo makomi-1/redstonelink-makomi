@@ -60,6 +60,7 @@ class CrossChunkDispatchServiceTest {
 			LinkNodeType.class,
 			long.class,
 			Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchKind"),
+			Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchAction"),
 			ActivationMode.class,
 			int.class,
 			long.class,
@@ -69,9 +70,15 @@ class CrossChunkDispatchServiceTest {
 		queueDispatch.setAccessible(true);
 
 		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchKind");
+		Class<?> dispatchActionClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchAction");
 		Object activationKind = java.util.Arrays
 			.stream(dispatchKindClass.getEnumConstants())
 			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
+			.findFirst()
+			.orElseThrow();
+		Object upsertAction = java.util.Arrays
+			.stream(dispatchActionClass.getEnumConstants())
+			.filter(constant -> ((Enum<?>) constant).name().equals("UPSERT"))
 			.findFirst()
 			.orElseThrow();
 		LinkSavedData.LinkNode targetCore = new LinkSavedData.LinkNode(20L, Level.OVERWORLD, BlockPos.ZERO, LinkNodeType.CORE);
@@ -83,6 +90,7 @@ class CrossChunkDispatchServiceTest {
 			LinkNodeType.TRIGGER_SOURCE,
 			1L,
 			activationKind,
+			upsertAction,
 			ActivationMode.TOGGLE,
 			0,
 			0L,
@@ -98,6 +106,7 @@ class CrossChunkDispatchServiceTest {
 			LinkNodeType.TRIGGER_SOURCE,
 			0L,
 			activationKind,
+			upsertAction,
 			ActivationMode.TOGGLE,
 			0,
 			0L,
@@ -203,6 +212,7 @@ class CrossChunkDispatchServiceTest {
 		);
 		CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = queueData.upsertPending(
 			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.OVERWORLD,
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,
@@ -245,6 +255,7 @@ class CrossChunkDispatchServiceTest {
 		);
 		CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = queueData.upsertPending(
 			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.OVERWORLD,
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,
@@ -290,6 +301,7 @@ class CrossChunkDispatchServiceTest {
 			);
 			CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = queueData.upsertPending(
 				key,
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 				Level.OVERWORLD,
 				new BlockPos(index, 64, index),
 				ActivationMode.TOGGLE,

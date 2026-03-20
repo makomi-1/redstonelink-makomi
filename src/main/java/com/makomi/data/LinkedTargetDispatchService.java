@@ -186,9 +186,25 @@ public final class LinkedTargetDispatchService {
 			}
 
 			if (dispatchKind == DispatchKind.ACTIVATION) {
-				targetBlockEntity.triggerBySource(sourceSerial, activationMode, immediateEventMeta);
+				targetBlockEntity.applyDispatchDelta(
+					ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+					ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+					sourceType,
+					sourceSerial,
+					activationMode,
+					0,
+					immediateEventMeta
+				);
 			} else {
-				targetBlockEntity.syncBySource(sourceSerial, syncSignalStrength, immediateEventMeta);
+				targetBlockEntity.applyDispatchDelta(
+					ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
+					ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+					sourceType,
+					sourceSerial,
+					ActivationMode.TOGGLE,
+					syncSignalStrength,
+					immediateEventMeta
+				);
 			}
 			handledCount++;
 		}

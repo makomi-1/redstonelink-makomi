@@ -102,6 +102,7 @@ public final class CrossChunkDispatchService {
 			sourceType,
 			sourceSerial,
 			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			activationMode,
 			0,
 			enqueueGameTick,
@@ -151,6 +152,7 @@ public final class CrossChunkDispatchService {
 			sourceType,
 			sourceSerial,
 			CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			ActivationMode.TOGGLE,
 			normalizedStrength,
 			enqueueGameTick,
@@ -202,6 +204,7 @@ public final class CrossChunkDispatchService {
 			sourceType,
 			sourceSerial,
 			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			activationMode,
 			0,
 			enqueueGameTick,
@@ -251,8 +254,64 @@ public final class CrossChunkDispatchService {
 			sourceType,
 			sourceSerial,
 			CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			ActivationMode.TOGGLE,
 			normalizedStrength,
+			enqueueGameTick,
+			enqueueGameSlot,
+			ttlTicks
+		);
+	}
+
+	/**
+	 * 记录激活语义来源失效（REMOVE）派发请求。
+	 */
+	public static QueueResult queueActivationRemove(
+		ServerLevel sourceLevel,
+		LinkSavedData.LinkNode targetNode,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		ActivationMode activationMode,
+		long enqueueGameTick,
+		int enqueueGameSlot
+	) {
+		long ttlTicks = RedstoneLinkConfig.crossChunkRelayExpireTicks();
+		return queueDispatch(
+			sourceLevel,
+			targetNode,
+			sourceType,
+			sourceSerial,
+			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION,
+			CrossChunkDispatchQueueSavedData.DispatchAction.REMOVE,
+			activationMode,
+			0,
+			enqueueGameTick,
+			enqueueGameSlot,
+			ttlTicks
+		);
+	}
+
+	/**
+	 * 记录同步语义来源失效（REMOVE）派发请求。
+	 */
+	public static QueueResult queueSyncSignalRemove(
+		ServerLevel sourceLevel,
+		LinkSavedData.LinkNode targetNode,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		long enqueueGameTick,
+		int enqueueGameSlot
+	) {
+		long ttlTicks = RedstoneLinkConfig.crossChunkRelayExpireTicks();
+		return queueDispatch(
+			sourceLevel,
+			targetNode,
+			sourceType,
+			sourceSerial,
+			CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL,
+			CrossChunkDispatchQueueSavedData.DispatchAction.REMOVE,
+			ActivationMode.TOGGLE,
+			0,
 			enqueueGameTick,
 			enqueueGameSlot,
 			ttlTicks
@@ -265,13 +324,21 @@ public final class CrossChunkDispatchService {
 		LinkNodeType sourceType,
 		long sourceSerial,
 		CrossChunkDispatchQueueSavedData.DispatchKind dispatchKind,
+		CrossChunkDispatchQueueSavedData.DispatchAction dispatchAction,
 		ActivationMode activationMode,
 		int syncSignalStrength,
 		long enqueueGameTick,
 		int enqueueGameSlot,
 		long ttlTicks
 	) {
-		if (sourceLevel == null || targetNode == null || sourceType == null || dispatchKind == null || activationMode == null) {
+		if (
+			sourceLevel == null
+				|| targetNode == null
+				|| sourceType == null
+				|| dispatchKind == null
+				|| dispatchAction == null
+				|| activationMode == null
+		) {
 			return QueueResult.rejected();
 		}
 		if (sourceSerial <= 0L || targetNode.serial() <= 0L || ttlTicks <= 0L) {
@@ -297,6 +364,7 @@ public final class CrossChunkDispatchService {
 		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pendingPreview =
 			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
 				key,
+				dispatchAction,
 				targetNode.dimension(),
 				targetNode.pos(),
 				activationMode,
@@ -316,6 +384,7 @@ public final class CrossChunkDispatchService {
 		CrossChunkDispatchQueueSavedData queueData = CrossChunkDispatchQueueSavedData.get(sourceLevel);
 		CrossChunkDispatchQueueSavedData.UpsertResult upsertResult = queueData.upsertPending(
 			key,
+			dispatchAction,
 			targetNode.dimension(),
 			targetNode.pos(),
 			activationMode,
@@ -342,6 +411,7 @@ public final class CrossChunkDispatchService {
 		LinkNodeType sourceType,
 		long sourceSerial,
 		CrossChunkDispatchQueueSavedData.DispatchKind dispatchKind,
+		CrossChunkDispatchQueueSavedData.DispatchAction dispatchAction,
 		ActivationMode activationMode,
 		int syncSignalStrength,
 		long enqueueGameTick,
@@ -352,6 +422,7 @@ public final class CrossChunkDispatchService {
 			sourceLevel == null
 				|| sourceType == null
 				|| dispatchKind == null
+				|| dispatchAction == null
 				|| activationMode == null
 				|| sourceSerial <= 0L
 				|| ttlTicks <= 0L
@@ -392,6 +463,7 @@ public final class CrossChunkDispatchService {
 			CrossChunkDispatchQueueSavedData.PendingDispatchEntry pendingPreview =
 				new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
 					key,
+					dispatchAction,
 					targetNode.dimension(),
 					targetNode.pos(),
 					activationMode,
@@ -409,6 +481,7 @@ public final class CrossChunkDispatchService {
 			requests.add(
 				new CrossChunkDispatchQueueSavedData.PendingUpsertRequest(
 					key,
+					dispatchAction,
 					targetNode.dimension(),
 					targetNode.pos(),
 					activationMode,
@@ -560,19 +633,21 @@ public final class CrossChunkDispatchService {
 			return true;
 		}
 
-		if (pending.key().dispatchKind() == CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL) {
-			targetBlockEntity.syncBySource(
-				pending.key().sourceSerial(),
-				pending.syncSignalStrength(),
-				EventMeta.of(pending.enqueueGameTick(), pending.enqueueGameSlot(), pending.version())
-			);
-		} else {
-			targetBlockEntity.triggerBySource(
-				pending.key().sourceSerial(),
-				pending.activationMode(),
-				EventMeta.of(pending.enqueueGameTick(), pending.enqueueGameSlot(), pending.version())
-			);
-		}
+		ActivatableTargetBlockEntity.DeltaKind deltaKind = pending.key().dispatchKind() == CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+			? ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL
+			: ActivatableTargetBlockEntity.DeltaKind.ACTIVATION;
+		ActivatableTargetBlockEntity.DeltaAction deltaAction = pending.dispatchAction() == CrossChunkDispatchQueueSavedData.DispatchAction.REMOVE
+			? ActivatableTargetBlockEntity.DeltaAction.REMOVE
+			: ActivatableTargetBlockEntity.DeltaAction.UPSERT;
+		targetBlockEntity.applyDispatchDelta(
+			deltaKind,
+			deltaAction,
+			pending.key().sourceType(),
+			pending.key().sourceSerial(),
+			pending.activationMode(),
+			pending.syncSignalStrength(),
+			EventMeta.of(pending.enqueueGameTick(), pending.enqueueGameSlot(), pending.version())
+		);
 		queueData.markAccepted(pending.key(), pending.version());
 		return true;
 	}

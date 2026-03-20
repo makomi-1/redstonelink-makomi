@@ -39,6 +39,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	private static final String KEY_TARGET_TYPE = "targetType";
 	private static final String KEY_TARGET_SERIAL = "targetSerial";
 	private static final String KEY_DISPATCH_KIND = "dispatchKind";
+	private static final String KEY_DISPATCH_ACTION = "dispatchAction";
 	private static final String KEY_DIMENSION = "dimension";
 	private static final String KEY_POS = "pos";
 	private static final String KEY_ACTIVATION_MODE = "activationMode";
@@ -66,6 +67,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		.thenComparingLong(PendingDispatchEntry::enqueueGameTick)
 		.thenComparingInt(PendingDispatchEntry::enqueueGameSlot)
 		.thenComparing((PendingDispatchEntry entry) -> entry.key(), DISPATCH_KEY_COMPARATOR)
+		.thenComparing(entry -> entry.dispatchAction().name())
 		.thenComparingLong(PendingDispatchEntry::version);
 
 	private static final Comparator<ExpireIndex> EXPIRE_INDEX_COMPARATOR = Comparator
@@ -119,6 +121,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 */
 	public UpsertResult upsertPending(
 		DispatchKey key,
+		DispatchAction dispatchAction,
 		ResourceKey<Level> dimension,
 		BlockPos pos,
 		ActivationMode activationMode,
@@ -129,6 +132,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	) {
 		Optional<PendingDispatchEntry> normalized = buildPendingEntry(
 			key,
+			dispatchAction,
 			dimension,
 			pos,
 			activationMode,
@@ -165,6 +169,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			PendingUpsertRequest request = requests.get(index);
 			if (!isValidPendingEntryInput(
 				request == null ? null : request.key(),
+				request == null ? null : request.dispatchAction(),
 				request == null ? null : request.dimension(),
 				request == null ? null : request.pos(),
 				request == null ? null : request.activationMode(),
@@ -188,6 +193,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			}
 			Optional<PendingDispatchEntry> normalized = buildPendingEntry(
 				request.key(),
+				request.dispatchAction(),
 				request.dimension(),
 				request.pos(),
 				request.activationMode(),
@@ -214,6 +220,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			}
 			if (!isValidPendingEntryInput(
 				request.key(),
+				request.dispatchAction(),
 				request.dimension(),
 				request.pos(),
 				request.activationMode(),
@@ -341,6 +348,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			entryTag.putString(KEY_DIMENSION, entry.dimension().location().toString());
 			entryTag.putLong(KEY_POS, entry.pos().asLong());
 			entryTag.putString(KEY_ACTIVATION_MODE, entry.activationMode().name());
+			entryTag.putString(KEY_DISPATCH_ACTION, entry.dispatchAction().name());
 			entryTag.putInt(KEY_SYNC_SIGNAL_STRENGTH, SignalStrengths.clamp(entry.syncSignalStrength()));
 			entryTag.putLong(KEY_ENQUEUE_TICK, Math.max(0L, entry.enqueueGameTick()));
 			entryTag.putInt(KEY_ENQUEUE_SLOT, Math.max(0, entry.enqueueGameSlot()));
@@ -356,6 +364,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 
 	private Optional<PendingDispatchEntry> buildPendingEntry(
 		DispatchKey key,
+		DispatchAction dispatchAction,
 		ResourceKey<Level> dimension,
 		BlockPos pos,
 		ActivationMode activationMode,
@@ -364,13 +373,14 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		int enqueueGameSlot,
 		long expireGameTick
 	) {
-		if (!isValidPendingEntryInput(key, dimension, pos, activationMode, expireGameTick)) {
+		if (!isValidPendingEntryInput(key, dispatchAction, dimension, pos, activationMode, expireGameTick)) {
 			return Optional.empty();
 		}
 		long version = allocateNextVersion(key);
 		return Optional.of(
 			new PendingDispatchEntry(
 				key,
+				dispatchAction,
 				dimension,
 				pos.immutable(),
 				activationMode,
@@ -388,12 +398,13 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 */
 	private boolean isValidPendingEntryInput(
 		DispatchKey key,
+		DispatchAction dispatchAction,
 		ResourceKey<Level> dimension,
 		BlockPos pos,
 		ActivationMode activationMode,
 		long expireGameTick
 	) {
-		if (key == null || dimension == null || pos == null || activationMode == null) {
+		if (key == null || dispatchAction == null || dimension == null || pos == null || activationMode == null) {
 			return false;
 		}
 		if (!LinkNodeSemantics.isAllowedForRole(key.sourceType(), LinkNodeSemantics.Role.SOURCE)) {
@@ -547,6 +558,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			return Optional.empty();
 		}
 		ActivationMode activationMode = ActivationMode.fromName(tag.getString(KEY_ACTIVATION_MODE));
+		DispatchAction dispatchAction = DispatchAction.fromName(tag.getString(KEY_DISPATCH_ACTION)).orElse(DispatchAction.UPSERT);
 		int syncSignalStrength = SignalStrengths.clamp(tag.getInt(KEY_SYNC_SIGNAL_STRENGTH));
 		long enqueueTick = Math.max(0L, tag.getLong(KEY_ENQUEUE_TICK));
 		int enqueueSlot = Math.max(0, tag.getInt(KEY_ENQUEUE_SLOT));
@@ -555,6 +567,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		return Optional.of(
 			new PendingDispatchEntry(
 				key.get(),
+				dispatchAction,
 				dimension,
 				pos,
 				activationMode,
@@ -597,6 +610,26 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	}
 
 	/**
+	 * 派发动作：UPSERT 写入/更新来源贡献，REMOVE 剔除来源贡献并触发回退重算。
+	 */
+	public enum DispatchAction {
+		UPSERT,
+		REMOVE;
+
+		private static Optional<DispatchAction> fromName(String raw) {
+			if (raw == null || raw.isBlank()) {
+				return Optional.empty();
+			}
+			for (DispatchAction value : values()) {
+				if (value.name().equalsIgnoreCase(raw.trim())) {
+					return Optional.of(value);
+				}
+			}
+			return Optional.empty();
+		}
+	}
+
+	/**
 	 * 跨区块事件 key。
 	 */
 	public record DispatchKey(
@@ -612,6 +645,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 */
 	public record PendingDispatchEntry(
 		DispatchKey key,
+		DispatchAction dispatchAction,
 		ResourceKey<Level> dimension,
 		BlockPos pos,
 		ActivationMode activationMode,
@@ -627,6 +661,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 */
 	public record PendingUpsertRequest(
 		DispatchKey key,
+		DispatchAction dispatchAction,
 		ResourceKey<Level> dimension,
 		BlockPos pos,
 		ActivationMode activationMode,

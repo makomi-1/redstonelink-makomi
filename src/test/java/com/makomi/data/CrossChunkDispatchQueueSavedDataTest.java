@@ -37,6 +37,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 
 		CrossChunkDispatchQueueSavedData.UpsertResult first = data.upsertPending(
 			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.OVERWORLD,
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,
@@ -51,6 +52,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 
 		CrossChunkDispatchQueueSavedData.UpsertResult second = data.upsertPending(
 			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.OVERWORLD,
 			new BlockPos(1, 64, 1),
 			ActivationMode.TOGGLE,
@@ -102,6 +104,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 		);
 		CrossChunkDispatchQueueSavedData.UpsertResult upsert = source.upsertPending(
 			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.NETHER,
 			new BlockPos(3, 70, 7),
 			ActivationMode.TOGGLE,
@@ -138,6 +141,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 		);
 		CrossChunkDispatchQueueSavedData.UpsertResult first = data.upsertPending(
 			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.OVERWORLD,
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,
@@ -149,6 +153,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 		assertTrue(first.accepted());
 		CrossChunkDispatchQueueSavedData.UpsertResult second = data.upsertPending(
 			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.OVERWORLD,
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,
@@ -175,7 +180,17 @@ class CrossChunkDispatchQueueSavedDataTest {
 			2L,
 			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
 		);
-		data.upsertPending(key, Level.OVERWORLD, BlockPos.ZERO, ActivationMode.TOGGLE, 0, 0L, 0, 20L);
+		data.upsertPending(
+			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+			Level.OVERWORLD,
+			BlockPos.ZERO,
+			ActivationMode.TOGGLE,
+			0,
+			0L,
+			0,
+			20L
+		);
 		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> firstSnapshot = data.pendingEntriesSnapshot();
 		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> secondSnapshot = data.pendingEntriesSnapshot();
 		assertSame(firstSnapshot, secondSnapshot);
@@ -188,6 +203,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 				4L,
 				CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
 			),
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.OVERWORLD,
 			new BlockPos(1, 64, 1),
 			ActivationMode.TOGGLE,
@@ -217,6 +233,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 			List.of(
 				new CrossChunkDispatchQueueSavedData.PendingUpsertRequest(
 					validKey,
+					CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 					Level.OVERWORLD,
 					BlockPos.ZERO,
 					ActivationMode.TOGGLE,
@@ -233,6 +250,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 						11L,
 						CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
 					),
+					CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 					Level.OVERWORLD,
 					BlockPos.ZERO,
 					ActivationMode.TOGGLE,
@@ -267,6 +285,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 			List.of(
 				new CrossChunkDispatchQueueSavedData.PendingUpsertRequest(
 					key,
+					CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 					Level.OVERWORLD,
 					new BlockPos(1, 64, 1),
 					ActivationMode.TOGGLE,
@@ -277,6 +296,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 				),
 				new CrossChunkDispatchQueueSavedData.PendingUpsertRequest(
 					key,
+					CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 					Level.OVERWORLD,
 					new BlockPos(9, 70, 9),
 					ActivationMode.TOGGLE,

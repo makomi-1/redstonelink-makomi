@@ -56,6 +56,12 @@ class InternalStateRecordConstructionTest {
 			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
 			.findFirst()
 			.orElseThrow();
+		Class<?> dispatchActionClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchAction");
+		Object upsertAction = java.util.Arrays
+			.stream(dispatchActionClass.getEnumConstants())
+			.filter(constant -> ((Enum<?>) constant).name().equals("UPSERT"))
+			.findFirst()
+			.orElseThrow();
 
 		Class<?> dispatchKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchKey");
 		Constructor<?> dispatchKeyConstructor = dispatchKeyClass.getDeclaredConstructor(
@@ -72,6 +78,7 @@ class InternalStateRecordConstructionTest {
 		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$PendingDispatchEntry");
 		Constructor<?> pendingDispatchConstructor = pendingDispatchClass.getDeclaredConstructor(
 			dispatchKeyClass,
+			dispatchActionClass,
 			Class.forName("net.minecraft.resources.ResourceKey"),
 			BlockPos.class,
 			ActivationMode.class,
@@ -84,6 +91,7 @@ class InternalStateRecordConstructionTest {
 		pendingDispatchConstructor.setAccessible(true);
 		Object pendingDispatch = pendingDispatchConstructor.newInstance(
 			dispatchKey,
+			upsertAction,
 			Level.OVERWORLD,
 			BlockPos.ZERO,
 			ActivationMode.TOGGLE,

@@ -1,12 +1,18 @@
 package com.makomi.block.entity;
 
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkNodeType;
 import com.makomi.util.SignalStrengths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -38,6 +44,18 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private static final String KEY_AUTHORITY_TICK = "AuthorityTick";
 	private static final String KEY_AUTHORITY_SLOT = "AuthoritySlot";
 	private static final String KEY_AUTHORITY_SEQ = "AuthoritySeq";
+	private static final String KEY_SYNC_CONCURRENT_ENTRIES = "SyncConcurrentEntries";
+	private static final String KEY_PULSE_CONCURRENT_ENTRIES = "PulseConcurrentEntries";
+	private static final String KEY_TOGGLE_CONCURRENT_ENTRIES = "ToggleConcurrentEntries";
+	private static final String KEY_CONCURRENT_SOURCE_TYPE = "SourceType";
+	private static final String KEY_CONCURRENT_SOURCE_SERIAL = "SourceSerial";
+	private static final String KEY_CONCURRENT_TICK = "Tick";
+	private static final String KEY_CONCURRENT_SLOT = "Slot";
+	private static final String KEY_CONCURRENT_SEQ = "Seq";
+	private static final String KEY_CONCURRENT_STRENGTH = "Strength";
+	private static final String KEY_CONCURRENT_UNTIL_TICK = "UntilTick";
+	private static final String KEY_CONCURRENT_CONTRIBUTES = "Contributes";
+	private static final String KEY_TOGGLE_CONCURRENT_COUNT = "ToggleConcurrentCount";
 
 	private static final int PRIORITY_TOGGLE = 1;
 	private static final int PRIORITY_PULSE = 2;
@@ -75,6 +93,12 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	// 并列最大强度来源集合：用于稳定审计输出，不依赖事件到达顺序。
 	private final Set<Long> syncSignalMaxSources = new TreeSet<>();
 
+	// P6 并发桶来源表：按时间键组织来源贡献，统一用于 UPSERT/REMOVE 重算。
+	private final NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> syncConcurrentBuckets = new TreeMap<>();
+	private final NavigableMap<TimeKey, Map<SourceKey, PulseConcurrentEntry>> pulseConcurrentBuckets = new TreeMap<>();
+	private final NavigableMap<TimeKey, Map<SourceKey, ToggleConcurrentEntry>> toggleConcurrentBuckets = new TreeMap<>();
+	private int toggleConcurrentCount;
+
 	/**
 	 * 运行态生效模式（用于可观测，不参与额外仲裁）。
 	 */
@@ -83,6 +107,22 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		TOGGLE,
 		PULSE,
 		SYNC
+	}
+
+	/**
+	 * 跨来源统一 delta 类型：激活语义（TOGGLE/PULSE）或同步语义（SYNC）。
+	 */
+	public enum DeltaKind {
+		ACTIVATION,
+		SYNC_SIGNAL
+	}
+
+	/**
+	 * 来源 delta 动作：UPSERT 表示建立/更新/恢复，REMOVE 表示失效/断链/下线等剔除。
+	 */
+	public enum DeltaAction {
+		UPSERT,
+		REMOVE
 	}
 
 	/**
@@ -114,6 +154,47 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 				return tickCompare;
 			}
 			return Integer.compare(slot, other.slot);
+		}
+	}
+
+	/**
+	 * 来源静态键：sourceType + sourceSerial，确保重放/重启下去顺序无关确定性。
+	 */
+	public record SourceKey(LinkNodeType sourceType, long sourceSerial) implements Comparable<SourceKey> {
+		public SourceKey {
+			sourceType = sourceType == null ? LinkNodeType.TRIGGER_SOURCE : sourceType;
+		}
+
+		@Override
+		public int compareTo(SourceKey other) {
+			if (other == null) {
+				return 1;
+			}
+			int typeCompare = sourceType.name().compareTo(other.sourceType.name());
+			if (typeCompare != 0) {
+				return typeCompare;
+			}
+			return Long.compare(sourceSerial, other.sourceSerial);
+		}
+	}
+
+	private record SyncConcurrentEntry(int strength, long seq) {
+		private SyncConcurrentEntry {
+			strength = SignalStrengths.clamp(strength);
+			seq = Math.max(0L, seq);
+		}
+	}
+
+	private record PulseConcurrentEntry(long untilGameTick, long seq) {
+		private PulseConcurrentEntry {
+			untilGameTick = Math.max(0L, untilGameTick);
+			seq = Math.max(0L, seq);
+		}
+	}
+
+	private record ToggleConcurrentEntry(boolean contributes, long seq) {
+		private ToggleConcurrentEntry {
+			seq = Math.max(0L, seq);
 		}
 	}
 
@@ -221,7 +302,15 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	public final void triggerBySource(long sourceSerial, ActivationMode triggerMode, EventMeta eventMeta) {
-		applyActivation(sourceSerial, triggerMode == null ? configuredMode : triggerMode, normalizeEventMeta(eventMeta));
+		applyDispatchDelta(
+			DeltaKind.ACTIVATION,
+			DeltaAction.UPSERT,
+			LinkNodeType.TRIGGER_SOURCE,
+			sourceSerial,
+			triggerMode == null ? configuredMode : triggerMode,
+			0,
+			eventMeta
+		);
 	}
 
 	/**
@@ -248,51 +337,101 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	public final void syncBySource(long sourceSerial, int signalStrength, EventMeta eventMeta) {
-		if (!canBeTriggeredBy(sourceSerial)) {
+		applyDispatchDelta(
+			DeltaKind.SYNC_SIGNAL,
+			DeltaAction.UPSERT,
+			LinkNodeType.TRIGGER_SOURCE,
+			sourceSerial,
+			ActivationMode.TOGGLE,
+			signalStrength,
+			eventMeta
+		);
+	}
+
+	/**
+	 * 统一来源 delta 入口：同一入口处理 UPSERT/REMOVE，并按模式触发定向重算。
+	 */
+	public final void applyDispatchDelta(
+		DeltaKind deltaKind,
+		DeltaAction deltaAction,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		ActivationMode activationMode,
+		int signalStrength,
+		EventMeta eventMeta
+	) {
+		if (deltaKind == null || deltaAction == null) {
 			return;
 		}
 		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
-		if (!acceptByPriority(normalizedMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, normalizedMeta.seq())) {
+		SourceKey sourceKey = new SourceKey(sourceType, sourceSerial);
+		if (sourceSerial <= 0L) {
+			applyLegacyDeltaForNonSourceSerial(deltaKind, deltaAction, activationMode, signalStrength, normalizedMeta);
+			return;
+		}
+		if (!canBeTriggeredBy(sourceSerial)) {
+			return;
+		}
+		if (!LinkNodeSemantics.isAllowedForRole(sourceKey.sourceType(), LinkNodeSemantics.Role.SOURCE)) {
 			return;
 		}
 
-		int normalizedStrength = normalizeSignalStrength(signalStrength);
-		updateSyncSignalStrength(sourceSerial, normalizedStrength);
-		// 同步语义不应受历史脉冲回落影响。
-		pulseUntilGameTime = 0L;
-		pulseResetArmed = false;
-		applyDerivedStateFromTruth();
+		switch (deltaKind) {
+			case SYNC_SIGNAL -> applySyncDelta(sourceKey, deltaAction, signalStrength, normalizedMeta);
+			case ACTIVATION -> applyActivationDelta(sourceKey, deltaAction, activationMode, normalizedMeta);
+		}
+	}
+
+	/**
+	 * 来源失效时移除激活语义贡献（TOGGLE/PULSE）。
+	 */
+	public final void removeActivationSource(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		ActivationMode activationMode,
+		EventMeta eventMeta
+	) {
+		applyDispatchDelta(
+			DeltaKind.ACTIVATION,
+			DeltaAction.REMOVE,
+			sourceType,
+			sourceSerial,
+			activationMode,
+			0,
+			eventMeta
+		);
+	}
+
+	/**
+	 * 来源失效时移除同步语义贡献（SYNC）。
+	 */
+	public final void removeSyncSource(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		EventMeta eventMeta
+	) {
+		applyDispatchDelta(
+			DeltaKind.SYNC_SIGNAL,
+			DeltaAction.REMOVE,
+			sourceType,
+			sourceSerial,
+			ActivationMode.TOGGLE,
+			0,
+			eventMeta
+		);
 	}
 
 	public final void onPulseTick() {
-		// tick 仅在脉冲触发路径中调度，到点后统一回落。
+		// tick 统一按并发来源桶重算脉冲窗口，到期来源会在重算中自动剔除。
 		if (level == null || level.isClientSide) {
 			return;
 		}
-		// 已被更高语义（如 SYNC）失效的历史回落任务直接忽略。
-		if (!pulseResetArmed) {
+		if (!pulseResetArmed && pulseConcurrentBuckets.isEmpty()) {
 			return;
 		}
-		if (!active) {
-			pulseResetArmed = false;
-			pulseUntilGameTime = 0L;
-			return;
-		}
-
 		long now = level.getGameTime();
-		if (now < pulseUntilGameTime) {
-			long remaining = pulseUntilGameTime - now;
-			schedulePulseReset((int) Math.max(1L, remaining));
-			return;
-		}
-		pulseResetArmed = false;
-		pulseUntilGameTime = 0L;
-		// 脉冲窗口结束时，若当前 authority 为 PULSE，则在当前时间键落回 NONE。
-		if (authorityMode == EffectiveMode.PULSE) {
-			authorityMode = EffectiveMode.NONE;
-			authorityTimeKey = TimeKey.of(now, 0);
-			authoritySeq = 0L;
-		}
+		recomputePulseTruthFromConcurrentBuckets();
+		recomputeAuthorityFromConcurrentBuckets(TimeKey.of(now, 0), authoritySeq);
 		applyDerivedStateFromTruth();
 	}
 
@@ -339,6 +478,176 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 
 		applyToggleMerged();
+	}
+
+	/**
+	 * 序号无效（例如玩家手动触发）时，走现有轻量语义兜底，不进入来源桶。
+	 */
+	private void applyLegacyDeltaForNonSourceSerial(
+		DeltaKind deltaKind,
+		DeltaAction deltaAction,
+		ActivationMode activationMode,
+		int signalStrength,
+		EventMeta eventMeta
+	) {
+		if (deltaAction == DeltaAction.REMOVE) {
+			return;
+		}
+		if (deltaKind == DeltaKind.SYNC_SIGNAL) {
+			int normalizedStrength = normalizeSignalStrength(signalStrength);
+			if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
+				return;
+			}
+			updateSyncSignalStrength(0L, normalizedStrength);
+			pulseUntilGameTime = 0L;
+			pulseResetArmed = false;
+			applyDerivedStateFromTruth();
+			return;
+		}
+		applyActivation(0L, activationMode == null ? configuredMode : activationMode, eventMeta);
+	}
+
+	/**
+	 * 统一处理 SYNC delta（UPSERT/REMOVE）。
+	 */
+	private void applySyncDelta(SourceKey sourceKey, DeltaAction deltaAction, int signalStrength, EventMeta eventMeta) {
+		if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
+			return;
+		}
+		int normalizedStrength = normalizeSignalStrength(signalStrength);
+		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
+			removeSyncConcurrentSource(sourceKey);
+		} else {
+			upsertSyncConcurrentSource(sourceKey, eventMeta.timeKey(), normalizedStrength, eventMeta.seq());
+			// 同步语义生效时，不应受历史脉冲回落影响。
+			pulseUntilGameTime = 0L;
+			pulseResetArmed = false;
+		}
+		recomputeSyncTruthFromConcurrentBuckets();
+		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
+		applyDerivedStateFromTruth();
+	}
+
+	/**
+	 * 统一处理 ACTIVATION delta（TOGGLE/PULSE 的 UPSERT/REMOVE）。
+	 */
+	private void applyActivationDelta(
+		SourceKey sourceKey,
+		DeltaAction deltaAction,
+		ActivationMode activationMode,
+		EventMeta eventMeta
+	) {
+		ActivationMode normalizedMode = activationMode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
+		EffectiveMode incomingMode = normalizedMode == ActivationMode.PULSE ? EffectiveMode.PULSE : EffectiveMode.TOGGLE;
+		int priority = normalizedMode == ActivationMode.PULSE ? PRIORITY_PULSE : PRIORITY_TOGGLE;
+		if (!acceptByPriority(eventMeta.timeKey(), priority, incomingMode, eventMeta.seq())) {
+			return;
+		}
+		if (normalizedMode == ActivationMode.PULSE) {
+			if (deltaAction == DeltaAction.REMOVE) {
+				removePulseConcurrentSource(sourceKey);
+			} else {
+				upsertPulseConcurrentSource(sourceKey, eventMeta.timeKey(), eventMeta.seq());
+			}
+			recomputePulseTruthFromConcurrentBuckets();
+		} else {
+			if (deltaAction == DeltaAction.REMOVE) {
+				removeToggleConcurrentSource(sourceKey);
+			} else {
+				upsertToggleConcurrentSource(sourceKey, eventMeta.timeKey(), eventMeta.seq());
+			}
+			recomputeToggleTruthFromConcurrentBuckets();
+		}
+		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
+		applyDerivedStateFromTruth();
+	}
+
+	/**
+	 * 写入或覆盖同步来源贡献（同 sourceKey 仅保留最新）。
+	 */
+	private void upsertSyncConcurrentSource(SourceKey sourceKey, TimeKey timeKey, int strength, long seq) {
+		removeSourceFromConcurrentBuckets(syncConcurrentBuckets, sourceKey);
+		Map<SourceKey, SyncConcurrentEntry> bucket = syncConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>());
+		bucket.put(sourceKey, new SyncConcurrentEntry(strength, seq));
+	}
+
+	private void removeSyncConcurrentSource(SourceKey sourceKey) {
+		removeSourceFromConcurrentBuckets(syncConcurrentBuckets, sourceKey);
+	}
+
+	/**
+	 * 写入或覆盖脉冲来源贡献（同 sourceKey 仅保留最新）。
+	 */
+	private void upsertPulseConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq) {
+		int pulseTicks = Math.max(1, getPulseDurationTicks());
+		long now = level == null ? 0L : level.getGameTime();
+		long untilTick = now + pulseTicks;
+		removeSourceFromConcurrentBuckets(pulseConcurrentBuckets, sourceKey);
+		Map<SourceKey, PulseConcurrentEntry> bucket = pulseConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>());
+		bucket.put(sourceKey, new PulseConcurrentEntry(untilTick, seq));
+		pulseEpoch++;
+		if (level != null) {
+			schedulePulseReset(pulseTicks);
+		}
+	}
+
+	private void removePulseConcurrentSource(SourceKey sourceKey) {
+		removeSourceFromConcurrentBuckets(pulseConcurrentBuckets, sourceKey);
+	}
+
+	/**
+	 * 写入或覆盖切换来源贡献：同来源再次 UPSERT 等价于翻转贡献位。
+	 */
+	private void upsertToggleConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq) {
+		boolean previous = findToggleContribution(sourceKey);
+		boolean next = !previous;
+		removeSourceFromConcurrentBuckets(toggleConcurrentBuckets, sourceKey);
+		if (!next) {
+			return;
+		}
+		Map<SourceKey, ToggleConcurrentEntry> bucket = toggleConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>());
+		bucket.put(sourceKey, new ToggleConcurrentEntry(true, seq));
+	}
+
+	private void removeToggleConcurrentSource(SourceKey sourceKey) {
+		removeSourceFromConcurrentBuckets(toggleConcurrentBuckets, sourceKey);
+	}
+
+	/**
+	 * 从并发桶集合中移除指定来源，并清理空桶。
+	 */
+	private static <V> void removeSourceFromConcurrentBuckets(
+		NavigableMap<TimeKey, Map<SourceKey, V>> buckets,
+		SourceKey sourceKey
+	) {
+		if (buckets.isEmpty() || sourceKey == null) {
+			return;
+		}
+		List<TimeKey> emptyKeys = new ArrayList<>();
+		for (Map.Entry<TimeKey, Map<SourceKey, V>> bucketEntry : buckets.entrySet()) {
+			Map<SourceKey, V> bucket = bucketEntry.getValue();
+			if (bucket == null || bucket.isEmpty()) {
+				emptyKeys.add(bucketEntry.getKey());
+				continue;
+			}
+			bucket.remove(sourceKey);
+			if (bucket.isEmpty()) {
+				emptyKeys.add(bucketEntry.getKey());
+			}
+		}
+		for (TimeKey emptyKey : emptyKeys) {
+			buckets.remove(emptyKey);
+		}
+	}
+
+	private boolean findToggleContribution(SourceKey sourceKey) {
+		for (Map<SourceKey, ToggleConcurrentEntry> bucket : toggleConcurrentBuckets.values()) {
+			ToggleConcurrentEntry entry = bucket == null ? null : bucket.get(sourceKey);
+			if (entry != null) {
+				return entry.contributes();
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -393,7 +702,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private int resolveDerivedOutputPowerFromTruth() {
 		return switch (resolveAuthorityEffectiveMode()) {
 			case SYNC -> normalizeSignalStrength(syncSignalMaxStrength);
-			case PULSE, TOGGLE -> getDefaultActiveOutputPower();
+			case PULSE -> getDefaultActiveOutputPower();
+			case TOGGLE -> toggleState ? getDefaultActiveOutputPower() : 0;
 			case NONE -> 0;
 		};
 	}
@@ -497,20 +807,16 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 维护同步触发源强度缓存，并重算 max 聚合结果。
 	 */
 	private void updateSyncSignalStrength(long sourceSerial, int signalStrength) {
-		int normalizedStrength = normalizeSignalStrength(signalStrength);
+		// 兼容现有测试入口：无来源类型时默认映射为 triggerSource。
+		SourceKey sourceKey = new SourceKey(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
 		if (sourceSerial <= 0L) {
-			syncSignalStrengthBySource.clear();
-			syncSignalMaxSources.clear();
-			syncSignalMaxStrength = normalizedStrength;
-			return;
-		}
-
-		if (normalizedStrength <= 0) {
-			syncSignalStrengthBySource.remove(sourceSerial);
+			syncConcurrentBuckets.clear();
+		} else if (normalizeSignalStrength(signalStrength) <= 0) {
+			removeSyncConcurrentSource(sourceKey);
 		} else {
-			syncSignalStrengthBySource.put(sourceSerial, normalizedStrength);
+			upsertSyncConcurrentSource(sourceKey, authorityTimeKey, signalStrength, authoritySeq);
 		}
-		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
+		recomputeSyncTruthFromConcurrentBuckets();
 	}
 
 	/**
@@ -539,13 +845,203 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
+	 * 从同步并发桶重建 SYNC 真值（来源表 + max + maxSources）。
+	 */
+	private void recomputeSyncTruthFromConcurrentBuckets() {
+		syncSignalStrengthBySource.clear();
+		for (Map<SourceKey, SyncConcurrentEntry> bucket : syncConcurrentBuckets.values()) {
+			if (bucket == null || bucket.isEmpty()) {
+				continue;
+			}
+			for (Map.Entry<SourceKey, SyncConcurrentEntry> sourceEntry : bucket.entrySet()) {
+				SourceKey sourceKey = sourceEntry.getKey();
+				SyncConcurrentEntry concurrentEntry = sourceEntry.getValue();
+				if (sourceKey == null || sourceKey.sourceSerial() <= 0L || concurrentEntry == null) {
+					continue;
+				}
+				int strength = normalizeSignalStrength(concurrentEntry.strength());
+				if (strength <= 0) {
+					continue;
+				}
+				syncSignalStrengthBySource.merge(sourceKey.sourceSerial(), strength, Math::max);
+			}
+		}
+		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
+	}
+
+	/**
+	 * 从脉冲并发桶重建 PULSE 真值（有效下落窗口）。
+	 */
+	private void recomputePulseTruthFromConcurrentBuckets() {
+		long now = level == null ? 0L : level.getGameTime();
+		List<TimeKey> emptyKeys = new ArrayList<>();
+		long maxUntilTick = 0L;
+		for (Map.Entry<TimeKey, Map<SourceKey, PulseConcurrentEntry>> bucketEntry : pulseConcurrentBuckets.entrySet()) {
+			Map<SourceKey, PulseConcurrentEntry> bucket = bucketEntry.getValue();
+			if (bucket == null || bucket.isEmpty()) {
+				emptyKeys.add(bucketEntry.getKey());
+				continue;
+			}
+			bucket.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().untilGameTick() <= now);
+			if (bucket.isEmpty()) {
+				emptyKeys.add(bucketEntry.getKey());
+				continue;
+			}
+			for (PulseConcurrentEntry pulseEntry : bucket.values()) {
+				if (pulseEntry == null) {
+					continue;
+				}
+				maxUntilTick = Math.max(maxUntilTick, pulseEntry.untilGameTick());
+			}
+		}
+		for (TimeKey emptyKey : emptyKeys) {
+			pulseConcurrentBuckets.remove(emptyKey);
+		}
+		pulseUntilGameTime = maxUntilTick;
+		pulseResetArmed = maxUntilTick > now;
+		if (pulseResetArmed && level != null) {
+			long remaining = Math.max(1L, maxUntilTick - now);
+			schedulePulseReset((int) remaining);
+		}
+	}
+
+	/**
+	 * 从切换并发桶重建 TOGGLE 真值（并发计数 + 最终锁存态）。
+	 */
+	private void recomputeToggleTruthFromConcurrentBuckets() {
+		int activeContributors = 0;
+		for (Map<SourceKey, ToggleConcurrentEntry> bucket : toggleConcurrentBuckets.values()) {
+			if (bucket == null || bucket.isEmpty()) {
+				continue;
+			}
+			for (ToggleConcurrentEntry entry : bucket.values()) {
+				if (entry != null && entry.contributes()) {
+					activeContributors++;
+				}
+			}
+		}
+		toggleConcurrentCount = activeContributors;
+		boolean baseActive = syncSignalMaxStrength > 0 || isPulseTruthActive();
+		boolean oddParity = (toggleConcurrentCount & 1) == 1;
+		toggleState = oddParity ? !baseActive : baseActive;
+	}
+
+	/**
+	 * 按并发桶候选重算 authority，确保 REMOVE 后可回退到仍有效的下层真值。
+	 */
+	private void recomputeAuthorityFromConcurrentBuckets(TimeKey fallbackTimeKey, long fallbackSeq) {
+		Candidate syncCandidate = resolveSyncCandidate();
+		Candidate pulseCandidate = resolvePulseCandidate();
+		Candidate toggleCandidate = resolveToggleCandidate();
+		Candidate winner = pickWinner(syncCandidate, pulseCandidate, toggleCandidate);
+		if (winner == null) {
+			authorityMode = EffectiveMode.NONE;
+			authorityTimeKey = fallbackTimeKey == null ? TimeKey.of(0L, 0) : fallbackTimeKey;
+			authoritySeq = Math.max(0L, fallbackSeq);
+			return;
+		}
+		authorityMode = winner.mode();
+		authorityTimeKey = winner.timeKey();
+		authoritySeq = winner.seq();
+	}
+
+	private Candidate resolveSyncCandidate() {
+		if (syncSignalMaxStrength <= 0 || syncConcurrentBuckets.isEmpty()) {
+			return null;
+		}
+		TimeKey timeKey = syncConcurrentBuckets.lastKey();
+		Map<SourceKey, SyncConcurrentEntry> bucket = syncConcurrentBuckets.get(timeKey);
+		long seq = 0L;
+		if (bucket != null) {
+			for (SyncConcurrentEntry entry : bucket.values()) {
+				if (entry != null) {
+					seq = Math.max(seq, entry.seq());
+				}
+			}
+		}
+		return new Candidate(EffectiveMode.SYNC, timeKey, seq, PRIORITY_SYNC);
+	}
+
+	private Candidate resolvePulseCandidate() {
+		if (!isPulseTruthActive() || pulseConcurrentBuckets.isEmpty()) {
+			return null;
+		}
+		TimeKey timeKey = pulseConcurrentBuckets.lastKey();
+		Map<SourceKey, PulseConcurrentEntry> bucket = pulseConcurrentBuckets.get(timeKey);
+		long seq = 0L;
+		if (bucket != null) {
+			for (PulseConcurrentEntry entry : bucket.values()) {
+				if (entry != null) {
+					seq = Math.max(seq, entry.seq());
+				}
+			}
+		}
+		return new Candidate(EffectiveMode.PULSE, timeKey, seq, PRIORITY_PULSE);
+	}
+
+	private Candidate resolveToggleCandidate() {
+		if (toggleConcurrentBuckets.isEmpty() || toggleConcurrentCount <= 0) {
+			return null;
+		}
+		TimeKey timeKey = toggleConcurrentBuckets.lastKey();
+		Map<SourceKey, ToggleConcurrentEntry> bucket = toggleConcurrentBuckets.get(timeKey);
+		long seq = 0L;
+		if (bucket != null) {
+			for (ToggleConcurrentEntry entry : bucket.values()) {
+				if (entry != null) {
+					seq = Math.max(seq, entry.seq());
+				}
+			}
+		}
+		return new Candidate(EffectiveMode.TOGGLE, timeKey, seq, PRIORITY_TOGGLE);
+	}
+
+	private static Candidate pickWinner(Candidate... candidates) {
+		Candidate winner = null;
+		for (Candidate candidate : candidates) {
+			if (candidate == null) {
+				continue;
+			}
+			if (winner == null) {
+				winner = candidate;
+				continue;
+			}
+			int timeCompare = candidate.timeKey().compareTo(winner.timeKey());
+			if (timeCompare > 0) {
+				winner = candidate;
+				continue;
+			}
+			if (timeCompare < 0) {
+				continue;
+			}
+			if (candidate.priority() > winner.priority()) {
+				winner = candidate;
+				continue;
+			}
+			if (candidate.priority() == winner.priority()) {
+				if (candidate.seq() > winner.seq()) {
+					winner = candidate;
+				}
+			}
+		}
+		return winner;
+	}
+
+	private record Candidate(EffectiveMode mode, TimeKey timeKey, long seq, int priority) {
+		private Candidate {
+			timeKey = timeKey == null ? TimeKey.of(0L, 0) : timeKey;
+			seq = Math.max(0L, seq);
+		}
+	}
+
+	/**
 	 * 按 authority 与当前结构真值计算运行态生效模式。
 	 */
 	private EffectiveMode resolveAuthorityEffectiveMode() {
 		return switch (authorityMode) {
 			case SYNC -> syncSignalMaxStrength > 0 ? EffectiveMode.SYNC : EffectiveMode.NONE;
 			case PULSE -> isPulseTruthActive() ? EffectiveMode.PULSE : EffectiveMode.NONE;
-			case TOGGLE -> toggleState ? EffectiveMode.TOGGLE : EffectiveMode.NONE;
+			case TOGGLE -> (toggleConcurrentCount > 0 || toggleState) ? EffectiveMode.TOGGLE : EffectiveMode.NONE;
 			case NONE -> EffectiveMode.NONE;
 		};
 	}
@@ -557,10 +1053,20 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (resolveAuthorityEffectiveMode() != EffectiveMode.NONE) {
 			return;
 		}
+		if (hasAnyConcurrentBuckets()) {
+			recomputeAuthorityFromConcurrentBuckets(authorityTimeKey, authoritySeq);
+			if (resolveAuthorityEffectiveMode() != EffectiveMode.NONE) {
+				return;
+			}
+		}
 		if (authorityMode != EffectiveMode.NONE) {
 			authorityMode = EffectiveMode.NONE;
 			authoritySeq = 0L;
 		}
+	}
+
+	private boolean hasAnyConcurrentBuckets() {
+		return !syncConcurrentBuckets.isEmpty() || !pulseConcurrentBuckets.isEmpty() || !toggleConcurrentBuckets.isEmpty();
 	}
 
 	/**
@@ -625,6 +1131,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		pulseUntilGameTime = Math.max(0L, tag.getLong(KEY_PULSE_UNTIL_GAME_TIME));
 		pulseEpoch = Math.max(0L, tag.getLong(KEY_PULSE_EPOCH));
 		toggleState = tag.getBoolean(KEY_TOGGLE_STATE);
+		toggleConcurrentCount = Math.max(0, tag.getInt(KEY_TOGGLE_CONCURRENT_COUNT));
 		loadSyncSourceStrengths(tag);
 		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
 		if (syncSignalMaxStrength <= 0 && tag.contains(KEY_SYNC_MAX_SOURCES, Tag.TAG_LONG_ARRAY)) {
@@ -645,6 +1152,13 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 		authorityTimeKey = TimeKey.of(Math.max(0L, tag.getLong(KEY_AUTHORITY_TICK)), Math.max(0, tag.getInt(KEY_AUTHORITY_SLOT)));
 		authoritySeq = Math.max(0L, tag.getLong(KEY_AUTHORITY_SEQ));
+		boolean hasConcurrentTruth = loadConcurrentBuckets(tag);
+		if (hasConcurrentTruth) {
+			recomputeSyncTruthFromConcurrentBuckets();
+			recomputePulseTruthFromConcurrentBuckets();
+			recomputeToggleTruthFromConcurrentBuckets();
+			recomputeAuthorityFromConcurrentBuckets(authorityTimeKey, authoritySeq);
+		}
 		// 脉冲窗口跨重启后若已过期，读档即回收。
 		if (level != null && pulseUntilGameTime > 0L && level.getGameTime() >= pulseUntilGameTime) {
 			pulseUntilGameTime = 0L;
@@ -695,6 +1209,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		tag.putLong(KEY_AUTHORITY_TICK, Math.max(0L, authorityTimeKey.tick()));
 		tag.putInt(KEY_AUTHORITY_SLOT, Math.max(0, authorityTimeKey.slot()));
 		tag.putLong(KEY_AUTHORITY_SEQ, Math.max(0L, authoritySeq));
+		tag.putInt(KEY_TOGGLE_CONCURRENT_COUNT, Math.max(0, toggleConcurrentCount));
+		writeConcurrentBuckets(tag);
 	}
 
 	/**
@@ -777,6 +1293,189 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			}
 			syncSignalStrengthBySource.put(sourceSerial, strength);
 		}
+	}
+
+	private boolean loadConcurrentBuckets(CompoundTag tag) {
+		syncConcurrentBuckets.clear();
+		pulseConcurrentBuckets.clear();
+		toggleConcurrentBuckets.clear();
+		boolean loaded = false;
+		loaded |= loadSyncConcurrentEntries(tag.getList(KEY_SYNC_CONCURRENT_ENTRIES, Tag.TAG_COMPOUND));
+		loaded |= loadPulseConcurrentEntries(tag.getList(KEY_PULSE_CONCURRENT_ENTRIES, Tag.TAG_COMPOUND));
+		loaded |= loadToggleConcurrentEntries(tag.getList(KEY_TOGGLE_CONCURRENT_ENTRIES, Tag.TAG_COMPOUND));
+		return loaded;
+	}
+
+	private boolean loadSyncConcurrentEntries(ListTag listTag) {
+		boolean loaded = false;
+		for (int index = 0; index < listTag.size(); index++) {
+			CompoundTag entryTag = listTag.getCompound(index);
+			Optional<SourceKey> sourceKey = parseConcurrentSourceKey(entryTag);
+			if (sourceKey.isEmpty()) {
+				continue;
+			}
+			TimeKey timeKey = TimeKey.of(
+				Math.max(0L, entryTag.getLong(KEY_CONCURRENT_TICK)),
+				Math.max(0, entryTag.getInt(KEY_CONCURRENT_SLOT))
+			);
+			int strength = normalizeSignalStrength(entryTag.getInt(KEY_CONCURRENT_STRENGTH));
+			if (strength <= 0) {
+				continue;
+			}
+			long seq = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_SEQ));
+			syncConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>()).put(sourceKey.get(), new SyncConcurrentEntry(strength, seq));
+			loaded = true;
+		}
+		return loaded;
+	}
+
+	private boolean loadPulseConcurrentEntries(ListTag listTag) {
+		boolean loaded = false;
+		for (int index = 0; index < listTag.size(); index++) {
+			CompoundTag entryTag = listTag.getCompound(index);
+			Optional<SourceKey> sourceKey = parseConcurrentSourceKey(entryTag);
+			if (sourceKey.isEmpty()) {
+				continue;
+			}
+			TimeKey timeKey = TimeKey.of(
+				Math.max(0L, entryTag.getLong(KEY_CONCURRENT_TICK)),
+				Math.max(0, entryTag.getInt(KEY_CONCURRENT_SLOT))
+			);
+			long untilTick = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_UNTIL_TICK));
+			if (untilTick <= 0L) {
+				continue;
+			}
+			long seq = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_SEQ));
+			pulseConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>()).put(sourceKey.get(), new PulseConcurrentEntry(untilTick, seq));
+			loaded = true;
+		}
+		return loaded;
+	}
+
+	private boolean loadToggleConcurrentEntries(ListTag listTag) {
+		boolean loaded = false;
+		for (int index = 0; index < listTag.size(); index++) {
+			CompoundTag entryTag = listTag.getCompound(index);
+			Optional<SourceKey> sourceKey = parseConcurrentSourceKey(entryTag);
+			if (sourceKey.isEmpty()) {
+				continue;
+			}
+			if (!entryTag.getBoolean(KEY_CONCURRENT_CONTRIBUTES)) {
+				continue;
+			}
+			TimeKey timeKey = TimeKey.of(
+				Math.max(0L, entryTag.getLong(KEY_CONCURRENT_TICK)),
+				Math.max(0, entryTag.getInt(KEY_CONCURRENT_SLOT))
+			);
+			long seq = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_SEQ));
+			toggleConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>()).put(sourceKey.get(), new ToggleConcurrentEntry(true, seq));
+			loaded = true;
+		}
+		return loaded;
+	}
+
+	private Optional<SourceKey> parseConcurrentSourceKey(CompoundTag entryTag) {
+		long sourceSerial = entryTag.getLong(KEY_CONCURRENT_SOURCE_SERIAL);
+		if (sourceSerial <= 0L) {
+			return Optional.empty();
+		}
+		String rawType = entryTag.getString(KEY_CONCURRENT_SOURCE_TYPE);
+		Optional<LinkNodeType> sourceType = LinkNodeSemantics.tryParseCanonicalType(rawType);
+		if (sourceType.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(new SourceKey(sourceType.get(), sourceSerial));
+	}
+
+	private void writeConcurrentBuckets(CompoundTag tag) {
+		ListTag syncList = new ListTag();
+		appendSyncConcurrentEntries(syncList);
+		if (!syncList.isEmpty()) {
+			tag.put(KEY_SYNC_CONCURRENT_ENTRIES, syncList);
+		}
+
+		ListTag pulseList = new ListTag();
+		appendPulseConcurrentEntries(pulseList);
+		if (!pulseList.isEmpty()) {
+			tag.put(KEY_PULSE_CONCURRENT_ENTRIES, pulseList);
+		}
+
+		ListTag toggleList = new ListTag();
+		appendToggleConcurrentEntries(toggleList);
+		if (!toggleList.isEmpty()) {
+			tag.put(KEY_TOGGLE_CONCURRENT_ENTRIES, toggleList);
+		}
+	}
+
+	private void appendSyncConcurrentEntries(ListTag targetList) {
+		for (Map.Entry<TimeKey, Map<SourceKey, SyncConcurrentEntry>> bucketEntry : syncConcurrentBuckets.entrySet()) {
+			TimeKey timeKey = bucketEntry.getKey();
+			Map<SourceKey, SyncConcurrentEntry> bucket = bucketEntry.getValue();
+			if (timeKey == null || bucket == null || bucket.isEmpty()) {
+				continue;
+			}
+			for (Map.Entry<SourceKey, SyncConcurrentEntry> sourceEntry : bucket.entrySet()) {
+				SourceKey sourceKey = sourceEntry.getKey();
+				SyncConcurrentEntry concurrentEntry = sourceEntry.getValue();
+				if (sourceKey == null || concurrentEntry == null || concurrentEntry.strength() <= 0) {
+					continue;
+				}
+				CompoundTag entryTag = new CompoundTag();
+				writeConcurrentSourceKey(entryTag, sourceKey, timeKey, concurrentEntry.seq());
+				entryTag.putInt(KEY_CONCURRENT_STRENGTH, normalizeSignalStrength(concurrentEntry.strength()));
+				targetList.add(entryTag);
+			}
+		}
+	}
+
+	private void appendPulseConcurrentEntries(ListTag targetList) {
+		for (Map.Entry<TimeKey, Map<SourceKey, PulseConcurrentEntry>> bucketEntry : pulseConcurrentBuckets.entrySet()) {
+			TimeKey timeKey = bucketEntry.getKey();
+			Map<SourceKey, PulseConcurrentEntry> bucket = bucketEntry.getValue();
+			if (timeKey == null || bucket == null || bucket.isEmpty()) {
+				continue;
+			}
+			for (Map.Entry<SourceKey, PulseConcurrentEntry> sourceEntry : bucket.entrySet()) {
+				SourceKey sourceKey = sourceEntry.getKey();
+				PulseConcurrentEntry concurrentEntry = sourceEntry.getValue();
+				if (sourceKey == null || concurrentEntry == null || concurrentEntry.untilGameTick() <= 0L) {
+					continue;
+				}
+				CompoundTag entryTag = new CompoundTag();
+				writeConcurrentSourceKey(entryTag, sourceKey, timeKey, concurrentEntry.seq());
+				entryTag.putLong(KEY_CONCURRENT_UNTIL_TICK, Math.max(0L, concurrentEntry.untilGameTick()));
+				targetList.add(entryTag);
+			}
+		}
+	}
+
+	private void appendToggleConcurrentEntries(ListTag targetList) {
+		for (Map.Entry<TimeKey, Map<SourceKey, ToggleConcurrentEntry>> bucketEntry : toggleConcurrentBuckets.entrySet()) {
+			TimeKey timeKey = bucketEntry.getKey();
+			Map<SourceKey, ToggleConcurrentEntry> bucket = bucketEntry.getValue();
+			if (timeKey == null || bucket == null || bucket.isEmpty()) {
+				continue;
+			}
+			for (Map.Entry<SourceKey, ToggleConcurrentEntry> sourceEntry : bucket.entrySet()) {
+				SourceKey sourceKey = sourceEntry.getKey();
+				ToggleConcurrentEntry concurrentEntry = sourceEntry.getValue();
+				if (sourceKey == null || concurrentEntry == null || !concurrentEntry.contributes()) {
+					continue;
+				}
+				CompoundTag entryTag = new CompoundTag();
+				writeConcurrentSourceKey(entryTag, sourceKey, timeKey, concurrentEntry.seq());
+				entryTag.putBoolean(KEY_CONCURRENT_CONTRIBUTES, true);
+				targetList.add(entryTag);
+			}
+		}
+	}
+
+	private static void writeConcurrentSourceKey(CompoundTag entryTag, SourceKey sourceKey, TimeKey timeKey, long seq) {
+		entryTag.putString(KEY_CONCURRENT_SOURCE_TYPE, LinkNodeSemantics.toSemanticName(sourceKey.sourceType()));
+		entryTag.putLong(KEY_CONCURRENT_SOURCE_SERIAL, sourceKey.sourceSerial());
+		entryTag.putLong(KEY_CONCURRENT_TICK, Math.max(0L, timeKey.tick()));
+		entryTag.putInt(KEY_CONCURRENT_SLOT, Math.max(0, timeKey.slot()));
+		entryTag.putLong(KEY_CONCURRENT_SEQ, Math.max(0L, seq));
 	}
 }
 
