@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.makomi.RedstoneLink;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.ActivationMode;
@@ -152,6 +153,7 @@ public final class LinkedTargetDispatchService {
 		if (!LinkNodeSemantics.isAllowedForRole(targetType, LinkNodeSemantics.Role.TARGET)) {
 			return DispatchSummary.empty(sourceType, sourceSerial, targetType, targetSerials);
 		}
+		long startNs = System.nanoTime();
 
 		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
 		long eventTick = Math.max(0L, sourceLevel.getGameTime());
@@ -244,7 +246,7 @@ public final class LinkedTargetDispatchService {
 			}
 		}
 
-		return new DispatchSummary(
+		DispatchSummary summary = new DispatchSummary(
 			sourceType,
 			sourceSerial,
 			targetType,
@@ -252,6 +254,60 @@ public final class LinkedTargetDispatchService {
 			handledCount,
 			immutableSortedSerials(forceLoadTargetSerials),
 			immutableSortedSerials(relayTargetSerials)
+		);
+		logSyncFanoutIfSlow(
+			sourceLevel,
+			dispatchKind,
+			sourceType,
+			sourceSerial,
+			targetType,
+			targetSerials.size(),
+			pendingTargetSerials.size(),
+			summary.forceLoadHandledCount(),
+			summary.relayTargetSerials().size(),
+			summary.handledCount(),
+			startNs
+		);
+		return summary;
+	}
+
+	/**
+	 * 记录 SYNC fanout 慢路径耗时。
+	 */
+	private static void logSyncFanoutIfSlow(
+		ServerLevel sourceLevel,
+		DispatchKind dispatchKind,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		int totalTargets,
+		int pendingTargets,
+		int forceLoadHandled,
+		int relayHandled,
+		int handledCount,
+		long startNs
+	) {
+		if (dispatchKind != DispatchKind.SYNC_SIGNAL || sourceLevel == null || !RedstoneLinkConfig.runtimeDiagEnabled()) {
+			return;
+		}
+		long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
+		long thresholdMs = RedstoneLinkConfig.runtimeDiagWarnThresholdMs();
+		if (elapsedMs < thresholdMs) {
+			return;
+		}
+		RedstoneLink.LOGGER.warn(
+			"[DiagRuntime] sync_fanout_slow source={}#{}, targetType={}, totalTargets={}, pendingTargets={}, handled={}, forceLoadHandled={}, relayHandled={}, elapsedMs={}, thresholdMs={}, dimension={}",
+			LinkNodeSemantics.toSemanticName(sourceType),
+			sourceSerial,
+			LinkNodeSemantics.toSemanticName(targetType),
+			totalTargets,
+			pendingTargets,
+			handledCount,
+			forceLoadHandled,
+			relayHandled,
+			elapsedMs,
+			thresholdMs,
+			sourceLevel.dimension().location()
 		);
 	}
 

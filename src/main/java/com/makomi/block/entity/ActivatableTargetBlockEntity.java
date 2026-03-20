@@ -110,11 +110,12 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
-	 * 跨来源统一 delta 类型：激活语义（TOGGLE/PULSE）或同步语义（SYNC）。
+	 * 跨来源统一 delta 类型：激活语义、同步语义，或来源全量失效语义。
 	 */
 	public enum DeltaKind {
 		ACTIVATION,
-		SYNC_SIGNAL
+		SYNC_SIGNAL,
+		SOURCE_INVALIDATION
 	}
 
 	/**
@@ -379,6 +380,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		switch (deltaKind) {
 			case SYNC_SIGNAL -> applySyncDelta(sourceKey, deltaAction, signalStrength, normalizedMeta);
 			case ACTIVATION -> applyActivationDelta(sourceKey, deltaAction, activationMode, normalizedMeta);
+			case SOURCE_INVALIDATION -> applySourceInvalidationDelta(sourceKey, deltaAction, normalizedMeta);
 		}
 	}
 
@@ -558,6 +560,27 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			}
 			recomputeToggleTruthFromConcurrentBuckets();
 		}
+		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
+		applyDerivedStateFromTruth();
+	}
+
+	/**
+	 * 统一处理“来源全量失效”delta：一次剔除该来源在 sync/pulse/toggle 三类桶中的贡献。
+	 */
+	private void applySourceInvalidationDelta(SourceKey sourceKey, DeltaAction deltaAction, EventMeta eventMeta) {
+		if (deltaAction != DeltaAction.REMOVE) {
+			return;
+		}
+		// 失效事件按最高优先级（SYNC）做防旧判断，避免旧事件回放污染现态。
+		if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
+			return;
+		}
+		removeSyncConcurrentSource(sourceKey);
+		removePulseConcurrentSource(sourceKey);
+		removeToggleConcurrentSource(sourceKey);
+		recomputeSyncTruthFromConcurrentBuckets();
+		recomputePulseTruthFromConcurrentBuckets();
+		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		applyDerivedStateFromTruth();
 	}

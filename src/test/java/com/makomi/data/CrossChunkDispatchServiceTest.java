@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.config.RedstoneLinkConfig;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -328,6 +329,147 @@ class CrossChunkDispatchServiceTest {
 		pendingCursorField.setAccessible(true);
 		assertEquals(500L, pendingCursorField.getLong(state));
 		assertEquals(20, queueData.pendingSize());
+	}
+
+	/**
+	 * 非持久化事件达到重试上限后应被判定为可丢弃，避免无限重试。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void recordRetryFailureShouldDropNonPersistentEntryAtThreshold() throws Exception {
+		Class<?> dispatchStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchState");
+		Constructor<?> stateConstructor = dispatchStateClass.getDeclaredConstructor();
+		stateConstructor.setAccessible(true);
+		Object state = stateConstructor.newInstance();
+
+		CrossChunkDispatchQueueSavedData.DispatchKey key = new CrossChunkDispatchQueueSavedData.DispatchKey(
+			LinkNodeType.TRIGGER_SOURCE,
+			11L,
+			LinkNodeType.CORE,
+			22L,
+			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
+		);
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending = new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+			Level.OVERWORLD,
+			BlockPos.ZERO,
+			ActivationMode.TOGGLE,
+			0,
+			0L,
+			0,
+			500L,
+			1L
+		);
+
+		Class<?> retryStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$RetryState");
+		Constructor<?> retryStateConstructor = retryStateClass.getDeclaredConstructor();
+		retryStateConstructor.setAccessible(true);
+		Object retryState = retryStateConstructor.newInstance();
+		Field attemptsField = retryStateClass.getDeclaredField("attempts");
+		attemptsField.setAccessible(true);
+		attemptsField.setInt(retryState, Math.max(0, RedstoneLinkConfig.crossChunkRetryDropThreshold() - 1));
+		Field lastAttemptTickField = retryStateClass.getDeclaredField("lastAttemptTick");
+		lastAttemptTickField.setAccessible(true);
+		lastAttemptTickField.setLong(retryState, 100L);
+
+		Class<?> pendingAttemptKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingAttemptKey");
+		Constructor<?> pendingAttemptKeyConstructor = pendingAttemptKeyClass.getDeclaredConstructor(
+			CrossChunkDispatchQueueSavedData.DispatchKey.class,
+			long.class
+		);
+		pendingAttemptKeyConstructor.setAccessible(true);
+		Object attemptKey = pendingAttemptKeyConstructor.newInstance(key, 1L);
+
+		Field retryMapField = dispatchStateClass.getDeclaredField("retryStateByAttemptKey");
+		retryMapField.setAccessible(true);
+		Map<Object, Object> retryMap = (Map<Object, Object>) retryMapField.get(state);
+		retryMap.put(attemptKey, retryState);
+
+		Method onFailure = CrossChunkDispatchService.class.getDeclaredMethod(
+			"recordRetryFailureAndShouldDrop",
+			dispatchStateClass,
+			CrossChunkDispatchQueueSavedData.PendingDispatchEntry.class,
+			long.class
+		);
+		onFailure.setAccessible(true);
+		boolean shouldDrop = (boolean) onFailure.invoke(null, state, pending, 101L);
+		assertTrue(shouldDrop);
+	}
+
+	/**
+	 * 持久化 SYNC 达到重试上限后应进入退避窗口而非直接丢弃。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void shouldBackoffRetryShouldThrottlePersistentSyncAtThreshold() throws Exception {
+		Class<?> dispatchStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchState");
+		Constructor<?> stateConstructor = dispatchStateClass.getDeclaredConstructor();
+		stateConstructor.setAccessible(true);
+		Object state = stateConstructor.newInstance();
+
+		CrossChunkDispatchQueueSavedData.DispatchKey key = new CrossChunkDispatchQueueSavedData.DispatchKey(
+			LinkNodeType.TRIGGER_SOURCE,
+			33L,
+			LinkNodeType.CORE,
+			44L,
+			CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+		);
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending = new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+			key,
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+			Level.OVERWORLD,
+			BlockPos.ZERO,
+			ActivationMode.TOGGLE,
+			15,
+			0L,
+			0,
+			Long.MAX_VALUE,
+			2L
+		);
+
+		Class<?> retryStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$RetryState");
+		Constructor<?> retryStateConstructor = retryStateClass.getDeclaredConstructor();
+		retryStateConstructor.setAccessible(true);
+		Object retryState = retryStateConstructor.newInstance();
+		Field attemptsField = retryStateClass.getDeclaredField("attempts");
+		attemptsField.setAccessible(true);
+		attemptsField.setInt(retryState, Math.max(1, RedstoneLinkConfig.crossChunkRetryDropThreshold()));
+		Field lastAttemptTickField = retryStateClass.getDeclaredField("lastAttemptTick");
+		lastAttemptTickField.setAccessible(true);
+		lastAttemptTickField.setLong(retryState, 300L);
+
+		Class<?> pendingAttemptKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingAttemptKey");
+		Constructor<?> pendingAttemptKeyConstructor = pendingAttemptKeyClass.getDeclaredConstructor(
+			CrossChunkDispatchQueueSavedData.DispatchKey.class,
+			long.class
+		);
+		pendingAttemptKeyConstructor.setAccessible(true);
+		Object attemptKey = pendingAttemptKeyConstructor.newInstance(key, 2L);
+
+		Field retryMapField = dispatchStateClass.getDeclaredField("retryStateByAttemptKey");
+		retryMapField.setAccessible(true);
+		Map<Object, Object> retryMap = (Map<Object, Object>) retryMapField.get(state);
+		retryMap.put(attemptKey, retryState);
+
+		Method shouldBackoff = CrossChunkDispatchService.class.getDeclaredMethod(
+			"shouldBackoffRetry",
+			dispatchStateClass,
+			CrossChunkDispatchQueueSavedData.PendingDispatchEntry.class,
+			long.class
+		);
+		shouldBackoff.setAccessible(true);
+		assertTrue((boolean) shouldBackoff.invoke(null, state, pending, 305L));
+		assertFalse((boolean) shouldBackoff.invoke(null, state, pending, 325L));
+
+		Method onFailure = CrossChunkDispatchService.class.getDeclaredMethod(
+			"recordRetryFailureAndShouldDrop",
+			dispatchStateClass,
+			CrossChunkDispatchQueueSavedData.PendingDispatchEntry.class,
+			long.class
+		);
+		onFailure.setAccessible(true);
+		assertFalse((boolean) onFailure.invoke(null, state, pending, 326L));
 	}
 
 	/**

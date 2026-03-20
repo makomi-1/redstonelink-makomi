@@ -1,6 +1,9 @@
 package com.makomi.data;
 
+import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
@@ -36,11 +39,19 @@ public final class LinkRetireCoordinator {
 		LinkSavedData savedData = LinkSavedData.get(level);
 		// 退役前仅抓取退役源节点在线快照，避免向受影响目标集合逐个强同步。
 		LinkSavedData.LinkNode sourceNodeSnapshot = savedData.findNode(type, serial).orElse(null);
+		Set<Long> detachedSerials = new HashSet<>(savedData.getLinkedTargetsBySourceType(type, serial));
 		LinkSavedData.RetireResult retireResult = savedData.retireNode(type, serial);
 		CrossChunkWhitelistSavedData.get(level).removeFromAllRoles(type, serial);
 		CurrentLinksPrivacySavedData.get(level).remove(type, serial);
 		LinkWriteProtectedSavedData.get(level).remove(type, serial);
 		if (hasRetireChanges(retireResult)) {
+			InternalDispatchDeltaEvents.publishLinkDetached(
+				level,
+				type,
+				serial,
+				detachedSerials,
+				EventMeta.of(level.getGameTime(), 0, 0L)
+			);
 			syncNodeSnapshot(level, sourceNodeSnapshot);
 		}
 		return retireResult;

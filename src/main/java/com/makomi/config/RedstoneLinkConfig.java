@@ -511,6 +511,48 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 是否启用运行时慢路径诊断日志
+	 */
+	public static boolean runtimeDiagEnabled() {
+		return crossChunkValues.runtimeDiagEnabled();
+	}
+
+	/**
+	 * @return 运行时慢路径诊断阈值（毫秒）
+	 */
+	public static int runtimeDiagWarnThresholdMs() {
+		return crossChunkValues.runtimeDiagWarnThresholdMs();
+	}
+
+	/**
+	 * @return 跨区块派发失败重试告警阈值（次数，0=关闭）
+	 */
+	public static int crossChunkRetryWarnThreshold() {
+		return crossChunkValues.retryWarnThreshold();
+	}
+
+	/**
+	 * @return 跨区块派发失败重试错误阈值（次数，0=关闭）
+	 */
+	public static int crossChunkRetryErrorThreshold() {
+		return crossChunkValues.retryErrorThreshold();
+	}
+
+	/**
+	 * @return 跨区块派发失败重试丢弃阈值（次数，0=关闭）
+	 */
+	public static int crossChunkRetryDropThreshold() {
+		return crossChunkValues.retryDropThreshold();
+	}
+
+	/**
+	 * @return 持久 SYNC 达到重试上限后的退避重试间隔（tick）
+	 */
+	public static int crossChunkRetryPersistentBackoffTicks() {
+		return crossChunkValues.retryPersistentBackoffTicks();
+	}
+
+	/**
 	 * @return 允许作为来源的类型集合
 	 */
 	public static Set<LinkNodeType> crossChunkAllowedSourceTypes() {
@@ -669,6 +711,16 @@ public final class RedstoneLinkConfig {
 			LinkNodeSemantics.Role.TARGET
 		);
 		Map<String, CrossChunkPreset> presets = parseCrossChunkPresets(props, allowedSourceTypes, allowedTargetTypes);
+		int retryWarnThreshold = parseInt(props, "crosschunk.retry.warnThreshold", 200, 0, 2_000_000);
+		int retryErrorThreshold = parseInt(props, "crosschunk.retry.errorThreshold", 1000, 0, 2_000_000);
+		if (retryWarnThreshold > 0 && retryErrorThreshold > 0 && retryErrorThreshold < retryWarnThreshold) {
+			retryErrorThreshold = retryWarnThreshold;
+		}
+		int retryDropThreshold = parseInt(props, "crosschunk.retry.dropThreshold", 2000, 0, 2_000_000);
+		if (retryErrorThreshold > 0 && retryDropThreshold > 0 && retryDropThreshold < retryErrorThreshold) {
+			retryDropThreshold = retryErrorThreshold;
+		}
+		int retryPersistentBackoffTicks = parseInt(props, "crosschunk.retry.persistentBackoffTicks", 20, 1, 72_000);
 		return new CrossChunkValues(
 			parseInt(props, "crosschunk.syncSignalTtlTicks", 40, 1, 72_000),
 			parseBoolean(props, "crosschunk.syncSignalPersistent", true),
@@ -684,6 +736,12 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "crosschunk.command.permissionLevel", 2, 0, 4),
 			parseBoolean(props, "crosschunk.notify.enabled", true),
 			CrossChunkNotifyMode.fromConfigValue(props.getProperty("crosschunk.notify.mode", "simple")),
+			parseBoolean(props, "crosschunk.diag.runtime.enabled", false),
+			parseInt(props, "crosschunk.diag.runtime.warnThresholdMs", 25, 1, 10_000),
+			retryWarnThreshold,
+			retryErrorThreshold,
+			retryDropThreshold,
+			retryPersistentBackoffTicks,
 			allowedSourceTypes,
 			allowedTargetTypes,
 			presets,
@@ -1189,6 +1247,26 @@ public final class RedstoneLinkConfig {
 			# en: Maximum persisted cross-chunk queue entries processed per tick, range 1~20000.
 			crosschunk.dispatch.maxPerTick=500
 
+			# crosschunk.retry.warnThreshold
+			# zh: 派发失败重试告警阈值（次数），0=关闭。
+			# en: Warning threshold for dispatch retry failures (attempts), 0=disabled.
+			crosschunk.retry.warnThreshold=200
+
+			# crosschunk.retry.errorThreshold
+			# zh: 派发失败重试错误阈值（次数），0=关闭。
+			# en: Error threshold for dispatch retry failures (attempts), 0=disabled.
+			crosschunk.retry.errorThreshold=1000
+
+			# crosschunk.retry.dropThreshold
+			# zh: 派发失败重试丢弃阈值（次数），0=关闭；持久 SYNC 达到该阈值后转退避重试而非丢弃。
+			# en: Drop threshold for retry failures; 0=disabled. Persistent SYNC switches to backoff instead of drop.
+			crosschunk.retry.dropThreshold=2000
+
+			# crosschunk.retry.persistentBackoffTicks
+			# zh: 持久 SYNC 达到重试上限后的退避重试间隔（tick）。
+			# en: Backoff interval in ticks after persistent SYNC reaches retry upper limit.
+			crosschunk.retry.persistentBackoffTicks=20
+
 			# crosschunk.relay.enabled
 			# zh: 是否启用跨区块持久队列主路径（键名沿用 relay）。
 			# en: Whether persisted cross-chunk queue path is enabled (legacy key name: relay).
@@ -1238,6 +1316,16 @@ public final class RedstoneLinkConfig {
 			# zh: 跨区块提示模式：simple/detailed。
 			# en: Cross-chunk notify mode: simple/detailed.
 			crosschunk.notify.mode=simple
+
+			# crosschunk.diag.runtime.enabled
+			# zh: 是否启用运行时慢路径诊断日志（区块生命周期、退役处理、sync fanout）。
+			# en: Enable runtime slow-path diagnostics for chunk lifecycle, retire flow, and sync fanout.
+			crosschunk.diag.runtime.enabled=false
+
+			# crosschunk.diag.runtime.warnThresholdMs
+			# zh: 运行时慢路径诊断阈值（毫秒），达到阈值才输出日志。
+			# en: Runtime slow-path logging threshold in milliseconds.
+			crosschunk.diag.runtime.warnThresholdMs=25
 
 			# crosschunk.whitelist.sourceTypes
 			# zh: 允许作为来源的类型列表（逗号/空格分隔）。
@@ -1423,6 +1511,12 @@ public final class RedstoneLinkConfig {
 		int commandPermissionLevel,
 		boolean notifyEnabled,
 		CrossChunkNotifyMode notifyMode,
+		boolean runtimeDiagEnabled,
+		int runtimeDiagWarnThresholdMs,
+		int retryWarnThreshold,
+		int retryErrorThreshold,
+		int retryDropThreshold,
+		int retryPersistentBackoffTicks,
 		Set<LinkNodeType> allowedSourceTypes,
 		Set<LinkNodeType> allowedTargetTypes,
 		Map<String, CrossChunkPreset> presets,
@@ -1448,6 +1542,12 @@ public final class RedstoneLinkConfig {
 				2,
 				true,
 				CrossChunkNotifyMode.SIMPLE,
+				false,
+				25,
+				200,
+				1000,
+				2000,
+				20,
 				Set.of(LinkNodeType.TRIGGER_SOURCE),
 				Set.of(LinkNodeType.CORE),
 				Map.of(),

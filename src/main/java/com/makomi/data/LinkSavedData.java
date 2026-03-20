@@ -1,13 +1,18 @@
 package com.makomi.data;
 
+import com.makomi.RedstoneLink;
 import com.makomi.util.SerialNbtCodecUtil;
 import com.makomi.util.IncrementalReplacePlanUtil;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.LongConsumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
@@ -73,6 +78,8 @@ public final class LinkSavedData extends SavedData {
 
 	private static LinkSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
 		LinkSavedData data = new LinkSavedData();
+		Map<String, Integer> rejectedTypeCounts = new HashMap<>();
+		int rejectedTypeRows = 0;
 
 		if (tag.contains(KEY_NEXT_CORE_SERIAL, Tag.TAG_LONG)) {
 			data.nextCoreSerial = Math.max(1L, tag.getLong(KEY_NEXT_CORE_SERIAL));
@@ -103,10 +110,20 @@ public final class LinkSavedData extends SavedData {
 			BlockPos pos = BlockPos.of(compound.getLong(KEY_POS));
 			Optional<LinkNodeType> parsedType = parseStoredNodeType(compound);
 			if (parsedType.isEmpty()) {
+				rejectedTypeRows++;
+				rejectedTypeCounts.merge(normalizeStoredTypeForStats(compound.getString(KEY_TYPE)), 1, Integer::sum);
 				continue;
 			}
 			LinkNodeType type = parsedType.get();
 			data.nodeMap(type).put(serial, new LinkNode(serial, dimension, pos, type));
+		}
+		if (rejectedTypeRows > 0) {
+			RedstoneLink.LOGGER.warn(
+				"[DiagRuntime] link_saveddata_type_mismatch rowsDropped={}, distinctRawTypes={}, topRawTypes={}",
+				rejectedTypeRows,
+				rejectedTypeCounts.size(),
+				summarizeTopTypeCounts(rejectedTypeCounts, 8)
+			);
 		}
 
 		ListTag linksTag = tag.getList(KEY_LINKS, Tag.TAG_COMPOUND);
@@ -161,6 +178,46 @@ public final class LinkSavedData extends SavedData {
 			return Optional.empty();
 		}
 		return LinkNodeSemantics.tryParseCanonicalType(compound.getString(KEY_TYPE));
+	}
+
+	/**
+	 * 归一化存档中的原始类型文本，便于统计输出。
+	 */
+	private static String normalizeStoredTypeForStats(String rawType) {
+		if (rawType == null) {
+			return "<null>";
+		}
+		String normalized = rawType.trim();
+		return normalized.isEmpty() ? "<empty>" : normalized;
+	}
+
+	/**
+	 * 汇总类型计数 TopN 文本，供日志快速查看。
+	 */
+	private static String summarizeTopTypeCounts(Map<String, Integer> counts, int limit) {
+		if (counts == null || counts.isEmpty()) {
+			return "-";
+		}
+		List<Map.Entry<String, Integer>> entries = new ArrayList<>(counts.entrySet());
+		entries.sort(
+			Comparator
+				.<Map.Entry<String, Integer>>comparingInt(Map.Entry::getValue)
+				.reversed()
+				.thenComparing(Map.Entry::getKey)
+		);
+		int max = Math.min(Math.max(1, limit), entries.size());
+		StringBuilder builder = new StringBuilder();
+		for (int index = 0; index < max; index++) {
+			Map.Entry<String, Integer> entry = entries.get(index);
+			if (index > 0) {
+				builder.append(", ");
+			}
+			builder.append(entry.getKey()).append(":").append(entry.getValue());
+		}
+		if (entries.size() > max) {
+			builder.append(" (+").append(entries.size() - max).append(" types)");
+		}
+		return builder.toString();
 	}
 
 	/**
@@ -521,6 +578,47 @@ public final class LinkSavedData extends SavedData {
 		return sourceType == LinkNodeType.TRIGGER_SOURCE
 			? getLinkedCores(sourceSerial)
 			: getLinkedButtons(sourceSerial);
+	}
+
+	/**
+	 * 按“来源类型 + 来源序列号”无拷贝遍历目标集合。
+	 * <p>
+	 * 该入口直接遍历内部集合，避免 `Set.copyOf(...)` 带来的临时对象分配，
+	 * 仅用于明确只读遍历场景（例如生命周期事件桥接）。
+	 * </p>
+	 */
+	public void forEachLinkedTargetBySourceType(LinkNodeType sourceType, long sourceSerial, LongConsumer consumer) {
+		if (sourceType == null || sourceSerial <= 0L || consumer == null) {
+			return;
+		}
+		Set<Long> linkedTargets = linkedTargetsViewBySourceType(sourceType, sourceSerial);
+		if (linkedTargets == null || linkedTargets.isEmpty()) {
+			return;
+		}
+		for (Long targetSerial : linkedTargets) {
+			if (targetSerial != null && targetSerial > 0L) {
+				consumer.accept(targetSerial);
+			}
+		}
+	}
+
+	/**
+	 * 返回内部目标集合视图（无拷贝）。
+	 * <p>
+	 * 仅供 `com.makomi.data` 包内只读遍历使用；禁止外部修改返回集合。
+	 * </p>
+	 */
+	Set<Long> linkedTargetsViewBySourceType(LinkNodeType sourceType, long sourceSerial) {
+		if (sourceType == null || sourceSerial <= 0L) {
+			return Collections.emptySet();
+		}
+		Set<Long> linkedTargets = sourceType == LinkNodeType.TRIGGER_SOURCE
+			? buttonToCores.get(sourceSerial)
+			: coreToButtons.get(sourceSerial);
+		if (linkedTargets == null || linkedTargets.isEmpty()) {
+			return Collections.emptySet();
+		}
+		return linkedTargets;
 	}
 
 	/**

@@ -92,8 +92,10 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 
 	private static CrossChunkDispatchQueueSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
 		CrossChunkDispatchQueueSavedData data = new CrossChunkDispatchQueueSavedData();
-		data.readVersionMap(tag.getList(KEY_ACCEPTED_VERSIONS, Tag.TAG_COMPOUND), data.lastAcceptedVersionByKey);
-		data.readVersionMap(tag.getList(KEY_ISSUED_VERSIONS, Tag.TAG_COMPOUND), data.maxIssuedVersionByKey);
+		ListTag acceptedVersions = tag.getList(KEY_ACCEPTED_VERSIONS, Tag.TAG_COMPOUND);
+		ListTag issuedVersions = tag.getList(KEY_ISSUED_VERSIONS, Tag.TAG_COMPOUND);
+		data.readVersionMap(acceptedVersions, data.lastAcceptedVersionByKey);
+		data.readVersionMap(issuedVersions, data.maxIssuedVersionByKey);
 		ListTag pendingEntries = tag.getList(KEY_PENDING_ENTRIES, Tag.TAG_COMPOUND);
 		for (Tag element : pendingEntries) {
 			if (!(element instanceof CompoundTag entryTag)) {
@@ -594,7 +596,8 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 */
 	public enum DispatchKind {
 		ACTIVATION,
-		SYNC_SIGNAL;
+		SYNC_SIGNAL,
+		SOURCE_INVALIDATION;
 
 		private static Optional<DispatchKind> fromName(String raw) {
 			if (raw == null || raw.isBlank()) {

@@ -1,6 +1,8 @@
 package com.makomi.data;
 
+import com.makomi.RedstoneLink;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -80,33 +82,44 @@ public final class LinkNodeRetireEvents {
 			if (!(entity instanceof ItemEntity itemEntity)) {
 				return;
 			}
-			MinecraftServer server = level.getServer();
-			UUID entityId = itemEntity.getUUID();
+			long startNs = System.nanoTime();
+			String outcome = "UNKNOWN";
 			Entity.RemovalReason reason = entity.getRemovalReason();
-			if (reason != Entity.RemovalReason.KILLED && reason != Entity.RemovalReason.DISCARDED) {
-				clearEntityKey(server, entityId);
-				clearDamageDiscardMark(server, entityId);
-				return;
-			}
+			try {
+				MinecraftServer server = level.getServer();
+				UUID entityId = itemEntity.getUUID();
+				if (reason != Entity.RemovalReason.KILLED && reason != Entity.RemovalReason.DISCARDED) {
+					clearEntityKey(server, entityId);
+					clearDamageDiscardMark(server, entityId);
+					outcome = "SKIP_NON_DESTRUCTIVE";
+					return;
+				}
 
-			PendingKey key = resolveUnloadKey(server, itemEntity);
-			boolean discardedByDamage = consumeDamageDiscardMark(server, entityId);
-			clearEntityKey(server, entityId);
-			if (key == null) {
-				return;
+				PendingKey key = resolveUnloadKey(server, itemEntity);
+				boolean discardedByDamage = consumeDamageDiscardMark(server, entityId);
+				clearEntityKey(server, entityId);
+				if (key == null) {
+					outcome = "SKIP_NO_KEY";
+					return;
+				}
+				if (reason == Entity.RemovalReason.DISCARDED
+					&& !discardedByDamage
+					&& itemEntity.getAge() < ITEM_NATURAL_DESPAWN_AGE) {
+					// 低年龄 DISCARDED 且非伤害销毁，按“被拾取/主动丢弃”处理，不做退役。
+					outcome = "SKIP_LOW_AGE_DISCARDED";
+					return;
+				}
+				LinkSavedData savedData = LinkSavedData.get(level);
+				// 若该序号仍存在已放置节点，则不应被“物品实体销毁”路径退役。
+				if (savedData.findNode(key.nodeType(), key.serial()).isPresent()) {
+					outcome = "SKIP_NODE_STILL_ONLINE";
+					return;
+				}
+				LinkRetireCoordinator.retireAndSyncWhitelist(level, key.nodeType(), key.serial());
+				outcome = "RETIRED";
+			} finally {
+				logEntityUnloadIfSlow(level, itemEntity, reason, outcome, startNs);
 			}
-			if (reason == Entity.RemovalReason.DISCARDED
-				&& !discardedByDamage
-				&& itemEntity.getAge() < ITEM_NATURAL_DESPAWN_AGE) {
-				// 低年龄 DISCARDED 且非伤害销毁，按“被拾取/主动丢弃”处理，不做退役。
-				return;
-			}
-			LinkSavedData savedData = LinkSavedData.get(level);
-			// 若该序号仍存在已放置节点，则不应被“物品实体销毁”路径退役。
-			if (savedData.findNode(key.nodeType(), key.serial()).isPresent()) {
-				return;
-			}
-			LinkRetireCoordinator.retireAndSyncWhitelist(level, key.nodeType(), key.serial());
 		});
 
 		ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
@@ -224,6 +237,7 @@ public final class LinkNodeRetireEvents {
 	 * 处理当前 tick 到期的待退役任务。
 	 */
 	private static void processPendingRetires(MinecraftServer server) {
+		long startNs = System.nanoTime();
 		PendingRetireState state = PENDING_RETIRES.get(server);
 		if (state == null || state.pendingByKey.isEmpty()) {
 			return;
@@ -239,6 +253,9 @@ public final class LinkNodeRetireEvents {
 		}
 		LinkSavedData savedData = LinkSavedData.get(overworld);
 		PendingRetireQueueSavedData pendingMirror = PendingRetireQueueSavedData.get(overworld);
+		int dueEntries = 0;
+		int skippedRetires = 0;
+		int retiredCount = 0;
 
 		while (state.nextDueTick != NO_DUE_TICK && state.nextDueTick <= now) {
 			long dueTick = state.nextDueTick;
@@ -249,16 +266,83 @@ public final class LinkNodeRetireEvents {
 					if (entry == null || entry.expireTick() != dueTick) {
 						continue;
 					}
+					dueEntries++;
 					state.pendingByKey.remove(key);
 					removePendingMirror(pendingMirror, key);
 					if (shouldSkipPendingRetire(server, savedData, entry)) {
+						skippedRetires++;
 						continue;
 					}
 					LinkRetireCoordinator.retireAndSyncWhitelist(overworld, key.nodeType(), key.serial());
+					retiredCount++;
 				}
 			}
 			recalculateNextDueTick(state);
 		}
+		logPendingRetireTickIfSlow(server, now, dueEntries, skippedRetires, retiredCount, state.pendingByKey.size(), startNs);
+	}
+
+	/**
+	 * 记录 ENTITY_UNLOAD 退役慢路径耗时。
+	 */
+	private static void logEntityUnloadIfSlow(
+		ServerLevel level,
+		ItemEntity itemEntity,
+		Entity.RemovalReason reason,
+		String outcome,
+		long startNs
+	) {
+		if (!RedstoneLinkConfig.runtimeDiagEnabled()) {
+			return;
+		}
+		long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
+		long thresholdMs = RedstoneLinkConfig.runtimeDiagWarnThresholdMs();
+		if (elapsedMs < thresholdMs) {
+			return;
+		}
+		RedstoneLink.LOGGER.warn(
+			"[DiagRuntime] retire_entity_unload_slow dimension={}, entityId={}, reason={}, outcome={}, age={}, elapsedMs={}, thresholdMs={}",
+			level.dimension().location(),
+			itemEntity.getUUID(),
+			reason,
+			outcome,
+			itemEntity.getAge(),
+			elapsedMs,
+			thresholdMs
+		);
+	}
+
+	/**
+	 * 记录待退役队列处理慢路径耗时。
+	 */
+	private static void logPendingRetireTickIfSlow(
+		MinecraftServer server,
+		long now,
+		int dueEntries,
+		int skippedRetires,
+		int retiredCount,
+		int remainingEntries,
+		long startNs
+	) {
+		if (!RedstoneLinkConfig.runtimeDiagEnabled()) {
+			return;
+		}
+		long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
+		long thresholdMs = RedstoneLinkConfig.runtimeDiagWarnThresholdMs();
+		if (elapsedMs < thresholdMs) {
+			return;
+		}
+		RedstoneLink.LOGGER.warn(
+			"[DiagRuntime] pending_retire_tick_slow dimension={}, nowTick={}, elapsedMs={}, thresholdMs={}, dueEntries={}, skipped={}, retired={}, remaining={}",
+			server.overworld() == null ? "unknown" : server.overworld().dimension().location(),
+			now,
+			elapsedMs,
+			thresholdMs,
+			dueEntries,
+			skippedRetires,
+			retiredCount,
+			remainingEntries
+		);
 	}
 
 	/**

@@ -9,6 +9,7 @@ import com.makomi.command.retire.RetireBatchCommandRegistry;
 import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CurrentLinksPrivacyService;
+import com.makomi.data.InternalDispatchDeltaEvents;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -597,6 +598,15 @@ public final class ModCommands {
 				return 0;
 			}
 			int removed = savedData.clearLinksForNode(sourceType, sourceSerial);
+			if (removed > 0 && !previousTargets.isEmpty()) {
+				InternalDispatchDeltaEvents.publishLinkDetached(
+					player.serverLevel(),
+					sourceType,
+					sourceSerial,
+					previousTargets,
+					ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+				);
+			}
 			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 			source.sendSuccess(
 				() -> Component.translatable("message.redstonelink.links_cleared", removed),
@@ -628,6 +638,13 @@ public final class ModCommands {
 				source.sendFailure(Component.translatable("message.redstonelink.link_not_exists"));
 				return 0;
 			}
+			InternalDispatchDeltaEvents.publishLinkDetached(
+				player.serverLevel(),
+				sourceType,
+				sourceSerial,
+				Set.of(targetSerial),
+				ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+			);
 			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_removed"), false);
 			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 			return Command.SINGLE_SUCCESS;
@@ -660,6 +677,13 @@ public final class ModCommands {
 			source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
 			return 0;
 		}
+		InternalDispatchDeltaEvents.publishLinkAttached(
+			player.serverLevel(),
+			sourceType,
+			sourceSerial,
+			Set.of(targetSerial),
+			ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+		);
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
 		return Command.SINGLE_SUCCESS;
@@ -1560,6 +1584,32 @@ public final class ModCommands {
 			return 0;
 		}
 		LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceLinksBySourceType(sourceType, sourceSerial, targets);
+		if (replaceResult.addedCount() > 0) {
+			Set<Long> addedTargets = new HashSet<>(targets);
+			addedTargets.removeAll(previousTargets);
+			if (!addedTargets.isEmpty()) {
+				InternalDispatchDeltaEvents.publishLinkAttached(
+					player.serverLevel(),
+					sourceType,
+					sourceSerial,
+					addedTargets,
+					ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+				);
+			}
+		}
+		if (replaceResult.removedCount() > 0) {
+			Set<Long> removedTargets = new HashSet<>(previousTargets);
+			removedTargets.removeAll(targets);
+			if (!removedTargets.isEmpty()) {
+				InternalDispatchDeltaEvents.publishLinkDetached(
+					player.serverLevel(),
+					sourceType,
+					sourceSerial,
+					removedTargets,
+					ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+				);
+			}
+		}
 
 		syncAffectedNodeLinkSnapshots(player.serverLevel(), targetType, previousTargets, targets);
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
