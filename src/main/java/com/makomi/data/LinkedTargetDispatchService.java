@@ -5,6 +5,7 @@ import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.util.NeighborFanoutUtil;
 import com.makomi.util.SignalStrengths;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +22,10 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * </p>
  */
 public final class LinkedTargetDispatchService {
+	private static final Object FANOUT_DIAG_LOCK = new Object();
+	private static NeighborFanoutUtil.FanoutDiagnosticsSnapshot lastLoggedFanoutDiagnostics =
+		new NeighborFanoutUtil.FanoutDiagnosticsSnapshot(0L, 0L, 0L, 0L, 0L, 0L);
+
 	private LinkedTargetDispatchService() {
 	}
 
@@ -295,8 +300,28 @@ public final class LinkedTargetDispatchService {
 		if (elapsedMs < thresholdMs) {
 			return;
 		}
+		if (!RedstoneLinkConfig.runtimeDiagFanoutCountersEnabled()) {
+			RedstoneLink.LOGGER.warn(
+				"[DiagRuntime] sync_fanout_slow source={}#{}, targetType={}, totalTargets={}, pendingTargets={}, handled={}, forceLoadHandled={}, relayHandled={}, elapsedMs={}, thresholdMs={}, dimension={}",
+				LinkNodeSemantics.toSemanticName(sourceType),
+				sourceSerial,
+				LinkNodeSemantics.toSemanticName(targetType),
+				totalTargets,
+				pendingTargets,
+				handledCount,
+				forceLoadHandled,
+				relayHandled,
+				elapsedMs,
+				thresholdMs,
+				sourceLevel.dimension().location()
+			);
+			return;
+		}
+		NeighborFanoutUtil.FanoutDiagnosticsSnapshot fanoutDiagnosticsTotal = NeighborFanoutUtil.diagnosticsSnapshot();
+		NeighborFanoutUtil.FanoutDiagnosticsSnapshot fanoutDiagnosticsDelta =
+			computeFanoutDiagnosticsDeltaAndAdvance(fanoutDiagnosticsTotal);
 		RedstoneLink.LOGGER.warn(
-			"[DiagRuntime] sync_fanout_slow source={}#{}, targetType={}, totalTargets={}, pendingTargets={}, handled={}, forceLoadHandled={}, relayHandled={}, elapsedMs={}, thresholdMs={}, dimension={}",
+			"[DiagRuntime] sync_fanout_slow source={}#{}, targetType={}, totalTargets={}, pendingTargets={}, handled={}, forceLoadHandled={}, relayHandled={}, elapsedMs={}, thresholdMs={}, dimension={}, fanoutRequestDelta={}, centerNotifySentDelta={}, neighborNotifyAttemptDelta={}, neighborNotifySentDelta={}, crossChunkSkipDelta={}, fanoutDedupHitDelta={}, fanoutRequestTotal={}, centerNotifySentTotal={}, neighborNotifyAttemptTotal={}, neighborNotifySentTotal={}, crossChunkSkipTotal={}, fanoutDedupHitTotal={}",
 			LinkNodeSemantics.toSemanticName(sourceType),
 			sourceSerial,
 			LinkNodeSemantics.toSemanticName(targetType),
@@ -307,8 +332,51 @@ public final class LinkedTargetDispatchService {
 			relayHandled,
 			elapsedMs,
 			thresholdMs,
-			sourceLevel.dimension().location()
+			sourceLevel.dimension().location(),
+			fanoutDiagnosticsDelta.fanoutRequestCount(),
+			fanoutDiagnosticsDelta.centerNotifySentCount(),
+			fanoutDiagnosticsDelta.neighborNotifyAttemptCount(),
+			fanoutDiagnosticsDelta.neighborNotifySentCount(),
+			fanoutDiagnosticsDelta.crossChunkSkipCount(),
+			fanoutDiagnosticsDelta.fanoutDedupHitCount(),
+			fanoutDiagnosticsTotal.fanoutRequestCount(),
+			fanoutDiagnosticsTotal.centerNotifySentCount(),
+			fanoutDiagnosticsTotal.neighborNotifyAttemptCount(),
+			fanoutDiagnosticsTotal.neighborNotifySentCount(),
+			fanoutDiagnosticsTotal.crossChunkSkipCount(),
+			fanoutDiagnosticsTotal.fanoutDedupHitCount()
 		);
+	}
+
+	/**
+	 * 计算本次日志窗口的扇出计数增量，并推进基线。
+	 * <p>
+	 * 若运行期发生计数重置（当前值小于上次基线），该字段按“从 0 到当前”的窗口增量处理，避免出现负值。
+	 * </p>
+	 */
+	private static NeighborFanoutUtil.FanoutDiagnosticsSnapshot computeFanoutDiagnosticsDeltaAndAdvance(
+		NeighborFanoutUtil.FanoutDiagnosticsSnapshot current
+	) {
+		synchronized (FANOUT_DIAG_LOCK) {
+			NeighborFanoutUtil.FanoutDiagnosticsSnapshot previous = lastLoggedFanoutDiagnostics;
+			NeighborFanoutUtil.FanoutDiagnosticsSnapshot delta = new NeighborFanoutUtil.FanoutDiagnosticsSnapshot(
+				nonNegativeDelta(current.fanoutRequestCount(), previous.fanoutRequestCount()),
+				nonNegativeDelta(current.centerNotifySentCount(), previous.centerNotifySentCount()),
+				nonNegativeDelta(current.neighborNotifyAttemptCount(), previous.neighborNotifyAttemptCount()),
+				nonNegativeDelta(current.neighborNotifySentCount(), previous.neighborNotifySentCount()),
+				nonNegativeDelta(current.crossChunkSkipCount(), previous.crossChunkSkipCount()),
+				nonNegativeDelta(current.fanoutDedupHitCount(), previous.fanoutDedupHitCount())
+			);
+			lastLoggedFanoutDiagnostics = current;
+			return delta;
+		}
+	}
+
+	/**
+	 * 计算非负增量；若检测到计数回绕/重置，使用当前值作为窗口增量。
+	 */
+	private static long nonNegativeDelta(long current, long previous) {
+		return current >= previous ? (current - previous) : current;
 	}
 
 	/**

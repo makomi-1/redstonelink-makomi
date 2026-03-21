@@ -3,9 +3,9 @@ package com.makomi.block.entity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.util.NeighborFanoutUtil;
 import com.makomi.util.SignalStrengths;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +81,11 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private boolean tickResolvedInitialized;
 	private boolean tickResolvedState;
 	private int tickResolvedPower;
+	// 实体侧扇出去重：同时间粒度同输出值仅允许一次邻居扇出。
+	private boolean fanoutResolvedInitialized;
+	private TimeKey fanoutResolvedTimeKey = TimeKey.minValue();
+	private boolean fanoutResolvedState;
+	private int fanoutResolvedPower;
 
 	// TOGGLE 同 tick 合并：以 tick 内基准态 + 奇偶翻转计算结果。
 	private boolean toggleMergeInitialized;
@@ -745,9 +750,9 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
-	 * 同 tick 统一结果态写回（激活态 + 输出功率）。
+	 * 同时间粒度统一结果态写回（激活态 + 输出功率）。
 	 * <p>
-	 * 若同 tick 内结算结果不变，则跳过重复写回；当仅输出功率变化时，仍会刷新目标方块状态。
+	 * 若同时间粒度内结算结果不变，则跳过重复写回；当仅输出功率变化时，仍会刷新目标方块状态。
 	 * </p>
 	 */
 	private void applyResolvedState(boolean resolvedActive, int resolvedPower) {
@@ -770,8 +775,73 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (powerChanged) {
 			// 激活态未变但功率变化时，仍需刷新方块输出与客户端外显。
 			onActiveChanged(active);
-			syncToClient();
+			if (shouldSyncClientOnPowerChanged()) {
+				syncToClient();
+			}
 		}
+	}
+
+	/**
+	 * 功率变化且激活态不变时，是否需要同步方块实体到客户端。
+	 * <p>
+	 * 默认保持同步，依赖方块状态外显的子类可覆写为 false 以减少网络包。
+	 * </p>
+	 */
+	protected boolean shouldSyncClientOnPowerChanged() {
+		return true;
+	}
+
+	/**
+	 * 实体侧邻居扇出去重守卫。
+	 * <p>
+	 * 仅对 SYNC 生效：复用既有时间粒度键（{@link TimeKey}）对齐仲裁语义，
+	 * 仅当“时间键 + 激活态 + 输出功率”发生变化时才允许扇出。
+	 * 非 SYNC 模式（TOGGLE/PULSE/NONE）始终放行，避免改变其时序语义。
+	 * </p>
+	 *
+	 * @param resolvedActive 当前解析激活态
+	 * @return true 表示应执行扇出；false 表示同时间粒度重复扇出应抑制
+	 */
+	protected final boolean shouldFanoutByResolvedOutput(boolean resolvedActive) {
+		if (getEffectiveMode() != EffectiveMode.SYNC) {
+			return true;
+		}
+		TimeKey normalizedTimeKey = authorityTimeKey == null ? TimeKey.of(0L, 0) : authorityTimeKey;
+		int normalizedPower = normalizeSignalStrength(resolvedOutputPower);
+		if (
+			fanoutResolvedInitialized
+				&& fanoutResolvedState == resolvedActive
+				&& fanoutResolvedPower == normalizedPower
+				&& fanoutResolvedTimeKey.equals(normalizedTimeKey)
+		) {
+			NeighborFanoutUtil.recordFanoutDedupHit();
+			return false;
+		}
+		fanoutResolvedInitialized = true;
+		fanoutResolvedState = resolvedActive;
+		fanoutResolvedPower = normalizedPower;
+		fanoutResolvedTimeKey = normalizedTimeKey;
+		return true;
+	}
+
+	/**
+	 * 返回当前扇出去重时间键的 tick 分量。
+	 * <p>
+	 * 供子类传递给工具层做统一时间粒度去重，避免写死同 tick 判定。
+	 * </p>
+	 */
+	protected final long getFanoutTimeTick() {
+		return authorityTimeKey == null ? 0L : Math.max(0L, authorityTimeKey.tick());
+	}
+
+	/**
+	 * 返回当前扇出去重时间键的 slot 分量。
+	 * <p>
+	 * 与 tick 共同构成时间粒度键，保持与仲裁模型一致。
+	 * </p>
+	 */
+	protected final int getFanoutTimeSlot() {
+		return authorityTimeKey == null ? 0 : Math.max(0, authorityTimeKey.slot());
 	}
 
 	/**
@@ -1194,6 +1264,9 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		arbitrationPriority = Integer.MIN_VALUE;
 		tickResolvedInitialized = false;
 		tickResolvedPower = 0;
+		fanoutResolvedInitialized = false;
+		fanoutResolvedTimeKey = TimeKey.minValue();
+		fanoutResolvedPower = 0;
 		toggleMergeInitialized = false;
 		toggleMergeParity = false;
 	}
@@ -1501,4 +1574,3 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		entryTag.putLong(KEY_CONCURRENT_SEQ, Math.max(0L, seq));
 	}
 }
-

@@ -7,11 +7,11 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.network.PairingNetwork;
+import com.makomi.util.NeighborFanoutUtil;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
@@ -27,33 +27,30 @@ import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
-import net.minecraft.world.level.block.state.properties.RedstoneSide;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import org.joml.Vector3f;
+
 
 /**
  * 核心红石粉方块。
  * <p>
- * 基于原版 {@link RedStoneWireBlock} 扩展：
+ * 作为轻量“定向红石输出节点”实现，不再继承原版红石线逻辑：
  * 所有附着面统一走“仅输出、不连线”的定向节点语义，
  * 顶面仅保留附着与外形特性，不再保留独立计算分支。
  * </p>
  */
-public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements EntityBlock {
+public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 	public static final DirectionProperty SUPPORT_FACE = DirectionProperty.create("support_face", Direction.values());
 	public static final BooleanProperty ACTIVE = BooleanProperty.create("active");
-	private static final Vector3f BLUE_PARTICLE_BASE_COLOR = new Vector3f(0.36F, 0.66F, 1.0F);
 	private static final VoxelShape FLOOR_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 1.0D, 16.0D);
 	private static final VoxelShape CEILING_SHAPE = Block.box(0.0D, 15.0D, 0.0D, 16.0D, 16.0D, 16.0D);
 	private static final VoxelShape NORTH_WALL_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 16.0D, 1.0D);
@@ -63,6 +60,7 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 
 	public LinkRedstoneDustCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
+		// 保留既有契约测试匹配片段：显式声明 active 默认值。
 		registerDefaultState(defaultBlockState().setValue(SUPPORT_FACE, Direction.DOWN).setValue(ACTIVE, false));
 	}
 
@@ -131,6 +129,10 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 				// 走“待确认退役”路径，避免正常掉落被误判为销毁。
 				coreBlockEntity.unregisterNode(true);
 			}
+			if (!level.isClientSide) {
+				// 核心被破坏时对齐核心块：中心 + 六方向二级扇出，确保周边红石网络立即收敛。
+				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
+			}
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);
 	}
@@ -144,38 +146,40 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		BlockPos fromPos,
 		boolean movedByPiston
 	) {
-		// 先处理附着合法性，避免后续对已失效方块继续演算。
-		if (!state.canSurvive(level, pos)) {
+		Direction supportFace = state.getValue(SUPPORT_FACE);
+		BlockPos supportPos = pos.relative(supportFace);
+		// L1 收敛：仅支撑侧变化才执行生存判定，避免无关邻居触发热路径。
+		if (!fromPos.equals(supportPos)) {
+			return;
+		}
+		if (!level.getBlockState(supportPos).isFaceSturdy(level, supportPos, supportFace.getOpposite())) {
 			BlockEntity blockEntity = level.getBlockEntity(pos);
 			dropResources(state, level, pos, blockEntity);
+			// removeBlock 内部使用 flags=3（UPDATE_NEIGHBORS|UPDATE_CLIENTS），
 			level.removeBlock(pos, false);
 			return;
 		}
-		syncPowerWithActiveState(state, level, pos);
+		// 与核心块路径对齐：邻居变化不参与输出重算，避免广播回调导致重复扇出与重入计算。
 	}
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-		super.createBlockStateDefinition(builder);
 		builder.add(SUPPORT_FACE, ACTIVE);
 	}
 
 	@Override
 	public BlockState getStateForPlacement(BlockPlaceContext context) {
-		BlockState baseState = super.getStateForPlacement(context);
-		if (baseState == null) {
-			baseState = defaultBlockState();
-		}
+		BlockState baseState = defaultBlockState();
 
 		Direction preferredSupportFace = context.getClickedFace().getOpposite();
-		BlockState preferredState = normalizeForSupportFace(baseState.setValue(SUPPORT_FACE, preferredSupportFace));
+		BlockState preferredState = baseState.setValue(SUPPORT_FACE, preferredSupportFace);
 		if (preferredState.canSurvive(context.getLevel(), context.getClickedPos())) {
 			return preferredState;
 		}
 
 		// 点击面不可附着时，按玩家视角方向回退选择可附着面。
 		for (Direction lookDirection : context.getNearestLookingDirections()) {
-			BlockState fallbackState = normalizeForSupportFace(baseState.setValue(SUPPORT_FACE, lookDirection.getOpposite()));
+			BlockState fallbackState = baseState.setValue(SUPPORT_FACE, lookDirection.getOpposite());
 			if (fallbackState.canSurvive(context.getLevel(), context.getClickedPos())) {
 				return fallbackState;
 			}
@@ -199,11 +203,15 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		BlockPos pos,
 		BlockPos neighborPos
 	) {
-		// 所有附着面统一不参与连接态演算，避免顶面和非顶面行为分叉。
-		if (!state.canSurvive(level, pos)) {
+		Direction supportFace = state.getValue(SUPPORT_FACE);
+		// L1 收敛：仅当支撑方向邻居发生变化时，才需要判定是否掉落。
+		if (direction != supportFace) {
+			return state;
+		}
+		if (!neighborState.isFaceSturdy(level, neighborPos, supportFace.getOpposite())) {
 			return Blocks.AIR.defaultBlockState();
 		}
-		return normalizeForSupportFace(state);
+		return state;
 	}
 
 	@Override
@@ -226,44 +234,21 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 			serverLevel.scheduleTick(pos, state.getBlock(), 1);
 		}
 		BlockState currentState = level.getBlockState(pos);
-		BlockState normalizedState = normalizeForSupportFace(currentState);
-		syncPowerWithActiveState(normalizedState, level, pos);
-	}
-
-	/**
-	 * 在核心触发态变化时刷新方块状态。
-	 */
-	public void onCoreActivationStateChanged(Level level, BlockPos pos) {
-		BlockState state = level.getBlockState(pos);
-		if (!(state.getBlock() instanceof LinkRedstoneDustCoreBlock)) {
-			return;
-		}
-		if (!state.canSurvive(level, pos)) {
-			BlockEntity blockEntity = level.getBlockEntity(pos);
-			dropResources(state, level, pos, blockEntity);
-			level.removeBlock(pos, false);
-			return;
-		}
-		syncPowerWithActiveState(state, level, pos);
+		syncPowerWithActiveState(currentState, level, pos);
 	}
 
 	@Override
 	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
 		// 所有附着面都只向附着反方向输出，确保路径一致。
-		return direction == state.getValue(SUPPORT_FACE).getOpposite() ? state.getValue(POWER) : 0;
+		return direction == state.getValue(SUPPORT_FACE).getOpposite() ? getCoreResolvedPower(level, pos) : 0;
 	}
 
 	@Override
 	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
 		// 直接信号与弱信号保持一致，避免附着方向出现不一致。
-		return direction == state.getValue(SUPPORT_FACE).getOpposite() ? state.getValue(POWER) : 0;
+		return direction == state.getValue(SUPPORT_FACE).getOpposite() ? getCoreResolvedPower(level, pos) : 0;
 	}
 
-	@Override
-	protected boolean isSignalSource(BlockState state) {
-		// 统一关闭“红石线同类连接”信号源判定，避免顶面路径再次特殊化。
-		return false;
-	}
 
 	@Override
 	protected InteractionResult useWithoutItem(
@@ -293,27 +278,6 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		}
 	}
 
-	/**
-	 * 核心红石粉粒子改造：仅在激活态渲染本地蓝色粒子，避免继承原版红色粒子表现。
-	 */
-	@Override
-	public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
-		int power = state.getValue(POWER);
-		if (power <= 0 || random.nextFloat() > 0.35F) {
-			return;
-		}
-
-		float intensity = power / 15.0F;
-		float red = BLUE_PARTICLE_BASE_COLOR.x() * (0.55F + 0.45F * intensity);
-		float green = BLUE_PARTICLE_BASE_COLOR.y() * (0.55F + 0.45F * intensity);
-		float blue = BLUE_PARTICLE_BASE_COLOR.z() * (0.55F + 0.45F * intensity);
-		float scale = 0.45F + 0.25F * intensity;
-
-		double x = pos.getX() + 0.5D + (random.nextDouble() - 0.5D) * 0.5D;
-		double y = pos.getY() + 0.0625D;
-		double z = pos.getZ() + 0.5D + (random.nextDouble() - 0.5D) * 0.5D;
-		level.addParticle(new DustParticleOptions(new Vector3f(red, green, blue), scale), x, y, z, 0.0D, 0.0D, 0.0D);
-	}
 
 	/**
 	 * 打开核心配对界面。
@@ -334,15 +298,6 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		}
 	}
 
-	private static BlockState normalizeForSupportFace(BlockState state) {
-		// 所有附着面均不参与与其他红石粉连接交互，四向连接固定为 none。
-		return state
-			.setValue(NORTH, RedstoneSide.NONE)
-			.setValue(EAST, RedstoneSide.NONE)
-			.setValue(SOUTH, RedstoneSide.NONE)
-			.setValue(WEST, RedstoneSide.NONE);
-	}
-
 	/**
 	 * 确保核心节点已分配序号。
 	 * <p>
@@ -361,15 +316,12 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 	private static void syncPowerWithActiveState(BlockState state, Level level, BlockPos pos) {
 		int targetPower = getCoreResolvedPower(level, pos);
 		boolean targetActive = targetPower > 0;
-		BlockState normalizedState = normalizeForSupportFace(state);
-		BlockState targetState = normalizedState.setValue(POWER, targetPower).setValue(ACTIVE, targetActive);
+		// 与核心块路径对齐：输出强度以方块实体为准，方块状态仅承载可见激活态。
+		BlockState targetState = state.setValue(ACTIVE, targetActive);
 		BlockState currentState = level.getBlockState(pos);
-		if (!targetState.equals(currentState)) {		
-			// 做局部状态更新并手动通知附着目标邻居。
-			level.setBlock(pos, targetState, Block.UPDATE_ALL);
-			notifyAttachedNeighbor(level, pos, targetState);
-			return;
-				
+		if (!targetState.equals(currentState)) {
+			// 放置/重建时仅需同步可见态到客户端，邻居传播由实体侧统一扇出。
+			level.setBlock(pos, targetState, Block.UPDATE_CLIENTS);
 		}
 	}
 
@@ -380,11 +332,4 @@ public class LinkRedstoneDustCoreBlock extends RedStoneWireBlock implements Enti
 		return 0;
 	}
 
-	private static void notifyAttachedNeighbor(Level level, BlockPos pos, BlockState state) {
-		// 顶面与非顶面统一仅通知附着块，避免对附着块周边重复扇出。
-		Direction supportDirection = state.getValue(SUPPORT_FACE);
-		BlockPos attachedPos = pos.relative(supportDirection);
-		Block block = state.getBlock();
-		level.updateNeighborsAt(attachedPos, block);
-	}
 }

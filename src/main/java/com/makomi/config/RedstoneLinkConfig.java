@@ -525,6 +525,13 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 是否在 sync fanout 慢日志中输出扇出计数字段
+	 */
+	public static boolean runtimeDiagFanoutCountersEnabled() {
+		return crossChunkValues.runtimeDiagFanoutCountersEnabled();
+	}
+
+	/**
 	 * @return 跨区块派发失败重试告警阈值（次数，0=关闭）
 	 */
 	public static int crossChunkRetryWarnThreshold() {
@@ -738,6 +745,7 @@ public final class RedstoneLinkConfig {
 			CrossChunkNotifyMode.fromConfigValue(props.getProperty("crosschunk.notify.mode", "simple")),
 			parseBoolean(props, "crosschunk.diag.runtime.enabled", false),
 			parseInt(props, "crosschunk.diag.runtime.warnThresholdMs", 25, 1, 10_000),
+			parseBoolean(props, "crosschunk.diag.runtime.fanoutCounters.enabled", false),
 			retryWarnThreshold,
 			retryErrorThreshold,
 			retryDropThreshold,
@@ -1327,6 +1335,11 @@ public final class RedstoneLinkConfig {
 			# en: Runtime slow-path logging threshold in milliseconds.
 			crosschunk.diag.runtime.warnThresholdMs=25
 
+			# crosschunk.diag.runtime.fanoutCounters.enabled
+			# zh: 是否在 sync_fanout_slow 日志中输出 fanout 计数（delta/total）。
+			# en: Whether to include fanout counter fields (delta/total) in sync_fanout_slow logs.
+			crosschunk.diag.runtime.fanoutCounters.enabled=false
+
 			# crosschunk.whitelist.sourceTypes
 			# zh: 允许作为来源的类型列表（逗号/空格分隔）。
 			# en: Allowed source types for cross-chunk whitelist.
@@ -1513,6 +1526,7 @@ public final class RedstoneLinkConfig {
 		CrossChunkNotifyMode notifyMode,
 		boolean runtimeDiagEnabled,
 		int runtimeDiagWarnThresholdMs,
+		boolean runtimeDiagFanoutCountersEnabled,
 		int retryWarnThreshold,
 		int retryErrorThreshold,
 		int retryDropThreshold,
@@ -1544,6 +1558,7 @@ public final class RedstoneLinkConfig {
 				CrossChunkNotifyMode.SIMPLE,
 				false,
 				25,
+				false,
 				200,
 				1000,
 				2000,

@@ -1,6 +1,17 @@
 {
   "multipart": [
     {
+      "when": {
+        "active": "false"
+      },
+      "apply": {
+        "model": "redstonelink:block/link_redstone_dust_core_transparent"
+      }
+    },
+    {
+      "when": {
+        "active": "true"
+      },
       "apply": {
         "model": "redstonelink:block/link_redstone_dust_core_transparent"
       }

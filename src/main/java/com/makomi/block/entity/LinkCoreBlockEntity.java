@@ -2,8 +2,8 @@ package com.makomi.block.entity;
 
 import com.makomi.block.LinkCoreBlock;
 import com.makomi.data.LinkNodeType;
+import com.makomi.util.NeighborFanoutUtil;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -37,15 +37,22 @@ public class LinkCoreBlockEntity extends ActivatableTargetBlockEntity {
 	protected void onActiveChanged(boolean active) {
 		BlockState state = level.getBlockState(worldPosition);
 		if (state.getBlock() instanceof LinkCoreBlock && state.getValue(LinkCoreBlock.ACTIVE) != active) {
-			level.setBlock(worldPosition, state.setValue(LinkCoreBlock.ACTIVE, active), Block.UPDATE_ALL);
+			level.setBlock(worldPosition, state.setValue(LinkCoreBlock.ACTIVE, active), Block.UPDATE_CLIENTS);
+		}
+		if (!shouldFanoutByResolvedOutput(active)) {
+			return;
 		}
 
-		// 主动刷新周围红石邻接，确保电路立即更新。
-		Block block = state.getBlock();
-		level.updateNeighborsAt(worldPosition, block);
-		for (Direction direction : Direction.values()) {
-			level.updateNeighborsAt(worldPosition.relative(direction), block);
-		}
+		// 主动刷新周围红石邻接；工具层会做已加载守卫与时间粒度去重。
+		NeighborFanoutUtil.notifyCenterAndSixNeighbors(
+			level,
+			worldPosition,
+			state.getBlock(),
+			getFanoutTimeTick(),
+			getFanoutTimeSlot(),
+			active,
+			getResolvedOutputPower()
+		);
 	}
 
 	@Override

@@ -8,6 +8,7 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.network.PairingNetwork;
+import com.makomi.util.NeighborFanoutUtil;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -119,6 +120,11 @@ public class LinkCoreBlock extends BaseEntityBlock {
 		if (!state.is(newState.getBlock())) {
 			if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
 				coreBlockEntity.unregisterNode(true);
+			}
+			if (!level.isClientSide) {
+				// 核心块被破坏时主动补齐二级扇出：中心 + 六方向。
+				// 目的：让与核心块相邻及次邻接的红石网络在同 tick 内完成收敛。
+				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 			}
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);

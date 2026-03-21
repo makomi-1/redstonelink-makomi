@@ -29,13 +29,11 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -66,8 +64,6 @@ public final class ModCommands {
 	private static final int SERIAL_LIST_MAX_ITEMS = 50;
 	private static final int SERIAL_LIST_MAX_CHARS = 300;
 	private static final int PLACE_BLOCK_FLAGS = 2;
-	private static final long PLACE_CONFIRM_TIMEOUT_MILLIS = 30_000L;
-	private static final Map<UUID, PendingPlacement> PENDING_PLACE_BY_PLAYER = new HashMap<>();
 
 	private ModCommands() {
 	}
@@ -219,15 +215,14 @@ public final class ModCommands {
 									Commands.argument("from", BlockPosArgument.blockPos()).then(
 										Commands.argument("to", BlockPosArgument.blockPos()).then(
 											Commands
-												.argument("block", BlockStateArgument.block(registryAccess))
-												.executes(ModCommands::executePlaceFill)
-												.then(Commands.literal("dry_run").executes(ModCommands::executePlaceFillDryRun))
-												.then(Commands.literal("force").executes(ModCommands::executePlaceFillForce))
+											.argument("block", BlockStateArgument.block(registryAccess))
+											.executes(ModCommands::executePlaceFill)
+											.then(Commands.literal("force").executes(ModCommands::executePlaceFillForce))
+											.then(Commands.literal("confirm").executes(ModCommands::executePlaceFillConfirm))
 										)
 									)
 								)
 						)
-						.then(Commands.literal("confirm").executes(ModCommands::executePlaceConfirm))
 				)
 				.then(
 					Commands
@@ -693,7 +688,7 @@ public final class ModCommands {
 	 * 输出当前链路审计信息到命令反馈。
 	 */
 	/**
-	 * 自定义 setblock：放置可配对节点，必要时触发非空气替换确认。
+	 * 自定义 setblock：放置可配对节点。
 	 */
 	private static int executePlaceSetBlock(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
 		return executePlaceSetBlockInternal(context, false, false);
@@ -737,15 +732,9 @@ public final class ModCommands {
 		if (!validatePairablePlacementInput(source, input, pos)) {
 			return 0;
 		}
-
-		int replaceCount = countPotentialReplaceNonAir(level, pos, pos, input);
 		if (dryRun) {
 			source.sendSuccess(
-				() -> Component.translatable(
-					"message.redstonelink.place.dry_run_setblock",
-					replaceCount,
-					Boolean.toString(replaceCount > 0)
-				),
+				() -> Component.translatable("message.redstonelink.place.dry_run_setblock"),
 				false
 			);
 			return Command.SINGLE_SUCCESS;
@@ -756,47 +745,40 @@ public final class ModCommands {
 			level.dimension(),
 			pos,
 			pos,
-			input,
-			replaceCount,
-			System.currentTimeMillis()
+			input
 		);
-		if (replaceCount > 0 && !force) {
-			PENDING_PLACE_BY_PLAYER.put(player.getUUID(), pendingPlacement);
-			source.sendFailure(Component.translatable("message.redstonelink.place.replace_confirm", replaceCount));
-			return 0;
-		}
-
+		// setblock 不再执行非空气替换拦截，统一直接放置。
 		return executePlacementNow(source, player, pendingPlacement);
 	}
 
 	/**
-	 * 自定义 fill：批量放置可配对节点，替换非空气时要求二次确认。
+	 * 自定义 fill：批量放置可配对节点，非 force 执行要求尾缀 confirm。
 	 */
 	private static int executePlaceFill(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
 		return executePlaceFillInternal(context, false, false);
 	}
 
 	/**
-	 * 自定义 fill 预检：仅输出体积与替换影响，不执行放置。
+	 * 自定义 fill 强制执行：跳过 confirm 拦截直接放置。
 	 */
-	private static int executePlaceFillDryRun(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+	private static int executePlaceFillForce(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
 		return executePlaceFillInternal(context, true, false);
 	}
 
 	/**
-	 * 自定义 fill 强制执行：跳过替换确认直接放置。
+	 * 自定义 fill 二次确认执行：在原命令末尾追加 confirm 后执行。
 	 */
-	private static int executePlaceFillForce(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+	private static int executePlaceFillConfirm(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
 		return executePlaceFillInternal(context, false, true);
 	}
 
 	/**
-	 * 自定义 fill 执行入口：支持预检与强制执行。
+	 * 自定义 fill 执行入口：支持强制执行与确认执行。
 	 */
 	private static int executePlaceFillInternal(
 		CommandContext<CommandSourceStack> context,
-		boolean dryRun,
-		boolean force
+		boolean force,
+		boolean confirmed
 	) throws CommandSyntaxException {
 		CommandSourceStack source = context.getSource();
 		ServerPlayer player = source.getPlayer();
@@ -826,7 +808,7 @@ public final class ModCommands {
 			return 0;
 		}
 		int boundedVolume = volume > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) volume;
-		int commandCost = CommandRateLimitService.computeBatchCost(dryRun ? 2 : 3, boundedVolume, 256);
+		int commandCost = CommandRateLimitService.computeBatchCost(3, boundedVolume, 256);
 		if (
 			!CommandRateLimitService.tryAcquireOrSendFailure(
 				source,
@@ -837,80 +819,18 @@ public final class ModCommands {
 			return 0;
 		}
 
-		int replaceCount = countPotentialReplaceNonAir(level, min, max, input);
-		if (dryRun) {
-			source.sendSuccess(
-				() -> Component.translatable(
-					"message.redstonelink.place.dry_run_fill",
-					volume,
-					replaceCount,
-					Boolean.toString(replaceCount > 0)
-				),
-				false
-			);
-			return Command.SINGLE_SUCCESS;
+		if (!force && !confirmed) {
+			source.sendFailure(Component.translatable("message.redstonelink.place.fill.confirm_required"));
+			return 0;
 		}
-
 		PendingPlacement pendingPlacement = new PendingPlacement(
 			PlacementMode.FILL,
 			level.dimension(),
 			min,
 			max,
-			input,
-			replaceCount,
-			System.currentTimeMillis()
+			input
 		);
-		if (replaceCount > 0 && !force) {
-			PENDING_PLACE_BY_PLAYER.put(player.getUUID(), pendingPlacement);
-			source.sendFailure(Component.translatable("message.redstonelink.place.replace_confirm", replaceCount));
-			return 0;
-		}
-
 		return executePlacementNow(source, player, pendingPlacement);
-	}
-
-	/**
-	 * place confirm：确认并执行上一次待确认的 setblock/fill。
-	 */
-	private static int executePlaceConfirm(CommandContext<CommandSourceStack> context) {
-		CommandSourceStack source = context.getSource();
-		ServerPlayer player = source.getPlayer();
-		if (player == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
-			return 0;
-		}
-
-		PendingPlacement pending = PENDING_PLACE_BY_PLAYER.get(player.getUUID());
-		if (pending == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.place.no_pending"));
-			return 0;
-		}
-		long elapsed = System.currentTimeMillis() - pending.createdAtMillis();
-		if (elapsed > PLACE_CONFIRM_TIMEOUT_MILLIS) {
-			PENDING_PLACE_BY_PLAYER.remove(player.getUUID());
-			source.sendFailure(Component.translatable("message.redstonelink.place.pending_expired"));
-			return 0;
-		}
-		if (!pending.dimension().equals(player.serverLevel().dimension())) {
-			PENDING_PLACE_BY_PLAYER.remove(player.getUUID());
-			source.sendFailure(Component.translatable("message.redstonelink.place.pending_dimension_changed"));
-			return 0;
-		}
-		long pendingVolume = blockVolume(pending.from(), pending.to());
-		int boundedVolume = pendingVolume > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) pendingVolume;
-		int commandCost = CommandRateLimitService.computeBatchCost(2, boundedVolume, 256);
-		if (
-			!CommandRateLimitService.tryAcquireOrSendFailure(
-				source,
-				CommandRateLimitService.CommandGroup.OTHER,
-				commandCost
-			)
-		) {
-			return 0;
-		}
-
-		PENDING_PLACE_BY_PLAYER.remove(player.getUUID());
-		return executePlacementNow(source, player, pending);
 	}
 
 	/**
@@ -972,24 +892,6 @@ public final class ModCommands {
 		if (serial > 0L) {
 			nodeBlockEntity.setLinkData(serial);
 		}
-	}
-
-	/**
-	 * 统计目标区域中会被替换的非空气方块数量。
-	 */
-	private static int countPotentialReplaceNonAir(ServerLevel level, BlockPos from, BlockPos to, BlockInput blockInput) {
-		BlockState targetState = blockInput.getState();
-		int count = 0;
-		for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
-			BlockState currentState = level.getBlockState(pos);
-			if (currentState.isAir()) {
-				continue;
-			}
-			if (!currentState.equals(targetState)) {
-				count++;
-			}
-		}
-		return count;
 	}
 
 	/**
@@ -1976,9 +1878,7 @@ public final class ModCommands {
 		ResourceKey<Level> dimension,
 		BlockPos from,
 		BlockPos to,
-		BlockInput blockInput,
-		int replaceCount,
-		long createdAtMillis
+		BlockInput blockInput
 	) {}
 
 	private record TargetParseResult(
