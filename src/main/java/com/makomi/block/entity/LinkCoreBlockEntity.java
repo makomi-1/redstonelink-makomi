@@ -56,6 +56,11 @@ public class LinkCoreBlockEntity extends ActivatableTargetBlockEntity {
 	}
 
 	@Override
+	protected boolean shouldSyncClientOnPowerChanged() {
+		return false;
+	}
+
+	@Override
 	protected void schedulePulseReset(int pulseTicks) {
 		if (level instanceof ServerLevel serverLevel) {
 			serverLevel.scheduleTick(worldPosition, getBlockState().getBlock(), pulseTicks);
