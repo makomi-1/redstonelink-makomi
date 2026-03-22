@@ -1,0 +1,15 @@
+# RedstoneLink bench dedicated server example
+# 用法：复制为 dedicated server 的 server.properties 再按需调整。
+
+enable-rcon=true
+rcon.port=25575
+rcon.password=redstonelink-bench
+
+level-name=rl-bench
+motd=RedstoneLink Bench
+
+online-mode=false
+white-list=false
+spawn-protection=0
+difficulty=peaceful
+allow-flight=true

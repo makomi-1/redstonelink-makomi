@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "defaults": {
+    "tickMillis": 50,
+    "settleTicks": 20,
+    "prepareFunctions": [
+      "rl_bench:prepare/common",
+      "rl_bench:reset/common"
+    ],
+    "resultsDir": "run/profiles/bench-results",
+    "spark": {
+      "startCpu": "spark profiler start",
+      "stopCpu": "spark profiler stop --comment {case_id}",
+      "health": "spark health --upload --memory"
+    }
+  },
+  "cases": [
+    {
+      "id": "sync_1_to_64_core_dense",
+      "description": "单个 sync triggerSource 广播到 8x8 core block 阵列。",
+      "arena": {
+        "clearFrom": [-16, 63, -8],
+        "clearTo": [16, 66, 16]
+      },
+      "targets": {
+        "id": "core_main",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [0, 64, 0],
+          "to": [7, 64, 7]
+        }
+      },
+      "sources": [
+        {
+          "id": "sync_main",
+          "kind": "sync_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [-8, 64, 0],
+            "to": [-8, 64, 0]
+          },
+          "control": {
+            "mode": "north_strip",
+            "onBlock": "minecraft:redstone_block",
+            "offBlock": "minecraft:air"
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "sync_main",
+          "mapping": "broadcast_all"
+        }
+      ],
+      "drive": {
+        "totalTicks": 200,
+        "steps": [
+          {
+            "kind": "sync_square_wave",
+            "sourceGroup": "sync_main",
+            "periodTicks": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": "toggle_64_to_1_core_dense",
+      "description": "8x8 toggle triggerSource 阵列汇聚到单个 core block。",
+      "arena": {
+        "clearFrom": [-8, 63, -8],
+        "clearTo": [24, 66, 16]
+      },
+      "targets": {
+        "id": "core_single",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [20, 64, 0],
+          "to": [20, 64, 0]
+        }
+      },
+      "sources": [
+        {
+          "id": "toggle_main",
+          "kind": "toggle_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 0],
+            "to": [7, 64, 7]
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "toggle_main",
+          "mapping": "fan_in_first"
+        }
+      ],
+      "drive": {
+        "totalTicks": 200,
+        "steps": [
+          {
+            "kind": "activate_batch",
+            "sourceGroup": "toggle_main",
+            "mode": "toggle",
+            "everyTicks": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": "mixed_16_to_16_core_dense",
+      "description": "sync / pulse / toggle 三组来源混合驱动 4x4 core block 阵列。",
+      "arena": {
+        "clearFrom": [-28, 63, -8],
+        "clearTo": [16, 66, 28]
+      },
+      "targets": {
+        "id": "core_mixed",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [0, 64, 0],
+          "to": [3, 64, 3]
+        }
+      },
+      "sources": [
+        {
+          "id": "sync_group",
+          "kind": "sync_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [-20, 64, 0],
+            "to": [-17, 64, 3]
+          },
+          "control": {
+            "mode": "north_strip",
+            "onBlock": "minecraft:redstone_block",
+            "offBlock": "minecraft:air"
+          }
+        },
+        {
+          "id": "pulse_group",
+          "kind": "pulse_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [-20, 64, 10],
+            "to": [-17, 64, 13]
+          }
+        },
+        {
+          "id": "toggle_group",
+          "kind": "toggle_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [-20, 64, 20],
+            "to": [-17, 64, 23]
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "sync_group",
+          "mapping": "broadcast_all"
+        },
+        {
+          "sourceGroup": "pulse_group",
+          "mapping": "zip"
+        },
+        {
+          "sourceGroup": "toggle_group",
+          "mapping": "round_robin"
+        }
+      ],
+      "drive": {
+        "totalTicks": 240,
+        "steps": [
+          {
+            "kind": "sync_square_wave",
+            "sourceGroup": "sync_group",
+            "periodTicks": 4
+          },
+          {
+            "kind": "activate_batch",
+            "sourceGroup": "pulse_group",
+            "mode": "pulse",
+            "everyTicks": 8
+          },
+          {
+            "kind": "activate_batch",
+            "sourceGroup": "toggle_group",
+            "mode": "toggle",
+            "everyTicks": 20
+          }
+        ]
+      }
+    }
+  ]
+}
