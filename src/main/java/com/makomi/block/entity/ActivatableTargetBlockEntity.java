@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -444,10 +445,11 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			return;
 		}
 		long now = level.getGameTime();
-		recomputePulseTruthFromConcurrentBuckets();
+		boolean bucketChanged = recomputePulseTruthFromConcurrentBuckets();
 		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(TimeKey.of(now, 0), authoritySeq);
 		applyDerivedStateFromTruth();
+		markStructuredTruthDirty(bucketChanged);
 	}
 
 	protected boolean canBeTriggeredBy(long sourceSerial) {
@@ -513,10 +515,10 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
 				return;
 			}
-			updateSyncSignalStrength(0L, normalizedStrength);
-			pulseUntilGameTime = 0L;
-			pulseResetArmed = false;
+			boolean bucketChanged = updateSyncSignalStrength(0L, normalizedStrength);
+			bucketChanged |= clearPulseTruth();
 			applyDerivedStateFromTruth();
+			markStructuredTruthDirty(bucketChanged);
 			return;
 		}
 		applyActivation(0L, activationMode == null ? configuredMode : activationMode, eventMeta);
@@ -529,12 +531,12 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
 			return;
 		}
-		pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
+		boolean bucketChanged = pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
 		int normalizedStrength = normalizeSignalStrength(signalStrength);
 		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
-			removeSyncConcurrentSource(sourceKey);
+			bucketChanged |= removeSyncConcurrentSource(sourceKey);
 		} else {
-			upsertSyncConcurrentSource(sourceKey, eventMeta.timeKey(), normalizedStrength, eventMeta.seq());
+			bucketChanged |= upsertSyncConcurrentSource(sourceKey, eventMeta.timeKey(), normalizedStrength, eventMeta.seq());
 			// 同步语义生效时，不应受历史脉冲回落影响。
 			pulseUntilGameTime = 0L;
 			pulseResetArmed = false;
@@ -543,6 +545,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		applyDerivedStateFromTruth();
+		markStructuredTruthDirty(bucketChanged);
 	}
 
 	/**
@@ -566,27 +569,28 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		boolean sameSourceHadToggleContribution = normalizedMode == ActivationMode.TOGGLE
 			&& deltaAction != DeltaAction.REMOVE
 			&& resolveToggleContributionBeforePrune(sourceKey);
-		pruneOlderFramesForIncoming(normalizedTimeKey, incomingMode);
+		boolean bucketChanged = pruneOlderFramesForIncoming(normalizedTimeKey, incomingMode);
 		recomputeSyncTruthFromConcurrentBuckets();
 		if (normalizedMode == ActivationMode.PULSE) {
 			if (deltaAction == DeltaAction.REMOVE) {
-				removePulseConcurrentSource(sourceKey);
+				bucketChanged |= removePulseConcurrentSource(sourceKey);
 			} else {
-				upsertPulseConcurrentSource(sourceKey, normalizedTimeKey, eventMeta.seq());
+				bucketChanged |= upsertPulseConcurrentSource(sourceKey, normalizedTimeKey, eventMeta.seq());
 			}
-			recomputePulseTruthFromConcurrentBuckets();
+			bucketChanged |= recomputePulseTruthFromConcurrentBuckets();
 			recomputeToggleTruthFromConcurrentBuckets();
 		} else {
 			markToggleSourceTouchedInCurrentFrame(sourceKey);
 			if (deltaAction == DeltaAction.REMOVE) {
-				removeToggleConcurrentSource(sourceKey);
+				bucketChanged |= removeToggleConcurrentSource(sourceKey);
 			} else {
-				upsertToggleConcurrentSource(sourceKey, normalizedTimeKey, eventMeta.seq(), sameSourceHadToggleContribution);
+				bucketChanged |= upsertToggleConcurrentSource(sourceKey, normalizedTimeKey, eventMeta.seq(), sameSourceHadToggleContribution);
 			}
 			recomputeToggleTruthFromConcurrentBuckets();
 		}
 		recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
 		applyDerivedStateFromTruth();
+		markStructuredTruthDirty(bucketChanged);
 	}
 
 	/**
@@ -607,11 +611,12 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
 			return;
 		}
-		removeSyncConcurrentSource(sourceKey);
+		boolean bucketChanged = removeSyncConcurrentSource(sourceKey);
 		recomputeSyncTruthFromConcurrentBuckets();
 		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		applyDerivedStateFromTruth();
+		markStructuredTruthDirty(bucketChanged);
 	}
 
 	/**
@@ -624,76 +629,93 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
 			return;
 		}
-		removeSyncConcurrentSource(sourceKey);
-		removePulseConcurrentSource(sourceKey);
-		removeToggleConcurrentSource(sourceKey);
+		boolean bucketChanged = removeSyncConcurrentSource(sourceKey);
+		bucketChanged |= removePulseConcurrentSource(sourceKey);
+		bucketChanged |= removeToggleConcurrentSource(sourceKey);
 		recomputeSyncTruthFromConcurrentBuckets();
-		recomputePulseTruthFromConcurrentBuckets();
+		bucketChanged |= recomputePulseTruthFromConcurrentBuckets();
 		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		applyDerivedStateFromTruth();
+		markStructuredTruthDirty(bucketChanged);
 	}
 
 	/**
 	 * 写入或覆盖同步来源贡献（同 sourceKey 仅保留最新）。
 	 */
-	private void upsertSyncConcurrentSource(SourceKey sourceKey, TimeKey timeKey, int strength, long seq) {
+	private boolean upsertSyncConcurrentSource(SourceKey sourceKey, TimeKey timeKey, int strength, long seq) {
+		SyncConcurrentEntry nextEntry = new SyncConcurrentEntry(strength, seq);
+		if (hasExactConcurrentEntry(syncConcurrentBuckets, sourceKey, timeKey, nextEntry)) {
+			return false;
+		}
 		removeSourceFromConcurrentBuckets(syncConcurrentBuckets, sourceKey);
 		Map<SourceKey, SyncConcurrentEntry> bucket = syncConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>());
-		bucket.put(sourceKey, new SyncConcurrentEntry(strength, seq));
+		bucket.put(sourceKey, nextEntry);
+		return true;
 	}
 
-	private void removeSyncConcurrentSource(SourceKey sourceKey) {
-		removeSourceFromConcurrentBuckets(syncConcurrentBuckets, sourceKey);
+	private boolean removeSyncConcurrentSource(SourceKey sourceKey) {
+		return removeSourceFromConcurrentBuckets(syncConcurrentBuckets, sourceKey);
 	}
 
 	/**
 	 * 写入或覆盖脉冲来源贡献（同 sourceKey 仅保留最新）。
 	 */
-	private void upsertPulseConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq) {
+	private boolean upsertPulseConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq) {
 		int pulseTicks = Math.max(1, getPulseDurationTicks());
 		long now = level == null ? 0L : level.getGameTime();
 		long untilTick = now + pulseTicks;
+		PulseConcurrentEntry nextEntry = new PulseConcurrentEntry(untilTick, seq);
+		if (hasExactConcurrentEntry(pulseConcurrentBuckets, sourceKey, timeKey, nextEntry)) {
+			return false;
+		}
 		removeSourceFromConcurrentBuckets(pulseConcurrentBuckets, sourceKey);
 		Map<SourceKey, PulseConcurrentEntry> bucket = pulseConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>());
-		bucket.put(sourceKey, new PulseConcurrentEntry(untilTick, seq));
+		bucket.put(sourceKey, nextEntry);
 		pulseEpoch++;
 		if (level != null) {
 			schedulePulseReset(pulseTicks);
 		}
+		return true;
 	}
 
-	private void removePulseConcurrentSource(SourceKey sourceKey) {
-		removeSourceFromConcurrentBuckets(pulseConcurrentBuckets, sourceKey);
+	private boolean removePulseConcurrentSource(SourceKey sourceKey) {
+		return removeSourceFromConcurrentBuckets(pulseConcurrentBuckets, sourceKey);
 	}
 
 	/**
 	 * 写入或覆盖切换来源贡献：同来源再次 UPSERT 等价于翻转贡献位。
 	 */
-	private void upsertToggleConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq, boolean hadContributionBeforePrune) {
+	private boolean upsertToggleConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq, boolean hadContributionBeforePrune) {
 		boolean next = !hadContributionBeforePrune;
-		removeSourceFromConcurrentBuckets(toggleConcurrentBuckets, sourceKey);
 		if (!next) {
-			return;
+			return removeSourceFromConcurrentBuckets(toggleConcurrentBuckets, sourceKey);
 		}
+		ToggleConcurrentEntry nextEntry = new ToggleConcurrentEntry(true, seq);
+		if (hasExactConcurrentEntry(toggleConcurrentBuckets, sourceKey, timeKey, nextEntry)) {
+			return false;
+		}
+		removeSourceFromConcurrentBuckets(toggleConcurrentBuckets, sourceKey);
 		Map<SourceKey, ToggleConcurrentEntry> bucket = toggleConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>());
-		bucket.put(sourceKey, new ToggleConcurrentEntry(true, seq));
+		bucket.put(sourceKey, nextEntry);
+		return true;
 	}
 
-	private void removeToggleConcurrentSource(SourceKey sourceKey) {
-		removeSourceFromConcurrentBuckets(toggleConcurrentBuckets, sourceKey);
+	private boolean removeToggleConcurrentSource(SourceKey sourceKey) {
+		return removeSourceFromConcurrentBuckets(toggleConcurrentBuckets, sourceKey);
 	}
 
 	/**
 	 * 从并发桶集合中移除指定来源，并清理空桶。
 	 */
-	private static <V> void removeSourceFromConcurrentBuckets(
+	private static <V> boolean removeSourceFromConcurrentBuckets(
 		NavigableMap<TimeKey, Map<SourceKey, V>> buckets,
 		SourceKey sourceKey
 	) {
 		if (buckets.isEmpty() || sourceKey == null) {
-			return;
+			return false;
 		}
+		boolean changed = false;
 		List<TimeKey> emptyKeys = new ArrayList<>();
 		for (Map.Entry<TimeKey, Map<SourceKey, V>> bucketEntry : buckets.entrySet()) {
 			Map<SourceKey, V> bucket = bucketEntry.getValue();
@@ -701,14 +723,39 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 				emptyKeys.add(bucketEntry.getKey());
 				continue;
 			}
-			bucket.remove(sourceKey);
+			if (bucket.remove(sourceKey) != null) {
+				changed = true;
+			}
 			if (bucket.isEmpty()) {
 				emptyKeys.add(bucketEntry.getKey());
 			}
 		}
 		for (TimeKey emptyKey : emptyKeys) {
-			buckets.remove(emptyKey);
+			if (buckets.remove(emptyKey) != null) {
+				changed = true;
+			}
 		}
+		return changed;
+	}
+
+	private static <V> boolean hasExactConcurrentEntry(
+		NavigableMap<TimeKey, Map<SourceKey, V>> buckets,
+		SourceKey sourceKey,
+		TimeKey timeKey,
+		V expectedValue
+	) {
+		boolean foundExpected = false;
+		for (Map.Entry<TimeKey, Map<SourceKey, V>> bucketEntry : buckets.entrySet()) {
+			Map<SourceKey, V> bucket = bucketEntry.getValue();
+			if (bucket == null || bucket.isEmpty() || !bucket.containsKey(sourceKey)) {
+				continue;
+			}
+			if (!Objects.equals(bucketEntry.getKey(), timeKey) || !Objects.equals(bucket.get(sourceKey), expectedValue) || foundExpected) {
+				return false;
+			}
+			foundExpected = true;
+		}
+		return foundExpected;
 	}
 
 	/**
@@ -720,37 +767,40 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 3. 新 TOGGLE：淘汰更早的 sync/toggle，但不打断仍在生效窗口中的 pulse。
 	 * </p>
 	 */
-	private void pruneOlderFramesForIncoming(TimeKey incomingTimeKey, EffectiveMode incomingMode) {
+	private boolean pruneOlderFramesForIncoming(TimeKey incomingTimeKey, EffectiveMode incomingMode) {
 		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
-		removeConcurrentBucketsBefore(syncConcurrentBuckets, normalizedTimeKey);
-		removeConcurrentBucketsBefore(toggleConcurrentBuckets, normalizedTimeKey);
+		boolean changed = removeConcurrentBucketsBefore(syncConcurrentBuckets, normalizedTimeKey);
+		changed |= removeConcurrentBucketsBefore(toggleConcurrentBuckets, normalizedTimeKey);
 		if (incomingMode == EffectiveMode.SYNC) {
-			clearPulseTruth();
-			return;
+			changed |= clearPulseTruth();
+			return changed;
 		}
 		if (incomingMode == EffectiveMode.PULSE) {
-			removeConcurrentBucketsBefore(pulseConcurrentBuckets, normalizedTimeKey);
+			changed |= removeConcurrentBucketsBefore(pulseConcurrentBuckets, normalizedTimeKey);
 		}
+		return changed;
 	}
 
 	/**
 	 * 取消当前 pulse 真值与下落窗口。
 	 */
-	private void clearPulseTruth() {
+	private boolean clearPulseTruth() {
+		boolean changed = !pulseConcurrentBuckets.isEmpty() || pulseUntilGameTime > 0L || pulseResetArmed;
 		pulseConcurrentBuckets.clear();
 		pulseUntilGameTime = 0L;
 		pulseResetArmed = false;
+		return changed;
 	}
 
 	/**
 	 * 清除早于指定时间键的并发桶帧。
 	 */
-	private static <V> void removeConcurrentBucketsBefore(
+	private static <V> boolean removeConcurrentBucketsBefore(
 		NavigableMap<TimeKey, Map<SourceKey, V>> buckets,
 		TimeKey cutoffTimeKey
 	) {
 		if (buckets.isEmpty() || cutoffTimeKey == null) {
-			return;
+			return false;
 		}
 		List<TimeKey> staleKeys = new ArrayList<>();
 		for (TimeKey timeKey : buckets.keySet()) {
@@ -760,9 +810,13 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			}
 			break;
 		}
+		boolean changed = false;
 		for (TimeKey staleKey : staleKeys) {
-			buckets.remove(staleKey);
+			if (buckets.remove(staleKey) != null) {
+				changed = true;
+			}
 		}
+		return changed;
 	}
 
 	private boolean findToggleContribution(SourceKey sourceKey) {
@@ -1040,17 +1094,20 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 维护同步触发源强度缓存，并重算 max 聚合结果。
 	 */
-	private void updateSyncSignalStrength(long sourceSerial, int signalStrength) {
+	private boolean updateSyncSignalStrength(long sourceSerial, int signalStrength) {
 		// 兼容现有测试入口：无来源类型时默认映射为 triggerSource。
 		SourceKey sourceKey = new SourceKey(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
+		boolean bucketChanged;
 		if (sourceSerial <= 0L) {
+			bucketChanged = !syncConcurrentBuckets.isEmpty();
 			syncConcurrentBuckets.clear();
 		} else if (normalizeSignalStrength(signalStrength) <= 0) {
-			removeSyncConcurrentSource(sourceKey);
+			bucketChanged = removeSyncConcurrentSource(sourceKey);
 		} else {
-			upsertSyncConcurrentSource(sourceKey, authorityTimeKey, signalStrength, authoritySeq);
+			bucketChanged = upsertSyncConcurrentSource(sourceKey, authorityTimeKey, signalStrength, authoritySeq);
 		}
 		recomputeSyncTruthFromConcurrentBuckets();
+		return bucketChanged;
 	}
 
 	/**
@@ -1106,17 +1163,21 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 从脉冲并发桶重建 PULSE 真值（有效下落窗口）。
 	 */
-	private void recomputePulseTruthFromConcurrentBuckets() {
+	private boolean recomputePulseTruthFromConcurrentBuckets() {
 		long now = level == null ? 0L : level.getGameTime();
 		List<TimeKey> emptyKeys = new ArrayList<>();
 		long maxUntilTick = 0L;
+		boolean changed = false;
 		for (Map.Entry<TimeKey, Map<SourceKey, PulseConcurrentEntry>> bucketEntry : pulseConcurrentBuckets.entrySet()) {
 			Map<SourceKey, PulseConcurrentEntry> bucket = bucketEntry.getValue();
 			if (bucket == null || bucket.isEmpty()) {
 				emptyKeys.add(bucketEntry.getKey());
+				changed = true;
 				continue;
 			}
-			bucket.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().untilGameTick() <= now);
+			if (bucket.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().untilGameTick() <= now)) {
+				changed = true;
+			}
 			if (bucket.isEmpty()) {
 				emptyKeys.add(bucketEntry.getKey());
 				continue;
@@ -1129,13 +1190,32 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			}
 		}
 		for (TimeKey emptyKey : emptyKeys) {
-			pulseConcurrentBuckets.remove(emptyKey);
+			if (pulseConcurrentBuckets.remove(emptyKey) != null) {
+				changed = true;
+			}
+		}
+		if (pulseUntilGameTime != maxUntilTick) {
+			changed = true;
 		}
 		pulseUntilGameTime = maxUntilTick;
-		pulseResetArmed = maxUntilTick > now;
+		boolean nextPulseResetArmed = maxUntilTick > now;
+		if (pulseResetArmed != nextPulseResetArmed) {
+			changed = true;
+		}
+		pulseResetArmed = nextPulseResetArmed;
 		if (pulseResetArmed && level != null) {
 			long remaining = Math.max(1L, maxUntilTick - now);
 			schedulePulseReset((int) remaining);
+		}
+		return changed;
+	}
+
+	/**
+	 * 结构化真值已变化时，独立标记区块实体脏态，避免仅靠输出态变化触发落盘。
+	 */
+	private void markStructuredTruthDirty(boolean truthChanged) {
+		if (truthChanged) {
+			setChanged();
 		}
 	}
 

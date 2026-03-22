@@ -398,6 +398,27 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
+	 * bucket 变化即使不改变当前解析输出，也应独立触发 setChanged，确保结构化真值可及时落盘。
+	 */
+	@Test
+	void bucketMutationShouldSetChangedEvenWhenResolvedOutputStaysSame() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		target.resetSetChangedCount();
+
+		target.syncBySource(2L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 2L));
+		assertEquals(1, target.getSetChangedCount());
+		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(1L, 2L), getLongSetField(target, "syncSignalMaxSources"));
+
+		target.resetSetChangedCount();
+		target.syncBySource(1L, 0, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 3L));
+		assertEquals(1, target.getSetChangedCount());
+		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(2L), getLongSetField(target, "syncSignalMaxSources"));
+	}
+
+	/**
 	 * triggerSource 区块卸载失效只应剔除 sync 贡献，不应清掉 pulse/toggle 来源桶。
 	 */
 	@Test
@@ -567,8 +588,16 @@ class ActivatableTargetBlockEntityInternalTest {
 	 * 测试用最小目标实体：仅提供基类要求的抽象实现。
 	 */
 	private static final class TestTargetEntity extends ActivatableTargetBlockEntity {
+		private int setChangedCount;
+
 		private TestTargetEntity(BlockPos pos, BlockState state) {
 			super(castType(BlockEntityType.BEACON), pos, state);
+		}
+
+		@Override
+		public void setChanged() {
+			super.setChanged();
+			setChangedCount++;
 		}
 
 		@Override
@@ -588,6 +617,14 @@ class ActivatableTargetBlockEntityInternalTest {
 
 		private void loadForTest(CompoundTag tag) {
 			loadAdditional(tag, null);
+		}
+
+		private int getSetChangedCount() {
+			return setChangedCount;
+		}
+
+		private void resetSetChangedCount() {
+			setChangedCount = 0;
 		}
 	}
 }
