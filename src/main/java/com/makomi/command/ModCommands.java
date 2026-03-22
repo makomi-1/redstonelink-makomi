@@ -17,6 +17,9 @@ import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkWriteControlService;
 import com.makomi.data.LinkWriteProtectedSavedData;
+import com.makomi.data.NodeRuntimeProbe;
+import com.makomi.data.NodeRuntimeSnapshot;
+import com.makomi.data.NodeStateTraceService;
 import com.makomi.util.SerialCollectionFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import com.makomi.util.ServerSerialValidationUtil;
@@ -32,6 +35,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
@@ -43,6 +47,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -63,6 +68,12 @@ public final class ModCommands {
 	private static final int SERIAL_LIST_MAX_ITEMS = 50;
 	private static final int SERIAL_LIST_MAX_CHARS = 300;
 	private static final int PLACE_BLOCK_FLAGS = 2;
+	private static final int TRACE_DEFAULT_EVERY = 1;
+	private static final int TRACE_DEFAULT_CAPACITY = 128;
+	private static final int TRACE_DEFAULT_READ_LIMIT = 10;
+	private static final int TRACE_MAX_EVERY = 1200;
+	private static final int TRACE_MAX_CAPACITY = 4096;
+	private static final int TRACE_MAX_READ_LIMIT = 256;
 
 	private ModCommands() {
 	}
@@ -131,6 +142,7 @@ public final class ModCommands {
 									)
 								)
 						)
+						.then(createNodeTraceRoot())
 				)
 				.then(
 					Commands
@@ -1109,6 +1121,322 @@ public final class ModCommands {
 			false
 		);
 		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 构建 `/redstonelink node trace` 命令根。
+	 */
+	private static LiteralArgumentBuilder<CommandSourceStack> createNodeTraceRoot() {
+		return Commands
+			.literal("trace")
+			.requires(ModCommands::hasOtherCommandPermission)
+			.then(
+				Commands
+					.literal("mount")
+					.then(
+						Commands.argument("type", StringArgumentType.word()).then(
+							Commands.argument("serial", LongArgumentType.longArg(1L))
+								.executes(ModCommands::executeNodeTraceMount)
+								.then(
+									Commands
+										.argument("every", IntegerArgumentType.integer(1, TRACE_MAX_EVERY))
+										.executes(ModCommands::executeNodeTraceMount)
+										.then(
+											Commands
+												.argument("capacity", IntegerArgumentType.integer(1, TRACE_MAX_CAPACITY))
+												.executes(ModCommands::executeNodeTraceMount)
+										)
+								)
+						)
+					)
+			)
+			.then(
+				Commands
+					.literal("latest")
+					.then(
+						Commands.argument("type", StringArgumentType.word()).then(
+							Commands.argument("serial", LongArgumentType.longArg(1L)).executes(ModCommands::executeNodeTraceLatest)
+						)
+					)
+			)
+			.then(
+				Commands
+					.literal("read")
+					.then(
+						Commands.argument("type", StringArgumentType.word()).then(
+							Commands.argument("serial", LongArgumentType.longArg(1L))
+								.executes(ModCommands::executeNodeTraceRead)
+								.then(
+									Commands
+										.argument("limit", IntegerArgumentType.integer(1, TRACE_MAX_READ_LIMIT))
+										.executes(ModCommands::executeNodeTraceRead)
+								)
+						)
+					)
+			)
+			.then(
+				Commands
+					.literal("unmount")
+					.then(
+						Commands.argument("type", StringArgumentType.word()).then(
+							Commands.argument("serial", LongArgumentType.longArg(1L)).executes(ModCommands::executeNodeTraceUnmount)
+						)
+					)
+			)
+			.then(Commands.literal("list").executes(ModCommands::executeNodeTraceList));
+	}
+
+	/**
+	 * 挂载或更新节点历史采样器。
+	 */
+	private static int executeNodeTraceMount(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		int everyTicks = getOptionalIntArg(context, "every", TRACE_DEFAULT_EVERY);
+		int capacity = getOptionalIntArg(context, "capacity", TRACE_DEFAULT_CAPACITY);
+		int commandCost = CommandRateLimitService.computeBatchCost(2, capacity, 256);
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, commandCost)) {
+			return 0;
+		}
+
+		LinkNodeType nodeType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (nodeType == null) {
+			return 0;
+		}
+		long serial = LongArgumentType.getLong(context, "serial");
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		if (!validateTraceSerialActive(source, savedData, nodeType, serial)) {
+			return 0;
+		}
+
+		MinecraftServer server = source.getServer();
+		NodeRuntimeProbe.TraceNodeKind traceKind = resolveTraceKindForMount(server, nodeType, serial).orElse(null);
+		if (traceKind == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.trace.unsupported"));
+			return 0;
+		}
+
+		NodeStateTraceService.MountResult mountResult = NodeStateTraceService.mount(
+			server,
+			nodeType,
+			serial,
+			traceKind,
+			everyTicks,
+			capacity
+		);
+		String messageKey = mountResult.updated()
+			? "message.redstonelink.node.trace.mount.updated"
+			: "message.redstonelink.node.trace.mount";
+		source.sendSuccess(
+			() -> Component.translatable(
+				messageKey,
+				typeCommandName(nodeType),
+				serial,
+				traceKind.commandName(),
+				everyTicks,
+				capacity,
+				mountResult.mountInfo().sampleCount()
+			),
+			false
+		);
+		sendTraceSnapshotLine(source, mountResult.latestSnapshot());
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 读取节点当前最新状态。
+	 */
+	private static int executeNodeTraceLatest(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
+		LinkNodeType nodeType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (nodeType == null) {
+			return 0;
+		}
+		long serial = LongArgumentType.getLong(context, "serial");
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		if (!validateTraceSerialActive(source, savedData, nodeType, serial)) {
+			return 0;
+		}
+		NodeRuntimeSnapshot snapshot = resolveTraceSnapshot(source.getServer(), nodeType, serial).orElse(null);
+		if (snapshot == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.trace.unsupported"));
+			return 0;
+		}
+		sendTraceSnapshotLine(source, snapshot);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 读取节点最近的历史采样结果。
+	 */
+	private static int executeNodeTraceRead(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		int limit = getOptionalIntArg(context, "limit", TRACE_DEFAULT_READ_LIMIT);
+		int commandCost = CommandRateLimitService.computeBatchCost(1, limit, 32);
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, commandCost)) {
+			return 0;
+		}
+		LinkNodeType nodeType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (nodeType == null) {
+			return 0;
+		}
+		long serial = LongArgumentType.getLong(context, "serial");
+		List<NodeRuntimeSnapshot> samples = NodeStateTraceService.readSamples(source.getServer(), nodeType, serial, limit);
+		if (samples.isEmpty()) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.trace.not_mounted", typeCommandName(nodeType), serial));
+			return 0;
+		}
+		source.sendSuccess(
+			() -> Component.translatable("message.redstonelink.node.trace.read.header", typeCommandName(nodeType), serial, samples.size()),
+			false
+		);
+		for (NodeRuntimeSnapshot sample : samples) {
+			sendTraceSnapshotLine(source, sample);
+		}
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 卸载节点历史采样器。
+	 */
+	private static int executeNodeTraceUnmount(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
+		LinkNodeType nodeType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
+		if (nodeType == null) {
+			return 0;
+		}
+		long serial = LongArgumentType.getLong(context, "serial");
+		if (!NodeStateTraceService.unmount(source.getServer(), nodeType, serial)) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.trace.not_mounted", typeCommandName(nodeType), serial));
+			return 0;
+		}
+		source.sendSuccess(
+			() -> Component.translatable("message.redstonelink.node.trace.unmount", typeCommandName(nodeType), serial),
+			false
+		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 列出当前服务器所有已挂载采样器。
+	 */
+	private static int executeNodeTraceList(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
+		List<NodeStateTraceService.TraceMountInfo> mountInfos = NodeStateTraceService.listMounts(source.getServer());
+		if (mountInfos.isEmpty()) {
+			source.sendSuccess(() -> Component.translatable("message.redstonelink.node.trace.list.empty"), false);
+			return Command.SINGLE_SUCCESS;
+		}
+		source.sendSuccess(
+			() -> Component.translatable("message.redstonelink.node.trace.list.header", mountInfos.size()),
+			false
+		);
+		for (NodeStateTraceService.TraceMountInfo mountInfo : mountInfos) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.node.trace.list.entry",
+					typeCommandName(mountInfo.nodeType()),
+					mountInfo.serial(),
+					mountInfo.traceKind().commandName(),
+					mountInfo.everyTicks(),
+					mountInfo.capacity(),
+					mountInfo.sampleCount(),
+					mountInfo.lastSampleTick() < 0L ? "-" : Long.toString(mountInfo.lastSampleTick())
+				),
+				false
+			);
+		}
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 解析 trace 命令当前可用的节点快照。
+	 */
+	private static Optional<NodeRuntimeSnapshot> resolveTraceSnapshot(
+		MinecraftServer server,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		Optional<NodeRuntimeProbe.ProbeResolution> currentResolution = NodeRuntimeProbe.resolveCurrent(server, nodeType, serial);
+		if (currentResolution.isPresent()) {
+			return currentResolution.map(NodeRuntimeProbe.ProbeResolution::snapshot);
+		}
+		Optional<NodeStateTraceService.TraceMountInfo> mountInfo = NodeStateTraceService.getMountInfo(server, nodeType, serial);
+		if (mountInfo.isPresent()) {
+			return Optional.of(NodeRuntimeProbe.snapshot(server, nodeType, serial, mountInfo.get().traceKind()));
+		}
+		return Optional.empty();
+	}
+
+	/**
+	 * 解析挂载时应使用的探针类型。
+	 */
+	private static Optional<NodeRuntimeProbe.TraceNodeKind> resolveTraceKindForMount(
+		MinecraftServer server,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		Optional<NodeStateTraceService.TraceMountInfo> mountInfo = NodeStateTraceService.getMountInfo(server, nodeType, serial);
+		if (mountInfo.isPresent()) {
+			return Optional.of(mountInfo.get().traceKind());
+		}
+		return NodeRuntimeProbe.resolveCurrent(server, nodeType, serial).map(NodeRuntimeProbe.ProbeResolution::traceKind);
+	}
+
+	/**
+	 * 校验 trace 命令序列号处于已分配且未退役状态。
+	 */
+	private static boolean validateTraceSerialActive(
+		CommandSourceStack source,
+		LinkSavedData savedData,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		return nodeType == LinkNodeType.TRIGGER_SOURCE
+			? ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, nodeType, serial)
+			: ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, nodeType, serial);
+	}
+
+	/**
+	 * 输出单条 trace 快照。
+	 */
+	private static void sendTraceSnapshotLine(CommandSourceStack source, NodeRuntimeSnapshot snapshot) {
+		if (source == null || snapshot == null) {
+			return;
+		}
+		String dimensionText = snapshot.dimension() == null ? "-" : snapshot.dimension().location().toString();
+		String posText = snapshot.pos() == null ? "-" : formatBlockPos(snapshot.pos());
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.node.trace.sample",
+				typeCommandName(snapshot.nodeType()),
+				snapshot.serial(),
+				snapshot.traceKind().commandName(),
+				snapshot.sampleTick(),
+				snapshot.sampleSlot(),
+				Boolean.toString(snapshot.online()),
+				Boolean.toString(snapshot.active()),
+				snapshot.inputPower(),
+				snapshot.outputPower(),
+				snapshot.configuredMode(),
+				snapshot.effectiveMode(),
+				snapshot.resolvedStrength(),
+				snapshot.lastObservedInputPower(),
+				snapshot.lastDispatchedPower(),
+				formatSerialList(snapshot.maxSourceSerials()),
+				dimensionText,
+				posText
+			),
+			false
+		);
 	}
 
 	/**
