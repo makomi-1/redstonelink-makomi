@@ -371,6 +371,13 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 是否启用命令测试模式
+	 */
+	public static boolean commandBenchmarkModeEnabled() {
+		return values.commandBenchmarkModeEnabled();
+	}
+
+	/**
 	 * @return 是否启用命令频率防护
 	 */
 	public static boolean commandRateLimitEnabled() {
@@ -738,6 +745,7 @@ public final class RedstoneLinkConfig {
 			parseBoolean(props, "server.allowOfflineTargetBinding", true),
 			parseInt(props, "server.command.permissionLevel", 0, 0, 4),
 			parseInt(props, "server.command.otherPermissionLevel", 2, 0, 4),
+			parseBoolean(props, "server.command.benchmarkMode.enabled", false),
 			parseBoolean(props, "server.command.rateLimit.enabled", true),
 			parseInt(props, "server.command.rateLimit.windowTicks", 20, 1, 2000),
 			parseInt(props, "server.command.rateLimit.global.capacity", 3072, 1, 200_000),
@@ -1226,6 +1234,11 @@ public final class RedstoneLinkConfig {
 			# en: Scope: node activate, place, node retire (including batch), audit, node get/list, and link get.
 			server.command.otherPermissionLevel=2
 
+			# server.command.benchmarkMode.enabled
+			# zh: 是否启用命令测试模式。启用后，place/link set 等 bench 相关命令允许控制台或 RCON 直接执行，无需额外在线玩家。
+			# en: Whether to enable benchmark command mode. When enabled, bench-related commands such as place/link set can be executed directly from console or RCON without an extra online player.
+			server.command.benchmarkMode.enabled=false
+
 			# server.command.rateLimit.enabled
 			# zh: 是否启用命令频率防护（分层限流）。
 			# en: Whether to enable layered command rate limiting.
@@ -1584,6 +1597,7 @@ public final class RedstoneLinkConfig {
 		boolean allowOfflineTargetBinding,
 		int commandPermissionLevel,
 		int otherCommandPermissionLevel,
+		boolean commandBenchmarkModeEnabled,
 		boolean commandRateLimitEnabled,
 		int commandRateLimitWindowTicks,
 		int commandRateLimitGlobalCapacity,
@@ -1627,6 +1641,7 @@ public final class RedstoneLinkConfig {
 				true,
 				0,
 				2,
+				false,
 				true,
 				20,
 				1024,

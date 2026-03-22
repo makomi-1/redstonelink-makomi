@@ -251,6 +251,23 @@ public final class ModCommands {
 	}
 
 	/**
+	 * 校验当前命令源是否允许执行测试专用命令。
+	 * <p>
+	 * 默认仍要求玩家源；仅在命令测试模式开启时，才允许控制台/RCON 直接执行。
+	 * </p>
+	 */
+	private static boolean allowPlayerSourceOrBenchmarkMode(CommandSourceStack source) {
+		if (source.getPlayer() != null) {
+			return true;
+		}
+		if (RedstoneLinkConfig.commandBenchmarkModeEnabled()) {
+			return true;
+		}
+		source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+		return false;
+	}
+
+	/**
 	 * 构建 `write_control` 命令树根节点。
 	 */
 	private static LiteralArgumentBuilder<CommandSourceStack> createWriteControlRoot() {
@@ -581,24 +598,25 @@ public final class ModCommands {
 		long targetSerial,
 		LinkUpdateMode updateMode
 	) {
-		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
+		ServerLevel level = player.serverLevel();
+		LinkSavedData savedData = LinkSavedData.get(level);
 		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
 			return 0;
 		}
 
 		if (targetSerial <= 0L) {
 			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
-			if (!checkLinkWriteAllowed(source, player, sourceType, sourceSerial, previousTargets, 0)) {
+			if (!checkLinkWriteAllowed(source, level, sourceType, sourceSerial, previousTargets, 0)) {
 				return 0;
 			}
 			int removed = savedData.clearLinksForNode(sourceType, sourceSerial);
 			if (removed > 0 && !previousTargets.isEmpty()) {
 				InternalDispatchDeltaEvents.publishLinkDetached(
-					player.serverLevel(),
+					level,
 					sourceType,
 					sourceSerial,
 					previousTargets,
-					ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+					ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 				);
 			}
 			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
@@ -618,7 +636,7 @@ public final class ModCommands {
 			int nextTargetCount = Math.max(0, previousTargets.size() - 1);
 			if (!checkLinkWriteAllowed(
 				source,
-				player,
+				level,
 				sourceType,
 				sourceSerial,
 				Set.of(targetSerial),
@@ -633,11 +651,11 @@ public final class ModCommands {
 				return 0;
 			}
 			InternalDispatchDeltaEvents.publishLinkDetached(
-				player.serverLevel(),
+				level,
 				sourceType,
 				sourceSerial,
 				Set.of(targetSerial),
-				ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+				ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 			);
 			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_removed"), false);
 			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
@@ -662,7 +680,7 @@ public final class ModCommands {
 			return 0;
 		}
 		int nextTargetCount = currentTargets.size() + 1;
-		if (!checkLinkWriteAllowed(source, player, sourceType, sourceSerial, Set.of(targetSerial), nextTargetCount)) {
+		if (!checkLinkWriteAllowed(source, level, sourceType, sourceSerial, Set.of(targetSerial), nextTargetCount)) {
 			return 0;
 		}
 
@@ -672,11 +690,11 @@ public final class ModCommands {
 			return 0;
 		}
 		InternalDispatchDeltaEvents.publishLinkAttached(
-			player.serverLevel(),
+			level,
 			sourceType,
 			sourceSerial,
 			Set.of(targetSerial),
-			ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+			ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 		);
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
 		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
@@ -716,16 +734,14 @@ public final class ModCommands {
 		boolean force
 	) throws CommandSyntaxException {
 		CommandSourceStack source = context.getSource();
-		ServerPlayer player = source.getPlayer();
-		if (player == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+		if (!allowPlayerSourceOrBenchmarkMode(source)) {
 			return 0;
 		}
 		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
 			return 0;
 		}
 
-		ServerLevel level = player.serverLevel();
+		ServerLevel level = source.getLevel();
 		BlockPos pos = BlockPosArgument.getLoadedBlockPos(context, "pos");
 		BlockInput input = BlockStateArgument.getBlock(context, "block");
 		if (!validatePairablePlacementInput(source, input, pos)) {
@@ -747,7 +763,7 @@ public final class ModCommands {
 			input
 		);
 		// setblock 不再执行非空气替换拦截，统一直接放置。
-		return executePlacementNow(source, player, pendingPlacement);
+		return executePlacementNow(source, level, pendingPlacement);
 	}
 
 	/**
@@ -780,13 +796,11 @@ public final class ModCommands {
 		boolean confirmed
 	) throws CommandSyntaxException {
 		CommandSourceStack source = context.getSource();
-		ServerPlayer player = source.getPlayer();
-		if (player == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+		if (!allowPlayerSourceOrBenchmarkMode(source)) {
 			return 0;
 		}
 
-		ServerLevel level = player.serverLevel();
+		ServerLevel level = source.getLevel();
 		BlockPos from = BlockPosArgument.getLoadedBlockPos(context, "from");
 		BlockPos to = BlockPosArgument.getLoadedBlockPos(context, "to");
 		BlockPos min = minPos(from, to);
@@ -829,14 +843,13 @@ public final class ModCommands {
 			max,
 			input
 		);
-		return executePlacementNow(source, player, pendingPlacement);
+		return executePlacementNow(source, level, pendingPlacement);
 	}
 
 	/**
 	 * 实际执行放置并在命令路径内补齐缺失序号。
 	 */
-	private static int executePlacementNow(CommandSourceStack source, ServerPlayer player, PendingPlacement pending) {
-		ServerLevel level = player.serverLevel();
+	private static int executePlacementNow(CommandSourceStack source, ServerLevel level, PendingPlacement pending) {
 		if (!pending.dimension().equals(level.dimension())) {
 			source.sendFailure(Component.translatable("message.redstonelink.place.dimension_mismatch"));
 			return 0;
@@ -1344,13 +1357,13 @@ public final class ModCommands {
 	) {
 		CommandSourceStack source = context.getSource();
 		ServerPlayer player = source.getPlayer();
-		if (player == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+		if (!allowPlayerSourceOrBenchmarkMode(source)) {
 			return 0;
 		}
+		ServerLevel level = source.getLevel();
 
 		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
-		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
+		LinkSavedData savedData = LinkSavedData.get(level);
 		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
 			return 0;
 		}
@@ -1462,7 +1475,7 @@ public final class ModCommands {
 		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
 		Set<Long> affectedTargets = new HashSet<>(previousTargets);
 		affectedTargets.addAll(targets);
-		if (!checkLinkWriteAllowed(source, player, sourceType, sourceSerial, affectedTargets, targets.size())) {
+		if (!checkLinkWriteAllowed(source, level, sourceType, sourceSerial, affectedTargets, targets.size())) {
 			return 0;
 		}
 
@@ -1490,11 +1503,11 @@ public final class ModCommands {
 			addedTargets.removeAll(previousTargets);
 			if (!addedTargets.isEmpty()) {
 				InternalDispatchDeltaEvents.publishLinkAttached(
-					player.serverLevel(),
+					level,
 					sourceType,
 					sourceSerial,
 					addedTargets,
-					ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+					ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 				);
 			}
 		}
@@ -1503,17 +1516,19 @@ public final class ModCommands {
 			removedTargets.removeAll(targets);
 			if (!removedTargets.isEmpty()) {
 				InternalDispatchDeltaEvents.publishLinkDetached(
-					player.serverLevel(),
+					level,
 					sourceType,
 					sourceSerial,
 					removedTargets,
-					ActivatableTargetBlockEntity.EventMeta.of(player.serverLevel().getGameTime(), 0, 0L)
+					ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 				);
 			}
 		}
 
-		syncAffectedNodeLinkSnapshots(player.serverLevel(), targetType, previousTargets, targets);
-		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
+		syncAffectedNodeLinkSnapshots(level, targetType, previousTargets, targets);
+		if (player != null) {
+			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
+		}
 		final int currentTargetCount = replaceResult.currentCount();
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.set_links_done", currentTargetCount), false);
 		if (allowOfflineBinding && !offlineTargets.isEmpty()) {
@@ -1645,13 +1660,13 @@ public final class ModCommands {
 	 */
 	private static boolean checkLinkWriteAllowed(
 		CommandSourceStack source,
-		ServerPlayer player,
+		ServerLevel level,
 		LinkNodeType sourceType,
 		long sourceSerial,
 		Set<Long> affectedTargets,
 		int setSize
 	) {
-		return checkLinkWriteAllowed(source, player, sourceType, sourceSerial, affectedTargets, setSize, false);
+		return checkLinkWriteAllowed(source, level, sourceType, sourceSerial, affectedTargets, setSize, false);
 	}
 
 	/**
@@ -1663,7 +1678,7 @@ public final class ModCommands {
 	 */
 	private static boolean checkLinkWriteAllowed(
 		CommandSourceStack source,
-		ServerPlayer player,
+		ServerLevel level,
 		LinkNodeType sourceType,
 		long sourceSerial,
 		Set<Long> affectedTargets,
@@ -1671,13 +1686,13 @@ public final class ModCommands {
 		boolean bypassLimitedSetSize
 	) {
 		LinkWriteControlService.WriteDecision decision = LinkWriteControlService.evaluate(
-			player.serverLevel(),
+			level,
 			sourceType,
 			sourceSerial,
 			affectedTargets,
 			setSize,
-			bypassLimitedSetSize || player.hasPermissions(RedstoneLinkConfig.linkWriteLimitedPermissionLevel()),
-			player.hasPermissions(RedstoneLinkConfig.linkWriteProtectedPermissionLevel())
+			bypassLimitedSetSize || source.hasPermission(RedstoneLinkConfig.linkWriteLimitedPermissionLevel()),
+			source.hasPermission(RedstoneLinkConfig.linkWriteProtectedPermissionLevel())
 		);
 		if (decision.allowed()) {
 			return true;

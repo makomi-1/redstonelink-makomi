@@ -42,6 +42,32 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	}
 
 	/**
+	 * bench 命令测试模式缺省应关闭，显式配置后应生效。
+	 */
+	@Test
+	void parseShouldApplyBenchmarkModeFlag() throws Exception {
+		Object defaultsSnapshot = parseValues(new Properties());
+		assertFalse(readBoolean(defaultsSnapshot, "commandBenchmarkModeEnabled"));
+
+		Properties enabledProperties = new Properties();
+		enabledProperties.setProperty("server.command.benchmarkMode.enabled", "true");
+		Object enabledSnapshot = parseValues(enabledProperties);
+		assertTrue(readBoolean(enabledSnapshot, "commandBenchmarkModeEnabled"));
+	}
+
+	/**
+	 * 非法的 bench 命令测试模式布尔值应回退默认 false。
+	 */
+	@Test
+	void parseShouldFallbackWhenBenchmarkModeBooleanInvalid() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("server.command.benchmarkMode.enabled", "invalid");
+
+		Object valuesSnapshot = parseValues(properties);
+		assertFalse(readBoolean(valuesSnapshot, "commandBenchmarkModeEnabled"));
+	}
+
+	/**
 	 * 非法布尔配置应回退默认值，避免异常配置破坏门禁语义。
 	 */
 	@Test

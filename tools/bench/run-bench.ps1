@@ -499,7 +499,8 @@ function Assert-RunCasePlayerContext {
 		return
 	}
 	if ([string]::IsNullOrWhiteSpace($script:BenchAsPlayer)) {
-		throw "AsPlayer is required for RunCase on dedicated server because placement/link commands require a player command source."
+		Write-Host "[Bench] AsPlayer not provided; server.command.benchmarkMode.enabled must be true or player-only commands will fail."
+		return
 	}
 	if ($script:BenchAsPlayer -match "\s") {
 		throw "AsPlayer must be a single player name or selector without whitespace."
