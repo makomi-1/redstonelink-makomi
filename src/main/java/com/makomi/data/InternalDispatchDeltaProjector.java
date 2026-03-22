@@ -136,8 +136,23 @@ public final class InternalDispatchDeltaProjector {
 		long enqueueTick = event.eventMeta().timeKey().tick();
 		int enqueueSlot = event.eventMeta().timeKey().slot();
 
-		if (event.deltaKind() == ActivatableTargetBlockEntity.DeltaKind.SOURCE_INVALIDATION) {
-			CrossChunkDispatchService.queueSourceInvalidationRemove(
+		if (
+			event.deltaKind() == ActivatableTargetBlockEntity.DeltaKind.SOURCE_INVALIDATION
+				|| event.deltaKind() == ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION
+		) {
+			CrossChunkDispatchService.queueTriggerSourceChunkUnloadInvalidationRemove(
+				event.sourceLevel(),
+				targetNode,
+				event.sourceType(),
+				event.sourceSerial(),
+				enqueueTick,
+				enqueueSlot
+			);
+			return;
+		}
+
+		if (event.deltaKind() == ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION) {
+			CrossChunkDispatchService.queueTriggerSourceInvalidationRemove(
 				event.sourceLevel(),
 				targetNode,
 				event.sourceType(),
@@ -150,15 +165,7 @@ public final class InternalDispatchDeltaProjector {
 
 		if (event.deltaKind() == ActivatableTargetBlockEntity.DeltaKind.ACTIVATION) {
 			if (event.deltaAction() == ActivatableTargetBlockEntity.DeltaAction.REMOVE) {
-				CrossChunkDispatchService.queueActivationRemove(
-					event.sourceLevel(),
-					targetNode,
-					event.sourceType(),
-					event.sourceSerial(),
-					event.activationMode(),
-					enqueueTick,
-					enqueueSlot
-				);
+				// activation 已转为事件语义，离线队列不再回放 REMOVE。
 				return;
 			}
 			CrossChunkDispatchService.queueActivation(

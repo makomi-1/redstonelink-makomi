@@ -12,6 +12,7 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -124,6 +125,72 @@ class CrossChunkDispatchQueueSavedDataTest {
 		assertEquals(new BlockPos(3, 70, 7), entry.pos());
 		assertEquals(12, entry.syncSignalStrength());
 		assertTrue(restored.isStaleByAcceptedVersion(key, upsert.entry().version()));
+	}
+
+	/**
+	 * 旧版 ACTIVATION 持久项读档时应按 activationMode 迁移到新的事件 kind。
+	 */
+	@Test
+	void loadShouldMigrateLegacyActivationKindByMode() throws Exception {
+		CompoundTag root = new CompoundTag();
+		ListTag pendingEntries = new ListTag();
+		CompoundTag legacyEntry = new CompoundTag();
+		legacyEntry.putString("sourceType", "triggerSource");
+		legacyEntry.putLong("sourceSerial", 7L);
+		legacyEntry.putString("targetType", "core");
+		legacyEntry.putLong("targetSerial", 17L);
+		legacyEntry.putString("dispatchKind", "ACTIVATION");
+		legacyEntry.putString("dispatchAction", "UPSERT");
+		legacyEntry.putString("dimension", Level.OVERWORLD.location().toString());
+		legacyEntry.putLong("pos", BlockPos.ZERO.asLong());
+		legacyEntry.putString("activationMode", "PULSE");
+		legacyEntry.putInt("syncSignalStrength", 0);
+		legacyEntry.putLong("enqueueTick", 10L);
+		legacyEntry.putInt("enqueueSlot", 0);
+		legacyEntry.putLong("expireTick", 40L);
+		legacyEntry.putLong("version", 3L);
+		pendingEntries.add(legacyEntry);
+		root.put("pendingEntries", pendingEntries);
+		root.put("acceptedVersions", new ListTag());
+		root.put("issuedVersions", new ListTag());
+
+		CrossChunkDispatchQueueSavedData restored = invokeLoad(root);
+		assertEquals(1, restored.pendingSize());
+		assertEquals(
+			CrossChunkDispatchQueueSavedData.DispatchKind.PULSE_EVENT,
+			restored.pendingEntriesSnapshot().getFirst().key().dispatchKind()
+		);
+	}
+
+	/**
+	 * 旧版 ACTIVATION remove 持久项与新事件语义不兼容，读档时应直接丢弃。
+	 */
+	@Test
+	void loadShouldDropLegacyActivationRemoveEntry() throws Exception {
+		CompoundTag root = new CompoundTag();
+		ListTag pendingEntries = new ListTag();
+		CompoundTag legacyEntry = new CompoundTag();
+		legacyEntry.putString("sourceType", "triggerSource");
+		legacyEntry.putLong("sourceSerial", 7L);
+		legacyEntry.putString("targetType", "core");
+		legacyEntry.putLong("targetSerial", 17L);
+		legacyEntry.putString("dispatchKind", "ACTIVATION");
+		legacyEntry.putString("dispatchAction", "REMOVE");
+		legacyEntry.putString("dimension", Level.OVERWORLD.location().toString());
+		legacyEntry.putLong("pos", BlockPos.ZERO.asLong());
+		legacyEntry.putString("activationMode", "TOGGLE");
+		legacyEntry.putInt("syncSignalStrength", 0);
+		legacyEntry.putLong("enqueueTick", 10L);
+		legacyEntry.putInt("enqueueSlot", 0);
+		legacyEntry.putLong("expireTick", 40L);
+		legacyEntry.putLong("version", 3L);
+		pendingEntries.add(legacyEntry);
+		root.put("pendingEntries", pendingEntries);
+		root.put("acceptedVersions", new ListTag());
+		root.put("issuedVersions", new ListTag());
+
+		CrossChunkDispatchQueueSavedData restored = invokeLoad(root);
+		assertEquals(0, restored.pendingSize());
 	}
 
 	/**

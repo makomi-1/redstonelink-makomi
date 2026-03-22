@@ -288,6 +288,16 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	}
 
 	/**
+	 * 按 key 查询当前 pending 条目。
+	 */
+	public Optional<PendingDispatchEntry> pendingEntry(DispatchKey key) {
+		if (key == null) {
+			return Optional.empty();
+		}
+		return Optional.ofNullable(pendingByKey.get(key));
+	}
+
+	/**
 	 * 清理过期 pending 条目（基于最小堆闹钟，避免每 tick 全量扫描过期）。
 	 */
 	public int purgeExpired(long nowGameTick) {
@@ -566,9 +576,13 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		int enqueueSlot = Math.max(0, tag.getInt(KEY_ENQUEUE_SLOT));
 		BlockPos pos = BlockPos.of(tag.getLong(KEY_POS));
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
+		Optional<DispatchKey> normalizedKey = normalizeLegacyActivationKey(key.get(), dispatchAction, activationMode);
+		if (normalizedKey.isEmpty()) {
+			return Optional.empty();
+		}
 		return Optional.of(
 			new PendingDispatchEntry(
-				key.get(),
+				normalizedKey.get(),
 				dispatchAction,
 				dimension,
 				pos,
@@ -596,8 +610,12 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 */
 	public enum DispatchKind {
 		ACTIVATION,
+		PULSE_EVENT,
+		TOGGLE_EVENT,
 		SYNC_SIGNAL,
-		SOURCE_INVALIDATION;
+		SOURCE_INVALIDATION,
+		TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION,
+		TRIGGER_SOURCE_INVALIDATION;
 
 		private static Optional<DispatchKind> fromName(String raw) {
 			if (raw == null || raw.isBlank()) {
@@ -610,6 +628,32 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			}
 			return Optional.empty();
 		}
+	}
+
+	/**
+	 * 将旧版 `ACTIVATION` 持久项迁移到新的事件 kind。
+	 * <p>
+	 * 旧版 activation remove 与新的事件语义不兼容，读档时直接丢弃。
+	 * </p>
+	 */
+	private static Optional<DispatchKey> normalizeLegacyActivationKey(
+		DispatchKey key,
+		DispatchAction dispatchAction,
+		ActivationMode activationMode
+	) {
+		if (key == null) {
+			return Optional.empty();
+		}
+		if (key.dispatchKind() != DispatchKind.ACTIVATION) {
+			return Optional.of(key);
+		}
+		if (dispatchAction == DispatchAction.REMOVE) {
+			return Optional.empty();
+		}
+		DispatchKind normalizedKind = activationMode == ActivationMode.PULSE
+			? DispatchKind.PULSE_EVENT
+			: DispatchKind.TOGGLE_EVENT;
+		return Optional.of(new DispatchKey(key.sourceType(), key.sourceSerial(), key.targetType(), key.targetSerial(), normalizedKind));
 	}
 
 	/**

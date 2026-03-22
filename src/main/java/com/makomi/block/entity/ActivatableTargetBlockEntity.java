@@ -103,6 +103,9 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private final NavigableMap<TimeKey, Map<SourceKey, PulseConcurrentEntry>> pulseConcurrentBuckets = new TreeMap<>();
 	private final NavigableMap<TimeKey, Map<SourceKey, ToggleConcurrentEntry>> toggleConcurrentBuckets = new TreeMap<>();
 	private int toggleConcurrentCount;
+	// toggle 帧级快照：保证同时间粒度内即使高优先级事件先 prune，后到 toggle 仍能看到上一轮旧贡献。
+	private final Set<SourceKey> toggleFrameStartContributors = new TreeSet<>();
+	private final Set<SourceKey> toggleSourcesTouchedInCurrentFrame = new TreeSet<>();
 
 	/**
 	 * 运行态生效模式（用于可观测，不参与额外仲裁）。
@@ -115,12 +118,14 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
-	 * 跨来源统一 delta 类型：激活语义、同步语义，或来源全量失效语义。
+	 * 跨来源统一 delta 类型：激活语义、同步语义，或两类 triggerSource 失效语义。
 	 */
 	public enum DeltaKind {
 		ACTIVATION,
 		SYNC_SIGNAL,
-		SOURCE_INVALIDATION
+		SOURCE_INVALIDATION,
+		TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION,
+		TRIGGER_SOURCE_INVALIDATION
 	}
 
 	/**
@@ -385,7 +390,9 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		switch (deltaKind) {
 			case SYNC_SIGNAL -> applySyncDelta(sourceKey, deltaAction, signalStrength, normalizedMeta);
 			case ACTIVATION -> applyActivationDelta(sourceKey, deltaAction, activationMode, normalizedMeta);
-			case SOURCE_INVALIDATION -> applySourceInvalidationDelta(sourceKey, deltaAction, normalizedMeta);
+			case SOURCE_INVALIDATION, TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION ->
+				applyTriggerSourceChunkUnloadInvalidationDelta(sourceKey, deltaAction, normalizedMeta);
+			case TRIGGER_SOURCE_INVALIDATION -> applyTriggerSourceInvalidationDelta(sourceKey, deltaAction, normalizedMeta);
 		}
 	}
 
@@ -438,6 +445,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 		long now = level.getGameTime();
 		recomputePulseTruthFromConcurrentBuckets();
+		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(TimeKey.of(now, 0), authoritySeq);
 		applyDerivedStateFromTruth();
 	}
@@ -521,6 +529,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
 			return;
 		}
+		pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
 		int normalizedStrength = normalizeSignalStrength(signalStrength);
 		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
 			removeSyncConcurrentSource(sourceKey);
@@ -531,6 +540,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			pulseResetArmed = false;
 		}
 		recomputeSyncTruthFromConcurrentBuckets();
+		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		applyDerivedStateFromTruth();
 	}
@@ -547,36 +557,70 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		ActivationMode normalizedMode = activationMode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
 		EffectiveMode incomingMode = normalizedMode == ActivationMode.PULSE ? EffectiveMode.PULSE : EffectiveMode.TOGGLE;
 		int priority = normalizedMode == ActivationMode.PULSE ? PRIORITY_PULSE : PRIORITY_TOGGLE;
-		if (!acceptByPriority(eventMeta.timeKey(), priority, incomingMode, eventMeta.seq())) {
+		TimeKey normalizedTimeKey = eventMeta.timeKey() == null ? TimeKey.of(0L, 0) : eventMeta.timeKey();
+		boolean priorityAccepted = acceptByPriority(normalizedTimeKey, priority, incomingMode, eventMeta.seq());
+		if (!priorityAccepted && normalizedTimeKey.compareTo(authorityTimeKey) < 0) {
 			return;
 		}
+		// TOGGLE 需要在 prune 前先记住“同源是否已有贡献”，否则 later toggle 会把自己旧贡献误判为不存在。
+		boolean sameSourceHadToggleContribution = normalizedMode == ActivationMode.TOGGLE
+			&& deltaAction != DeltaAction.REMOVE
+			&& resolveToggleContributionBeforePrune(sourceKey);
+		pruneOlderFramesForIncoming(normalizedTimeKey, incomingMode);
+		recomputeSyncTruthFromConcurrentBuckets();
 		if (normalizedMode == ActivationMode.PULSE) {
 			if (deltaAction == DeltaAction.REMOVE) {
 				removePulseConcurrentSource(sourceKey);
 			} else {
-				upsertPulseConcurrentSource(sourceKey, eventMeta.timeKey(), eventMeta.seq());
+				upsertPulseConcurrentSource(sourceKey, normalizedTimeKey, eventMeta.seq());
 			}
 			recomputePulseTruthFromConcurrentBuckets();
+			recomputeToggleTruthFromConcurrentBuckets();
 		} else {
+			markToggleSourceTouchedInCurrentFrame(sourceKey);
 			if (deltaAction == DeltaAction.REMOVE) {
 				removeToggleConcurrentSource(sourceKey);
 			} else {
-				upsertToggleConcurrentSource(sourceKey, eventMeta.timeKey(), eventMeta.seq());
+				upsertToggleConcurrentSource(sourceKey, normalizedTimeKey, eventMeta.seq(), sameSourceHadToggleContribution);
 			}
 			recomputeToggleTruthFromConcurrentBuckets();
 		}
+		recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
+		applyDerivedStateFromTruth();
+	}
+
+	/**
+	 * 统一处理“triggerSource 区块卸载失效”delta：仅剔除该来源的 sync 贡献。
+	 * <p>
+	 * pulse/toggle 已按事件语义处理，不再因 triggerSource 所在区块卸载被回滚。
+	 * </p>
+	 */
+	private void applyTriggerSourceChunkUnloadInvalidationDelta(
+		SourceKey sourceKey,
+		DeltaAction deltaAction,
+		EventMeta eventMeta
+	) {
+		if (deltaAction != DeltaAction.REMOVE) {
+			return;
+		}
+		// 失效事件按最高优先级（SYNC）做防旧判断，避免旧事件回放污染现态。
+		if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
+			return;
+		}
+		removeSyncConcurrentSource(sourceKey);
+		recomputeSyncTruthFromConcurrentBuckets();
+		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		applyDerivedStateFromTruth();
 	}
 
 	/**
-	 * 统一处理“来源全量失效”delta：一次剔除该来源在 sync/pulse/toggle 三类桶中的贡献。
+	 * 统一处理“triggerSource 其它失效”delta：剔除该来源的 toggle/pulse/sync 贡献并重算。
 	 */
-	private void applySourceInvalidationDelta(SourceKey sourceKey, DeltaAction deltaAction, EventMeta eventMeta) {
+	private void applyTriggerSourceInvalidationDelta(SourceKey sourceKey, DeltaAction deltaAction, EventMeta eventMeta) {
 		if (deltaAction != DeltaAction.REMOVE) {
 			return;
 		}
-		// 失效事件按最高优先级（SYNC）做防旧判断，避免旧事件回放污染现态。
 		if (!acceptByPriority(eventMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, eventMeta.seq())) {
 			return;
 		}
@@ -626,9 +670,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 写入或覆盖切换来源贡献：同来源再次 UPSERT 等价于翻转贡献位。
 	 */
-	private void upsertToggleConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq) {
-		boolean previous = findToggleContribution(sourceKey);
-		boolean next = !previous;
+	private void upsertToggleConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq, boolean hadContributionBeforePrune) {
+		boolean next = !hadContributionBeforePrune;
 		removeSourceFromConcurrentBuckets(toggleConcurrentBuckets, sourceKey);
 		if (!next) {
 			return;
@@ -668,6 +711,60 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 	}
 
+	/**
+	 * 更晚时间粒度到来时，淘汰更早帧的结构真值。
+	 * <p>
+	 * 规则：
+	 * 1. 新 SYNC：淘汰更早的 sync/toggle，并取消 pulse 武装与脉冲桶；
+	 * 2. 新 PULSE：淘汰更早的 sync/toggle/pulse；
+	 * 3. 新 TOGGLE：淘汰更早的 sync/toggle，但不打断仍在生效窗口中的 pulse。
+	 * </p>
+	 */
+	private void pruneOlderFramesForIncoming(TimeKey incomingTimeKey, EffectiveMode incomingMode) {
+		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
+		removeConcurrentBucketsBefore(syncConcurrentBuckets, normalizedTimeKey);
+		removeConcurrentBucketsBefore(toggleConcurrentBuckets, normalizedTimeKey);
+		if (incomingMode == EffectiveMode.SYNC) {
+			clearPulseTruth();
+			return;
+		}
+		if (incomingMode == EffectiveMode.PULSE) {
+			removeConcurrentBucketsBefore(pulseConcurrentBuckets, normalizedTimeKey);
+		}
+	}
+
+	/**
+	 * 取消当前 pulse 真值与下落窗口。
+	 */
+	private void clearPulseTruth() {
+		pulseConcurrentBuckets.clear();
+		pulseUntilGameTime = 0L;
+		pulseResetArmed = false;
+	}
+
+	/**
+	 * 清除早于指定时间键的并发桶帧。
+	 */
+	private static <V> void removeConcurrentBucketsBefore(
+		NavigableMap<TimeKey, Map<SourceKey, V>> buckets,
+		TimeKey cutoffTimeKey
+	) {
+		if (buckets.isEmpty() || cutoffTimeKey == null) {
+			return;
+		}
+		List<TimeKey> staleKeys = new ArrayList<>();
+		for (TimeKey timeKey : buckets.keySet()) {
+			if (timeKey == null || timeKey.compareTo(cutoffTimeKey) < 0) {
+				staleKeys.add(timeKey);
+				continue;
+			}
+			break;
+		}
+		for (TimeKey staleKey : staleKeys) {
+			buckets.remove(staleKey);
+		}
+	}
+
 	private boolean findToggleContribution(SourceKey sourceKey) {
 		for (Map<SourceKey, ToggleConcurrentEntry> bucket : toggleConcurrentBuckets.values()) {
 			ToggleConcurrentEntry entry = bucket == null ? null : bucket.get(sourceKey);
@@ -676,6 +773,49 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * 新仲裁帧开始前，快照当前仍有效的 toggle 来源贡献。
+	 */
+	private void snapshotToggleFrameStartContributors() {
+		toggleFrameStartContributors.clear();
+		toggleSourcesTouchedInCurrentFrame.clear();
+		for (Map<SourceKey, ToggleConcurrentEntry> bucket : toggleConcurrentBuckets.values()) {
+			if (bucket == null || bucket.isEmpty()) {
+				continue;
+			}
+			for (Map.Entry<SourceKey, ToggleConcurrentEntry> entry : bucket.entrySet()) {
+				if (entry.getKey() != null && entry.getValue() != null && entry.getValue().contributes()) {
+					toggleFrameStartContributors.add(entry.getKey());
+				}
+			}
+		}
+	}
+
+	/**
+	 * 在 prune 之前解析同源 toggle 是否已有贡献。
+	 * <p>
+	 * 同帧若该来源尚未触达，则优先参考帧起始快照；若已触达，则改看当前桶状态，保证同帧多次 toggle 仍按奇偶翻转。
+	 * </p>
+	 */
+	private boolean resolveToggleContributionBeforePrune(SourceKey sourceKey) {
+		if (sourceKey == null) {
+			return false;
+		}
+		if (toggleSourcesTouchedInCurrentFrame.contains(sourceKey)) {
+			return findToggleContribution(sourceKey);
+		}
+		return toggleFrameStartContributors.contains(sourceKey) || findToggleContribution(sourceKey);
+	}
+
+	/**
+	 * 记录当前仲裁帧内已经处理过 toggle 的来源。
+	 */
+	private void markToggleSourceTouchedInCurrentFrame(SourceKey sourceKey) {
+		if (sourceKey != null) {
+			toggleSourcesTouchedInCurrentFrame.add(sourceKey);
+		}
 	}
 
 	/**
@@ -888,6 +1028,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (timeKey == null || timeKey.equals(arbitrationTimeKey)) {
 			return;
 		}
+		snapshotToggleFrameStartContributors();
 		arbitrationTimeKey = timeKey;
 		arbitrationPriority = Integer.MIN_VALUE;
 		tickResolvedInitialized = false;
@@ -1089,35 +1230,39 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		return new Candidate(EffectiveMode.TOGGLE, timeKey, seq, PRIORITY_TOGGLE);
 	}
 
-	private static Candidate pickWinner(Candidate... candidates) {
-		Candidate winner = null;
-		for (Candidate candidate : candidates) {
-			if (candidate == null) {
-				continue;
-			}
-			if (winner == null) {
-				winner = candidate;
-				continue;
-			}
-			int timeCompare = candidate.timeKey().compareTo(winner.timeKey());
-			if (timeCompare > 0) {
-				winner = candidate;
-				continue;
-			}
-			if (timeCompare < 0) {
-				continue;
-			}
-			if (candidate.priority() > winner.priority()) {
-				winner = candidate;
-				continue;
-			}
-			if (candidate.priority() == winner.priority()) {
-				if (candidate.seq() > winner.seq()) {
-					winner = candidate;
-				}
-			}
+	private static Candidate pickWinner(Candidate syncCandidate, Candidate pulseCandidate, Candidate toggleCandidate) {
+		Candidate nonToggleWinner = pickMoreRecentCandidate(syncCandidate, pulseCandidate);
+		if (nonToggleWinner == null) {
+			return toggleCandidate;
 		}
-		return winner;
+		// pulse 进入下落窗口后，later toggle 只作为后续候选，不能打断当前 pulse。
+		if (nonToggleWinner.mode() == EffectiveMode.PULSE) {
+			return nonToggleWinner;
+		}
+		return pickMoreRecentCandidate(nonToggleWinner, toggleCandidate);
+	}
+
+	private static Candidate pickMoreRecentCandidate(Candidate left, Candidate right) {
+		if (left == null) {
+			return right;
+		}
+		if (right == null) {
+			return left;
+		}
+		int timeCompare = right.timeKey().compareTo(left.timeKey());
+		if (timeCompare > 0) {
+			return right;
+		}
+		if (timeCompare < 0) {
+			return left;
+		}
+		if (right.priority() > left.priority()) {
+			return right;
+		}
+		if (right.priority() < left.priority()) {
+			return left;
+		}
+		return right.seq() > left.seq() ? right : left;
 	}
 
 	private record Candidate(EffectiveMode mode, TimeKey timeKey, long seq, int priority) {
@@ -1269,6 +1414,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		fanoutResolvedPower = 0;
 		toggleMergeInitialized = false;
 		toggleMergeParity = false;
+		toggleFrameStartContributors.clear();
+		toggleSourcesTouchedInCurrentFrame.clear();
 	}
 
 	@Override

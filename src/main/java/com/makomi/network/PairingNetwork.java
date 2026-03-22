@@ -7,7 +7,6 @@ import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;

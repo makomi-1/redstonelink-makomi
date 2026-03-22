@@ -5,6 +5,8 @@ import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
 import com.makomi.block.entity.LinkSyncLeverBlockEntity;
+import com.makomi.block.entity.SyncReplaySourceBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SignalStrengths;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -96,7 +98,7 @@ public final class InternalDispatchDeltaEvents {
 	 * 说明：
 	 * 1. 输入允许使用命令视角 `triggerSource/core` 作为来源类型；
 	 * 2. 方法内部会统一映射到实际方向 `triggerSource -> core`；
-	 * 3. 每条解绑关系仅发布一条“来源全量失效”remove 事件。
+	 * 3. 每条解绑关系仅发布一条“triggerSource 其它失效”remove 事件。
 	 * </p>
 	 *
 	 * @param sourceLevel 事件所在服务端维度
@@ -121,11 +123,33 @@ public final class InternalDispatchDeltaEvents {
 		) {
 			return;
 		}
+		publishTriggerSourceInvalidation(sourceLevel, linkViewSourceType, linkViewSourceSerial, detachedSerials, eventMeta);
+	}
+
+	/**
+	 * 发布“triggerSource 区块卸载失效”事件（集合入口）。
+	 */
+	public static void publishLinkChunkUnloaded(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		Set<Long> affectedSerials,
+		EventMeta eventMeta
+	) {
+		if (
+			sourceLevel == null
+				|| linkViewSourceType == null
+				|| linkViewSourceSerial <= 0L
+				|| affectedSerials == null
+				|| affectedSerials.isEmpty()
+		) {
+			return;
+		}
 		forEachNormalizedPair(
 			linkViewSourceType,
 			linkViewSourceSerial,
-			detachedSerials,
-			(sourceSerial, targetSerial) -> publishSourceInvalidation(
+			affectedSerials,
+			(sourceSerial, targetSerial) -> publishTriggerSourceChunkUnloadInvalidation(
 				sourceLevel,
 				LinkNodeType.TRIGGER_SOURCE,
 				sourceSerial,
@@ -137,7 +161,7 @@ public final class InternalDispatchDeltaEvents {
 	}
 
 	/**
-	 * 发布“链路解绑”对应的来源失效事件（单目标入口）。
+	 * 发布“链路解绑”对应的 triggerSource 其它失效事件（单目标入口）。
 	 */
 	public static void publishLinkDetached(
 		ServerLevel sourceLevel,
@@ -153,7 +177,7 @@ public final class InternalDispatchDeltaEvents {
 			linkViewSourceType,
 			linkViewSourceSerial,
 			detachedSerial,
-			(sourceSerial, targetSerial) -> publishSourceInvalidation(
+			(sourceSerial, targetSerial) -> publishTriggerSourceInvalidation(
 				sourceLevel,
 				LinkNodeType.TRIGGER_SOURCE,
 				sourceSerial,
@@ -219,6 +243,45 @@ public final class InternalDispatchDeltaEvents {
 	}
 
 	/**
+	 * 发布“目标区块加载”场景下的 sync 恢复事件。
+	 * <p>
+	 * 与普通 `publishLinkAttached(...)` 的差异：
+	 * 1. 仅在来源端存在已持久化的 sync replay 快照时生效；
+	 * 2. 恢复事件使用来源端原始 `EventMeta`，不使用目标 `CHUNK_LOAD` 时刻；
+	 * 3. 仅供 `CHUNK_LOAD` 生命周期回放调用，避免影响命令 attach / replace 路径。
+	 * </p>
+	 */
+	public static void publishLinkAttachedFromTargetChunkLoad(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		Set<Long> attachedSerials
+	) {
+		if (
+			sourceLevel == null
+				|| linkViewSourceType == null
+				|| linkViewSourceSerial <= 0L
+				|| attachedSerials == null
+				|| attachedSerials.isEmpty()
+		) {
+			return;
+		}
+		Map<Long, SyncReplaySourceBlockEntity.ReplaySyncSnapshot> replaySnapshotBySourceSerial = new HashMap<>();
+		forEachNormalizedPair(
+			linkViewSourceType,
+			linkViewSourceSerial,
+			attachedSerials,
+			(sourceSerial, targetSerial) -> {
+				SyncReplaySourceBlockEntity.ReplaySyncSnapshot replaySnapshot = replaySnapshotBySourceSerial.computeIfAbsent(
+					sourceSerial,
+					serial -> resolveReplaySyncSnapshot(sourceLevel, LinkNodeType.TRIGGER_SOURCE, serial)
+				);
+				publishResolvedTargetChunkLoadSyncReplay(sourceLevel, sourceSerial, targetSerial, replaySnapshot);
+			}
+		);
+	}
+
+	/**
 	 * 发布“链路建立/恢复”对应的来源增量事件（单目标入口）。
 	 */
 	public static void publishLinkAttached(
@@ -247,7 +310,41 @@ public final class InternalDispatchDeltaEvents {
 	}
 
 	/**
-	 * 发布单条“来源失效”事件（一次剔除该来源在目标上的全部贡献）。
+	 * 发布“triggerSource 其它失效”事件（集合入口）。
+	 */
+	public static void publishTriggerSourceInvalidation(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		Set<Long> affectedSerials,
+		EventMeta eventMeta
+	) {
+		if (
+			sourceLevel == null
+				|| linkViewSourceType == null
+				|| linkViewSourceSerial <= 0L
+				|| affectedSerials == null
+				|| affectedSerials.isEmpty()
+		) {
+			return;
+		}
+		forEachNormalizedPair(
+			linkViewSourceType,
+			linkViewSourceSerial,
+			affectedSerials,
+			(sourceSerial, targetSerial) -> publishTriggerSourceInvalidation(
+				sourceLevel,
+				LinkNodeType.TRIGGER_SOURCE,
+				sourceSerial,
+				LinkNodeType.CORE,
+				targetSerial,
+				eventMeta
+			)
+		);
+	}
+
+	/**
+	 * 发布单条“triggerSource 区块卸载失效”事件（仅剔除该来源在目标上的 sync 贡献）。
 	 *
 	 * @param sourceLevel 来源所在维度上下文
 	 * @param sourceType 来源类型
@@ -256,7 +353,7 @@ public final class InternalDispatchDeltaEvents {
 	 * @param targetSerial 目标序号
 	 * @param eventMeta 事件时间元数据
 	 */
-	public static void publishSourceInvalidation(
+	public static void publishTriggerSourceChunkUnloadInvalidation(
 		ServerLevel sourceLevel,
 		LinkNodeType sourceType,
 		long sourceSerial,
@@ -273,6 +370,9 @@ public final class InternalDispatchDeltaEvents {
 		if (!LinkNodeSemantics.isAllowedForRole(targetType, LinkNodeSemantics.Role.TARGET)) {
 			return;
 		}
+		if (!RedstoneLinkConfig.crossChunkTriggerSourceChunkUnloadInvalidationEnabled()) {
+			return;
+		}
 		EventMeta normalizedMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;
 
 		publish(
@@ -282,7 +382,48 @@ public final class InternalDispatchDeltaEvents {
 				sourceSerial,
 				targetType,
 				targetSerial,
-				ActivatableTargetBlockEntity.DeltaKind.SOURCE_INVALIDATION,
+				ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION,
+				ActivatableTargetBlockEntity.DeltaAction.REMOVE,
+				ActivationMode.TOGGLE,
+				0,
+				normalizedMeta
+			)
+		);
+	}
+
+	/**
+	 * 发布单条“triggerSource 其它失效”事件：剔除该来源在目标上的 toggle/pulse/sync 贡献。
+	 */
+	public static void publishTriggerSourceInvalidation(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		long targetSerial,
+		EventMeta eventMeta
+	) {
+		if (sourceLevel == null || sourceType == null || targetType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+			return;
+		}
+		if (!LinkNodeSemantics.isAllowedForRole(sourceType, LinkNodeSemantics.Role.SOURCE)) {
+			return;
+		}
+		if (!LinkNodeSemantics.isAllowedForRole(targetType, LinkNodeSemantics.Role.TARGET)) {
+			return;
+		}
+		if (!RedstoneLinkConfig.crossChunkTriggerSourceInvalidationEnabled()) {
+			return;
+		}
+		EventMeta normalizedMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;
+
+		publish(
+			new DispatchDeltaEvent(
+				sourceLevel,
+				sourceType,
+				sourceSerial,
+				targetType,
+				targetSerial,
+				ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION,
 				ActivatableTargetBlockEntity.DeltaAction.REMOVE,
 				ActivationMode.TOGGLE,
 				0,
@@ -357,6 +498,29 @@ public final class InternalDispatchDeltaEvents {
 	}
 
 	/**
+	 * 按已解析快照发布 `CHUNK_LOAD` 专用 sync replay。
+	 */
+	static void publishResolvedTargetChunkLoadSyncReplay(
+		ServerLevel sourceLevel,
+		long sourceSerial,
+		long targetSerial,
+		SyncReplaySourceBlockEntity.ReplaySyncSnapshot replaySnapshot
+	) {
+		if (sourceLevel == null || sourceSerial <= 0L || targetSerial <= 0L || replaySnapshot == null) {
+			return;
+		}
+		publishSourceRebuildUpsertResolved(
+			sourceLevel,
+			LinkNodeType.TRIGGER_SOURCE,
+			sourceSerial,
+			LinkNodeType.CORE,
+			targetSerial,
+			replaySnapshot.eventMeta(),
+			replaySnapshot.signalStrength()
+		);
+	}
+
+	/**
 	 * 尝试解析来源的“可恢复同步强度”。
 	 * <p>
 	 * 返回值语义：
@@ -394,6 +558,38 @@ public final class InternalDispatchDeltaEvents {
 			return 0;
 		}
 		return -1;
+	}
+
+	/**
+	 * 尝试解析来源端最近一次真实 sync 派发快照。
+	 */
+	private static SyncReplaySourceBlockEntity.ReplaySyncSnapshot resolveReplaySyncSnapshot(
+		ServerLevel contextLevel,
+		LinkNodeType sourceType,
+		long sourceSerial
+	) {
+		if (contextLevel == null || sourceType == null || sourceSerial <= 0L) {
+			return null;
+		}
+		LinkSavedData savedData = LinkSavedData.get(contextLevel);
+		LinkSavedData.LinkNode sourceNode = savedData.findNode(sourceType, sourceSerial).orElse(null);
+		if (sourceNode == null) {
+			return null;
+		}
+		ServerLevel sourceNodeLevel = contextLevel.getServer().getLevel(sourceNode.dimension());
+		if (sourceNodeLevel == null) {
+			return null;
+		}
+		ServerChunkCache chunkSource = sourceNodeLevel.getChunkSource();
+		LevelChunk sourceChunk = chunkSource.getChunkNow(sourceNode.pos().getX() >> 4, sourceNode.pos().getZ() >> 4);
+		if (sourceChunk == null) {
+			return null;
+		}
+		BlockEntity sourceBlockEntity = sourceChunk.getBlockEntity(sourceNode.pos(), LevelChunk.EntityCreationType.CHECK);
+		if (!(sourceBlockEntity instanceof SyncReplaySourceBlockEntity syncReplaySourceBlockEntity)) {
+			return null;
+		}
+		return syncReplaySourceBlockEntity.replaySyncSnapshot().orElse(null);
 	}
 
 	/**
@@ -546,7 +742,7 @@ public final class InternalDispatchDeltaEvents {
 	 * @param sourceSerial 来源序号
 	 * @param targetType 目标类型
 	 * @param targetSerial 目标序号
-	 * @param deltaKind 语义类型（activation/sync/source_invalidation）
+	 * @param deltaKind 语义类型（activation/sync/triggerSource invalidation）
 	 * @param deltaAction 动作（upsert/remove）
 	 * @param activationMode 激活模式（activation 生效；sync 固定 toggle）
 	 * @param syncSignalStrength 同步强度（sync 生效）

@@ -1,10 +1,15 @@
 package com.makomi.block.entity;
 
+import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
+import com.makomi.data.InternalDispatchDeltaEvents;
+import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -105,10 +110,23 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		if (serial <= 0L) {
 			return;
 		}
+		LinkSavedData savedData = LinkSavedData.get(serverLevel);
+		if (LinkNodeSemantics.isAllowedForRole(getNodeType(), LinkNodeSemantics.Role.SOURCE)) {
+			Set<Long> linkedPeers = new HashSet<>(savedData.getLinkedTargetsBySourceType(getNodeType(), serial));
+			if (!linkedPeers.isEmpty()) {
+				InternalDispatchDeltaEvents.publishTriggerSourceInvalidation(
+					serverLevel,
+					getNodeType(),
+					serial,
+					linkedPeers,
+					EventMeta.of(serverLevel.getGameTime(), 0, 0L)
+				);
+			}
+		}
 		if (enqueuePendingRetire) {
 			LinkNodeRetireEvents.enqueuePendingRetire(serverLevel, getNodeType(), serial, worldPosition);
 		}
-		LinkSavedData.get(serverLevel).removeNode(getNodeType(), serial);
+		savedData.removeNode(getNodeType(), serial);
 	}
 
 	public void retireNode() {

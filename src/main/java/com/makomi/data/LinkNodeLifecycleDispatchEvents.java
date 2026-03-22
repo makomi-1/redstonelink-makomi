@@ -25,7 +25,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * <p>
  * 负责将“区块加载/卸载”引起的来源/目标上下线统一翻译为内部事件：
  * 1. `CHUNK_LOAD` -> `UPSERT`（按可恢复来源态补发）；
- * 2. `CHUNK_UNLOAD` -> `REMOVE`（按当前链路剔除贡献）。
+ * 2. `CHUNK_UNLOAD` -> triggerSource 区块卸载失效（仅对来源节点生效）。
  * </p>
  */
 public final class LinkNodeLifecycleDispatchEvents {
@@ -58,6 +58,9 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (shouldSkipLifecycleReplay(level, chunk, online)) {
 			return;
 		}
+		if (online) {
+			CrossChunkDispatchService.notifyTargetChunkLoaded(level.getServer(), level.dimension(), chunk.getPos());
+		}
 		long startNs = System.nanoTime();
 		LinkSavedData savedData = LinkSavedData.get(level);
 		EventMeta eventMeta = EventMeta.of(level.getGameTime(), 0, 0L);
@@ -80,10 +83,15 @@ public final class LinkNodeLifecycleDispatchEvents {
 			linkedNodeCount++;
 			linkedPeerCount += linkedPeers.size();
 			if (online) {
-				InternalDispatchDeltaEvents.publishLinkAttached(level, nodeType, serial, linkedPeers, eventMeta);
+				if (RedstoneLinkConfig.crossChunkSyncTargetChunkLoadReplayEnabled()) {
+					InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoad(level, nodeType, serial, linkedPeers);
+				}
 				continue;
 			}
-			InternalDispatchDeltaEvents.publishLinkDetached(level, nodeType, serial, linkedPeers, eventMeta);
+			if (!LinkNodeSemantics.isAllowedForRole(nodeType, LinkNodeSemantics.Role.SOURCE)) {
+				continue;
+			}
+			InternalDispatchDeltaEvents.publishLinkChunkUnloaded(level, nodeType, serial, linkedPeers, eventMeta);
 		}
 		logChunkLifecycleIfSlow(level, chunk, online, scannedBlockEntities, linkedNodeCount, linkedPeerCount, startNs);
 	}

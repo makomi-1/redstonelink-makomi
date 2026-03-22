@@ -4,7 +4,6 @@ import com.makomi.block.entity.ActivationMode;
 import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.command.CommandRateLimitService;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;

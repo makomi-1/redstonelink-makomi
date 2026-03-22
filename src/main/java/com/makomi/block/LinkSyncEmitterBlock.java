@@ -1,5 +1,6 @@
 package com.makomi.block;
 
+import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.LinkButtonBlockEntity;
 import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
 import com.makomi.util.SignalStrengths;
@@ -50,6 +51,7 @@ public class LinkSyncEmitterBlock extends LinkSignalEmitterBlock {
 		if (level.getBlockEntity(pos) instanceof LinkSyncEmitterBlockEntity blockEntity) {
 			int normalizedStrength = SignalStrengths.clamp(signalStrength);
 			blockEntity.setLastObservedSignalStrength(normalizedStrength);
+			blockEntity.recordReplaySyncSnapshot(normalizedStrength, EventMeta.now(level));
 			blockEntity.forwardLinkedSignal(null, normalizedStrength);
 			return;
 		}

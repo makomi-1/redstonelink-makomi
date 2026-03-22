@@ -1,7 +1,6 @@
 package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
-import com.makomi.block.entity.LinkButtonBlockEntity;
 import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
 import com.makomi.block.entity.LinkPulseEmitterBlockEntity;

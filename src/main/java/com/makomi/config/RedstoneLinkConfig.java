@@ -142,7 +142,7 @@ public final class RedstoneLinkConfig {
 		try (Reader reader = Files.newBufferedReader(CONFIG_PATH, StandardCharsets.UTF_8)) {
 			props.load(reader);
 		} catch (IOException ex) {
-			LOGGER.warn("读取配置失败，回退默认值: {}", CONFIG_PATH.toAbsolutePath(), ex);
+			LOGGER.warn("Failed to read config, falling back to defaults: {}", CONFIG_PATH.toAbsolutePath(), ex);
 			values = Values.defaults();
 			crossChunkValues = CrossChunkValues.defaults();
 			return;
@@ -224,10 +224,73 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * @return Relay 缓存过期时长（tick）
+	 * @return 是否启用目标区块 `CHUNK_LOAD` 时的 sync 补发
 	 */
-	public static int crossChunkRelayExpireTicks() {
-		return crossChunkValues.relayExpireTicks();
+	public static boolean crossChunkSyncTargetChunkLoadReplayEnabled() {
+		return crossChunkValues.syncTargetChunkLoadReplayEnabled();
+	}
+
+	/**
+	 * @return 是否启用 PULSE 事件的普通 TTL relay
+	 */
+	public static boolean crossChunkActivationPulseRelayEnabled() {
+		return crossChunkValues.activationPulseRelayEnabled();
+	}
+
+	/**
+	 * @return PULSE 事件的 TTL（tick）
+	 */
+	public static int crossChunkActivationPulseTtlTicks() {
+		return crossChunkValues.activationPulseTtlTicks();
+	}
+
+	/**
+	 * @return 是否启用 PULSE 事件的实验性不限时投递
+	 */
+	public static boolean crossChunkActivationPulsePersistentExperimental() {
+		return crossChunkValues.activationPulsePersistentExperimental();
+	}
+
+	/**
+	 * @return 是否启用 TOGGLE 事件的普通 TTL relay
+	 */
+	public static boolean crossChunkActivationToggleRelayEnabled() {
+		return crossChunkValues.activationToggleRelayEnabled();
+	}
+
+	/**
+	 * @return TOGGLE 事件的 TTL（tick）
+	 */
+	public static int crossChunkActivationToggleTtlTicks() {
+		return crossChunkValues.activationToggleTtlTicks();
+	}
+
+	/**
+	 * @return 是否启用 TOGGLE 事件的实验性不限时投递
+	 */
+	public static boolean crossChunkActivationTogglePersistentExperimental() {
+		return crossChunkValues.activationTogglePersistentExperimental();
+	}
+
+	/**
+	 * @return 是否启用 triggerSource 区块卸载失效事件
+	 */
+	public static boolean crossChunkTriggerSourceChunkUnloadInvalidationEnabled() {
+		return crossChunkValues.triggerSourceChunkUnloadInvalidationEnabled();
+	}
+
+	/**
+	 * @return 是否启用 triggerSource 其它失效事件
+	 */
+	public static boolean crossChunkTriggerSourceInvalidationEnabled() {
+		return crossChunkValues.triggerSourceInvalidationEnabled();
+	}
+
+	/**
+	 * @return 跨区块持久派发队列通用 TTL（tick）
+	 */
+	public static int crossChunkQueueDefaultTtlTicks() {
+		return crossChunkValues.queueDefaultTtlTicks();
 	}
 
 	/**
@@ -238,10 +301,10 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * @return 是否启用中继缓冲
+	 * @return 是否启用跨区块持久派发队列
 	 */
-	public static boolean crossChunkRelayEnabled() {
-		return crossChunkValues.relayEnabled();
+	public static boolean crossChunkQueueEnabled() {
+		return crossChunkValues.queueEnabled();
 	}
 
 	/**
@@ -553,10 +616,17 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
-	 * @return 持久 SYNC 达到重试上限后的退避重试间隔（tick）
+	 * @return 持久 pending 当前失败次数所在的重试阶段（1~4）
 	 */
-	public static int crossChunkRetryPersistentBackoffTicks() {
-		return crossChunkValues.retryPersistentBackoffTicks();
+	public static int crossChunkRetryPersistentStageIndex(int attempts) {
+		return resolveCrossChunkRetryStageIndex(crossChunkValues, attempts);
+	}
+
+	/**
+	 * @return 持久 pending 当前失败次数对应的重试间隔（tick）
+	 */
+	public static int crossChunkRetryPersistentIntervalTicks(int attempts) {
+		return resolveCrossChunkRetryIntervalTicks(crossChunkValues, attempts);
 	}
 
 	/**
@@ -727,12 +797,33 @@ public final class RedstoneLinkConfig {
 		if (retryErrorThreshold > 0 && retryDropThreshold > 0 && retryDropThreshold < retryErrorThreshold) {
 			retryDropThreshold = retryErrorThreshold;
 		}
-		int retryPersistentBackoffTicks = parseInt(props, "crosschunk.retry.persistentBackoffTicks", 20, 1, 72_000);
+		int retryStage1MaxAttempts = parseInt(props, "crosschunk.retry.stage1.maxAttempts", 99, 1, 2_000_000);
+		int retryStage1IntervalTicks = parseInt(props, "crosschunk.retry.stage1.intervalTicks", 1, 1, 72_000);
+		int retryStage2MaxAttempts = parseInt(props, "crosschunk.retry.stage2.maxAttempts", 499, 1, 2_000_000);
+		if (retryStage2MaxAttempts <= retryStage1MaxAttempts) {
+			retryStage2MaxAttempts = retryStage1MaxAttempts + 1;
+		}
+		int retryStage2IntervalTicks = parseInt(props, "crosschunk.retry.stage2.intervalTicks", 5, 1, 72_000);
+		int retryStage3MaxAttempts = parseInt(props, "crosschunk.retry.stage3.maxAttempts", 999, 1, 2_000_000);
+		if (retryStage3MaxAttempts <= retryStage2MaxAttempts) {
+			retryStage3MaxAttempts = retryStage2MaxAttempts + 1;
+		}
+		int retryStage3IntervalTicks = parseInt(props, "crosschunk.retry.stage3.intervalTicks", 20, 1, 72_000);
+		int retryStage4IntervalTicks = parseInt(props, "crosschunk.retry.stage4.intervalTicks", 100, 1, 72_000);
 		return new CrossChunkValues(
 			parseInt(props, "crosschunk.syncSignalTtlTicks", 40, 1, 72_000),
 			parseBoolean(props, "crosschunk.syncSignalPersistent", true),
-			parseBoolean(props, "crosschunk.relay.enabled", true),
-			parseInt(props, "crosschunk.relayExpireTicks", 200, 1, 72_000),
+			parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.enabled", true),
+			parseBoolean(props, "crosschunk.activation.pulse.relay.enabled", false),
+			parseInt(props, "crosschunk.activation.pulse.ttlTicks", 200, 1, 72_000),
+			parseBoolean(props, "crosschunk.activation.pulse.persistentExperimental", false),
+			parseBoolean(props, "crosschunk.activation.toggle.relay.enabled", false),
+			parseInt(props, "crosschunk.activation.toggle.ttlTicks", 200, 1, 72_000),
+			parseBoolean(props, "crosschunk.activation.toggle.persistentExperimental", false),
+			parseBoolean(props, "crosschunk.triggerSourceChunkUnloadInvalidation.enabled", false),
+			parseBoolean(props, "crosschunk.triggerSourceInvalidation.enabled", true),
+			parseBoolean(props, "crosschunk.queue.enabled", true),
+			parseInt(props, "crosschunk.queue.defaultTtlTicks", 200, 1, 72_000),
 			parseInt(props, "crosschunk.dispatch.maxPerTick", 500, 1, 20_000),
 			parseBoolean(props, "crosschunk.forceLoad.enabled", true),
 			CrossChunkForceLoadMode.fromConfigValue(props.getProperty("crosschunk.forceLoad.mode", "whitelist")),
@@ -749,7 +840,13 @@ public final class RedstoneLinkConfig {
 			retryWarnThreshold,
 			retryErrorThreshold,
 			retryDropThreshold,
-			retryPersistentBackoffTicks,
+			retryStage1MaxAttempts,
+			retryStage1IntervalTicks,
+			retryStage2MaxAttempts,
+			retryStage2IntervalTicks,
+			retryStage3MaxAttempts,
+			retryStage3IntervalTicks,
+			retryStage4IntervalTicks,
 			allowedSourceTypes,
 			allowedTargetTypes,
 			presets,
@@ -784,7 +881,7 @@ public final class RedstoneLinkConfig {
 			parsedTypes.add(parsedType.get());
 		}
 		if (parsedTypes.isEmpty()) {
-			LOGGER.warn("配置 {} 未解析出有效类型，回退默认值", key);
+			LOGGER.warn("Config {} did not resolve any valid types; falling back to defaults", key);
 			return Set.copyOf(defaults);
 		}
 		return Set.copyOf(parsedTypes);
@@ -873,7 +970,7 @@ public final class RedstoneLinkConfig {
 			}
 			int splitIndex = token.indexOf(':');
 			if (splitIndex <= 0 || splitIndex >= token.length() - 1) {
-				LOGGER.warn("配置 {}={} 格式非法，应为 type:serial，已忽略", key, token);
+				LOGGER.warn("Config {}={} has invalid format; expected type:serial, ignored", key, token);
 				continue;
 			}
 			String typePart = token.substring(0, splitIndex);
@@ -893,11 +990,11 @@ public final class RedstoneLinkConfig {
 			try {
 				serial = Long.parseLong(serialPart);
 			} catch (NumberFormatException ex) {
-				LOGGER.warn("配置 {}={} 序号不是合法整数，已忽略", key, token);
+				LOGGER.warn("Config {}={} has an invalid serial integer, ignored", key, token);
 				continue;
 			}
 			if (serial <= 0L) {
-				LOGGER.warn("配置 {}={} 序号必须大于 0，已忽略", key, token);
+				LOGGER.warn("Config {}={} must use a serial greater than 0, ignored", key, token);
 				continue;
 			}
 			parsedBucket.computeIfAbsent(parsedType.get(), ignored -> new HashSet<>()).add(serial);
@@ -927,9 +1024,9 @@ public final class RedstoneLinkConfig {
 			return Optional.of(semanticResult.value());
 		}
 		switch (semanticResult.error()) {
-			case ROLE_NOT_ALLOWED -> LOGGER.warn("配置 {}={} 语义角色不匹配，已忽略", key, tokenText);
-			case CONFIG_NOT_ALLOWED -> LOGGER.warn("配置 {}={} 未包含在允许类型列表中，已忽略", key, tokenText);
-			case INVALID_TYPE, NONE -> LOGGER.warn("配置 {}={} 含有非法类型，已忽略", key, tokenText);
+			case ROLE_NOT_ALLOWED -> LOGGER.warn("Config {}={} does not match the required semantic role, ignored", key, tokenText);
+			case CONFIG_NOT_ALLOWED -> LOGGER.warn("Config {}={} is not included in the allowed type list, ignored", key, tokenText);
+			case INVALID_TYPE, NONE -> LOGGER.warn("Config {}={} contains an invalid type, ignored", key, tokenText);
 		}
 		return Optional.empty();
 	}
@@ -952,6 +1049,41 @@ public final class RedstoneLinkConfig {
 			mergeBucket(mergedBucket, roleBucket);
 		}
 		return immutableBucket(mergedBucket);
+	}
+
+	/**
+	 * 解析持久 pending 当前失败次数所在的分段索引。
+	 */
+	private static int resolveCrossChunkRetryStageIndex(CrossChunkValues values, int attempts) {
+		if (values == null) {
+			return 1;
+		}
+		int normalizedAttempts = Math.max(1, attempts);
+		if (normalizedAttempts <= values.retryStage1MaxAttempts()) {
+			return 1;
+		}
+		if (normalizedAttempts <= values.retryStage2MaxAttempts()) {
+			return 2;
+		}
+		if (normalizedAttempts <= values.retryStage3MaxAttempts()) {
+			return 3;
+		}
+		return 4;
+	}
+
+	/**
+	 * 解析持久 pending 当前失败次数对应的重试间隔。
+	 */
+	private static int resolveCrossChunkRetryIntervalTicks(CrossChunkValues values, int attempts) {
+		if (values == null) {
+			return 1;
+		}
+		return switch (resolveCrossChunkRetryStageIndex(values, attempts)) {
+			case 1 -> values.retryStage1IntervalTicks();
+			case 2 -> values.retryStage2IntervalTicks();
+			case 3 -> values.retryStage3IntervalTicks();
+			default -> values.retryStage4IntervalTicks();
+		};
 	}
 
 	/**
@@ -994,11 +1126,11 @@ public final class RedstoneLinkConfig {
 		try {
 			int value = Integer.parseInt(raw.trim());
 			if (value < min || value > max) {
-				LOGGER.warn("配置 {}={} 越界，已夹紧到 [{}..{}]", key, value, min, max);
+				LOGGER.warn("Config {}={} is out of range; clamped to [{}..{}]", key, value, min, max);
 			}
 			return Math.max(min, Math.min(max, value));
 		} catch (NumberFormatException ex) {
-			LOGGER.warn("配置 {}={} 非法，回退默认值 {}", key, raw, defaultValue);
+			LOGGER.warn("Config {}={} is invalid; falling back to default {}", key, raw, defaultValue);
 			return defaultValue;
 		}
 	}
@@ -1015,7 +1147,7 @@ public final class RedstoneLinkConfig {
 		if ("true".equals(normalized) || "false".equals(normalized)) {
 			return Boolean.parseBoolean(normalized);
 		}
-		LOGGER.warn("配置 {}={} 非法，回退默认值 {}", key, raw, defaultValue);
+		LOGGER.warn("Config {}={} is invalid; falling back to default {}", key, raw, defaultValue);
 		return defaultValue;
 	}
 
@@ -1044,7 +1176,7 @@ public final class RedstoneLinkConfig {
 			Files.createDirectories(CONFIG_PATH.getParent());
 			Files.writeString(CONFIG_PATH, defaultConfigContent(), StandardCharsets.UTF_8);
 		} catch (IOException ex) {
-			LOGGER.warn("写入默认配置失败: {}", CONFIG_PATH.toAbsolutePath(), ex);
+			LOGGER.warn("Failed to write default config: {}", CONFIG_PATH.toAbsolutePath(), ex);
 		}
 	}
 
@@ -1234,7 +1366,25 @@ public final class RedstoneLinkConfig {
 			# en: Require empty offhand to open pairing UI.
 			interaction.requireEmptyOffhandToOpenPairing=true
 
-			# --- [跨区块调度与命令 / Cross-Chunk Relay & Commands] ------------------
+			# --- [跨区块 / Cross-Chunk] ---------------------------------------------
+			# ----- [白名单与预设 / Whitelist & Preset] -------------------------------
+			# crosschunk.whitelist.sourceTypes
+			# zh: 允许作为来源的类型列表（逗号/空格分隔）。
+			# en: Allowed source types for cross-chunk whitelist.
+			crosschunk.whitelist.sourceTypes=triggerSource
+
+			# crosschunk.whitelist.targetTypes
+			# zh: 允许作为目标的类型列表（逗号/空格分隔）。
+			# en: Allowed target types for cross-chunk whitelist.
+			crosschunk.whitelist.targetTypes=core
+
+			# crosschunk.preset.<name>.sources / crosschunk.preset.<name>.targets
+			# zh: 只读 preset，格式为 type:serial（逗号/空格分隔）。
+			# en: Read-only preset entries using type:serial format.
+			# crosschunk.preset.keypath.sources=triggerSource:1001
+			# crosschunk.preset.keypath.targets=core:2001
+
+			# ----- [信号与激活 / Signal & Activation] ------------------------------
 			# crosschunk.syncSignalTtlTicks
 			# zh: 跨区块 SYNC 信号 TTL（tick），仅在 syncSignalPersistent=false 时生效。
 			# en: TTL for queued cross-chunk SYNC events; only used when syncSignalPersistent=false.
@@ -1245,10 +1395,62 @@ public final class RedstoneLinkConfig {
 			# en: Whether SYNC uses unlimited persistence. true means latest-state delivery without TTL expiry.
 			crosschunk.syncSignalPersistent=true
 
-			# crosschunk.relayExpireTicks
-			# zh: 跨区块持久队列通用过期时长（tick，键名沿用 relay）。
-			# en: Common expiry ticks for persisted cross-chunk queue entries.
-			crosschunk.relayExpireTicks=200
+			# crosschunk.syncTargetChunkLoadReplay.enabled
+			# zh: 是否启用目标区块 `CHUNK_LOAD` 时的 sync 补发。true=按来源端最近一次真实 sync 时间键恢复。
+			# en: Whether sync should replay when the target chunk loads. true means restore using the source's latest real sync event time.
+			crosschunk.syncTargetChunkLoadReplay.enabled=true
+
+			# crosschunk.activation.pulse.relay.enabled
+			# zh: 是否启用 PULSE 事件的普通 TTL relay。false=目标未加载时直接跳过。
+			# en: Whether PULSE events use normal TTL relay. false means skip when target is unloaded.
+			crosschunk.activation.pulse.relay.enabled=false
+
+			# crosschunk.activation.pulse.ttlTicks
+			# zh: PULSE 事件进入普通 relay 后的 TTL（tick）。
+			# en: TTL in ticks for PULSE events queued through normal relay.
+			crosschunk.activation.pulse.ttlTicks=200
+
+			# crosschunk.activation.pulse.persistentExperimental
+			# zh: 是否启用 PULSE 事件实验性不限时投递。true=可无限期等待目标加载后补发一次脉冲。
+			# en: Enable experimental unlimited delivery for PULSE events. true means wait indefinitely and replay one pulse after target loads.
+			crosschunk.activation.pulse.persistentExperimental=false
+
+			# crosschunk.activation.toggle.relay.enabled
+			# zh: 是否启用 TOGGLE 事件的普通 TTL relay。false=目标未加载时直接跳过。
+			# en: Whether TOGGLE events use normal TTL relay. false means skip when target is unloaded.
+			crosschunk.activation.toggle.relay.enabled=false
+
+			# crosschunk.activation.toggle.ttlTicks
+			# zh: TOGGLE 事件进入普通 relay 后的 TTL（tick）。
+			# en: TTL in ticks for TOGGLE events queued through normal relay.
+			crosschunk.activation.toggle.ttlTicks=200
+
+			# crosschunk.activation.toggle.persistentExperimental
+			# zh: 是否启用 TOGGLE 事件实验性不限时投递。true=可无限期等待目标加载后按净奇偶补发。
+			# en: Enable experimental unlimited delivery for TOGGLE events. true means wait indefinitely and replay by net parity after target loads.
+			crosschunk.activation.toggle.persistentExperimental=false
+
+			# ----- [失效处理 / Invalidation] ---------------------------------------
+			# crosschunk.triggerSourceChunkUnloadInvalidation.enabled
+			# zh: 是否启用 triggerSource 区块卸载失效。该事件仅剔除目标上的 sync 贡献并重算。
+			# en: Enable triggerSource chunk-unload invalidation. This only removes sync contribution from the target and recomputes.
+			crosschunk.triggerSourceChunkUnloadInvalidation.enabled=false
+
+			# crosschunk.triggerSourceInvalidation.enabled
+			# zh: 是否启用 triggerSource 其它失效（离线/解绑/退役/删除）。该事件会剔除目标上的 toggle/pulse/sync 贡献并重算。
+			# en: Enable triggerSource invalidation for offline/unlink/retire/remove. This removes toggle/pulse/sync contributions from the target and recomputes.
+			crosschunk.triggerSourceInvalidation.enabled=true
+
+			# ----- [队列与重试 / Queue & Retry] ------------------------------------
+			# crosschunk.queue.enabled
+			# zh: 是否启用跨区块持久派发队列总开关。
+			# en: Whether the persisted cross-chunk dispatch queue is enabled.
+			crosschunk.queue.enabled=true
+
+			# crosschunk.queue.defaultTtlTicks
+			# zh: 跨区块持久派发队列通用 TTL（tick），主要用于未使用专属 TTL 的队列路径。
+			# en: Default TTL in ticks for the persisted cross-chunk dispatch queue.
+			crosschunk.queue.defaultTtlTicks=200
 
 			# crosschunk.dispatch.maxPerTick
 			# zh: 每 tick 从跨区块持久队列最多处理的条目数，范围 1~20000。
@@ -1266,20 +1468,46 @@ public final class RedstoneLinkConfig {
 			crosschunk.retry.errorThreshold=1000
 
 			# crosschunk.retry.dropThreshold
-			# zh: 派发失败重试丢弃阈值（次数），0=关闭；持久 SYNC 达到该阈值后转退避重试而非丢弃。
-			# en: Drop threshold for retry failures; 0=disabled. Persistent SYNC switches to backoff instead of drop.
-			crosschunk.retry.dropThreshold=2000
+			# zh: 非持久事件派发失败重试丢弃阈值（次数），0=关闭。
+			# en: Drop threshold for non-persistent retry failures, 0=disabled.
+			crosschunk.retry.dropThreshold=100
 
-			# crosschunk.retry.persistentBackoffTicks
-			# zh: 持久 SYNC 达到重试上限后的退避重试间隔（tick）。
-			# en: Backoff interval in ticks after persistent SYNC reaches retry upper limit.
-			crosschunk.retry.persistentBackoffTicks=20
+			# crosschunk.retry.stage1.maxAttempts
+			# zh: 第 1 段最大失败次数（含）。默认 1~99 次失败使用第 1 段间隔。
+			# en: Inclusive max attempts for retry stage 1. By default failures 1~99 use stage 1 interval.
+			crosschunk.retry.stage1.maxAttempts=99
 
-			# crosschunk.relay.enabled
-			# zh: 是否启用跨区块持久队列主路径（键名沿用 relay）。
-			# en: Whether persisted cross-chunk queue path is enabled (legacy key name: relay).
-			crosschunk.relay.enabled=true
+			# crosschunk.retry.stage1.intervalTicks
+			# zh: 第 1 段重试间隔（tick）。
+			# en: Retry interval in ticks for stage 1.
+			crosschunk.retry.stage1.intervalTicks=1
 
+			# crosschunk.retry.stage2.maxAttempts
+			# zh: 第 2 段最大失败次数（含）。默认 100~499 次失败使用第 2 段间隔。
+			# en: Inclusive max attempts for retry stage 2. By default failures 100~499 use stage 2 interval.
+			crosschunk.retry.stage2.maxAttempts=499
+
+			# crosschunk.retry.stage2.intervalTicks
+			# zh: 第 2 段重试间隔（tick）。
+			# en: Retry interval in ticks for stage 2.
+			crosschunk.retry.stage2.intervalTicks=5
+
+			# crosschunk.retry.stage3.maxAttempts
+			# zh: 第 3 段最大失败次数（含）。默认 500~999 次失败使用第 3 段间隔。
+			# en: Inclusive max attempts for retry stage 3. By default failures 500~999 use stage 3 interval.
+			crosschunk.retry.stage3.maxAttempts=999
+
+			# crosschunk.retry.stage3.intervalTicks
+			# zh: 第 3 段重试间隔（tick）。
+			# en: Retry interval in ticks for stage 3.
+			crosschunk.retry.stage3.intervalTicks=20
+
+			# crosschunk.retry.stage4.intervalTicks
+			# zh: 第 4 段重试间隔（tick）。默认 >=1000 次失败使用该间隔。
+			# en: Retry interval in ticks for stage 4. By default failures >=1000 use this interval.
+			crosschunk.retry.stage4.intervalTicks=100
+
+			# ----- [强制加载 / Force Load] -----------------------------------------
 			# crosschunk.forceLoad.enabled
 			# zh: 是否允许命中白名单时触发强制加载。
 			# en: Whether force-load is allowed when whitelist matches.
@@ -1305,6 +1533,7 @@ public final class RedstoneLinkConfig {
 			# en: Maximum force-load requests per source per tick.
 			crosschunk.forceLoad.maxPerSourcePerTick=2
 
+			# ----- [命令与提示 / Command & Notify] ---------------------------------
 			# crosschunk.command.enabled
 			# zh: 是否启用 /redstonelink crosschunk 命令树。
 			# en: Whether /redstonelink crosschunk command tree is enabled.
@@ -1325,6 +1554,7 @@ public final class RedstoneLinkConfig {
 			# en: Cross-chunk notify mode: simple/detailed.
 			crosschunk.notify.mode=simple
 
+			# ----- [诊断 / Diagnostics] --------------------------------------------
 			# crosschunk.diag.runtime.enabled
 			# zh: 是否启用运行时慢路径诊断日志（区块生命周期、退役处理、sync fanout）。
 			# en: Enable runtime slow-path diagnostics for chunk lifecycle, retire flow, and sync fanout.
@@ -1339,22 +1569,6 @@ public final class RedstoneLinkConfig {
 			# zh: 是否在 sync_fanout_slow 日志中输出 fanout 计数（delta/total）。
 			# en: Whether to include fanout counter fields (delta/total) in sync_fanout_slow logs.
 			crosschunk.diag.runtime.fanoutCounters.enabled=false
-
-			# crosschunk.whitelist.sourceTypes
-			# zh: 允许作为来源的类型列表（逗号/空格分隔）。
-			# en: Allowed source types for cross-chunk whitelist.
-			crosschunk.whitelist.sourceTypes=triggerSource
-
-			# crosschunk.whitelist.targetTypes
-			# zh: 允许作为目标的类型列表（逗号/空格分隔）。
-			# en: Allowed target types for cross-chunk whitelist.
-			crosschunk.whitelist.targetTypes=core
-
-			# crosschunk.preset.<name>.sources / crosschunk.preset.<name>.targets
-			# zh: 只读 preset，格式为 type:serial（逗号/空格分隔）。
-			# en: Read-only preset entries using type:serial format.
-			# crosschunk.preset.keypath.sources=triggerSource:1001
-			# crosschunk.preset.keypath.targets=core:2001
 
 			""";
 	}
@@ -1512,8 +1726,17 @@ public final class RedstoneLinkConfig {
 	private record CrossChunkValues(
 		int syncSignalTtlTicks,
 		boolean syncSignalPersistent,
-		boolean relayEnabled,
-		int relayExpireTicks,
+		boolean syncTargetChunkLoadReplayEnabled,
+		boolean activationPulseRelayEnabled,
+		int activationPulseTtlTicks,
+		boolean activationPulsePersistentExperimental,
+		boolean activationToggleRelayEnabled,
+		int activationToggleTtlTicks,
+		boolean activationTogglePersistentExperimental,
+		boolean triggerSourceChunkUnloadInvalidationEnabled,
+		boolean triggerSourceInvalidationEnabled,
+		boolean queueEnabled,
+		int queueDefaultTtlTicks,
 		int dispatchMaxPerTick,
 		boolean forceLoadEnabled,
 		CrossChunkForceLoadMode forceLoadMode,
@@ -1530,7 +1753,13 @@ public final class RedstoneLinkConfig {
 		int retryWarnThreshold,
 		int retryErrorThreshold,
 		int retryDropThreshold,
-		int retryPersistentBackoffTicks,
+		int retryStage1MaxAttempts,
+		int retryStage1IntervalTicks,
+		int retryStage2MaxAttempts,
+		int retryStage2IntervalTicks,
+		int retryStage3MaxAttempts,
+		int retryStage3IntervalTicks,
+		int retryStage4IntervalTicks,
 		Set<LinkNodeType> allowedSourceTypes,
 		Set<LinkNodeType> allowedTargetTypes,
 		Map<String, CrossChunkPreset> presets,
@@ -1543,6 +1772,15 @@ public final class RedstoneLinkConfig {
 		private static CrossChunkValues defaults() {
 			return new CrossChunkValues(
 				40,
+				true,
+				true,
+				false,
+				200,
+				false,
+				false,
+				200,
+				false,
+				false,
 				true,
 				true,
 				200,
@@ -1561,8 +1799,14 @@ public final class RedstoneLinkConfig {
 				false,
 				200,
 				1000,
-				2000,
+				100,
+				99,
+				1,
+				499,
+				5,
+				999,
 				20,
+				100,
 				Set.of(LinkNodeType.TRIGGER_SOURCE),
 				Set.of(LinkNodeType.CORE),
 				Map.of(),
