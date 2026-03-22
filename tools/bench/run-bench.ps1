@@ -127,13 +127,30 @@ function Get-BoundsFromPositions {
 	}
 }
 
-function Shift-PositionsNorth {
-	param($Positions)
-	$shifted = New-Object System.Collections.Generic.List[object]
-	foreach ($pos in $Positions) {
-		$shifted.Add((New-Vec3 -X $pos.X -Y $pos.Y -Z ($pos.Z - 1)))
+function Get-ControlPositions {
+	param(
+		$Positions,
+		[string]$Mode
+	)
+	$sourcePositions = @($Positions)
+	if ($sourcePositions.Count -eq 0) {
+		return @()
 	}
-	return @($shifted.ToArray())
+	switch ($Mode) {
+		"north_strip" {
+			$bounds = Get-BoundsFromPositions $sourcePositions
+			$controlPositions = New-Object System.Collections.Generic.List[object]
+			for ($y = $bounds.From.Y; $y -le $bounds.To.Y; $y++) {
+				for ($x = $bounds.From.X; $x -le $bounds.To.X; $x++) {
+					$controlPositions.Add((New-Vec3 -X $x -Y $y -Z ($bounds.From.Z - 1)))
+				}
+			}
+			return @($controlPositions.ToArray())
+		}
+		default {
+			throw "Unsupported control mode: $Mode"
+		}
+	}
 }
 
 function Install-BenchDatapack {
@@ -170,7 +187,8 @@ function Resolve-SparkActivityPath {
 	$resolvedWorldPath = [System.IO.Path]::GetFullPath($WorldPath)
 	$worldParent = Split-Path -Path $resolvedWorldPath -Parent
 	$serverRoot = $worldParent
-	if ((Split-Path -Path $worldParent -Leaf) -ieq "saves") {
+	$worldContainerLeaf = Split-Path -Path $worldParent -Leaf
+	if ($worldContainerLeaf -ieq "saves" -or $worldContainerLeaf -ieq "rl-cases") {
 		$serverRoot = Split-Path -Path $worldParent -Parent
 	}
 
@@ -697,7 +715,7 @@ function Build-LinkCommands {
 		}
 		for ($index = 0; $index -lt $sourceSerials.Count; $index++) {
 			$sourceSerial = $sourceSerials[$index]
-			$mappedTargets = switch ([string]$rule.mapping) {
+			$mappedTargets = @(switch ([string]$rule.mapping) {
 				"broadcast_all" { $TargetSerials }
 				"fan_in_first" { @($TargetSerials[0]) }
 				"round_robin" { @($TargetSerials[$index % $TargetSerials.Count]) }
@@ -705,7 +723,7 @@ function Build-LinkCommands {
 					if ($index -lt $TargetSerials.Count) { @($TargetSerials[$index]) } else { @() }
 				}
 				default { throw "Unsupported mapping mode: $($rule.mapping)" }
-			}
+			})
 			if ($mappedTargets.Count -eq 0) {
 				continue
 			}
@@ -834,10 +852,11 @@ function Invoke-DriveSchedule {
 					$shouldOn = (($tick % $periodTicks) -lt $halfPeriod)
 					$previous = if ($stepStates.ContainsKey($stepKey)) { [bool]$stepStates[$stepKey] } else { $false }
 					if ($tick -eq 0 -or $shouldOn -ne $previous) {
-						$controlPositions = @(Shift-PositionsNorth $SourcePositionGroups[[string]$step.sourceGroup])
-						$controlBounds = Get-BoundsFromPositions $controlPositions
 						$groupConfig = $CaseConfig.sources | Where-Object { $_.id -eq $step.sourceGroup } | Select-Object -First 1
 						$control = $groupConfig.control
+						$controlMode = if ([string]::IsNullOrWhiteSpace([string]$control.mode)) { "north_strip" } else { [string]$control.mode }
+						$controlPositions = @(Get-ControlPositions -Positions $SourcePositionGroups[[string]$step.sourceGroup] -Mode $controlMode)
+						$controlBounds = Get-BoundsFromPositions $controlPositions
 						if ($shouldOn) {
 							Invoke-RconCommand -Connection $Connection -Command (
 								Wrap-WithPlayerContext ("fill {0} {1} {2} replace" -f
