@@ -564,7 +564,6 @@ class ActivatableTargetBlockEntityInternalTest {
 		return (Map<Long, Integer>) getField(target, fieldName);
 	}
 
-	@SuppressWarnings("unchecked")
 	private static Map<?, ?> getConcurrentBucketField(Object target, String fieldName) {
 		return (Map<?, ?>) getField(target, fieldName);
 	}

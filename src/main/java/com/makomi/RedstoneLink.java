@@ -7,6 +7,7 @@ import com.makomi.data.InternalDispatchDeltaProjector;
 import com.makomi.data.LinkNodeLifecycleDispatchEvents;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.NodeStateTraceService;
+import com.makomi.data.input.InputPlaybackService;
 import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
@@ -40,6 +41,7 @@ public class RedstoneLink implements ModInitializer {
 		LinkNodeLifecycleDispatchEvents.register();
 		LinkNodeRetireEvents.register();
 		NodeStateTraceService.register();
+		InputPlaybackService.register();
 		CrossChunkDispatchService.register();
 		LOGGER.info("RedstoneLink initialized");
 	}

@@ -441,9 +441,6 @@ class CrossChunkDispatchServiceTest {
 		Field attemptsField = retryStateClass.getDeclaredField("attempts");
 		attemptsField.setAccessible(true);
 		attemptsField.setInt(retryState, Math.max(0, RedstoneLinkConfig.crossChunkRetryDropThreshold() - 1));
-		Field lastAttemptTickField = retryStateClass.getDeclaredField("lastAttemptTick");
-		lastAttemptTickField.setAccessible(true);
-		lastAttemptTickField.setLong(retryState, 100L);
 
 		Class<?> pendingAttemptKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingAttemptKey");
 		Constructor<?> pendingAttemptKeyConstructor = pendingAttemptKeyClass.getDeclaredConstructor(

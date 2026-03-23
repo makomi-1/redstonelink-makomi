@@ -214,10 +214,22 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	}
 
 	/**
+	 * 对外暴露当前输入重采样入口，供运行态模拟输入层复用现有触发逻辑。
+	 */
+	public final void refreshPoweredStateFromCurrentInputs(Level level, BlockPos pos, BlockState state) {
+		updatePoweredState(level, pos, state);
+	}
+
+	/**
 	 * 解析当前输入强度。
 	 */
 	protected int resolveInputSignalStrength(Level level, BlockPos pos) {
-		return Math.max(0, level.getBestNeighborSignal(pos));
+		int realInputPower = Math.max(0, level.getBestNeighborSignal(pos));
+		int simulatedInputPower = 0;
+		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+			simulatedInputPower = buttonBlockEntity.getSimulatedInputPower();
+		}
+		return Math.max(realInputPower, simulatedInputPower);
 	}
 
 	/**

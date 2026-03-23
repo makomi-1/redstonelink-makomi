@@ -101,6 +101,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 
 	// P6 并发桶来源表：按时间键组织来源贡献，统一用于 UPSERT/REMOVE 重算。
 	private final NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> syncConcurrentBuckets = new TreeMap<>();
+	// 运行态模拟 SYNC 来源桶：仅用于输入播放服务，不参与持久化。
+	private final NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> runtimeSimulatedSyncConcurrentBuckets = new TreeMap<>();
 	private final NavigableMap<TimeKey, Map<SourceKey, PulseConcurrentEntry>> pulseConcurrentBuckets = new TreeMap<>();
 	private final NavigableMap<TimeKey, Map<SourceKey, ToggleConcurrentEntry>> toggleConcurrentBuckets = new TreeMap<>();
 	private int toggleConcurrentCount;
@@ -436,6 +438,23 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		);
 	}
 
+	/**
+	 * 应用运行态模拟 SYNC 输入。
+	 * <p>
+	 * 该入口仅供输入播放服务使用，不进入持久化来源桶。
+	 * </p>
+	 */
+	public final void applyRuntimeSimulatedSyncSource(long sourceSerial, int signalStrength, EventMeta eventMeta) {
+		applyRuntimeSimulatedSyncDelta(sourceSerial, signalStrength, eventMeta, false);
+	}
+
+	/**
+	 * 移除运行态模拟 SYNC 输入。
+	 */
+	public final void removeRuntimeSimulatedSyncSource(long sourceSerial, EventMeta eventMeta) {
+		applyRuntimeSimulatedSyncDelta(sourceSerial, 0, eventMeta, true);
+	}
+
 	public final void onPulseTick() {
 		// tick 统一按并发来源桶重算脉冲窗口，到期来源会在重算中自动剔除。
 		if (level == null || level.isClientSide) {
@@ -544,6 +563,42 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		recomputeSyncTruthFromConcurrentBuckets();
 		recomputeToggleTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
+		applyDerivedStateFromTruth();
+		markStructuredTruthDirty(bucketChanged);
+	}
+
+	/**
+	 * 统一处理运行态模拟 SYNC delta。
+	 * <p>
+	 * 该路径与真实 SYNC 共享裁决逻辑，但来源桶仅存于内存，不参与持久化。
+	 * </p>
+	 */
+	private void applyRuntimeSimulatedSyncDelta(long sourceSerial, int signalStrength, EventMeta eventMeta, boolean removeOnly) {
+		if (sourceSerial <= 0L || level == null || level.isClientSide) {
+			return;
+		}
+		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
+		if (!acceptByPriority(normalizedMeta.timeKey(), PRIORITY_SYNC, EffectiveMode.SYNC, normalizedMeta.seq())) {
+			return;
+		}
+		SourceKey sourceKey = new SourceKey(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
+		boolean bucketChanged = pruneOlderFramesForIncoming(normalizedMeta.timeKey(), EffectiveMode.SYNC);
+		int normalizedStrength = normalizeSignalStrength(signalStrength);
+		if (removeOnly || normalizedStrength <= 0) {
+			bucketChanged |= removeRuntimeSimulatedSyncConcurrentSource(sourceKey);
+		} else {
+			bucketChanged |= upsertRuntimeSimulatedSyncConcurrentSource(
+				sourceKey,
+				normalizedMeta.timeKey(),
+				normalizedStrength,
+				normalizedMeta.seq()
+			);
+			pulseUntilGameTime = 0L;
+			pulseResetArmed = false;
+		}
+		recomputeSyncTruthFromConcurrentBuckets();
+		recomputeToggleTruthFromConcurrentBuckets();
+		recomputeAuthorityFromConcurrentBuckets(normalizedMeta.timeKey(), normalizedMeta.seq());
 		applyDerivedStateFromTruth();
 		markStructuredTruthDirty(bucketChanged);
 	}
@@ -658,6 +713,24 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		return removeSourceFromConcurrentBuckets(syncConcurrentBuckets, sourceKey);
 	}
 
+	private boolean upsertRuntimeSimulatedSyncConcurrentSource(SourceKey sourceKey, TimeKey timeKey, int strength, long seq) {
+		SyncConcurrentEntry nextEntry = new SyncConcurrentEntry(strength, seq);
+		if (hasExactConcurrentEntry(runtimeSimulatedSyncConcurrentBuckets, sourceKey, timeKey, nextEntry)) {
+			return false;
+		}
+		removeSourceFromConcurrentBuckets(runtimeSimulatedSyncConcurrentBuckets, sourceKey);
+		Map<SourceKey, SyncConcurrentEntry> bucket = runtimeSimulatedSyncConcurrentBuckets.computeIfAbsent(
+			timeKey,
+			ignored -> new TreeMap<>()
+		);
+		bucket.put(sourceKey, nextEntry);
+		return true;
+	}
+
+	private boolean removeRuntimeSimulatedSyncConcurrentSource(SourceKey sourceKey) {
+		return removeSourceFromConcurrentBuckets(runtimeSimulatedSyncConcurrentBuckets, sourceKey);
+	}
+
 	/**
 	 * 写入或覆盖脉冲来源贡献（同 sourceKey 仅保留最新）。
 	 */
@@ -770,6 +843,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private boolean pruneOlderFramesForIncoming(TimeKey incomingTimeKey, EffectiveMode incomingMode) {
 		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
 		boolean changed = removeConcurrentBucketsBefore(syncConcurrentBuckets, normalizedTimeKey);
+		changed |= removeConcurrentBucketsBefore(runtimeSimulatedSyncConcurrentBuckets, normalizedTimeKey);
 		changed |= removeConcurrentBucketsBefore(toggleConcurrentBuckets, normalizedTimeKey);
 		if (incomingMode == EffectiveMode.SYNC) {
 			changed |= clearPulseTruth();
@@ -1099,8 +1173,9 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		SourceKey sourceKey = new SourceKey(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
 		boolean bucketChanged;
 		if (sourceSerial <= 0L) {
-			bucketChanged = !syncConcurrentBuckets.isEmpty();
+			bucketChanged = !syncConcurrentBuckets.isEmpty() || !runtimeSimulatedSyncConcurrentBuckets.isEmpty();
 			syncConcurrentBuckets.clear();
+			runtimeSimulatedSyncConcurrentBuckets.clear();
 		} else if (normalizeSignalStrength(signalStrength) <= 0) {
 			bucketChanged = removeSyncConcurrentSource(sourceKey);
 		} else {
@@ -1140,7 +1215,13 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 */
 	private void recomputeSyncTruthFromConcurrentBuckets() {
 		syncSignalStrengthBySource.clear();
-		for (Map<SourceKey, SyncConcurrentEntry> bucket : syncConcurrentBuckets.values()) {
+		mergeSyncTruthFromBuckets(syncConcurrentBuckets);
+		mergeSyncTruthFromBuckets(runtimeSimulatedSyncConcurrentBuckets);
+		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
+	}
+
+	private void mergeSyncTruthFromBuckets(NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> buckets) {
+		for (Map<SourceKey, SyncConcurrentEntry> bucket : buckets.values()) {
 			if (bucket == null || bucket.isEmpty()) {
 				continue;
 			}
@@ -1157,7 +1238,6 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 				syncSignalStrengthBySource.merge(sourceKey.sourceSerial(), strength, Math::max);
 			}
 		}
-		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
 	}
 
 	/**
@@ -1260,11 +1340,20 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	private Candidate resolveSyncCandidate() {
-		if (syncSignalMaxStrength <= 0 || syncConcurrentBuckets.isEmpty()) {
+		if (syncSignalMaxStrength <= 0) {
 			return null;
 		}
-		TimeKey timeKey = syncConcurrentBuckets.lastKey();
-		Map<SourceKey, SyncConcurrentEntry> bucket = syncConcurrentBuckets.get(timeKey);
+		Candidate persistentCandidate = resolveSyncCandidateFromBuckets(syncConcurrentBuckets);
+		Candidate runtimeCandidate = resolveSyncCandidateFromBuckets(runtimeSimulatedSyncConcurrentBuckets);
+		return pickMoreRecentCandidate(persistentCandidate, runtimeCandidate);
+	}
+
+	private Candidate resolveSyncCandidateFromBuckets(NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> buckets) {
+		if (buckets == null || buckets.isEmpty()) {
+			return null;
+		}
+		TimeKey timeKey = buckets.lastKey();
+		Map<SourceKey, SyncConcurrentEntry> bucket = buckets.get(timeKey);
 		long seq = 0L;
 		if (bucket != null) {
 			for (SyncConcurrentEntry entry : bucket.values()) {
@@ -1384,7 +1473,10 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	private boolean hasAnyConcurrentBuckets() {
-		return !syncConcurrentBuckets.isEmpty() || !pulseConcurrentBuckets.isEmpty() || !toggleConcurrentBuckets.isEmpty();
+		return !syncConcurrentBuckets.isEmpty()
+			|| !runtimeSimulatedSyncConcurrentBuckets.isEmpty()
+			|| !pulseConcurrentBuckets.isEmpty()
+			|| !toggleConcurrentBuckets.isEmpty();
 	}
 
 	/**
@@ -1485,6 +1577,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		rebuildDerivedCacheFromTruth();
 
 		// 运行时缓存不持久化，读档后重置。
+		runtimeSimulatedSyncConcurrentBuckets.clear();
 		arbitrationTimeKey = TimeKey.minValue();
 		arbitrationPriority = Integer.MIN_VALUE;
 		tickResolvedInitialized = false;

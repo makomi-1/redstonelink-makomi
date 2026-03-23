@@ -982,7 +982,6 @@ public final class CrossChunkDispatchService {
 		PendingAttemptKey attemptKey = new PendingAttemptKey(pending.key(), pending.version());
 		RetryState retryState = state.retryStateByAttemptKey.computeIfAbsent(attemptKey, ignored -> new RetryState());
 		retryState.attempts++;
-		retryState.lastAttemptTick = gameTime;
 		boolean unlimitedPending = isUnlimitedPending(pending);
 		if (unlimitedPending) {
 			retryState.nextEligibleTick = computeNextEligibleTick(gameTime, resolvePersistentRetryIntervalTicks(retryState.attempts));
@@ -1192,23 +1191,6 @@ public final class CrossChunkDispatchService {
 		}
 		state.retryStateByAttemptKey.clear();
 		state.waitingUnlimitedAttemptKeysByTargetChunk.clear();
-	}
-
-	/**
-	 * 判断 pending 目标是否位于指定区块。
-	 */
-	private static boolean targetsChunk(
-		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
-		ResourceKey<Level> dimension,
-		ChunkPos chunkPos
-	) {
-		if (pending == null || dimension == null || chunkPos == null) {
-			return false;
-		}
-		if (!dimension.equals(pending.dimension()) || pending.pos() == null) {
-			return false;
-		}
-		return (pending.pos().getX() >> 4) == chunkPos.x && (pending.pos().getZ() >> 4) == chunkPos.z;
 	}
 
 	/**
@@ -1587,7 +1569,6 @@ public final class CrossChunkDispatchService {
 
 	private static final class RetryState {
 		private int attempts;
-		private long lastAttemptTick = Long.MIN_VALUE;
 		private long nextEligibleTick = Long.MIN_VALUE;
 		private TargetChunkKey targetChunkKey;
 		private boolean warnLogged;
