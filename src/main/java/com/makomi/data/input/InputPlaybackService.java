@@ -3,7 +3,7 @@ package com.makomi.data.input;
 import com.makomi.block.LinkSignalEmitterBlock;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
-import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import java.util.ArrayList;
@@ -279,8 +279,8 @@ public final class InputPlaybackService {
 						continue;
 					}
 					if (
-						!(resolvedNode.blockEntity() instanceof LinkButtonBlockEntity buttonBlockEntity)
-							|| !(buttonBlockEntity.getBlockState().getBlock() instanceof LinkSignalEmitterBlock)
+						!(resolvedNode.blockEntity() instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity)
+							|| !(triggerSourceBlockEntity.getBlockState().getBlock() instanceof LinkSignalEmitterBlock)
 					) {
 						unsupportedSerials.add(targetSerial);
 						continue;
@@ -318,14 +318,14 @@ public final class InputPlaybackService {
 		if (resolvedNode == null) {
 			return Optional.empty();
 		}
-		if (!(resolvedNode.blockEntity() instanceof LinkButtonBlockEntity buttonBlockEntity)) {
+		if (!(resolvedNode.blockEntity() instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity)) {
 			return Optional.empty();
 		}
-		BlockState blockState = buttonBlockEntity.getBlockState();
+		BlockState blockState = triggerSourceBlockEntity.getBlockState();
 		if (!(blockState.getBlock() instanceof LinkSignalEmitterBlock signalEmitterBlock)) {
 			return Optional.empty();
 		}
-		return Optional.of(new ResolvedTriggerSource(resolvedNode.level(), buttonBlockEntity, signalEmitterBlock));
+		return Optional.of(new ResolvedTriggerSource(resolvedNode.level(), triggerSourceBlockEntity, signalEmitterBlock));
 	}
 
 	private static Optional<ResolvedCoreTarget> resolveCoreTarget(MinecraftServer server, long coreSerial) {
@@ -410,7 +410,7 @@ public final class InputPlaybackService {
 
 	private record ResolvedTriggerSource(
 		ServerLevel level,
-		LinkButtonBlockEntity blockEntity,
+		LinkTriggerSourceBlockEntity blockEntity,
 		LinkSignalEmitterBlock block
 	) {}
 

@@ -1,6 +1,6 @@
 package com.makomi.block;
 
-import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkItemData;
@@ -51,7 +51,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 		return createButtonBlockEntity(blockPos, blockState);
 	}
 
-	protected abstract LinkButtonBlockEntity createButtonBlockEntity(BlockPos blockPos, BlockState blockState);
+	protected abstract LinkTriggerSourceBlockEntity createButtonBlockEntity(BlockPos blockPos, BlockState blockState);
 
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
@@ -59,12 +59,12 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		if (!(level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity)) {
+		if (!(level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity)) {
 			return;
 		}
 
 		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.TRIGGER_SOURCE, pos);
-		buttonBlockEntity.setLinkData(serial);
+		triggerSourceBlockEntity.setLinkData(serial);
 	}
 
 	@Override
@@ -74,11 +74,11 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 			drops.add(new ItemStack(asItem()));
 		}
 
-		if (!(builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY) instanceof LinkButtonBlockEntity buttonBlockEntity)) {
+		if (!(builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity)) {
 			return drops;
 		}
 
-		long serial = buttonBlockEntity.getSerial();
+		long serial = triggerSourceBlockEntity.getSerial();
 		if (serial <= 0L) {
 			return drops;
 		}
@@ -87,7 +87,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 			if (drop.is(asItem())) {
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
-				if (buttonBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
+				if (triggerSourceBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
 					LinkItemData.setLinkedSerials(
 						drop,
 						CurrentLinksPrivacyService.resolveItemSnapshotTargets(
@@ -106,8 +106,8 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-				buttonBlockEntity.unregisterNode(true);
+			if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+				triggerSourceBlockEntity.unregisterNode(true);
 			}
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);
@@ -116,9 +116,9 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	@Override
 	public void press(BlockState state, Level level, BlockPos pos, Player player) {
 		super.press(state, level, pos, player);
-		if (!level.isClientSide && level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
+		if (!level.isClientSide && level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
 			// 仅在服务端触发，避免客户端预测导致重复触发。
-			buttonBlockEntity.triggerLinkedTargets(player);
+			triggerSourceBlockEntity.triggerLinkedTargets(player);
 		}
 	}
 
@@ -159,11 +159,11 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
 		}
-		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-			long serial = buttonBlockEntity.getSerial();
+		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+			long serial = triggerSourceBlockEntity.getSerial();
 			if (serial <= 0L) {
 				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-				buttonBlockEntity.setLinkData(serial);
+				triggerSourceBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {
 				PairingNetwork.openTriggerSourcePairing(serverPlayer, serial);

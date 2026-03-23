@@ -1,6 +1,6 @@
 package com.makomi.block;
 
-import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkItemData;
@@ -38,7 +38,7 @@ import net.minecraft.world.phys.BlockHitResult;
  * 3. 支持按配置策略打开按钮配对界面。
  */
 public abstract class LinkSignalEmitterBlock extends Block implements EntityBlock {
-	// 发射器属于触发器类，实现上复用 LinkButtonBlockEntity（TRIGGER_SOURCE 节点）链路。
+	// 发射器属于触发器类，实现上复用 triggerSource 公共实体层。
 	public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
 
 	protected LinkSignalEmitterBlock(BlockBehaviour.Properties properties) {
@@ -54,7 +54,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	/**
 	 * 创建发射器方块实体（切换/脉冲模式由子类方块实体决定）。
 	 */
-	protected abstract LinkButtonBlockEntity createEmitterBlockEntity(BlockPos blockPos, BlockState blockState);
+	protected abstract LinkTriggerSourceBlockEntity createEmitterBlockEntity(BlockPos blockPos, BlockState blockState);
 
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
@@ -62,12 +62,12 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		if (!(level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity)) {
+		if (!(level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity)) {
 			return;
 		}
 
 		long serial = LinkItemData.resolvePlacementSerial(stack, serverLevel, LinkNodeType.TRIGGER_SOURCE, pos);
-		buttonBlockEntity.setLinkData(serial);
+		triggerSourceBlockEntity.setLinkData(serial);
 	}
 
 	@Override
@@ -77,11 +77,11 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 			drops.add(new ItemStack(asItem()));
 		}
 
-		if (!(builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY) instanceof LinkButtonBlockEntity buttonBlockEntity)) {
+		if (!(builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity)) {
 			return drops;
 		}
 
-		long serial = buttonBlockEntity.getSerial();
+		long serial = triggerSourceBlockEntity.getSerial();
 		if (serial <= 0L) {
 			return drops;
 		}
@@ -90,7 +90,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 			if (drop.is(asItem())) {
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
-				if (buttonBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
+				if (triggerSourceBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
 					LinkItemData.setLinkedSerials(
 						drop,
 						CurrentLinksPrivacyService.resolveItemSnapshotTargets(
@@ -109,8 +109,8 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-				buttonBlockEntity.unregisterNode(true);
+			if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+				triggerSourceBlockEntity.unregisterNode(true);
 			}
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);
@@ -176,11 +176,11 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
 		}
-		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-			long serial = buttonBlockEntity.getSerial();
+		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+			long serial = triggerSourceBlockEntity.getSerial();
 			if (serial <= 0L) {
 				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-				buttonBlockEntity.setLinkData(serial);
+				triggerSourceBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {
 				PairingNetwork.openTriggerSourcePairing(serverPlayer, serial);
@@ -226,8 +226,8 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	protected int resolveInputSignalStrength(Level level, BlockPos pos) {
 		int realInputPower = Math.max(0, level.getBestNeighborSignal(pos));
 		int simulatedInputPower = 0;
-		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-			simulatedInputPower = buttonBlockEntity.getSimulatedInputPower();
+		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+			simulatedInputPower = triggerSourceBlockEntity.getSimulatedInputPower();
 		}
 		return Math.max(realInputPower, simulatedInputPower);
 	}
@@ -261,8 +261,8 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		boolean hasSignal,
 		int signalStrength
 	) {
-		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-			buttonBlockEntity.triggerLinkedTargets(null);
+		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+			triggerSourceBlockEntity.triggerLinkedTargets(null);
 		}
 	}
 }

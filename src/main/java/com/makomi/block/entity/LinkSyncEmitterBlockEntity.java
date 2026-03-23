@@ -8,7 +8,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * 同步发射器方块实体：复用按钮节点链路，供同步发射器转发输入电平。
+ * 同步发射器方块实体：复用 triggerSource 公共实体层，供同步发射器转发输入电平。
  */
 public class LinkSyncEmitterBlockEntity extends SyncReplaySourceBlockEntity {
 	private static final String KEY_LAST_OBSERVED_SIGNAL_STRENGTH = "LastObservedSignalStrength";

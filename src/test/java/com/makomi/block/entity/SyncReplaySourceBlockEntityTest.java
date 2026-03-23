@@ -67,8 +67,8 @@ class SyncReplaySourceBlockEntityTest {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static BlockEntityType<? extends LinkButtonBlockEntity> castType(BlockEntityType<?> type) {
-		return (BlockEntityType<? extends LinkButtonBlockEntity>) type;
+	private static BlockEntityType<? extends LinkTriggerSourceBlockEntity> castType(BlockEntityType<?> type) {
+		return (BlockEntityType<? extends LinkTriggerSourceBlockEntity>) type;
 	}
 
 	/**

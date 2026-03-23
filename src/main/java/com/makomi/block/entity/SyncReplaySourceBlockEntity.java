@@ -19,7 +19,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * 3. 未记录过快照时视为“不具备可回放 sync 状态”。
  * </p>
  */
-public abstract class SyncReplaySourceBlockEntity extends LinkButtonBlockEntity {
+public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlockEntity {
 	private static final String KEY_REPLAY_SYNC_SNAPSHOT_RECORDED = "ReplaySyncSnapshotRecorded";
 	private static final String KEY_REPLAY_SYNC_SIGNAL_STRENGTH = "ReplaySyncSignalStrength";
 	private static final String KEY_REPLAY_SYNC_TICK = "ReplaySyncTick";
@@ -33,7 +33,7 @@ public abstract class SyncReplaySourceBlockEntity extends LinkButtonBlockEntity 
 	private long replaySyncSeq;
 
 	protected SyncReplaySourceBlockEntity(
-		BlockEntityType<? extends LinkButtonBlockEntity> blockEntityType,
+		BlockEntityType<? extends LinkTriggerSourceBlockEntity> blockEntityType,
 		BlockPos blockPos,
 		BlockState blockState
 	) {

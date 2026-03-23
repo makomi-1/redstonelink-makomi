@@ -1,6 +1,6 @@
 package com.makomi.block;
 
-import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -17,7 +17,7 @@ public class LinkPulseButtonBlock extends LinkButtonBlock {
 	}
 
 	@Override
-	protected LinkButtonBlockEntity createButtonBlockEntity(BlockPos blockPos, BlockState blockState) {
+	protected LinkTriggerSourceBlockEntity createButtonBlockEntity(BlockPos blockPos, BlockState blockState) {
 		return new LinkPulseButtonBlockEntity(blockPos, blockState);
 	}
 }

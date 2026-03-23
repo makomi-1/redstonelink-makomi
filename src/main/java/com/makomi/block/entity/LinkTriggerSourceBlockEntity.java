@@ -6,18 +6,18 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * 按钮源节点方块实体基类。
+ * triggerSource 公共方块实体基类。
  * <p>
  * 固定声明自身为 TRIGGER_SOURCE 节点，目标节点类型为 CORE。
  * </p>
  */
-public abstract class LinkButtonBlockEntity extends TriggerSourceBlockEntity {
+public abstract class LinkTriggerSourceBlockEntity extends TriggerSourceBlockEntity {
 	// 运行态模拟输入功率，仅供输入播放服务使用，不参与持久化。
 	private int simulatedInputPower;
 
-	// 历史命名保留为 Button；语义统一视为 TriggerSource（触发器源）节点。
-	protected LinkButtonBlockEntity(
-		BlockEntityType<? extends LinkButtonBlockEntity> blockEntityType,
+	// 该层承载所有 triggerSource 实体的公共落地实现。
+	protected LinkTriggerSourceBlockEntity(
+		BlockEntityType<? extends LinkTriggerSourceBlockEntity> blockEntityType,
 		BlockPos blockPos,
 		BlockState blockState
 	) {

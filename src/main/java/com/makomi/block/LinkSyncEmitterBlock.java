@@ -1,7 +1,7 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
-import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
 import com.makomi.util.SignalStrengths;
 import net.minecraft.core.BlockPos;
@@ -18,7 +18,7 @@ public class LinkSyncEmitterBlock extends LinkSignalEmitterBlock {
 	}
 
 	@Override
-	protected LinkButtonBlockEntity createEmitterBlockEntity(BlockPos blockPos, BlockState blockState) {
+	protected LinkTriggerSourceBlockEntity createEmitterBlockEntity(BlockPos blockPos, BlockState blockState) {
 		return new LinkSyncEmitterBlockEntity(blockPos, blockState);
 	}
 
@@ -55,8 +55,8 @@ public class LinkSyncEmitterBlock extends LinkSignalEmitterBlock {
 			blockEntity.forwardLinkedSignal(null, normalizedStrength);
 			return;
 		}
-		if (level.getBlockEntity(pos) instanceof LinkButtonBlockEntity buttonBlockEntity) {
-			buttonBlockEntity.forwardLinkedSignal(null, SignalStrengths.clamp(signalStrength));
+		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+			triggerSourceBlockEntity.forwardLinkedSignal(null, SignalStrengths.clamp(signalStrength));
 		}
 	}
 }

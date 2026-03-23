@@ -1,6 +1,6 @@
 package com.makomi.block;
 
-import com.makomi.block.entity.LinkButtonBlockEntity;
+import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.LinkPulseEmitterBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -15,7 +15,7 @@ public class LinkPulseEmitterBlock extends LinkSignalEmitterBlock {
 	}
 
 	@Override
-	protected LinkButtonBlockEntity createEmitterBlockEntity(BlockPos blockPos, BlockState blockState) {
+	protected LinkTriggerSourceBlockEntity createEmitterBlockEntity(BlockPos blockPos, BlockState blockState) {
 		return new LinkPulseEmitterBlockEntity(blockPos, blockState);
 	}
 }
