@@ -8,11 +8,13 @@ import com.makomi.data.LinkNodeType;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -146,6 +148,48 @@ class ActivatableTargetBlockEntityInternalTest {
 		assertEquals(40L, getLongField(restored, "pulseUntilGameTime"));
 		assertEquals(2L, getLongField(restored, "pulseEpoch"));
 		assertTrue(getBooleanField(restored, "pulseResetArmed"));
+	}
+
+	/**
+	 * 落盘时只应保留真实持久化 SYNC 来源，不应把运行时模拟 SYNC 泄漏进存档。
+	 */
+	@Test
+	void saveShouldExcludeRuntimeSimulatedSyncFromPersistentSnapshot() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 7, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		target.applyRuntimeSimulatedSyncSource(99L, 15, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+
+		CompoundTag tag = new CompoundTag();
+		target.saveForTest(tag);
+
+		assertEquals(Map.of(1L, 7), readSyncStrengthsFromTag(tag));
+		assertEquals(Set.of(1L), Set.copyOf(longArrayToBoxedSet(tag.getLongArray("SyncMaxSources"))));
+	}
+
+	/**
+	 * 读档后应按当前派生态登记一次静默 blockstate 校正，而不是沿用旧缓存外显。
+	 */
+	@Test
+	void loadShouldScheduleSilentBlockStateSyncFromDerivedState() {
+		TestTargetEntity target = createTarget();
+		CompoundTag tag = new CompoundTag();
+		tag.putBoolean("Active", true);
+		tag.putInt("ResolvedOutputPower", 15);
+
+		target.loadForTest(tag);
+
+		assertFalse(getBooleanField(target, "active"));
+		assertTrue(getBooleanField(target, "pendingLoadBlockStateSync"));
+
+		target.consumePendingLoadBlockStateSync();
+
+		assertFalse(getBooleanField(target, "pendingLoadBlockStateSync"));
+		assertEquals(1, target.getSilentBlockStateSyncCount());
+		assertFalse(target.getLastSilentBlockStateSyncActive());
+
+		// 只应同步一次，避免重复读档后再次无条件写回。
+		target.consumePendingLoadBlockStateSync();
+		assertEquals(1, target.getSilentBlockStateSyncCount());
 	}
 
 	/**
@@ -568,6 +612,30 @@ class ActivatableTargetBlockEntityInternalTest {
 		return (Map<?, ?>) getField(target, fieldName);
 	}
 
+	private static Map<Long, Integer> readSyncStrengthsFromTag(CompoundTag tag) {
+		Map<Long, Integer> result = new LinkedHashMap<>();
+		if (tag == null || !tag.contains("SyncSourceStrengths", net.minecraft.nbt.Tag.TAG_LIST)) {
+			return result;
+		}
+		ListTag sourceList = tag.getList("SyncSourceStrengths", net.minecraft.nbt.Tag.TAG_COMPOUND);
+		for (int index = 0; index < sourceList.size(); index++) {
+			CompoundTag sourceTag = sourceList.getCompound(index);
+			result.put(sourceTag.getLong("Serial"), sourceTag.getInt("Strength"));
+		}
+		return result;
+	}
+
+	private static Set<Long> longArrayToBoxedSet(long[] values) {
+		Set<Long> result = new java.util.LinkedHashSet<>();
+		if (values == null) {
+			return result;
+		}
+		for (long value : values) {
+			result.add(value);
+		}
+		return result;
+	}
+
 	private static void setField(Object target, String fieldName, Object value) {
 		try {
 			Field field = ActivatableTargetBlockEntity.class.getDeclaredField(fieldName);
@@ -588,6 +656,8 @@ class ActivatableTargetBlockEntityInternalTest {
 	 */
 	private static final class TestTargetEntity extends ActivatableTargetBlockEntity {
 		private int setChangedCount;
+		private int silentBlockStateSyncCount;
+		private boolean lastSilentBlockStateSyncActive;
 
 		private TestTargetEntity(BlockPos pos, BlockState state) {
 			super(castType(BlockEntityType.BEACON), pos, state);
@@ -601,6 +671,17 @@ class ActivatableTargetBlockEntityInternalTest {
 
 		@Override
 		protected void onActiveChanged(boolean active) {}
+
+		@Override
+		protected void syncBlockStateFromDerivedState(boolean active) {
+			silentBlockStateSyncCount++;
+			lastSilentBlockStateSyncActive = active;
+		}
+
+		@Override
+		protected boolean shouldQueueLoadBlockStateSync(boolean active) {
+			return true;
+		}
 
 		@Override
 		protected void schedulePulseReset(int pulseTicks) {}
@@ -624,6 +705,14 @@ class ActivatableTargetBlockEntityInternalTest {
 
 		private void resetSetChangedCount() {
 			setChangedCount = 0;
+		}
+
+		private int getSilentBlockStateSyncCount() {
+			return silentBlockStateSyncCount;
+		}
+
+		private boolean getLastSilentBlockStateSyncActive() {
+			return lastSilentBlockStateSyncActive;
 		}
 	}
 }

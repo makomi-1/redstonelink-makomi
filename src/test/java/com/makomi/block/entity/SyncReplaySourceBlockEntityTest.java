@@ -66,6 +66,46 @@ class SyncReplaySourceBlockEntityTest {
 		assertEquals(EventMeta.of(456L, 0, 78L), snapshot.eventMeta());
 	}
 
+	/**
+	 * 运行时 replay 快照应优先覆盖持久化快照，但不能写进 NBT。
+	 */
+	@Test
+	void runtimeReplaySnapshotShouldOverridePersistentSnapshotWithoutPersisting() {
+		TestSyncReplayEntity source = new TestSyncReplayEntity(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
+		source.recordReplaySyncSnapshot(12, EventMeta.of(123L, 0, 45L));
+		source.recordRuntimeReplaySyncSnapshot(3, EventMeta.of(222L, 0, 99L));
+
+		SyncReplaySourceBlockEntity.ReplaySyncSnapshot runtimeSnapshot = source.replaySyncSnapshot().orElseThrow();
+		assertEquals(3, runtimeSnapshot.signalStrength());
+		assertEquals(EventMeta.of(222L, 0, 99L), runtimeSnapshot.eventMeta());
+
+		CompoundTag tag = new CompoundTag();
+		source.saveForTest(tag);
+
+		TestSyncReplayEntity restored = new TestSyncReplayEntity(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
+		restored.loadForTest(tag);
+
+		SyncReplaySourceBlockEntity.ReplaySyncSnapshot restoredSnapshot = restored.replaySyncSnapshot().orElseThrow();
+		assertEquals(12, restoredSnapshot.signalStrength());
+		assertEquals(EventMeta.of(123L, 0, 45L), restoredSnapshot.eventMeta());
+	}
+
+	/**
+	 * 清空运行时快照后，应回退到持久化快照。
+	 */
+	@Test
+	void clearRuntimeReplaySnapshotShouldFallbackToPersistentSnapshot() {
+		TestSyncReplayEntity source = new TestSyncReplayEntity(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
+		source.recordReplaySyncSnapshot(9, EventMeta.of(50L, 0, 1L));
+		source.recordRuntimeReplaySyncSnapshot(15, EventMeta.of(60L, 0, 2L));
+
+		source.clearRuntimeReplaySyncSnapshot();
+
+		SyncReplaySourceBlockEntity.ReplaySyncSnapshot snapshot = source.replaySyncSnapshot().orElseThrow();
+		assertEquals(9, snapshot.signalStrength());
+		assertEquals(EventMeta.of(50L, 0, 1L), snapshot.eventMeta());
+	}
+
 	@SuppressWarnings("unchecked")
 	private static BlockEntityType<? extends LinkTriggerSourceBlockEntity> castType(BlockEntityType<?> type) {
 		return (BlockEntityType<? extends LinkTriggerSourceBlockEntity>) type;

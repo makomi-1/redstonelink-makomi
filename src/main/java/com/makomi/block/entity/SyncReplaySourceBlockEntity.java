@@ -31,6 +31,11 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 	private long replaySyncTick;
 	private int replaySyncSlot;
 	private long replaySyncSeq;
+	private boolean runtimeReplaySyncSnapshotRecorded;
+	private int runtimeReplaySyncSignalStrength;
+	private long runtimeReplaySyncTick;
+	private int runtimeReplaySyncSlot;
+	private long runtimeReplaySyncSeq;
 
 	protected SyncReplaySourceBlockEntity(
 		BlockEntityType<? extends LinkTriggerSourceBlockEntity> blockEntityType,
@@ -47,6 +52,31 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 	 * @param eventMeta 最近一次派发时间键
 	 */
 	public final void recordReplaySyncSnapshot(int signalStrength, EventMeta eventMeta) {
+		recordReplaySyncSnapshot(signalStrength, eventMeta, false);
+	}
+
+	/**
+	 * 记录当前进程内可见的运行时 sync 回放快照。
+	 * <p>
+	 * 该快照只在内存中生效，不会进入 NBT。
+	 * </p>
+	 */
+	public final void recordRuntimeReplaySyncSnapshot(int signalStrength, EventMeta eventMeta) {
+		recordReplaySyncSnapshot(signalStrength, eventMeta, true);
+	}
+
+	/**
+	 * 清空当前进程内的运行时 sync 回放快照。
+	 */
+	public final void clearRuntimeReplaySyncSnapshot() {
+		runtimeReplaySyncSnapshotRecorded = false;
+		runtimeReplaySyncSignalStrength = 0;
+		runtimeReplaySyncTick = 0L;
+		runtimeReplaySyncSlot = 0;
+		runtimeReplaySyncSeq = 0L;
+	}
+
+	private void recordReplaySyncSnapshot(int signalStrength, EventMeta eventMeta, boolean runtimeOnly) {
 		EventMeta normalizedMeta = eventMeta;
 		if (normalizedMeta == null) {
 			if (level == null) {
@@ -58,6 +88,23 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 		long tick = normalizedMeta.timeKey().tick();
 		int slot = normalizedMeta.timeKey().slot();
 		long seq = normalizedMeta.seq();
+		if (runtimeOnly) {
+			if (
+				runtimeReplaySyncSnapshotRecorded
+					&& runtimeReplaySyncSignalStrength == normalizedStrength
+					&& runtimeReplaySyncTick == tick
+					&& runtimeReplaySyncSlot == slot
+					&& runtimeReplaySyncSeq == seq
+			) {
+				return;
+			}
+			runtimeReplaySyncSnapshotRecorded = true;
+			runtimeReplaySyncSignalStrength = normalizedStrength;
+			runtimeReplaySyncTick = tick;
+			runtimeReplaySyncSlot = slot;
+			runtimeReplaySyncSeq = seq;
+			return;
+		}
 		if (
 			replaySyncSnapshotRecorded
 				&& replaySyncSignalStrength == normalizedStrength
@@ -79,6 +126,14 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 	 * 返回最近一次已记录的 sync 回放快照。
 	 */
 	public final Optional<ReplaySyncSnapshot> replaySyncSnapshot() {
+		if (runtimeReplaySyncSnapshotRecorded) {
+			return Optional.of(
+				new ReplaySyncSnapshot(
+					runtimeReplaySyncSignalStrength,
+					EventMeta.of(runtimeReplaySyncTick, runtimeReplaySyncSlot, runtimeReplaySyncSeq)
+				)
+			);
+		}
 		if (!replaySyncSnapshotRecorded) {
 			return Optional.empty();
 		}
@@ -93,6 +148,7 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 	@Override
 	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
 		super.loadAdditional(tag, provider);
+		clearRuntimeReplaySyncSnapshot();
 		replaySyncSnapshotRecorded = tag.contains(KEY_REPLAY_SYNC_SNAPSHOT_RECORDED, Tag.TAG_BYTE)
 			&& tag.getBoolean(KEY_REPLAY_SYNC_SNAPSHOT_RECORDED);
 		if (!replaySyncSnapshotRecorded) {

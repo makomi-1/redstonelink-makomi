@@ -35,10 +35,7 @@ public class LinkCoreBlockEntity extends ActivatableTargetBlockEntity {
 
 	@Override
 	protected void onActiveChanged(boolean active) {
-		BlockState state = level.getBlockState(worldPosition);
-		if (state.getBlock() instanceof LinkCoreBlock && state.getValue(LinkCoreBlock.ACTIVE) != active) {
-			level.setBlock(worldPosition, state.setValue(LinkCoreBlock.ACTIVE, active), Block.UPDATE_CLIENTS);
-		}
+		BlockState state = syncCoreActiveBlockState(active);
 		if (!shouldFanoutByResolvedOutput(active)) {
 			return;
 		}
@@ -56,6 +53,17 @@ public class LinkCoreBlockEntity extends ActivatableTargetBlockEntity {
 	}
 
 	@Override
+	protected void syncBlockStateFromDerivedState(boolean active) {
+		syncCoreActiveBlockState(active);
+	}
+
+	@Override
+	protected boolean shouldQueueLoadBlockStateSync(boolean active) {
+		BlockState state = getBlockState();
+		return state.getBlock() instanceof LinkCoreBlock && state.getValue(LinkCoreBlock.ACTIVE) != active;
+	}
+
+	@Override
 	protected boolean shouldSyncClientOnPowerChanged() {
 		return false;
 	}
@@ -65,5 +73,21 @@ public class LinkCoreBlockEntity extends ActivatableTargetBlockEntity {
 		if (level instanceof ServerLevel serverLevel) {
 			serverLevel.scheduleTick(worldPosition, getBlockState().getBlock(), pulseTicks);
 		}
+	}
+
+	/**
+	 * 静默同步核心块 `ACTIVE` 可见态。
+	 */
+	private BlockState syncCoreActiveBlockState(boolean active) {
+		if (level == null) {
+			return getBlockState();
+		}
+		BlockState state = level.getBlockState(worldPosition);
+		if (!(state.getBlock() instanceof LinkCoreBlock) || state.getValue(LinkCoreBlock.ACTIVE) == active) {
+			return state;
+		}
+		BlockState updatedState = state.setValue(LinkCoreBlock.ACTIVE, active);
+		level.setBlock(worldPosition, updatedState, Block.UPDATE_CLIENTS);
+		return updatedState;
 	}
 }

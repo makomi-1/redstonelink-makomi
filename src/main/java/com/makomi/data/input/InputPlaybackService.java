@@ -4,6 +4,7 @@ import com.makomi.block.LinkSignalEmitterBlock;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
+import com.makomi.block.entity.SyncReplaySourceBlockEntity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import java.util.ArrayList;
@@ -40,7 +41,15 @@ public final class InputPlaybackService {
 	 */
 	public static void register() {
 		ServerTickEvents.END_SERVER_TICK.register((server) -> process(server, state(server), currentTick(server), false));
+		ServerLifecycleEvents.SERVER_STOPPING.register(InputPlaybackService::clearBeforeStop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(INPUT_STATES::remove);
+	}
+
+	/**
+	 * 停服前先清空运行中 job，确保模拟输入不会以外显状态残留进存档。
+	 */
+	private static void clearBeforeStop(MinecraftServer server) {
+		clear(server);
 	}
 
 	/**
@@ -245,18 +254,43 @@ public final class InputPlaybackService {
 				continue;
 			}
 			if (!previousState.onlineApplied() || previousState.appliedPower() != desiredPower) {
-				resolvedTriggerSource.blockEntity().setSimulatedInputPower(desiredPower);
-				resolvedTriggerSource.block().refreshPoweredStateFromCurrentInputs(
-					resolvedTriggerSource.level(),
-					resolvedTriggerSource.blockEntity().getBlockPos(),
-					resolvedTriggerSource.blockEntity().getBlockState()
-				);
+				applyTriggerSourceInput(resolvedTriggerSource, desiredPower);
 			}
 			if (desiredPower > 0) {
 				nextStates.put(sourceSerial, new AppliedTriggerSourceState(desiredPower, true));
 			}
 		}
 		inputState.appliedTriggerSourceStates = nextStates;
+	}
+
+	/**
+	 * 应用一次 triggerSource 输入器目标刷新。
+	 * <p>
+	 * 真实刷新阶段仍复用原有触发逻辑；仅对 sync replay 快照做“运行时/持久化”分层处理。
+	 * </p>
+	 */
+	private static void applyTriggerSourceInput(ResolvedTriggerSource resolvedTriggerSource, int desiredPower) {
+		LinkTriggerSourceBlockEntity blockEntity = resolvedTriggerSource.blockEntity();
+		LinkSignalEmitterBlock block = resolvedTriggerSource.block();
+		ServerLevel level = resolvedTriggerSource.level();
+		if (blockEntity == null || block == null || level == null) {
+			return;
+		}
+		blockEntity.beginRuntimeInputRefresh();
+		try {
+			blockEntity.setSimulatedInputPower(desiredPower);
+			block.refreshPoweredStateFromCurrentInputs(level, blockEntity.getBlockPos(), level.getBlockState(blockEntity.getBlockPos()));
+		} finally {
+			blockEntity.endRuntimeInputRefresh();
+		}
+		if (desiredPower <= 0 && blockEntity instanceof SyncReplaySourceBlockEntity syncReplaySourceBlockEntity) {
+			syncReplaySourceBlockEntity.clearRuntimeReplaySyncSnapshot();
+			block.resyncPoweredStateFromCurrentInputsWithoutTrigger(
+				level,
+				blockEntity.getBlockPos(),
+				level.getBlockState(blockEntity.getBlockPos())
+			);
+		}
 	}
 
 	private static ValidationResult validateAndBuildLanes(

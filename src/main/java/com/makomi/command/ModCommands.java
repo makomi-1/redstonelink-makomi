@@ -3,6 +3,8 @@ package com.makomi.command;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.activate.ActivateCommandRegistry;
+import com.makomi.command.argument.SerialBatchArgumentType;
+import com.makomi.command.argument.SignalSequenceArgumentType;
 import com.makomi.command.crosschunk.CrossChunkCommandRegistry;
 import com.makomi.command.privacy.CurrentLinksPrivacyCommandRegistry;
 import com.makomi.command.retire.RetireBatchCommandRegistry;
@@ -1501,7 +1503,7 @@ public final class ModCommands {
 		return Commands
 			.literal("square")
 			.then(
-				Commands.argument("serials", StringArgumentType.string()).then(
+				Commands.argument("serials", SerialBatchArgumentType.serialBatch()).then(
 					Commands
 						.argument("period_ticks", IntegerArgumentType.integer(1, INPUT_MAX_PERIOD_TICKS))
 						.executes((context) -> executeInputStartSquare(context, endpointKind))
@@ -1541,9 +1543,9 @@ public final class ModCommands {
 		return Commands
 			.literal("custom")
 			.then(
-				Commands.argument("serials", StringArgumentType.string()).then(
+				Commands.argument("serials", SerialBatchArgumentType.serialBatch()).then(
 					Commands
-						.argument("sequence", StringArgumentType.string())
+						.argument("sequence", SignalSequenceArgumentType.signalSequence())
 						.executes((context) -> executeInputStartCustom(context, endpointKind))
 						.then(
 							Commands
@@ -1566,7 +1568,7 @@ public final class ModCommands {
 		CommandSourceStack source = context.getSource();
 		List<Long> targetSerials = parseInputTargetSerials(
 			source,
-			StringArgumentType.getString(context, "serials"),
+			SerialBatchArgumentType.getSerialBatch(context, "serials"),
 			endpointKind
 		);
 		if (targetSerials == null) {
@@ -1593,13 +1595,13 @@ public final class ModCommands {
 		CommandSourceStack source = context.getSource();
 		List<Long> targetSerials = parseInputTargetSerials(
 			source,
-			StringArgumentType.getString(context, "serials"),
+			SerialBatchArgumentType.getSerialBatch(context, "serials"),
 			endpointKind
 		);
 		if (targetSerials == null) {
 			return 0;
 		}
-		String rawSequence = StringArgumentType.getString(context, "sequence");
+		String rawSequence = SignalSequenceArgumentType.getSignalSequence(context, "sequence");
 		if (rawSequence != null && rawSequence.length() > INPUT_MAX_SEQUENCE_RAW_LENGTH) {
 			source.sendFailure(Component.translatable("message.redstonelink.input.invalid_sequence", rawSequence));
 			return 0;

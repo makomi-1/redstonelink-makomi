@@ -35,10 +35,7 @@ public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntit
 
 	@Override
 	protected void onActiveChanged(boolean active) {
-		BlockState state = level.getBlockState(worldPosition);
-		if (state.getBlock() instanceof LinkRedstoneDustCoreBlock && state.getValue(LinkRedstoneDustCoreBlock.ACTIVE) != active) {
-			level.setBlock(worldPosition, state.setValue(LinkRedstoneDustCoreBlock.ACTIVE, active), Block.UPDATE_CLIENTS);
-		}
+		BlockState state = syncCoreActiveBlockState(active);
 		if (!shouldFanoutByResolvedOutput(active)) {
 			return;
 		}
@@ -57,6 +54,17 @@ public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntit
 	}
 
 	@Override
+	protected void syncBlockStateFromDerivedState(boolean active) {
+		syncCoreActiveBlockState(active);
+	}
+
+	@Override
+	protected boolean shouldQueueLoadBlockStateSync(boolean active) {
+		BlockState state = getBlockState();
+		return state.getBlock() instanceof LinkRedstoneDustCoreBlock && state.getValue(LinkRedstoneDustCoreBlock.ACTIVE) != active;
+	}
+
+	@Override
 	protected boolean shouldSyncClientOnPowerChanged() {
 		// 核心粉功率/激活外显完全由 blockstate 承担，跳过额外方块实体同步以降低广播量。
 		return false;
@@ -68,5 +76,21 @@ public class LinkRedstoneDustCoreBlockEntity extends ActivatableTargetBlockEntit
 			// 复用方块 tick 回调做脉冲回落。
 			serverLevel.scheduleTick(worldPosition, getBlockState().getBlock(), pulseTicks);
 		}
+	}
+
+	/**
+	 * 静默同步核心粉方块 `ACTIVE` 可见态。
+	 */
+	private BlockState syncCoreActiveBlockState(boolean active) {
+		if (level == null) {
+			return getBlockState();
+		}
+		BlockState state = level.getBlockState(worldPosition);
+		if (!(state.getBlock() instanceof LinkRedstoneDustCoreBlock) || state.getValue(LinkRedstoneDustCoreBlock.ACTIVE) == active) {
+			return state;
+		}
+		BlockState updatedState = state.setValue(LinkRedstoneDustCoreBlock.ACTIVE, active);
+		level.setBlock(worldPosition, updatedState, Block.UPDATE_CLIENTS);
+		return updatedState;
 	}
 }

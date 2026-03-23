@@ -1,12 +1,15 @@
 package com.makomi;
 
 import com.makomi.command.ModCommands;
+import com.makomi.command.argument.ModCommandArgumentTypes;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CoreBlockStateResyncService;
 import com.makomi.data.CrossChunkDispatchService;
 import com.makomi.data.InternalDispatchDeltaProjector;
 import com.makomi.data.LinkNodeLifecycleDispatchEvents;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.NodeStateTraceService;
+import com.makomi.data.TriggerSourceInputStateResyncService;
 import com.makomi.data.input.InputPlaybackService;
 import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlockEntities;
@@ -36,12 +39,15 @@ public class RedstoneLink implements ModInitializer {
 		ModBlockEntities.register();
 		ModItems.register();
 		ModItemGroups.register();
+		ModCommandArgumentTypes.register();
 		ModCommands.register();
 		InternalDispatchDeltaProjector.register();
 		LinkNodeLifecycleDispatchEvents.register();
 		LinkNodeRetireEvents.register();
 		NodeStateTraceService.register();
 		InputPlaybackService.register();
+		CoreBlockStateResyncService.register();
+		TriggerSourceInputStateResyncService.register();
 		CrossChunkDispatchService.register();
 		LOGGER.info("RedstoneLink initialized");
 	}

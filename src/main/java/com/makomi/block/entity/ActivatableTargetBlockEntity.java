@@ -87,6 +87,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private TimeKey fanoutResolvedTimeKey = TimeKey.minValue();
 	private boolean fanoutResolvedState;
 	private int fanoutResolvedPower;
+	// 读档后待异步校正一次 blockstate 可见态，避免旧存档或停服瞬间残留的外显状态继续保留。
+	private boolean pendingLoadBlockStateSync;
 
 	// TOGGLE 同 tick 合并：以 tick 内基准态 + 奇偶翻转计算结果。
 	private boolean toggleMergeInitialized;
@@ -209,6 +211,13 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private record ToggleConcurrentEntry(boolean contributes, long seq) {
 		private ToggleConcurrentEntry {
 			seq = Math.max(0L, seq);
+		}
+	}
+
+	private record PersistentSyncSnapshot(Map<Long, Integer> strengthBySource, Set<Long> maxSources) {
+		private PersistentSyncSnapshot {
+			strengthBySource = strengthBySource == null ? Map.of() : Map.copyOf(strengthBySource);
+			maxSources = maxSources == null ? Set.of() : Set.copyOf(maxSources);
 		}
 	}
 
@@ -481,7 +490,43 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 
 	protected abstract void onActiveChanged(boolean active);
 
+	/**
+	 * 读档后按当前派生态静默同步方块状态。
+	 * <p>
+	 * 默认无操作；仅 blockstate 承载可见激活态的 `core` 子类需要覆盖。
+	 * </p>
+	 */
+	protected void syncBlockStateFromDerivedState(boolean active) {}
+
+	/**
+	 * 判断当前派生态是否需要在加载后异步校正 blockstate。
+	 * <p>
+	 * 默认不需要；仅 blockstate 承载可见激活态的 `core` 子类需要覆盖。
+	 * </p>
+	 */
+	protected boolean shouldQueueLoadBlockStateSync(boolean active) {
+		return false;
+	}
+
 	protected abstract void schedulePulseReset(int pulseTicks);
+
+	/**
+	 * 当前实体是否仍有待处理的加载后 blockstate 校正任务。
+	 */
+	public final boolean hasPendingLoadBlockStateSync() {
+		return pendingLoadBlockStateSync;
+	}
+
+	/**
+	 * 消费一次加载后 blockstate 校正任务。
+	 */
+	public final void consumePendingLoadBlockStateSync() {
+		if (!pendingLoadBlockStateSync) {
+			return;
+		}
+		pendingLoadBlockStateSync = false;
+		syncBlockStateFromDerivedState(active);
+	}
 
 	/**
 	 * 默认激活输出功率（TOGGLE/PULSE 生效）。
@@ -1215,12 +1260,18 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 */
 	private void recomputeSyncTruthFromConcurrentBuckets() {
 		syncSignalStrengthBySource.clear();
-		mergeSyncTruthFromBuckets(syncConcurrentBuckets);
-		mergeSyncTruthFromBuckets(runtimeSimulatedSyncConcurrentBuckets);
+		mergeSyncTruthFromBuckets(syncConcurrentBuckets, syncSignalStrengthBySource);
+		mergeSyncTruthFromBuckets(runtimeSimulatedSyncConcurrentBuckets, syncSignalStrengthBySource);
 		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
 	}
 
-	private void mergeSyncTruthFromBuckets(NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> buckets) {
+	private static void mergeSyncTruthFromBuckets(
+		NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> buckets,
+		Map<Long, Integer> targetStrengthBySource
+	) {
+		if (targetStrengthBySource == null) {
+			return;
+		}
 		for (Map<SourceKey, SyncConcurrentEntry> bucket : buckets.values()) {
 			if (bucket == null || bucket.isEmpty()) {
 				continue;
@@ -1235,9 +1286,39 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 				if (strength <= 0) {
 					continue;
 				}
-				syncSignalStrengthBySource.merge(sourceKey.sourceSerial(), strength, Math::max);
+				targetStrengthBySource.merge(sourceKey.sourceSerial(), strength, Math::max);
 			}
 		}
+	}
+
+	/**
+	 * 生成仅基于持久化来源桶的 SYNC 真值快照。
+	 * <p>
+	 * 运行时模拟 SYNC 仅影响当前进程内表现，不应进入存档。
+	 * </p>
+	 */
+	private PersistentSyncSnapshot buildPersistentSyncSnapshot() {
+		Map<Long, Integer> persistentStrengthBySource = new TreeMap<>();
+		mergeSyncTruthFromBuckets(syncConcurrentBuckets, persistentStrengthBySource);
+		int maxStrength = 0;
+		Set<Long> persistentMaxSources = new TreeSet<>();
+		for (Map.Entry<Long, Integer> entry : persistentStrengthBySource.entrySet()) {
+			Long sourceSerial = entry.getKey();
+			Integer strength = entry.getValue();
+			if (sourceSerial == null || sourceSerial <= 0L || strength == null || strength <= 0) {
+				continue;
+			}
+			if (strength > maxStrength) {
+				maxStrength = strength;
+				persistentMaxSources.clear();
+				persistentMaxSources.add(sourceSerial);
+				continue;
+			}
+			if (strength == maxStrength) {
+				persistentMaxSources.add(sourceSerial);
+			}
+		}
+		return new PersistentSyncSnapshot(persistentStrengthBySource, persistentMaxSources);
 	}
 
 	/**
@@ -1575,6 +1656,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 		pulseResetArmed = pulseUntilGameTime > 0L;
 		rebuildDerivedCacheFromTruth();
+		pendingLoadBlockStateSync = shouldQueueLoadBlockStateSync(active);
 
 		// 运行时缓存不持久化，读档后重置。
 		runtimeSimulatedSyncConcurrentBuckets.clear();
@@ -1611,11 +1693,12 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (toggleState) {
 			tag.putBoolean(KEY_TOGGLE_STATE, true);
 		}
-		writeSyncSourceStrengths(tag);
-		if (!syncSignalMaxSources.isEmpty()) {
-			long[] serialArray = new long[syncSignalMaxSources.size()];
+		PersistentSyncSnapshot persistentSyncSnapshot = buildPersistentSyncSnapshot();
+		writeSyncSourceStrengths(tag, persistentSyncSnapshot.strengthBySource());
+		if (!persistentSyncSnapshot.maxSources().isEmpty()) {
+			long[] serialArray = new long[persistentSyncSnapshot.maxSources().size()];
 			int index = 0;
-			for (Long sourceSerial : syncSignalMaxSources) {
+			for (Long sourceSerial : persistentSyncSnapshot.maxSources()) {
 				serialArray[index++] = sourceSerial;
 			}
 			tag.putLongArray(KEY_SYNC_MAX_SOURCES, serialArray);
@@ -1666,12 +1749,12 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 序列化 SYNC 来源强度表（sourceSerial -> strength）。
 	 */
-	private void writeSyncSourceStrengths(CompoundTag tag) {
-		if (syncSignalStrengthBySource.isEmpty()) {
+	private void writeSyncSourceStrengths(CompoundTag tag, Map<Long, Integer> strengthBySource) {
+		if (strengthBySource == null || strengthBySource.isEmpty()) {
 			return;
 		}
 		ListTag sourceList = new ListTag();
-		syncSignalStrengthBySource
+		strengthBySource
 			.entrySet()
 			.stream()
 			.sorted(Map.Entry.comparingByKey())

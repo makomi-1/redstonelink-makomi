@@ -51,12 +51,32 @@ public class LinkSyncEmitterBlock extends LinkSignalEmitterBlock {
 		if (level.getBlockEntity(pos) instanceof LinkSyncEmitterBlockEntity blockEntity) {
 			int normalizedStrength = SignalStrengths.clamp(signalStrength);
 			blockEntity.setLastObservedSignalStrength(normalizedStrength);
-			blockEntity.recordReplaySyncSnapshot(normalizedStrength, EventMeta.now(level));
+			if (blockEntity.isRuntimeInputRefreshInProgress()) {
+				blockEntity.recordRuntimeReplaySyncSnapshot(normalizedStrength, EventMeta.now(level));
+			} else {
+				blockEntity.recordReplaySyncSnapshot(normalizedStrength, EventMeta.now(level));
+			}
 			blockEntity.forwardLinkedSignal(null, normalizedStrength);
 			return;
 		}
 		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
 			triggerSourceBlockEntity.forwardLinkedSignal(null, SignalStrengths.clamp(signalStrength));
 		}
+	}
+
+	@Override
+	protected void onSilentInputStateResynced(
+		Level level,
+		BlockPos pos,
+		BlockState updatedState,
+		boolean hasSignal,
+		int signalStrength
+	) {
+		if (!(level.getBlockEntity(pos) instanceof LinkSyncEmitterBlockEntity blockEntity)) {
+			return;
+		}
+		int normalizedStrength = SignalStrengths.clamp(signalStrength);
+		blockEntity.setLastObservedSignalStrength(normalizedStrength);
+		blockEntity.recordReplaySyncSnapshot(normalizedStrength, EventMeta.now(level));
 	}
 }

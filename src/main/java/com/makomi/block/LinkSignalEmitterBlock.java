@@ -221,6 +221,29 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	}
 
 	/**
+	 * 按当前输入静默重采样 `POWERED` 状态，但不触发联动派发。
+	 * <p>
+	 * 用于区块加载后的状态校正，避免把启动期重采样误当作一次新的来源事件。
+	 * </p>
+	 */
+	public final void resyncPoweredStateFromCurrentInputsWithoutTrigger(Level level, BlockPos pos, BlockState state) {
+		if (level.isClientSide) {
+			return;
+		}
+		BlockState currentState = level.getBlockState(pos);
+		BlockState baseState = currentState.is(this) ? currentState : state;
+		int signalStrength = resolveInputSignalStrength(level, pos);
+		boolean hasSignal = signalStrength > 0;
+		boolean wasPowered = baseState.getValue(POWERED);
+		BlockState updatedState = baseState;
+		if (hasSignal != wasPowered) {
+			updatedState = baseState.setValue(POWERED, hasSignal);
+			level.setBlock(pos, updatedState, Block.UPDATE_ALL);
+		}
+		onSilentInputStateResynced(level, pos, updatedState, hasSignal, signalStrength);
+	}
+
+	/**
 	 * 解析当前输入强度。
 	 */
 	protected int resolveInputSignalStrength(Level level, BlockPos pos) {
@@ -265,4 +288,15 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 			triggerSourceBlockEntity.triggerLinkedTargets(null);
 		}
 	}
+
+	/**
+	 * 钩子：静默重采样完成后补齐本地方块实体缓存，但不触发派发。
+	 */
+	protected void onSilentInputStateResynced(
+		Level level,
+		BlockPos pos,
+		BlockState updatedState,
+		boolean hasSignal,
+		int signalStrength
+	) {}
 }
