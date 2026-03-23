@@ -45,11 +45,23 @@ public class LinkSyncEmitterBlockEntity extends SyncReplaySourceBlockEntity {
 		if (tag.contains(KEY_LAST_OBSERVED_SIGNAL_STRENGTH, Tag.TAG_INT)) {
 			lastObservedSignalStrength = SignalStrengths.clamp(tag.getInt(KEY_LAST_OBSERVED_SIGNAL_STRENGTH));
 		}
+		refreshPendingLoadInputStateResyncFlag();
 	}
 
 	@Override
 	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
 		super.saveAdditional(tag, provider);
 		tag.putInt(KEY_LAST_OBSERVED_SIGNAL_STRENGTH, SignalStrengths.clamp(lastObservedSignalStrength));
+	}
+
+	@Override
+	protected boolean shouldQueueLoadInputStateResync() {
+		if (super.shouldQueueLoadInputStateResync()) {
+			return true;
+		}
+		if (lastObservedSignalStrength > 0) {
+			return true;
+		}
+		return replaySyncSnapshot().map(snapshot -> snapshot.signalStrength() > 0).orElse(false);
 	}
 }

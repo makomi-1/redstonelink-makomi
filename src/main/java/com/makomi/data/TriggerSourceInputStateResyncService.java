@@ -1,7 +1,9 @@
 package com.makomi.data;
 
+import com.makomi.RedstoneLink;
 import com.makomi.block.LinkSignalEmitterBlock;
 import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -12,6 +14,7 @@ import java.util.Set;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -34,7 +37,6 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * </p>
  */
 public final class TriggerSourceInputStateResyncService {
-	private static final int MAX_RETRY = 40;
 	private static boolean registered;
 	private static final Map<MinecraftServer, LinkedHashMap<PendingChunkKey, PendingChunkTask>> PENDING_TASKS_BY_SERVER =
 		new IdentityHashMap<>();
@@ -68,33 +70,44 @@ public final class TriggerSourceInputStateResyncService {
 	}
 
 	/**
-	 * 区块加载时先做预筛选，仅当区块内确实存在可重采样 emitter 时才入队。
+	 * 区块加载时先完成一次精细扫描，仅当区块内确实存在待处理 emitter 时才入队。
 	 */
 	private static void enqueueChunkResync(ServerLevel level, LevelChunk chunk) {
-		if (level == null || chunk == null || !hasResyncCandidate(chunk)) {
+		if (level == null || chunk == null) {
 			return;
 		}
 		MinecraftServer server = level.getServer();
 		if (server == null) {
 			return;
 		}
+		List<BlockPos> targetPositions = collectResyncTargetPositions(chunk);
+		if (targetPositions.isEmpty()) {
+			return;
+		}
 		ChunkPos chunkPos = chunk.getPos();
-		requeueTask(server, new PendingChunkTask(level.dimension(), new ChunkPos(chunkPos.x, chunkPos.z), 0));
+		requeueTask(server, new PendingChunkTask(level.dimension(), new ChunkPos(chunkPos.x, chunkPos.z), targetPositions, 0));
 	}
 
-	private static boolean hasResyncCandidate(LevelChunk chunk) {
+	/**
+	 * 扫描当前区块内所有待处理 emitter，直接收集位置列表，避免成功消费时再次全扫区块实体。
+	 */
+	private static List<BlockPos> collectResyncTargetPositions(LevelChunk chunk) {
 		if (chunk == null) {
-			return false;
+			return List.of();
 		}
+		List<BlockPos> targetPositions = new ArrayList<>();
 		for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
 			if (!(blockEntity instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity)) {
 				continue;
 			}
-			if (triggerSourceBlockEntity.getBlockState().getBlock() instanceof LinkSignalEmitterBlock) {
-				return true;
+			if (
+				triggerSourceBlockEntity.hasPendingLoadInputStateResync()
+					&& triggerSourceBlockEntity.getBlockState().getBlock() instanceof LinkSignalEmitterBlock
+			) {
+				targetPositions.add(triggerSourceBlockEntity.getBlockPos().immutable());
 			}
 		}
-		return false;
+		return targetPositions.isEmpty() ? List.of() : List.copyOf(targetPositions);
 	}
 
 	/**
@@ -104,6 +117,7 @@ public final class TriggerSourceInputStateResyncService {
 		if (server == null) {
 			return;
 		}
+		int maxRetry = RedstoneLinkConfig.runtimeLoadResyncMaxRetry();
 		List<PendingChunkTask> pendingTasks;
 		synchronized (PENDING_TASKS_BY_SERVER) {
 			if (!STARTED_SERVERS.contains(server)) {
@@ -120,8 +134,12 @@ public final class TriggerSourceInputStateResyncService {
 			if (pendingTask == null) {
 				continue;
 			}
-			if (!consumeTask(server, pendingTask) && pendingTask.attempt() < MAX_RETRY) {
-				requeueTask(server, pendingTask.nextAttempt());
+			if (!consumeTask(server, pendingTask)) {
+				if (pendingTask.attempt() < maxRetry) {
+					requeueTask(server, pendingTask.nextAttempt());
+					continue;
+				}
+				logGiveUp(pendingTask, maxRetry);
 			}
 		}
 	}
@@ -136,7 +154,7 @@ public final class TriggerSourceInputStateResyncService {
 		if (chunk == null) {
 			return false;
 		}
-		resyncChunk(level, chunk);
+		resyncChunk(level, chunk, pendingTask.targetPositions());
 		return true;
 	}
 
@@ -165,14 +183,21 @@ public final class TriggerSourceInputStateResyncService {
 	}
 
 	/**
-	 * 对指定区块中的 emitter 做静默重采样。
+	 * 对指定区块中的指定 emitter 位置做静默重采样。
 	 */
-	private static void resyncChunk(ServerLevel level, LevelChunk chunk) {
-		if (level == null || chunk == null) {
+	private static void resyncChunk(ServerLevel level, LevelChunk chunk, List<BlockPos> targetPositions) {
+		if (level == null || chunk == null || targetPositions == null || targetPositions.isEmpty()) {
 			return;
 		}
-		for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+		for (BlockPos targetPos : targetPositions) {
+			if (targetPos == null) {
+				continue;
+			}
+			BlockEntity blockEntity = chunk.getBlockEntity(targetPos, LevelChunk.EntityCreationType.CHECK);
 			if (!(blockEntity instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity)) {
+				continue;
+			}
+			if (!triggerSourceBlockEntity.hasPendingLoadInputStateResync()) {
 				continue;
 			}
 			if (!(triggerSourceBlockEntity.getBlockState().getBlock() instanceof LinkSignalEmitterBlock signalEmitterBlock)) {
@@ -183,7 +208,25 @@ public final class TriggerSourceInputStateResyncService {
 				triggerSourceBlockEntity.getBlockPos(),
 				triggerSourceBlockEntity.getBlockState()
 			);
+			triggerSourceBlockEntity.clearPendingLoadInputStateResync();
 		}
+	}
+
+	/**
+	 * 超过重试预算后记录一次明确告警，避免任务静默消失。
+	 */
+	private static void logGiveUp(PendingChunkTask pendingTask, int maxRetry) {
+		if (pendingTask == null) {
+			return;
+		}
+		RedstoneLink.LOGGER.warn(
+			"triggerSource load resync gave up after {} retries: dimension={}, chunk=({}, {}), targets={}",
+			Math.max(0, maxRetry),
+			pendingTask.dimension().location(),
+			pendingTask.chunkPos().x,
+			pendingTask.chunkPos().z,
+			pendingTask.targetPositions().size()
+		);
 	}
 
 	/**
@@ -194,13 +237,17 @@ public final class TriggerSourceInputStateResyncService {
 	/**
 	 * 待处理区块任务。
 	 */
-	private record PendingChunkTask(ResourceKey<Level> dimension, ChunkPos chunkPos, int attempt) {
+	private record PendingChunkTask(ResourceKey<Level> dimension, ChunkPos chunkPos, List<BlockPos> targetPositions, int attempt) {
+		private PendingChunkTask {
+			targetPositions = targetPositions == null || targetPositions.isEmpty() ? List.of() : List.copyOf(targetPositions);
+		}
+
 		private PendingChunkKey key() {
 			return new PendingChunkKey(dimension, chunkPos.toLong());
 		}
 
 		private PendingChunkTask nextAttempt() {
-			return new PendingChunkTask(dimension, chunkPos, attempt + 1);
+			return new PendingChunkTask(dimension, chunkPos, targetPositions, attempt + 1);
 		}
 	}
 }

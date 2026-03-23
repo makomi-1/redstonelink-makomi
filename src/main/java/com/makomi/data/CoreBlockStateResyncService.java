@@ -1,6 +1,8 @@
 package com.makomi.data;
 
+import com.makomi.RedstoneLink;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -30,7 +32,6 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * </p>
  */
 public final class CoreBlockStateResyncService {
-	private static final int MAX_RETRY = 40;
 	private static boolean registered;
 	private static final Map<MinecraftServer, LinkedHashMap<PendingCoreKey, PendingCoreTask>> PENDING_TASKS_BY_SERVER =
 		new IdentityHashMap<>();
@@ -92,6 +93,7 @@ public final class CoreBlockStateResyncService {
 		if (server == null) {
 			return;
 		}
+		int maxRetry = RedstoneLinkConfig.runtimeLoadResyncMaxRetry();
 		List<PendingCoreTask> pendingTasks;
 		synchronized (PENDING_TASKS_BY_SERVER) {
 			if (!STARTED_SERVERS.contains(server)) {
@@ -108,8 +110,12 @@ public final class CoreBlockStateResyncService {
 			if (pendingTask == null) {
 				continue;
 			}
-			if (!consumeTask(server, pendingTask) && pendingTask.attempt() < MAX_RETRY) {
-				requeueTask(server, pendingTask.nextAttempt());
+			if (!consumeTask(server, pendingTask)) {
+				if (pendingTask.attempt() < maxRetry) {
+					requeueTask(server, pendingTask.nextAttempt());
+					continue;
+				}
+				logGiveUp(pendingTask, maxRetry);
 			}
 		}
 	}
@@ -158,6 +164,24 @@ public final class CoreBlockStateResyncService {
 			STARTED_SERVERS.remove(server);
 			PENDING_TASKS_BY_SERVER.remove(server);
 		}
+	}
+
+	/**
+	 * 超过重试预算后记录一次明确告警，便于排查为何该位置始终未等到可读 chunk。
+	 */
+	private static void logGiveUp(PendingCoreTask pendingTask, int maxRetry) {
+		if (pendingTask == null) {
+			return;
+		}
+		BlockPos blockPos = pendingTask.blockPos();
+		RedstoneLink.LOGGER.warn(
+			"core load resync gave up after {} retries: dimension={}, pos=({}, {}, {})",
+			Math.max(0, maxRetry),
+			pendingTask.dimension().location(),
+			blockPos.getX(),
+			blockPos.getY(),
+			blockPos.getZ()
+		);
 	}
 
 	/**

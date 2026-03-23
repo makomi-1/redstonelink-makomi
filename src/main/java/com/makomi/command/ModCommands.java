@@ -1145,7 +1145,7 @@ public final class ModCommands {
 	private static LiteralArgumentBuilder<CommandSourceStack> createNodeTraceRoot() {
 		return Commands
 			.literal("trace")
-			.requires(ModCommands::hasOtherCommandPermission)
+			.requires(source -> RedstoneLinkConfig.commandNodeTraceEnabled() && hasOtherCommandPermission(source))
 			.then(
 				Commands
 					.literal("mount")
@@ -1461,7 +1461,7 @@ public final class ModCommands {
 	private static LiteralArgumentBuilder<CommandSourceStack> createInputRoot() {
 		return Commands
 			.literal("input")
-			.requires(ModCommands::hasOtherCommandPermission)
+			.requires(source -> RedstoneLinkConfig.commandInputEnabled() && hasOtherCommandPermission(source))
 			.then(createInputStartRoot())
 			.then(
 				Commands

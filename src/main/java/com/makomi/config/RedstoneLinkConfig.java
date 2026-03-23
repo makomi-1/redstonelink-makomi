@@ -378,6 +378,41 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 是否启用输入播放命令与运行时服务
+	 */
+	public static boolean commandInputEnabled() {
+		return values.commandInputEnabled();
+	}
+
+	/**
+	 * @return 是否启用节点状态追踪命令与运行时服务
+	 */
+	public static boolean commandNodeTraceEnabled() {
+		return values.commandNodeTraceEnabled();
+	}
+
+	/**
+	 * @return 是否启用 `core` 读档后的异步外显自愈
+	 */
+	public static boolean runtimeCoreLoadResyncEnabled() {
+		return values.runtimeCoreLoadResyncEnabled();
+	}
+
+	/**
+	 * @return 是否启用 `triggerSource` 读档后的异步输入自愈
+	 */
+	public static boolean runtimeTriggerSourceLoadResyncEnabled() {
+		return values.runtimeTriggerSourceLoadResyncEnabled();
+	}
+
+	/**
+	 * @return 加载后自愈的最大额外重试次数
+	 */
+	public static int runtimeLoadResyncMaxRetry() {
+		return values.runtimeLoadResyncMaxRetry();
+	}
+
+	/**
 	 * @return 是否启用命令频率防护
 	 */
 	public static boolean commandRateLimitEnabled() {
@@ -746,6 +781,11 @@ public final class RedstoneLinkConfig {
 			parseInt(props, "server.command.permissionLevel", 0, 0, 4),
 			parseInt(props, "server.command.otherPermissionLevel", 2, 0, 4),
 			parseBoolean(props, "server.command.benchmarkMode.enabled", false),
+			parseBoolean(props, "server.command.input.enabled", true),
+			parseBoolean(props, "server.command.nodeTrace.enabled", true),
+			parseBoolean(props, "server.runtime.loadResync.core.enabled", true),
+			parseBoolean(props, "server.runtime.loadResync.triggerSource.enabled", true),
+			parseInt(props, "server.runtime.loadResync.maxRetry", 40, 0, 10_000),
 			parseBoolean(props, "server.command.rateLimit.enabled", true),
 			parseInt(props, "server.command.rateLimit.windowTicks", 20, 1, 2000),
 			parseInt(props, "server.command.rateLimit.global.capacity", 3072, 1, 200_000),
@@ -1235,9 +1275,34 @@ public final class RedstoneLinkConfig {
 			server.command.otherPermissionLevel=2
 
 			# server.command.benchmarkMode.enabled
-			# zh: 是否启用命令测试模式。启用后，place/link set 等 bench 相关命令允许控制台或 RCON 直接执行，无需额外在线玩家。
-			# en: Whether to enable benchmark command mode. When enabled, bench-related commands such as place/link set can be executed directly from console or RCON without an extra online player.
+			# zh: 是否启用 bench 命令测试模式。启用后，bench 相关命令允许更方便地配合控制台或 RCON 执行。
+			# en: Whether to enable benchmark command mode for bench workflows. When enabled, bench-related commands can be used more conveniently with console or RCON.
 			server.command.benchmarkMode.enabled=false
+
+			# server.command.input.enabled
+			# zh: 是否启用输入播放命令与运行时服务。默认开启；若 triggerSource 加载后自愈已开启，推荐保持开启以便复现与诊断输入残留问题。
+			# en: Whether to enable input playback commands and runtime service. Enabled by default; recommended to stay on when triggerSource post-load self-heal is enabled.
+			server.command.input.enabled=true
+
+			# server.command.nodeTrace.enabled
+			# zh: 是否启用节点状态追踪命令与采样服务。默认开启；若 core 或 triggerSource 加载后自愈已开启，推荐保持开启以便观察自愈前后的节点状态。
+			# en: Whether to enable node trace commands and sampling service. Enabled by default; recommended to stay on when core or triggerSource post-load self-heal is enabled.
+			server.command.nodeTrace.enabled=true
+
+			# server.runtime.loadResync.core.enabled
+			# zh: 是否启用 core 读档后的异步外显自愈。建议保持开启，用于校正异常停服后的可见态残留。
+			# en: Whether to enable async post-load self-heal for core visible blockstates.
+			server.runtime.loadResync.core.enabled=true
+
+			# server.runtime.loadResync.triggerSource.enabled
+			# zh: 是否启用 triggerSource 读档后的异步输入自愈。建议保持开启，用于校正 emitter 的残留 POWERED/观测缓存。
+			# en: Whether to enable async post-load input self-heal for triggerSource emitters.
+			server.runtime.loadResync.triggerSource.enabled=true
+
+			# server.runtime.loadResync.maxRetry
+			# zh: 加载后自愈任务在 chunk 未就绪时允许的最大额外重试次数；0 表示只尝试当前这一轮，不再回队。
+			# en: Maximum extra retries for post-load self-heal tasks when the chunk is not ready yet; 0 means try once without requeue.
+			server.runtime.loadResync.maxRetry=40
 
 			# server.command.rateLimit.enabled
 			# zh: 是否启用命令频率防护（分层限流）。
@@ -1598,6 +1663,11 @@ public final class RedstoneLinkConfig {
 		int commandPermissionLevel,
 		int otherCommandPermissionLevel,
 		boolean commandBenchmarkModeEnabled,
+		boolean commandInputEnabled,
+		boolean commandNodeTraceEnabled,
+		boolean runtimeCoreLoadResyncEnabled,
+		boolean runtimeTriggerSourceLoadResyncEnabled,
+		int runtimeLoadResyncMaxRetry,
 		boolean commandRateLimitEnabled,
 		int commandRateLimitWindowTicks,
 		int commandRateLimitGlobalCapacity,
@@ -1642,6 +1712,11 @@ public final class RedstoneLinkConfig {
 				0,
 				2,
 				false,
+				true,
+				true,
+				true,
+				true,
+				40,
 				true,
 				20,
 				1024,
