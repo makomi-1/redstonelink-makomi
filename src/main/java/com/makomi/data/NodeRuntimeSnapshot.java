@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
  * 节点运行态快照。
  * <p>
  * 该 DTO 统一承载命令读取、历史采样和后续状态面板所需的节点状态字段。
- * 首版覆盖 `core` 与 `sync triggerSource`。
+ * 当前覆盖 `core` 与在线 emitter `triggerSource`。
  * </p>
  */
 public record NodeRuntimeSnapshot(

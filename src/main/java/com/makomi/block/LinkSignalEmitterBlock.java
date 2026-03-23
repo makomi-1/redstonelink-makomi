@@ -221,6 +221,13 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	}
 
 	/**
+	 * 对外暴露当前输入强度采样入口，供状态追踪与诊断逻辑复用统一输入语义。
+	 */
+	public final int sampleInputSignalStrength(Level level, BlockPos pos) {
+		return resolveInputSignalStrength(level, pos);
+	}
+
+	/**
 	 * 按当前输入静默重采样 `POWERED` 状态，但不触发联动派发。
 	 * <p>
 	 * 用于区块加载后的状态校正，避免把启动期重采样误当作一次新的来源事件。

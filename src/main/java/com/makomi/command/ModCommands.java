@@ -80,6 +80,7 @@ public final class ModCommands {
 	private static final int TRACE_MAX_EVERY = 1200;
 	private static final int TRACE_MAX_CAPACITY = 4096;
 	private static final int TRACE_MAX_READ_LIMIT = 256;
+	private static final int TRACE_MAX_BATCH_SERIALS = 1024;
 	private static final int INPUT_MAX_TARGETS = 1024;
 	private static final int INPUT_MAX_PERIOD_TICKS = 72_000;
 	private static final int INPUT_MAX_PHASE_TICKS = 72_000;
@@ -1151,7 +1152,7 @@ public final class ModCommands {
 					.literal("mount")
 					.then(
 						Commands.argument("type", StringArgumentType.word()).then(
-							Commands.argument("serial", LongArgumentType.longArg(1L))
+							Commands.argument("serials", SerialBatchArgumentType.serialBatch())
 								.executes(ModCommands::executeNodeTraceMount)
 								.then(
 									Commands
@@ -1171,7 +1172,7 @@ public final class ModCommands {
 					.literal("latest")
 					.then(
 						Commands.argument("type", StringArgumentType.word()).then(
-							Commands.argument("serial", LongArgumentType.longArg(1L)).executes(ModCommands::executeNodeTraceLatest)
+							Commands.argument("serials", SerialBatchArgumentType.serialBatch()).executes(ModCommands::executeNodeTraceLatest)
 						)
 					)
 			)
@@ -1195,7 +1196,7 @@ public final class ModCommands {
 					.literal("unmount")
 					.then(
 						Commands.argument("type", StringArgumentType.word()).then(
-							Commands.argument("serial", LongArgumentType.longArg(1L)).executes(ModCommands::executeNodeTraceUnmount)
+							Commands.argument("serials", SerialBatchArgumentType.serialBatch()).executes(ModCommands::executeNodeTraceUnmount)
 						)
 					)
 			)
@@ -1209,53 +1210,75 @@ public final class ModCommands {
 		CommandSourceStack source = context.getSource();
 		int everyTicks = getOptionalIntArg(context, "every", TRACE_DEFAULT_EVERY);
 		int capacity = getOptionalIntArg(context, "capacity", TRACE_DEFAULT_CAPACITY);
-		int commandCost = CommandRateLimitService.computeBatchCost(2, capacity, 256);
-		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, commandCost)) {
-			return 0;
-		}
-
 		LinkNodeType nodeType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (nodeType == null) {
 			return 0;
 		}
-		long serial = LongArgumentType.getLong(context, "serial");
-		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
-		if (!validateTraceSerialActive(source, savedData, nodeType, serial)) {
+		List<Long> serials = parseTraceSerialBatch(source, SerialBatchArgumentType.getSerialBatch(context, "serials"));
+		if (serials == null) {
 			return 0;
 		}
-
-		MinecraftServer server = source.getServer();
-		NodeRuntimeProbe.TraceNodeKind traceKind = resolveTraceKindForMount(server, nodeType, serial).orElse(null);
-		if (traceKind == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.node.trace.unsupported"));
-			return 0;
+		if (serials.size() == 1) {
+			return executeNodeTraceMountSingle(source, nodeType, serials.get(0), everyTicks, capacity);
 		}
-
-		NodeStateTraceService.MountResult mountResult = NodeStateTraceService.mount(
-			server,
-			nodeType,
-			serial,
-			traceKind,
-			everyTicks,
-			capacity
+		int commandCost = CommandRateLimitService.computeBatchCost(
+			2,
+			scaleTraceBatchCostItemCount(serials.size(), capacity),
+			256
 		);
-		String messageKey = mountResult.updated()
-			? "message.redstonelink.node.trace.mount.updated"
-			: "message.redstonelink.node.trace.mount";
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, commandCost)) {
+			return 0;
+		}
+
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		MinecraftServer server = source.getServer();
+		List<Long> invalidSerials = new ArrayList<>();
+		List<Long> unsupportedSerials = new ArrayList<>();
+		List<NodeStateTraceService.MountResult> mountResults = new ArrayList<>();
+		for (long serial : serials) {
+			if (!isTraceSerialActive(savedData, nodeType, serial)) {
+				invalidSerials.add(serial);
+				continue;
+			}
+			NodeRuntimeProbe.TraceNodeKind traceKind = resolveTraceKindForMount(server, nodeType, serial).orElse(null);
+			if (traceKind == null) {
+				unsupportedSerials.add(serial);
+				continue;
+			}
+			mountResults.add(NodeStateTraceService.mount(server, nodeType, serial, traceKind, everyTicks, capacity));
+		}
 		source.sendSuccess(
 			() -> Component.translatable(
-				messageKey,
+				"message.redstonelink.node.trace.batch.mount.header",
 				typeCommandName(nodeType),
-				serial,
-				traceKind.commandName(),
-				everyTicks,
-				capacity,
-				mountResult.mountInfo().sampleCount()
+				serials.size(),
+				mountResults.size(),
+				invalidSerials.size() + unsupportedSerials.size()
 			),
 			false
 		);
-		sendTraceSnapshotLine(source, mountResult.latestSnapshot());
-		return Command.SINGLE_SUCCESS;
+		for (NodeStateTraceService.MountResult mountResult : mountResults) {
+			NodeStateTraceService.TraceMountInfo mountInfo = mountResult.mountInfo();
+			String messageKey = mountResult.updated()
+				? "message.redstonelink.node.trace.mount.updated"
+				: "message.redstonelink.node.trace.mount";
+			source.sendSuccess(
+				() -> Component.translatable(
+					messageKey,
+					typeCommandName(mountInfo.nodeType()),
+					mountInfo.serial(),
+					mountInfo.traceKind().commandName(),
+					mountInfo.everyTicks(),
+					mountInfo.capacity(),
+					mountInfo.sampleCount()
+				),
+				false
+			);
+			sendTraceSnapshotLine(source, mountResult.latestSnapshot());
+		}
+		sendTraceBatchInvalidSerials(source, nodeType, invalidSerials);
+		sendTraceBatchUnsupportedSerials(source, nodeType, unsupportedSerials);
+		return mountResults.isEmpty() ? 0 : Command.SINGLE_SUCCESS;
 	}
 
 	/**
@@ -1263,25 +1286,53 @@ public final class ModCommands {
 	 */
 	private static int executeNodeTraceLatest(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
-		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
-			return 0;
-		}
 		LinkNodeType nodeType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (nodeType == null) {
 			return 0;
 		}
-		long serial = LongArgumentType.getLong(context, "serial");
+		List<Long> serials = parseTraceSerialBatch(source, SerialBatchArgumentType.getSerialBatch(context, "serials"));
+		if (serials == null) {
+			return 0;
+		}
+		if (serials.size() == 1) {
+			return executeNodeTraceLatestSingle(source, nodeType, serials.get(0));
+		}
+		int commandCost = CommandRateLimitService.computeBatchCost(1, serials.size(), 32);
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, commandCost)) {
+			return 0;
+		}
 		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
-		if (!validateTraceSerialActive(source, savedData, nodeType, serial)) {
-			return 0;
+		List<Long> invalidSerials = new ArrayList<>();
+		List<Long> unsupportedSerials = new ArrayList<>();
+		List<NodeRuntimeSnapshot> snapshots = new ArrayList<>();
+		for (long serial : serials) {
+			if (!isTraceSerialActive(savedData, nodeType, serial)) {
+				invalidSerials.add(serial);
+				continue;
+			}
+			NodeRuntimeSnapshot snapshot = resolveTraceSnapshot(source.getServer(), nodeType, serial).orElse(null);
+			if (snapshot == null) {
+				unsupportedSerials.add(serial);
+				continue;
+			}
+			snapshots.add(snapshot);
 		}
-		NodeRuntimeSnapshot snapshot = resolveTraceSnapshot(source.getServer(), nodeType, serial).orElse(null);
-		if (snapshot == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.node.trace.unsupported"));
-			return 0;
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.node.trace.batch.latest.header",
+				typeCommandName(nodeType),
+				serials.size(),
+				snapshots.size(),
+				invalidSerials.size() + unsupportedSerials.size()
+			),
+			false
+		);
+		for (NodeRuntimeSnapshot snapshot : snapshots) {
+			sendTraceSnapshotLine(source, snapshot);
 		}
-		sendTraceSnapshotLine(source, snapshot);
-		return Command.SINGLE_SUCCESS;
+		sendTraceBatchInvalidSerials(source, nodeType, invalidSerials);
+		sendTraceBatchUnsupportedSerials(source, nodeType, unsupportedSerials);
+		return snapshots.isEmpty() ? 0 : Command.SINGLE_SUCCESS;
 	}
 
 	/**
@@ -1319,14 +1370,128 @@ public final class ModCommands {
 	 */
 	private static int executeNodeTraceUnmount(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
-		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
-			return 0;
-		}
 		LinkNodeType nodeType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (nodeType == null) {
 			return 0;
 		}
-		long serial = LongArgumentType.getLong(context, "serial");
+		List<Long> serials = parseTraceSerialBatch(source, SerialBatchArgumentType.getSerialBatch(context, "serials"));
+		if (serials == null) {
+			return 0;
+		}
+		if (serials.size() == 1) {
+			return executeNodeTraceUnmountSingle(source, nodeType, serials.get(0));
+		}
+		int commandCost = CommandRateLimitService.computeBatchCost(1, serials.size(), 32);
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, commandCost)) {
+			return 0;
+		}
+		List<Long> unmountedSerials = new ArrayList<>();
+		List<Long> notMountedSerials = new ArrayList<>();
+		for (long serial : serials) {
+			if (NodeStateTraceService.unmount(source.getServer(), nodeType, serial)) {
+				unmountedSerials.add(serial);
+				continue;
+			}
+			notMountedSerials.add(serial);
+		}
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.node.trace.batch.unmount.header",
+				typeCommandName(nodeType),
+				serials.size(),
+				unmountedSerials.size(),
+				notMountedSerials.size()
+			),
+			false
+		);
+		for (long serial : unmountedSerials) {
+			source.sendSuccess(
+				() -> Component.translatable("message.redstonelink.node.trace.unmount", typeCommandName(nodeType), serial),
+				false
+			);
+		}
+		sendTraceBatchNotMountedSerials(source, nodeType, notMountedSerials);
+		return unmountedSerials.isEmpty() ? 0 : Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 单节点挂载采样器。
+	 */
+	private static int executeNodeTraceMountSingle(
+		CommandSourceStack source,
+		LinkNodeType nodeType,
+		long serial,
+		int everyTicks,
+		int capacity
+	) {
+		int commandCost = CommandRateLimitService.computeBatchCost(2, capacity, 256);
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, commandCost)) {
+			return 0;
+		}
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		if (!validateTraceSerialActive(source, savedData, nodeType, serial)) {
+			return 0;
+		}
+		MinecraftServer server = source.getServer();
+		NodeRuntimeProbe.TraceNodeKind traceKind = resolveTraceKindForMount(server, nodeType, serial).orElse(null);
+		if (traceKind == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.trace.unsupported"));
+			return 0;
+		}
+		NodeStateTraceService.MountResult mountResult = NodeStateTraceService.mount(
+			server,
+			nodeType,
+			serial,
+			traceKind,
+			everyTicks,
+			capacity
+		);
+		String messageKey = mountResult.updated()
+			? "message.redstonelink.node.trace.mount.updated"
+			: "message.redstonelink.node.trace.mount";
+		source.sendSuccess(
+			() -> Component.translatable(
+				messageKey,
+				typeCommandName(nodeType),
+				serial,
+				traceKind.commandName(),
+				everyTicks,
+				capacity,
+				mountResult.mountInfo().sampleCount()
+			),
+			false
+		);
+		sendTraceSnapshotLine(source, mountResult.latestSnapshot());
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 单节点读取当前最新快照。
+	 */
+	private static int executeNodeTraceLatestSingle(CommandSourceStack source, LinkNodeType nodeType, long serial) {
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
+		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
+		if (!validateTraceSerialActive(source, savedData, nodeType, serial)) {
+			return 0;
+		}
+		NodeRuntimeSnapshot snapshot = resolveTraceSnapshot(source.getServer(), nodeType, serial).orElse(null);
+		if (snapshot == null) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.trace.unsupported"));
+			return 0;
+		}
+		sendTraceSnapshotLine(source, snapshot);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 单节点卸载采样器。
+	 */
+	private static int executeNodeTraceUnmountSingle(CommandSourceStack source, LinkNodeType nodeType, long serial) {
+		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
+			return 0;
+		}
 		if (!NodeStateTraceService.unmount(source.getServer(), nodeType, serial)) {
 			source.sendFailure(Component.translatable("message.redstonelink.node.trace.not_mounted", typeCommandName(nodeType), serial));
 			return 0;
@@ -1419,6 +1584,115 @@ public final class ModCommands {
 		return nodeType == LinkNodeType.TRIGGER_SOURCE
 			? ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, nodeType, serial)
 			: ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, nodeType, serial);
+	}
+
+	/**
+	 * 判断节点序号是否已分配且未退役，供批量 trace 命令做静默过滤。
+	 */
+	private static boolean isTraceSerialActive(LinkSavedData savedData, LinkNodeType nodeType, long serial) {
+		return savedData != null && nodeType != null && savedData.isSerialActive(nodeType, serial);
+	}
+
+	/**
+	 * 解析批量 trace 序号。
+	 */
+	private static List<Long> parseTraceSerialBatch(CommandSourceStack source, String rawSerials) {
+		TargetParseResult parseResult = parseTargetSerials(rawSerials, TRACE_MAX_BATCH_SERIALS);
+		if (!parseResult.invalidEntries().isEmpty()) {
+			source.sendFailure(
+				Component.translatable("message.redstonelink.invalid_target_tokens", String.join(", ", parseResult.invalidEntries()))
+			);
+			return null;
+		}
+		if (parseResult.exceedLimit()) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.trace.too_many_serials", TRACE_MAX_BATCH_SERIALS));
+			return null;
+		}
+		if (parseResult.targets().isEmpty()) {
+			source.sendFailure(Component.translatable("message.redstonelink.node.trace.empty_serials"));
+			return null;
+		}
+		if (!parseResult.duplicateEntries().isEmpty()) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.batch_serials_deduped",
+					formatSerialCollection(parseResult.duplicateEntries())
+				),
+				false
+			);
+		}
+		List<Long> sortedSerials = new ArrayList<>(parseResult.targets());
+		sortedSerials.sort(Long::compareTo);
+		return List.copyOf(sortedSerials);
+	}
+
+	/**
+	 * 输出批量 trace 的无效序号汇总。
+	 */
+	private static void sendTraceBatchInvalidSerials(
+		CommandSourceStack source,
+		LinkNodeType nodeType,
+		List<Long> invalidSerials
+	) {
+		if (source == null || invalidSerials == null || invalidSerials.isEmpty()) {
+			return;
+		}
+		source.sendFailure(
+			Component.translatable(
+				"message.redstonelink.node.trace.batch.invalid_serials",
+				typeCommandName(nodeType),
+				formatSerialCollection(invalidSerials)
+			)
+		);
+	}
+
+	/**
+	 * 输出批量 trace 的不支持节点汇总。
+	 */
+	private static void sendTraceBatchUnsupportedSerials(
+		CommandSourceStack source,
+		LinkNodeType nodeType,
+		List<Long> unsupportedSerials
+	) {
+		if (source == null || unsupportedSerials == null || unsupportedSerials.isEmpty()) {
+			return;
+		}
+		source.sendFailure(
+			Component.translatable(
+				"message.redstonelink.node.trace.batch.unsupported",
+				typeCommandName(nodeType),
+				formatSerialCollection(unsupportedSerials)
+			)
+		);
+	}
+
+	/**
+	 * 输出批量卸载未命中的序号汇总。
+	 */
+	private static void sendTraceBatchNotMountedSerials(
+		CommandSourceStack source,
+		LinkNodeType nodeType,
+		List<Long> notMountedSerials
+	) {
+		if (source == null || notMountedSerials == null || notMountedSerials.isEmpty()) {
+			return;
+		}
+		source.sendFailure(
+			Component.translatable(
+				"message.redstonelink.node.trace.batch.not_mounted",
+				typeCommandName(nodeType),
+				formatSerialCollection(notMountedSerials)
+			)
+		);
+	}
+
+	/**
+	 * 计算批量 trace 命令的限流目标规模，避免序号数与容量相乘时溢出。
+	 */
+	private static int scaleTraceBatchCostItemCount(int serialCount, int scale) {
+		long safeSerialCount = Math.max(1L, serialCount);
+		long safeScale = Math.max(1L, scale);
+		return (int) Math.max(1L, Math.min(Integer.MAX_VALUE, safeSerialCount * safeScale));
 	}
 
 	/**

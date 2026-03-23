@@ -1,7 +1,11 @@
 package com.makomi.data;
 
+import com.makomi.block.LinkSignalEmitterBlock;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.block.entity.LinkPulseEmitterBlockEntity;
 import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
+import com.makomi.block.entity.LinkToggleEmitterBlockEntity;
+import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.SyncReplaySourceBlockEntity;
 import java.util.List;
 import java.util.Optional;
@@ -9,12 +13,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 /**
  * 节点运行态探针。
  * <p>
- * 负责将 `core` 与 `sync triggerSource` 的当前方块实体状态统一转为
+ * 负责将 `core` 与在线 emitter `triggerSource` 的当前方块实体状态统一转为
  * {@link NodeRuntimeSnapshot}，供命令、采样器和后续状态面板复用。
  * </p>
  */
@@ -27,6 +32,8 @@ public final class NodeRuntimeProbe {
 	 */
 	public enum TraceNodeKind {
 		CORE("core"),
+		PULSE_TRIGGER_SOURCE("pulseTriggerSource"),
+		TOGGLE_TRIGGER_SOURCE("toggleTriggerSource"),
 		SYNC_TRIGGER_SOURCE("syncTriggerSource");
 
 		private final String commandName;
@@ -47,7 +54,7 @@ public final class NodeRuntimeProbe {
 	 * 解析当前节点可用的探针类型，并返回即时快照。
 	 * <p>
 	 * `core` 可在离线状态下直接解析为 `CORE` 探针；
-	 * `triggerSource` 仅当当前在线且为 sync 类来源时才返回可用结果。
+	 * `triggerSource` 仅当当前在线且为受支持的 emitter 类来源时才返回可用结果。
 	 * </p>
 	 */
 	public static Optional<ProbeResolution> resolveCurrent(MinecraftServer server, LinkNodeType nodeType, long serial) {
@@ -62,11 +69,27 @@ public final class NodeRuntimeProbe {
 		if (onlineContext == null) {
 			return Optional.empty();
 		}
-		if (onlineContext.blockEntity() instanceof SyncReplaySourceBlockEntity) {
+		if (onlineContext.blockEntity() instanceof LinkSyncEmitterBlockEntity) {
 			return Optional.of(
 				new ProbeResolution(
 					TraceNodeKind.SYNC_TRIGGER_SOURCE,
 					snapshot(server, nodeType, serial, TraceNodeKind.SYNC_TRIGGER_SOURCE)
+				)
+			);
+		}
+		if (onlineContext.blockEntity() instanceof LinkPulseEmitterBlockEntity) {
+			return Optional.of(
+				new ProbeResolution(
+					TraceNodeKind.PULSE_TRIGGER_SOURCE,
+					snapshot(server, nodeType, serial, TraceNodeKind.PULSE_TRIGGER_SOURCE)
+				)
+			);
+		}
+		if (onlineContext.blockEntity() instanceof LinkToggleEmitterBlockEntity) {
+			return Optional.of(
+				new ProbeResolution(
+					TraceNodeKind.TOGGLE_TRIGGER_SOURCE,
+					snapshot(server, nodeType, serial, TraceNodeKind.TOGGLE_TRIGGER_SOURCE)
 				)
 			);
 		}
@@ -108,13 +131,45 @@ public final class NodeRuntimeProbe {
 			return buildCoreSnapshot(targetBlockEntity, nodeType, serial, allocated, retired, sampleTick);
 		}
 		if (
+			traceKind == TraceNodeKind.PULSE_TRIGGER_SOURCE
+				&& blockEntity instanceof LinkPulseEmitterBlockEntity pulseEmitterBlockEntity
+		) {
+			return buildEmitterTriggerSourceSnapshot(
+				nodeLevel,
+				onlineNode.pos(),
+				pulseEmitterBlockEntity,
+				traceKind,
+				nodeType,
+				serial,
+				allocated,
+				retired,
+				sampleTick
+			);
+		}
+		if (
+			traceKind == TraceNodeKind.TOGGLE_TRIGGER_SOURCE
+				&& blockEntity instanceof LinkToggleEmitterBlockEntity toggleEmitterBlockEntity
+		) {
+			return buildEmitterTriggerSourceSnapshot(
+				nodeLevel,
+				onlineNode.pos(),
+				toggleEmitterBlockEntity,
+				traceKind,
+				nodeType,
+				serial,
+				allocated,
+				retired,
+				sampleTick
+			);
+		}
+		if (
 			traceKind == TraceNodeKind.SYNC_TRIGGER_SOURCE
-				&& blockEntity instanceof SyncReplaySourceBlockEntity replaySourceBlockEntity
+				&& blockEntity instanceof LinkSyncEmitterBlockEntity syncEmitterBlockEntity
 		) {
 			return buildSyncTriggerSourceSnapshot(
 				nodeLevel,
 				onlineNode.pos(),
-				replaySourceBlockEntity,
+				syncEmitterBlockEntity,
 				nodeType,
 				serial,
 				allocated,
@@ -158,23 +213,72 @@ public final class NodeRuntimeProbe {
 		);
 	}
 
-	private static NodeRuntimeSnapshot buildSyncTriggerSourceSnapshot(
+	private static NodeRuntimeSnapshot buildEmitterTriggerSourceSnapshot(
 		ServerLevel nodeLevel,
 		BlockPos blockPos,
-		SyncReplaySourceBlockEntity replaySourceBlockEntity,
+		LinkTriggerSourceBlockEntity triggerSourceBlockEntity,
+		TraceNodeKind traceKind,
 		LinkNodeType nodeType,
 		long serial,
 		boolean allocated,
 		boolean retired,
 		long sampleTick
 	) {
-		int inputPower = resolveCurrentInputPower(nodeLevel, blockPos, replaySourceBlockEntity);
-		int lastObservedInputPower = replaySourceBlockEntity instanceof LinkSyncEmitterBlockEntity syncEmitterBlockEntity
-			? syncEmitterBlockEntity.getLastObservedSignalStrength()
-			: inputPower;
-		int lastDispatchedPower = replaySourceBlockEntity.replaySyncSnapshot()
+		EmitterLiveState liveState = resolveEmitterLiveState(nodeLevel, blockPos).orElse(null);
+		if (liveState == null) {
+			return offlineSnapshot(traceKind, nodeType, serial, allocated, retired, sampleTick, nodeLevel.dimension(), blockPos);
+		}
+		String modeName = defaultModeName(traceKind);
+		return new NodeRuntimeSnapshot(
+			traceKind,
+			nodeType,
+			serial,
+			allocated,
+			retired,
+			true,
+			nodeLevel.dimension(),
+			blockPos,
+			sampleTick,
+			0,
+			liveState.visiblePowered(),
+			liveState.inputPower(),
+			liveState.visiblePower(),
+			modeName,
+			modeName,
+			liveState.visiblePower(),
+			List.of(),
+			liveState.inputPower(),
+			liveState.visiblePower()
+		);
+	}
+
+	private static NodeRuntimeSnapshot buildSyncTriggerSourceSnapshot(
+		ServerLevel nodeLevel,
+		BlockPos blockPos,
+		LinkSyncEmitterBlockEntity syncEmitterBlockEntity,
+		LinkNodeType nodeType,
+		long serial,
+		boolean allocated,
+		boolean retired,
+		long sampleTick
+	) {
+		EmitterLiveState liveState = resolveEmitterLiveState(nodeLevel, blockPos).orElse(null);
+		if (liveState == null) {
+			return offlineSnapshot(
+				TraceNodeKind.SYNC_TRIGGER_SOURCE,
+				nodeType,
+				serial,
+				allocated,
+				retired,
+				sampleTick,
+				nodeLevel.dimension(),
+				blockPos
+			);
+		}
+		int lastObservedInputPower = syncEmitterBlockEntity.getLastObservedSignalStrength();
+		int lastDispatchedPower = syncEmitterBlockEntity.replaySyncSnapshot()
 			.map(SyncReplaySourceBlockEntity.ReplaySyncSnapshot::signalStrength)
-			.orElse(inputPower);
+			.orElse(liveState.inputPower());
 		return new NodeRuntimeSnapshot(
 			TraceNodeKind.SYNC_TRIGGER_SOURCE,
 			nodeType,
@@ -186,8 +290,8 @@ public final class NodeRuntimeProbe {
 			blockPos,
 			sampleTick,
 			0,
-			lastDispatchedPower > 0,
-			inputPower,
+			liveState.visiblePowered(),
+			liveState.inputPower(),
 			lastDispatchedPower,
 			"sync",
 			"sync",
@@ -198,19 +302,18 @@ public final class NodeRuntimeProbe {
 		);
 	}
 
-	private static int resolveCurrentInputPower(
-		ServerLevel nodeLevel,
-		BlockPos blockPos,
-		SyncReplaySourceBlockEntity replaySourceBlockEntity
-	) {
-		if (replaySourceBlockEntity instanceof LinkSyncEmitterBlockEntity) {
-			return Math.max(0, nodeLevel.getBestNeighborSignal(blockPos));
+	private static Optional<EmitterLiveState> resolveEmitterLiveState(ServerLevel nodeLevel, BlockPos blockPos) {
+		if (nodeLevel == null || blockPos == null) {
+			return Optional.empty();
 		}
-		var state = nodeLevel.getBlockState(blockPos);
-		if (state.hasProperty(BlockStateProperties.POWERED) && state.getValue(BlockStateProperties.POWERED)) {
-			return 15;
+		BlockState blockState = nodeLevel.getBlockState(blockPos);
+		if (!(blockState.getBlock() instanceof LinkSignalEmitterBlock signalEmitterBlock)) {
+			return Optional.empty();
 		}
-		return 0;
+		int inputPower = signalEmitterBlock.sampleInputSignalStrength(nodeLevel, blockPos);
+		boolean visiblePowered = blockState.hasProperty(BlockStateProperties.POWERED)
+			&& blockState.getValue(BlockStateProperties.POWERED);
+		return Optional.of(new EmitterLiveState(inputPower, visiblePowered, visiblePowered ? 15 : 0));
 	}
 
 	private static NodeRuntimeSnapshot offlineSnapshot(
@@ -237,13 +340,25 @@ public final class NodeRuntimeProbe {
 			false,
 			0,
 			0,
-			traceKind == TraceNodeKind.CORE ? "-" : "sync",
-			traceKind == TraceNodeKind.CORE ? "-" : "sync",
+			defaultModeName(traceKind),
+			defaultModeName(traceKind),
 			0,
 			List.of(),
 			0,
 			0
 		);
+	}
+
+	private static String defaultModeName(TraceNodeKind traceKind) {
+		if (traceKind == null) {
+			return "-";
+		}
+		return switch (traceKind) {
+			case CORE -> "-";
+			case PULSE_TRIGGER_SOURCE -> "pulse";
+			case TOGGLE_TRIGGER_SOURCE -> "toggle";
+			case SYNC_TRIGGER_SOURCE -> "sync";
+		};
 	}
 
 	private static Optional<OnlineNodeContext> resolveOnlineNodeContext(MinecraftServer server, LinkNodeType nodeType, long serial) {
@@ -272,4 +387,6 @@ public final class NodeRuntimeProbe {
 	public record ProbeResolution(TraceNodeKind traceKind, NodeRuntimeSnapshot snapshot) {}
 
 	private record OnlineNodeContext(ServerLevel level, LinkSavedData.LinkNode node, BlockEntity blockEntity) {}
+
+	private record EmitterLiveState(int inputPower, boolean visiblePowered, int visiblePower) {}
 }

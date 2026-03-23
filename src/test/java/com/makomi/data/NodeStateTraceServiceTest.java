@@ -69,6 +69,17 @@ class NodeStateTraceServiceTest {
 	}
 
 	/**
+	 * traceKind 命令名应保持稳定，避免命令输出与挂载信息漂移。
+	 */
+	@Test
+	void traceNodeKindCommandNamesShouldRemainStable() {
+		assertEquals("core", TraceNodeKind.CORE.commandName());
+		assertEquals("pulseTriggerSource", TraceNodeKind.PULSE_TRIGGER_SOURCE.commandName());
+		assertEquals("toggleTriggerSource", TraceNodeKind.TOGGLE_TRIGGER_SOURCE.commandName());
+		assertEquals("syncTriggerSource", TraceNodeKind.SYNC_TRIGGER_SOURCE.commandName());
+	}
+
+	/**
 	 * 构造最小快照样本，避免测试绑定到具体方块实体实现。
 	 */
 	private static NodeRuntimeSnapshot snapshot(long sampleTick) {
