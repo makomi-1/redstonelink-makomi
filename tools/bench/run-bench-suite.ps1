@@ -15,6 +15,8 @@ param(
 	[string]$ServerStartCommand,
 	[string]$TemplateWorldPath,
 	[string[]]$CaseIds,
+	[ValidateSet("RunCase", "RunFunctionalCase")]
+	[string]$BenchAction = "RunCase",
 	[string]$MatrixPath = (Join-Path $PSScriptRoot "matrix.json"),
 	[string]$RconHost = "127.0.0.1",
 	[int]$RconPort = 25575,
@@ -250,6 +252,11 @@ function Read-BenchResultSummary {
 		return $null
 	}
 	$parsed = Get-Content -Path $ResultPath -Encoding UTF8 -Raw | ConvertFrom-Json
+	$passed = Get-OptionalPsObjectPropertyValue -Object $parsed -PropertyName "passed"
+	$checks = Get-OptionalPsObjectPropertyValue -Object $parsed -PropertyName "checks"
+	$failedChecks = Get-OptionalPsObjectPropertyValue -Object $parsed -PropertyName "failedChecks"
+	$checksCount = if ($null -eq $checks) { $null } else { @($checks).Count }
+	$failedChecksCount = if ($null -eq $failedChecks) { $null } else { @($failedChecks).Count }
 	$spark = Get-OptionalPsObjectPropertyValue -Object $parsed -PropertyName "spark"
 	$stop = Get-OptionalPsObjectPropertyValue -Object $spark -PropertyName "stop"
 	$profilerUrl = Get-OptionalActivityResultPrimaryValue -ActivityResult (
@@ -261,6 +268,10 @@ function Read-BenchResultSummary {
 	return [ordered]@{
 		caseId = [string]$parsed.caseId
 		resultPath = $ResultPath
+		resultKind = if ($null -ne $passed) { "functional" } else { "performance" }
+		passed = $passed
+		checksCount = $checksCount
+		failedChecksCount = $failedChecksCount
 		profilerUrl = $profilerUrl
 		healthUrl = $healthUrl
 	}
@@ -609,6 +620,7 @@ if (Test-RconAlreadyReachable -ServerHost $RconHost -Port $RconPort -Password $R
 
 $suiteSummary = [ordered]@{
 	suiteTimestamp = $suiteTimestamp
+	benchAction = $BenchAction
 	serverRoot = $serverRootFullPath
 	serverPropertiesPath = $serverPropertiesFullPath
 	templateWorldPath = $templateWorldFullPath
@@ -632,6 +644,7 @@ try {
 		$worldLevelName = Get-CaseWorldLevelName -DirectoryName $caseWorldsDirectoryName -WorldName $worldName
 		$caseRecord = [ordered]@{
 			caseId = $caseId
+			benchAction = $BenchAction
 			worldName = $worldName
 			worldLevelName = $worldLevelName
 			status = "pending"
@@ -652,7 +665,7 @@ try {
 			$beforeSnapshot = Get-ResultFileSnapshot -ResultsDirPath $resultsDirPath
 			$startedAtUtc = [datetime]::UtcNow
 			$benchArgs = @{
-				Action = "RunCase"
+				Action = $BenchAction
 				CaseId = $caseId
 				MatrixPath = $MatrixPath
 				SavePath = $worldPath
@@ -667,14 +680,36 @@ try {
 				$benchArgs.SparkActivityPath = $SparkActivityPath
 			}
 
-			& $benchScriptPath @benchArgs
+			$runException = $null
+			try {
+				& $benchScriptPath @benchArgs
+			} catch {
+				$runException = $_.Exception
+			}
 
 			$resultPath = Find-NewBenchResultFile -ResultsDirPath $resultsDirPath -BeforeSnapshot $beforeSnapshot -CaseId $caseId -StartedAtUtc $startedAtUtc
+			if ($null -ne $resultPath) {
+				$benchSummary = Read-BenchResultSummary -ResultPath $resultPath
+				$caseRecord.bench = $benchSummary
+			}
+
+			if ($null -ne $runException) {
+				$caseRecord.status = "failed"
+				$caseRecord.error = $runException.Message
+				if ($null -eq $resultPath) {
+					$caseRecord.resultMissing = $true
+				}
+				Write-Host "[BenchSuite] Case failed: $caseId"
+				Write-Host "[BenchSuite] Error: $($caseRecord.error)"
+				if (-not $ContinueOnFailure) {
+					throw $runException
+				}
+				continue
+			}
+
 			if ($null -eq $resultPath) {
 				throw "Bench result JSON not found for case: $caseId"
 			}
-			$benchSummary = Read-BenchResultSummary -ResultPath $resultPath
-			$caseRecord.bench = $benchSummary
 			$caseRecord.status = "success"
 		} catch {
 			$caseRecord.status = "failed"

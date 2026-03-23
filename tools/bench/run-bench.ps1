@@ -9,7 +9,7 @@ RedstoneLink bench 自动化脚本。
 4. 执行最小驱动步骤并调用 spark 命令采集
 #>
 param(
-	[ValidateSet("List", "PrintCase", "InstallDatapack", "RunCase")]
+	[ValidateSet("List", "PrintCase", "InstallDatapack", "RunCase", "RunFunctionalCase")]
 	[string]$Action = "List",
 	[string]$CaseId,
 	[string]$MatrixPath = (Join-Path $PSScriptRoot "matrix.json"),
@@ -31,7 +31,30 @@ Set-StrictMode -Version Latest
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $datapackSource = Join-Path $PSScriptRoot "datapack\rl_bench"
 $script:DryRunSerialCounter = 1L
+$script:DryRunGameTime = 0L
 $script:BenchAsPlayer = $AsPlayer
+
+function Get-OptionalProperty {
+	param(
+		$Object,
+		[string]$Name,
+		$DefaultValue = $null
+	)
+	if ($null -eq $Object -or [string]::IsNullOrWhiteSpace($Name)) {
+		return $DefaultValue
+	}
+	if ($Object -is [System.Collections.IDictionary]) {
+		if ($Object.Contains($Name)) {
+			return $Object[$Name]
+		}
+		return $DefaultValue
+	}
+	$property = $Object.PSObject.Properties[$Name]
+	if ($null -eq $property) {
+		return $DefaultValue
+	}
+	return $property.Value
+}
 
 function Get-MatrixConfig {
 	param([string]$Path)
@@ -660,9 +683,101 @@ function Get-SerialListFromMap {
 	return @($Map.GetEnumerator() | Sort-Object Name | ForEach-Object { [long]$_.Value })
 }
 
-function Format-SerialInputText {
+function Get-SortedUniqueSerials {
 	param([long[]]$Serials)
-	return (($Serials | Sort-Object) -join "/")
+	if ($null -eq $Serials) {
+		return @()
+	}
+	return @(
+		$Serials |
+			Where-Object { $null -ne $_ -and [long]$_ -gt 0L } |
+			ForEach-Object { [long]$_ } |
+			Sort-Object -Unique
+	)
+}
+
+function Format-RangeSerialSegments {
+	param([long[]]$Serials)
+	$normalized = @(Get-SortedUniqueSerials $Serials)
+	if ($normalized.Count -eq 0) {
+		return @()
+	}
+	$segments = New-Object System.Collections.Generic.List[string]
+	$runStart = $normalized[0]
+	$runEnd = $normalized[0]
+	for ($index = 1; $index -lt $normalized.Count; $index++) {
+		$current = [long]$normalized[$index]
+		if ($current -eq ($runEnd + 1L)) {
+			$runEnd = $current
+			continue
+		}
+		if ($runStart -eq $runEnd) {
+			$segments.Add([string]$runStart)
+		} else {
+			$segments.Add(("{0}:{1}" -f $runStart, $runEnd))
+		}
+		$runStart = $current
+		$runEnd = $current
+	}
+	if ($runStart -eq $runEnd) {
+		$segments.Add([string]$runStart)
+	} else {
+		$segments.Add(("{0}:{1}" -f $runStart, $runEnd))
+	}
+	return @($segments.ToArray())
+}
+
+function Format-MixedSerialSegments {
+	param([long[]]$Serials)
+	$normalized = @(Get-SortedUniqueSerials $Serials)
+	if ($normalized.Count -eq 0) {
+		return @()
+	}
+	$segments = New-Object System.Collections.Generic.List[string]
+	$index = 0
+	while ($index -lt $normalized.Count) {
+		$current = [long]$normalized[$index]
+		if ($index + 1 -lt $normalized.Count) {
+			$next = [long]$normalized[$index + 1]
+			if ($next -eq ($current + 1L)) {
+				$segments.Add(("{0}:{1}" -f $current, $next))
+				$index += 2
+				continue
+			}
+		}
+		$segments.Add([string]$current)
+		$index++
+	}
+	return @($segments.ToArray())
+}
+
+function Format-SerialInputText {
+	param(
+		[long[]]$Serials,
+		[string]$Style = "slash_list"
+	)
+	$normalized = @(Get-SortedUniqueSerials $Serials)
+	switch ([string]$Style) {
+		"slash_list" {
+			return ($normalized -join "/")
+		}
+		"range" {
+			return ((Format-RangeSerialSegments $normalized) -join "/")
+		}
+		"mixed" {
+			return ((Format-MixedSerialSegments $normalized) -join "/")
+		}
+		"duplicate_mixed" {
+			if ($normalized.Count -eq 0) {
+				return ""
+			}
+			$base = (Format-MixedSerialSegments $normalized) -join "/"
+			return "$base/$($normalized[0])"
+		}
+		default {
+			throw "Unsupported serial format style: $Style"
+		}
+	}
 }
 
 function Clear-Arena {
@@ -888,6 +1003,1379 @@ function Invoke-DriveSchedule {
 	}
 }
 
+function Resolve-PhaseSerials {
+	param(
+		$Phase,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap
+	)
+	$explicitSerials = Get-OptionalProperty -Object $Phase -Name "serials"
+	if ($null -ne $explicitSerials) {
+		return @(
+			Get-SortedUniqueSerials (
+				@($explicitSerials | ForEach-Object { [long]$_ })
+			)
+		)
+	}
+
+	$serialRef = [string](Get-OptionalProperty -Object $Phase -Name "serialRef" -DefaultValue "")
+	if ([string]::IsNullOrWhiteSpace($serialRef)) {
+		$serialRef = [string](Get-OptionalProperty -Object $Phase -Name "sourceGroup" -DefaultValue "")
+	}
+	if ([string]::IsNullOrWhiteSpace($serialRef)) {
+		throw "Phase kind '$($Phase.kind)' requires serialRef/sourceGroup or explicit serials."
+	}
+	if ($serialRef -eq "targets") {
+		return @(Get-SerialListFromMap $TargetSerialMap)
+	}
+	if ($SourceSerialMaps.ContainsKey($serialRef)) {
+		return @(Get-SerialListFromMap $SourceSerialMaps[$serialRef])
+	}
+	throw "Unknown serialRef/sourceGroup: $serialRef"
+}
+
+function Resolve-InputEndpointCommandPath {
+	param([string]$Endpoint)
+	switch ([string]$Endpoint) {
+		"triggerSource" { return "triggerSource" }
+		"core_sync" { return "core sync" }
+		default { throw "Unsupported functional input endpoint: $Endpoint" }
+	}
+}
+
+function Get-ServerGameTime {
+	param($Connection)
+	if ($DryRun) {
+		return [long]$script:DryRunGameTime
+	}
+	$response = Invoke-RconCommand -Connection $Connection -Command "time query gametime" -Silent
+	$matches = [System.Text.RegularExpressions.Regex]::Matches([string]$response, "-?\d+")
+	if ($matches.Count -le 0) {
+		throw "Failed to parse game time from response: $response"
+	}
+	return [long]$matches[$matches.Count - 1].Value
+}
+
+function Wait-ServerTicks {
+	param(
+		$Connection,
+		[int]$Ticks,
+		[int]$PollIntervalMs = 25,
+		[int]$MaxWaitMs = 60000
+	)
+	$normalizedTicks = [Math]::Max(0, [int]$Ticks)
+	$normalizedPollIntervalMs = [Math]::Max(10, [int]$PollIntervalMs)
+	if ($DryRun) {
+		$startTick = [long]$script:DryRunGameTime
+		$script:DryRunGameTime += $normalizedTicks
+		return [ordered]@{
+			requestedTicks = $normalizedTicks
+			startTick = $startTick
+			targetTick = $startTick + $normalizedTicks
+			endTick = [long]$script:DryRunGameTime
+			polls = 0
+			dryRun = $true
+		}
+	}
+
+	$startTick = Get-ServerGameTime -Connection $Connection
+	$targetTick = $startTick + $normalizedTicks
+	$endTick = $startTick
+	$polls = 0
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+	while ($endTick -lt $targetTick) {
+		if ($stopwatch.ElapsedMilliseconds -gt $MaxWaitMs) {
+			throw "Timed out waiting for server ticks. start=$startTick target=$targetTick current=$endTick"
+		}
+		Start-Sleep -Milliseconds $normalizedPollIntervalMs
+		$endTick = Get-ServerGameTime -Connection $Connection
+		$polls++
+	}
+	return [ordered]@{
+		requestedTicks = $normalizedTicks
+		startTick = $startTick
+		targetTick = $targetTick
+		endTick = $endTick
+		polls = $polls
+		dryRun = $false
+	}
+}
+
+function Invoke-RconCommandWithTickWindow {
+	param(
+		$Connection,
+		[string]$Command,
+		[switch]$Silent,
+		[int]$ReceiveTimeoutMs = 3000,
+		[switch]$AllowReadTimeout
+	)
+	$startTick = Get-ServerGameTime -Connection $Connection
+	$response = Invoke-RconCommand `
+		-Connection $Connection `
+		-Command $Command `
+		-Silent:$Silent `
+		-ReceiveTimeoutMs $ReceiveTimeoutMs `
+		-AllowReadTimeout:$AllowReadTimeout
+	$endTick = Get-ServerGameTime -Connection $Connection
+	return [ordered]@{
+		command = $Command
+		response = $response
+		tickWindow = [ordered]@{
+			startTick = [long]$startTick
+			endTick = [long]$endTick
+		}
+	}
+}
+
+function Normalize-NodeTraceFieldName {
+	param([string]$RawName)
+	$normalized = ([string]$RawName).Trim()
+	switch ($normalized) {
+		"类型" { return "type" }
+		"type" { return "type" }
+		"序号" { return "serial" }
+		"serial" { return "serial" }
+		"traceKind" { return "traceKind" }
+		"tick" { return "tick" }
+		"slot" { return "slot" }
+		"online" { return "online" }
+		"active" { return "active" }
+		"input" { return "input" }
+		"output" { return "output" }
+		"configuredMode" { return "configuredMode" }
+		"effectiveMode" { return "effectiveMode" }
+		"resolvedStrength" { return "resolvedStrength" }
+		"lastObservedInput" { return "lastObservedInput" }
+		"lastDispatched" { return "lastDispatched" }
+		"maxSources" { return "maxSources" }
+		"dimension" { return "dimension" }
+		"pos" { return "pos" }
+		default { return $null }
+	}
+}
+
+function Convert-NodeTraceFieldValue {
+	param(
+		[string]$FieldName,
+		[string]$RawValue
+	)
+	$trimmed = ([string]$RawValue).Trim().TrimEnd('.')
+	switch ($FieldName) {
+		"online" {
+			if ($trimmed -match '^(?i:true|false)$') {
+				return ($trimmed.ToLowerInvariant() -eq "true")
+			}
+			return $trimmed
+		}
+		"active" {
+			if ($trimmed -match '^(?i:true|false)$') {
+				return ($trimmed.ToLowerInvariant() -eq "true")
+			}
+			return $trimmed
+		}
+		"serial" { return [long]$trimmed }
+		"tick" { return [long]$trimmed }
+		"slot" { return [int]$trimmed }
+		"input" { return [int]$trimmed }
+		"output" { return [int]$trimmed }
+		"resolvedStrength" { return [int]$trimmed }
+		"lastObservedInput" { return [int]$trimmed }
+		"lastDispatched" { return [int]$trimmed }
+		default { return $trimmed }
+	}
+}
+
+function Split-NodeTraceEntries {
+	param([string]$ResponseText)
+	if ([string]::IsNullOrWhiteSpace($ResponseText)) {
+		return @()
+	}
+	$normalizedText = $ResponseText.Replace([string][char]0xFF0C, ",")
+	$normalizedText = $normalizedText.Replace([string][char]0x3002, ".")
+	$normalizedText = $normalizedText.Replace([string][char]0xFF1A, ":")
+	$rawEntries = [System.Text.RegularExpressions.Regex]::Split($normalizedText, "(?=\[RedstoneLink/NodeTrace\])")
+	$entries = New-Object System.Collections.Generic.List[string]
+	foreach ($rawEntry in $rawEntries) {
+		$trimmedEntry = ([string]$rawEntry).Trim()
+		if (-not [string]::IsNullOrWhiteSpace($trimmedEntry)) {
+			$entries.Add($trimmedEntry)
+		}
+	}
+	return @($entries.ToArray())
+}
+
+function Parse-NodeTraceSamples {
+	param([string]$ResponseText)
+	if ([string]::IsNullOrWhiteSpace($ResponseText)) {
+		return @()
+	}
+	$samples = New-Object System.Collections.Generic.List[object]
+	$entries = @(Split-NodeTraceEntries -ResponseText $ResponseText)
+	foreach ($entry in $entries) {
+		if ([string]::IsNullOrWhiteSpace($entry) -or $entry.IndexOf("[RedstoneLink/NodeTrace]") -lt 0) {
+			continue
+		}
+		$normalizedLine = $entry.Replace([string][char]0xFF0C, ",")
+		$normalizedLine = $normalizedLine.Replace([string][char]0x3002, ".")
+		$normalizedLine = $normalizedLine.Replace([string][char]0xFF1A, ":")
+		if ($normalizedLine -notmatch "traceKind=" -or $normalizedLine -notmatch "tick=") {
+			continue
+		}
+		$content = $normalizedLine -replace "^\[RedstoneLink/NodeTrace\]\s*", ""
+		$sample = [ordered]@{}
+		$fieldMatches = [System.Text.RegularExpressions.Regex]::Matches(
+			$content,
+			"(?<key>[^=,]+?)\s*=\s*(?<value>.*?)(?=(?:,\s*[^=,]+\s*=)|$)"
+		)
+		foreach ($fieldMatch in $fieldMatches) {
+			$fieldName = Normalize-NodeTraceFieldName -RawName $fieldMatch.Groups["key"].Value
+			if ([string]::IsNullOrWhiteSpace($fieldName)) {
+				continue
+			}
+			$sample[$fieldName] = Convert-NodeTraceFieldValue -FieldName $fieldName -RawValue $fieldMatch.Groups["value"].Value
+		}
+		if ($sample.Contains("serial") -and $sample.Contains("traceKind") -and $sample.Contains("tick")) {
+			$samples.Add([pscustomobject]$sample)
+		}
+	}
+	return @($samples.ToArray())
+}
+
+function Convert-ToComparableTraceValue {
+	param($Value)
+	if ($null -eq $Value) {
+		return "<null>"
+	}
+	if ($Value -is [bool]) {
+		return $Value.ToString().ToLowerInvariant()
+	}
+	if ($Value -is [byte] -or $Value -is [int16] -or $Value -is [int32] -or $Value -is [int64]) {
+		return ([string]$Value)
+	}
+	return ([string]$Value).Trim().ToLowerInvariant()
+}
+
+function Compare-TraceSampleAgainstExpectation {
+	param(
+		$Sample,
+		$Expected
+	)
+	$actualSubset = [ordered]@{}
+	$mismatches = New-Object System.Collections.Generic.List[object]
+	$expectedProperties = if ($Expected -is [System.Collections.IDictionary]) {
+		@(
+			foreach ($entry in $Expected.GetEnumerator()) {
+				[pscustomobject]@{
+					Name = [string]$entry.Key
+					Value = $entry.Value
+				}
+			}
+		)
+	} else {
+		@(
+			$Expected.PSObject.Properties |
+				Where-Object {
+					$_.MemberType -eq [System.Management.Automation.PSMemberTypes]::NoteProperty `
+						-or $_.MemberType -eq [System.Management.Automation.PSMemberTypes]::Property
+				}
+		)
+	}
+	foreach ($property in $expectedProperties) {
+		$fieldName = [string]$property.Name
+		$expectedValue = $property.Value
+		$sampleProperty = $Sample.PSObject.Properties[$fieldName]
+		$actualValue = if ($null -eq $sampleProperty) { $null } else { $sampleProperty.Value }
+		$actualSubset[$fieldName] = $actualValue
+		if ((Convert-ToComparableTraceValue $actualValue) -ne (Convert-ToComparableTraceValue $expectedValue)) {
+			$mismatches.Add([ordered]@{
+				field = $fieldName
+				expected = $expectedValue
+				actual = $actualValue
+			})
+		}
+	}
+	return [ordered]@{
+		actual = [pscustomobject]$actualSubset
+		mismatches = @($mismatches.ToArray())
+	}
+}
+
+function Invoke-NodeTraceRead {
+	param(
+		$Connection,
+		[string]$Type,
+		[long]$Serial,
+		[int]$Limit
+	)
+	$normalizedLimit = [Math]::Max(1, [int]$Limit)
+	$command = Wrap-WithPlayerContext "redstonelink node trace read $Type $Serial $normalizedLimit"
+	$response = Invoke-RconCommand -Connection $Connection -Command $command -Silent
+	return [ordered]@{
+		type = $Type
+		serial = $Serial
+		limit = $normalizedLimit
+		command = $command
+		response = $response
+		samples = @(Parse-NodeTraceSamples -ResponseText $response)
+	}
+}
+
+function Find-TraceCycleMatch {
+	param(
+		$Samples,
+		$ExpectedCycle
+	)
+	$expectedItems = @($ExpectedCycle)
+	$sampleItems = @($Samples)
+	if ($expectedItems.Count -le 0) {
+		return [ordered]@{
+			matched = $true
+			rotation = 0
+			searchWindowCount = 0
+			actualWindow = @()
+			failures = @()
+		}
+	}
+	if ($sampleItems.Count -lt $expectedItems.Count) {
+		return [ordered]@{
+			matched = $false
+			rotation = $null
+			searchWindowCount = 0
+			actualWindow = @($sampleItems)
+			failures = @(
+				[ordered]@{
+					reason = "insufficient_samples"
+					expectedCount = $expectedItems.Count
+					actualCount = $sampleItems.Count
+				}
+			)
+		}
+	}
+
+	$chronologicalSamples = @($sampleItems)
+	[array]::Reverse($chronologicalSamples)
+	$windowLength = $expectedItems.Count
+	$searchWindowCount = 0
+	$bestFailure = $null
+	for ($startIndex = 0; $startIndex -le ($chronologicalSamples.Count - $windowLength); $startIndex++) {
+		$window = @($chronologicalSamples[$startIndex..($startIndex + $windowLength - 1)])
+		for ($rotation = 0; $rotation -lt $windowLength; $rotation++) {
+			$searchWindowCount++
+			$mismatches = New-Object System.Collections.Generic.List[object]
+			for ($offset = 0; $offset -lt $windowLength; $offset++) {
+				$expectedSample = $expectedItems[($rotation + $offset) % $windowLength]
+				$actualSample = $window[$offset]
+				$comparison = Compare-TraceSampleAgainstExpectation -Sample $actualSample -Expected $expectedSample
+				if ($comparison.mismatches.Count -gt 0) {
+					$mismatches.Add([ordered]@{
+						sampleOffset = $offset
+						expected = $expectedSample
+						actual = $comparison.actual
+						tick = $actualSample.tick
+						mismatches = $comparison.mismatches
+					})
+				}
+			}
+			if ($mismatches.Count -eq 0) {
+				return [ordered]@{
+					matched = $true
+					rotation = $rotation
+					searchWindowCount = $searchWindowCount
+					actualWindow = @($window)
+					failures = @()
+				}
+			}
+			if ($null -eq $bestFailure -or $mismatches.Count -lt $bestFailure.failures.Count) {
+				$bestFailure = [ordered]@{
+					matched = $false
+					rotation = $rotation
+					searchWindowCount = $searchWindowCount
+					actualWindow = @($window)
+					failures = @($mismatches.ToArray())
+				}
+			}
+		}
+	}
+	if ($null -ne $bestFailure) {
+		return $bestFailure
+	}
+	return [ordered]@{
+		matched = $false
+		rotation = $null
+		searchWindowCount = $searchWindowCount
+		actualWindow = @()
+		failures = @(
+			[ordered]@{
+				reason = "no_window_checked"
+			}
+		)
+	}
+}
+
+function Convert-ToChronologicalTraceSamples {
+	param($Samples)
+	$items = @($Samples)
+	if ($items.Count -le 1) {
+		return $items
+	}
+	$chronological = @($items)
+	[array]::Reverse($chronological)
+	return @($chronological)
+}
+
+function Add-FunctionalPhaseResult {
+	param(
+		$PhaseResults,
+		[hashtable]$PhaseContext,
+		[string]$PhaseName,
+		$PhaseResult
+	)
+	if ($null -eq $PhaseResult) {
+		return
+	}
+	if (-not [string]::IsNullOrWhiteSpace($PhaseName)) {
+		if ($PhaseContext.ContainsKey($PhaseName)) {
+			throw "Duplicate functional phase name: $PhaseName"
+		}
+		$PhaseContext[$PhaseName] = $PhaseResult
+	}
+	$PhaseResults.Add($PhaseResult)
+}
+
+function Resolve-FunctionalPhaseResult {
+	param(
+		[hashtable]$PhaseContext,
+		[string]$PhaseName
+	)
+	if ([string]::IsNullOrWhiteSpace($PhaseName)) {
+		return $null
+	}
+	if ($null -eq $PhaseContext -or -not $PhaseContext.ContainsKey($PhaseName)) {
+		throw "Unknown functional phase ref: $PhaseName"
+	}
+	return $PhaseContext[$PhaseName]
+}
+
+function Resolve-TraceMountTicksBySerial {
+	param([string]$ResponseText)
+	$mountTicks = @{}
+	foreach ($sample in @(Parse-NodeTraceSamples -ResponseText $ResponseText)) {
+		$serialProperty = $sample.PSObject.Properties["serial"]
+		$tickProperty = $sample.PSObject.Properties["tick"]
+		if ($null -eq $serialProperty -or $null -eq $tickProperty) {
+			continue
+		}
+		$mountTicks[[string][long]$serialProperty.Value] = [long]$tickProperty.Value
+	}
+	return $mountTicks
+}
+
+function Get-TraceMountTickForSerial {
+	param(
+		$MountPhaseResult,
+		[long]$Serial
+	)
+	if ($null -eq $MountPhaseResult) {
+		return $null
+	}
+	$mountTicksBySerial = Get-OptionalProperty -Object $MountPhaseResult -Name "mountTicksBySerial"
+	$serialKey = [string][long]$Serial
+	if ($mountTicksBySerial -is [System.Collections.IDictionary] -and $mountTicksBySerial.Contains($serialKey)) {
+		return [long]$mountTicksBySerial[$serialKey]
+	}
+	return $null
+}
+
+function Parse-SignalSequenceText {
+	param([string]$SequenceText)
+	$normalized = if ($null -eq $SequenceText) { "" } else { ([string]$SequenceText).Trim() }
+	if ([string]::IsNullOrWhiteSpace($normalized)) {
+		throw "Signal sequence must not be empty."
+	}
+	if ($normalized -match '^(?:1[0-5]|[0-9])$') {
+		return @([int]$normalized)
+	}
+	if ($normalized.IndexOfAny(@(',', '/', ':', '|')) -ge 0) {
+		$tokens = [System.Text.RegularExpressions.Regex]::Split($normalized, "[,/:|]")
+		$sequence = New-Object System.Collections.Generic.List[int]
+		foreach ($token in $tokens) {
+			$item = if ($null -eq $token) { "" } else { $token.Trim() }
+			if ([string]::IsNullOrWhiteSpace($item)) {
+				continue
+			}
+			$value = [int]$item
+			if ($value -lt 0 -or $value -gt 15) {
+				throw "Signal sequence token out of range: $item"
+			}
+			$sequence.Add($value)
+		}
+		if ($sequence.Count -le 0) {
+			throw "Signal sequence must not be empty."
+		}
+		return @($sequence.ToArray())
+	}
+	$sequence = New-Object System.Collections.Generic.List[int]
+	foreach ($ch in $normalized.ToCharArray()) {
+		if ([char]::IsWhiteSpace($ch)) {
+			continue
+		}
+		$value = [System.Convert]::ToInt32([string]$ch, 16)
+		if ($value -lt 0 -or $value -gt 15) {
+			throw "Invalid signal sequence char: $ch"
+		}
+		$sequence.Add($value)
+	}
+	if ($sequence.Count -le 0) {
+		throw "Signal sequence must not be empty."
+	}
+	return @($sequence.ToArray())
+}
+
+function New-TraceExpectationSample {
+	param(
+		[string]$Type,
+		[string]$Mode,
+		[int]$Power
+	)
+	$normalizedPower = [Math]::Max(0, [Math]::Min(15, [int]$Power))
+	$active = ($normalizedPower -gt 0)
+	$sample = [ordered]@{
+		active = $active
+		input = $normalizedPower
+		output = $normalizedPower
+	}
+	if ([string]$Type -eq "core") {
+		$sample.resolvedStrength = $normalizedPower
+		if ($active -and -not [string]::IsNullOrWhiteSpace($Mode)) {
+			$sample.effectiveMode = [string]$Mode
+		}
+	}
+	return [pscustomobject]$sample
+}
+
+function Build-SyncSquareTraceExpectations {
+	param(
+		$TemplatePhaseResult,
+		[string]$Type,
+		[int]$TickCount
+	)
+	$waveform = Get-OptionalProperty -Object $TemplatePhaseResult -Name "waveform"
+	if ($null -eq $waveform) {
+		throw "sync_square template requires waveform metadata."
+	}
+	$periodTicks = [int](Get-OptionalProperty -Object $waveform -Name "periodTicks" -DefaultValue 0)
+	$highTicks = [int](Get-OptionalProperty -Object $waveform -Name "highTicks" -DefaultValue 0)
+	$highPower = [int](Get-OptionalProperty -Object $waveform -Name "highPower" -DefaultValue 15)
+	$lowPower = [int](Get-OptionalProperty -Object $waveform -Name "lowPower" -DefaultValue 0)
+	$phaseTicks = [int](Get-OptionalProperty -Object $waveform -Name "phaseTicks" -DefaultValue 0)
+	if ($periodTicks -le 0) {
+		throw "sync_square template requires periodTicks > 0."
+	}
+	$resolvedTickCount = if ($TickCount -gt 0) { $TickCount } else { $periodTicks }
+	$expectations = New-Object System.Collections.Generic.List[object]
+	for ($offset = 0; $offset -lt $resolvedTickCount; $offset++) {
+		$cycleTick = [int](($offset + $phaseTicks) % $periodTicks)
+		$power = if ($cycleTick -lt $highTicks) { $highPower } else { $lowPower }
+		$expectations.Add((New-TraceExpectationSample -Type $Type -Mode "sync" -Power $power))
+	}
+	return @($expectations.ToArray())
+}
+
+function Build-SyncCustomTraceExpectations {
+	param(
+		$TemplatePhaseResult,
+		[string]$Type,
+		[int]$TickCount
+	)
+	$sequenceText = [string](Get-OptionalProperty -Object $TemplatePhaseResult -Name "sequence" -DefaultValue "")
+	$phaseTicks = [int](Get-OptionalProperty -Object $TemplatePhaseResult -Name "phaseTicks" -DefaultValue 0)
+	$sequence = @(Parse-SignalSequenceText -SequenceText $sequenceText)
+	if ($sequence.Count -le 0) {
+		throw "sync_custom template requires a non-empty sequence."
+	}
+	$resolvedTickCount = if ($TickCount -gt 0) { $TickCount } else { $sequence.Count }
+	$expectations = New-Object System.Collections.Generic.List[object]
+	for ($offset = 0; $offset -lt $resolvedTickCount; $offset++) {
+		$index = [int](($offset + $phaseTicks) % $sequence.Count)
+		$expectations.Add((New-TraceExpectationSample -Type $Type -Mode "sync" -Power ([int]$sequence[$index])))
+	}
+	return @($expectations.ToArray())
+}
+
+function Build-PulseTraceExpectations {
+	param(
+		$Template,
+		[string]$Type,
+		[int]$TickCount
+	)
+	$activeTicks = [int](Get-OptionalProperty -Object $Template -Name "activeTicks" -DefaultValue 4)
+	$activePower = [int](Get-OptionalProperty -Object $Template -Name "activePower" -DefaultValue 15)
+	if ($activeTicks -le 0) {
+		throw "pulse template requires activeTicks > 0."
+	}
+	$resolvedTickCount = if ($TickCount -gt 0) { $TickCount } else { ($activeTicks + 2) }
+	$expectations = New-Object System.Collections.Generic.List[object]
+	for ($offset = 0; $offset -lt $resolvedTickCount; $offset++) {
+		$power = if ($offset -lt $activeTicks) { $activePower } else { 0 }
+		$expectations.Add((New-TraceExpectationSample -Type $Type -Mode "pulse" -Power $power))
+	}
+	return @($expectations.ToArray())
+}
+
+function Build-ToggleTraceExpectations {
+	param(
+		$Template,
+		[string]$Type,
+		[int]$TickCount
+	)
+	$expectedActive = Get-OptionalProperty -Object $Template -Name "expectedActive"
+	if ($null -eq $expectedActive) {
+		throw "toggle_hold template requires expectedActive."
+	}
+	$activePower = [int](Get-OptionalProperty -Object $Template -Name "activePower" -DefaultValue 15)
+	$resolvedTickCount = if ($TickCount -gt 0) { $TickCount } else { 3 }
+	$power = if ([bool]$expectedActive) { $activePower } else { 0 }
+	$expectations = New-Object System.Collections.Generic.List[object]
+	for ($offset = 0; $offset -lt $resolvedTickCount; $offset++) {
+		$expectations.Add((New-TraceExpectationSample -Type $Type -Mode "toggle" -Power $power))
+	}
+	return @($expectations.ToArray())
+}
+
+function Resolve-TraceTickExpectations {
+	param(
+		$Phase,
+		[string]$Type,
+		[hashtable]$PhaseContext
+	)
+	$expectedTicksRaw = Get-OptionalProperty -Object $Phase -Name "expectTicks"
+	if ($null -ne $expectedTicksRaw) {
+		return @($expectedTicksRaw)
+	}
+	$template = Get-OptionalProperty -Object $Phase -Name "template"
+	if ($null -eq $template) {
+		throw "trace_read_tick_assert phase requires expectTicks or template."
+	}
+	$templateKind = [string](Get-OptionalProperty -Object $template -Name "kind" -DefaultValue "")
+	$tickCount = [int](Get-OptionalProperty -Object $Phase -Name "tickCount" -DefaultValue 0)
+	$templatePhaseRef = [string](Get-OptionalProperty -Object $template -Name "phaseRef" -DefaultValue "")
+	if ([string]::IsNullOrWhiteSpace($templatePhaseRef)) {
+		$templatePhaseRef = [string](Get-OptionalProperty -Object $Phase -Name "anchorRef" -DefaultValue "")
+	}
+	$templatePhaseResult = if ([string]::IsNullOrWhiteSpace($templatePhaseRef)) {
+		$null
+	} else {
+		Resolve-FunctionalPhaseResult -PhaseContext $PhaseContext -PhaseName $templatePhaseRef
+	}
+	switch ($templateKind) {
+		"sync_square" { return @(Build-SyncSquareTraceExpectations -TemplatePhaseResult $templatePhaseResult -Type $Type -TickCount $tickCount) }
+		"sync_custom" { return @(Build-SyncCustomTraceExpectations -TemplatePhaseResult $templatePhaseResult -Type $Type -TickCount $tickCount) }
+		"pulse" { return @(Build-PulseTraceExpectations -Template $template -Type $Type -TickCount $tickCount) }
+		"toggle_hold" { return @(Build-ToggleTraceExpectations -Template $template -Type $Type -TickCount $tickCount) }
+		default { throw "Unsupported trace tick template kind: $templateKind" }
+	}
+}
+
+function Find-TraceTickWindowMatch {
+	param(
+		$Samples,
+		$ExpectedTicks,
+		[long]$StartTickMin,
+		[long]$SearchTickMax
+	)
+	$expectedItems = @($ExpectedTicks)
+	if ($expectedItems.Count -le 0) {
+		return [ordered]@{
+			matched = $true
+			startTick = $StartTickMin
+			alignmentOffset = 0
+			candidateCount = 0
+			actualWindow = @()
+			failures = @()
+		}
+	}
+	if ($SearchTickMax -lt $StartTickMin) {
+		return [ordered]@{
+			matched = $false
+			startTick = $null
+			alignmentOffset = $null
+			candidateCount = 0
+			actualWindow = @()
+			failures = @(
+				[ordered]@{
+					reason = "invalid_anchor_window"
+					startTickMin = $StartTickMin
+					searchTickMax = $SearchTickMax
+				}
+			)
+		}
+	}
+	$samplesByTick = @{}
+	foreach ($sample in @(Convert-ToChronologicalTraceSamples -Samples $Samples)) {
+		$tickProperty = $sample.PSObject.Properties["tick"]
+		if ($null -eq $tickProperty) {
+			continue
+		}
+		$tick = [long]$tickProperty.Value
+		if (-not $samplesByTick.ContainsKey($tick)) {
+			$samplesByTick[$tick] = $sample
+		}
+	}
+	$candidateCount = 0
+	$bestFailure = $null
+	for ($candidateStartTick = [long]$StartTickMin; $candidateStartTick -le [long]$SearchTickMax; $candidateStartTick++) {
+		$candidateCount++
+		$actualWindow = New-Object System.Collections.Generic.List[object]
+		$failures = New-Object System.Collections.Generic.List[object]
+		for ($offset = 0; $offset -lt $expectedItems.Count; $offset++) {
+			$expectedTick = $candidateStartTick + $offset
+			if (-not $samplesByTick.ContainsKey($expectedTick)) {
+				$failures.Add([ordered]@{
+					reason = "missing_tick"
+					sampleOffset = $offset
+					tick = $expectedTick
+					expected = $expectedItems[$offset]
+				})
+				continue
+			}
+			$actualSample = $samplesByTick[$expectedTick]
+			$actualWindow.Add($actualSample)
+			$comparison = Compare-TraceSampleAgainstExpectation -Sample $actualSample -Expected $expectedItems[$offset]
+			if ($comparison.mismatches.Count -gt 0) {
+				$failures.Add([ordered]@{
+					reason = "field_mismatch"
+					sampleOffset = $offset
+					tick = $expectedTick
+					expected = $expectedItems[$offset]
+					actual = $comparison.actual
+					mismatches = $comparison.mismatches
+				})
+			}
+		}
+		if ($failures.Count -eq 0) {
+			return [ordered]@{
+				matched = $true
+				startTick = $candidateStartTick
+				alignmentOffset = ($candidateStartTick - $StartTickMin)
+				candidateCount = $candidateCount
+				actualWindow = @($actualWindow.ToArray())
+				failures = @()
+			}
+		}
+		if ($null -eq $bestFailure -or $failures.Count -lt $bestFailure.failures.Count) {
+			$bestFailure = [ordered]@{
+				matched = $false
+				startTick = $candidateStartTick
+				alignmentOffset = ($candidateStartTick - $StartTickMin)
+				candidateCount = $candidateCount
+				actualWindow = @($actualWindow.ToArray())
+				failures = @($failures.ToArray())
+			}
+		}
+	}
+	if ($null -ne $bestFailure) {
+		$bestFailure.candidateCount = $candidateCount
+		return $bestFailure
+	}
+	return [ordered]@{
+		matched = $false
+		startTick = $null
+		alignmentOffset = $null
+		candidateCount = $candidateCount
+		actualWindow = @()
+		failures = @(
+			[ordered]@{
+				reason = "no_candidate_checked"
+			}
+		)
+	}
+}
+
+function Invoke-FunctionalPhases {
+	param(
+		$Connection,
+		$CaseConfig,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap
+	)
+	$phaseResults = New-Object System.Collections.Generic.List[object]
+	$checks = New-Object System.Collections.Generic.List[object]
+	$failedChecks = New-Object System.Collections.Generic.List[object]
+	$phaseContext = @{}
+	foreach ($phase in $CaseConfig.phases) {
+		$kind = [string](Get-OptionalProperty -Object $phase -Name "kind" -DefaultValue "")
+		if ([string]::IsNullOrWhiteSpace($kind)) {
+			throw "Functional phase kind is required."
+		}
+		$phaseName = [string](Get-OptionalProperty -Object $phase -Name "name" -DefaultValue $kind)
+		switch ($kind) {
+			"trace_mount" {
+				$type = [string](Get-OptionalProperty -Object $phase -Name "type" -DefaultValue "")
+				$serials = @(Resolve-PhaseSerials -Phase $phase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				$serialFormat = [string](Get-OptionalProperty -Object $phase -Name "serialFormat" -DefaultValue "slash_list")
+				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
+				$every = [int](Get-OptionalProperty -Object $phase -Name "every" -DefaultValue 1)
+				$capacity = [int](Get-OptionalProperty -Object $phase -Name "capacity" -DefaultValue 128)
+				$command = Wrap-WithPlayerContext "redstonelink node trace mount $type $serialText $every $capacity"
+				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+				$response = [string]$commandResult.response
+				$samples = @(Parse-NodeTraceSamples -ResponseText $response)
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					type = $type
+					serials = $serials
+					serialText = $serialText
+					every = $every
+					capacity = $capacity
+					command = $command
+					response = $response
+					tickWindow = $commandResult.tickWindow
+					samples = $samples
+					mountTicksBySerial = (Resolve-TraceMountTicksBySerial -ResponseText $response)
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"trace_unmount" {
+				$type = [string](Get-OptionalProperty -Object $phase -Name "type" -DefaultValue "")
+				$serials = @(Resolve-PhaseSerials -Phase $phase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				$serialFormat = [string](Get-OptionalProperty -Object $phase -Name "serialFormat" -DefaultValue "slash_list")
+				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
+				$command = Wrap-WithPlayerContext "redstonelink node trace unmount $type $serialText"
+				$response = Invoke-RconCommand -Connection $Connection -Command $command -Silent
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					type = $type
+					serials = $serials
+					serialText = $serialText
+					command = $command
+					response = $response
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"input_start_square" {
+				$endpoint = [string](Get-OptionalProperty -Object $phase -Name "endpoint" -DefaultValue "")
+				$serials = @(Resolve-PhaseSerials -Phase $phase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				$serialFormat = [string](Get-OptionalProperty -Object $phase -Name "serialFormat" -DefaultValue "slash_list")
+				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
+				$periodTicks = [int](Get-OptionalProperty -Object $phase -Name "periodTicks" -DefaultValue 0)
+				if ($periodTicks -le 0) {
+					throw "input_start_square phase requires periodTicks > 0."
+				}
+				$highTicks = [int](Get-OptionalProperty -Object $phase -Name "highTicks" -DefaultValue ([Math]::Max(1, [int]($periodTicks / 2))))
+				$highPower = [int](Get-OptionalProperty -Object $phase -Name "highPower" -DefaultValue 15)
+				$lowPower = [int](Get-OptionalProperty -Object $phase -Name "lowPower" -DefaultValue 0)
+				$phaseTicks = [int](Get-OptionalProperty -Object $phase -Name "phaseTicks" -DefaultValue 0)
+				$totalTicks = [int](Get-OptionalProperty -Object $phase -Name "totalTicks" -DefaultValue 0)
+				$endpointPath = Resolve-InputEndpointCommandPath -Endpoint $endpoint
+				$command = Wrap-WithPlayerContext (
+					"redstonelink input start {0} square {1} {2} {3} {4} {5} {6} {7}" -f
+					$endpointPath,
+					$serialText,
+					$periodTicks,
+					$highTicks,
+					$highPower,
+					$lowPower,
+					$phaseTicks,
+					$totalTicks
+				)
+				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					endpoint = $endpoint
+					serials = $serials
+					serialText = $serialText
+					command = $command
+					response = $commandResult.response
+					tickWindow = $commandResult.tickWindow
+					waveform = [ordered]@{
+						periodTicks = $periodTicks
+						highTicks = $highTicks
+						highPower = $highPower
+						lowPower = $lowPower
+						phaseTicks = $phaseTicks
+						totalTicks = $totalTicks
+					}
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"input_start_custom" {
+				$endpoint = [string](Get-OptionalProperty -Object $phase -Name "endpoint" -DefaultValue "")
+				$serials = @(Resolve-PhaseSerials -Phase $phase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				$serialFormat = [string](Get-OptionalProperty -Object $phase -Name "serialFormat" -DefaultValue "slash_list")
+				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
+				$sequence = [string](Get-OptionalProperty -Object $phase -Name "sequence" -DefaultValue "")
+				if ([string]::IsNullOrWhiteSpace($sequence)) {
+					throw "input_start_custom phase requires sequence."
+				}
+				$phaseTicks = [int](Get-OptionalProperty -Object $phase -Name "phaseTicks" -DefaultValue 0)
+				$totalTicks = [int](Get-OptionalProperty -Object $phase -Name "totalTicks" -DefaultValue 0)
+				$endpointPath = Resolve-InputEndpointCommandPath -Endpoint $endpoint
+				$command = Wrap-WithPlayerContext (
+					"redstonelink input start {0} custom {1} {2} {3} {4}" -f
+					$endpointPath,
+					$serialText,
+					$sequence,
+					$phaseTicks,
+					$totalTicks
+				)
+				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					endpoint = $endpoint
+					serials = $serials
+					serialText = $serialText
+					sequence = $sequence
+					phaseTicks = $phaseTicks
+					totalTicks = $totalTicks
+					command = $command
+					response = $commandResult.response
+					tickWindow = $commandResult.tickWindow
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"input_clear" {
+				$command = Wrap-WithPlayerContext "redstonelink input clear"
+				$response = Invoke-RconCommand -Connection $Connection -Command $command -Silent
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					command = $command
+					response = $response
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"activate_batch" {
+				$serials = @(Resolve-PhaseSerials -Phase $phase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				$serialFormat = [string](Get-OptionalProperty -Object $phase -Name "serialFormat" -DefaultValue "slash_list")
+				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
+				$mode = [string](Get-OptionalProperty -Object $phase -Name "mode" -DefaultValue "toggle")
+				$command = Wrap-WithPlayerContext "redstonelink node activate triggerSource $serialText $mode"
+				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					mode = $mode
+					serials = $serials
+					serialText = $serialText
+					command = $command
+					response = $commandResult.response
+					tickWindow = $commandResult.tickWindow
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"wait_ticks" {
+				$ticks = [int](Get-OptionalProperty -Object $phase -Name "ticks" -DefaultValue 0)
+				$waitInfo = Wait-ServerTicks -Connection $Connection -Ticks $ticks
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					wait = $waitInfo
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"trace_latest_assert" {
+				$type = [string](Get-OptionalProperty -Object $phase -Name "type" -DefaultValue "")
+				$serials = @(Resolve-PhaseSerials -Phase $phase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				$serialFormat = [string](Get-OptionalProperty -Object $phase -Name "serialFormat" -DefaultValue "slash_list")
+				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
+				$expected = Get-OptionalProperty -Object $phase -Name "expect"
+				if ($null -eq $expected) {
+					throw "trace_latest_assert phase requires expect."
+				}
+				$expectedCount = [int](Get-OptionalProperty -Object $phase -Name "expectedCount" -DefaultValue $serials.Count)
+				$command = Wrap-WithPlayerContext "redstonelink node trace latest $type $serialText"
+				$response = Invoke-RconCommand -Connection $Connection -Command $command -Silent
+				if ($DryRun) {
+					$check = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						passed = $true
+						skipped = $true
+						reason = "dry_run"
+					}
+					$checks.Add($check)
+					$phaseResult = [ordered]@{
+						kind = $kind
+						name = $phaseName
+						type = $type
+						serials = $serials
+						serialText = $serialText
+						command = $command
+						response = $response
+						samples = @()
+						expected = $expected
+						passed = $true
+						dryRun = $true
+					}
+					Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+					continue
+				}
+				$samples = @(Parse-NodeTraceSamples -ResponseText $response)
+				$countCheck = [ordered]@{
+					phase = $phaseName
+					kind = $kind
+					scope = "sample_count"
+					passed = ($samples.Count -eq $expectedCount)
+					expected = $expectedCount
+					actual = $samples.Count
+				}
+				$checks.Add($countCheck)
+				if (-not $countCheck.passed) {
+					$failedChecks.Add($countCheck)
+				}
+				foreach ($sample in $samples) {
+					$comparison = Compare-TraceSampleAgainstExpectation -Sample $sample -Expected $expected
+					$sampleCheck = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						scope = "sample"
+						type = $type
+						serial = $sample.serial
+						passed = ($comparison.mismatches.Count -eq 0)
+						expected = $expected
+						actual = $comparison.actual
+						mismatches = $comparison.mismatches
+					}
+					$checks.Add($sampleCheck)
+					if (-not $sampleCheck.passed) {
+						$failedChecks.Add($sampleCheck)
+					}
+				}
+				$phasePassed = ($countCheck.passed -and (@($samples | Where-Object {
+					$comparison = Compare-TraceSampleAgainstExpectation -Sample $_ -Expected $expected
+					$comparison.mismatches.Count -eq 0
+				}).Count -eq $samples.Count))
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					type = $type
+					serials = $serials
+					serialText = $serialText
+					command = $command
+					response = $response
+					samples = $samples
+					expected = $expected
+					passed = $phasePassed
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"trace_read_cycle_assert" {
+				$type = [string](Get-OptionalProperty -Object $phase -Name "type" -DefaultValue "")
+				$serials = @(Resolve-PhaseSerials -Phase $phase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				$serialFormat = [string](Get-OptionalProperty -Object $phase -Name "serialFormat" -DefaultValue "slash_list")
+				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
+				$expectedCycleRaw = Get-OptionalProperty -Object $phase -Name "expectCycle"
+				$expectedCycle = if ($null -eq $expectedCycleRaw) { @() } else { @($expectedCycleRaw) }
+				if ($expectedCycle.Count -le 0) {
+					throw "trace_read_cycle_assert phase requires expectCycle."
+				}
+				$limit = [int](Get-OptionalProperty -Object $phase -Name "limit" -DefaultValue ([Math]::Max($expectedCycle.Count, 8)))
+				$minimumCount = [int](Get-OptionalProperty -Object $phase -Name "minimumCount" -DefaultValue $expectedCycle.Count)
+				if ($DryRun) {
+					$check = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						passed = $true
+						skipped = $true
+						reason = "dry_run"
+					}
+					$checks.Add($check)
+					$phaseResult = [ordered]@{
+						kind = $kind
+						name = $phaseName
+						type = $type
+						serials = $serials
+						serialText = $serialText
+						limit = $limit
+						minimumCount = $minimumCount
+						expectedCycle = $expectedCycle
+						reads = @()
+						passed = $true
+						dryRun = $true
+					}
+					Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+					continue
+				}
+				$phasePassed = $true
+				$readResults = New-Object System.Collections.Generic.List[object]
+				foreach ($serial in $serials) {
+					$readResult = Invoke-NodeTraceRead -Connection $Connection -Type $type -Serial $serial -Limit $limit
+					$samples = @($readResult.samples)
+					$countCheck = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						scope = "sample_count"
+						type = $type
+						serial = $serial
+						passed = ($samples.Count -ge $minimumCount)
+						expectedMinimum = $minimumCount
+						actual = $samples.Count
+					}
+					$checks.Add($countCheck)
+					if (-not $countCheck.passed) {
+						$failedChecks.Add($countCheck)
+						$phasePassed = $false
+					}
+					$matchResult = if ($countCheck.passed) {
+						Find-TraceCycleMatch -Samples $samples -ExpectedCycle $expectedCycle
+					} else {
+						[ordered]@{
+							matched = $false
+							rotation = $null
+							searchWindowCount = 0
+							actualWindow = @($samples)
+							failures = @(
+								[ordered]@{
+									reason = "count_check_failed"
+								}
+							)
+						}
+					}
+					$cycleCheck = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						scope = "cycle"
+						type = $type
+						serial = $serial
+						passed = [bool]$matchResult.matched
+						expectedCycle = $expectedCycle
+						actualWindow = $matchResult.actualWindow
+						rotation = $matchResult.rotation
+						searchWindowCount = $matchResult.searchWindowCount
+						failures = $matchResult.failures
+					}
+					$checks.Add($cycleCheck)
+					if (-not $cycleCheck.passed) {
+						$failedChecks.Add($cycleCheck)
+						$phasePassed = $false
+					}
+					$readResults.Add([ordered]@{
+						serial = $serial
+						command = $readResult.command
+						response = $readResult.response
+						sampleCount = $samples.Count
+						samples = $samples
+						matched = [bool]$matchResult.matched
+						rotation = $matchResult.rotation
+						searchWindowCount = $matchResult.searchWindowCount
+						actualWindow = $matchResult.actualWindow
+						failures = $matchResult.failures
+					})
+				}
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					type = $type
+					serials = $serials
+					serialText = $serialText
+					limit = $limit
+					minimumCount = $minimumCount
+					expectedCycle = $expectedCycle
+					reads = @($readResults.ToArray())
+					passed = $phasePassed
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"trace_read_tick_assert" {
+				$type = [string](Get-OptionalProperty -Object $phase -Name "type" -DefaultValue "")
+				$serials = @(Resolve-PhaseSerials -Phase $phase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				$serialFormat = [string](Get-OptionalProperty -Object $phase -Name "serialFormat" -DefaultValue "slash_list")
+				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
+				$mountRef = [string](Get-OptionalProperty -Object $phase -Name "mountRef" -DefaultValue "")
+				$anchorRef = [string](Get-OptionalProperty -Object $phase -Name "anchorRef" -DefaultValue "")
+				if ([string]::IsNullOrWhiteSpace($mountRef)) {
+					throw "trace_read_tick_assert phase requires mountRef."
+				}
+				if ([string]::IsNullOrWhiteSpace($anchorRef)) {
+					throw "trace_read_tick_assert phase requires anchorRef."
+				}
+				$mountPhaseResult = Resolve-FunctionalPhaseResult -PhaseContext $phaseContext -PhaseName $mountRef
+				$anchorPhaseResult = Resolve-FunctionalPhaseResult -PhaseContext $phaseContext -PhaseName $anchorRef
+				$mountEvery = [int](Get-OptionalProperty -Object $mountPhaseResult -Name "every" -DefaultValue 0)
+				if ($mountEvery -ne 1) {
+					throw "trace_read_tick_assert requires mountRef every=1."
+				}
+				$anchorTickWindow = Get-OptionalProperty -Object $anchorPhaseResult -Name "tickWindow"
+				if ($null -eq $anchorTickWindow) {
+					throw "trace_read_tick_assert anchorRef must point to a command phase with tickWindow."
+				}
+				$commandStartTick = [long](Get-OptionalProperty -Object $anchorTickWindow -Name "startTick" -DefaultValue -1L)
+				$commandEndTick = [long](Get-OptionalProperty -Object $anchorTickWindow -Name "endTick" -DefaultValue -1L)
+				if ($commandStartTick -lt 0L -or $commandEndTick -lt 0L) {
+					throw "trace_read_tick_assert anchorRef tickWindow is invalid."
+				}
+				$expectedTicks = @(Resolve-TraceTickExpectations -Phase $phase -Type $type -PhaseContext $phaseContext)
+				if ($expectedTicks.Count -le 0) {
+					throw "trace_read_tick_assert phase resolved no expected ticks."
+				}
+				$alignmentSlackTicks = [int](Get-OptionalProperty -Object $phase -Name "alignmentSlackTicks" -DefaultValue 1)
+				$limit = [int](Get-OptionalProperty -Object $phase -Name "limit" -DefaultValue ([Math]::Max($expectedTicks.Count + $alignmentSlackTicks + 4, 8)))
+				if ($DryRun) {
+					$check = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						passed = $true
+						skipped = $true
+						reason = "dry_run"
+					}
+					$checks.Add($check)
+					$phaseResult = [ordered]@{
+						kind = $kind
+						name = $phaseName
+						type = $type
+						serials = $serials
+						serialText = $serialText
+						mountRef = $mountRef
+						anchorRef = $anchorRef
+						limit = $limit
+						alignmentSlackTicks = $alignmentSlackTicks
+						expectedTicks = $expectedTicks
+						reads = @()
+						passed = $true
+						dryRun = $true
+					}
+					Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+					continue
+				}
+				$phasePassed = $true
+				$readResults = New-Object System.Collections.Generic.List[object]
+				foreach ($serial in $serials) {
+					$readResult = Invoke-NodeTraceRead -Connection $Connection -Type $type -Serial $serial -Limit $limit
+					$samples = @($readResult.samples)
+					$chronologicalSamples = @(Convert-ToChronologicalTraceSamples -Samples $samples)
+					$mountTick = Get-TraceMountTickForSerial -MountPhaseResult $mountPhaseResult -Serial $serial
+					$searchTickMax = 0L
+					$startTickMin = $commandStartTick
+					if ($null -ne $mountTick) {
+						$startTickMin = [Math]::Max([long]$startTickMin, ([long]$mountTick + 1L))
+					}
+					$startTickMax = [long]$commandEndTick + [Math]::Max(0, $alignmentSlackTicks)
+					$searchTickMax = [long]$startTickMax
+					$eligibleSamples = @(
+						$chronologicalSamples |
+							Where-Object {
+								$tickProperty = $_.PSObject.Properties["tick"]
+								$null -ne $tickProperty -and [long]$tickProperty.Value -ge $startTickMin
+							}
+					)
+					if ($eligibleSamples.Count -gt 0) {
+						$eligibleLastTick = [long](@($eligibleSamples | Select-Object -Last 1)[0].tick)
+						$latestCompleteWindowStart = $eligibleLastTick - [long]($expectedTicks.Count - 1)
+						if ($latestCompleteWindowStart -gt $searchTickMax) {
+							$searchTickMax = $latestCompleteWindowStart
+						}
+					}
+					$countCheck = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						scope = "eligible_sample_count"
+						type = $type
+						serial = $serial
+						passed = ($eligibleSamples.Count -ge $expectedTicks.Count)
+						expectedMinimum = $expectedTicks.Count
+						actual = $eligibleSamples.Count
+						rawSampleCount = $samples.Count
+						startTickMin = $startTickMin
+						startTickMax = $startTickMax
+						searchTickMax = $searchTickMax
+						mountTick = $mountTick
+					}
+					$checks.Add($countCheck)
+					if (-not $countCheck.passed) {
+						$failedChecks.Add($countCheck)
+						$phasePassed = $false
+					}
+					if ($countCheck.passed) {
+						$matchResult = Find-TraceTickWindowMatch `
+							-Samples $eligibleSamples `
+							-ExpectedTicks $expectedTicks `
+							-StartTickMin $startTickMin `
+							-SearchTickMax $searchTickMax
+					} else {
+						$matchResult = [ordered]@{
+							matched = $false
+							startTick = $null
+							alignmentOffset = $null
+							candidateCount = 0
+							actualWindow = @($eligibleSamples)
+							failures = @(
+								[ordered]@{
+									reason = "count_check_failed"
+								}
+							)
+						}
+					}
+					$tickCheck = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						scope = "tick_window"
+						type = $type
+						serial = $serial
+						passed = [bool]$matchResult.matched
+						expectedTicks = $expectedTicks
+						actualWindow = $matchResult.actualWindow
+						startTick = $matchResult.startTick
+						alignmentOffset = $matchResult.alignmentOffset
+						candidateCount = $matchResult.candidateCount
+						failures = $matchResult.failures
+					}
+					$checks.Add($tickCheck)
+					if (-not $tickCheck.passed) {
+						$failedChecks.Add($tickCheck)
+						$phasePassed = $false
+					}
+					$readResults.Add([ordered]@{
+						serial = $serial
+						command = $readResult.command
+						response = $readResult.response
+						rawSampleCount = $samples.Count
+						samples = $samples
+						eligibleSamples = $eligibleSamples
+						mountTick = $mountTick
+						startTickMin = $startTickMin
+						startTickMax = $startTickMax
+						searchTickMax = $searchTickMax
+						matched = [bool]$matchResult.matched
+						startTick = $matchResult.startTick
+						alignmentOffset = $matchResult.alignmentOffset
+						candidateCount = $matchResult.candidateCount
+						actualWindow = $matchResult.actualWindow
+						failures = $matchResult.failures
+					})
+				}
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					type = $type
+					serials = $serials
+					serialText = $serialText
+					mountRef = $mountRef
+					anchorRef = $anchorRef
+					limit = $limit
+					alignmentSlackTicks = $alignmentSlackTicks
+					expectedTicks = $expectedTicks
+					reads = @($readResults.ToArray())
+					passed = $phasePassed
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			default {
+				throw "Unsupported functional phase kind: $kind"
+			}
+		}
+	}
+	return [ordered]@{
+		phases = @($phaseResults.ToArray())
+		checks = @($checks.ToArray())
+		failedChecks = @($failedChecks.ToArray())
+		passed = ($failedChecks.Count -eq 0)
+	}
+}
+
 function Ensure-ResultsDirectory {
 	param(
 		[string]$RepoRoot,
@@ -1031,6 +2519,79 @@ switch ($Action) {
 				}
 			}
 			Write-ResultJson -RepoRoot $repoRoot -RelativeResultsDir ([string]$matrix.defaults.resultsDir) -CaseId $caseConfig.id -ResultObject $result | Out-Null
+		}
+		finally {
+			Close-RconConnection -Connection $connection
+		}
+		break
+	}
+	"RunFunctionalCase" {
+		$caseConfig = Get-CaseConfig -Matrix $matrix -Id $CaseId
+		Install-BenchDatapack -SourcePath $datapackSource -WorldPath $SavePath
+		Show-CaseSummary -CaseConfig $caseConfig
+		Assert-RunCasePlayerContext
+
+		$connection = $null
+		try {
+			if (-not $DryRun) {
+				$connection = Open-RconConnection -ServerHost $RconHost -Port $RconPort -Password $RconPassword
+			}
+
+			if (-not $DryRun) {
+				$connection = Invoke-ReloadAndReconnect -Connection $connection -ServerHost $RconHost -Port $RconPort -Password $RconPassword
+			} else {
+				Invoke-RconCommand -Connection $connection -Command "reload" | Out-Null
+			}
+			Invoke-PrepareFunctions -Connection $connection -Matrix $matrix
+			Clear-Arena -Connection $connection -Arena $caseConfig.arena
+
+			$targetPositions = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
+			$targetSerialMap = Convert-PositionsToSerialMap -Connection $connection -Positions $targetPositions
+			$targetSerials = @(Get-SerialListFromMap $targetSerialMap)
+
+			$sourcePositionGroups = @{}
+			$sourceSerialMaps = @{}
+			foreach ($group in $caseConfig.sources) {
+				$positions = Place-NodeGroup -Connection $connection -Group $group
+				$sourcePositionGroups[[string]$group.id] = $positions
+				$sourceSerialMaps[[string]$group.id] = (Convert-PositionsToSerialMap -Connection $connection -Positions $positions)
+			}
+
+			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerials $targetSerials
+			foreach ($command in $linkCommands) {
+				Invoke-RconCommand -Connection $connection -Command $command | Out-Null
+			}
+
+			# 功能验证优先等待真实服务端 tick，而不是仅依赖本地睡眠。
+			$functionalSettleTicks = 0
+			if ($null -ne $matrix.defaults -and $null -ne $matrix.defaults.settleTicks) {
+				$functionalSettleTicks = [int]$matrix.defaults.settleTicks
+			}
+			if ($functionalSettleTicks -gt 0) {
+				Wait-ServerTicks -Connection $connection -Ticks $functionalSettleTicks | Out-Null
+			}
+
+			$phaseExecution = Invoke-FunctionalPhases -Connection $connection -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerialMap $targetSerialMap
+
+			$result = [ordered]@{
+				caseId = $caseConfig.id
+				description = $caseConfig.description
+				sourceSerials = $sourceSerialMaps
+				targetSerials = $targetSerialMap
+				linkCommands = $linkCommands
+				phases = $phaseExecution.phases
+				checks = $phaseExecution.checks
+				passed = $phaseExecution.passed
+				failedChecks = $phaseExecution.failedChecks
+				artifacts = [ordered]@{
+					matrixPath = $MatrixPath
+					savePath = $SavePath
+				}
+			}
+			Write-ResultJson -RepoRoot $repoRoot -RelativeResultsDir ([string]$matrix.defaults.resultsDir) -CaseId $caseConfig.id -ResultObject $result | Out-Null
+			if (-not $phaseExecution.passed) {
+				throw "Functional case failed: $($caseConfig.id)"
+			}
 		}
 		finally {
 			Close-RconConnection -Connection $connection

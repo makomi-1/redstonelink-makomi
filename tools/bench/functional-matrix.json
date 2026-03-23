@@ -1,0 +1,558 @@
+{
+  "version": 1,
+  "defaults": {
+    "tickMillis": 50,
+    "settleTicks": 2,
+    "prepareFunctions": [
+      "rl_bench:prepare/common",
+      "rl_bench:reset/common"
+    ],
+    "resultsDir": "run/profiles/bench-functional-results"
+  },
+  "cases": [
+    {
+      "id": "sync_core_range_square_basic",
+      "description": "直接对 core 注入 sync 方波，使用 range 序号表达式验证高低相位。",
+      "arena": {
+        "clearFrom": [-16, 63, -8],
+        "clearTo": [16, 66, 8]
+      },
+      "targets": {
+        "id": "core_line",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [0, 64, 0],
+          "to": [3, 64, 0]
+        }
+      },
+      "sources": [],
+      "links": [],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_core_range",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "range",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "input_start_square",
+          "name": "core_square_start",
+          "endpoint": "core_sync",
+          "serialRef": "targets",
+          "serialFormat": "range",
+          "periodTicks": 4,
+          "highTicks": 2,
+          "highPower": 15,
+          "lowPower": 0,
+          "phaseTicks": 0,
+          "totalTicks": 0
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_core_square_cycle",
+          "ticks": 8
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "core_square_ticks",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "range",
+          "mountRef": "mount_core_range",
+          "anchorRef": "core_square_start",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_square",
+            "phaseRef": "core_square_start"
+          }
+        },
+        {
+          "kind": "input_clear",
+          "name": "clear_core_input_jobs"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_core_range",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "range"
+        }
+      ]
+    },
+    {
+      "id": "sync_triggerSource_slash_square_basic",
+      "description": "对 sync emitter 批量注入 triggerSource 方波，使用 slash 序号表达式验证来源与 core 联动。",
+      "arena": {
+        "clearFrom": [-8, 63, -8],
+        "clearTo": [24, 66, 8]
+      },
+      "targets": {
+        "id": "core_zip",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [12, 64, 0],
+          "to": [14, 64, 0]
+        }
+      },
+      "sources": [
+        {
+          "id": "sync_zip",
+          "kind": "sync_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 0],
+            "to": [2, 64, 0]
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "sync_zip",
+          "mapping": "zip"
+        }
+      ],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_sync_sources_slash",
+          "type": "triggerSource",
+          "serialRef": "sync_zip",
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "trace_mount",
+          "name": "mount_sync_targets_slash",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "input_start_square",
+          "name": "trigger_source_square_start",
+          "endpoint": "triggerSource",
+          "serialRef": "sync_zip",
+          "serialFormat": "slash_list",
+          "periodTicks": 4,
+          "highTicks": 2,
+          "highPower": 15,
+          "lowPower": 0,
+          "phaseTicks": 0,
+          "totalTicks": 0
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_sync_square_cycle",
+          "ticks": 8
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "sync_sources_ticks",
+          "type": "triggerSource",
+          "serialRef": "sync_zip",
+          "serialFormat": "slash_list",
+          "mountRef": "mount_sync_sources_slash",
+          "anchorRef": "trigger_source_square_start",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_square",
+            "phaseRef": "trigger_source_square_start"
+          }
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "sync_targets_ticks",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "mountRef": "mount_sync_targets_slash",
+          "anchorRef": "trigger_source_square_start",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_square",
+            "phaseRef": "trigger_source_square_start"
+          }
+        },
+        {
+          "kind": "input_clear",
+          "name": "clear_trigger_source_jobs"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_sync_sources_slash",
+          "type": "triggerSource",
+          "serialRef": "sync_zip",
+          "serialFormat": "slash_list"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_sync_targets_slash",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list"
+        }
+      ]
+    },
+    {
+      "id": "sync_triggerSource_custom_mixed_basic",
+      "description": "对 sync emitter 注入自定义序列 15/0/7/0，使用 mixed 序号表达式验证中间强度传播。",
+      "arena": {
+        "clearFrom": [-8, 63, 8],
+        "clearTo": [24, 66, 18]
+      },
+      "targets": {
+        "id": "core_custom",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [12, 64, 10],
+          "to": [15, 64, 10]
+        }
+      },
+      "sources": [
+        {
+          "id": "sync_custom",
+          "kind": "sync_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 10],
+            "to": [3, 64, 10]
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "sync_custom",
+          "mapping": "zip"
+        }
+      ],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_sync_sources_mixed",
+          "type": "triggerSource",
+          "serialRef": "sync_custom",
+          "serialFormat": "mixed",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "trace_mount",
+          "name": "mount_sync_targets_mixed",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "mixed",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "input_start_custom",
+          "name": "trigger_source_custom_start",
+          "endpoint": "triggerSource",
+          "serialRef": "sync_custom",
+          "serialFormat": "mixed",
+          "sequence": "15/0/7/0",
+          "phaseTicks": 0,
+          "totalTicks": 0
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_custom_cycle",
+          "ticks": 8
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "custom_sources_ticks",
+          "type": "triggerSource",
+          "serialRef": "sync_custom",
+          "serialFormat": "mixed",
+          "mountRef": "mount_sync_sources_mixed",
+          "anchorRef": "trigger_source_custom_start",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_custom",
+            "phaseRef": "trigger_source_custom_start"
+          }
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "custom_targets_ticks",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "mixed",
+          "mountRef": "mount_sync_targets_mixed",
+          "anchorRef": "trigger_source_custom_start",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_custom",
+            "phaseRef": "trigger_source_custom_start"
+          }
+        },
+        {
+          "kind": "input_clear",
+          "name": "clear_custom_jobs"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_sync_sources_mixed",
+          "type": "triggerSource",
+          "serialRef": "sync_custom",
+          "serialFormat": "mixed"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_sync_targets_mixed",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "mixed"
+        }
+      ]
+    },
+    {
+      "id": "pulse_activate_sparse_zip",
+      "description": "pulse 批量激活经 zip 映射传播到 core，验证脉冲窗口与自动回落。",
+      "arena": {
+        "clearFrom": [-8, 63, 18],
+        "clearTo": [24, 66, 28]
+      },
+      "targets": {
+        "id": "core_pulse",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [12, 64, 20],
+          "to": [14, 64, 20]
+        }
+      },
+      "sources": [
+        {
+          "id": "pulse_zip",
+          "kind": "pulse_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 20],
+            "to": [2, 64, 20]
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "pulse_zip",
+          "mapping": "zip"
+        }
+      ],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_pulse_targets",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "range",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "activate_batch",
+          "name": "pulse_activate_zip",
+          "serialRef": "pulse_zip",
+          "serialFormat": "mixed",
+          "mode": "pulse"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_pulse_ticks",
+          "ticks": 6
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "pulse_targets_ticks",
+          "type": "core",
+          "serials": [1],
+          "serialFormat": "slash_list",
+          "mountRef": "mount_pulse_targets",
+          "anchorRef": "pulse_activate_zip",
+          "limit": 18,
+          "tickCount": 6,
+          "template": {
+            "kind": "pulse",
+            "phaseRef": "pulse_activate_zip",
+            "activeTicks": 3,
+            "activePower": 15
+          }
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_pulse_targets",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "range"
+        }
+      ]
+    },
+    {
+      "id": "toggle_activate_fanin_even_odd",
+      "description": "toggle fan-in 先验证同帧偶数净不翻转，再验证单来源双次激活完成开关往返。",
+      "arena": {
+        "clearFrom": [-8, 63, 28],
+        "clearTo": [28, 66, 36]
+      },
+      "targets": {
+        "id": "core_toggle",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [20, 64, 30],
+          "to": [20, 64, 30]
+        }
+      },
+      "sources": [
+        {
+          "id": "toggle_even",
+          "kind": "toggle_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 30],
+            "to": [1, 64, 30]
+          }
+        },
+        {
+          "id": "toggle_odd",
+          "kind": "toggle_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 32],
+            "to": [0, 64, 32]
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "toggle_even",
+          "mapping": "fan_in_first"
+        },
+        {
+          "sourceGroup": "toggle_odd",
+          "mapping": "fan_in_first"
+        }
+      ],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_toggle_target",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "activate_batch",
+          "name": "toggle_even_activate",
+          "serialRef": "toggle_even",
+          "serialFormat": "range",
+          "mode": "toggle"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_toggle_even_ticks",
+          "ticks": 3
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "toggle_even_should_stay_low",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "mountRef": "mount_toggle_target",
+          "anchorRef": "toggle_even_activate",
+          "limit": 6,
+          "tickCount": 3,
+          "template": {
+            "kind": "toggle_hold",
+            "phaseRef": "toggle_even_activate",
+            "expectedActive": false,
+            "activePower": 15
+          }
+        },
+        {
+          "kind": "activate_batch",
+          "name": "toggle_odd_first_flip",
+          "serialRef": "toggle_odd",
+          "serialFormat": "slash_list",
+          "mode": "toggle"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_toggle_on_ticks",
+          "ticks": 3
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "toggle_odd_should_turn_on",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "mountRef": "mount_toggle_target",
+          "anchorRef": "toggle_odd_first_flip",
+          "limit": 6,
+          "tickCount": 3,
+          "template": {
+            "kind": "toggle_hold",
+            "phaseRef": "toggle_odd_first_flip",
+            "expectedActive": true,
+            "activePower": 15
+          }
+        },
+        {
+          "kind": "activate_batch",
+          "name": "toggle_odd_second_flip",
+          "serialRef": "toggle_odd",
+          "serialFormat": "slash_list",
+          "mode": "toggle"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_toggle_off_ticks",
+          "ticks": 3
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "toggle_odd_should_turn_off",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "mountRef": "mount_toggle_target",
+          "anchorRef": "toggle_odd_second_flip",
+          "limit": 6,
+          "tickCount": 3,
+          "template": {
+            "kind": "toggle_hold",
+            "phaseRef": "toggle_odd_second_flip",
+            "expectedActive": false,
+            "activePower": 15
+          }
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_toggle_target",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list"
+        }
+      ]
+    }
+  ]
+}
