@@ -31,7 +31,7 @@ public final class CommandTreeSupport {
 	 * 统一“其他权限”命令组权限校验。
 	 */
 	public static boolean hasOtherCommandPermission(CommandSourceStack source) {
-		return source.hasPermission(RedstoneLinkConfig.otherCommandPermissionLevel());
+		return source.hasPermission(RedstoneLinkConfig.command().otherPermissionLevel());
 	}
 
 	/**
@@ -44,7 +44,7 @@ public final class CommandTreeSupport {
 		if (source.getPlayer() != null) {
 			return true;
 		}
-		if (RedstoneLinkConfig.commandBenchmarkModeEnabled()) {
+		if (RedstoneLinkConfig.command().benchmarkModeEnabled()) {
 			return true;
 		}
 		source.sendFailure(Component.translatable("message.redstonelink.player_only"));

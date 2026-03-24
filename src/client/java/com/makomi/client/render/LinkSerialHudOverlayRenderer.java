@@ -205,7 +205,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * 在 HUD 层绘制近距离序号外显。
 	 */
 	public static void onHudRender(GuiGraphics guiGraphics, DeltaTracker tickCounter) {
-		if (!RedstoneLinkClientDisplayConfig.isNearOverlayEnabled()) {
+		if (!RedstoneLinkClientDisplayConfig.overlay().nearOverlayEnabled()) {
 			return;
 		}
 
@@ -226,7 +226,7 @@ public final class LinkSerialHudOverlayRenderer {
 		if (serialText.isEmpty()) {
 			return;
 		}
-		double maxDistance = RedstoneLinkClientDisplayConfig.serialOverlayNearDistance();
+		double maxDistance = RedstoneLinkClientDisplayConfig.overlay().nearDistance();
 		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, pairableNodeBlockEntity, maxDistance)) {
 			return;
 		}
@@ -266,7 +266,7 @@ public final class LinkSerialHudOverlayRenderer {
 			minecraft.font,
 			displayLines,
 			textColor,
-			RedstoneLinkClientDisplayConfig.serialOverlayFontScale()
+			RedstoneLinkClientDisplayConfig.overlay().fontScale()
 		);
 	}
 

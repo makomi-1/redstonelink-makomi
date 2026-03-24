@@ -35,7 +35,7 @@ public final class LinkWriteControlCommandRegistry {
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
 			.literal("write_control")
-			.requires(source -> source.hasPermission(RedstoneLinkConfig.linkWriteProtectedManagePermissionLevel()))
+			.requires(source -> source.hasPermission(RedstoneLinkConfig.writeControl().protectedManagePermissionLevel()))
 			.then(
 				Commands
 					.literal("protected")
@@ -202,7 +202,7 @@ public final class LinkWriteControlCommandRegistry {
 		}
 
 		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
-		int maxSetSerials = RedstoneLinkConfig.writeControlProtectedSetMaxSerials();
+		int maxSetSerials = RedstoneLinkConfig.command().writeControlProtectedSetMaxSerials();
 		LinkCommandSupport.TargetParseResult parseResult = LinkCommandSupport.parseTargetSerials(rawSerials, maxSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(

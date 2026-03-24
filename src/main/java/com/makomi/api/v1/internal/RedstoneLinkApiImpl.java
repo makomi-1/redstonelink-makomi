@@ -101,7 +101,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		}
 
 		Set<Long> normalizedTargets = normalizeTargets(targets);
-		if (normalizedTargets.size() > RedstoneLinkConfig.maxTargetsPerSetLinks()) {
+		if (normalizedTargets.size() > RedstoneLinkConfig.general().maxTargetsPerSetLinks()) {
 			return LinkMutationResult.failed(REASON_TOO_MANY_TARGETS);
 		}
 
@@ -114,7 +114,7 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 
 		// setLinks 采用覆盖语义：先过滤可用目标，再按差集执行增删。
 		LinkNodeType targetNodeType = sourceType.targetTypeForLink().toInternal();
-		boolean allowOfflineBinding = RedstoneLinkConfig.allowOfflineTargetBinding();
+		boolean allowOfflineBinding = RedstoneLinkConfig.general().allowOfflineTargetBinding();
 		Set<Long> validTargets = new LinkedHashSet<>();
 		Set<Long> rejectedTargets = new LinkedHashSet<>();
 		for (long targetSerial : normalizedTargets) {
@@ -192,7 +192,10 @@ public final class RedstoneLinkApiImpl implements LinkGraphApi, TriggerApi, Quer
 		if (!targetReason.isEmpty()) {
 			return LinkMutationResult.failed(targetReason);
 		}
-		if (!RedstoneLinkConfig.allowOfflineTargetBinding() && !isTargetReachableNow(level, savedData, targetNodeType, targetSerial)) {
+		if (
+			!RedstoneLinkConfig.general().allowOfflineTargetBinding()
+			&& !isTargetReachableNow(level, savedData, targetNodeType, targetSerial)
+		) {
 			return LinkMutationResult.failed(REASON_OFFLINE_TARGETS_BLOCKED);
 		}
 

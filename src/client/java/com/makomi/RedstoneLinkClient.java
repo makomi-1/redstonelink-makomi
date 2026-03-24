@@ -98,7 +98,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 * </p>
 	 */
 	private static void registerClientKeyBindings() {
-		InputConstants.Key defaultToggleKey = RedstoneLinkClientDisplayConfig.serialOverlayToggleKey();
+		InputConstants.Key defaultToggleKey = RedstoneLinkClientDisplayConfig.overlay().toggleKey();
 		toggleSerialOverlayKey = KeyBindingHelper.registerKeyBinding(
 			new KeyMapping(
 				KEY_TOGGLE_SERIAL_OVERLAY,

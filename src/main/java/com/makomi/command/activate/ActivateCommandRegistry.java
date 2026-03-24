@@ -99,7 +99,7 @@ public final class ActivateCommandRegistry {
 			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
 			return 0;
 		}
-		int maxBatchSourceSerials = RedstoneLinkConfig.activateBatchMaxSerials();
+		int maxBatchSourceSerials = RedstoneLinkConfig.command().activateBatchMaxSerials();
 
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(
 			rawSourceSerials,

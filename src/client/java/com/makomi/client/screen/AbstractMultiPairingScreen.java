@@ -77,7 +77,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int baseY = height / 2 - 42;
 
 		serialInput = new EditBox(font, centerX - 110, baseY + 52, 220, 20, inputLabel());
-		serialInput.setMaxLength(RedstoneLinkClientDisplayConfig.pairingInputMaxLength());
+		serialInput.setMaxLength(RedstoneLinkClientDisplayConfig.pairing().inputMaxLength());
 
 		String initialInputText = joinTargets(currentTargets);
 		// 仅在非空场景回填并自动聚焦，空场景不抢焦点，避免光标跳动影响示例阅读。

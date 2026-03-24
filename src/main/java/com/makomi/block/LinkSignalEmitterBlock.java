@@ -274,7 +274,8 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		boolean hasSignal,
 		int signalStrength
 	) {
-		return wasPowered != hasSignal && RedstoneLinkConfig.emitterEdgeMode().shouldTrigger(wasPowered, hasSignal);
+		return wasPowered != hasSignal
+			&& RedstoneLinkConfig.general().emitterEdgeMode().shouldTrigger(wasPowered, hasSignal);
 	}
 
 	/**

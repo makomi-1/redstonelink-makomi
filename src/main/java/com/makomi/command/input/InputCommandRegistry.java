@@ -48,7 +48,7 @@ public final class InputCommandRegistry {
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
 			.literal("input")
-			.requires(source -> RedstoneLinkConfig.commandInputEnabled() && CommandTreeSupport.hasOtherCommandPermission(source))
+			.requires(source -> RedstoneLinkConfig.command().inputEnabled() && CommandTreeSupport.hasOtherCommandPermission(source))
 			.then(createInputStartRoot())
 			.then(
 				Commands

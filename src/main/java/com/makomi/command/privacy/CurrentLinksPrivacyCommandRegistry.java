@@ -37,7 +37,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
 			.literal("privacy")
-			.requires(source -> source.hasPermission(RedstoneLinkConfig.currentLinksPrivacyManagePermissionLevel()))
+			.requires(source -> source.hasPermission(RedstoneLinkConfig.privacy().managePermissionLevel()))
 			.then(
 				Commands
 					.literal("current_links")
@@ -197,7 +197,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 		}
 
 		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
-		int maxMaskSetSerials = RedstoneLinkConfig.currentLinksMaskSetMaxSerials();
+		int maxMaskSetSerials = RedstoneLinkConfig.command().currentLinksMaskSetMaxSerials();
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxMaskSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(

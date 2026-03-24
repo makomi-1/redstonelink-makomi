@@ -1,7 +1,6 @@
 package com.makomi.client.config;
 
 import com.makomi.RedstoneLink;
-import com.mojang.blaze3d.platform.InputConstants;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -15,41 +14,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 客户端显示配置读取器。
+ * 客户端显示配置门面。
  * <p>
- * 管理本地“序号外显 + 配对输入框”配置，不参与服务端逻辑判断。
+ * 负责本地“序号外显 + 配对输入框”配置的加载、持久化与按域访问。
  * </p>
  */
 public final class RedstoneLinkClientDisplayConfig {
 	private static final Logger LOGGER = LoggerFactory.getLogger(RedstoneLink.MOD_ID + "/client-config");
-	private static final String KEY_SERIAL_OVERLAY_ENABLED = "client.serialOverlayEnabled";
-	private static final String KEY_SERIAL_OVERLAY_MODE = "client.serialOverlayMode";
-	private static final String KEY_SERIAL_OVERLAY_MAX_DISTANCE = "client.serialOverlayMaxDistance";
-	private static final String KEY_SERIAL_OVERLAY_FONT_SCALE = "client.serialOverlayFontScale";
-	private static final String KEY_SERIAL_OVERLAY_TOGGLE_KEY = "client.serialOverlayToggleKey";
-	private static final String KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH = "client.serialOverlayFarSeeThrough";
-	private static final String KEY_PAIRING_INPUT_MAX_LENGTH = "client.pairingInputMaxLength";
-	private static final SerialOverlayMode DEFAULT_SERIAL_OVERLAY_MODE = SerialOverlayMode.FAR_ONLY;
-	private static final int DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE = 24;
-	private static final int MIN_SERIAL_OVERLAY_MAX_DISTANCE = 4;
-	private static final int MAX_SERIAL_OVERLAY_MAX_DISTANCE = 256;
-	private static final float DEFAULT_SERIAL_OVERLAY_FONT_SCALE = 1.0F;
-	private static final float MIN_SERIAL_OVERLAY_FONT_SCALE = 0.50F;
-	private static final float MAX_SERIAL_OVERLAY_FONT_SCALE = 3.00F;
-	private static final boolean DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH = false;
-	private static final int DEFAULT_PAIRING_INPUT_MAX_LENGTH = 1024;
-	private static final int MIN_PAIRING_INPUT_MAX_LENGTH = 64;
-	private static final int MAX_PAIRING_INPUT_MAX_LENGTH = 32768;
-	private static final int NEAR_OVERLAY_MAX_DISTANCE = 8;
-	private static final String DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY = "key.keyboard.k";
 	private static final Path CONFIG_PATH = resolveConfigPath();
-
-	private static volatile SerialOverlayMode serialOverlayMode = DEFAULT_SERIAL_OVERLAY_MODE;
-	private static volatile int serialOverlayMaxDistance = DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE;
-	private static volatile float serialOverlayFontScale = DEFAULT_SERIAL_OVERLAY_FONT_SCALE;
-	private static volatile InputConstants.Key serialOverlayToggleKey = InputConstants.getKey(DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY);
-	private static volatile boolean serialOverlayFarSeeThrough = DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH;
-	private static volatile int pairingInputMaxLength = DEFAULT_PAIRING_INPUT_MAX_LENGTH;
+	private static volatile RedstoneLinkClientDisplaySnapshot snapshot = RedstoneLinkClientDisplaySnapshot.defaults();
 
 	/**
 	 * 客户端序号外显模式。
@@ -110,132 +83,64 @@ public final class RedstoneLinkClientDisplayConfig {
 		Properties properties = new Properties();
 		try (Reader reader = Files.newBufferedReader(CONFIG_PATH, StandardCharsets.UTF_8)) {
 			properties.load(reader);
+			snapshot = RedstoneLinkClientDisplayParser.parse(properties, LOGGER);
+			LOGGER.info("客户端显示配置加载完成: {}", CONFIG_PATH.toAbsolutePath());
 		} catch (IOException ex) {
 			LOGGER.warn("读取客户端配置失败，回退默认值: {}", CONFIG_PATH.toAbsolutePath(), ex);
-			serialOverlayMode = DEFAULT_SERIAL_OVERLAY_MODE;
-			serialOverlayMaxDistance = DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE;
-			serialOverlayFontScale = DEFAULT_SERIAL_OVERLAY_FONT_SCALE;
-			serialOverlayFarSeeThrough = DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH;
-			pairingInputMaxLength = DEFAULT_PAIRING_INPUT_MAX_LENGTH;
-			return;
+			snapshot = RedstoneLinkClientDisplaySnapshot.defaults();
 		}
-
-		serialOverlayMode = parseOverlayMode(properties);
-		serialOverlayMaxDistance = parseInt(
-			properties,
-			KEY_SERIAL_OVERLAY_MAX_DISTANCE,
-			DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE,
-			MIN_SERIAL_OVERLAY_MAX_DISTANCE,
-			MAX_SERIAL_OVERLAY_MAX_DISTANCE
-		);
-		serialOverlayFontScale = parseFloat(
-			properties,
-			KEY_SERIAL_OVERLAY_FONT_SCALE,
-			DEFAULT_SERIAL_OVERLAY_FONT_SCALE,
-			MIN_SERIAL_OVERLAY_FONT_SCALE,
-			MAX_SERIAL_OVERLAY_FONT_SCALE
-		);
-		serialOverlayToggleKey = parseKey(
-			properties,
-			KEY_SERIAL_OVERLAY_TOGGLE_KEY,
-			DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY
-		);
-		serialOverlayFarSeeThrough = parseBoolean(
-			properties,
-			KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH,
-			DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH
-		);
-		pairingInputMaxLength = parseInt(
-			properties,
-			KEY_PAIRING_INPUT_MAX_LENGTH,
-			DEFAULT_PAIRING_INPUT_MAX_LENGTH,
-			MIN_PAIRING_INPUT_MAX_LENGTH,
-			MAX_PAIRING_INPUT_MAX_LENGTH
-		);
-		LOGGER.info("客户端显示配置加载完成: {}", CONFIG_PATH.toAbsolutePath());
 	}
 
 	/**
-	 * @return 当前外显模式
+	 * @return 客户端序号外显配置
 	 */
-	public static SerialOverlayMode serialOverlayMode() {
-		return serialOverlayMode;
+	public static RedstoneLinkClientOverlayConfig overlay() {
+		return snapshot.overlay();
 	}
 
 	/**
-	 * @return 是否启用远距离外显
+	 * @return 客户端配对界面配置
 	 */
-	public static boolean isFarOverlayEnabled() {
-		return serialOverlayMode == SerialOverlayMode.FAR_ONLY || serialOverlayMode == SerialOverlayMode.FAR_AND_NEAR;
-	}
-
-	/**
-	 * @return 是否启用近距离外显
-	 */
-	public static boolean isNearOverlayEnabled() {
-		return serialOverlayMode == SerialOverlayMode.NEAR_ONLY || serialOverlayMode == SerialOverlayMode.FAR_AND_NEAR;
-	}
-
-	/**
-	 * @return 核心粉序号外显最大可见距离（格）
-	 */
-	public static int serialOverlayMaxDistance() {
-		return serialOverlayMaxDistance;
-	}
-
-	/**
-	 * @return 序号外显字体缩放倍数
-	 */
-	public static float serialOverlayFontScale() {
-		return serialOverlayFontScale;
-	}
-
-	/**
-	 * @return 近外显判定最大距离（格）
-	 */
-	public static int serialOverlayNearDistance() {
-		return NEAR_OVERLAY_MAX_DISTANCE;
-	}
-
-	/**
-	 * @return 序号外显切换按键（客户端默认按键）
-	 */
-	public static InputConstants.Key serialOverlayToggleKey() {
-		return serialOverlayToggleKey;
-	}
-
-	/**
-	 * @return 远外显文字是否启用穿透渲染（SEE_THROUGH）
-	 */
-	public static boolean isFarOverlaySeeThroughEnabled() {
-		return serialOverlayFarSeeThrough;
-	}
-
-	/**
-	 * @return 配对输入框最大允许输入长度（字符）
-	 */
-	public static int pairingInputMaxLength() {
-		return pairingInputMaxLength;
+	public static RedstoneLinkClientPairingConfig pairing() {
+		return snapshot.pairing();
 	}
 
 	/**
 	 * 按“远 -> 近 -> 远+近 -> 关闭”切换序号外显模式，并持久化到客户端配置文件。
-	 *
-	 * @return 切换后的外显模式
 	 */
 	public static SerialOverlayMode cycleSerialOverlayMode() {
-		serialOverlayMode = serialOverlayMode.next();
+		RedstoneLinkClientOverlayConfig current = overlay();
+		snapshot = new RedstoneLinkClientDisplaySnapshot(
+			new RedstoneLinkClientOverlayConfig(
+				current.mode().next(),
+				current.maxDistance(),
+				current.fontScale(),
+				current.nearDistance(),
+				current.toggleKey(),
+				current.farSeeThrough()
+			),
+			pairing()
+		);
 		saveCurrentValues();
-		return serialOverlayMode;
+		return snapshot.overlay().mode();
 	}
 
 	/**
 	 * 更新远外显穿透显示状态，并持久化到客户端配置文件。
-	 *
-	 * @param seeThrough 是否启用穿透
 	 */
 	public static void setFarOverlaySeeThroughEnabled(boolean seeThrough) {
-		serialOverlayFarSeeThrough = seeThrough;
+		RedstoneLinkClientOverlayConfig current = overlay();
+		snapshot = new RedstoneLinkClientDisplaySnapshot(
+			new RedstoneLinkClientOverlayConfig(
+				current.mode(),
+				current.maxDistance(),
+				current.fontScale(),
+				current.nearDistance(),
+				current.toggleKey(),
+				seeThrough
+			),
+			pairing()
+		);
 		saveCurrentValues();
 	}
 
@@ -247,14 +152,7 @@ public final class RedstoneLinkClientDisplayConfig {
 			Files.createDirectories(CONFIG_PATH.getParent());
 			Files.writeString(
 				CONFIG_PATH,
-				buildConfigContent(
-					serialOverlayMode,
-					serialOverlayMaxDistance,
-					serialOverlayFontScale,
-					serialOverlayToggleKey.getName(),
-					serialOverlayFarSeeThrough,
-					pairingInputMaxLength
-				),
+				RedstoneLinkClientDisplayTemplate.buildConfigContent(snapshot),
 				StandardCharsets.UTF_8
 			);
 		} catch (IOException ex) {
@@ -288,195 +186,11 @@ public final class RedstoneLinkClientDisplayConfig {
 			Files.createDirectories(CONFIG_PATH.getParent());
 			Files.writeString(
 				CONFIG_PATH,
-				buildConfigContent(
-					DEFAULT_SERIAL_OVERLAY_MODE,
-					DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE,
-					DEFAULT_SERIAL_OVERLAY_FONT_SCALE,
-					DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY,
-					DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH,
-					DEFAULT_PAIRING_INPUT_MAX_LENGTH
-				),
+				RedstoneLinkClientDisplayTemplate.buildConfigContent(RedstoneLinkClientDisplaySnapshot.defaults()),
 				StandardCharsets.UTF_8
 			);
 		} catch (IOException ex) {
 			LOGGER.warn("写入默认客户端配置失败: {}", CONFIG_PATH.toAbsolutePath(), ex);
 		}
-	}
-
-	/**
-	 * 生成客户端配置模板文本。
-	 */
-	private static String buildConfigContent(
-		SerialOverlayMode overlayMode,
-		int overlayMaxDistance,
-		float overlayFontScale,
-		String overlayToggleKey,
-		boolean farSeeThrough,
-		int pairingInputMaxLength
-	) {
-		return """
-			# RedstoneLink client display config / RedstoneLink 客户端显示配置
-			#
-			# client.serialOverlayMode
-			# zh: 序号外显模式：far(远外显)、near(近外显)、both(远+近)、off(关闭)。
-			# en: Serial overlay mode: far, near, both, off.
-			client.serialOverlayMode=%s
-			
-			# client.serialOverlayMaxDistance
-			# zh: 远外显最大可见距离（格），范围 4~256。
-			# en: Max visible distance (blocks) for serial overlay, range 4~256.
-			client.serialOverlayMaxDistance=%s
-
-			# client.serialOverlayFontScale
-			# zh: 序号外显字体缩放倍数，范围 0.50~3.00。
-			# en: Font scale for serial overlay, range 0.50~3.00.
-			client.serialOverlayFontScale=%.2f
-			
-			# client.serialOverlayToggleKey
-			# zh: 序号外显开关按键（推荐使用 key.keyboard.k 这种完整键名，单字母如 K 也可）。
-			# en: Toggle key for serial overlay (prefer full key name like key.keyboard.k; single letter like K is also accepted).
-			client.serialOverlayToggleKey=%s
-
-			# client.serialOverlayFarSeeThrough
-			# zh: 远外显文本是否穿透方块显示（true=穿透，false=被遮挡）。
-			# en: Whether far overlay text ignores occlusion (true=see-through, false=occluded).
-			client.serialOverlayFarSeeThrough=%s
-
-			# client.pairingInputMaxLength
-			# zh: 配对输入框最大输入长度（字符），范围 64~32768，默认 1024。
-			# en: Maximum input length (chars) for pairing textbox, range 64~32768, default 1024.
-			client.pairingInputMaxLength=%s
-			""".formatted(
-				overlayMode.configToken(),
-				overlayMaxDistance,
-				overlayFontScale,
-				overlayToggleKey,
-				Boolean.toString(farSeeThrough),
-				pairingInputMaxLength
-			);
-	}
-
-	/**
-	 * 解析按键配置，支持完整键名与简写字母。
-	 */
-	private static InputConstants.Key parseKey(Properties properties, String key, String defaultValue) {
-		String raw = properties.getProperty(key);
-		String normalized = normalizeKeyName(raw);
-		InputConstants.Key parsed = InputConstants.getKey(normalized);
-		if (!InputConstants.UNKNOWN.equals(parsed)) {
-			return parsed;
-		}
-
-		String defaultNormalized = normalizeKeyName(defaultValue);
-		InputConstants.Key fallback = InputConstants.getKey(defaultNormalized);
-		LOGGER.warn("客户端配置 {}={} 非法，回退默认值 {}", key, raw, defaultNormalized);
-		return fallback;
-	}
-
-	/**
-	 * 规范化按键名称：
-	 * <p>
-	 * - `key.*` 形式原样使用；
-	 * - 单字母（如 `K`）自动映射为 `key.keyboard.k`；
-	 * - 其它输入按原值透传给 InputConstants 再校验。
-	 * </p>
-	 */
-	private static String normalizeKeyName(String raw) {
-		if (raw == null || raw.isBlank()) {
-			return DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY;
-		}
-		String trimmed = raw.trim();
-		if (trimmed.startsWith("key.")) {
-			return trimmed;
-		}
-		if (trimmed.length() == 1) {
-			char c = trimmed.charAt(0);
-			if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-				return "key.keyboard." + Character.toLowerCase(c);
-			}
-		}
-		return trimmed;
-	}
-
-	/**
-	 * 解析外显模式。
-	 * <p>
-	 * 优先读取新字段 `client.serialOverlayMode`；若缺失则兼容旧字段 `client.serialOverlayEnabled`。
-	 * </p>
-	 */
-	private static SerialOverlayMode parseOverlayMode(Properties properties) {
-		String rawMode = properties.getProperty(KEY_SERIAL_OVERLAY_MODE);
-		if (rawMode != null) {
-			Optional<SerialOverlayMode> parsed = SerialOverlayMode.tryParse(rawMode);
-			if (parsed.isPresent()) {
-				return parsed.get();
-			}
-			LOGGER.warn(
-				"客户端配置 {}={} 非法，回退默认值 {}",
-				KEY_SERIAL_OVERLAY_MODE,
-				rawMode,
-				DEFAULT_SERIAL_OVERLAY_MODE.configToken()
-			);
-			return DEFAULT_SERIAL_OVERLAY_MODE;
-		}
-
-		boolean legacyEnabled = parseBoolean(properties, KEY_SERIAL_OVERLAY_ENABLED, true);
-		return legacyEnabled ? SerialOverlayMode.FAR_ONLY : SerialOverlayMode.OFF;
-	}
-
-	/**
-	 * 解析整数配置并做区间收敛。
-	 */
-	private static int parseInt(Properties properties, String key, int defaultValue, int min, int max) {
-		String raw = properties.getProperty(key);
-		if (raw == null) {
-			return defaultValue;
-		}
-		try {
-			int value = Integer.parseInt(raw.trim());
-			if (value < min || value > max) {
-				LOGGER.warn("客户端配置 {}={} 越界，已夹紧到 [{}..{}]", key, value, min, max);
-			}
-			return Math.max(min, Math.min(max, value));
-		} catch (NumberFormatException ex) {
-			LOGGER.warn("客户端配置 {}={} 非法，回退默认值 {}", key, raw, defaultValue);
-			return defaultValue;
-		}
-	}
-
-	/**
-	 * 解析浮点配置并做区间收敛。
-	 */
-	private static float parseFloat(Properties properties, String key, float defaultValue, float min, float max) {
-		String raw = properties.getProperty(key);
-		if (raw == null) {
-			return defaultValue;
-		}
-		try {
-			float value = Float.parseFloat(raw.trim());
-			if (value < min || value > max) {
-				LOGGER.warn("客户端配置 {}={} 越界，已夹紧到 [{},{}]", key, value, min, max);
-			}
-			return Math.max(min, Math.min(max, value));
-		} catch (NumberFormatException ex) {
-			LOGGER.warn("客户端配置 {}={} 非法，回退默认值 {}", key, raw, defaultValue);
-			return defaultValue;
-		}
-	}
-
-	/**
-	 * 解析布尔配置。
-	 */
-	private static boolean parseBoolean(Properties properties, String key, boolean defaultValue) {
-		String raw = properties.getProperty(key);
-		if (raw == null) {
-			return defaultValue;
-		}
-		String normalized = raw.trim().toLowerCase(Locale.ROOT);
-		if ("true".equals(normalized) || "false".equals(normalized)) {
-			return Boolean.parseBoolean(normalized);
-		}
-		LOGGER.warn("客户端配置 {}={} 非法，回退默认值 {}", key, raw, defaultValue);
-		return defaultValue;
 	}
 }

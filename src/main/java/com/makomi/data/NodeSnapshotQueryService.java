@@ -43,7 +43,7 @@ public final class NodeSnapshotQueryService {
 		long serial
 	) {
 		ServerLevel level = player.serverLevel();
-		boolean hasViewPermission = player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel());
+		boolean hasViewPermission = player.hasPermissions(RedstoneLinkConfig.privacy().viewPermissionLevel());
 		return queryLinks(level, nodeType, serial, hasViewPermission);
 	}
 

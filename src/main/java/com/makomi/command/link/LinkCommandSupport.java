@@ -78,8 +78,8 @@ final class LinkCommandSupport {
 			sourceSerial,
 			affectedTargets,
 			setSize,
-			bypassLimitedSetSize || source.hasPermission(RedstoneLinkConfig.linkWriteLimitedPermissionLevel()),
-			source.hasPermission(RedstoneLinkConfig.linkWriteProtectedPermissionLevel())
+			bypassLimitedSetSize || source.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			source.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		if (decision.allowed()) {
 			return true;

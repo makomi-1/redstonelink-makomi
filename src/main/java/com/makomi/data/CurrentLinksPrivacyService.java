@@ -31,7 +31,7 @@ public final class CurrentLinksPrivacyService {
 			player.serverLevel(),
 			sourceType,
 			sourceSerial,
-			player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
+			player.hasPermissions(RedstoneLinkConfig.privacy().viewPermissionLevel())
 		);
 	}
 
@@ -54,7 +54,7 @@ public final class CurrentLinksPrivacyService {
 			return false;
 		}
 
-		CurrentLinksPrivacyMode mode = RedstoneLinkConfig.currentLinksPrivacyMode();
+		CurrentLinksPrivacyMode mode = RedstoneLinkConfig.privacy().mode();
 		if (mode == CurrentLinksPrivacyMode.HIDDEN) {
 			return false;
 		}
@@ -80,7 +80,7 @@ public final class CurrentLinksPrivacyService {
 	) {
 		ServerLevel level = player == null ? null : player.serverLevel();
 		boolean hasViewPermission = player != null
-			&& player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel());
+			&& player.hasPermissions(RedstoneLinkConfig.privacy().viewPermissionLevel());
 		return resolveVisibleLinksSnapshot(level, sourceType, sourceSerial, linkedTargets, hasViewPermission);
 	}
 
@@ -151,7 +151,7 @@ public final class CurrentLinksPrivacyService {
 		if (normalizedTargets.isEmpty()) {
 			return List.of();
 		}
-		CurrentLinksPrivacyMode mode = RedstoneLinkConfig.currentLinksPrivacyMode();
+		CurrentLinksPrivacyMode mode = RedstoneLinkConfig.privacy().mode();
 		if (mode == CurrentLinksPrivacyMode.PLAIN) {
 			return normalizedTargets;
 		}

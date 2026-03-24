@@ -44,16 +44,16 @@ public class RedstoneLink implements ModInitializer {
 		InternalDispatchDeltaProjector.register();
 		LinkNodeLifecycleDispatchEvents.register();
 		LinkNodeRetireEvents.register();
-		if (RedstoneLinkConfig.commandNodeTraceEnabled()) {
+		if (RedstoneLinkConfig.command().nodeTraceEnabled()) {
 			NodeStateTraceService.register();
 		}
-		if (RedstoneLinkConfig.commandInputEnabled()) {
+		if (RedstoneLinkConfig.command().inputEnabled()) {
 			InputPlaybackService.register();
 		}
-		if (RedstoneLinkConfig.runtimeCoreLoadResyncEnabled()) {
+		if (RedstoneLinkConfig.runtime().coreLoadResyncEnabled()) {
 			CoreBlockStateResyncService.register();
 		}
-		if (RedstoneLinkConfig.runtimeTriggerSourceLoadResyncEnabled()) {
+		if (RedstoneLinkConfig.runtime().triggerSourceLoadResyncEnabled()) {
 			TriggerSourceInputStateResyncService.register();
 		}
 		CrossChunkDispatchService.register();

@@ -59,7 +59,7 @@ public final class RetireBatchCommandRegistry {
 		}
 
 		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
-		int maxBatchRetireSerials = RedstoneLinkConfig.retireBatchMaxSerials();
+		int maxBatchRetireSerials = RedstoneLinkConfig.command().retireBatchMaxSerials();
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxBatchRetireSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(

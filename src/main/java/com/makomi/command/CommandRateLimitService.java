@@ -89,12 +89,12 @@ public final class CommandRateLimitService {
 	 * @return true=允许执行；false=触发限流
 	 */
 	public static boolean tryAcquire(CommandSourceStack source, CommandGroup group, int cost) {
-		if (source == null || group == null || !RedstoneLinkConfig.commandRateLimitEnabled()) {
+		if (source == null || group == null || !RedstoneLinkConfig.rateLimit().enabled()) {
 			return true;
 		}
 
 		int normalizedCost = Math.max(1, cost);
-		int windowTicks = RedstoneLinkConfig.commandRateLimitWindowTicks();
+		int windowTicks = RedstoneLinkConfig.rateLimit().windowTicks();
 		long nowTick = source.getLevel().getGameTime();
 		int permissionLevel = resolvePermissionLevel(source);
 		ActorKey actorKey = resolveActorKey(source, permissionLevel);
@@ -102,12 +102,12 @@ public final class CommandRateLimitService {
 
 		cleanupIfNeeded(nowTick, windowTicks);
 
-		int globalCapacity = RedstoneLinkConfig.commandRateLimitGlobalCapacity();
+		int globalCapacity = RedstoneLinkConfig.rateLimit().globalCapacity();
 		if (!GLOBAL_COUNTER.canConsume(nowTick, windowTicks, globalCapacity, normalizedCost)) {
 			return false;
 		}
 
-		int tierCapacity = RedstoneLinkConfig.commandRateLimitTierCapacity(permissionLevel);
+		int tierCapacity = RedstoneLinkConfig.rateLimit().tierCapacity(permissionLevel);
 		WindowCounter tierCounter = TIER_COUNTERS.get(permissionLevel);
 		if (tierCounter == null) {
 			tierCounter = new WindowCounter();
@@ -116,7 +116,7 @@ public final class CommandRateLimitService {
 			return false;
 		}
 
-		int actorCapacity = RedstoneLinkConfig.commandRateLimitActorCapacity(permissionLevel);
+		int actorCapacity = RedstoneLinkConfig.rateLimit().actorCapacity(permissionLevel);
 		WindowCounter actorCounter = ACTOR_COUNTERS.get(actorKey);
 		if (actorCounter == null) {
 			actorCounter = new WindowCounter();
@@ -150,9 +150,9 @@ public final class CommandRateLimitService {
 	 */
 	private static int resolveActorGroupCapacity(int permissionLevel, CommandGroup group) {
 		return switch (group) {
-			case LINK_RW -> RedstoneLinkConfig.commandRateLimitActorLinkRwCapacity(permissionLevel);
-			case CROSSCHUNK -> RedstoneLinkConfig.commandRateLimitActorCrossChunkCapacity(permissionLevel);
-			case OTHER -> RedstoneLinkConfig.commandRateLimitActorOtherCapacity(permissionLevel);
+			case LINK_RW -> RedstoneLinkConfig.rateLimit().actorLinkRwCapacity(permissionLevel);
+			case CROSSCHUNK -> RedstoneLinkConfig.rateLimit().actorCrossChunkCapacity(permissionLevel);
+			case OTHER -> RedstoneLinkConfig.rateLimit().actorOtherCapacity(permissionLevel);
 		};
 	}
 

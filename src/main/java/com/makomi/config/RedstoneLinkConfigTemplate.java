@@ -327,7 +327,7 @@ final class RedstoneLinkConfigTemplate {
 			# crosschunk.retry.dropThreshold
 			# zh: 非持久事件派发失败重试丢弃阈值（次数），0=关闭。
 			# en: Drop threshold for non-persistent retry failures, 0=disabled.
-			crosschunk.retry.dropThreshold=100
+			crosschunk.retry.dropThreshold=2000
 
 			# crosschunk.retry.stage1.maxAttempts
 			# zh: 第 1 段最大失败次数（含）。默认 1~99 次失败使用第 1 段间隔。

@@ -117,7 +117,7 @@ public final class TriggerSourceInputStateResyncService {
 		if (server == null) {
 			return;
 		}
-		int maxRetry = RedstoneLinkConfig.runtimeLoadResyncMaxRetry();
+		int maxRetry = RedstoneLinkConfig.runtime().loadResyncMaxRetry();
 		List<PendingChunkTask> pendingTasks;
 		synchronized (PENDING_TASKS_BY_SERVER) {
 			if (!STARTED_SERVERS.contains(server)) {

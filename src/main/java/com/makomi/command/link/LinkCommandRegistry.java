@@ -163,7 +163,7 @@ public final class LinkCommandRegistry {
 			source.getLevel(),
 			type,
 			serial,
-			source.hasPermission(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
+			source.hasPermission(RedstoneLinkConfig.privacy().viewPermissionLevel())
 		);
 		source.sendSuccess(
 			() -> Component.translatable(
@@ -202,12 +202,12 @@ public final class LinkCommandRegistry {
 
 		Set<Long> targets;
 		String rawTargets = "";
-		int maxTargets = RedstoneLinkConfig.maxTargetsPerSetLinks();
+		int maxTargets = RedstoneLinkConfig.general().maxTargetsPerSetLinks();
 		if (!hasTargets) {
 			targets = Set.of();
 		} else {
 			rawTargets = SerialBatchArgumentType.getSerialBatch(context, "targets");
-			int maxInputLength = RedstoneLinkConfig.linkSetMaxInputLength();
+			int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
 			if (rawTargets.length() > maxInputLength) {
 				source.sendFailure(Component.translatable("message.redstonelink.link.set.input_too_long", maxInputLength));
 				return 0;
@@ -287,7 +287,7 @@ public final class LinkCommandRegistry {
 			);
 			return 0;
 		}
-		boolean allowOfflineBinding = RedstoneLinkConfig.allowOfflineTargetBinding();
+		boolean allowOfflineBinding = RedstoneLinkConfig.general().allowOfflineTargetBinding();
 		if (!allowOfflineBinding && !offlineTargets.isEmpty()) {
 			source.sendFailure(
 				Component.translatable(
@@ -463,7 +463,7 @@ public final class LinkCommandRegistry {
 			return 0;
 		}
 		boolean targetOffline = savedData.findNode(targetType, targetSerial).isEmpty();
-		if (targetOffline && !RedstoneLinkConfig.allowOfflineTargetBinding()) {
+		if (targetOffline && !RedstoneLinkConfig.general().allowOfflineTargetBinding()) {
 			source.sendFailure(Component.translatable("message.redstonelink.offline_targets_blocked", Long.toString(targetSerial)));
 			return 0;
 		}

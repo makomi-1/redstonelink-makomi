@@ -105,7 +105,7 @@ public final class LinkedTargetDispatchService {
 		if (summary == null || !summary.hasForceLoadHandled()) {
 			return List.of();
 		}
-		int displayLimit = RedstoneLinkConfig.crossChunkNotifyMode() == RedstoneLinkConfig.CrossChunkNotifyMode.DETAILED
+		int displayLimit = RedstoneLinkConfig.crossChunk().notifyMode() == RedstoneLinkConfig.CrossChunkNotifyMode.DETAILED
 			? 50
 			: 3;
 		List<Component> lines = new ArrayList<>();
@@ -292,15 +292,15 @@ public final class LinkedTargetDispatchService {
 		int handledCount,
 		long startNs
 	) {
-		if (dispatchKind != DispatchKind.SYNC_SIGNAL || sourceLevel == null || !RedstoneLinkConfig.runtimeDiagEnabled()) {
+		if (dispatchKind != DispatchKind.SYNC_SIGNAL || sourceLevel == null || !RedstoneLinkConfig.crossChunk().runtimeDiagEnabled()) {
 			return;
 		}
 		long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
-		long thresholdMs = RedstoneLinkConfig.runtimeDiagWarnThresholdMs();
+		long thresholdMs = RedstoneLinkConfig.crossChunk().runtimeDiagWarnThresholdMs();
 		if (elapsedMs < thresholdMs) {
 			return;
 		}
-		if (!RedstoneLinkConfig.runtimeDiagFanoutCountersEnabled()) {
+		if (!RedstoneLinkConfig.crossChunk().runtimeDiagFanoutCountersEnabled()) {
 			RedstoneLink.LOGGER.warn(
 				"[DiagRuntime] sync_fanout_slow source={}#{}, targetType={}, totalTargets={}, pendingTargets={}, handled={}, forceLoadHandled={}, relayHandled={}, elapsedMs={}, thresholdMs={}, dimension={}",
 				LinkNodeSemantics.toSemanticName(sourceType),

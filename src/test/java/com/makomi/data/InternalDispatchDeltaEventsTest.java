@@ -6,7 +6,7 @@ import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.block.entity.SyncReplaySourceBlockEntity;
-import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.config.RedstoneLinkConfigTestHelper;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Properties;
@@ -249,22 +249,7 @@ class InternalDispatchDeltaEventsTest {
 	}
 
 	private static void withCrossChunkConfig(Properties properties, ThrowingRunnable action) throws Exception {
-		Field field = RedstoneLinkConfig.class.getDeclaredField("crossChunkValues");
-		field.setAccessible(true);
-		Object previous = field.get(null);
-		Object snapshot = parseCrossChunkValues(properties);
-		try {
-			field.set(null, snapshot);
-			action.run();
-		} finally {
-			field.set(null, previous);
-		}
-	}
-
-	private static Object parseCrossChunkValues(Properties properties) throws Exception {
-		Method parseMethod = RedstoneLinkConfig.class.getDeclaredMethod("parseCrossChunk", Properties.class);
-		parseMethod.setAccessible(true);
-		return parseMethod.invoke(null, properties);
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, action::run);
 	}
 
 	private static ServerLevel dummyServerLevel() {

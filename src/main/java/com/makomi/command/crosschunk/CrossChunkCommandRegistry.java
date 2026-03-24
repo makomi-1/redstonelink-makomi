@@ -47,8 +47,8 @@ public final class CrossChunkCommandRegistry {
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
 			.literal("crosschunk")
-			.requires(source -> RedstoneLinkConfig.crossChunkCommandEnabled()
-				&& source.hasPermission(RedstoneLinkConfig.crossChunkCommandPermissionLevel()))
+			.requires(source -> RedstoneLinkConfig.crossChunk().commandEnabled()
+				&& source.hasPermission(RedstoneLinkConfig.crossChunk().commandPermissionLevel()))
 			.then(
 				Commands
 					.literal("whitelist")
@@ -389,7 +389,7 @@ public final class CrossChunkCommandRegistry {
 		}
 
 		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
-		int maxWhitelistSetSerials = RedstoneLinkConfig.crossChunkWhitelistSetMaxSerials();
+		int maxWhitelistSetSerials = RedstoneLinkConfig.command().crossChunkWhitelistSetMaxSerials();
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxWhitelistSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
 			source.sendFailure(Component.translatable(
@@ -524,7 +524,7 @@ public final class CrossChunkCommandRegistry {
 		) {
 			return 0;
 		}
-		List<String> presetNames = RedstoneLinkConfig.crossChunkPresetNames();
+		List<String> presetNames = RedstoneLinkConfig.crossChunk().presetNames();
 		if (presetNames.isEmpty()) {
 			source.sendSuccess(
 				() -> Component.translatable("message.redstonelink.crosschunk.preset.none"),
@@ -554,7 +554,7 @@ public final class CrossChunkCommandRegistry {
 			return 0;
 		}
 		String presetName = StringArgumentType.getString(context, "name");
-		Optional<CrossChunkPreset> preset = RedstoneLinkConfig.crossChunkPreset(presetName);
+		Optional<CrossChunkPreset> preset = RedstoneLinkConfig.crossChunk().preset(presetName);
 		if (preset.isEmpty()) {
 			source.sendFailure(Component.translatable("message.redstonelink.crosschunk.preset.not_found", presetName));
 			return 0;
@@ -629,8 +629,8 @@ public final class CrossChunkCommandRegistry {
 		}
 		String semanticTypeName = LinkNodeSemantics.toSemanticName(parsedType);
 		Set<LinkNodeType> allowedTypes = role == LinkNodeSemantics.Role.SOURCE
-			? RedstoneLinkConfig.crossChunkAllowedSourceTypes()
-			: RedstoneLinkConfig.crossChunkAllowedTargetTypes();
+			? RedstoneLinkConfig.crossChunk().allowedSourceTypes()
+			: RedstoneLinkConfig.crossChunk().allowedTargetTypes();
 		var semanticResult = LinkNodeSemantics.resolveStrictTypeForRole(semanticTypeName, role, allowedTypes);
 		if (semanticResult.isSuccess()) {
 			return semanticResult.value();

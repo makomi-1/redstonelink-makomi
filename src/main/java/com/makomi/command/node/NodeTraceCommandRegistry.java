@@ -48,7 +48,7 @@ public final class NodeTraceCommandRegistry {
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
 			.literal("trace")
-			.requires(source -> RedstoneLinkConfig.commandNodeTraceEnabled() && CommandTreeSupport.hasOtherCommandPermission(source))
+			.requires(source -> RedstoneLinkConfig.command().nodeTraceEnabled() && CommandTreeSupport.hasOtherCommandPermission(source))
 			.then(
 				Commands
 					.literal("mount")

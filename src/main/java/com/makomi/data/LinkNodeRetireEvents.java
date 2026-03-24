@@ -292,11 +292,11 @@ public final class LinkNodeRetireEvents {
 		String outcome,
 		long startNs
 	) {
-		if (!RedstoneLinkConfig.runtimeDiagEnabled()) {
+		if (!RedstoneLinkConfig.crossChunk().runtimeDiagEnabled()) {
 			return;
 		}
 		long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
-		long thresholdMs = RedstoneLinkConfig.runtimeDiagWarnThresholdMs();
+		long thresholdMs = RedstoneLinkConfig.crossChunk().runtimeDiagWarnThresholdMs();
 		if (elapsedMs < thresholdMs) {
 			return;
 		}
@@ -324,11 +324,11 @@ public final class LinkNodeRetireEvents {
 		int remainingEntries,
 		long startNs
 	) {
-		if (!RedstoneLinkConfig.runtimeDiagEnabled()) {
+		if (!RedstoneLinkConfig.crossChunk().runtimeDiagEnabled()) {
 			return;
 		}
 		long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
-		long thresholdMs = RedstoneLinkConfig.runtimeDiagWarnThresholdMs();
+		long thresholdMs = RedstoneLinkConfig.crossChunk().runtimeDiagWarnThresholdMs();
 		if (elapsedMs < thresholdMs) {
 			return;
 		}

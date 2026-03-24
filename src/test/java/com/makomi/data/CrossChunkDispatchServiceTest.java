@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.config.RedstoneLinkConfigTestHelper;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -440,7 +441,7 @@ class CrossChunkDispatchServiceTest {
 		Object retryState = retryStateConstructor.newInstance();
 		Field attemptsField = retryStateClass.getDeclaredField("attempts");
 		attemptsField.setAccessible(true);
-		attemptsField.setInt(retryState, Math.max(0, RedstoneLinkConfig.crossChunkRetryDropThreshold() - 1));
+		attemptsField.setInt(retryState, Math.max(0, RedstoneLinkConfig.crossChunk().retry().dropThreshold() - 1));
 
 		Class<?> pendingAttemptKeyClass = Class.forName("com.makomi.data.CrossChunkDispatchService$PendingAttemptKey");
 		Constructor<?> pendingAttemptKeyConstructor = pendingAttemptKeyClass.getDeclaredConstructor(
@@ -905,22 +906,7 @@ class CrossChunkDispatchServiceTest {
 	}
 
 	private static void withCrossChunkConfig(Properties properties, ThrowingRunnable action) throws Exception {
-		Field field = RedstoneLinkConfig.class.getDeclaredField("crossChunkValues");
-		field.setAccessible(true);
-		Object previous = field.get(null);
-		Object snapshot = parseCrossChunkValues(properties);
-		try {
-			field.set(null, snapshot);
-			action.run();
-		} finally {
-			field.set(null, previous);
-		}
-	}
-
-	private static Object parseCrossChunkValues(Properties properties) throws Exception {
-		Method parseMethod = RedstoneLinkConfig.class.getDeclaredMethod("parseCrossChunk", Properties.class);
-		parseMethod.setAccessible(true);
-		return parseMethod.invoke(null, properties);
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, action::run);
 	}
 
 	@FunctionalInterface

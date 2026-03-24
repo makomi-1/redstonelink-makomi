@@ -201,7 +201,7 @@ public class LinkCoreBlock extends BaseEntityBlock {
 		if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
 			return coreBlockEntity.getResolvedOutputPower();
 		}
-		return state.getValue(ACTIVE) ? RedstoneLinkConfig.coreOutputPower() : 0;
+		return state.getValue(ACTIVE) ? RedstoneLinkConfig.general().coreOutputPower() : 0;
 	}
 
 }

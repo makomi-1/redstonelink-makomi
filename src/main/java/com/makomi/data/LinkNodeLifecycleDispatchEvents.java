@@ -83,7 +83,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 			linkedNodeCount++;
 			linkedPeerCount += linkedPeers.size();
 			if (online) {
-				if (RedstoneLinkConfig.crossChunkSyncTargetChunkLoadReplayEnabled()) {
+				if (RedstoneLinkConfig.crossChunk().syncTargetChunkLoadReplayEnabled()) {
 					InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoad(level, nodeType, serial, linkedPeers);
 				}
 				continue;
@@ -193,7 +193,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 			return;
 		}
 
-		int budget = Math.max(1, RedstoneLinkConfig.crossChunkDispatchMaxPerTick());
+		int budget = Math.max(1, RedstoneLinkConfig.crossChunk().dispatchMaxPerTick());
 		int consumed = 0;
 		LinkedHashMap<StartupReplayKey, StartupReplayTask> retryQueue = new LinkedHashMap<>();
 		Iterator<Map.Entry<StartupReplayKey, StartupReplayTask>> iterator = state.pendingStartupChunkLoadReplays.entrySet().iterator();
@@ -260,11 +260,11 @@ public final class LinkNodeLifecycleDispatchEvents {
 		int linkedPeerCount,
 		long startNs
 	) {
-		if (!RedstoneLinkConfig.runtimeDiagEnabled()) {
+		if (!RedstoneLinkConfig.crossChunk().runtimeDiagEnabled()) {
 			return;
 		}
 		long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
-		long thresholdMs = RedstoneLinkConfig.runtimeDiagWarnThresholdMs();
+		long thresholdMs = RedstoneLinkConfig.crossChunk().runtimeDiagWarnThresholdMs();
 		if (elapsedMs < thresholdMs) {
 			return;
 		}

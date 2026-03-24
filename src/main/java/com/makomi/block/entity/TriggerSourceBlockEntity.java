@@ -107,7 +107,7 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 			sendPlayerMessage(player, Component.translatable("message.redstonelink.no_reachable_targets"));
 			return;
 		}
-		if (RedstoneLinkConfig.crossChunkNotifyEnabled() && dispatchSummary.hasForceLoadHandled()) {
+		if (RedstoneLinkConfig.crossChunk().notifyEnabled() && dispatchSummary.hasForceLoadHandled()) {
 			for (Component line : LinkedTargetDispatchService.buildCrossChunkNotifyMessages(dispatchSummary)) {
 				sendPlayerMessage(player, line);
 			}

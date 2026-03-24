@@ -271,7 +271,7 @@ public class LinkerItem extends Item implements PairableItem {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.no_reachable_targets"));
 			return;
 		}
-		if (RedstoneLinkConfig.crossChunkNotifyEnabled() && dispatchSummary.hasCrossChunkHandled()) {
+		if (RedstoneLinkConfig.crossChunk().notifyEnabled() && dispatchSummary.hasCrossChunkHandled()) {
 			for (Component line : LinkedTargetDispatchService.buildCrossChunkNotifyMessages(dispatchSummary)) {
 				serverPlayer.sendSystemMessage(line);
 			}

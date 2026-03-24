@@ -485,7 +485,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	protected int getPulseDurationTicks() {
-		return RedstoneLinkConfig.pulseDurationTicks();
+		return RedstoneLinkConfig.general().pulseDurationTicks();
 	}
 
 	protected abstract void onActiveChanged(boolean active);
@@ -532,7 +532,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 默认激活输出功率（TOGGLE/PULSE 生效）。
 	 */
 	protected int getDefaultActiveOutputPower() {
-		return normalizeSignalStrength(RedstoneLinkConfig.coreOutputPower());
+		return normalizeSignalStrength(RedstoneLinkConfig.general().coreOutputPower());
 	}
 
 	/**

@@ -53,7 +53,7 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 		int packedLight,
 		int packedOverlay
 	) {
-		if (!RedstoneLinkClientDisplayConfig.isFarOverlayEnabled()) {
+		if (!RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
 			return;
 		}
 
@@ -67,7 +67,7 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 		int backgroundGlyphColor = withAlpha(textColor, 0x00);
 
 		Minecraft minecraft = Minecraft.getInstance();
-		int maxDistance = RedstoneLinkClientDisplayConfig.serialOverlayMaxDistance();
+		int maxDistance = RedstoneLinkClientDisplayConfig.overlay().maxDistance();
 		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
 			return;
 		}
@@ -82,7 +82,7 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 			applyTopBillboardTransform(poseStack, minecraft);
 		}
 
-		float textScale = TEXT_SCALE * RedstoneLinkClientDisplayConfig.serialOverlayFontScale();
+		float textScale = TEXT_SCALE * RedstoneLinkClientDisplayConfig.overlay().fontScale();
 		poseStack.scale(textScale, -textScale, textScale);
 
 		float textStartX = -font.width(displayText) / 2.0F;
@@ -100,7 +100,7 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 			BACKGROUND_COLOR,
 			FULL_BRIGHT
 		);
-		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.isFarOverlaySeeThroughEnabled()
+		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.overlay().farSeeThrough()
 			? Font.DisplayMode.SEE_THROUGH
 			: Font.DisplayMode.POLYGON_OFFSET;
 		poseStack.pushPose();
@@ -124,7 +124,7 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 
 	@Override
 	public int getViewDistance() {
-		return RedstoneLinkClientDisplayConfig.serialOverlayMaxDistance();
+		return RedstoneLinkClientDisplayConfig.overlay().maxDistance();
 	}
 
 	/**

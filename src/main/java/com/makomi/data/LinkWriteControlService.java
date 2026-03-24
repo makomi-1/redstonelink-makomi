@@ -47,8 +47,8 @@ public final class LinkWriteControlService {
 			sourceSerial,
 			affectedTargets,
 			setSize,
-			player.hasPermissions(RedstoneLinkConfig.linkWriteLimitedPermissionLevel()),
-			player.hasPermissions(RedstoneLinkConfig.linkWriteProtectedPermissionLevel())
+			player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 	}
 
@@ -73,9 +73,9 @@ public final class LinkWriteControlService {
 		boolean hasLimitedBypassPermission,
 		boolean hasProtectedBypassPermission
 	) {
-		LinkWriteControlMode mode = RedstoneLinkConfig.linkWriteControlMode();
+		LinkWriteControlMode mode = RedstoneLinkConfig.writeControl().mode();
 		if (mode == LinkWriteControlMode.READONLY) {
-			return WriteDecision.denyReadonly(RedstoneLinkConfig.commandPermissionLevel());
+			return WriteDecision.denyReadonly(RedstoneLinkConfig.command().permissionLevel());
 		}
 		// full 模式语义：不受受控名单约束，直接放行。
 		if (mode == LinkWriteControlMode.FULL) {
@@ -83,14 +83,14 @@ public final class LinkWriteControlService {
 		}
 
 		int normalizedSetSize = Math.max(0, setSize);
-		int limitedMaxSetSize = RedstoneLinkConfig.linkWriteLimitedMaxSetSize();
+		int limitedMaxSetSize = RedstoneLinkConfig.writeControl().limitedMaxSetSize();
 		if (mode == LinkWriteControlMode.LIMITED
 			&& normalizedSetSize > limitedMaxSetSize
 			&& !hasLimitedBypassPermission) {
 			return WriteDecision.denyLimited(
 				normalizedSetSize,
 				limitedMaxSetSize,
-				RedstoneLinkConfig.linkWriteLimitedPermissionLevel()
+				RedstoneLinkConfig.writeControl().limitedPermissionLevel()
 			);
 		}
 
@@ -99,7 +99,7 @@ public final class LinkWriteControlService {
 		}
 
 		LinkWriteProtectedSavedData protectedSavedData = LinkWriteProtectedSavedData.get(level);
-		int requiredProtectedPermission = RedstoneLinkConfig.linkWriteProtectedPermissionLevel();
+		int requiredProtectedPermission = RedstoneLinkConfig.writeControl().protectedPermissionLevel();
 		if (protectedSavedData.contains(sourceType, sourceSerial) && !hasProtectedBypassPermission) {
 			return WriteDecision.denyProtected(sourceType, sourceSerial, requiredProtectedPermission);
 		}

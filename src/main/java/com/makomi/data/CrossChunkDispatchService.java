@@ -380,7 +380,7 @@ public final class CrossChunkDispatchService {
 				expireTick,
 				1L
 			);
-		boolean queueEnabled = RedstoneLinkConfig.crossChunkQueueEnabled();
+		boolean queueEnabled = RedstoneLinkConfig.crossChunk().queueEnabled();
 		boolean canForceLoad = shouldForceLoad(sourceLevel, pendingPreview);
 		if (!queueEnabled && !canForceLoad) {
 			return QueueResult.rejected();
@@ -423,7 +423,7 @@ public final class CrossChunkDispatchService {
 		long enqueueGameTick,
 		int enqueueGameSlot
 	) {
-		long ttlTicks = RedstoneLinkConfig.crossChunkQueueDefaultTtlTicks();
+		long ttlTicks = RedstoneLinkConfig.crossChunk().queueDefaultTtlTicks();
 		return queueDispatch(
 			sourceLevel,
 			targetNode,
@@ -450,7 +450,7 @@ public final class CrossChunkDispatchService {
 		long enqueueGameTick,
 		int enqueueGameSlot
 	) {
-		long ttlTicks = RedstoneLinkConfig.crossChunkQueueDefaultTtlTicks();
+		long ttlTicks = RedstoneLinkConfig.crossChunk().queueDefaultTtlTicks();
 		return queueDispatch(
 			sourceLevel,
 			targetNode,
@@ -477,7 +477,7 @@ public final class CrossChunkDispatchService {
 		long enqueueGameTick,
 		int enqueueGameSlot
 	) {
-		long ttlTicks = RedstoneLinkConfig.crossChunkQueueDefaultTtlTicks();
+		long ttlTicks = RedstoneLinkConfig.crossChunk().queueDefaultTtlTicks();
 		return queueDispatch(
 			sourceLevel,
 			targetNode,
@@ -549,7 +549,7 @@ public final class CrossChunkDispatchService {
 				expireTick,
 				1L
 			);
-		boolean queueEnabled = RedstoneLinkConfig.crossChunkQueueEnabled();
+		boolean queueEnabled = RedstoneLinkConfig.crossChunk().queueEnabled();
 		boolean canForceLoad = shouldForceLoad(sourceLevel, pendingPreview);
 		// 最终接管判定：持久队列开启或可进入强制加载链路，满足其一即可接管。
 		if (!queueEnabled && !canForceLoad) {
@@ -613,7 +613,7 @@ public final class CrossChunkDispatchService {
 		long gameTime = Math.max(0L, enqueueGameTick);
 		int gameSlot = Math.max(0, enqueueGameSlot);
 		long expireTick = resolveExpireTick(gameTime, ttlTicks);
-		boolean queueEnabled = RedstoneLinkConfig.crossChunkQueueEnabled();
+		boolean queueEnabled = RedstoneLinkConfig.crossChunk().queueEnabled();
 		List<QueueResult> queueResults = new ArrayList<>(targetNodes.size());
 		List<BatchCandidate> candidates = new ArrayList<>(targetNodes.size());
 		List<CrossChunkDispatchQueueSavedData.PendingUpsertRequest> requests = new ArrayList<>();
@@ -694,12 +694,12 @@ public final class CrossChunkDispatchService {
 	}
 
 	private static long resolveSyncTtlTicks(int normalizedStrength) {
-		if (RedstoneLinkConfig.crossChunkSyncSignalPersistent()) {
+		if (RedstoneLinkConfig.crossChunk().syncSignalPersistent()) {
 			return Long.MAX_VALUE;
 		}
 		return normalizedStrength > 0
-			? RedstoneLinkConfig.crossChunkSyncSignalTtlTicks()
-			: RedstoneLinkConfig.crossChunkQueueDefaultTtlTicks();
+			? RedstoneLinkConfig.crossChunk().syncSignalTtlTicks()
+			: RedstoneLinkConfig.crossChunk().queueDefaultTtlTicks();
 	}
 
 	private static ActivationQueuePolicy resolveActivationQueuePolicy(ActivationMode activationMode) {
@@ -707,16 +707,16 @@ public final class CrossChunkDispatchService {
 		if (normalizedMode == ActivationMode.PULSE) {
 			return new ActivationQueuePolicy(
 				CrossChunkDispatchQueueSavedData.DispatchKind.PULSE_EVENT,
-				RedstoneLinkConfig.crossChunkActivationPulseRelayEnabled(),
-				RedstoneLinkConfig.crossChunkActivationPulsePersistentExperimental(),
-				RedstoneLinkConfig.crossChunkActivationPulseTtlTicks()
+				RedstoneLinkConfig.crossChunk().activationPulseRelayEnabled(),
+				RedstoneLinkConfig.crossChunk().activationPulsePersistentExperimental(),
+				RedstoneLinkConfig.crossChunk().activationPulseTtlTicks()
 			);
 		}
 		return new ActivationQueuePolicy(
 			CrossChunkDispatchQueueSavedData.DispatchKind.TOGGLE_EVENT,
-			RedstoneLinkConfig.crossChunkActivationToggleRelayEnabled(),
-			RedstoneLinkConfig.crossChunkActivationTogglePersistentExperimental(),
-			RedstoneLinkConfig.crossChunkActivationToggleTtlTicks()
+			RedstoneLinkConfig.crossChunk().activationToggleRelayEnabled(),
+			RedstoneLinkConfig.crossChunk().activationTogglePersistentExperimental(),
+			RedstoneLinkConfig.crossChunk().activationToggleTtlTicks()
 		);
 	}
 
@@ -799,7 +799,7 @@ public final class CrossChunkDispatchService {
 		}
 		pruneRetryStateBySnapshot(state, snapshot);
 
-		int budget = Math.max(1, RedstoneLinkConfig.crossChunkDispatchMaxPerTick());
+		int budget = Math.max(1, RedstoneLinkConfig.crossChunk().dispatchMaxPerTick());
 		int snapshotSize = snapshot.size();
 		int startIndex = Math.floorMod(state.pendingCursor, snapshotSize);
 		int processed = 0;
@@ -990,7 +990,7 @@ public final class CrossChunkDispatchService {
 			removePendingAttemptFromWakeIndex(state, attemptKey, retryState);
 		}
 
-		int warnThreshold = RedstoneLinkConfig.crossChunkRetryWarnThreshold();
+		int warnThreshold = RedstoneLinkConfig.crossChunk().retry().warnThreshold();
 		if (!unlimitedPending && warnThreshold > 0 && retryState.attempts >= warnThreshold && !retryState.warnLogged) {
 			retryState.warnLogged = true;
 			RedstoneLink.LOGGER.warn(
@@ -1005,7 +1005,7 @@ public final class CrossChunkDispatchService {
 			);
 		}
 
-		int errorThreshold = RedstoneLinkConfig.crossChunkRetryErrorThreshold();
+		int errorThreshold = RedstoneLinkConfig.crossChunk().retry().errorThreshold();
 		if (!unlimitedPending && errorThreshold > 0 && retryState.attempts >= errorThreshold && !retryState.errorLogged) {
 			retryState.errorLogged = true;
 			RedstoneLink.LOGGER.error(
@@ -1020,9 +1020,9 @@ public final class CrossChunkDispatchService {
 			);
 		}
 
-		int dropThreshold = RedstoneLinkConfig.crossChunkRetryDropThreshold();
+		int dropThreshold = RedstoneLinkConfig.crossChunk().retry().dropThreshold();
 		if (unlimitedPending) {
-			int retryStage = RedstoneLinkConfig.crossChunkRetryPersistentStageIndex(retryState.attempts);
+			int retryStage = RedstoneLinkConfig.crossChunk().retry().persistentStageIndex(retryState.attempts);
 			if (retryStage > 1 && !retryState.stagedBackoffLogged) {
 				retryState.stagedBackoffLogged = true;
 				RedstoneLink.LOGGER.warn(
@@ -1035,7 +1035,7 @@ public final class CrossChunkDispatchService {
 					pending.version(),
 					retryState.attempts,
 					retryStage,
-					RedstoneLinkConfig.crossChunkRetryPersistentIntervalTicks(retryState.attempts)
+					RedstoneLinkConfig.crossChunk().retry().persistentIntervalTicks(retryState.attempts)
 				);
 			}
 			return false;
@@ -1115,7 +1115,7 @@ public final class CrossChunkDispatchService {
 	 * 根据失败次数决定持久 pending 下一次重试间隔（分段递增）。
 	 */
 	private static long resolvePersistentRetryIntervalTicks(int attempts) {
-		return Math.max(1L, RedstoneLinkConfig.crossChunkRetryPersistentIntervalTicks(attempts));
+		return Math.max(1L, RedstoneLinkConfig.crossChunk().retry().persistentIntervalTicks(attempts));
 	}
 
 	/**
@@ -1235,17 +1235,17 @@ public final class CrossChunkDispatchService {
 		if (contextLevel == null || pending == null) {
 			return false;
 		}
-		if (!RedstoneLinkConfig.crossChunkForceLoadEnabled()) {
+		if (!RedstoneLinkConfig.crossChunk().forceLoadEnabled()) {
 			return false;
 		}
-		if (!RedstoneLinkConfig.crossChunkAllowedSourceTypes().contains(pending.key().sourceType())) {
+		if (!RedstoneLinkConfig.crossChunk().allowedSourceTypes().contains(pending.key().sourceType())) {
 			return false;
 		}
-		if (!RedstoneLinkConfig.crossChunkAllowedTargetTypes().contains(pending.key().targetType())) {
+		if (!RedstoneLinkConfig.crossChunk().allowedTargetTypes().contains(pending.key().targetType())) {
 			return false;
 		}
 
-		RedstoneLinkConfig.CrossChunkForceLoadMode mode = RedstoneLinkConfig.crossChunkForceLoadMode();
+		RedstoneLinkConfig.CrossChunkForceLoadMode mode = RedstoneLinkConfig.crossChunk().forceLoadMode();
 		if (mode == RedstoneLinkConfig.CrossChunkForceLoadMode.ALL) {
 			return true;
 		}
@@ -1273,7 +1273,7 @@ public final class CrossChunkDispatchService {
 			return true;
 		}
 
-		boolean presetSourceMatched = RedstoneLinkConfig.crossChunkPresetContains(
+		boolean presetSourceMatched = RedstoneLinkConfig.crossChunk().presetContains(
 			pending.key().sourceType(),
 			pending.key().sourceSerial(),
 			LinkNodeSemantics.Role.SOURCE
@@ -1281,7 +1281,7 @@ public final class CrossChunkDispatchService {
 		if (presetSourceMatched) {
 			return true;
 		}
-		return RedstoneLinkConfig.crossChunkPresetContains(
+		return RedstoneLinkConfig.crossChunk().presetContains(
 			pending.key().targetType(),
 			pending.key().targetSerial(),
 			LinkNodeSemantics.Role.TARGET
@@ -1395,13 +1395,13 @@ public final class CrossChunkDispatchService {
 	) {
 		resetForceLoadWindow(state, gameTime);
 
-		int maxPerTick = RedstoneLinkConfig.crossChunkForceLoadMaxPerTick();
+		int maxPerTick = RedstoneLinkConfig.crossChunk().forceLoadMaxPerTick();
 		if (state.forceLoadCountThisTick >= maxPerTick) {
 			return;
 		}
 		SourceKey sourceKey = new SourceKey(pending.key().sourceType(), pending.key().sourceSerial());
 		int sourceUsed = state.forceLoadCountBySource.getOrDefault(sourceKey, 0);
-		if (sourceUsed >= RedstoneLinkConfig.crossChunkForceLoadMaxPerSourcePerTick()) {
+		if (sourceUsed >= RedstoneLinkConfig.crossChunk().forceLoadMaxPerSourcePerTick()) {
 			return;
 		}
 
@@ -1415,7 +1415,7 @@ public final class CrossChunkDispatchService {
 		addTransientTicket(targetLevel, chunkX, chunkZ);
 
 		ForcedChunkKey forcedChunkKey = new ForcedChunkKey(targetLevel.dimension(), chunkX, chunkZ);
-		long expireTick = gameTime + Math.max(1L, RedstoneLinkConfig.crossChunkForceLoadTicketTicks());
+		long expireTick = gameTime + Math.max(1L, RedstoneLinkConfig.crossChunk().forceLoadTicketTicks());
 		long previousExpireTick = state.forcedChunksUntilTick.getOrDefault(forcedChunkKey, Long.MIN_VALUE);
 		state.forcedChunksUntilTick.put(forcedChunkKey, Math.max(previousExpireTick, expireTick));
 
