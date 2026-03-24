@@ -575,11 +575,10 @@ public final class ModCommands {
 	 */
 	private static int executeLinkAddWithTypeArg(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
-		ServerPlayer player = source.getPlayer();
-		if (player == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+		if (!allowPlayerSourceOrBenchmarkMode(source)) {
 			return 0;
 		}
+		ServerPlayer player = source.getPlayer();
 		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.LINK_RW, 1)) {
 			return 0;
 		}
@@ -597,11 +596,10 @@ public final class ModCommands {
 	 */
 	private static int executeLinkRemoveWithTypeArg(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
-		ServerPlayer player = source.getPlayer();
-		if (player == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.player_only"));
+		if (!allowPlayerSourceOrBenchmarkMode(source)) {
 			return 0;
 		}
+		ServerPlayer player = source.getPlayer();
 		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.LINK_RW, 1)) {
 			return 0;
 		}
@@ -633,7 +631,7 @@ public final class ModCommands {
 		long targetSerial,
 		LinkUpdateMode updateMode
 	) {
-		ServerLevel level = player.serverLevel();
+		ServerLevel level = source.getLevel();
 		LinkSavedData savedData = LinkSavedData.get(level);
 		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
 			return 0;
@@ -659,6 +657,9 @@ public final class ModCommands {
 				() -> Component.translatable("message.redstonelink.links_cleared", removed),
 				false
 			);
+			if (player != null) {
+				syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
+			}
 			return Command.SINGLE_SUCCESS;
 		}
 
@@ -693,7 +694,9 @@ public final class ModCommands {
 				ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 			);
 			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_removed"), false);
-			syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
+			if (player != null) {
+				syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
+			}
 			return Command.SINGLE_SUCCESS;
 		}
 		if (updateMode != LinkUpdateMode.ADD) {
@@ -732,7 +735,9 @@ public final class ModCommands {
 			ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 		);
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
-		syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
+		if (player != null) {
+			syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
+		}
 		return Command.SINGLE_SUCCESS;
 	}
 

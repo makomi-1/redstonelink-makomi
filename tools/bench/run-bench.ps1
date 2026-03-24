@@ -470,6 +470,58 @@ function Read-RconPacketIfAvailable {
 	return $null
 }
 
+function Test-BenchResponseLooksLikeFailure {
+	param([string]$ResponseText)
+	$normalized = ([string]$ResponseText).Trim()
+	if ([string]::IsNullOrWhiteSpace($normalized)) {
+		return $false
+	}
+	$failurePatterns = @(
+		"(?i)\bUnknown(?: or incomplete)? command\b",
+		"(?i)\bCould not parse command\b",
+		"(?i)\bIncorrect argument\b",
+		"(?i)\bNo entity was found\b",
+		"(?i)\bNo player was found\b",
+		"(?i)\bToo many requests\b",
+		"(?i)\binsufficient permission\b",
+		"(?i)\bplayer[- ]only\b",
+		"(?i)\binvalid\b",
+		"(?i)\bunallocated\b",
+		"(?i)\bretired\b",
+		"(?i)\boffline\b",
+		"(?i)\bnot found\b",
+		"(?i)\bunsupported input endpoint\b"
+	)
+	foreach ($pattern in $failurePatterns) {
+		if ($normalized -match $pattern) {
+			return $true
+		}
+	}
+	return $false
+}
+
+function Assert-BenchCommandResponse {
+	param(
+		[string]$Command,
+		[string]$ResponseText,
+		[string]$ExpectedPrefix = "",
+		[string]$ExpectedRegex = ""
+	)
+	$normalized = ([string]$ResponseText).Trim()
+	if ([string]::IsNullOrWhiteSpace($normalized)) {
+		throw "Bench command returned empty response: $Command"
+	}
+	if (Test-BenchResponseLooksLikeFailure -ResponseText $normalized) {
+		throw "Bench command returned failure response: $Command | response=$normalized"
+	}
+	if (-not [string]::IsNullOrWhiteSpace($ExpectedPrefix) -and -not $normalized.StartsWith($ExpectedPrefix, [System.StringComparison]::Ordinal)) {
+		throw "Bench command response prefix mismatch: expectedPrefix=$ExpectedPrefix command=$Command | response=$normalized"
+	}
+	if (-not [string]::IsNullOrWhiteSpace($ExpectedRegex) -and -not [System.Text.RegularExpressions.Regex]::IsMatch($normalized, $ExpectedRegex)) {
+		throw "Bench command response missing expected marker: command=$Command expectedRegex=$ExpectedRegex | response=$normalized"
+	}
+}
+
 function Open-RconConnection {
 	param(
 		[string]$ServerHost,
@@ -597,30 +649,37 @@ function Invoke-RconCommand {
 	$previousReceiveTimeout = $Connection.Client.ReceiveTimeout
 	$Connection.Client.ReceiveTimeout = $ReceiveTimeoutMs
 	$responseParts = New-Object System.Collections.Generic.List[string]
-	$receivedPackets = New-Object System.Collections.Generic.List[object]
+	$matchedPacketReceived = $false
+	$receiveStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 	try {
-		try {
-			$firstPacket = Read-RconPacket -Stream $Connection.Stream
-		} catch {
-			if ($AllowReadTimeout) {
-				if (-not $Silent) {
-					Write-Host "[Bench/RCON] $Command"
-					Write-Host "[Bench/RESP] <read timeout tolerated>"
-				}
-				return ""
-			}
-			throw
-		}
-		$receivedPackets.Add($firstPacket)
 		while ($true) {
-			$nextPacket = Read-RconPacketIfAvailable -Client $Connection.Client -Stream $Connection.Stream -WaitTimeoutMs 120
-			if ($null -eq $nextPacket) {
-				break
+			$waitTimeoutMs = if ($matchedPacketReceived) {
+				120
+			} else {
+				[Math]::Max(1, $ReceiveTimeoutMs - [int]$receiveStopwatch.ElapsedMilliseconds)
 			}
-			$receivedPackets.Add($nextPacket)
-		}
-		foreach ($packetResponse in $receivedPackets) {
-			if ($packetResponse.RequestId -eq $requestId -and -not [string]::IsNullOrWhiteSpace($packetResponse.Body)) {
+			if (-not $matchedPacketReceived -and $waitTimeoutMs -le 0) {
+				if ($AllowReadTimeout) {
+					if (-not $Silent) {
+						Write-Host "[Bench/RCON] $Command"
+						Write-Host "[Bench/RESP] <read timeout tolerated>"
+					}
+					return ""
+				}
+				throw "Timed out waiting for matching RCON response."
+			}
+			$packetResponse = Read-RconPacketIfAvailable -Client $Connection.Client -Stream $Connection.Stream -WaitTimeoutMs $waitTimeoutMs
+			if ($null -eq $packetResponse) {
+				if ($matchedPacketReceived) {
+					break
+				}
+				continue
+			}
+			if ($packetResponse.RequestId -ne $requestId) {
+				continue
+			}
+			$matchedPacketReceived = $true
+			if ($null -ne $packetResponse.Body) {
 				$responseParts.Add($packetResponse.Body)
 			}
 		}
@@ -780,6 +839,77 @@ function Format-SerialInputText {
 	}
 }
 
+function Select-SerialsByIndex {
+	param(
+		[long[]]$Serials,
+		$IndexValues
+	)
+	$normalizedSerials = @(Get-SortedUniqueSerials $Serials)
+	if ($null -eq $IndexValues) {
+		return $normalizedSerials
+	}
+	$rawIndexes = @($IndexValues)
+	if ($rawIndexes.Count -eq 0) {
+		return $normalizedSerials
+	}
+	$selected = New-Object System.Collections.Generic.List[long]
+	foreach ($rawIndex in $rawIndexes) {
+		$index = [int]$rawIndex
+		if ($index -lt 0 -or $index -ge $normalizedSerials.Count) {
+			throw "Serial index out of range: $index (count=$($normalizedSerials.Count))"
+		}
+		$selected.Add([long]$normalizedSerials[$index])
+	}
+	return @(Get-SortedUniqueSerials $selected.ToArray())
+}
+
+function Get-CaseExecutionBounds {
+	param($CaseConfig)
+	$arena = Get-OptionalProperty -Object $CaseConfig -Name "arena"
+	if ($null -ne $arena) {
+		return [pscustomobject]@{
+			From = ConvertTo-Vec3 $arena.clearFrom
+			To = ConvertTo-Vec3 $arena.clearTo
+		}
+	}
+
+	$allPositions = New-Object System.Collections.Generic.List[object]
+	if ($null -ne $CaseConfig.targets) {
+		foreach ($pos in @(Expand-CuboidPositions $CaseConfig.targets.layout)) {
+			$allPositions.Add($pos)
+		}
+	}
+	foreach ($group in @($CaseConfig.sources)) {
+		foreach ($pos in @(Expand-CuboidPositions $group.layout)) {
+			$allPositions.Add($pos)
+		}
+	}
+	if ($allPositions.Count -le 0) {
+		return $null
+	}
+	return Get-BoundsFromPositions -Positions @($allPositions.ToArray())
+}
+
+function Ensure-CaseChunksLoaded {
+	param(
+		$Connection,
+		$CaseConfig
+	)
+	if ($DryRun) {
+		return
+	}
+	$bounds = Get-CaseExecutionBounds -CaseConfig $CaseConfig
+	if ($null -eq $bounds) {
+		return
+	}
+	$minX = [Math]::Min([int]$bounds.From.X, [int]$bounds.To.X)
+	$maxX = [Math]::Max([int]$bounds.From.X, [int]$bounds.To.X)
+	$minZ = [Math]::Min([int]$bounds.From.Z, [int]$bounds.To.Z)
+	$maxZ = [Math]::Max([int]$bounds.From.Z, [int]$bounds.To.Z)
+	$command = Wrap-WithPlayerContext ("forceload add {0} {1} {2} {3}" -f $minX, $minZ, $maxX, $maxZ)
+	Invoke-RconCommand -Connection $Connection -Command $command | Out-Null
+}
+
 function Clear-Arena {
 	param(
 		$Connection,
@@ -801,6 +931,10 @@ function Place-NodeGroup {
 		$Group
 	)
 	$positions = @(Expand-CuboidPositions $Group.layout)
+	$reuseExisting = [bool](Get-OptionalProperty -Object $Group -Name "reuseExisting" -DefaultValue $false)
+	if ($reuseExisting) {
+		return $positions
+	}
 	$bounds = Get-BoundsFromPositions $positions
 	$blockId = Get-BlockIdByKind $Group.kind
 	if ($positions.Count -gt 1) {
@@ -822,7 +956,8 @@ function Build-LinkCommands {
 		[long[]]$TargetSerials
 	)
 	$linkCommands = New-Object System.Collections.Generic.List[string]
-	foreach ($rule in $CaseConfig.links) {
+	$linkRules = @(Get-OptionalProperty -Object $CaseConfig -Name "links" -DefaultValue @())
+	foreach ($rule in $linkRules) {
 		$groupName = [string]$rule.sourceGroup
 		$sourceSerials = @(Get-SerialListFromMap $SourceSerialMaps[$groupName])
 		if ($sourceSerials.Count -eq 0) {
@@ -850,6 +985,25 @@ function Build-LinkCommands {
 		}
 	}
 	return $linkCommands
+}
+
+function Invoke-BenchSetupCommand {
+	param(
+		$Connection,
+		[string]$Command,
+		[string]$ExpectedPrefix = "",
+		[string]$ExpectedRegex = ""
+	)
+	$response = Invoke-RconCommand -Connection $Connection -Command $Command -Silent
+	Assert-BenchCommandResponse `
+		-Command $Command `
+		-ResponseText $response `
+		-ExpectedPrefix $ExpectedPrefix `
+		-ExpectedRegex $ExpectedRegex
+	return [ordered]@{
+		command = $Command
+		response = $response
+	}
 }
 
 function Invoke-PrepareFunctions {
@@ -1009,29 +1163,46 @@ function Resolve-PhaseSerials {
 		[hashtable]$SourceSerialMaps,
 		[hashtable]$TargetSerialMap
 	)
+	$resolvedSerials = @()
 	$explicitSerials = Get-OptionalProperty -Object $Phase -Name "serials"
 	if ($null -ne $explicitSerials) {
-		return @(
+		$resolvedSerials = @(
 			Get-SortedUniqueSerials (
 				@($explicitSerials | ForEach-Object { [long]$_ })
 			)
 		)
+	} else {
+		$serialRef = [string](Get-OptionalProperty -Object $Phase -Name "serialRef" -DefaultValue "")
+		if ([string]::IsNullOrWhiteSpace($serialRef)) {
+			$serialRef = [string](Get-OptionalProperty -Object $Phase -Name "sourceGroup" -DefaultValue "")
+		}
+		if ([string]::IsNullOrWhiteSpace($serialRef)) {
+			throw "Phase kind '$($Phase.kind)' requires serialRef/sourceGroup or explicit serials."
+		}
+		if ($serialRef -eq "targets") {
+			$resolvedSerials = @(Get-SerialListFromMap $TargetSerialMap)
+		} elseif ($SourceSerialMaps.ContainsKey($serialRef)) {
+			$resolvedSerials = @(Get-SerialListFromMap $SourceSerialMaps[$serialRef])
+		} else {
+			throw "Unknown serialRef/sourceGroup: $serialRef"
+		}
 	}
 
-	$serialRef = [string](Get-OptionalProperty -Object $Phase -Name "serialRef" -DefaultValue "")
-	if ([string]::IsNullOrWhiteSpace($serialRef)) {
-		$serialRef = [string](Get-OptionalProperty -Object $Phase -Name "sourceGroup" -DefaultValue "")
+	$requestedIndexes = New-Object System.Collections.Generic.List[int]
+	$singleIndex = Get-OptionalProperty -Object $Phase -Name "serialIndex"
+	if ($null -ne $singleIndex) {
+		$requestedIndexes.Add([int]$singleIndex)
 	}
-	if ([string]::IsNullOrWhiteSpace($serialRef)) {
-		throw "Phase kind '$($Phase.kind)' requires serialRef/sourceGroup or explicit serials."
+	$multipleIndexes = Get-OptionalProperty -Object $Phase -Name "serialIndexes"
+	if ($null -ne $multipleIndexes) {
+		foreach ($rawIndex in @($multipleIndexes)) {
+			$requestedIndexes.Add([int]$rawIndex)
+		}
 	}
-	if ($serialRef -eq "targets") {
-		return @(Get-SerialListFromMap $TargetSerialMap)
+	if ($requestedIndexes.Count -gt 0) {
+		return @(Select-SerialsByIndex -Serials $resolvedSerials -IndexValues $requestedIndexes.ToArray())
 	}
-	if ($SourceSerialMaps.ContainsKey($serialRef)) {
-		return @(Get-SerialListFromMap $SourceSerialMaps[$serialRef])
-	}
-	throw "Unknown serialRef/sourceGroup: $serialRef"
+	return $resolvedSerials
 }
 
 function Resolve-InputEndpointCommandPath {
@@ -1044,16 +1215,28 @@ function Resolve-InputEndpointCommandPath {
 }
 
 function Get-ServerGameTime {
-	param($Connection)
+	param(
+		$Connection,
+		[int]$MaxAttempts = 4,
+		[int]$RetryDelayMs = 40
+	)
 	if ($DryRun) {
 		return [long]$script:DryRunGameTime
 	}
-	$response = Invoke-RconCommand -Connection $Connection -Command "time query gametime" -Silent
-	$matches = [System.Text.RegularExpressions.Regex]::Matches([string]$response, "-?\d+")
-	if ($matches.Count -le 0) {
-		throw "Failed to parse game time from response: $response"
+	$normalizedAttempts = [Math]::Max(1, [int]$MaxAttempts)
+	$normalizedDelayMs = [Math]::Max(10, [int]$RetryDelayMs)
+	$lastResponse = $null
+	for ($attempt = 1; $attempt -le $normalizedAttempts; $attempt++) {
+		$lastResponse = Invoke-RconCommand -Connection $Connection -Command "time query gametime" -Silent
+		$matches = [System.Text.RegularExpressions.Regex]::Matches([string]$lastResponse, "-?\d+")
+		if ($matches.Count -gt 0) {
+			return [long]$matches[$matches.Count - 1].Value
+		}
+		if ($attempt -lt $normalizedAttempts) {
+			Start-Sleep -Milliseconds $normalizedDelayMs
+		}
 	}
-	return [long]$matches[$matches.Count - 1].Value
+	throw "Failed to parse game time from response: $lastResponse"
 }
 
 function Wait-ServerTicks {
@@ -1193,6 +1376,8 @@ function Split-NodeTraceEntries {
 	$normalizedText = $ResponseText.Replace([string][char]0xFF0C, ",")
 	$normalizedText = $normalizedText.Replace([string][char]0x3002, ".")
 	$normalizedText = $normalizedText.Replace([string][char]0xFF1A, ":")
+	$normalizedText = $normalizedText.Replace("`r", "")
+	$normalizedText = $normalizedText.Replace("`n", "")
 	$rawEntries = [System.Text.RegularExpressions.Regex]::Split($normalizedText, "(?=\[RedstoneLink/NodeTrace\])")
 	$entries = New-Object System.Collections.Generic.List[string]
 	foreach ($rawEntry in $rawEntries) {
@@ -1218,6 +1403,8 @@ function Parse-NodeTraceSamples {
 		$normalizedLine = $entry.Replace([string][char]0xFF0C, ",")
 		$normalizedLine = $normalizedLine.Replace([string][char]0x3002, ".")
 		$normalizedLine = $normalizedLine.Replace([string][char]0xFF1A, ":")
+		$normalizedLine = $normalizedLine.Replace("`r", "")
+		$normalizedLine = $normalizedLine.Replace("`n", "")
 		if ($normalizedLine -notmatch "traceKind=" -or $normalizedLine -notmatch "tick=") {
 			continue
 		}
@@ -1421,6 +1608,44 @@ function Convert-ToChronologicalTraceSamples {
 	$chronological = @($items)
 	[array]::Reverse($chronological)
 	return @($chronological)
+}
+
+function Get-TraceEarliestTick {
+	param($Samples)
+	$chronologicalSamples = @(Convert-ToChronologicalTraceSamples -Samples $Samples)
+	if ($chronologicalSamples.Count -le 0) {
+		return $null
+	}
+	$tickProperty = $chronologicalSamples[0].PSObject.Properties["tick"]
+	if ($null -eq $tickProperty) {
+		return $null
+	}
+	return [long]$tickProperty.Value
+}
+
+function Get-ExpandedTraceReadLimit {
+	param(
+		[int]$CurrentLimit,
+		[int]$Capacity,
+		[long]$StartTickMin,
+		$Samples
+	)
+	if ($Capacity -le $CurrentLimit) {
+		return $CurrentLimit
+	}
+	$earliestTick = Get-TraceEarliestTick -Samples $Samples
+	if ($null -eq $earliestTick -or $earliestTick -le $StartTickMin) {
+		return $CurrentLimit
+	}
+	$requiredExtra = [Math]::Max(0, [int]($earliestTick - $StartTickMin))
+	$stepExtra = [Math]::Max(4, [Math]::Min(24, $requiredExtra + 2))
+	$expandedLimit = $CurrentLimit + $stepExtra
+	return [Math]::Min($Capacity, $expandedLimit)
+}
+
+function Test-NodeTraceReadRateLimited {
+	param([string]$ResponseText)
+	return (-not [string]::IsNullOrWhiteSpace($ResponseText)) -and ($ResponseText -match "Too many requests")
 }
 
 function Add-FunctionalPhaseResult {
@@ -1881,6 +2106,11 @@ function Invoke-FunctionalPhases {
 					$totalTicks
 				)
 				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+				Assert-BenchCommandResponse `
+					-Command $command `
+					-ResponseText ([string]$commandResult.response) `
+					-ExpectedPrefix "[RedstoneLink/Input]" `
+					-ExpectedRegex "Started job="
 				$phaseResult = [ordered]@{
 					kind = $kind
 					name = $phaseName
@@ -1922,6 +2152,11 @@ function Invoke-FunctionalPhases {
 					$totalTicks
 				)
 				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+				Assert-BenchCommandResponse `
+					-Command $command `
+					-ResponseText ([string]$commandResult.response) `
+					-ExpectedPrefix "[RedstoneLink/Input]" `
+					-ExpectedRegex "Started job="
 				$phaseResult = [ordered]@{
 					kind = $kind
 					name = $phaseName
@@ -1940,11 +2175,108 @@ function Invoke-FunctionalPhases {
 			"input_clear" {
 				$command = Wrap-WithPlayerContext "redstonelink input clear"
 				$response = Invoke-RconCommand -Connection $Connection -Command $command -Silent
+				Assert-BenchCommandResponse `
+					-Command $command `
+					-ResponseText $response `
+					-ExpectedPrefix "[RedstoneLink/Input]" `
+					-ExpectedRegex "Cleared input jobs:"
 				$phaseResult = [ordered]@{
 					kind = $kind
 					name = $phaseName
 					command = $command
 					response = $response
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"link_command" {
+				$action = [string](Get-OptionalProperty -Object $phase -Name "action" -DefaultValue "")
+				$type = [string](Get-OptionalProperty -Object $phase -Name "type" -DefaultValue "triggerSource")
+				$explicitSourceSerial = Get-OptionalProperty -Object $phase -Name "sourceSerial"
+				if ($null -ne $explicitSourceSerial) {
+					$sourceSerial = [long]$explicitSourceSerial
+				} else {
+					$sourceRef = [string](Get-OptionalProperty -Object $phase -Name "sourceRef" -DefaultValue "")
+					if ([string]::IsNullOrWhiteSpace($sourceRef)) {
+						throw "link_command phase requires sourceRef or sourceSerial."
+					}
+					$sourceIndex = [int](Get-OptionalProperty -Object $phase -Name "sourceIndex" -DefaultValue 0)
+					$sourceCandidates = @(Resolve-PhaseSerials -Phase @{
+						kind = $kind
+						serialRef = $sourceRef
+						serialIndex = $sourceIndex
+					} -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+					if ($sourceCandidates.Count -ne 1) {
+						throw "link_command phase must resolve exactly one source serial."
+					}
+					$sourceSerial = [long]$sourceCandidates[0]
+				}
+
+				$targetSerials = @()
+				if ($action -eq "add" -or $action -eq "remove" -or $action -eq "set") {
+					$targetRef = [string](Get-OptionalProperty -Object $phase -Name "targetRef" -DefaultValue "")
+					$targetIndexes = Get-OptionalProperty -Object $phase -Name "targetIndexes"
+					$singleTargetIndex = Get-OptionalProperty -Object $phase -Name "targetIndex"
+					$explicitTargetSerials = Get-OptionalProperty -Object $phase -Name "targetSerials"
+					$targetPhase = @{
+						kind = $kind
+						serialRef = $targetRef
+					}
+					if ($null -ne $explicitTargetSerials) {
+						$targetPhase.serials = @($explicitTargetSerials)
+					}
+					if ($null -ne $singleTargetIndex) {
+						$targetPhase.serialIndex = [int]$singleTargetIndex
+					}
+					if ($null -ne $targetIndexes) {
+						$targetPhase.serialIndexes = @($targetIndexes)
+					}
+					$targetSerials = @(Resolve-PhaseSerials -Phase $targetPhase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+				}
+
+				$targetSerialFormat = [string](Get-OptionalProperty -Object $phase -Name "targetSerialFormat" -DefaultValue "slash_list")
+				$forceConfirm = [bool](Get-OptionalProperty -Object $phase -Name "forceConfirm" -DefaultValue $false)
+				switch ($action) {
+					"add" {
+						if ($targetSerials.Count -ne 1) {
+							throw "link_command add requires exactly one target serial."
+						}
+						$commandText = "redstonelink link add $type $sourceSerial $($targetSerials[0])"
+					}
+					"remove" {
+						if ($targetSerials.Count -ne 1) {
+							throw "link_command remove requires exactly one target serial."
+						}
+						$commandText = "redstonelink link remove $type $sourceSerial $($targetSerials[0])"
+					}
+					"set" {
+						$commandText = "redstonelink link set $type $sourceSerial $(Format-SerialInputText -Serials $targetSerials -Style $targetSerialFormat)"
+						if ($targetSerials.Count -gt 1 -or $forceConfirm) {
+							$commandText += " confirm"
+						}
+					}
+					"clear" {
+						$commandText = "redstonelink link set $type $sourceSerial"
+					}
+					"get" {
+						$commandText = "redstonelink link get $type $sourceSerial"
+					}
+					default {
+						throw "Unsupported link_command action: $action"
+					}
+				}
+				$command = Wrap-WithPlayerContext $commandText
+				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					action = $action
+					type = $type
+					sourceSerial = $sourceSerial
+					targetSerials = $targetSerials
+					targetSerialText = if ($targetSerials.Count -gt 0) { Format-SerialInputText -Serials $targetSerials -Style $targetSerialFormat } else { "" }
+					command = $command
+					response = $commandResult.response
+					tickWindow = $commandResult.tickWindow
 				}
 				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
 			}
@@ -2244,10 +2576,8 @@ function Invoke-FunctionalPhases {
 				$phasePassed = $true
 				$readResults = New-Object System.Collections.Generic.List[object]
 				foreach ($serial in $serials) {
-					$readResult = Invoke-NodeTraceRead -Connection $Connection -Type $type -Serial $serial -Limit $limit
-					$samples = @($readResult.samples)
-					$chronologicalSamples = @(Convert-ToChronologicalTraceSamples -Samples $samples)
 					$mountTick = Get-TraceMountTickForSerial -MountPhaseResult $mountPhaseResult -Serial $serial
+					$mountCapacity = [int](Get-OptionalProperty -Object $mountPhaseResult -Name "capacity" -DefaultValue $limit)
 					$searchTickMax = 0L
 					$startTickMin = $commandStartTick
 					if ($null -ne $mountTick) {
@@ -2255,6 +2585,36 @@ function Invoke-FunctionalPhases {
 					}
 					$startTickMax = [long]$commandEndTick + [Math]::Max(0, $alignmentSlackTicks)
 					$searchTickMax = [long]$startTickMax
+					$currentLimit = [Math]::Min([Math]::Max(1, $limit), [Math]::Max(1, $mountCapacity))
+					$readResult = Invoke-NodeTraceRead -Connection $Connection -Type $type -Serial $serial -Limit $currentLimit
+					$samples = @($readResult.samples)
+					$chronologicalSamples = @(Convert-ToChronologicalTraceSamples -Samples $samples)
+					while ($currentLimit -lt $mountCapacity) {
+						$expandedLimit = Get-ExpandedTraceReadLimit `
+							-CurrentLimit $currentLimit `
+							-Capacity $mountCapacity `
+							-StartTickMin $startTickMin `
+							-Samples $chronologicalSamples
+						if ($expandedLimit -le $currentLimit) {
+							break
+						}
+						$previousLimit = $currentLimit
+						$previousReadResult = $readResult
+						$previousSamples = @($samples)
+						$previousChronologicalSamples = @($chronologicalSamples)
+						$currentLimit = $expandedLimit
+						$expandedReadResult = Invoke-NodeTraceRead -Connection $Connection -Type $type -Serial $serial -Limit $currentLimit
+						if (Test-NodeTraceReadRateLimited -ResponseText ([string]$expandedReadResult.response)) {
+							$currentLimit = $previousLimit
+							$readResult = $previousReadResult
+							$samples = @($previousSamples)
+							$chronologicalSamples = @($previousChronologicalSamples)
+							break
+						}
+						$readResult = $expandedReadResult
+						$samples = @($readResult.samples)
+						$chronologicalSamples = @(Convert-ToChronologicalTraceSamples -Samples $samples)
+					}
 					$eligibleSamples = @(
 						$chronologicalSamples |
 							Where-Object {
@@ -2332,6 +2692,8 @@ function Invoke-FunctionalPhases {
 						serial = $serial
 						command = $readResult.command
 						response = $readResult.response
+						requestedLimit = $limit
+						readLimit = $currentLimit
 						rawSampleCount = $samples.Count
 						samples = $samples
 						eligibleSamples = $eligibleSamples
@@ -2409,6 +2771,11 @@ function Show-CaseSummary {
 	param($CaseConfig)
 	Write-Host "[Bench] Case: $($CaseConfig.id)"
 	Write-Host "[Bench] Desc: $($CaseConfig.description)"
+	$layer = [string](Get-OptionalProperty -Object $CaseConfig -Name "layer" -DefaultValue "")
+	$scenarioId = [string](Get-OptionalProperty -Object $CaseConfig -Name "scenarioId" -DefaultValue "")
+	if (-not [string]::IsNullOrWhiteSpace($layer) -or -not [string]::IsNullOrWhiteSpace($scenarioId)) {
+		Write-Host "[Bench] Scenario: layer=$layer id=$scenarioId"
+	}
 	Write-Host "[Bench] Target kind: $($CaseConfig.targets.kind)"
 	Write-Host "[Bench] Target count: $(@(Expand-CuboidPositions $CaseConfig.targets.layout).Count)"
 	foreach ($group in $CaseConfig.sources) {
@@ -2460,7 +2827,11 @@ switch ($Action) {
 				Invoke-RconCommand -Connection $connection -Command "reload" | Out-Null
 			}
 			Invoke-PrepareFunctions -Connection $connection -Matrix $matrix
-			Clear-Arena -Connection $connection -Arena $caseConfig.arena
+			Ensure-CaseChunksLoaded -Connection $connection -CaseConfig $caseConfig
+			$shouldClearArena = [bool](Get-OptionalProperty -Object $caseConfig -Name "clearArena" -DefaultValue $true)
+			if ($shouldClearArena) {
+				Clear-Arena -Connection $connection -Arena $caseConfig.arena
+			}
 
 			$targetPositions = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
 			$targetSerialMap = Convert-PositionsToSerialMap -Connection $connection -Positions $targetPositions
@@ -2475,8 +2846,9 @@ switch ($Action) {
 			}
 
 			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerials $targetSerials
+			$linkOperations = New-Object System.Collections.Generic.List[object]
 			foreach ($command in $linkCommands) {
-				Invoke-RconCommand -Connection $connection -Command $command | Out-Null
+				$linkOperations.Add((Invoke-BenchSetupCommand -Connection $connection -Command $command -ExpectedPrefix "[RedstoneLink"))
 			}
 
 			$auditBefore = Invoke-RconCommand -Connection $connection -Command (Wrap-WithPlayerContext "redstonelink audit summary csv") -Silent
@@ -2500,7 +2872,7 @@ switch ($Action) {
 				-Connection $connection `
 				-SparkDefaults $matrix.defaults.spark `
 				-CaseName $caseConfig.id `
-				-ActivityPath ([string]$sparkStart.activityPath)
+				-ActivityPath ([string](Get-OptionalProperty -Object $sparkStart -Name "activityPath" -DefaultValue ""))
 			$auditAfter = Invoke-RconCommand -Connection $connection -Command (Wrap-WithPlayerContext "redstonelink audit summary csv") -Silent
 
 			$result = [ordered]@{
@@ -2509,6 +2881,7 @@ switch ($Action) {
 				sourceSerials = $sourceSerialMaps
 				targetSerials = $targetSerialMap
 				linkCommands = $linkCommands
+				linkOperations = @($linkOperations.ToArray())
 				spark = [ordered]@{
 					start = $sparkStart
 					stop = $sparkStop
@@ -2543,7 +2916,11 @@ switch ($Action) {
 				Invoke-RconCommand -Connection $connection -Command "reload" | Out-Null
 			}
 			Invoke-PrepareFunctions -Connection $connection -Matrix $matrix
-			Clear-Arena -Connection $connection -Arena $caseConfig.arena
+			Ensure-CaseChunksLoaded -Connection $connection -CaseConfig $caseConfig
+			$shouldClearArena = [bool](Get-OptionalProperty -Object $caseConfig -Name "clearArena" -DefaultValue $true)
+			if ($shouldClearArena) {
+				Clear-Arena -Connection $connection -Arena $caseConfig.arena
+			}
 
 			$targetPositions = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
 			$targetSerialMap = Convert-PositionsToSerialMap -Connection $connection -Positions $targetPositions
@@ -2558,8 +2935,9 @@ switch ($Action) {
 			}
 
 			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerials $targetSerials
+			$linkOperations = New-Object System.Collections.Generic.List[object]
 			foreach ($command in $linkCommands) {
-				Invoke-RconCommand -Connection $connection -Command $command | Out-Null
+				$linkOperations.Add((Invoke-BenchSetupCommand -Connection $connection -Command $command -ExpectedPrefix "[RedstoneLink"))
 			}
 
 			# 功能验证优先等待真实服务端 tick，而不是仅依赖本地睡眠。
@@ -2579,6 +2957,7 @@ switch ($Action) {
 				sourceSerials = $sourceSerialMaps
 				targetSerials = $targetSerialMap
 				linkCommands = $linkCommands
+				linkOperations = @($linkOperations.ToArray())
 				phases = $phaseExecution.phases
 				checks = $phaseExecution.checks
 				passed = $phaseExecution.passed

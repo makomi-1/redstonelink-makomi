@@ -15,6 +15,7 @@ param(
 	[string]$ServerStartCommand,
 	[string]$TemplateWorldPath = "D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template",
 	[string[]]$CaseIds,
+	[string]$SuitePath,
 	[ValidateSet("RunCase", "RunFunctionalCase")]
 	[string]$BenchAction = "RunCase",
 	[string]$MatrixPath = (Join-Path $PSScriptRoot "matrix.json"),
@@ -67,6 +68,28 @@ function Get-MatrixConfig {
 	return (Get-Content -Path $Path -Encoding UTF8 -Raw | ConvertFrom-Json)
 }
 
+function Resolve-PathFromBase {
+	param(
+		[string]$BaseDirectory,
+		[string]$CandidatePath
+	)
+	if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
+		return $null
+	}
+	if ([System.IO.Path]::IsPathRooted($CandidatePath)) {
+		return [System.IO.Path]::GetFullPath($CandidatePath)
+	}
+	return [System.IO.Path]::GetFullPath((Join-Path $BaseDirectory $CandidatePath))
+}
+
+function Get-SuiteConfig {
+	param([string]$Path)
+	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+		throw "Suite file not found: $Path"
+	}
+	return (Get-Content -Path $Path -Encoding UTF8 -Raw | ConvertFrom-Json)
+}
+
 function Resolve-CaseIdList {
 	param(
 		$Matrix,
@@ -89,6 +112,99 @@ function Resolve-CaseIdList {
 		$resolved.Add([string]$caseId)
 	}
 	return @($resolved.ToArray())
+}
+
+function Resolve-SuiteEntries {
+	param(
+		[string]$SuiteConfigPath,
+		[string[]]$RequestedCaseIds,
+		[string]$DefaultBenchAction,
+		[string]$DefaultMatrixPath
+	)
+	if ([string]::IsNullOrWhiteSpace($SuiteConfigPath)) {
+		$matrix = Get-MatrixConfig -Path $DefaultMatrixPath
+		$resolvedCaseIds = @(Resolve-CaseIdList -Matrix $matrix -RequestedCaseIds $RequestedCaseIds)
+		$entries = New-Object System.Collections.Generic.List[object]
+		foreach ($caseId in $resolvedCaseIds) {
+			$entries.Add([pscustomobject]@{
+				entryId = [string]$caseId
+				caseId = [string]$caseId
+				benchAction = $DefaultBenchAction
+				matrixPath = [System.IO.Path]::GetFullPath($DefaultMatrixPath)
+				reuseWorldFrom = $null
+				compareSerialsTo = $null
+			})
+		}
+		return [ordered]@{
+			source = "cli"
+			suiteConfigPath = $null
+			description = $null
+			entries = @($entries.ToArray())
+		}
+	}
+
+	$fullSuitePath = [System.IO.Path]::GetFullPath($SuiteConfigPath)
+	$suiteConfig = Get-SuiteConfig -Path $fullSuitePath
+	$suiteBaseDirectory = Split-Path -Path $fullSuitePath -Parent
+	$suiteDefaults = Get-OptionalPsObjectPropertyValue -Object $suiteConfig -PropertyName "defaults"
+	$defaultBenchAction = [string](Get-OptionalPsObjectPropertyValue -Object $suiteDefaults -PropertyName "benchAction")
+	if ([string]::IsNullOrWhiteSpace($defaultBenchAction)) {
+		$defaultBenchAction = $DefaultBenchAction
+	}
+	$defaultMatrixPath = [string](Get-OptionalPsObjectPropertyValue -Object $suiteDefaults -PropertyName "matrixPath")
+	if ([string]::IsNullOrWhiteSpace($defaultMatrixPath)) {
+		$defaultMatrixPath = $DefaultMatrixPath
+	} else {
+		$defaultMatrixPath = Resolve-PathFromBase -BaseDirectory $suiteBaseDirectory -CandidatePath $defaultMatrixPath
+	}
+
+	$entries = New-Object System.Collections.Generic.List[object]
+	foreach ($entry in @($suiteConfig.entries)) {
+		$entryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "entryId")
+		if ([string]::IsNullOrWhiteSpace($entryId)) {
+			$entryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "id")
+		}
+		$caseId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "caseId")
+		if ([string]::IsNullOrWhiteSpace($entryId)) {
+			$entryId = $caseId
+		}
+		if ([string]::IsNullOrWhiteSpace($entryId) -or [string]::IsNullOrWhiteSpace($caseId)) {
+			throw "Each suite entry must provide entryId/id and caseId."
+		}
+
+		$entryBenchAction = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "benchAction")
+		if ([string]::IsNullOrWhiteSpace($entryBenchAction)) {
+			$entryBenchAction = $defaultBenchAction
+		}
+		$rawMatrixPath = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "matrixPath")
+		$entryMatrixPath = if ([string]::IsNullOrWhiteSpace($rawMatrixPath)) {
+			$defaultMatrixPath
+		} else {
+			Resolve-PathFromBase -BaseDirectory $suiteBaseDirectory -CandidatePath $rawMatrixPath
+		}
+		if ([string]::IsNullOrWhiteSpace($entryMatrixPath)) {
+			throw "Suite entry matrixPath is required: $entryId"
+		}
+
+		$matrix = Get-MatrixConfig -Path $entryMatrixPath
+		[void](Resolve-CaseIdList -Matrix $matrix -RequestedCaseIds @($caseId))
+
+		$entries.Add([pscustomobject]@{
+			entryId = $entryId
+			caseId = $caseId
+			benchAction = $entryBenchAction
+			matrixPath = $entryMatrixPath
+			reuseWorldFrom = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "reuseWorldFrom")
+			compareSerialsTo = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "compareSerialsTo")
+		})
+	}
+
+	return [ordered]@{
+		source = "suite"
+		suiteConfigPath = $fullSuitePath
+		description = [string](Get-OptionalPsObjectPropertyValue -Object $suiteConfig -PropertyName "description")
+		entries = @($entries.ToArray())
+	}
 }
 
 function Ensure-Directory {
@@ -306,6 +422,114 @@ function Get-OptionalActivityResultPrimaryValue {
 		return [string]$fallbackResponse
 	}
 	return $null
+}
+
+function Read-BenchResultJson {
+	param([string]$ResultPath)
+	if ([string]::IsNullOrWhiteSpace($ResultPath) -or -not (Test-Path -LiteralPath $ResultPath -PathType Leaf)) {
+		throw "Bench result file not found: $ResultPath"
+	}
+	return (Get-Content -Path $ResultPath -Encoding UTF8 -Raw | ConvertFrom-Json)
+}
+
+function Convert-PsObjectToHashtable {
+	param($Object)
+	$result = @{}
+	if ($null -eq $Object) {
+		return $result
+	}
+	if ($Object -is [System.Collections.IDictionary]) {
+		foreach ($entry in $Object.GetEnumerator()) {
+			$result[[string]$entry.Key] = $entry.Value
+		}
+		return $result
+	}
+	foreach ($property in $Object.PSObject.Properties) {
+		$result[[string]$property.Name] = $property.Value
+	}
+	return $result
+}
+
+function Compare-LongMapValues {
+	param(
+		[hashtable]$Expected,
+		[hashtable]$Actual,
+		[string]$Scope
+	)
+	$failures = New-Object System.Collections.Generic.List[object]
+	$allKeys = @($Expected.Keys + $Actual.Keys | Sort-Object -Unique)
+	foreach ($key in $allKeys) {
+		$expectedExists = $Expected.ContainsKey($key)
+		$actualExists = $Actual.ContainsKey($key)
+		if (-not $expectedExists -or -not $actualExists) {
+			$failures.Add([ordered]@{
+				scope = $Scope
+				key = $key
+				reason = "missing_key"
+				expectedPresent = $expectedExists
+				actualPresent = $actualExists
+			})
+			continue
+		}
+		$expectedValue = [long]$Expected[$key]
+		$actualValue = [long]$Actual[$key]
+		if ($expectedValue -ne $actualValue) {
+			$failures.Add([ordered]@{
+				scope = $Scope
+				key = $key
+				reason = "value_mismatch"
+				expected = $expectedValue
+				actual = $actualValue
+			})
+		}
+	}
+	return @($failures.ToArray())
+}
+
+function Compare-BenchResultSerials {
+	param(
+		[string]$ExpectedResultPath,
+		[string]$ActualResultPath
+	)
+	$expectedResult = Read-BenchResultJson -ResultPath $ExpectedResultPath
+	$actualResult = Read-BenchResultJson -ResultPath $ActualResultPath
+	$failures = New-Object System.Collections.Generic.List[object]
+
+	$expectedTargets = Convert-PsObjectToHashtable -Object $expectedResult.targetSerials
+	$actualTargets = Convert-PsObjectToHashtable -Object $actualResult.targetSerials
+	foreach ($failure in @(Compare-LongMapValues -Expected $expectedTargets -Actual $actualTargets -Scope "targetSerials")) {
+		$failures.Add($failure)
+	}
+
+	$expectedSources = Convert-PsObjectToHashtable -Object $expectedResult.sourceSerials
+	$actualSources = Convert-PsObjectToHashtable -Object $actualResult.sourceSerials
+	$sourceGroupNames = @($expectedSources.Keys + $actualSources.Keys | Sort-Object -Unique)
+	foreach ($groupName in $sourceGroupNames) {
+		$expectedGroupExists = $expectedSources.ContainsKey($groupName)
+		$actualGroupExists = $actualSources.ContainsKey($groupName)
+		if (-not $expectedGroupExists -or -not $actualGroupExists) {
+			$failures.Add([ordered]@{
+				scope = "sourceSerials"
+				group = $groupName
+				reason = "missing_group"
+				expectedPresent = $expectedGroupExists
+				actualPresent = $actualGroupExists
+			})
+			continue
+		}
+		$expectedGroup = Convert-PsObjectToHashtable -Object $expectedSources[$groupName]
+		$actualGroup = Convert-PsObjectToHashtable -Object $actualSources[$groupName]
+		foreach ($failure in @(Compare-LongMapValues -Expected $expectedGroup -Actual $actualGroup -Scope "sourceSerials.$groupName")) {
+			$failures.Add($failure)
+		}
+	}
+
+	return [ordered]@{
+		passed = ($failures.Count -eq 0)
+		expectedResultPath = $ExpectedResultPath
+		actualResultPath = $ActualResultPath
+		failures = @($failures.ToArray())
+	}
 }
 
 function New-RconPacketBytes {
@@ -602,17 +826,29 @@ if ([string]::IsNullOrWhiteSpace($ServerPropertiesPath)) {
 	throw "ServerPropertiesPath is required."
 }
 
-$matrix = Get-MatrixConfig -Path $MatrixPath
-$resolvedCaseIds = @(Resolve-CaseIdList -Matrix $matrix -RequestedCaseIds $CaseIds)
+$resolvedSuite = Resolve-SuiteEntries `
+	-SuiteConfigPath $SuitePath `
+	-RequestedCaseIds $CaseIds `
+	-DefaultBenchAction $BenchAction `
+	-DefaultMatrixPath $MatrixPath
+$suiteEntries = @($resolvedSuite.entries)
+$entryIds = @($suiteEntries | ForEach-Object { [string]$_.entryId })
+$resolvedCaseIds = @($suiteEntries | ForEach-Object { [string]$_.caseId })
 $suiteTimestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $suiteOutputDirectory = Ensure-Directory -Path (Join-Path $SuiteResultsDir $suiteTimestamp)
-$resultsDirPath = Get-ResultsDirectoryPath -RepoRootPath $repoRoot -Matrix $matrix
 $benchScriptPath = Join-Path $PSScriptRoot "run-bench.ps1"
+$matrixCache = @{}
 $serverRootFullPath = [System.IO.Path]::GetFullPath($ServerRoot)
 $templateWorldFullPath = [System.IO.Path]::GetFullPath($TemplateWorldPath)
 $serverPropertiesFullPath = [System.IO.Path]::GetFullPath($ServerPropertiesPath)
 $caseWorldsRootPath = Get-CaseWorldsRootPath -ServerRootPath $serverRootFullPath -DirectoryName $caseWorldsDirectoryName
 $originalServerPropertiesText = Read-Utf8Text -Path $serverPropertiesFullPath
+
+if ($DeleteCaseWorldOnSuccess -and @($suiteEntries | Where-Object {
+	-not [string]::IsNullOrWhiteSpace([string]$_.reuseWorldFrom)
+}).Count -gt 0) {
+	throw "DeleteCaseWorldOnSuccess is not supported when suite entries reuse an earlier world."
+}
 
 if (Test-RconAlreadyReachable -ServerHost $RconHost -Port $RconPort -Password $RconPassword) {
 	throw "RCON is already reachable before suite start. Stop the dedicated server first to ensure each case loads its own fresh world."
@@ -620,11 +856,15 @@ if (Test-RconAlreadyReachable -ServerHost $RconHost -Port $RconPort -Password $R
 
 $suiteSummary = [ordered]@{
 	suiteTimestamp = $suiteTimestamp
+	suiteSource = $resolvedSuite.source
+	suitePath = $resolvedSuite.suiteConfigPath
+	suiteDescription = $resolvedSuite.description
 	benchAction = $BenchAction
 	serverRoot = $serverRootFullPath
 	serverPropertiesPath = $serverPropertiesFullPath
 	templateWorldPath = $templateWorldFullPath
 	caseWorldsRootPath = $caseWorldsRootPath
+	entryIds = $entryIds
 	caseIds = $resolvedCaseIds
 	startedAt = (Get-Date).ToString("s")
 	results = @()
@@ -635,39 +875,79 @@ Write-Host "[BenchSuite] Suite: $suiteTimestamp"
 Write-Host "[BenchSuite] Server root: $serverRootFullPath"
 Write-Host "[BenchSuite] Case worlds root: $caseWorldsRootPath"
 Write-Host "[BenchSuite] Template world: $templateWorldFullPath"
-Write-Host "[BenchSuite] Cases: $($resolvedCaseIds -join ', ')"
+if (-not [string]::IsNullOrWhiteSpace([string]$resolvedSuite.suiteConfigPath)) {
+	Write-Host "[BenchSuite] Suite path: $($resolvedSuite.suiteConfigPath)"
+}
+Write-Host "[BenchSuite] Entries: $($entryIds -join ', ')"
+
+$completedEntries = @{}
 
 try {
-	for ($index = 0; $index -lt $resolvedCaseIds.Count; $index++) {
-		$caseId = [string]$resolvedCaseIds[$index]
-		$worldName = New-CaseWorldName -Prefix $CaseWorldPrefix -CaseId $caseId -Index ($index + 1) -SuiteTimestamp $suiteTimestamp
-		$worldLevelName = Get-CaseWorldLevelName -DirectoryName $caseWorldsDirectoryName -WorldName $worldName
+	for ($index = 0; $index -lt $suiteEntries.Count; $index++) {
+		$entry = $suiteEntries[$index]
+		$entryId = [string]$entry.entryId
+		$caseId = [string]$entry.caseId
+		$entryBenchAction = [string]$entry.benchAction
+		$entryMatrixPath = [string]$entry.matrixPath
+		$reuseWorldFrom = [string]$entry.reuseWorldFrom
+		$compareSerialsTo = [string]$entry.compareSerialsTo
+		$worldName = $null
+		$worldLevelName = $null
+		if ([string]::IsNullOrWhiteSpace($reuseWorldFrom)) {
+			$worldName = New-CaseWorldName -Prefix $CaseWorldPrefix -CaseId $entryId -Index ($index + 1) -SuiteTimestamp $suiteTimestamp
+			$worldLevelName = Get-CaseWorldLevelName -DirectoryName $caseWorldsDirectoryName -WorldName $worldName
+		}
 		$caseRecord = [ordered]@{
+			entryId = $entryId
 			caseId = $caseId
-			benchAction = $BenchAction
+			benchAction = $entryBenchAction
+			matrixPath = $entryMatrixPath
 			worldName = $worldName
 			worldLevelName = $worldLevelName
+			reuseWorldFrom = if ([string]::IsNullOrWhiteSpace($reuseWorldFrom)) { $null } else { $reuseWorldFrom }
 			status = "pending"
 			startedAt = (Get-Date).ToString("s")
 		}
 		$serverProcess = $null
 		$worldPath = $null
 		try {
-			$worldPath = Copy-TemplateWorld -TemplatePath $templateWorldFullPath -CaseWorldsRootPath $caseWorldsRootPath -WorldName $worldName
-			$caseRecord.worldPath = $worldPath
-			Write-Host "[BenchSuite] Case $caseId -> world $worldName"
+			if ([string]::IsNullOrWhiteSpace($reuseWorldFrom)) {
+				$worldPath = Copy-TemplateWorld -TemplatePath $templateWorldFullPath -CaseWorldsRootPath $caseWorldsRootPath -WorldName $worldName
+				$caseRecord.worldPath = $worldPath
+				Write-Host "[BenchSuite] Entry $entryId -> case $caseId -> world $worldName"
+			} else {
+				if (-not $completedEntries.ContainsKey($reuseWorldFrom)) {
+					throw "Entry '$entryId' references unknown reuseWorldFrom entry: $reuseWorldFrom"
+				}
+				$reusedRecord = $completedEntries[$reuseWorldFrom]
+				if ($reusedRecord.status -ne "success") {
+					throw "Entry '$entryId' cannot reuse world from failed entry: $reuseWorldFrom"
+				}
+				$worldPath = [string]$reusedRecord.worldPath
+				$worldName = [string]$reusedRecord.worldName
+				$worldLevelName = [string]$reusedRecord.worldLevelName
+				$caseRecord.worldPath = $worldPath
+				$caseRecord.worldName = $worldName
+				$caseRecord.worldLevelName = $worldLevelName
+				Write-Host "[BenchSuite] Entry $entryId -> case $caseId -> reuse world from $reuseWorldFrom ($worldName)"
+			}
 
 			Set-ServerPropertyValue -Path $serverPropertiesFullPath -Key "level-name" -Value $worldLevelName
 			$serverProcess = Start-DedicatedServerProcess -WorkingDirectory $serverRootFullPath -Command $ServerStartCommand
 			$caseRecord.serverPid = $serverProcess.Id
 			Wait-RconReady -ServerHost $RconHost -Port $RconPort -Password $RconPassword -TimeoutMs $StartupTimeoutMs -PollIntervalMs $StartupPollIntervalMs
 
+			if (-not $matrixCache.ContainsKey($entryMatrixPath)) {
+				$matrixCache[$entryMatrixPath] = Get-MatrixConfig -Path $entryMatrixPath
+			}
+			$entryMatrix = $matrixCache[$entryMatrixPath]
+			$resultsDirPath = Get-ResultsDirectoryPath -RepoRootPath $repoRoot -Matrix $entryMatrix
 			$beforeSnapshot = Get-ResultFileSnapshot -ResultsDirPath $resultsDirPath
 			$startedAtUtc = [datetime]::UtcNow
 			$benchArgs = @{
-				Action = $BenchAction
+				Action = $entryBenchAction
 				CaseId = $caseId
-				MatrixPath = $MatrixPath
+				MatrixPath = $entryMatrixPath
 				SavePath = $worldPath
 				RconHost = $RconHost
 				RconPort = $RconPort
@@ -691,6 +971,7 @@ try {
 			if ($null -ne $resultPath) {
 				$benchSummary = Read-BenchResultSummary -ResultPath $resultPath
 				$caseRecord.bench = $benchSummary
+				$caseRecord.resultPath = $resultPath
 			}
 
 			if ($null -ne $runException) {
@@ -710,11 +991,26 @@ try {
 			if ($null -eq $resultPath) {
 				throw "Bench result JSON not found for case: $caseId"
 			}
+			if (-not [string]::IsNullOrWhiteSpace($compareSerialsTo)) {
+				if (-not $completedEntries.ContainsKey($compareSerialsTo)) {
+					throw "Entry '$entryId' references unknown compareSerialsTo entry: $compareSerialsTo"
+				}
+				$compareRecord = $completedEntries[$compareSerialsTo]
+				$compareResultPath = [string]$compareRecord.resultPath
+				if ([string]::IsNullOrWhiteSpace($compareResultPath)) {
+					throw "Entry '$entryId' cannot compare serials because '$compareSerialsTo' has no resultPath."
+				}
+				$serialComparison = Compare-BenchResultSerials -ExpectedResultPath $compareResultPath -ActualResultPath $resultPath
+				$caseRecord.serialComparison = $serialComparison
+				if (-not $serialComparison.passed) {
+					throw "Serial comparison failed for entry '$entryId' against '$compareSerialsTo'."
+				}
+			}
 			$caseRecord.status = "success"
 		} catch {
 			$caseRecord.status = "failed"
 			$caseRecord.error = $_.Exception.Message
-			Write-Host "[BenchSuite] Case failed: $caseId"
+			Write-Host "[BenchSuite] Case failed: $entryId ($caseId)"
 			Write-Host "[BenchSuite] Error: $($caseRecord.error)"
 			if (-not $ContinueOnFailure) {
 				throw
@@ -741,6 +1037,7 @@ try {
 			}
 
 			$caseRecord.completedAt = (Get-Date).ToString("s")
+			$completedEntries[$entryId] = [pscustomobject]$caseRecord
 			$suiteSummary.results += $caseRecord
 		}
 	}

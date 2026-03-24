@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "description": "首批必跑 F/X/P/R 场景集合，覆盖生命周期、语义基础、输入联动、跨区块、压测与重启回归。",
+  "entries": [
+    {
+      "entryId": "f02_link_lifecycle",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "link_lifecycle_add_remove_set_clear"
+    },
+    {
+      "entryId": "f03_sync_range",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "sync_core_range_square_basic"
+    },
+    {
+      "entryId": "f03_sync_slash",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "sync_triggerSource_slash_square_basic"
+    },
+    {
+      "entryId": "f03_sync_custom",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "sync_triggerSource_custom_mixed_basic"
+    },
+    {
+      "entryId": "f03_pulse",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "pulse_activate_sparse_zip"
+    },
+    {
+      "entryId": "f03_toggle",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "toggle_activate_fanin_even_odd"
+    },
+    {
+      "entryId": "f04_input_activate_trace",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "input_activate_trace_command_alignment"
+    },
+    {
+      "entryId": "x01_crosschunk_sync",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "crosschunk_sync_triggerSource_zip_square"
+    },
+    {
+      "entryId": "x04_restart_prepare",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "restart_persist_toggle_prepare"
+    },
+    {
+      "entryId": "r02_restart_verify",
+      "benchAction": "RunFunctionalCase",
+      "matrixPath": "../functional-matrix.json",
+      "caseId": "restart_persist_toggle_verify",
+      "reuseWorldFrom": "x04_restart_prepare",
+      "compareSerialsTo": "x04_restart_prepare"
+    },
+    {
+      "entryId": "p01_sync_broadcast",
+      "benchAction": "RunCase",
+      "matrixPath": "../matrix.json",
+      "caseId": "sync_1_to_256_core_dense"
+    },
+    {
+      "entryId": "p03_mixed_concurrency",
+      "benchAction": "RunCase",
+      "matrixPath": "../matrix.json",
+      "caseId": "mixed_64_to_64_core_dense"
+    }
+  ]
+}

@@ -13,6 +13,8 @@
     {
       "id": "sync_core_range_square_basic",
       "description": "直接对 core 注入 sync 方波，使用 range 序号表达式验证高低相位。",
+      "layer": "F",
+      "scenarioId": "F03",
       "arena": {
         "clearFrom": [-16, 63, -8],
         "clearTo": [16, 66, 8]
@@ -87,17 +89,19 @@
     {
       "id": "sync_triggerSource_slash_square_basic",
       "description": "对 sync emitter 批量注入 triggerSource 方波，使用 slash 序号表达式验证来源与 core 联动。",
+      "layer": "F",
+      "scenarioId": "F03",
       "arena": {
-        "clearFrom": [-8, 63, -8],
-        "clearTo": [24, 66, 8]
+        "clearFrom": [-8, 63, 72],
+        "clearTo": [24, 66, 88]
       },
       "targets": {
         "id": "core_zip",
         "kind": "core_block",
         "layout": {
           "shape": "cuboid",
-          "from": [12, 64, 0],
-          "to": [14, 64, 0]
+          "from": [12, 64, 80],
+          "to": [14, 64, 80]
         }
       },
       "sources": [
@@ -106,8 +110,8 @@
           "kind": "sync_emitter",
           "layout": {
             "shape": "cuboid",
-            "from": [0, 64, 0],
-            "to": [2, 64, 0]
+            "from": [0, 64, 80],
+            "to": [2, 64, 80]
           }
         }
       ],
@@ -207,17 +211,19 @@
     {
       "id": "sync_triggerSource_custom_mixed_basic",
       "description": "对 sync emitter 注入自定义序列 15/0/7/0，使用 mixed 序号表达式验证中间强度传播。",
+      "layer": "F",
+      "scenarioId": "F03",
       "arena": {
-        "clearFrom": [-8, 63, 8],
-        "clearTo": [24, 66, 18]
+        "clearFrom": [-8, 63, 90],
+        "clearTo": [24, 66, 100]
       },
       "targets": {
         "id": "core_custom",
         "kind": "core_block",
         "layout": {
           "shape": "cuboid",
-          "from": [12, 64, 10],
-          "to": [15, 64, 10]
+          "from": [12, 64, 92],
+          "to": [15, 64, 92]
         }
       },
       "sources": [
@@ -226,8 +232,8 @@
           "kind": "sync_emitter",
           "layout": {
             "shape": "cuboid",
-            "from": [0, 64, 10],
-            "to": [3, 64, 10]
+            "from": [0, 64, 92],
+            "to": [3, 64, 92]
           }
         }
       ],
@@ -324,6 +330,8 @@
     {
       "id": "pulse_activate_sparse_zip",
       "description": "pulse 批量激活经 zip 映射传播到 core，验证脉冲窗口与自动回落。",
+      "layer": "F",
+      "scenarioId": "F03",
       "arena": {
         "clearFrom": [-8, 63, 18],
         "clearTo": [24, 66, 28]
@@ -380,8 +388,8 @@
           "kind": "trace_read_tick_assert",
           "name": "pulse_targets_ticks",
           "type": "core",
-          "serials": [1],
-          "serialFormat": "slash_list",
+          "serialRef": "targets",
+          "serialFormat": "range",
           "mountRef": "mount_pulse_targets",
           "anchorRef": "pulse_activate_zip",
           "limit": 18,
@@ -405,6 +413,8 @@
     {
       "id": "toggle_activate_fanin_even_odd",
       "description": "toggle fan-in 先验证同帧偶数净不翻转，再验证单来源双次激活完成开关往返。",
+      "layer": "F",
+      "scenarioId": "F03",
       "arena": {
         "clearFrom": [-8, 63, 28],
         "clearTo": [28, 66, 36]
@@ -548,6 +558,736 @@
         {
           "kind": "trace_unmount",
           "name": "unmount_toggle_target",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list"
+        }
+      ]
+    },
+    {
+      "id": "link_lifecycle_add_remove_set_clear",
+      "description": "通过 add/remove/set/clear/get 走完整建链生命周期，并用 pulse 行为验证最终链接状态。",
+      "layer": "F",
+      "scenarioId": "F02",
+      "arena": {
+        "clearFrom": [-8, 63, 38],
+        "clearTo": [24, 66, 46]
+      },
+      "targets": {
+        "id": "core_lifecycle",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [12, 64, 40],
+          "to": [13, 64, 40]
+        }
+      },
+      "sources": [
+        {
+          "id": "pulse_lifecycle",
+          "kind": "pulse_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 40],
+            "to": [0, 64, 40]
+          }
+        }
+      ],
+      "links": [],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_lifecycle_targets",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "range",
+          "every": 1,
+          "capacity": 96
+        },
+        {
+          "kind": "activate_batch",
+          "name": "pulse_without_links",
+          "serialRef": "pulse_lifecycle",
+          "serialFormat": "slash_list",
+          "mode": "pulse"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_no_link_ticks",
+          "ticks": 6
+        },
+        {
+          "kind": "trace_latest_assert",
+          "name": "target_should_stay_low_without_link",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 0,
+          "serialFormat": "slash_list",
+          "expect": {
+            "active": false
+          }
+        },
+        {
+          "kind": "link_command",
+          "name": "link_add_first_target",
+          "action": "add",
+          "sourceRef": "pulse_lifecycle",
+          "targetRef": "targets",
+          "targetIndex": 0
+        },
+        {
+          "kind": "link_command",
+          "name": "link_get_after_add",
+          "action": "get",
+          "sourceRef": "pulse_lifecycle"
+        },
+        {
+          "kind": "activate_batch",
+          "name": "pulse_single_link",
+          "serialRef": "pulse_lifecycle",
+          "serialFormat": "slash_list",
+          "mode": "pulse"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_single_link_ticks",
+          "ticks": 6
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "first_target_should_pulse",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 0,
+          "serialFormat": "slash_list",
+          "mountRef": "mount_lifecycle_targets",
+          "anchorRef": "pulse_single_link",
+          "limit": 12,
+          "tickCount": 6,
+          "template": {
+            "kind": "pulse",
+            "phaseRef": "pulse_single_link",
+            "activeTicks": 3,
+            "activePower": 15
+          }
+        },
+        {
+          "kind": "link_command",
+          "name": "link_remove_first_target",
+          "action": "remove",
+          "sourceRef": "pulse_lifecycle",
+          "targetRef": "targets",
+          "targetIndex": 0
+        },
+        {
+          "kind": "activate_batch",
+          "name": "pulse_after_remove",
+          "serialRef": "pulse_lifecycle",
+          "serialFormat": "slash_list",
+          "mode": "pulse"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_after_remove_ticks",
+          "ticks": 6
+        },
+        {
+          "kind": "trace_latest_assert",
+          "name": "target_should_stay_low_after_remove",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 0,
+          "serialFormat": "slash_list",
+          "expect": {
+            "active": false
+          }
+        },
+        {
+          "kind": "link_command",
+          "name": "link_set_all_targets",
+          "action": "set",
+          "sourceRef": "pulse_lifecycle",
+          "targetRef": "targets",
+          "targetIndexes": [0, 1],
+          "targetSerialFormat": "mixed"
+        },
+        {
+          "kind": "link_command",
+          "name": "link_get_after_set",
+          "action": "get",
+          "sourceRef": "pulse_lifecycle"
+        },
+        {
+          "kind": "activate_batch",
+          "name": "pulse_after_set",
+          "serialRef": "pulse_lifecycle",
+          "serialFormat": "slash_list",
+          "mode": "pulse"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_after_set_ticks",
+          "ticks": 6
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "all_targets_should_pulse_after_set",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndexes": [0, 1],
+          "serialFormat": "mixed",
+          "mountRef": "mount_lifecycle_targets",
+          "anchorRef": "pulse_after_set",
+          "limit": 12,
+          "tickCount": 6,
+          "template": {
+            "kind": "pulse",
+            "phaseRef": "pulse_after_set",
+            "activeTicks": 3,
+            "activePower": 15
+          }
+        },
+        {
+          "kind": "link_command",
+          "name": "link_clear_all_targets",
+          "action": "clear",
+          "sourceRef": "pulse_lifecycle"
+        },
+        {
+          "kind": "activate_batch",
+          "name": "pulse_after_clear",
+          "serialRef": "pulse_lifecycle",
+          "serialFormat": "slash_list",
+          "mode": "pulse"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_after_clear_ticks",
+          "ticks": 6
+        },
+        {
+          "kind": "trace_latest_assert",
+          "name": "all_targets_should_stay_low_after_clear",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndexes": [0, 1],
+          "serialFormat": "mixed",
+          "expectedCount": 2,
+          "expect": {
+            "active": false
+          }
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_lifecycle_targets",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "range"
+        }
+      ]
+    },
+    {
+      "id": "input_activate_trace_command_alignment",
+      "description": "组合验证 input start、node activate 与 node trace 的链路一致性。",
+      "layer": "F",
+      "scenarioId": "F04",
+      "arena": {
+        "clearFrom": [-8, 63, 48],
+        "clearTo": [24, 66, 58]
+      },
+      "targets": {
+        "id": "core_input_activate",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [12, 64, 50],
+          "to": [13, 64, 50]
+        }
+      },
+      "sources": [
+        {
+          "id": "sync_input_case",
+          "kind": "sync_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 50],
+            "to": [0, 64, 50]
+          }
+        },
+        {
+          "id": "pulse_activate_case",
+          "kind": "pulse_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 52],
+            "to": [0, 64, 52]
+          }
+        }
+      ],
+      "links": [],
+      "phases": [
+        {
+          "kind": "link_command",
+          "name": "link_sync_input_target",
+          "action": "set",
+          "sourceRef": "sync_input_case",
+          "targetRef": "targets",
+          "targetIndex": 0
+        },
+        {
+          "kind": "trace_mount",
+          "name": "mount_sync_input_source",
+          "type": "triggerSource",
+          "serialRef": "sync_input_case",
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "trace_mount",
+          "name": "mount_sync_input_target",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 0,
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "input_start_square",
+          "name": "start_sync_input_square",
+          "endpoint": "triggerSource",
+          "serialRef": "sync_input_case",
+          "serialFormat": "slash_list",
+          "periodTicks": 4,
+          "highTicks": 2,
+          "highPower": 15,
+          "lowPower": 0,
+          "phaseTicks": 0,
+          "totalTicks": 0
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_sync_input_ticks",
+          "ticks": 8
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "sync_input_source_should_follow_square",
+          "type": "triggerSource",
+          "serialRef": "sync_input_case",
+          "serialFormat": "slash_list",
+          "mountRef": "mount_sync_input_source",
+          "anchorRef": "start_sync_input_square",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_square",
+            "phaseRef": "start_sync_input_square"
+          }
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "sync_input_target_should_follow_square",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 0,
+          "serialFormat": "slash_list",
+          "mountRef": "mount_sync_input_target",
+          "anchorRef": "start_sync_input_square",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_square",
+            "phaseRef": "start_sync_input_square"
+          }
+        },
+        {
+          "kind": "input_clear",
+          "name": "clear_sync_input_jobs"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_after_input_clear",
+          "ticks": 4
+        },
+        {
+          "kind": "trace_latest_assert",
+          "name": "sync_input_target_should_return_low",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 0,
+          "serialFormat": "slash_list",
+          "expect": {
+            "active": false
+          }
+        },
+        {
+          "kind": "link_command",
+          "name": "link_pulse_activate_target",
+          "action": "set",
+          "sourceRef": "pulse_activate_case",
+          "targetRef": "targets",
+          "targetIndex": 1
+        },
+        {
+          "kind": "trace_mount",
+          "name": "mount_pulse_activate_target",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 1,
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "activate_batch",
+          "name": "activate_pulse_target",
+          "serialRef": "pulse_activate_case",
+          "serialFormat": "slash_list",
+          "mode": "pulse"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_activate_ticks",
+          "ticks": 6
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "pulse_activate_target_should_pulse",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 1,
+          "serialFormat": "slash_list",
+          "mountRef": "mount_pulse_activate_target",
+          "anchorRef": "activate_pulse_target",
+          "limit": 12,
+          "tickCount": 6,
+          "template": {
+            "kind": "pulse",
+            "phaseRef": "activate_pulse_target",
+            "activeTicks": 3,
+            "activePower": 15
+          }
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_sync_input_source",
+          "type": "triggerSource",
+          "serialRef": "sync_input_case",
+          "serialFormat": "slash_list"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_sync_input_target",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 0,
+          "serialFormat": "slash_list"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_pulse_activate_target",
+          "type": "core",
+          "serialRef": "targets",
+          "serialIndex": 1,
+          "serialFormat": "slash_list"
+        }
+      ]
+    },
+    {
+      "id": "crosschunk_sync_triggerSource_zip_square",
+      "description": "让 triggerSource 与 core 分处不同区块，验证 crosschunk 基础派发与 trace 结果一致。",
+      "layer": "X",
+      "scenarioId": "X01",
+      "arena": {
+        "clearFrom": [-8, 63, 60],
+        "clearTo": [40, 66, 68]
+      },
+      "targets": {
+        "id": "core_crosschunk",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [32, 64, 62],
+          "to": [34, 64, 62]
+        }
+      },
+      "sources": [
+        {
+          "id": "sync_crosschunk",
+          "kind": "sync_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 62],
+            "to": [2, 64, 62]
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "sync_crosschunk",
+          "mapping": "zip"
+        }
+      ],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_crosschunk_sources",
+          "type": "triggerSource",
+          "serialRef": "sync_crosschunk",
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 96
+        },
+        {
+          "kind": "trace_mount",
+          "name": "mount_crosschunk_targets",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 96
+        },
+        {
+          "kind": "input_start_square",
+          "name": "start_crosschunk_square",
+          "endpoint": "triggerSource",
+          "serialRef": "sync_crosschunk",
+          "serialFormat": "slash_list",
+          "periodTicks": 4,
+          "highTicks": 2,
+          "highPower": 15,
+          "lowPower": 0,
+          "phaseTicks": 0,
+          "totalTicks": 0
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_crosschunk_ticks",
+          "ticks": 8
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "crosschunk_sources_should_follow_square",
+          "type": "triggerSource",
+          "serialRef": "sync_crosschunk",
+          "serialFormat": "slash_list",
+          "mountRef": "mount_crosschunk_sources",
+          "anchorRef": "start_crosschunk_square",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_square",
+            "phaseRef": "start_crosschunk_square"
+          }
+        },
+        {
+          "kind": "trace_read_tick_assert",
+          "name": "crosschunk_targets_should_follow_square",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "mountRef": "mount_crosschunk_targets",
+          "anchorRef": "start_crosschunk_square",
+          "limit": 12,
+          "tickCount": 4,
+          "template": {
+            "kind": "sync_square",
+            "phaseRef": "start_crosschunk_square"
+          }
+        },
+        {
+          "kind": "input_clear",
+          "name": "clear_crosschunk_jobs"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_crosschunk_sources",
+          "type": "triggerSource",
+          "serialRef": "sync_crosschunk",
+          "serialFormat": "slash_list"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_crosschunk_targets",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list"
+        }
+      ]
+    },
+    {
+      "id": "restart_persist_toggle_prepare",
+      "description": "准备一条 toggle 持续激活链路，供重启后复验序号、链接与最终状态。",
+      "layer": "X",
+      "scenarioId": "X04",
+      "arena": {
+        "clearFrom": [-8, 63, 70],
+        "clearTo": [24, 66, 78]
+      },
+      "targets": {
+        "id": "core_restart",
+        "kind": "core_block",
+        "layout": {
+          "shape": "cuboid",
+          "from": [12, 64, 72],
+          "to": [12, 64, 72]
+        }
+      },
+      "sources": [
+        {
+          "id": "toggle_restart",
+          "kind": "toggle_emitter",
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 72],
+            "to": [0, 64, 72]
+          }
+        }
+      ],
+      "links": [
+        {
+          "sourceGroup": "toggle_restart",
+          "mapping": "zip"
+        }
+      ],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_restart_target_prepare",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "activate_batch",
+          "name": "toggle_prepare_activate",
+          "serialRef": "toggle_restart",
+          "serialFormat": "slash_list",
+          "mode": "toggle"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_restart_prepare_ticks",
+          "ticks": 3
+        },
+        {
+          "kind": "trace_latest_assert",
+          "name": "restart_prepare_target_should_be_on",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "expect": {
+            "active": true
+          }
+        },
+        {
+          "kind": "link_command",
+          "name": "restart_prepare_link_get",
+          "action": "get",
+          "sourceRef": "toggle_restart"
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_restart_target_prepare",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list"
+        }
+      ]
+    },
+    {
+      "id": "restart_persist_toggle_verify",
+      "description": "复用已存在世界，验证重启后 serial、链接与 toggle 最终态仍一致。",
+      "layer": "R",
+      "scenarioId": "R02",
+      "clearArena": false,
+      "arena": {
+        "clearFrom": [-8, 63, 70],
+        "clearTo": [24, 66, 78]
+      },
+      "targets": {
+        "id": "core_restart",
+        "kind": "core_block",
+        "reuseExisting": true,
+        "layout": {
+          "shape": "cuboid",
+          "from": [12, 64, 72],
+          "to": [12, 64, 72]
+        }
+      },
+      "sources": [
+        {
+          "id": "toggle_restart",
+          "kind": "toggle_emitter",
+          "reuseExisting": true,
+          "layout": {
+            "shape": "cuboid",
+            "from": [0, 64, 72],
+            "to": [0, 64, 72]
+          }
+        }
+      ],
+      "links": [],
+      "phases": [
+        {
+          "kind": "trace_mount",
+          "name": "mount_restart_target_verify",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "every": 1,
+          "capacity": 64
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_restart_verify_mount_ticks",
+          "ticks": 2
+        },
+        {
+          "kind": "link_command",
+          "name": "restart_verify_link_get",
+          "action": "get",
+          "sourceRef": "toggle_restart"
+        },
+        {
+          "kind": "trace_latest_assert",
+          "name": "restart_verify_target_should_stay_on",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "expect": {
+            "active": true
+          }
+        },
+        {
+          "kind": "activate_batch",
+          "name": "restart_verify_toggle_again",
+          "serialRef": "toggle_restart",
+          "serialFormat": "slash_list",
+          "mode": "toggle"
+        },
+        {
+          "kind": "wait_ticks",
+          "name": "collect_restart_verify_toggle_ticks",
+          "ticks": 3
+        },
+        {
+          "kind": "trace_latest_assert",
+          "name": "restart_verify_target_should_turn_off",
+          "type": "core",
+          "serialRef": "targets",
+          "serialFormat": "slash_list",
+          "expect": {
+            "active": false
+          }
+        },
+        {
+          "kind": "trace_unmount",
+          "name": "unmount_restart_target_verify",
           "type": "core",
           "serialRef": "targets",
           "serialFormat": "slash_list"
