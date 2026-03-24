@@ -19,8 +19,10 @@ import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkWriteControlService;
 import com.makomi.data.LinkWriteProtectedSavedData;
+import com.makomi.data.NodeIdentitySnapshot;
 import com.makomi.data.NodeRuntimeProbe;
 import com.makomi.data.NodeRuntimeSnapshot;
+import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.data.NodeStateTraceService;
 import com.makomi.data.input.InputEndpointKind;
 import com.makomi.data.input.InputJobSpec;
@@ -1021,65 +1023,50 @@ public final class ModCommands {
 		}
 
 		long serial = LongArgumentType.getLong(context, "serial");
-		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
-		boolean allocated = savedData.isSerialAllocated(type, serial);
-		boolean retired = savedData.isSerialRetired(type, serial);
-		var nodeOptional = savedData.findNode(type, serial);
-		boolean online = nodeOptional.isPresent();
-		String dimensionText = nodeOptional.map(node -> node.dimension().location().toString()).orElse("-");
-		String posText = nodeOptional.map(node -> formatBlockPos(node.pos())).orElse("-");
-		Set<Long> rawTargets = readLinkedTargets(savedData, type, serial);
-		List<Long> visibleTargets = CurrentLinksPrivacyService.resolveVisibleCurrentLinksSnapshot(
+		NodeSnapshotQueryService.NodeReadSnapshot readSnapshot = NodeSnapshotQueryService.query(
 			source.getLevel(),
 			type,
 			serial,
-			rawTargets,
 			source.hasPermission(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
 		);
+		NodeIdentitySnapshot identity = readSnapshot.identity();
+		String dimensionText = identity.dimension() == null ? "-" : identity.dimension().location().toString();
+		String posText = identity.pos() == null ? "-" : formatBlockPos(identity.pos());
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.node.get",
 				typeCommandName(type),
 				serial,
-				Boolean.toString(allocated),
-				Boolean.toString(retired),
-				Boolean.toString(online),
+				Boolean.toString(identity.allocated()),
+				Boolean.toString(identity.retired()),
+				Boolean.toString(identity.online()),
 				dimensionText,
 				posText,
-				visibleTargets.size(),
-				formatSerialList(visibleTargets)
+				readSnapshot.linksSnapshot().visibleTargetCount(),
+				formatSerialList(readSnapshot.linksSnapshot().visibleTargets())
 			),
 			false
 		);
-		sendNodeRuntimeSnapshot(source, nodeOptional.orElse(null));
+		sendNodeRuntimeSnapshot(source, readSnapshot.runtimeSnapshot());
 		return Command.SINGLE_SUCCESS;
 	}
 
 	/**
-	 * 输出目标节点运行态快照（P2 三层结果模型可观测项）。
+	 * 输出节点运行态快照（读模型统一入口）。
 	 */
-	private static void sendNodeRuntimeSnapshot(CommandSourceStack source, LinkSavedData.LinkNode node) {
-		if (source == null || node == null) {
+	private static void sendNodeRuntimeSnapshot(CommandSourceStack source, NodeRuntimeSnapshot runtimeSnapshot) {
+		if (source == null || runtimeSnapshot == null) {
 			return;
 		}
-		ServerLevel nodeLevel = source.getServer().getLevel(node.dimension());
-		if (nodeLevel == null || !nodeLevel.isLoaded(node.pos())) {
-			return;
-		}
-		BlockEntity blockEntity = nodeLevel.getBlockEntity(node.pos());
-		if (!(blockEntity instanceof ActivatableTargetBlockEntity targetBlockEntity)) {
-			return;
-		}
-
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.node.get.runtime",
-				targetBlockEntity.getConfiguredMode().name().toLowerCase(Locale.ROOT),
-				targetBlockEntity.getEffectiveMode().name().toLowerCase(Locale.ROOT),
-				Boolean.toString(targetBlockEntity.isActive()),
-				targetBlockEntity.getResolvedStrength(),
-				targetBlockEntity.getResolvedOutputPower(),
-				formatSerialList(targetBlockEntity.getSyncMaxSourceSerialsSnapshot())
+				runtimeSnapshot.configuredMode(),
+				runtimeSnapshot.effectiveMode(),
+				Boolean.toString(runtimeSnapshot.active()),
+				runtimeSnapshot.resolvedStrength(),
+				runtimeSnapshot.outputPower(),
+				formatSerialList(runtimeSnapshot.maxSourceSerials())
 			),
 			false
 		);
@@ -2098,13 +2085,10 @@ public final class ModCommands {
 		}
 
 		long serial = LongArgumentType.getLong(context, "serial");
-		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
-		Set<Long> rawTargets = readLinkedTargets(savedData, type, serial);
-		List<Long> visibleTargets = CurrentLinksPrivacyService.resolveVisibleCurrentLinksSnapshot(
+		NodeSnapshotQueryService.NodeReadSnapshot readSnapshot = NodeSnapshotQueryService.query(
 			source.getLevel(),
 			type,
 			serial,
-			rawTargets,
 			source.hasPermission(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
 		);
 		source.sendSuccess(
@@ -2112,8 +2096,8 @@ public final class ModCommands {
 				"message.redstonelink.link.get",
 				typeCommandName(type),
 				serial,
-				visibleTargets.size(),
-				formatSerialList(visibleTargets)
+				readSnapshot.linksSnapshot().visibleTargetCount(),
+				formatSerialList(readSnapshot.linksSnapshot().visibleTargets())
 			),
 			false
 		);
@@ -2760,17 +2744,6 @@ public final class ModCommands {
 		} catch (IllegalArgumentException ignored) {
 			return defaultValue;
 		}
-	}
-
-	/**
-	 * 读取源节点当前关联目标列表。
-	 */
-	private static Set<Long> readLinkedTargets(
-		LinkSavedData savedData,
-		LinkNodeType sourceType,
-		long sourceSerial
-	) {
-		return savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
 	}
 
 	/**

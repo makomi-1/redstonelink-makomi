@@ -109,26 +109,27 @@ public final class NodeRuntimeProbe {
 		TraceNodeKind traceKind
 	) {
 		if (server == null || nodeType == null || traceKind == null || serial <= 0L) {
-			return offlineSnapshot(traceKind, nodeType, serial, false, false, 0L, null, null);
+			return offlineSnapshot(
+				traceKind,
+				new NodeIdentitySnapshot(nodeType, serial, false, false, false, null, null),
+				0L
+			);
 		}
 
 		ServerLevel overworld = server.overworld();
-		LinkSavedData savedData = LinkSavedData.get(overworld);
-		boolean allocated = savedData.isSerialAllocated(nodeType, serial);
-		boolean retired = savedData.isSerialRetired(nodeType, serial);
+		NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(overworld, nodeType, serial);
 		long sampleTick = Math.max(0L, overworld.getGameTime());
-		LinkSavedData.LinkNode onlineNode = savedData.findNode(nodeType, serial).orElse(null);
-		if (onlineNode == null) {
-			return offlineSnapshot(traceKind, nodeType, serial, allocated, retired, sampleTick, null, null);
+		if (!identity.online()) {
+			return offlineSnapshot(traceKind, identity, sampleTick);
 		}
 
-		ServerLevel nodeLevel = server.getLevel(onlineNode.dimension());
-		if (nodeLevel == null || !nodeLevel.isLoaded(onlineNode.pos())) {
-			return offlineSnapshot(traceKind, nodeType, serial, allocated, retired, sampleTick, onlineNode.dimension(), onlineNode.pos());
+		ServerLevel nodeLevel = server.getLevel(identity.dimension());
+		if (nodeLevel == null || identity.pos() == null || !nodeLevel.isLoaded(identity.pos())) {
+			return offlineSnapshot(traceKind, identity.withOnline(false), sampleTick);
 		}
-		BlockEntity blockEntity = nodeLevel.getBlockEntity(onlineNode.pos());
+		BlockEntity blockEntity = nodeLevel.getBlockEntity(identity.pos());
 		if (traceKind == TraceNodeKind.CORE && blockEntity instanceof ActivatableTargetBlockEntity targetBlockEntity) {
-			return buildCoreSnapshot(targetBlockEntity, nodeType, serial, allocated, retired, sampleTick);
+			return buildCoreSnapshot(targetBlockEntity, identity, sampleTick);
 		}
 		if (
 			traceKind == TraceNodeKind.PULSE_TRIGGER_SOURCE
@@ -136,13 +137,10 @@ public final class NodeRuntimeProbe {
 		) {
 			return buildEmitterTriggerSourceSnapshot(
 				nodeLevel,
-				onlineNode.pos(),
+				identity.pos(),
 				pulseEmitterBlockEntity,
 				traceKind,
-				nodeType,
-				serial,
-				allocated,
-				retired,
+				identity,
 				sampleTick
 			);
 		}
@@ -152,13 +150,10 @@ public final class NodeRuntimeProbe {
 		) {
 			return buildEmitterTriggerSourceSnapshot(
 				nodeLevel,
-				onlineNode.pos(),
+				identity.pos(),
 				toggleEmitterBlockEntity,
 				traceKind,
-				nodeType,
-				serial,
-				allocated,
-				retired,
+				identity,
 				sampleTick
 			);
 		}
@@ -168,37 +163,33 @@ public final class NodeRuntimeProbe {
 		) {
 			return buildSyncTriggerSourceSnapshot(
 				nodeLevel,
-				onlineNode.pos(),
+				identity.pos(),
 				syncEmitterBlockEntity,
-				nodeType,
-				serial,
-				allocated,
-				retired,
+				identity,
 				sampleTick
 			);
 		}
-		return offlineSnapshot(traceKind, nodeType, serial, allocated, retired, sampleTick, onlineNode.dimension(), onlineNode.pos());
+		return offlineSnapshot(traceKind, identity.withOnline(false), sampleTick);
 	}
 
 	private static NodeRuntimeSnapshot buildCoreSnapshot(
 		ActivatableTargetBlockEntity targetBlockEntity,
-		LinkNodeType nodeType,
-		long serial,
-		boolean allocated,
-		boolean retired,
+		NodeIdentitySnapshot identity,
 		long sampleTick
 	) {
 		List<Long> maxSourceSerials = targetBlockEntity.getSyncMaxSourceSerialsSnapshot();
 		int resolvedStrength = targetBlockEntity.getResolvedStrength();
 		return new NodeRuntimeSnapshot(
 			TraceNodeKind.CORE,
-			nodeType,
-			serial,
-			allocated,
-			retired,
-			true,
-			targetBlockEntity.getLevel() == null ? null : targetBlockEntity.getLevel().dimension(),
-			targetBlockEntity.getBlockPos(),
+			new NodeIdentitySnapshot(
+				identity.nodeType(),
+				identity.serial(),
+				identity.allocated(),
+				identity.retired(),
+				true,
+				targetBlockEntity.getLevel() == null ? identity.dimension() : targetBlockEntity.getLevel().dimension(),
+				targetBlockEntity.getBlockPos()
+			),
 			sampleTick,
 			0,
 			targetBlockEntity.isActive(),
@@ -218,26 +209,37 @@ public final class NodeRuntimeProbe {
 		BlockPos blockPos,
 		LinkTriggerSourceBlockEntity triggerSourceBlockEntity,
 		TraceNodeKind traceKind,
-		LinkNodeType nodeType,
-		long serial,
-		boolean allocated,
-		boolean retired,
+		NodeIdentitySnapshot identity,
 		long sampleTick
 	) {
 		EmitterLiveState liveState = resolveEmitterLiveState(nodeLevel, blockPos).orElse(null);
 		if (liveState == null) {
-			return offlineSnapshot(traceKind, nodeType, serial, allocated, retired, sampleTick, nodeLevel.dimension(), blockPos);
+			return offlineSnapshot(
+				traceKind,
+				new NodeIdentitySnapshot(
+					identity.nodeType(),
+					identity.serial(),
+					identity.allocated(),
+					identity.retired(),
+					false,
+					nodeLevel.dimension(),
+					blockPos
+				),
+				sampleTick
+			);
 		}
 		String modeName = defaultModeName(traceKind);
 		return new NodeRuntimeSnapshot(
 			traceKind,
-			nodeType,
-			serial,
-			allocated,
-			retired,
-			true,
-			nodeLevel.dimension(),
-			blockPos,
+			new NodeIdentitySnapshot(
+				identity.nodeType(),
+				identity.serial(),
+				identity.allocated(),
+				identity.retired(),
+				true,
+				nodeLevel.dimension(),
+				blockPos
+			),
 			sampleTick,
 			0,
 			liveState.visiblePowered(),
@@ -256,23 +258,23 @@ public final class NodeRuntimeProbe {
 		ServerLevel nodeLevel,
 		BlockPos blockPos,
 		LinkSyncEmitterBlockEntity syncEmitterBlockEntity,
-		LinkNodeType nodeType,
-		long serial,
-		boolean allocated,
-		boolean retired,
+		NodeIdentitySnapshot identity,
 		long sampleTick
 	) {
 		EmitterLiveState liveState = resolveEmitterLiveState(nodeLevel, blockPos).orElse(null);
 		if (liveState == null) {
 			return offlineSnapshot(
 				TraceNodeKind.SYNC_TRIGGER_SOURCE,
-				nodeType,
-				serial,
-				allocated,
-				retired,
-				sampleTick,
-				nodeLevel.dimension(),
-				blockPos
+				new NodeIdentitySnapshot(
+					identity.nodeType(),
+					identity.serial(),
+					identity.allocated(),
+					identity.retired(),
+					false,
+					nodeLevel.dimension(),
+					blockPos
+				),
+				sampleTick
 			);
 		}
 		int lastObservedInputPower = syncEmitterBlockEntity.getLastObservedSignalStrength();
@@ -281,13 +283,15 @@ public final class NodeRuntimeProbe {
 			.orElse(liveState.inputPower());
 		return new NodeRuntimeSnapshot(
 			TraceNodeKind.SYNC_TRIGGER_SOURCE,
-			nodeType,
-			serial,
-			allocated,
-			retired,
-			true,
-			nodeLevel.dimension(),
-			blockPos,
+			new NodeIdentitySnapshot(
+				identity.nodeType(),
+				identity.serial(),
+				identity.allocated(),
+				identity.retired(),
+				true,
+				nodeLevel.dimension(),
+				blockPos
+			),
 			sampleTick,
 			0,
 			liveState.visiblePowered(),
@@ -318,23 +322,12 @@ public final class NodeRuntimeProbe {
 
 	private static NodeRuntimeSnapshot offlineSnapshot(
 		TraceNodeKind traceKind,
-		LinkNodeType nodeType,
-		long serial,
-		boolean allocated,
-		boolean retired,
-		long sampleTick,
-		net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension,
-		BlockPos pos
+		NodeIdentitySnapshot identity,
+		long sampleTick
 	) {
 		return new NodeRuntimeSnapshot(
 			traceKind,
-			nodeType,
-			serial,
-			allocated,
-			retired,
-			false,
-			dimension,
-			pos,
+			identity == null ? new NodeIdentitySnapshot(LinkNodeType.CORE, 0L, false, false, false, null, null) : identity,
 			sampleTick,
 			0,
 			false,

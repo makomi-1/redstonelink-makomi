@@ -16,13 +16,7 @@ import net.minecraft.world.level.Level;
  */
 public record NodeRuntimeSnapshot(
 	TraceNodeKind traceKind,
-	LinkNodeType nodeType,
-	long serial,
-	boolean allocated,
-	boolean retired,
-	boolean online,
-	ResourceKey<Level> dimension,
-	BlockPos pos,
+	NodeIdentitySnapshot identity,
 	long sampleTick,
 	int sampleSlot,
 	boolean active,
@@ -37,8 +31,9 @@ public record NodeRuntimeSnapshot(
 ) {
 	public NodeRuntimeSnapshot {
 		traceKind = traceKind == null ? TraceNodeKind.CORE : traceKind;
-		nodeType = nodeType == null ? LinkNodeType.CORE : nodeType;
-		serial = Math.max(0L, serial);
+		identity = identity == null
+			? new NodeIdentitySnapshot(LinkNodeType.CORE, 0L, false, false, false, null, null)
+			: identity;
 		sampleTick = Math.max(0L, sampleTick);
 		sampleSlot = Math.max(0, sampleSlot);
 		inputPower = SignalStrengths.clamp(inputPower);
@@ -49,7 +44,55 @@ public record NodeRuntimeSnapshot(
 		configuredMode = normalizeText(configuredMode);
 		effectiveMode = normalizeText(effectiveMode);
 		maxSourceSerials = maxSourceSerials == null ? List.of() : List.copyOf(maxSourceSerials);
-		pos = pos == null ? null : pos.immutable();
+	}
+
+	/**
+	 * 节点类型便捷访问器。
+	 */
+	public LinkNodeType nodeType() {
+		return identity.nodeType();
+	}
+
+	/**
+	 * 节点序号便捷访问器。
+	 */
+	public long serial() {
+		return identity.serial();
+	}
+
+	/**
+	 * 已分配状态便捷访问器。
+	 */
+	public boolean allocated() {
+		return identity.allocated();
+	}
+
+	/**
+	 * 已退役状态便捷访问器。
+	 */
+	public boolean retired() {
+		return identity.retired();
+	}
+
+	/**
+	 * 在线状态便捷访问器。
+	 */
+	public boolean online() {
+		return identity.online();
+	}
+
+	/**
+	 * 维度便捷访问器。
+	 */
+	public ResourceKey<Level> dimension() {
+		return identity.dimension();
+	}
+
+	/**
+	 * 坐标便捷访问器。
+	 */
+	public BlockPos pos() {
+		return identity.pos();
 	}
 
 	/**

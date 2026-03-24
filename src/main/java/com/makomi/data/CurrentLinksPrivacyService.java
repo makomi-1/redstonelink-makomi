@@ -82,16 +82,7 @@ public final class CurrentLinksPrivacyService {
 		long sourceSerial,
 		Set<Long> linkedTargets
 	) {
-		if (player == null) {
-			return List.of();
-		}
-		return resolveVisibleCurrentLinksSnapshot(
-			player.serverLevel(),
-			sourceType,
-			sourceSerial,
-			linkedTargets,
-			player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel())
-		);
+		return resolveVisibleLinksSnapshot(player, sourceType, sourceSerial, linkedTargets).visibleTargets();
 	}
 
 	/**
@@ -114,12 +105,39 @@ public final class CurrentLinksPrivacyService {
 		Set<Long> linkedTargets,
 		boolean hasViewPermission
 	) {
-		if (!canViewCurrentLinks(level, sourceType, sourceSerial, hasViewPermission)) {
-			return List.of();
-		}
-		return filterVisibleTargetSerials(
+		return resolveVisibleLinksSnapshot(level, sourceType, sourceSerial, linkedTargets, hasViewPermission).visibleTargets();
+	}
+
+	/**
+	 * 解析“对当前玩家可见”的当前连接视图快照。
+	 */
+	public static NodeLinksSnapshot resolveVisibleLinksSnapshot(
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> linkedTargets
+	) {
+		ServerLevel level = player == null ? null : player.serverLevel();
+		boolean hasViewPermission = player != null
+			&& player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel());
+		return resolveVisibleLinksSnapshot(level, sourceType, sourceSerial, linkedTargets, hasViewPermission);
+	}
+
+	/**
+	 * 解析“对当前上下文可见”的当前连接视图快照。
+	 */
+	public static NodeLinksSnapshot resolveVisibleLinksSnapshot(
+		ServerLevel level,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> linkedTargets,
+		boolean hasViewPermission
+	) {
+		return resolveVisibleLinksSnapshot(
 			level,
+			NodeIdentitySnapshot.resolve(level, sourceType, sourceSerial),
 			sourceType,
+			sourceSerial,
 			linkedTargets,
 			hasViewPermission
 		);
@@ -137,32 +155,34 @@ public final class CurrentLinksPrivacyService {
 		long sourceSerial,
 		Set<Long> linkedTargets
 	) {
-		if (isCurrentLinksMaskedForItemSnapshot(level, sourceType, sourceSerial)) {
+		NodeLinksSnapshot linksSnapshot = resolveVisibleLinksSnapshot(level, sourceType, sourceSerial, linkedTargets, false);
+		if (linksSnapshot.visibleTargets().isEmpty()) {
 			return Set.of();
 		}
-		// 物品快照默认按“无查看权限”策略脱敏，避免高权限玩家写入后外流。
-		List<Long> visibleTargets = filterVisibleTargetSerials(level, sourceType, linkedTargets, false);
-		if (visibleTargets.isEmpty()) {
-			return Set.of();
-		}
-		return Set.copyOf(new LinkedHashSet<>(visibleTargets));
+		return Set.copyOf(new LinkedHashSet<>(linksSnapshot.visibleTargets()));
 	}
 
 	/**
-	 * 判定某节点“当前连接”是否应在物品快照中统一隐藏。
+	 * 按当前上下文组装当前连接视图快照。
 	 */
-	private static boolean isCurrentLinksMaskedForItemSnapshot(ServerLevel level, LinkNodeType sourceType, long sourceSerial) {
-		if (level == null || sourceType == null || sourceSerial <= 0L) {
-			return true;
+	private static NodeLinksSnapshot resolveVisibleLinksSnapshot(
+		ServerLevel level,
+		NodeIdentitySnapshot sourceIdentity,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> linkedTargets,
+		boolean hasViewPermission
+	) {
+		NodeIdentitySnapshot normalizedIdentity = sourceIdentity == null
+			? NodeIdentitySnapshot.resolve(level, sourceType, sourceSerial)
+			: sourceIdentity;
+		List<Long> normalizedTargets = SerialCollectionFormatUtil.normalizePositiveDistinctSorted(linkedTargets);
+		if (!canViewCurrentLinks(level, sourceType, sourceSerial, hasViewPermission)) {
+			return new NodeLinksSnapshot(normalizedIdentity, List.of(), true);
 		}
-		CurrentLinksPrivacyMode mode = RedstoneLinkConfig.currentLinksPrivacyMode();
-		if (mode == CurrentLinksPrivacyMode.HIDDEN) {
-			return true;
-		}
-		if (mode == CurrentLinksPrivacyMode.PLAIN) {
-			return false;
-		}
-		return CurrentLinksPrivacySavedData.get(level).contains(sourceType, sourceSerial);
+		List<Long> visibleTargets = filterVisibleTargetSerials(level, sourceType, linkedTargets, hasViewPermission);
+		boolean masked = visibleTargets.size() != normalizedTargets.size();
+		return new NodeLinksSnapshot(normalizedIdentity, visibleTargets, masked);
 	}
 
 	/**

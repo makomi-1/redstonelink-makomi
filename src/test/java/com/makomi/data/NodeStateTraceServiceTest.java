@@ -85,13 +85,7 @@ class NodeStateTraceServiceTest {
 	private static NodeRuntimeSnapshot snapshot(long sampleTick) {
 		return new NodeRuntimeSnapshot(
 			TraceNodeKind.CORE,
-			LinkNodeType.CORE,
-			101L,
-			true,
-			false,
-			true,
-			null,
-			null,
+			new NodeIdentitySnapshot(LinkNodeType.CORE, 101L, true, false, true, null, null),
 			sampleTick,
 			0,
 			true,
