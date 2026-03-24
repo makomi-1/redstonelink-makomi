@@ -2,10 +2,10 @@ package com.makomi.block;
 
 import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.network.PairingNetwork;
 import java.util.ArrayList;
 import java.util.List;
@@ -90,12 +90,9 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 				if (triggerSourceBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
 					LinkItemData.setLinkedSerials(
 						drop,
-						CurrentLinksPrivacyService.resolveItemSnapshotTargets(
-							serverLevel,
-							LinkNodeType.TRIGGER_SOURCE,
-							serial,
-							LinkSavedData.get(serverLevel).getLinkedCores(serial)
-						)
+						NodeSnapshotQueryService
+							.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial)
+							.visibleTargetSet()
 					);
 				}
 			}

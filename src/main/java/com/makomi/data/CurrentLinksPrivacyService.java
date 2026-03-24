@@ -3,7 +3,6 @@ package com.makomi.data;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfig.CurrentLinksPrivacyMode;
 import com.makomi.util.SerialCollectionFormatUtil;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.server.level.ServerLevel;
@@ -71,44 +70,6 @@ public final class CurrentLinksPrivacyService {
 	}
 
 	/**
-	 * 解析“对当前玩家可见”的当前连接快照（升序去重）。
-	 * <p>
-	 * 用于配对 GUI 与近外显统一脱敏路径。
-	 * </p>
-	 */
-	public static List<Long> resolveVisibleCurrentLinksSnapshot(
-		ServerPlayer player,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		Set<Long> linkedTargets
-	) {
-		return resolveVisibleLinksSnapshot(player, sourceType, sourceSerial, linkedTargets).visibleTargets();
-	}
-
-	/**
-	 * 解析“对当前上下文可见”的当前连接快照（升序去重）。
-	 * <p>
-	 * 用于命令读取等非玩家上下文，统一复用 GUI/近外显同一脱敏规则。
-	 * </p>
-	 *
-	 * @param level 服务端世界
-	 * @param sourceType 来源节点类型（triggerSource/core）
-	 * @param sourceSerial 来源序号
-	 * @param linkedTargets 原始目标集合
-	 * @param hasViewPermission 是否具备查看受控连接权限
-	 * @return 过滤后的可见目标序号列表
-	 */
-	public static List<Long> resolveVisibleCurrentLinksSnapshot(
-		ServerLevel level,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		Set<Long> linkedTargets,
-		boolean hasViewPermission
-	) {
-		return resolveVisibleLinksSnapshot(level, sourceType, sourceSerial, linkedTargets, hasViewPermission).visibleTargets();
-	}
-
-	/**
 	 * 解析“对当前玩家可见”的当前连接视图快照。
 	 */
 	public static NodeLinksSnapshot resolveVisibleLinksSnapshot(
@@ -144,28 +105,9 @@ public final class CurrentLinksPrivacyService {
 	}
 
 	/**
-	 * 解析可写入“物品 NBT 快照”的当前连接集合（升序去重）。
-	 * <p>
-	 * 物品 NBT 会被持有者客户端完整接收，因此对“全局不可见”的场景必须在服务端写入前脱敏。
-	 * </p>
-	 */
-	public static Set<Long> resolveItemSnapshotTargets(
-		ServerLevel level,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		Set<Long> linkedTargets
-	) {
-		NodeLinksSnapshot linksSnapshot = resolveVisibleLinksSnapshot(level, sourceType, sourceSerial, linkedTargets, false);
-		if (linksSnapshot.visibleTargets().isEmpty()) {
-			return Set.of();
-		}
-		return Set.copyOf(new LinkedHashSet<>(linksSnapshot.visibleTargets()));
-	}
-
-	/**
 	 * 按当前上下文组装当前连接视图快照。
 	 */
-	private static NodeLinksSnapshot resolveVisibleLinksSnapshot(
+	public static NodeLinksSnapshot resolveVisibleLinksSnapshot(
 		ServerLevel level,
 		NodeIdentitySnapshot sourceIdentity,
 		LinkNodeType sourceType,

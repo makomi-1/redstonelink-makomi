@@ -2,7 +2,9 @@ package com.makomi.data;
 
 import com.makomi.util.SerialCollectionFormatUtil;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 节点当前连接可见视图快照。
@@ -24,6 +26,20 @@ public record NodeLinksSnapshot(NodeIdentitySnapshot sourceIdentity, List<Long> 
 	 */
 	public int visibleTargetCount() {
 		return visibleTargets.size();
+	}
+
+	/**
+	 * 当前可见目标集合。
+	 * <p>
+	 * 供物品 NBT 等必须写入集合结构的路径复用统一归一化结果，
+	 * 避免外层重复从 `List` 手动转换。
+	 * </p>
+	 */
+	public Set<Long> visibleTargetSet() {
+		if (visibleTargets.isEmpty()) {
+			return Set.of();
+		}
+		return Set.copyOf(new LinkedHashSet<>(visibleTargets));
 	}
 
 	private static List<Long> normalizeTargets(Collection<Long> targets) {

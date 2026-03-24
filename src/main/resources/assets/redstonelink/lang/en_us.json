@@ -98,6 +98,7 @@
   "message.redstonelink.display.far_overlay.mode.see_through": "see-through (x-ray style)",
   "hud.redstonelink.near_overlay.serial_line": "[%s] %s",
   "hud.redstonelink.near_overlay.status_line": "Status: %s",
+  "hud.redstonelink.near_overlay.final_io_line": "Final IO: I=%s / O=%s",
   "hud.redstonelink.near_overlay.links_line": "Current Links: %s",
   "hud.redstonelink.near_overlay.status_on": "ON",
   "hud.redstonelink.near_overlay.status_off": "OFF",

@@ -2,7 +2,7 @@ package com.makomi;
 
 import com.makomi.client.ClientHooks;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
-import com.makomi.client.render.LinkCoreShortCodeRenderer;
+import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.screen.CorePairingScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
@@ -72,16 +72,16 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerBlockEntityRenderers() {
 		// 使用原版注册入口，避免依赖已废弃的 Fabric 渲染器注册 API。
-		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE_TRANSPARENT, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE_TRANSPARENT, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_BUTTON, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_PUSH_BUTTON, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_LEVER, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkCoreShortCodeRenderer::new);
-		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkCoreShortCodeRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE_TRANSPARENT, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE_TRANSPARENT, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_BUTTON, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_PUSH_BUTTON, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_LEVER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkNodeFarOverlayRenderer::new);
 	}
 
 	/**
@@ -212,6 +212,20 @@ public class RedstoneLinkClient implements ClientModInitializer {
 					payload.sourceType(),
 					payload.sourceSerial(),
 					payload.targets()
+				);
+			});
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.RuntimeHudSnapshotPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> {
+				LinkSerialHudOverlayRenderer.updateRuntimeHudSnapshot(
+					payload.dimensionKey(),
+					payload.blockPos(),
+					payload.sourceType(),
+					payload.sourceSerial(),
+					payload.available(),
+					payload.inputPower(),
+					payload.outputPower()
 				);
 			});
 		});

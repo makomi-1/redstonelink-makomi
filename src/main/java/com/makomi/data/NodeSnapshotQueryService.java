@@ -1,9 +1,11 @@
 package com.makomi.data;
 
+import com.makomi.config.RedstoneLinkConfig;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * 单节点读模型查询服务。
@@ -26,19 +28,58 @@ public final class NodeSnapshotQueryService {
 		boolean hasViewPermission
 	) {
 		NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(level, nodeType, serial);
-		Set<Long> rawTargets = level == null || nodeType == null || serial <= 0L
-			? Set.of()
-			: LinkSavedData.get(level).getLinkedTargetsBySourceType(nodeType, serial);
-		NodeLinksSnapshot linksSnapshot = CurrentLinksPrivacyService.resolveVisibleLinksSnapshot(
+		NodeLinksSnapshot linksSnapshot = queryLinks(level, nodeType, serial, hasViewPermission);
+		NodeRuntimeSnapshot runtimeSnapshot = resolveRuntimeSnapshot(level == null ? null : level.getServer(), nodeType, serial)
+			.orElse(null);
+		return new NodeReadSnapshot(identity, linksSnapshot, runtimeSnapshot);
+	}
+
+	/**
+	 * 按玩家视角查询当前连接可见视图。
+	 */
+	public static NodeLinksSnapshot queryLinks(
+		ServerPlayer player,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		ServerLevel level = player.serverLevel();
+		boolean hasViewPermission = player.hasPermissions(RedstoneLinkConfig.currentLinksPrivacyViewPermissionLevel());
+		return queryLinks(level, nodeType, serial, hasViewPermission);
+	}
+
+	/**
+	 * 按命令/系统上下文查询当前连接可见视图。
+	 */
+	public static NodeLinksSnapshot queryLinks(
+		ServerLevel level,
+		LinkNodeType nodeType,
+		long serial,
+		boolean hasViewPermission
+	) {
+		NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(level, nodeType, serial);
+		Set<Long> rawTargets = readRawTargets(level, nodeType, serial);
+		return CurrentLinksPrivacyService.resolveVisibleLinksSnapshot(
 			level,
+			identity,
 			nodeType,
 			serial,
 			rawTargets,
 			hasViewPermission
 		);
-		NodeRuntimeSnapshot runtimeSnapshot = resolveRuntimeSnapshot(level == null ? null : level.getServer(), nodeType, serial)
-			.orElse(null);
-		return new NodeReadSnapshot(identity, linksSnapshot, runtimeSnapshot);
+	}
+
+	/**
+	 * 查询适合写入物品 NBT 的当前连接视图。
+	 * <p>
+	 * 物品快照默认不携带额外查看权限，因此统一按 `hasViewPermission=false` 处理。
+	 * </p>
+	 */
+	public static NodeLinksSnapshot queryItemSnapshotLinks(
+		ServerLevel level,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		return queryLinks(level, nodeType, serial, false);
 	}
 
 	/**
@@ -50,6 +91,13 @@ public final class NodeSnapshotQueryService {
 		long serial
 	) {
 		return NodeRuntimeProbe.resolveCurrent(server, nodeType, serial).map(NodeRuntimeProbe.ProbeResolution::snapshot);
+	}
+
+	private static Set<Long> readRawTargets(ServerLevel level, LinkNodeType nodeType, long serial) {
+		if (level == null || nodeType == null || serial <= 0L) {
+			return Set.of();
+		}
+		return LinkSavedData.get(level).getLinkedTargetsBySourceType(nodeType, serial);
 	}
 
 	/**

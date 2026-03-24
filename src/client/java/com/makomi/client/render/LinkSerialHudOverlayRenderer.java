@@ -39,6 +39,7 @@ import net.minecraft.world.phys.HitResult;
 public final class LinkSerialHudOverlayRenderer {
 	private static final String KEY_NEAR_OVERLAY_SERIAL_LINE = "hud.redstonelink.near_overlay.serial_line";
 	private static final String KEY_NEAR_OVERLAY_STATUS_LINE = "hud.redstonelink.near_overlay.status_line";
+	private static final String KEY_NEAR_OVERLAY_FINAL_IO_LINE = "hud.redstonelink.near_overlay.final_io_line";
 	private static final String KEY_NEAR_OVERLAY_LINKS_LINE = "hud.redstonelink.near_overlay.links_line";
 	private static final String KEY_NEAR_OVERLAY_STATUS_ON = "hud.redstonelink.near_overlay.status_on";
 	private static final String KEY_NEAR_OVERLAY_STATUS_OFF = "hud.redstonelink.near_overlay.status_off";
@@ -81,6 +82,21 @@ public final class LinkSerialHudOverlayRenderer {
 	 */
 	private static final int CURRENT_LINKS_CACHE_MAX_ENTRIES = 256;
 	/**
+	 * 同一节点“最终 IO”请求最小间隔（毫秒），用于限流。
+	 */
+	private static final long RUNTIME_HUD_REQUEST_INTERVAL_MILLIS = 250L;
+	/**
+	 * “最终 IO”快照缓存存活时长（毫秒）。
+	 * <p>
+	 * 保持略高于轮询间隔即可，避免旧值在 HUD 上停留过久。
+	 * </p>
+	 */
+	private static final long RUNTIME_HUD_CACHE_TTL_MILLIS = 500L;
+	/**
+	 * “最终 IO”缓存最大条目数，超过后按最旧过期时间裁剪。
+	 */
+	private static final int RUNTIME_HUD_CACHE_MAX_ENTRIES = 256;
+	/**
 	 * 近外显文本缓存，避免每帧重复格式化连接信息。
 	 */
 	private static CachedNearOverlayLines cachedNearOverlayLines = CachedNearOverlayLines.empty();
@@ -92,6 +108,14 @@ public final class LinkSerialHudOverlayRenderer {
 	 * “当前连接”请求节流表（按维度+坐标+来源类型+来源序号）。
 	 */
 	private static final Map<OverlayTargetKey, Long> currentLinksRequestDeadlines = new HashMap<>();
+	/**
+	 * “最终 IO”缓存（按维度+坐标+来源类型+来源序号）。
+	 */
+	private static final Map<OverlayTargetKey, CachedRuntimeHudSnapshot> runtimeHudSnapshotCache = new HashMap<>();
+	/**
+	 * “最终 IO”请求节流表（按维度+坐标+来源类型+来源序号）。
+	 */
+	private static final Map<OverlayTargetKey, Long> runtimeHudRequestDeadlines = new HashMap<>();
 	/**
 	 * 位置缩放缓存宽度。
 	 */
@@ -139,6 +163,45 @@ public final class LinkSerialHudOverlayRenderer {
 	}
 
 	/**
+	 * 接收服务端下发的“最终 IO”快照并写入本地缓存。
+	 *
+	 * @param dimensionKey 维度键
+	 * @param blockPosLong 方块坐标压缩值
+	 * @param sourceType 语义类型（triggerSource/core）
+	 * @param sourceSerial 来源序号
+	 * @param available 当前是否存在可读运行态
+	 * @param inputPower 最终输入强度
+	 * @param outputPower 最终输出强度
+	 */
+	public static void updateRuntimeHudSnapshot(
+		String dimensionKey,
+		long blockPosLong,
+		String sourceType,
+		long sourceSerial,
+		boolean available,
+		int inputPower,
+		int outputPower
+	) {
+		Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseCanonicalType(sourceType);
+		if (parsedType.isEmpty() || sourceSerial <= 0L || dimensionKey == null || dimensionKey.isBlank()) {
+			return;
+		}
+		OverlayTargetKey targetKey = new OverlayTargetKey(dimensionKey, blockPosLong, parsedType.get(), sourceSerial);
+		long now = System.currentTimeMillis();
+		runtimeHudSnapshotCache.put(
+			targetKey,
+			new CachedRuntimeHudSnapshot(
+				now + RUNTIME_HUD_CACHE_TTL_MILLIS,
+				available,
+				normalizeHudPower(inputPower),
+				normalizeHudPower(outputPower)
+			)
+		);
+		runtimeHudRequestDeadlines.remove(targetKey);
+		trimRuntimeHudCacheIfNeeded();
+	}
+
+	/**
 	 * 在 HUD 层绘制近距离序号外显。
 	 */
 	public static void onHudRender(GuiGraphics guiGraphics, DeltaTracker tickCounter) {
@@ -176,7 +239,14 @@ public final class LinkSerialHudOverlayRenderer {
 			dimensionKey,
 			blockPosLong
 		);
-		String languageSignature = translate(KEY_NEAR_OVERLAY_STATUS_LINE, "");
+		CachedRuntimeHudSnapshot runtimeHudSnapshot = resolveRuntimeHudSnapshotWithLazyRequest(
+			pairableNodeBlockEntity,
+			dimensionKey,
+			blockPosLong
+		);
+		String languageSignature = translate(KEY_NEAR_OVERLAY_STATUS_LINE, "")
+			+ "|"
+			+ translate(KEY_NEAR_OVERLAY_FINAL_IO_LINE, "", "");
 		List<String> displayLines = buildNearOverlayLines(
 			pairableNodeBlockEntity,
 			serialText,
@@ -184,6 +254,7 @@ public final class LinkSerialHudOverlayRenderer {
 			dimensionKey,
 			blockPosLong,
 			linkedTargetsSnapshot,
+			runtimeHudSnapshot,
 			languageSignature
 		);
 		if (displayLines.isEmpty()) {
@@ -373,6 +444,85 @@ public final class LinkSerialHudOverlayRenderer {
 	}
 
 	/**
+	 * 懒加载获取“最终 IO”快照：优先读缓存，过期后按节流规则发起网络请求。
+	 */
+	private static CachedRuntimeHudSnapshot resolveRuntimeHudSnapshotWithLazyRequest(
+		PairableNodeBlockEntity pairableNodeBlockEntity,
+		String dimensionKey,
+		long blockPosLong
+	) {
+		if (pairableNodeBlockEntity == null || dimensionKey == null || dimensionKey.isBlank()) {
+			return CachedRuntimeHudSnapshot.empty();
+		}
+		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
+		long sourceSerial = pairableNodeBlockEntity.getSerial();
+		if (nodeType == null || sourceSerial <= 0L) {
+			return CachedRuntimeHudSnapshot.empty();
+		}
+
+		long now = System.currentTimeMillis();
+		cleanupExpiredRuntimeHudCache(now);
+		OverlayTargetKey targetKey = new OverlayTargetKey(dimensionKey, blockPosLong, nodeType, sourceSerial);
+		CachedRuntimeHudSnapshot cachedSnapshot = runtimeHudSnapshotCache.get(targetKey);
+		// 与“缓存过期后才请求”不同，这里在命中节点期间按节流周期主动轮询，
+		// 让最终 IO 更快跟随服务端状态变化。
+		requestRuntimeHudSnapshotIfAllowed(targetKey, now);
+		if (cachedSnapshot != null && cachedSnapshot.expireAtMillis() >= now) {
+			return cachedSnapshot;
+		}
+		return CachedRuntimeHudSnapshot.empty();
+	}
+
+	/**
+	 * 按节流规则请求服务端下发“最终 IO”快照。
+	 */
+	private static void requestRuntimeHudSnapshotIfAllowed(OverlayTargetKey targetKey, long now) {
+		Long nextAllowedMillis = runtimeHudRequestDeadlines.get(targetKey);
+		if (nextAllowedMillis != null && nextAllowedMillis > now) {
+			return;
+		}
+		runtimeHudRequestDeadlines.put(targetKey, now + RUNTIME_HUD_REQUEST_INTERVAL_MILLIS);
+		ClientPlayNetworking.send(
+			new PairingNetwork.RequestRuntimeHudSnapshotPayload(
+				targetKey.dimensionKey(),
+				targetKey.blockPosLong(),
+				LinkNodeSemantics.toSemanticName(targetKey.nodeType()),
+				targetKey.sourceSerial()
+			)
+		);
+	}
+
+	/**
+	 * 清理过期“最终 IO”缓存与请求节流记录。
+	 */
+	private static void cleanupExpiredRuntimeHudCache(long now) {
+		runtimeHudSnapshotCache.entrySet().removeIf(entry -> entry.getValue().expireAtMillis() < now);
+		runtimeHudRequestDeadlines.entrySet().removeIf(entry -> entry.getValue() < now);
+	}
+
+	/**
+	 * 当“最终 IO”缓存条目过多时按最旧过期时间裁剪。
+	 */
+	private static void trimRuntimeHudCacheIfNeeded() {
+		if (runtimeHudSnapshotCache.size() <= RUNTIME_HUD_CACHE_MAX_ENTRIES) {
+			return;
+		}
+		OverlayTargetKey oldestKey = null;
+		long oldestExpireAt = Long.MAX_VALUE;
+		for (Map.Entry<OverlayTargetKey, CachedRuntimeHudSnapshot> entry : runtimeHudSnapshotCache.entrySet()) {
+			long expireAtMillis = entry.getValue().expireAtMillis();
+			if (expireAtMillis < oldestExpireAt) {
+				oldestExpireAt = expireAtMillis;
+				oldestKey = entry.getKey();
+			}
+		}
+		if (oldestKey != null) {
+			runtimeHudSnapshotCache.remove(oldestKey);
+			runtimeHudRequestDeadlines.remove(oldestKey);
+		}
+	}
+
+	/**
 	 * 规范化网络下发目标序号：过滤非法值、升序去重。
 	 */
 	private static List<Long> normalizeLinkedTargets(List<Long> linkedTargets) {
@@ -380,10 +530,11 @@ public final class LinkSerialHudOverlayRenderer {
 	}
 
 	/**
-	 * 生成近外显三行文本：
+	 * 生成近外显文本：
 	 * 1. [物品名]序号
 	 * 2. 激活状态（ON/OFF）
-	 * 3. 当前连接（结构化表达式）
+	 * 3. 最终 IO
+	 * 4. 当前连接（结构化表达式）
 	 */
 	private static List<String> buildNearOverlayLines(
 		PairableNodeBlockEntity pairableNodeBlockEntity,
@@ -392,6 +543,7 @@ public final class LinkSerialHudOverlayRenderer {
 		String dimensionKey,
 		long blockPosLong,
 		List<Long> linkedTargetsSnapshot,
+		CachedRuntimeHudSnapshot runtimeHudSnapshot,
 		String languageSignature
 	) {
 		ActivationStatusToken activationStatusToken = resolveActivationStatusToken(pairableNodeBlockEntity);
@@ -406,14 +558,16 @@ public final class LinkSerialHudOverlayRenderer {
 			activationStatusToken,
 			block,
 			linkedTargetsSnapshot,
+			runtimeHudSnapshot,
 			fontIdentity
 		)) {
 			return cached.lines();
 		}
 
-		List<String> lines = new ArrayList<>(3);
+		List<String> lines = new ArrayList<>(4);
 		lines.add(translate(KEY_NEAR_OVERLAY_SERIAL_LINE, resolveItemPrefix(pairableNodeBlockEntity), serialText));
 		lines.add(translate(KEY_NEAR_OVERLAY_STATUS_LINE, resolveActivationStatusText(activationStatusToken)));
+		lines.add(translate(KEY_NEAR_OVERLAY_FINAL_IO_LINE, resolveRuntimeHudPowerText(runtimeHudSnapshot, true), resolveRuntimeHudPowerText(runtimeHudSnapshot, false)));
 		lines.add(translate(KEY_NEAR_OVERLAY_LINKS_LINE, buildCurrentLinksText(font, linkedTargetsSnapshot)));
 		List<String> immutableLines = List.copyOf(lines);
 		cachedNearOverlayLines = new CachedNearOverlayLines(
@@ -424,10 +578,21 @@ public final class LinkSerialHudOverlayRenderer {
 			activationStatusToken,
 			block,
 			linkedTargetsSnapshot,
+			runtimeHudSnapshot,
 			fontIdentity,
 			immutableLines
 		);
 		return immutableLines;
+	}
+
+	/**
+	 * 将最终 IO 快照转换为 HUD 文本；无快照时统一显示 `-`。
+	 */
+	private static String resolveRuntimeHudPowerText(CachedRuntimeHudSnapshot runtimeHudSnapshot, boolean inputSide) {
+		if (runtimeHudSnapshot == null || !runtimeHudSnapshot.available()) {
+			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
+		}
+		return Integer.toString(inputSide ? runtimeHudSnapshot.inputPower() : runtimeHudSnapshot.outputPower());
 	}
 
 	/**
@@ -540,6 +705,13 @@ public final class LinkSerialHudOverlayRenderer {
 	}
 
 	/**
+	 * 归一化 HUD 强度值，限制在红石强度范围内。
+	 */
+	private static int normalizeHudPower(int power) {
+		return Math.max(0, Math.min(15, power));
+	}
+
+	/**
 	 * 近外显激活状态令牌。
 	 */
 	private enum ActivationStatusToken {
@@ -568,6 +740,22 @@ public final class LinkSerialHudOverlayRenderer {
 	}
 
 	/**
+	 * “最终 IO”缓存值。
+	 *
+	 * @param expireAtMillis 过期时间戳
+	 * @param available 当前是否有可读运行态
+	 * @param inputPower 最终输入强度
+	 * @param outputPower 最终输出强度
+	 */
+	private record CachedRuntimeHudSnapshot(long expireAtMillis, boolean available, int inputPower, int outputPower) {
+		private static final CachedRuntimeHudSnapshot EMPTY = new CachedRuntimeHudSnapshot(0L, false, 0, 0);
+
+		private static CachedRuntimeHudSnapshot empty() {
+			return EMPTY;
+		}
+	}
+
+	/**
 	 * 近外显文本缓存条目。
 	 *
 	 * @param dimensionKey 维度键
@@ -577,8 +765,9 @@ public final class LinkSerialHudOverlayRenderer {
 	 * @param activationStatusToken 激活状态令牌
 	 * @param block 命中方块
 	 * @param linkedTargetsRef 连接快照引用
+	 * @param runtimeHudSnapshotRef 最终 IO 快照引用
 	 * @param fontIdentity 字体对象标识
-	 * @param lines 三行显示文本
+	 * @param lines 显示文本
 	 */
 	private record CachedNearOverlayLines(
 		String dimensionKey,
@@ -588,6 +777,7 @@ public final class LinkSerialHudOverlayRenderer {
 		ActivationStatusToken activationStatusToken,
 		Block block,
 		List<Long> linkedTargetsRef,
+		CachedRuntimeHudSnapshot runtimeHudSnapshotRef,
 		int fontIdentity,
 		List<String> lines
 	) {
@@ -600,6 +790,7 @@ public final class LinkSerialHudOverlayRenderer {
 				ActivationStatusToken.OFF,
 				null,
 				null,
+				CachedRuntimeHudSnapshot.empty(),
 				0,
 				List.of()
 			);
@@ -613,6 +804,7 @@ public final class LinkSerialHudOverlayRenderer {
 			ActivationStatusToken currentActivationStatusToken,
 			Block currentBlock,
 			List<Long> currentLinkedTargetsRef,
+			CachedRuntimeHudSnapshot currentRuntimeHudSnapshotRef,
 			int currentFontIdentity
 		) {
 			return blockPosLong == currentBlockPosLong
@@ -620,6 +812,7 @@ public final class LinkSerialHudOverlayRenderer {
 				&& activationStatusToken == currentActivationStatusToken
 				&& block == currentBlock
 				&& linkedTargetsRef == currentLinkedTargetsRef
+				&& runtimeHudSnapshotRef == currentRuntimeHudSnapshotRef
 				&& dimensionKey.equals(currentDimensionKey)
 				&& languageSignature.equals(currentLanguageSignature)
 				&& serialText.equals(currentSerialText);

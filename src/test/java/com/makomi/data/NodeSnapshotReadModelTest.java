@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.data.NodeRuntimeProbe.TraceNodeKind;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +70,7 @@ class NodeSnapshotReadModelTest {
 
 		assertNotNull(snapshot.sourceIdentity());
 		assertEquals(List.of(3L, 5L), snapshot.visibleTargets());
+		assertEquals(Set.of(3L, 5L), snapshot.visibleTargetSet());
 		assertEquals(2, snapshot.visibleTargetCount());
 		assertTrue(snapshot.masked());
 	}

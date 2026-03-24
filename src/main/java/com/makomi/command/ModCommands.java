@@ -10,7 +10,6 @@ import com.makomi.command.privacy.CurrentLinksPrivacyCommandRegistry;
 import com.makomi.command.retire.RetireBatchCommandRegistry;
 import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.InternalDispatchDeltaEvents;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeSemantics;
@@ -655,7 +654,7 @@ public final class ModCommands {
 					ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 				);
 			}
-			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
+			syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
 			source.sendSuccess(
 				() -> Component.translatable("message.redstonelink.links_cleared", removed),
 				false
@@ -694,7 +693,7 @@ public final class ModCommands {
 				ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 			);
 			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_removed"), false);
-			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
+			syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
 			return Command.SINGLE_SUCCESS;
 		}
 		if (updateMode != LinkUpdateMode.ADD) {
@@ -733,7 +732,7 @@ public final class ModCommands {
 			ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
 		);
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
-		syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
+		syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
 		return Command.SINGLE_SUCCESS;
 	}
 
@@ -2481,7 +2480,7 @@ public final class ModCommands {
 
 		syncAffectedNodeLinkSnapshots(level, targetType, previousTargets, targets);
 		if (player != null) {
-			syncPlayerItemLinkSnapshot(player, savedData, sourceType, sourceSerial);
+			syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
 		}
 		final int currentTargetCount = replaceResult.currentCount();
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.set_links_done", currentTargetCount), false);
@@ -2516,17 +2515,12 @@ public final class ModCommands {
 	 */
 	private static void syncPlayerItemLinkSnapshot(
 		ServerPlayer player,
-		LinkSavedData savedData,
 		LinkNodeType sourceType,
 		long sourceSerial
 	) {
-		Set<Long> linkedSerials = savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
-		Set<Long> snapshotTargets = CurrentLinksPrivacyService.resolveItemSnapshotTargets(
-			player.serverLevel(),
-			sourceType,
-			sourceSerial,
-			linkedSerials
-		);
+		Set<Long> snapshotTargets = NodeSnapshotQueryService
+			.queryItemSnapshotLinks(player.serverLevel(), sourceType, sourceSerial)
+			.visibleTargetSet();
 
 		for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
 			ItemStack stack = player.getInventory().getItem(slot);
