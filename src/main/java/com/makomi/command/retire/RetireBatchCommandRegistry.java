@@ -1,8 +1,8 @@
 package com.makomi.command.retire;
 
-import com.makomi.command.CommandSuffixParser;
 import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.command.CommandRateLimitService;
+import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -36,8 +36,11 @@ public final class RetireBatchCommandRegistry {
 			.literal("batch")
 			.then(
 				Commands.argument("type", StringArgumentType.word()).then(
-					Commands.argument("serials", StringArgumentType.greedyString())
-						.executes(RetireBatchCommandRegistry::executeBatchRetire)
+					Commands.argument("serials", SerialBatchArgumentType.serialBatch())
+						.executes(context -> executeBatchRetire(context, false))
+						.then(
+							Commands.literal("confirm").executes(context -> executeBatchRetire(context, true))
+						)
 				)
 			);
 	}
@@ -45,18 +48,17 @@ public final class RetireBatchCommandRegistry {
 	/**
 	 * 执行批量退役。
 	 */
-	private static int executeBatchRetire(CommandContext<CommandSourceStack> context) {
+	private static int executeBatchRetire(
+		CommandContext<CommandSourceStack> context,
+		boolean confirmed
+	) {
 		CommandSourceStack source = context.getSource();
 		LinkNodeType type = parseNodeType(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
 		}
 
-		CommandSuffixParser.ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(
-			StringArgumentType.getString(context, "serials")
-		);
-		String rawSerials = confirmSuffixParseResult.payload();
-		boolean confirmed = confirmSuffixParseResult.confirmed();
+		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
 		int maxBatchRetireSerials = RedstoneLinkConfig.retireBatchMaxSerials();
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxBatchRetireSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
@@ -174,22 +176,6 @@ public final class RetireBatchCommandRegistry {
 		return Command.SINGLE_SUCCESS;
 	}
 
-	/**
-	 * 解析批量序列参数末尾的二次确认后缀（` confirm`）。
-	 *
-	 * @param rawText 原始参数文本
-	 * @return 去后缀后的文本与确认标记
-	 */
-	private static CommandSuffixParser.ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
-		return CommandSuffixParser.parseConfirmOnly(rawText, false);
-	}
-
-	/**
-	 * 二次确认后缀解析结果。
-	 *
-	 * @param payload 去后缀后的有效参数文本
-	 * @param confirmed 是否携带确认后缀
-	 */
 	/**
 	 * 解析退役目标类型参数。
 	 */

@@ -3,6 +3,7 @@ package com.makomi.command.activate;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.command.CommandRateLimitService;
+import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -15,7 +16,6 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -48,8 +48,16 @@ public final class ActivateCommandRegistry {
 					.argument("type", StringArgumentType.word())
 					.then(
 						Commands
-							.argument("source_serials", StringArgumentType.greedyString())
-							.executes(ActivateCommandRegistry::executeBatchActivateWithTypeArg)
+							.argument("source_serials", SerialBatchArgumentType.serialBatch())
+							.executes(context -> executeBatchActivateWithTypeArg(context, ActivationMode.TOGGLE))
+							.then(
+								Commands.literal("toggle")
+									.executes(context -> executeBatchActivateWithTypeArg(context, ActivationMode.TOGGLE))
+							)
+							.then(
+								Commands.literal("pulse")
+									.executes(context -> executeBatchActivateWithTypeArg(context, ActivationMode.PULSE))
+							)
 					)
 			);
 	}
@@ -57,31 +65,20 @@ public final class ActivateCommandRegistry {
 	/**
 	 * 根据 type 参数执行批量激活入口。
 	 */
-	private static int executeBatchActivateWithTypeArg(CommandContext<CommandSourceStack> context) {
+	private static int executeBatchActivateWithTypeArg(
+		CommandContext<CommandSourceStack> context,
+		ActivationMode mode
+	) {
 		CommandSourceStack source = context.getSource();
 		LinkNodeType sourceType = parseSourceTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (sourceType == null) {
 			return 0;
 		}
-		return executeBatchActivate(context);
-	}
-
-	/**
-	 * 执行批量激活入口（支持在序号参数末尾追加模式）。
-	 *
-	 * @param context 命令上下文
-	 * @return 命令执行结果
-	 */
-	private static int executeBatchActivate(CommandContext<CommandSourceStack> context) {
-		CommandSourceStack source = context.getSource();
-		SerialsAndModeParseResult parseResult = parseSerialsAndMode(
-			source,
-			StringArgumentType.getString(context, "source_serials")
+		return executeBatchActivate(
+			context,
+			SerialBatchArgumentType.getSerialBatch(context, "source_serials"),
+			mode
 		);
-		if (parseResult == null) {
-			return 0;
-		}
-		return executeBatchActivate(context, parseResult.serialsText(), parseResult.mode());
 	}
 
 	/**
@@ -212,7 +209,7 @@ public final class ActivateCommandRegistry {
 		final int finalSourcesHandled = sourcesHandled;
 		final int finalHandledTargets = handledTargets;
 		final int finalCrossChunkHandled = crossChunkHandled;
-		final String modeName = mode.name().toLowerCase(Locale.ROOT);
+		final String modeName = mode == ActivationMode.PULSE ? "pulse" : "toggle";
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.activate.batch.summary",
@@ -229,80 +226,6 @@ public final class ActivateCommandRegistry {
 	}
 
 	/**
-	 * 从序号输入中解析可选模式后缀。
-	 * <p>
-	 * 规则：
-	 * 1. 默认模式为 `toggle`。
-	 * 2. 若最后一个 token 为纯字母，则按模式解析并从序号文本中剥离。
-	 * 3. 模式非法时返回错误。
-	 * 4. 剥离模式后序号为空时返回“空输入”错误。
-	 * </p>
-	 *
-	 * @param source 命令源
-	 * @param rawInput 原始输入文本
-	 * @return 解析结果；失败时返回 null
-	 */
-	private static SerialsAndModeParseResult parseSerialsAndMode(CommandSourceStack source, String rawInput) {
-		String normalized = rawInput == null ? "" : rawInput.trim();
-		if (normalized.isEmpty()) {
-			source.sendFailure(Component.translatable("message.redstonelink.activate.batch.empty"));
-			return null;
-		}
-
-		int lastSpaceIndex = normalized.lastIndexOf(' ');
-		if (lastSpaceIndex < 0) {
-			return new SerialsAndModeParseResult(normalized, ActivationMode.TOGGLE);
-		}
-
-		String tailToken = normalized.substring(lastSpaceIndex + 1).trim();
-		if (tailToken.isEmpty()) {
-			return new SerialsAndModeParseResult(normalized, ActivationMode.TOGGLE);
-		}
-
-		boolean looksLikeModeToken = tailToken.chars().allMatch(Character::isLetter);
-		if (!looksLikeModeToken) {
-			return new SerialsAndModeParseResult(normalized, ActivationMode.TOGGLE);
-		}
-
-		ActivationMode mode = parseActivationMode(source, tailToken);
-		if (mode == null) {
-			return null;
-		}
-
-		String serialsText = normalized.substring(0, lastSpaceIndex).trim();
-		if (serialsText.isEmpty()) {
-			source.sendFailure(Component.translatable("message.redstonelink.activate.batch.empty"));
-			return null;
-		}
-		return new SerialsAndModeParseResult(serialsText, mode);
-	}
-
-	/**
-	 * 解析激活模式参数。
-	 *
-	 * @param source 命令源
-	 * @param rawMode 模式文本
-	 * @return 模式；非法时返回 null
-	 */
-	private static ActivationMode parseActivationMode(CommandSourceStack source, String rawMode) {
-		if (rawMode == null) {
-			source.sendFailure(Component.translatable("message.redstonelink.activate.batch.invalid_mode", "null"));
-			return null;
-		}
-		String normalized = rawMode.trim().toLowerCase(Locale.ROOT);
-		return switch (normalized) {
-			case "toggle" -> ActivationMode.TOGGLE;
-			case "pulse" -> ActivationMode.PULSE;
-			default -> {
-				source.sendFailure(
-					Component.translatable("message.redstonelink.activate.batch.invalid_mode", rawMode)
-				);
-				yield null;
-			}
-		};
-	}
-
-	/**
 	 * 解析并校验 activate 命令的来源类型参数。
 	 */
 	private static LinkNodeType parseSourceTypeArg(CommandSourceStack source, String rawType) {
@@ -315,14 +238,5 @@ public final class ActivateCommandRegistry {
 			return null;
 		}
 		return parsedType;
-	}
-
-	/**
-	 * 序号文本与模式解析结果。
-	 *
-	 * @param serialsText 序号表达式文本
-	 * @param mode 激活模式
-	 */
-	private record SerialsAndModeParseResult(String serialsText, ActivationMode mode) {
 	}
 }

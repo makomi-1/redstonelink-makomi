@@ -196,10 +196,14 @@ public final class ModCommands {
 								.then(
 									Commands.argument("type", StringArgumentType.word()).then(
 										Commands.argument("source_serial", LongArgumentType.longArg(1L))
-											.executes(context -> executeLinkSetWithTypeArg(context, false))
+											.executes(context -> executeLinkSetWithTypeArg(context, false, false))
 											.then(
-												Commands.argument("targets", StringArgumentType.greedyString())
-													.executes(context -> executeLinkSetWithTypeArg(context, true))
+												Commands.argument("targets", SerialBatchArgumentType.serialBatch())
+													.executes(context -> executeLinkSetWithTypeArg(context, true, false))
+													.then(
+														Commands.literal("confirm")
+															.executes(context -> executeLinkSetWithTypeArg(context, true, true))
+													)
 											)
 									)
 								)
@@ -342,9 +346,11 @@ public final class ModCommands {
 							.literal("set")
 							.then(
 								Commands.argument("type", StringArgumentType.word()).then(
-									Commands.argument("serials", StringArgumentType.greedyString()).executes(
-										ModCommands::executeWriteProtectedSet
-									)
+									Commands.argument("serials", SerialBatchArgumentType.serialBatch())
+										.executes(context -> executeWriteProtectedSet(context, false))
+										.then(
+											Commands.literal("confirm").executes(context -> executeWriteProtectedSet(context, true))
+										)
 								)
 							)
 					)
@@ -456,18 +462,17 @@ public final class ModCommands {
 	/**
 	 * 执行 write_control protected set（批量覆盖，支持 confirm 二次确认）。
 	 */
-	private static int executeWriteProtectedSet(CommandContext<CommandSourceStack> context) {
+	private static int executeWriteProtectedSet(
+		CommandContext<CommandSourceStack> context,
+		boolean confirmed
+	) {
 		CommandSourceStack source = context.getSource();
 		LinkNodeType type = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
 		}
 
-		CommandSuffixParser.ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(
-			StringArgumentType.getString(context, "serials")
-		);
-		String rawSerials = confirmSuffixParseResult.payload();
-		boolean confirmed = confirmSuffixParseResult.confirmed();
+		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
 		int maxSetSerials = RedstoneLinkConfig.writeControlProtectedSetMaxSerials();
 		TargetParseResult parseResult = parseTargetSerials(rawSerials, maxSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
@@ -2321,7 +2326,8 @@ public final class ModCommands {
 	private static int executeLinkSet(
 		CommandContext<CommandSourceStack> context,
 		LinkNodeType sourceType,
-		boolean hasTargets
+		boolean hasTargets,
+		boolean confirmed
 	) {
 		CommandSourceStack source = context.getSource();
 		ServerPlayer player = source.getPlayer();
@@ -2338,15 +2344,11 @@ public final class ModCommands {
 
 		Set<Long> targets;
 		String rawTargets = "";
-		boolean confirmed = false;
 		int maxTargets = RedstoneLinkConfig.maxTargetsPerSetLinks();
 		if (!hasTargets) {
 			targets = Set.of();
 		} else {
-			String rawInput = StringArgumentType.getString(context, "targets");
-			CommandSuffixParser.ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(rawInput);
-			confirmed = confirmSuffixParseResult.confirmed();
-			rawTargets = confirmSuffixParseResult.payload();
+			rawTargets = SerialBatchArgumentType.getSerialBatch(context, "targets");
 			int maxInputLength = RedstoneLinkConfig.linkSetMaxInputLength();
 			if (rawTargets.length() > maxInputLength) {
 				source.sendFailure(Component.translatable("message.redstonelink.link.set.input_too_long", maxInputLength));
@@ -2512,31 +2514,19 @@ public final class ModCommands {
 	/**
 	 * 根据 type 参数执行覆盖式 `link set`。
 	 */
-	private static int executeLinkSetWithTypeArg(CommandContext<CommandSourceStack> context, boolean hasTargets) {
+	private static int executeLinkSetWithTypeArg(
+		CommandContext<CommandSourceStack> context,
+		boolean hasTargets,
+		boolean confirmed
+	) {
 		CommandSourceStack source = context.getSource();
 		LinkNodeType sourceType = parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (sourceType == null) {
 			return 0;
 		}
-		return executeLinkSet(context, sourceType, hasTargets);
+		return executeLinkSet(context, sourceType, hasTargets, confirmed);
 	}
 
-	/**
-	 * 解析批量序列参数末尾的二次确认后缀（` confirm`）。
-	 *
-	 * @param rawText 原始参数文本
-	 * @return 去后缀后的文本与确认标记
-	 */
-	private static CommandSuffixParser.ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
-		return CommandSuffixParser.parseConfirmOnly(rawText, false);
-	}
-
-	/**
-	 * 二次确认后缀解析结果。
-	 *
-	 * @param payload 去后缀后的有效参数文本
-	 * @param confirmed 是否携带确认后缀
-	 */
 	/**
 	 * 同步玩家背包中同序列号物品的链接快照。
 	 */

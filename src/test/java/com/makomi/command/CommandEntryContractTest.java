@@ -2,104 +2,307 @@ package com.makomi.command;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.makomi.command.crosschunk.CrossChunkCommandRegistry;
-import java.lang.reflect.Method;
+import com.makomi.command.argument.SerialBatchArgumentType;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.LongArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
  * 命令出入口解析契约测试。
+ * <p>
+ * 这些测试直接验证批量序号参数与显式 literal 节点的组合方式，
+ * 防止命令树回退到 `greedyString() + 尾缀手拆`。
+ * </p>
  */
 @Tag("stable-core")
 class CommandEntryContractTest {
 	/**
-	 * link set 的 confirm 后缀应被识别并剥离。
+	 * activate 应通过显式 literal 解析模式，而不是从序号字符串尾部剥离。
 	 */
 	@Test
-	void modCommandsConfirmSuffixShouldParseAndStripSuffix() throws Exception {
-		Object parseResult = invokeModConfirmSuffixParse("1:3/9 confirm");
-		assertEquals("1:3/9", readRecordString(parseResult, "payload"));
-		assertTrue(readRecordBoolean(parseResult, "confirmed"));
+	void activateCommandShouldParseExplicitModeLiteralAfterSerialBatch() throws Exception {
+		CommandDispatcher<Object> dispatcher = new CommandDispatcher<>();
+		AtomicReference<String> serials = new AtomicReference<>();
+		AtomicReference<String> mode = new AtomicReference<>();
+		dispatcher.register(
+			com.mojang.brigadier.builder.LiteralArgumentBuilder
+				.<Object>literal("activate")
+				.then(
+					com.mojang.brigadier.builder.RequiredArgumentBuilder
+						.<Object, String>argument("type", StringArgumentType.word())
+						.then(
+							com.mojang.brigadier.builder.RequiredArgumentBuilder
+								.<Object, String>argument("source_serials", SerialBatchArgumentType.serialBatch())
+								.executes(context -> {
+									serials.set(SerialBatchArgumentType.getSerialBatch(context, "source_serials"));
+									mode.set("toggle");
+									return 1;
+								})
+								.then(
+									com.mojang.brigadier.builder.LiteralArgumentBuilder
+										.<Object>literal("toggle")
+										.executes(context -> {
+											serials.set(SerialBatchArgumentType.getSerialBatch(context, "source_serials"));
+											mode.set("toggle");
+											return 1;
+										})
+								)
+								.then(
+									com.mojang.brigadier.builder.LiteralArgumentBuilder
+										.<Object>literal("pulse")
+										.executes(context -> {
+											serials.set(SerialBatchArgumentType.getSerialBatch(context, "source_serials"));
+											mode.set("pulse");
+											return 1;
+										})
+								)
+						)
+				)
+		);
+
+		int result = dispatcher.execute("activate triggerSource 1:3 pulse", new Object());
+
+		assertEquals(1, result);
+		assertEquals("1:3", serials.get());
+		assertEquals("pulse", mode.get());
 	}
 
 	/**
-	 * link set 后缀解析保持大小写敏感，防止误匹配非标准指令。
+	 * link set 应保留“无 targets 即清空”的入口，同时支持独立 confirm 节点。
 	 */
 	@Test
-	void modCommandsConfirmSuffixShouldKeepCaseSensitiveBehavior() throws Exception {
-		Object parseResult = invokeModConfirmSuffixParse("1:3/9 Confirm");
-		assertEquals("1:3/9 Confirm", readRecordString(parseResult, "payload"));
-		assertFalse(readRecordBoolean(parseResult, "confirmed"));
+	void linkSetCommandShouldKeepClearPathAndExplicitConfirmLiteral() throws Exception {
+		CommandDispatcher<Object> dispatcher = new CommandDispatcher<>();
+		AtomicBoolean hasTargets = new AtomicBoolean(true);
+		AtomicBoolean confirmed = new AtomicBoolean(true);
+		AtomicLong sourceSerial = new AtomicLong(-1L);
+		AtomicReference<String> targets = new AtomicReference<>();
+		dispatcher.register(
+			com.mojang.brigadier.builder.LiteralArgumentBuilder
+				.<Object>literal("set")
+				.then(
+					com.mojang.brigadier.builder.RequiredArgumentBuilder
+						.<Object, String>argument("type", StringArgumentType.word())
+						.then(
+							com.mojang.brigadier.builder.RequiredArgumentBuilder
+								.<Object, Long>argument("source_serial", LongArgumentType.longArg(1L))
+								.executes(context -> {
+									hasTargets.set(false);
+									confirmed.set(false);
+									sourceSerial.set(LongArgumentType.getLong(context, "source_serial"));
+									targets.set(null);
+									return 1;
+								})
+								.then(
+									com.mojang.brigadier.builder.RequiredArgumentBuilder
+										.<Object, String>argument("targets", SerialBatchArgumentType.serialBatch())
+										.executes(context -> {
+											hasTargets.set(true);
+											confirmed.set(false);
+											sourceSerial.set(LongArgumentType.getLong(context, "source_serial"));
+											targets.set(SerialBatchArgumentType.getSerialBatch(context, "targets"));
+											return 1;
+										})
+										.then(
+											com.mojang.brigadier.builder.LiteralArgumentBuilder
+												.<Object>literal("confirm")
+												.executes(context -> {
+													hasTargets.set(true);
+													confirmed.set(true);
+													sourceSerial.set(LongArgumentType.getLong(context, "source_serial"));
+													targets.set(SerialBatchArgumentType.getSerialBatch(context, "targets"));
+													return 1;
+												})
+										)
+								)
+						)
+				)
+		);
+
+		assertEquals(1, dispatcher.execute("set triggerSource 12", new Object()));
+		assertFalse(hasTargets.get());
+		assertFalse(confirmed.get());
+		assertEquals(12L, sourceSerial.get());
+
+		assertEquals(1, dispatcher.execute("set triggerSource 12 1:3 confirm", new Object()));
+		assertTrue(hasTargets.get());
+		assertTrue(confirmed.get());
+		assertEquals("1:3", targets.get());
+		assertThrows(CommandSyntaxException.class, () -> dispatcher.execute("set triggerSource 12 1:3 Confirm", new Object()));
 	}
 
 	/**
-	 * crosschunk whitelist set 支持 resident + confirm 组合后缀。
+	 * 受控名单批量覆盖应通过独立 confirm 节点进入确认分支。
 	 */
 	@Test
-	void crossChunkConfirmSuffixShouldSupportResidentAndConfirm() throws Exception {
-		Object parseResult = invokeCrossChunkConfirmSuffixParse("1:3 resident confirm");
-		assertEquals("1:3", readRecordString(parseResult, "payload"));
-		assertTrue(readRecordBoolean(parseResult, "resident"));
-		assertTrue(readRecordBoolean(parseResult, "confirmed"));
+	void writeProtectedSetShouldUseExplicitConfirmLiteral() throws Exception {
+		CommandDispatcher<Object> dispatcher = createConfirmOnlyBatchDispatcher();
+		AtomicReference<String> serials = new AtomicReference<>();
+		AtomicBoolean confirmed = new AtomicBoolean(false);
+		registerConfirmOnlyBatchSet(dispatcher, serials, confirmed);
+
+		int result = dispatcher.execute("set triggerSource 1:10/12 confirm", new Object());
+
+		assertEquals(1, result);
+		assertEquals("1:10/12", serials.get());
+		assertTrue(confirmed.get());
 	}
 
 	/**
-	 * crosschunk 后缀解析应大小写不敏感，且支持 confirm/resident 顺序互换。
+	 * 当前连接隐私名单批量覆盖也应通过独立 confirm 节点进入确认分支。
 	 */
 	@Test
-	void crossChunkConfirmSuffixShouldSupportCaseInsensitiveAndReverseOrder() throws Exception {
-		Object parseResult = invokeCrossChunkConfirmSuffixParse("1:3 CONFIRM RESIDENT");
-		assertEquals("1:3", readRecordString(parseResult, "payload"));
-		assertTrue(readRecordBoolean(parseResult, "resident"));
-		assertTrue(readRecordBoolean(parseResult, "confirmed"));
+	void currentLinksPrivacyMaskSetShouldUseExplicitConfirmLiteral() throws Exception {
+		CommandDispatcher<Object> dispatcher = createConfirmOnlyBatchDispatcher();
+		AtomicReference<String> serials = new AtomicReference<>();
+		AtomicBoolean confirmed = new AtomicBoolean(false);
+		registerConfirmOnlyBatchSet(dispatcher, serials, confirmed);
+
+		int result = dispatcher.execute("set core 2:8 confirm", new Object());
+
+		assertEquals(1, result);
+		assertEquals("2:8", serials.get());
+		assertTrue(confirmed.get());
 	}
 
 	/**
-	 * 空输入应返回空 payload，且 resident/confirmed 都为 false。
+	 * retire batch 应通过独立 confirm 节点进入最终执行分支。
 	 */
 	@Test
-	void crossChunkConfirmSuffixShouldReturnUnconfirmedForBlankInput() throws Exception {
-		Object parseResult = invokeCrossChunkConfirmSuffixParse("   ");
-		assertEquals("", readRecordString(parseResult, "payload"));
-		assertFalse(readRecordBoolean(parseResult, "resident"));
-		assertFalse(readRecordBoolean(parseResult, "confirmed"));
+	void retireBatchShouldUseExplicitConfirmLiteral() throws Exception {
+		CommandDispatcher<Object> dispatcher = createConfirmOnlyBatchDispatcher();
+		AtomicReference<String> serials = new AtomicReference<>();
+		AtomicBoolean confirmed = new AtomicBoolean(false);
+		registerConfirmOnlyBatchSet(dispatcher, serials, confirmed);
+
+		int result = dispatcher.execute("set triggerSource 7/9 confirm", new Object());
+
+		assertEquals(1, result);
+		assertEquals("7/9", serials.get());
+		assertTrue(confirmed.get());
 	}
 
 	/**
-	 * 反射调用 ModCommands 的私有 confirm 后缀解析入口。
+	 * crosschunk whitelist set 只接受标准顺序 `resident confirm`，不再兼容顺序互换。
 	 */
-	private static Object invokeModConfirmSuffixParse(String rawText) throws Exception {
-		Method parseMethod = ModCommands.class.getDeclaredMethod("parseConfirmSuffix", String.class);
-		parseMethod.setAccessible(true);
-		return parseMethod.invoke(null, rawText);
+	@Test
+	void crossChunkWhitelistSetShouldOnlyAcceptResidentThenConfirm() throws Exception {
+		CommandDispatcher<Object> dispatcher = new CommandDispatcher<>();
+		AtomicReference<String> serials = new AtomicReference<>();
+		AtomicBoolean resident = new AtomicBoolean(false);
+		AtomicBoolean confirmed = new AtomicBoolean(false);
+		dispatcher.register(
+			com.mojang.brigadier.builder.LiteralArgumentBuilder
+				.<Object>literal("set")
+				.then(
+					com.mojang.brigadier.builder.RequiredArgumentBuilder
+						.<Object, String>argument("role", StringArgumentType.word())
+						.then(
+							com.mojang.brigadier.builder.RequiredArgumentBuilder
+								.<Object, String>argument("type", StringArgumentType.word())
+								.then(
+									com.mojang.brigadier.builder.RequiredArgumentBuilder
+										.<Object, String>argument("serials", SerialBatchArgumentType.serialBatch())
+										.executes(context -> {
+											serials.set(SerialBatchArgumentType.getSerialBatch(context, "serials"));
+											resident.set(false);
+											confirmed.set(false);
+											return 1;
+										})
+										.then(
+											com.mojang.brigadier.builder.LiteralArgumentBuilder
+												.<Object>literal("confirm")
+												.executes(context -> {
+													serials.set(SerialBatchArgumentType.getSerialBatch(context, "serials"));
+													resident.set(false);
+													confirmed.set(true);
+													return 1;
+												})
+										)
+										.then(
+											com.mojang.brigadier.builder.LiteralArgumentBuilder
+												.<Object>literal("resident")
+												.executes(context -> {
+													serials.set(SerialBatchArgumentType.getSerialBatch(context, "serials"));
+													resident.set(true);
+													confirmed.set(false);
+													return 1;
+												})
+												.then(
+													com.mojang.brigadier.builder.LiteralArgumentBuilder
+														.<Object>literal("confirm")
+														.executes(context -> {
+															serials.set(SerialBatchArgumentType.getSerialBatch(context, "serials"));
+															resident.set(true);
+															confirmed.set(true);
+															return 1;
+														})
+												)
+										)
+								)
+						)
+				)
+		);
+
+		assertEquals(1, dispatcher.execute("set source triggerSource 1:3 resident confirm", new Object()));
+		assertEquals("1:3", serials.get());
+		assertTrue(resident.get());
+		assertTrue(confirmed.get());
+		assertThrows(
+			CommandSyntaxException.class,
+			() -> dispatcher.execute("set source triggerSource 1:3 confirm resident", new Object())
+		);
 	}
 
 	/**
-	 * 反射调用 CrossChunkCommandRegistry 的私有后缀解析入口。
+	 * 创建 confirm-only 命令测试用 dispatcher。
 	 */
-	private static Object invokeCrossChunkConfirmSuffixParse(String rawText) throws Exception {
-		Method parseMethod = CrossChunkCommandRegistry.class.getDeclaredMethod("parseConfirmSuffix", String.class);
-		parseMethod.setAccessible(true);
-		return parseMethod.invoke(null, rawText);
+	private static CommandDispatcher<Object> createConfirmOnlyBatchDispatcher() {
+		return new CommandDispatcher<>();
 	}
 
 	/**
-	 * 读取 record 字符串访问器。
+	 * 注册 `<type> <serials> [confirm]` 形态的批量覆盖命令树。
 	 */
-	private static String readRecordString(Object recordSnapshot, String accessorName) throws Exception {
-		Method accessor = recordSnapshot.getClass().getDeclaredMethod(accessorName);
-		accessor.setAccessible(true);
-		return (String) accessor.invoke(recordSnapshot);
-	}
-
-	/**
-	 * 读取 record 布尔访问器。
-	 */
-	private static boolean readRecordBoolean(Object recordSnapshot, String accessorName) throws Exception {
-		Method accessor = recordSnapshot.getClass().getDeclaredMethod(accessorName);
-		accessor.setAccessible(true);
-		return (boolean) accessor.invoke(recordSnapshot);
+	private static void registerConfirmOnlyBatchSet(
+		CommandDispatcher<Object> dispatcher,
+		AtomicReference<String> serials,
+		AtomicBoolean confirmed
+	) {
+		dispatcher.register(
+			com.mojang.brigadier.builder.LiteralArgumentBuilder
+				.<Object>literal("set")
+				.then(
+					com.mojang.brigadier.builder.RequiredArgumentBuilder
+						.<Object, String>argument("type", StringArgumentType.word())
+						.then(
+							com.mojang.brigadier.builder.RequiredArgumentBuilder
+								.<Object, String>argument("serials", SerialBatchArgumentType.serialBatch())
+								.executes(context -> {
+									serials.set(SerialBatchArgumentType.getSerialBatch(context, "serials"));
+									confirmed.set(false);
+									return 1;
+								})
+								.then(
+									com.mojang.brigadier.builder.LiteralArgumentBuilder
+										.<Object>literal("confirm")
+										.executes(context -> {
+											serials.set(SerialBatchArgumentType.getSerialBatch(context, "serials"));
+											confirmed.set(true);
+											return 1;
+										})
+								)
+						)
+				)
+		);
 	}
 }

@@ -1,7 +1,7 @@
 package com.makomi.command.privacy;
 
-import com.makomi.command.CommandSuffixParser;
 import com.makomi.command.CommandNodeTypeParseUtil;
+import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CurrentLinksPrivacySavedData;
 import com.makomi.data.LinkNodeSemantics;
@@ -77,8 +77,12 @@ public final class CurrentLinksPrivacyCommandRegistry {
 									.literal("set")
 									.then(
 										Commands.argument("type", StringArgumentType.word()).then(
-											Commands.argument("serials", StringArgumentType.greedyString())
-												.executes(CurrentLinksPrivacyCommandRegistry::executeMaskSet)
+											Commands.argument("serials", SerialBatchArgumentType.serialBatch())
+												.executes(context -> executeMaskSet(context, false))
+												.then(
+													Commands.literal("confirm")
+														.executes(context -> executeMaskSet(context, true))
+												)
 										)
 									)
 							)
@@ -182,18 +186,17 @@ public final class CurrentLinksPrivacyCommandRegistry {
 	/**
 	 * 执行 mask set（批量覆盖，支持 confirm 二次确认）。
 	 */
-	private static int executeMaskSet(CommandContext<CommandSourceStack> context) {
+	private static int executeMaskSet(
+		CommandContext<CommandSourceStack> context,
+		boolean confirmed
+	) {
 		CommandSourceStack source = context.getSource();
 		LinkNodeType type = parseType(source, StringArgumentType.getString(context, "type"));
 		if (type == null) {
 			return 0;
 		}
 
-		CommandSuffixParser.ConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(
-			StringArgumentType.getString(context, "serials")
-		);
-		String rawSerials = confirmSuffixParseResult.payload();
-		boolean confirmed = confirmSuffixParseResult.confirmed();
+		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
 		int maxMaskSetSerials = RedstoneLinkConfig.currentLinksMaskSetMaxSerials();
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxMaskSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
@@ -278,13 +281,6 @@ public final class CurrentLinksPrivacyCommandRegistry {
 			true
 		);
 		return Command.SINGLE_SUCCESS;
-	}
-
-	/**
-	 * 解析批量参数中的 confirm 后缀。
-	 */
-	private static CommandSuffixParser.ConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
-		return CommandSuffixParser.parseConfirmOnly(rawText, true);
 	}
 
 	/**

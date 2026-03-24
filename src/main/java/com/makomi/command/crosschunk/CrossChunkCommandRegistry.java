@@ -1,8 +1,8 @@
 package com.makomi.command.crosschunk;
 
-import com.makomi.command.CommandSuffixParser;
 import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.command.CommandRateLimitService;
+import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfig.CrossChunkPreset;
@@ -111,8 +111,20 @@ public final class CrossChunkCommandRegistry {
 								.then(
 									Commands.argument("role", StringArgumentType.word()).then(
 										Commands.argument("type", StringArgumentType.word()).then(
-											Commands.argument("serials", StringArgumentType.greedyString())
-												.executes(CrossChunkCommandRegistry::executeWhitelistSet)
+											Commands.argument("serials", SerialBatchArgumentType.serialBatch())
+												.executes(context -> executeWhitelistSet(context, false, false))
+												.then(
+													Commands.literal("confirm")
+														.executes(context -> executeWhitelistSet(context, false, true))
+												)
+												.then(
+													Commands.literal("resident")
+														.executes(context -> executeWhitelistSet(context, true, false))
+														.then(
+															Commands.literal("confirm")
+																.executes(context -> executeWhitelistSet(context, true, true))
+														)
+												)
 										)
 									)
 								)
@@ -365,19 +377,18 @@ public final class CrossChunkCommandRegistry {
 	/**
 	 * 执行白名单批量覆盖（set）。
 	 */
-	private static int executeWhitelistSet(CommandContext<CommandSourceStack> context) {
+	private static int executeWhitelistSet(
+		CommandContext<CommandSourceStack> context,
+		boolean resident,
+		boolean confirmed
+	) {
 		CommandSourceStack source = context.getSource();
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
 			return 0;
 		}
 
-		CommandSuffixParser.ResidentConfirmSuffixParseResult confirmSuffixParseResult = parseConfirmSuffix(
-			StringArgumentType.getString(context, "serials")
-		);
-		String rawSerials = confirmSuffixParseResult.payload();
-		boolean resident = confirmSuffixParseResult.resident();
-		boolean confirmed = confirmSuffixParseResult.confirmed();
+		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
 		int maxWhitelistSetSerials = RedstoneLinkConfig.crossChunkWhitelistSetMaxSerials();
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxWhitelistSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
@@ -497,16 +508,6 @@ public final class CrossChunkCommandRegistry {
 			);
 		}
 		return Command.SINGLE_SUCCESS;
-	}
-
-	/**
-	 * 解析批量序列参数末尾的二次确认后缀（` confirm`）。
-	 *
-	 * @param rawText 原始参数文本
-	 * @return 去后缀后的文本与确认标记
-	 */
-	private static CommandSuffixParser.ResidentConfirmSuffixParseResult parseConfirmSuffix(String rawText) {
-		return CommandSuffixParser.parseResidentAndConfirm(rawText, true);
 	}
 
 	/**

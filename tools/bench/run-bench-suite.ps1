@@ -10,10 +10,10 @@ RedstoneLink bench suite 编排脚本。
 5. 收集 bench 结果并发送 stop
 #>
 param(
-	[string]$ServerRoot,
+	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
 	[string]$ServerPropertiesPath,
 	[string]$ServerStartCommand,
-	[string]$TemplateWorldPath,
+	[string]$TemplateWorldPath = "D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template",
 	[string[]]$CaseIds,
 	[ValidateSet("RunCase", "RunFunctionalCase")]
 	[string]$BenchAction = "RunCase",
