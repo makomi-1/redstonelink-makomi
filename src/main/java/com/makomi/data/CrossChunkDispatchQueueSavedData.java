@@ -248,27 +248,6 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		);
 	}
 
-	/**
-	 * 校验 pending 请求基础字段合法性（不分配版本号）。
-	 */
-	private boolean isValidPendingEntryInput(
-		DispatchKey key,
-		DispatchAction dispatchAction,
-		ResourceKey<Level> dimension,
-		BlockPos pos,
-		ActivationMode activationMode,
-		long expireGameTick
-	) {
-		return CrossChunkDispatchQueueStateSupport.isValidPendingEntryInput(
-			key,
-			dispatchAction,
-			dimension,
-			pos,
-			activationMode,
-			expireGameTick
-		);
-	}
-
 	private boolean upsertPendingEntry(PendingDispatchEntry entry) {
 		return CrossChunkDispatchQueueStateSupport.upsertPendingEntry(this, entry);
 	}
@@ -281,10 +260,6 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		return CrossChunkDispatchQueueStateSupport.pendingEntriesForSave(this);
 	}
 
-	private long allocateNextVersion(DispatchKey key) {
-		return CrossChunkDispatchQueueStateSupport.allocateNextVersion(this, key);
-	}
-
 	private void readVersionMap(ListTag listTag, Map<DispatchKey, Long> target) {
 		CrossChunkDispatchQueueCodecSupport.readVersionMap(listTag, target);
 	}
@@ -295,10 +270,6 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 
 	private static void writeDispatchKey(CompoundTag tag, DispatchKey key) {
 		CrossChunkDispatchQueueCodecSupport.writeDispatchKey(tag, key);
-	}
-
-	private static Optional<DispatchKey> parseDispatchKey(CompoundTag tag) {
-		return CrossChunkDispatchQueueCodecSupport.parseDispatchKey(tag);
 	}
 
 	private static Optional<PendingDispatchEntry> parsePendingEntry(CompoundTag tag) {
@@ -337,20 +308,6 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			}
 			return Optional.empty();
 		}
-	}
-
-	/**
-	 * 将旧版 `ACTIVATION` 持久项迁移到新的事件 kind。
-	 * <p>
-	 * 旧版 activation remove 与新的事件语义不兼容，读档时直接丢弃。
-	 * </p>
-	 */
-	private static Optional<DispatchKey> normalizeLegacyActivationKey(
-		DispatchKey key,
-		DispatchAction dispatchAction,
-		ActivationMode activationMode
-	) {
-		return CrossChunkDispatchQueueCodecSupport.normalizeLegacyActivationKey(key, dispatchAction, activationMode);
 	}
 
 	/**

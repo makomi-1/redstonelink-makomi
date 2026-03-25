@@ -357,12 +357,6 @@ public final class LinkNodeRetireEvents {
 		);
 	}
 
-	/**
-	 * 检查在线玩家背包中是否存在与待退役匹配的物品栈。
-	 */
-	private static boolean hasMatchingStackInOnlinePlayers(MinecraftServer server, PendingKey key) {
-		return LinkNodeRetireMatchSupport.hasMatchingStackInOnlinePlayers(server, key);
-	}
 
 	/**
 	 * 扫描指定位置附近是否存在匹配的掉落物实体。

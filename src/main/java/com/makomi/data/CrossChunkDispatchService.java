@@ -491,10 +491,6 @@ public final class CrossChunkDispatchService {
 		return CrossChunkDispatchQueueSupport.resolveActivationTtlTicks(queuePolicy);
 	}
 
-	private static long resolveExpireTick(long gameTime, long ttlTicks) {
-		return CrossChunkDispatchQueueSupport.resolveExpireTick(gameTime, ttlTicks);
-	}
-
 	private static List<QueueResult> queueRejectedResults(List<LinkSavedData.LinkNode> targetNodes) {
 		return CrossChunkDispatchQueueSupport.queueRejectedResults(targetNodes);
 	}
@@ -544,58 +540,6 @@ public final class CrossChunkDispatchService {
 		CrossChunkDispatchRuntimeSupport.processPendingDispatches(server, state, queueData, gameTime);
 	}
 
-	private static boolean tryDispatch(
-		MinecraftServer server,
-		DispatchState state,
-		CrossChunkDispatchQueueSavedData queueData,
-		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
-		long gameTime
-	) {
-		return CrossChunkDispatchRuntimeSupport.tryDispatch(server, state, queueData, pending, gameTime);
-	}
-
-	/**
-	 * 清理已被移除/替换的重试状态，避免状态缓存无限增长。
-	 */
-	private static void pruneRetryStateBySnapshot(
-		DispatchState state,
-		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> snapshot
-	) {
-		CrossChunkDispatchRuntimeSupport.pruneRetryStateBySnapshot(state, snapshot);
-	}
-
-	/**
-	 * 清理单条 pending 对应的重试状态。
-	 */
-	private static void clearRetryState(
-		DispatchState state,
-		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending
-	) {
-		CrossChunkDispatchRuntimeSupport.clearRetryState(state, pending);
-	}
-
-	/**
-	 * 不限时 pending 在等待窗口内应继续延后，直到 nextEligibleTick 才允许再次尝试。
-	 */
-	private static boolean shouldDeferRetryUntilEligible(
-		DispatchState state,
-		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
-		long gameTime
-	) {
-		return CrossChunkDispatchRuntimeSupport.shouldDeferRetryUntilEligible(state, pending, gameTime);
-	}
-
-	/**
-	 * 记录一次派发失败并根据策略决定是否移除 pending。
-	 */
-	private static boolean recordRetryFailureAndShouldDrop(
-		DispatchState state,
-		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
-		long gameTime
-	) {
-		return CrossChunkDispatchRuntimeSupport.recordRetryFailureAndShouldDrop(state, pending, gameTime);
-	}
-
 	/**
 	 * 目标区块加载时，按维度与区块键唤醒等待中的 pending。
 	 *
@@ -612,54 +556,6 @@ public final class CrossChunkDispatchService {
 	}
 
 	/**
-	 * 根据失败次数决定持久 pending 下一次重试间隔（分段递增）。
-	 */
-	private static long resolvePersistentRetryIntervalTicks(int attempts) {
-		return CrossChunkDispatchRuntimeSupport.resolvePersistentRetryIntervalTicks(attempts);
-	}
-
-	/**
-	 * 将重试间隔转换为下一次允许尝试的 tick。
-	 */
-	private static long computeNextEligibleTick(long gameTime, long intervalTicks) {
-		return CrossChunkDispatchRuntimeSupport.computeNextEligibleTick(gameTime, intervalTicks);
-	}
-
-	/**
-	 * 将等待中的不限时 pending 建立到“目标区块 -> attempt key”索引。
-	 */
-	private static void indexWaitingUnlimitedPending(
-		DispatchState state,
-		PendingAttemptKey attemptKey,
-		RetryState retryState,
-		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending
-	) {
-		CrossChunkDispatchRuntimeSupport.indexWaitingUnlimitedPending(state, attemptKey, retryState, pending);
-	}
-
-	/**
-	 * 从目标区块唤醒索引中移除指定 attempt key。
-	 */
-	private static void removePendingAttemptFromWakeIndex(
-		DispatchState state,
-		PendingAttemptKey attemptKey,
-		RetryState retryState
-	) {
-		CrossChunkDispatchRuntimeSupport.removePendingAttemptFromWakeIndex(state, attemptKey, retryState);
-	}
-
-	/**
-	 * 从指定目标区块桶中移除指定 attempt key。
-	 */
-	private static void removePendingAttemptFromWakeIndex(
-		DispatchState state,
-		PendingAttemptKey attemptKey,
-		TargetChunkKey targetChunkKey
-	) {
-		CrossChunkDispatchRuntimeSupport.removePendingAttemptFromWakeIndex(state, attemptKey, targetChunkKey);
-	}
-
-	/**
 	 * 清空重试状态与目标区块唤醒索引。
 	 */
 	private static void clearRetryTracking(DispatchState state) {
@@ -667,24 +563,10 @@ public final class CrossChunkDispatchService {
 	}
 
 	/**
-	 * 解析 pending 对应的目标区块键。
-	 */
-	private static TargetChunkKey targetChunkKeyOf(CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending) {
-		return CrossChunkDispatchRuntimeSupport.targetChunkKeyOf(pending);
-	}
-
-	/**
 	 * 获取目标区块加载通知使用的当前时间键。
 	 */
 	private static long resolveGameTimeForTargetChunkLoad(MinecraftServer server, ResourceKey<Level> dimension) {
 		return CrossChunkDispatchRuntimeSupport.resolveGameTimeForTargetChunkLoad(server, dimension);
-	}
-
-	/**
-	 * 判定条目是否属于“不限时 pending”（不受 TTL 剔除）。
-	 */
-	private static boolean isUnlimitedPending(CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending) {
-		return CrossChunkDispatchRuntimeSupport.isUnlimitedPending(pending);
 	}
 
 	static boolean shouldForceLoad(
@@ -695,16 +577,6 @@ public final class CrossChunkDispatchService {
 	}
 
 	/**
-	 * 校验是否命中运行态白名单或只读 preset。
-	 */
-	private static boolean matchWhitelistOrPreset(
-		ServerLevel contextLevel,
-		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending
-	) {
-		return CrossChunkDispatchTicketSupport.matchWhitelistOrPreset(contextLevel, pending);
-	}
-
-	/**
 	 * 同步 resident 白名单对应的常驻区块票据。
 	 * <p>
 	 * 仅操作本模组自有 TicketType，确保与其它模组强制加载来源隔离。
@@ -712,32 +584,6 @@ public final class CrossChunkDispatchService {
 	 */
 	private static void syncResidentTickets(MinecraftServer server, DispatchState state) {
 		CrossChunkDispatchTicketSupport.syncResidentTickets(server, state);
-	}
-
-	/**
-	 * 释放当前服务端所有 resident 票据。
-	 */
-	private static void releaseResidentTickets(MinecraftServer server, DispatchState state) {
-		CrossChunkDispatchTicketSupport.releaseResidentTickets(server, state);
-	}
-
-	/**
-	 * 汇总当前白名单 resident 条目期望持有的区块票据映射。
-	 */
-	private static Map<ResidentTicketKey, ResidentChunkKey> collectDesiredResidentTickets(MinecraftServer server) {
-		return CrossChunkDispatchTicketSupport.collectDesiredResidentTickets(server);
-	}
-
-	/**
-	 * 将指定角色下 resident 条目追加到期望票据集合。
-	 */
-	private static void appendDesiredResidentTickets(
-		Map<ResidentTicketKey, ResidentChunkKey> desired,
-		Map<LinkNodeType, Set<Long>> residentByType,
-		LinkNodeSemantics.Role role,
-		LinkSavedData linkSavedData
-	) {
-		CrossChunkDispatchTicketSupport.appendDesiredResidentTickets(desired, residentByType, role, linkSavedData);
 	}
 
 	static void tryForceLoad(
@@ -764,42 +610,6 @@ public final class CrossChunkDispatchService {
 	private static void releaseAllForcedChunksAndClearState(MinecraftServer server) {
 		DispatchState state = STATE_BY_SERVER.get(server);
 		CrossChunkDispatchTicketSupport.releaseAllForcedChunksAndClearState(server, state, STATE_BY_SERVER);
-	}
-
-	/**
-	 * 添加临时区块加载票据。
-	 */
-	private static void addTransientTicket(ServerLevel level, int chunkX, int chunkZ) {
-		CrossChunkDispatchTicketSupport.addTransientTicket(level, chunkX, chunkZ);
-	}
-
-	/**
-	 * 释放临时区块加载票据。
-	 */
-	private static void removeTransientTicket(ServerLevel level, int chunkX, int chunkZ) {
-		CrossChunkDispatchTicketSupport.removeTransientTicket(level, chunkX, chunkZ);
-	}
-
-	/**
-	 * 添加 resident 常驻区块票据。
-	 */
-	private static boolean addResidentTicket(
-		MinecraftServer server,
-		ResidentTicketKey ticketKey,
-		ResidentChunkKey chunkKey
-	) {
-		return CrossChunkDispatchTicketSupport.addResidentTicket(server, ticketKey, chunkKey);
-	}
-
-	/**
-	 * 释放 resident 常驻区块票据。
-	 */
-	private static void removeResidentTicket(
-		MinecraftServer server,
-		ResidentTicketKey ticketKey,
-		ResidentChunkKey chunkKey
-	) {
-		CrossChunkDispatchTicketSupport.removeResidentTicket(server, ticketKey, chunkKey);
 	}
 
 	private static void resetForceLoadWindow(DispatchState state, long gameTime) {
@@ -837,11 +647,7 @@ public final class CrossChunkDispatchService {
 
 	record ResidentChunkKey(ResourceKey<Level> dimension, int chunkX, int chunkZ) {}
 
-	record BatchCandidate(int requestIndex, boolean forceLoadPlanned) {
-		private static BatchCandidate rejected() {
-			return new BatchCandidate(-1, false);
-		}
-	}
+	record BatchCandidate(int requestIndex, boolean forceLoadPlanned) {}
 
 	record PendingAttemptKey(CrossChunkDispatchQueueSavedData.DispatchKey key, long version) {}
 
