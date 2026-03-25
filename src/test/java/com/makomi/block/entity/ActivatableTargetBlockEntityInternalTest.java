@@ -578,9 +578,9 @@ class ActivatableTargetBlockEntityInternalTest {
 
 	private static Object getField(Object target, String fieldName) {
 		try {
-			Field field = ActivatableTargetBlockEntity.class.getDeclaredField(fieldName);
+			Field field = resolveDeclaredField(target, fieldName);
 			field.setAccessible(true);
-			return field.get(target);
+			return field.get(resolveFieldOwner(target, fieldName));
 		} catch (NoSuchFieldException | IllegalAccessException ex) {
 			throw new IllegalStateException("failed to read field: " + fieldName, ex);
 		}
@@ -638,12 +638,71 @@ class ActivatableTargetBlockEntityInternalTest {
 
 	private static void setField(Object target, String fieldName, Object value) {
 		try {
-			Field field = ActivatableTargetBlockEntity.class.getDeclaredField(fieldName);
+			Field field = resolveDeclaredField(target, fieldName);
 			field.setAccessible(true);
-			field.set(target, value);
+			field.set(resolveFieldOwner(target, fieldName), value);
 		} catch (NoSuchFieldException | IllegalAccessException ex) {
 			throw new IllegalStateException("failed to set field: " + fieldName, ex);
 		}
+	}
+
+	/**
+	 * 按“主类优先，组件兜底”解析测试字段，避免测试绑死主类私有布局。
+	 */
+	private static Field resolveDeclaredField(Object target, String fieldName) throws NoSuchFieldException {
+		Class<?> type = resolveFieldOwner(target, fieldName).getClass();
+		while (type != null) {
+			try {
+				return type.getDeclaredField(fieldName);
+			} catch (NoSuchFieldException ignored) {
+				type = type.getSuperclass();
+			}
+		}
+		throw new NoSuchFieldException(fieldName);
+	}
+
+	/**
+	 * 将旧字段名路由到职责拆分后的组件实例。
+	 */
+	private static Object resolveFieldOwner(Object target, String fieldName) {
+		if (!(target instanceof ActivatableTargetBlockEntity activatableTarget)) {
+			return target;
+		}
+		return switch (fieldName) {
+			case "authorityTimeKey",
+				"authorityMode",
+				"authoritySeq",
+				"arbitrationTimeKey",
+				"arbitrationPriority",
+				"toggleMergeInitialized",
+				"toggleMergeBaseActive",
+				"toggleMergeParity" -> activatableTarget.internalArbitrationComponent();
+			case "pulseUntilGameTime",
+				"pulseEpoch",
+				"toggleState",
+				"pulseResetArmed",
+				"syncSignalStrengthBySource",
+				"syncSignalMaxStrength",
+				"syncSignalMaxSources",
+				"syncConcurrentBuckets",
+				"runtimeSimulatedSyncConcurrentBuckets",
+				"pulseConcurrentBuckets",
+				"toggleConcurrentBuckets",
+				"toggleConcurrentCount",
+				"toggleFrameStartContributors",
+				"toggleSourcesTouchedInCurrentFrame" -> activatableTarget.internalConcurrentComponent();
+			case "resolvedOutputPower",
+				"pendingLoadBlockStateSync",
+				"tickResolvedInitialized",
+				"tickResolvedTimeKey",
+				"tickResolvedState",
+				"tickResolvedPower",
+				"fanoutResolvedInitialized",
+				"fanoutResolvedTimeKey",
+				"fanoutResolvedState",
+				"fanoutResolvedPower" -> activatableTarget.internalObservationComponent();
+			default -> activatableTarget;
+		};
 	}
 
 	@SuppressWarnings("unchecked")

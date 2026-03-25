@@ -136,7 +136,7 @@ public final class NodeRuntimeProbe {
 		if (
 			traceKind == TraceNodeKind.PULSE_TRIGGER_SOURCE
 				&& isPulseTriggerSource(blockEntity)
-				&& blockEntity instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity
+				&& blockEntity instanceof LinkTriggerSourceBlockEntity
 		) {
 			return buildEmitterTriggerSourceSnapshot(
 				nodeLevel,
@@ -149,7 +149,7 @@ public final class NodeRuntimeProbe {
 		if (
 			traceKind == TraceNodeKind.TOGGLE_TRIGGER_SOURCE
 				&& isToggleTriggerSource(blockEntity)
-				&& blockEntity instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity
+				&& blockEntity instanceof LinkTriggerSourceBlockEntity
 		) {
 			return buildEmitterTriggerSourceSnapshot(
 				nodeLevel,

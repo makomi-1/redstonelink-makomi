@@ -21,9 +21,16 @@ param(
 	[string]$MatrixPath = (Join-Path $PSScriptRoot "matrix.json"),
 	[string]$RconHost = "127.0.0.1",
 	[int]$RconPort = 25575,
-	[string]$RconPassword,
+	[Alias("RconPassword")]
+	$RconSecret,
 	[string]$AsPlayer,
 	[string]$SparkActivityPath,
+	[switch]$SyncLatestModJar,
+	[switch]$BuildBeforeSyncLatestModJar,
+	[string]$BuildTask = "remapJar",
+	[string]$GradleWrapperPath = (Join-Path $PSScriptRoot "..\..\gradlew.bat"),
+	[string]$ModJarPath,
+	[string]$ServerModsDir,
 	[int]$StartupTimeoutMs = 180000,
 	[int]$StartupPollIntervalMs = 1000,
 	[int]$ShutdownTimeoutMs = 60000,
@@ -60,6 +67,31 @@ function Read-Utf8Text {
 	return [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
 }
 
+function Convert-PasswordInputToSecureString {
+	param($SecretInput)
+	if ($null -eq $SecretInput) {
+		return $null
+	}
+	if ($SecretInput -is [System.Security.SecureString]) {
+		return $SecretInput
+	}
+	if ($SecretInput -is [string]) {
+		if ([string]::IsNullOrWhiteSpace($SecretInput)) {
+			return $null
+		}
+		return (ConvertTo-SecureString -String $SecretInput -AsPlainText -Force)
+	}
+	throw "RconPassword must be a plain text string or SecureString."
+}
+
+function Convert-SecureStringToPlainText {
+	param([System.Security.SecureString]$Password)
+	if ($null -eq $Password) {
+		return ""
+	}
+	return ([System.Net.NetworkCredential]::new("", $Password)).Password
+}
+
 function Get-MatrixConfig {
 	param([string]$Path)
 	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -80,6 +112,98 @@ function Resolve-PathFromBase {
 		return [System.IO.Path]::GetFullPath($CandidatePath)
 	}
 	return [System.IO.Path]::GetFullPath((Join-Path $BaseDirectory $CandidatePath))
+}
+
+function Invoke-GradleBuildTask {
+	param(
+		[string]$RepoRootPath,
+		[string]$GradleWrapperFilePath,
+		[string]$TaskName
+	)
+	if ([string]::IsNullOrWhiteSpace($TaskName)) {
+		throw "BuildTask is required when BuildBeforeSyncLatestModJar is enabled."
+	}
+	if ([string]::IsNullOrWhiteSpace($GradleWrapperFilePath)) {
+		throw "GradleWrapperPath is required when BuildBeforeSyncLatestModJar is enabled."
+	}
+	if (-not (Test-Path -LiteralPath $GradleWrapperFilePath -PathType Leaf)) {
+		throw "Gradle wrapper not found: $GradleWrapperFilePath"
+	}
+
+	Write-Host "[BenchSuite] Build mod jar before sync -> task=$TaskName"
+	Push-Location $RepoRootPath
+	try {
+		& $GradleWrapperFilePath $TaskName "--no-daemon"
+		if ($LASTEXITCODE -ne 0) {
+			throw "Gradle task failed: $TaskName (exitCode=$LASTEXITCODE)"
+		}
+	} finally {
+		Pop-Location
+	}
+}
+
+function Resolve-LocalRuntimeModJarPath {
+	param(
+		[string]$RepoRootPath,
+		[string]$ExplicitModJarPath
+	)
+	if (-not [string]::IsNullOrWhiteSpace($ExplicitModJarPath)) {
+		$resolvedExplicitPath = Resolve-PathFromBase -BaseDirectory $RepoRootPath -CandidatePath $ExplicitModJarPath
+		if (-not (Test-Path -LiteralPath $resolvedExplicitPath -PathType Leaf)) {
+			throw "Mod jar not found: $resolvedExplicitPath"
+		}
+		return $resolvedExplicitPath
+	}
+
+	$buildLibsPath = Join-Path $RepoRootPath "build\libs"
+	if (-not (Test-Path -LiteralPath $buildLibsPath -PathType Container)) {
+		throw "Build output directory not found: $buildLibsPath"
+	}
+
+	$candidates = @(Get-ChildItem -LiteralPath $buildLibsPath -Filter "*.jar" -File |
+		Where-Object {
+			$_.Name -notlike "*-sources.jar" -and
+			$_.Name -notlike "*-javadoc.jar" -and
+			$_.Name -notlike "*-dev.jar"
+		} |
+		Sort-Object LastWriteTimeUtc -Descending)
+
+	if ($candidates.Count -eq 0) {
+		throw "No runtime mod jar found in build/libs. Run the build task first or provide -ModJarPath."
+	}
+	return $candidates[0].FullName
+}
+
+function Sync-ServerModJar {
+	param(
+		[string]$SourceJarPath,
+		[string]$TargetModsDirectoryPath
+	)
+	if ([string]::IsNullOrWhiteSpace($SourceJarPath)) {
+		throw "SourceJarPath is required."
+	}
+	if ([string]::IsNullOrWhiteSpace($TargetModsDirectoryPath)) {
+		throw "TargetModsDirectoryPath is required."
+	}
+	if (-not (Test-Path -LiteralPath $SourceJarPath -PathType Leaf)) {
+		throw "Source jar not found: $SourceJarPath"
+	}
+
+	$resolvedModsDirectory = New-DirectoryIfMissing -Path $TargetModsDirectoryPath
+	$removedServerJars = New-Object System.Collections.Generic.List[string]
+	foreach ($existingJar in @(Get-ChildItem -LiteralPath $resolvedModsDirectory -Filter "redstonelink*.jar" -File -ErrorAction SilentlyContinue)) {
+		$removedServerJars.Add($existingJar.Name)
+		Remove-Item -LiteralPath $existingJar.FullName -Force
+	}
+
+	$targetJarPath = Join-Path $resolvedModsDirectory ([System.IO.Path]::GetFileName($SourceJarPath))
+	Copy-Item -LiteralPath $SourceJarPath -Destination $targetJarPath -Force
+	return [ordered]@{
+		serverModsDir = $resolvedModsDirectory
+		sourceJarPath = [System.IO.Path]::GetFullPath($SourceJarPath)
+		copiedJarPath = [System.IO.Path]::GetFullPath($targetJarPath)
+		removedServerJars = @($removedServerJars.ToArray())
+	}
 }
 
 function Get-SuiteConfig {
@@ -207,7 +331,7 @@ function Resolve-SuiteEntries {
 	}
 }
 
-function Ensure-Directory {
+function New-DirectoryIfMissing {
 	param([string]$Path)
 	if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
 		New-Item -Path $Path -ItemType Directory -Force | Out-Null
@@ -243,7 +367,7 @@ function Get-CaseWorldsRootPath {
 	if (-not (Test-Path -LiteralPath $ServerRootPath -PathType Container)) {
 		throw "Server root not found: $ServerRootPath"
 	}
-	return (Ensure-Directory -Path (Join-Path $ServerRootPath $DirectoryName))
+	return (New-DirectoryIfMissing -Path (Join-Path $ServerRootPath $DirectoryName))
 }
 
 function Get-CaseWorldLevelName {
@@ -323,7 +447,7 @@ function Get-ResultsDirectoryPath {
 		[string]$RepoRootPath,
 		$Matrix
 	)
-	return (Ensure-Directory -Path (Join-Path $RepoRootPath ([string]$Matrix.defaults.resultsDir)))
+	return (New-DirectoryIfMissing -Path (Join-Path $RepoRootPath ([string]$Matrix.defaults.resultsDir)))
 }
 
 function Get-ResultFileSnapshot {
@@ -608,9 +732,10 @@ function Open-RconConnection {
 	param(
 		[string]$ServerHost,
 		[int]$Port,
-		[string]$Password
+		[System.Security.SecureString]$Password
 	)
-	if ([string]::IsNullOrWhiteSpace($Password)) {
+	$plainTextPassword = Convert-SecureStringToPlainText -Password $Password
+	if ([string]::IsNullOrWhiteSpace($plainTextPassword)) {
 		throw "RconPassword is required."
 	}
 
@@ -620,7 +745,7 @@ function Open-RconConnection {
 	$client.Connect($ServerHost, $Port)
 	$stream = $client.GetStream()
 
-	$authPacket = New-RconPacketBytes -RequestId 1 -PacketType 3 -Body $Password
+	$authPacket = New-RconPacketBytes -RequestId 1 -PacketType 3 -Body $plainTextPassword
 	$stream.Write($authPacket, 0, $authPacket.Length)
 	$stream.Flush()
 
@@ -722,7 +847,7 @@ function Test-RconAlreadyReachable {
 	param(
 		[string]$ServerHost,
 		[int]$Port,
-		[string]$Password
+		[System.Security.SecureString]$Password
 	)
 	try {
 		$connection = Open-RconConnection -ServerHost $ServerHost -Port $Port -Password $Password
@@ -737,7 +862,7 @@ function Wait-RconReady {
 	param(
 		[string]$ServerHost,
 		[int]$Port,
-		[string]$Password,
+		[System.Security.SecureString]$Password,
 		[int]$TimeoutMs,
 		[int]$PollIntervalMs
 	)
@@ -763,7 +888,7 @@ function Stop-ServerByRcon {
 	param(
 		[string]$ServerHost,
 		[int]$Port,
-		[string]$Password
+		[System.Security.SecureString]$Password
 	)
 	$connection = $null
 	try {
@@ -819,7 +944,11 @@ if ([string]::IsNullOrWhiteSpace($ServerRoot)) {
 if ([string]::IsNullOrWhiteSpace($TemplateWorldPath)) {
 	throw "TemplateWorldPath is required."
 }
-if ([string]::IsNullOrWhiteSpace($RconPassword)) {
+if ($BuildBeforeSyncLatestModJar -and -not $SyncLatestModJar) {
+	throw "BuildBeforeSyncLatestModJar requires SyncLatestModJar."
+}
+$rconPasswordSecure = Convert-PasswordInputToSecureString -SecretInput $RconSecret
+if ([string]::IsNullOrWhiteSpace((Convert-SecureStringToPlainText -Password $rconPasswordSecure))) {
 	throw "RconPassword is required."
 }
 if ([string]::IsNullOrWhiteSpace($ServerPropertiesPath)) {
@@ -835,12 +964,18 @@ $suiteEntries = @($resolvedSuite.entries)
 $entryIds = @($suiteEntries | ForEach-Object { [string]$_.entryId })
 $resolvedCaseIds = @($suiteEntries | ForEach-Object { [string]$_.caseId })
 $suiteTimestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$suiteOutputDirectory = Ensure-Directory -Path (Join-Path $SuiteResultsDir $suiteTimestamp)
+$suiteOutputDirectory = New-DirectoryIfMissing -Path (Join-Path $SuiteResultsDir $suiteTimestamp)
 $benchScriptPath = Join-Path $PSScriptRoot "run-bench.ps1"
 $matrixCache = @{}
 $serverRootFullPath = [System.IO.Path]::GetFullPath($ServerRoot)
 $templateWorldFullPath = [System.IO.Path]::GetFullPath($TemplateWorldPath)
 $serverPropertiesFullPath = [System.IO.Path]::GetFullPath($ServerPropertiesPath)
+$gradleWrapperFullPath = Resolve-PathFromBase -BaseDirectory $repoRoot -CandidatePath $GradleWrapperPath
+$serverModsDirectoryPath = if ([string]::IsNullOrWhiteSpace($ServerModsDir)) {
+	Join-Path $serverRootFullPath "mods"
+} else {
+	Resolve-PathFromBase -BaseDirectory $serverRootFullPath -CandidatePath $ServerModsDir
+}
 $caseWorldsRootPath = Get-CaseWorldsRootPath -ServerRootPath $serverRootFullPath -DirectoryName $caseWorldsDirectoryName
 $originalServerPropertiesText = Read-Utf8Text -Path $serverPropertiesFullPath
 
@@ -850,8 +985,31 @@ if ($DeleteCaseWorldOnSuccess -and @($suiteEntries | Where-Object {
 	throw "DeleteCaseWorldOnSuccess is not supported when suite entries reuse an earlier world."
 }
 
-if (Test-RconAlreadyReachable -ServerHost $RconHost -Port $RconPort -Password $RconPassword) {
+if (Test-RconAlreadyReachable -ServerHost $RconHost -Port $RconPort -Password $rconPasswordSecure) {
 	throw "RCON is already reachable before suite start. Stop the dedicated server first to ensure each case loads its own fresh world."
+}
+
+$modSyncSummary = [ordered]@{
+	syncLatestModJar = [bool]$SyncLatestModJar
+	buildBeforeSyncLatestModJar = [bool]$BuildBeforeSyncLatestModJar
+	buildTask = if ($BuildBeforeSyncLatestModJar) { $BuildTask } else { $null }
+	gradleWrapperPath = if ($BuildBeforeSyncLatestModJar) { $gradleWrapperFullPath } else { $null }
+	requestedModJarPath = if ([string]::IsNullOrWhiteSpace($ModJarPath)) { $null } else { $ModJarPath }
+	serverModsDir = if ($SyncLatestModJar) { $serverModsDirectoryPath } else { $null }
+	sourceJarPath = $null
+	copiedJarPath = $null
+	removedServerJars = @()
+}
+if ($BuildBeforeSyncLatestModJar) {
+	Invoke-GradleBuildTask -RepoRootPath $repoRoot -GradleWrapperFilePath $gradleWrapperFullPath -TaskName $BuildTask
+}
+if ($SyncLatestModJar) {
+	$localModJarPath = Resolve-LocalRuntimeModJarPath -RepoRootPath $repoRoot -ExplicitModJarPath $ModJarPath
+	$modSyncResult = Sync-ServerModJar -SourceJarPath $localModJarPath -TargetModsDirectoryPath $serverModsDirectoryPath
+	$modSyncSummary.sourceJarPath = $modSyncResult.sourceJarPath
+	$modSyncSummary.copiedJarPath = $modSyncResult.copiedJarPath
+	$modSyncSummary.removedServerJars = $modSyncResult.removedServerJars
+	Write-Host "[BenchSuite] Synced mod jar -> $($modSyncSummary.copiedJarPath)"
 }
 
 $suiteSummary = [ordered]@{
@@ -864,6 +1022,7 @@ $suiteSummary = [ordered]@{
 	serverPropertiesPath = $serverPropertiesFullPath
 	templateWorldPath = $templateWorldFullPath
 	caseWorldsRootPath = $caseWorldsRootPath
+	modSync = $modSyncSummary
 	entryIds = $entryIds
 	caseIds = $resolvedCaseIds
 	startedAt = (Get-Date).ToString("s")
@@ -935,7 +1094,7 @@ try {
 			Set-ServerPropertyValue -Path $serverPropertiesFullPath -Key "level-name" -Value $worldLevelName
 			$serverProcess = Start-DedicatedServerProcess -WorkingDirectory $serverRootFullPath -Command $ServerStartCommand
 			$caseRecord.serverPid = $serverProcess.Id
-			Wait-RconReady -ServerHost $RconHost -Port $RconPort -Password $RconPassword -TimeoutMs $StartupTimeoutMs -PollIntervalMs $StartupPollIntervalMs
+			Wait-RconReady -ServerHost $RconHost -Port $RconPort -Password $rconPasswordSecure -TimeoutMs $StartupTimeoutMs -PollIntervalMs $StartupPollIntervalMs
 
 			if (-not $matrixCache.ContainsKey($entryMatrixPath)) {
 				$matrixCache[$entryMatrixPath] = Get-MatrixConfig -Path $entryMatrixPath
@@ -951,7 +1110,7 @@ try {
 				SavePath = $worldPath
 				RconHost = $RconHost
 				RconPort = $RconPort
-				RconPassword = $RconPassword
+				RconPassword = (Convert-SecureStringToPlainText -Password $rconPasswordSecure)
 			}
 			if (-not [string]::IsNullOrWhiteSpace($AsPlayer)) {
 				$benchArgs.AsPlayer = $AsPlayer
@@ -1019,7 +1178,7 @@ try {
 			if ($null -ne $serverProcess) {
 				try {
 					if (-not $serverProcess.HasExited) {
-						Stop-ServerByRcon -ServerHost $RconHost -Port $RconPort -Password $RconPassword
+						Stop-ServerByRcon -ServerHost $RconHost -Port $RconPort -Password $rconPasswordSecure
 						Wait-ProcessExit -Process $serverProcess -TimeoutMs $ShutdownTimeoutMs -PollIntervalMs $ShutdownPollIntervalMs
 					}
 				} catch {

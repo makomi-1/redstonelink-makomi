@@ -1,7 +1,6 @@
 package com.makomi.config;
 
 import com.makomi.RedstoneLink;
-import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import java.io.IOException;
 import java.io.Reader;

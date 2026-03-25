@@ -170,6 +170,10 @@ class LinkRedstoneDustCoreStateContractTest {
 			Path.of("src/main/java/com/makomi/block/entity/ActivatableTargetBlockEntity.java"),
 			StandardCharsets.UTF_8
 		);
+		String observationSource = Files.readString(
+			Path.of("src/main/java/com/makomi/block/entity/ActivatableTargetObservationComponent.java"),
+			StandardCharsets.UTF_8
+		);
 		Pattern methodPattern = Pattern.compile(
 			"protected\\s+final\\s+boolean\\s+shouldFanoutByResolvedOutput\\s*\\(boolean\\s+resolvedActive\\)",
 			Pattern.MULTILINE
@@ -179,7 +183,7 @@ class LinkRedstoneDustCoreStateContractTest {
 			Pattern.MULTILINE
 		);
 		assertTrue(methodPattern.matcher(baseSource).find());
-		assertTrue(timeKeyPattern.matcher(baseSource).find());
+		assertTrue(timeKeyPattern.matcher(observationSource).find());
 	}
 
 	/**
@@ -191,11 +195,20 @@ class LinkRedstoneDustCoreStateContractTest {
 			Path.of("src/main/java/com/makomi/block/entity/ActivatableTargetBlockEntity.java"),
 			StandardCharsets.UTF_8
 		);
-		Pattern syncOnlyPattern = Pattern.compile(
-			"if\\s*\\(getEffectiveMode\\(\\)\\s*!=\\s*EffectiveMode\\.SYNC\\)\\s*\\{\\s*return\\s+true;",
+		String observationSource = Files.readString(
+			Path.of("src/main/java/com/makomi/block/entity/ActivatableTargetObservationComponent.java"),
+			StandardCharsets.UTF_8
+		);
+		Pattern delegatePattern = Pattern.compile(
+			"observationComponent\\.shouldFanoutByResolvedOutput\\(\\s*getEffectiveMode\\(\\)",
 			Pattern.MULTILINE | Pattern.DOTALL
 		);
-		assertTrue(syncOnlyPattern.matcher(baseSource).find());
+		Pattern syncOnlyPattern = Pattern.compile(
+			"if\\s*\\(effectiveMode\\s*!=\\s*EffectiveMode\\.SYNC\\)\\s*\\{\\s*return\\s+true;",
+			Pattern.MULTILINE | Pattern.DOTALL
+		);
+		assertTrue(delegatePattern.matcher(baseSource).find());
+		assertTrue(syncOnlyPattern.matcher(observationSource).find());
 	}
 
 	/**
@@ -272,7 +285,7 @@ class LinkRedstoneDustCoreStateContractTest {
 	@Test
 	void fanoutDedupGuardShouldRecordDiagnosticsHit() throws Exception {
 		String source = Files.readString(
-			Path.of("src/main/java/com/makomi/block/entity/ActivatableTargetBlockEntity.java"),
+			Path.of("src/main/java/com/makomi/block/entity/ActivatableTargetObservationComponent.java"),
 			StandardCharsets.UTF_8
 		);
 		Pattern diagnosticsHitPattern = Pattern.compile(

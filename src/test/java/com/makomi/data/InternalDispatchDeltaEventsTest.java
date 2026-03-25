@@ -8,7 +8,6 @@ import com.makomi.block.entity.ActivationMode;
 import com.makomi.block.entity.SyncReplaySourceBlockEntity;
 import com.makomi.config.RedstoneLinkConfigTestHelper;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
