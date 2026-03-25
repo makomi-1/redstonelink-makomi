@@ -1,0 +1,71 @@
+{
+  "id": "restart_persist_toggle_prepare",
+  "description": "准备一条 toggle 持续激活链路，供重启后复验序号、链接与最终状态。",
+  "layer": "X",
+  "scenarioId": "X04",
+  "arena": {
+    "clearFrom": [-8, 63, 70],
+    "clearTo": [24, 66, 78]
+  },
+  "targets": {
+    "id": "core_restart",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 72],
+      "to": [12, 64, 72]
+    }
+  },
+  "sources": [
+    {
+      "id": "toggle_restart",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 72],
+        "to": [0, 64, 72]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "toggle_restart",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_restart_target_prepare"
+    },
+    {
+      "templateRef": "activate_batch_toggle",
+      "name": "toggle_prepare_activate",
+      "serialRef": "toggle_restart",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_restart_prepare_ticks",
+      "ticks": 3
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "restart_prepare_target_should_be_on",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "restart_prepare_link_get",
+      "action": "get",
+      "sourceRef": "toggle_restart"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_restart_target_prepare"
+    }
+  ]
+}

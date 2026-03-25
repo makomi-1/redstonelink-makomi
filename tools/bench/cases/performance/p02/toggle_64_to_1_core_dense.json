@@ -1,0 +1,46 @@
+{
+  "id": "toggle_64_to_1_core_dense",
+  "description": "8x8 toggle triggerSource 阵列汇聚到单个 core block。",
+  "layer": "P",
+  "scenarioId": "P02-lite",
+  "arena": {
+    "clearFrom": [-8, 63, -8],
+    "clearTo": [24, 66, 16]
+  },
+  "targets": {
+    "id": "core_single",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [20, 64, 0],
+      "to": [20, 64, 0]
+    }
+  },
+  "sources": [
+    {
+      "id": "toggle_main",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 0],
+        "to": [7, 64, 7]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "toggle_main",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "drive": {
+    "totalTicks": 200,
+    "steps": [
+      {
+        "templateRef": "activate_batch_toggle",
+        "sourceGroup": "toggle_main",
+        "everyTicks": 4
+      }
+    ]
+  }
+}

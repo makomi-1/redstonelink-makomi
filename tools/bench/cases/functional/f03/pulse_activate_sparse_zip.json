@@ -1,0 +1,66 @@
+{
+  "id": "pulse_activate_sparse_zip",
+  "description": "pulse 批量激活经 zip 映射传播到 core，验证脉冲窗口与自动回落。",
+  "layer": "F",
+  "scenarioId": "F03",
+  "arena": {
+    "clearFrom": [-8, 63, 18],
+    "clearTo": [24, 66, 28]
+  },
+  "targets": {
+    "id": "core_pulse",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 20],
+      "to": [14, 64, 20]
+    }
+  },
+  "sources": [
+    {
+      "id": "pulse_zip",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 20],
+        "to": [2, 64, 20]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "pulse_zip",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_range",
+      "name": "mount_pulse_targets"
+    },
+    {
+      "templateRef": "activate_batch_pulse",
+      "name": "pulse_activate_zip",
+      "serialRef": "pulse_zip",
+      "serialFormat": "mixed"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_pulse_ticks",
+      "ticks": 6
+    },
+    {
+      "templateRef": "trace_read_pulse_core_range",
+      "name": "pulse_targets_ticks",
+      "mountRef": "mount_pulse_targets",
+      "anchorRef": "pulse_activate_zip",
+      "template": {
+        "phaseRef": "pulse_activate_zip"
+      }
+    },
+    {
+      "templateRef": "trace_unmount_core_range",
+      "name": "unmount_pulse_targets"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "id": "crosschunk_sync_triggerSource_zip_square",
+  "description": "让 triggerSource 与 core 分处不同区块，验证 crosschunk 基础派发与 trace 结果一致。",
+  "layer": "X",
+  "scenarioId": "X01",
+  "arena": {
+    "clearFrom": [-8, 63, 60],
+    "clearTo": [40, 66, 68]
+  },
+  "targets": {
+    "id": "core_crosschunk",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [32, 64, 62],
+      "to": [34, 64, 62]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_crosschunk",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 62],
+        "to": [2, 64, 62]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_crosschunk",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_crosschunk_sources",
+      "serialRef": "sync_crosschunk",
+      "capacity": 96
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_crosschunk_targets",
+      "capacity": 96
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_crosschunk_square",
+      "serialRef": "sync_crosschunk",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_crosschunk_ticks",
+      "ticks": 8
+    },
+    {
+      "templateRef": "trace_read_sync_square_triggerSource_slash",
+      "name": "crosschunk_sources_should_follow_square",
+      "serialRef": "sync_crosschunk",
+      "mountRef": "mount_crosschunk_sources",
+      "anchorRef": "start_crosschunk_square",
+      "template": {
+        "phaseRef": "start_crosschunk_square"
+      }
+    },
+    {
+      "templateRef": "trace_read_sync_square_core_slash",
+      "name": "crosschunk_targets_should_follow_square",
+      "mountRef": "mount_crosschunk_targets",
+      "anchorRef": "start_crosschunk_square",
+      "template": {
+        "phaseRef": "start_crosschunk_square"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_crosschunk_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_crosschunk_sources",
+      "serialRef": "sync_crosschunk"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_crosschunk_targets"
+    }
+  ]
+}

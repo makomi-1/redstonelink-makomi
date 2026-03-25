@@ -1,0 +1,91 @@
+{
+  "id": "sync_triggerSource_custom_mixed_basic",
+  "description": "对 sync emitter 注入自定义序列 15/0/7/0，使用 mixed 序号表达式验证中间强度传播。",
+  "layer": "F",
+  "scenarioId": "F03",
+  "arena": {
+    "clearFrom": [-8, 63, 90],
+    "clearTo": [24, 66, 100]
+  },
+  "targets": {
+    "id": "core_custom",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 92],
+      "to": [15, 64, 92]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_custom",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 92],
+        "to": [3, 64, 92]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_custom",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_triggerSource_mixed",
+      "name": "mount_sync_sources_mixed",
+      "serialRef": "sync_custom"
+    },
+    {
+      "templateRef": "trace_mount_core_mixed",
+      "name": "mount_sync_targets_mixed"
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "trigger_source_custom_start",
+      "serialRef": "sync_custom",
+      "serialFormat": "mixed",
+      "sequence": "15/0/7/0"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_custom_cycle",
+      "ticks": 8
+    },
+    {
+      "templateRef": "trace_read_sync_custom_triggerSource_mixed",
+      "name": "custom_sources_ticks",
+      "serialRef": "sync_custom",
+      "mountRef": "mount_sync_sources_mixed",
+      "anchorRef": "trigger_source_custom_start",
+      "template": {
+        "phaseRef": "trigger_source_custom_start"
+      }
+    },
+    {
+      "templateRef": "trace_read_sync_custom_core_mixed",
+      "name": "custom_targets_ticks",
+      "mountRef": "mount_sync_targets_mixed",
+      "anchorRef": "trigger_source_custom_start",
+      "template": {
+        "phaseRef": "trigger_source_custom_start"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_custom_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_mixed",
+      "name": "unmount_sync_sources_mixed",
+      "serialRef": "sync_custom"
+    },
+    {
+      "templateRef": "trace_unmount_core_mixed",
+      "name": "unmount_sync_targets_mixed"
+    }
+  ]
+}

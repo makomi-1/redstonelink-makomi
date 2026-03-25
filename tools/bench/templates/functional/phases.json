@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "templates": {
+    "wait_ticks": {
+      "kind": "wait_ticks"
+    },
+    "input_clear": {
+      "kind": "input_clear"
+    },
+    "link_command": {
+      "kind": "link_command"
+    },
+    "input_start_square_triggerSource": {
+      "kind": "input_start_square",
+      "endpoint": "triggerSource",
+      "periodTicks": 4,
+      "highTicks": 2,
+      "highPower": 15,
+      "lowPower": 0,
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    "input_start_square_core_sync": {
+      "kind": "input_start_square",
+      "endpoint": "core_sync",
+      "periodTicks": 4,
+      "highTicks": 2,
+      "highPower": 15,
+      "lowPower": 0,
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    "input_start_custom_triggerSource": {
+      "kind": "input_start_custom",
+      "endpoint": "triggerSource",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    "activate_batch_pulse": {
+      "kind": "activate_batch",
+      "mode": "pulse"
+    },
+    "activate_batch_toggle": {
+      "kind": "activate_batch",
+      "mode": "toggle"
+    },
+    "trace_mount_triggerSource_slash": {
+      "kind": "trace_mount",
+      "type": "triggerSource",
+      "serialFormat": "slash_list",
+      "every": 1,
+      "capacity": 64
+    },
+    "trace_mount_triggerSource_mixed": {
+      "kind": "trace_mount",
+      "type": "triggerSource",
+      "serialFormat": "mixed",
+      "every": 1,
+      "capacity": 64
+    },
+    "trace_mount_core_range": {
+      "kind": "trace_mount",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "range",
+      "every": 1,
+      "capacity": 64
+    },
+    "trace_mount_core_slash": {
+      "kind": "trace_mount",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "every": 1,
+      "capacity": 64
+    },
+    "trace_mount_core_mixed": {
+      "kind": "trace_mount",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "mixed",
+      "every": 1,
+      "capacity": 64
+    },
+    "trace_unmount_triggerSource_slash": {
+      "kind": "trace_unmount",
+      "type": "triggerSource",
+      "serialFormat": "slash_list"
+    },
+    "trace_unmount_triggerSource_mixed": {
+      "kind": "trace_unmount",
+      "type": "triggerSource",
+      "serialFormat": "mixed"
+    },
+    "trace_unmount_core_range": {
+      "kind": "trace_unmount",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "range"
+    },
+    "trace_unmount_core_slash": {
+      "kind": "trace_unmount",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list"
+    },
+    "trace_unmount_core_mixed": {
+      "kind": "trace_unmount",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "mixed"
+    },
+    "trace_latest_assert_core": {
+      "kind": "trace_latest_assert",
+      "type": "core",
+      "serialRef": "targets"
+    },
+    "trace_read_sync_square_triggerSource_slash": {
+      "kind": "trace_read_tick_assert",
+      "type": "triggerSource",
+      "serialFormat": "slash_list",
+      "limit": 12,
+      "tickCount": 4,
+      "template": {
+        "kind": "sync_square"
+      }
+    },
+    "trace_read_sync_square_core_range": {
+      "kind": "trace_read_tick_assert",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "range",
+      "limit": 12,
+      "tickCount": 4,
+      "template": {
+        "kind": "sync_square"
+      }
+    },
+    "trace_read_sync_square_core_slash": {
+      "kind": "trace_read_tick_assert",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 12,
+      "tickCount": 4,
+      "template": {
+        "kind": "sync_square"
+      }
+    },
+    "trace_read_sync_custom_triggerSource_mixed": {
+      "kind": "trace_read_tick_assert",
+      "type": "triggerSource",
+      "serialFormat": "mixed",
+      "limit": 12,
+      "tickCount": 4,
+      "template": {
+        "kind": "sync_custom"
+      }
+    },
+    "trace_read_sync_custom_core_mixed": {
+      "kind": "trace_read_tick_assert",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "mixed",
+      "limit": 12,
+      "tickCount": 4,
+      "template": {
+        "kind": "sync_custom"
+      }
+    },
+    "trace_read_pulse_core_range": {
+      "kind": "trace_read_tick_assert",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "range",
+      "limit": 18,
+      "tickCount": 6,
+      "template": {
+        "kind": "pulse",
+        "activeTicks": 3,
+        "activePower": 15
+      }
+    },
+    "trace_read_pulse_core_slash": {
+      "kind": "trace_read_tick_assert",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 12,
+      "tickCount": 6,
+      "template": {
+        "kind": "pulse",
+        "activeTicks": 3,
+        "activePower": 15
+      }
+    },
+    "trace_read_pulse_core_mixed": {
+      "kind": "trace_read_tick_assert",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "mixed",
+      "limit": 12,
+      "tickCount": 6,
+      "template": {
+        "kind": "pulse",
+        "activeTicks": 3,
+        "activePower": 15
+      }
+    },
+    "trace_read_toggle_core_slash": {
+      "kind": "trace_read_tick_assert",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 6,
+      "tickCount": 3,
+      "template": {
+        "kind": "toggle_hold",
+        "activePower": 15
+      }
+    }
+  }
+}

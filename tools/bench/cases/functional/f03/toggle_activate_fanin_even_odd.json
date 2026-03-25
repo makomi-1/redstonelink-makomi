@@ -1,0 +1,122 @@
+{
+  "id": "toggle_activate_fanin_even_odd",
+  "description": "toggle fan-in 先验证同帧偶数净不翻转，再验证单来源双次激活完成开关往返。",
+  "layer": "F",
+  "scenarioId": "F03",
+  "arena": {
+    "clearFrom": [-8, 63, 28],
+    "clearTo": [28, 66, 36]
+  },
+  "targets": {
+    "id": "core_toggle",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [20, 64, 30],
+      "to": [20, 64, 30]
+    }
+  },
+  "sources": [
+    {
+      "id": "toggle_even",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 30],
+        "to": [1, 64, 30]
+      }
+    },
+    {
+      "id": "toggle_odd",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 32],
+        "to": [0, 64, 32]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "toggle_even",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "toggle_odd",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_toggle_target"
+    },
+    {
+      "templateRef": "activate_batch_toggle",
+      "name": "toggle_even_activate",
+      "serialRef": "toggle_even",
+      "serialFormat": "range"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_toggle_even_ticks",
+      "ticks": 3
+    },
+    {
+      "templateRef": "trace_read_toggle_core_slash",
+      "name": "toggle_even_should_stay_low",
+      "mountRef": "mount_toggle_target",
+      "anchorRef": "toggle_even_activate",
+      "template": {
+        "phaseRef": "toggle_even_activate",
+        "expectedActive": false
+      }
+    },
+    {
+      "templateRef": "activate_batch_toggle",
+      "name": "toggle_odd_first_flip",
+      "serialRef": "toggle_odd",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_toggle_on_ticks",
+      "ticks": 3
+    },
+    {
+      "templateRef": "trace_read_toggle_core_slash",
+      "name": "toggle_odd_should_turn_on",
+      "mountRef": "mount_toggle_target",
+      "anchorRef": "toggle_odd_first_flip",
+      "template": {
+        "phaseRef": "toggle_odd_first_flip",
+        "expectedActive": true
+      }
+    },
+    {
+      "templateRef": "activate_batch_toggle",
+      "name": "toggle_odd_second_flip",
+      "serialRef": "toggle_odd",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_toggle_off_ticks",
+      "ticks": 3
+    },
+    {
+      "templateRef": "trace_read_toggle_core_slash",
+      "name": "toggle_odd_should_turn_off",
+      "mountRef": "mount_toggle_target",
+      "anchorRef": "toggle_odd_second_flip",
+      "template": {
+        "phaseRef": "toggle_odd_second_flip",
+        "expectedActive": false
+      }
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_toggle_target"
+    }
+  ]
+}

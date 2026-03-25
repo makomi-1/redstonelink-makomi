@@ -1,4 +1,5 @@
 {
+  "render_type": "minecraft:translucent",
   "parent": "minecraft:block/button_inventory",
   "textures": {
     "texture": "redstonelink:item/link_push_button_blue_overlay"

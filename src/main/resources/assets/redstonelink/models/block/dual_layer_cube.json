@@ -1,0 +1,60 @@
+{
+  "parent": "minecraft:block/block",
+  "render_type": "minecraft:translucent",
+  "gui_light": "side",
+  "textures": {
+    "particle": "#outer",
+    "outer": "minecraft:block/glass",
+    "inner": "minecraft:block/slime_block"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "down": {
+          "texture": "#outer"
+        },
+        "up": {
+          "texture": "#outer"
+        },
+        "north": {
+          "texture": "#outer"
+        },
+        "south": {
+          "texture": "#outer"
+        },
+        "west": {
+          "texture": "#outer"
+        },
+        "east": {
+          "texture": "#outer"
+        }
+      }
+    },
+    {
+      "from": [2, 2, 2],
+      "to": [14, 14, 14],
+      "faces": {
+        "down": {
+          "texture": "#inner"
+        },
+        "up": {
+          "texture": "#inner"
+        },
+        "north": {
+          "texture": "#inner"
+        },
+        "south": {
+          "texture": "#inner"
+        },
+        "west": {
+          "texture": "#inner"
+        },
+        "east": {
+          "texture": "#inner"
+        }
+      }
+    }
+  ]
+}

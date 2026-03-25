@@ -1,0 +1,55 @@
+{
+  "id": "sync_core_range_square_basic",
+  "description": "直接对 core 注入 sync 方波，使用 range 序号表达式验证高低相位。",
+  "layer": "F",
+  "scenarioId": "F03",
+  "arena": {
+    "clearFrom": [-16, 63, -8],
+    "clearTo": [16, 66, 8]
+  },
+  "targets": {
+    "id": "core_line",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [0, 64, 0],
+      "to": [3, 64, 0]
+    }
+  },
+  "sources": [],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_range",
+      "name": "mount_core_range"
+    },
+    {
+      "templateRef": "input_start_square_core_sync",
+      "name": "core_square_start",
+      "serialRef": "targets",
+      "serialFormat": "range"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_core_square_cycle",
+      "ticks": 8
+    },
+    {
+      "templateRef": "trace_read_sync_square_core_range",
+      "name": "core_square_ticks",
+      "mountRef": "mount_core_range",
+      "anchorRef": "core_square_start",
+      "template": {
+        "phaseRef": "core_square_start"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_core_input_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_range",
+      "name": "unmount_core_range"
+    }
+  ]
+}

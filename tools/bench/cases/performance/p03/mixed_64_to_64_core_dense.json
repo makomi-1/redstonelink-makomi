@@ -1,0 +1,84 @@
+{
+  "id": "mixed_64_to_64_core_dense",
+  "description": "64 个混合 triggerSource 同时驱动 8x8 core block 阵列，作为 P03 首批正式压测入口。",
+  "layer": "P",
+  "scenarioId": "P03",
+  "arena": {
+    "clearFrom": [-28, 63, -8],
+    "clearTo": [16, 66, 32]
+  },
+  "targets": {
+    "id": "core_p03_main",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [0, 64, 0],
+      "to": [7, 64, 7]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p03_group",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [-20, 64, 0],
+        "to": [-17, 64, 3]
+      },
+      "control": {
+        "mode": "north_strip",
+        "onBlock": "minecraft:redstone_block",
+        "offBlock": "minecraft:air"
+      }
+    },
+    {
+      "id": "pulse_p03_group",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [-20, 64, 10],
+        "to": [-17, 64, 13]
+      }
+    },
+    {
+      "id": "toggle_p03_group",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [-20, 64, 20],
+        "to": [-17, 64, 27]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p03_group",
+      "mapping": "broadcast_all"
+    },
+    {
+      "sourceGroup": "pulse_p03_group",
+      "mapping": "zip"
+    },
+    {
+      "sourceGroup": "toggle_p03_group",
+      "mapping": "round_robin"
+    }
+  ],
+  "drive": {
+    "totalTicks": 300,
+    "steps": [
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "sync_p03_group"
+      },
+      {
+        "templateRef": "activate_batch_pulse",
+        "sourceGroup": "pulse_p03_group"
+      },
+      {
+        "templateRef": "activate_batch_toggle",
+        "sourceGroup": "toggle_p03_group"
+      }
+    ]
+  }
+}

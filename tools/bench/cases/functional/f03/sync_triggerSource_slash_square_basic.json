@@ -1,0 +1,90 @@
+{
+  "id": "sync_triggerSource_slash_square_basic",
+  "description": "对 sync emitter 批量注入 triggerSource 方波，使用 slash 序号表达式验证来源与 core 联动。",
+  "layer": "F",
+  "scenarioId": "F03",
+  "arena": {
+    "clearFrom": [-8, 63, 72],
+    "clearTo": [24, 66, 88]
+  },
+  "targets": {
+    "id": "core_zip",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 80],
+      "to": [14, 64, 80]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_zip",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 80],
+        "to": [2, 64, 80]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_zip",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_sync_sources_slash",
+      "serialRef": "sync_zip"
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_sync_targets_slash"
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "trigger_source_square_start",
+      "serialRef": "sync_zip",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_sync_square_cycle",
+      "ticks": 8
+    },
+    {
+      "templateRef": "trace_read_sync_square_triggerSource_slash",
+      "name": "sync_sources_ticks",
+      "serialRef": "sync_zip",
+      "mountRef": "mount_sync_sources_slash",
+      "anchorRef": "trigger_source_square_start",
+      "template": {
+        "phaseRef": "trigger_source_square_start"
+      }
+    },
+    {
+      "templateRef": "trace_read_sync_square_core_slash",
+      "name": "sync_targets_ticks",
+      "mountRef": "mount_sync_targets_slash",
+      "anchorRef": "trigger_source_square_start",
+      "template": {
+        "phaseRef": "trigger_source_square_start"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_trigger_source_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_sync_sources_slash",
+      "serialRef": "sync_zip"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_sync_targets_slash"
+    }
+  ]
+}

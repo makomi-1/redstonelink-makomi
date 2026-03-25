@@ -53,7 +53,242 @@ function Get-OptionalProperty {
 	if ($null -eq $property) {
 		return $DefaultValue
 	}
+	if ($null -eq $property.Value) {
+		return $DefaultValue
+	}
 	return $property.Value
+}
+
+function Resolve-PathFromBase {
+	param(
+		[string]$BaseDirectory,
+		[string]$CandidatePath
+	)
+	if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
+		return $null
+	}
+	if ([System.IO.Path]::IsPathRooted($CandidatePath)) {
+		return [System.IO.Path]::GetFullPath($CandidatePath)
+	}
+	return [System.IO.Path]::GetFullPath((Join-Path $BaseDirectory $CandidatePath))
+}
+
+function ConvertTo-NormalizedBenchValue {
+	param($Value)
+	if ($null -eq $Value) {
+		return $null
+	}
+	if ($Value -is [System.Collections.IDictionary]) {
+		$map = [ordered]@{}
+		foreach ($key in $Value.Keys) {
+			$map[[string]$key] = ConvertTo-NormalizedBenchValue -Value $Value[$key]
+		}
+		return $map
+	}
+	if ($Value -is [pscustomobject]) {
+		$map = [ordered]@{}
+		foreach ($property in $Value.PSObject.Properties) {
+			$map[$property.Name] = ConvertTo-NormalizedBenchValue -Value $property.Value
+		}
+		return $map
+	}
+	if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+		$list = New-Object System.Collections.Generic.List[object]
+		foreach ($item in $Value) {
+			$list.Add((ConvertTo-NormalizedBenchValue -Value $item))
+		}
+		return @($list.ToArray())
+	}
+	return $Value
+}
+
+function Copy-NormalizedBenchValue {
+	param($Value)
+	if ($null -eq $Value) {
+		return $null
+	}
+	if ($Value -is [System.Collections.IDictionary]) {
+		$copy = [ordered]@{}
+		foreach ($key in $Value.Keys) {
+			$copy[[string]$key] = Copy-NormalizedBenchValue -Value $Value[$key]
+		}
+		return $copy
+	}
+	if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+		$list = New-Object System.Collections.Generic.List[object]
+		foreach ($item in $Value) {
+			$list.Add((Copy-NormalizedBenchValue -Value $item))
+		}
+		return @($list.ToArray())
+	}
+	return $Value
+}
+
+function Merge-BenchTemplateData {
+	param(
+		[System.Collections.IDictionary]$BaseValue,
+		[System.Collections.IDictionary]$OverrideValue
+	)
+	$merged = [ordered]@{}
+	if ($null -ne $BaseValue) {
+		foreach ($key in $BaseValue.Keys) {
+			$merged[[string]$key] = Copy-NormalizedBenchValue -Value $BaseValue[$key]
+		}
+	}
+	if ($null -eq $OverrideValue) {
+		return $merged
+	}
+	foreach ($keyObject in $OverrideValue.Keys) {
+		$key = [string]$keyObject
+		if ($key -eq "templateRef") {
+			continue
+		}
+		$overrideEntry = $OverrideValue[$key]
+		if ($merged.Contains($key) -and $merged[$key] -is [System.Collections.IDictionary] -and $overrideEntry -is [System.Collections.IDictionary]) {
+			$merged[$key] = Merge-BenchTemplateData -BaseValue $merged[$key] -OverrideValue $overrideEntry
+			continue
+		}
+		$merged[$key] = Copy-NormalizedBenchValue -Value $overrideEntry
+	}
+	return $merged
+}
+
+function Expand-BenchTemplateRefs {
+	param(
+		$Value,
+		[System.Collections.IDictionary]$TemplateRegistry
+	)
+	if ($null -eq $Value) {
+		return $null
+	}
+	if ($Value -is [System.Collections.IDictionary]) {
+		$working = $Value
+		if ($working.Contains("templateRef")) {
+			$templateRef = [string]$working["templateRef"]
+			if ([string]::IsNullOrWhiteSpace($templateRef)) {
+				throw "templateRef cannot be empty."
+			}
+			if ($null -eq $TemplateRegistry -or -not $TemplateRegistry.Contains($templateRef)) {
+				throw "Template not found: $templateRef"
+			}
+			$working = Merge-BenchTemplateData `
+				-BaseValue (Expand-BenchTemplateRefs -Value $TemplateRegistry[$templateRef] -TemplateRegistry $TemplateRegistry) `
+				-OverrideValue $working
+		}
+		$expanded = [ordered]@{}
+		foreach ($keyObject in $working.Keys) {
+			$key = [string]$keyObject
+			if ($key -eq "templateRef") {
+				continue
+			}
+			$expanded[$key] = Expand-BenchTemplateRefs -Value $working[$key] -TemplateRegistry $TemplateRegistry
+		}
+		return $expanded
+	}
+	if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+		$list = New-Object System.Collections.Generic.List[object]
+		foreach ($item in $Value) {
+			$list.Add((Expand-BenchTemplateRefs -Value $item -TemplateRegistry $TemplateRegistry))
+		}
+		return @($list.ToArray())
+	}
+	return $Value
+}
+
+function ConvertTo-PSObjectTree {
+	param($Value)
+	if ($null -eq $Value) {
+		return $null
+	}
+	if ($Value -is [System.Collections.IDictionary]) {
+		$properties = [ordered]@{}
+		foreach ($keyObject in $Value.Keys) {
+			$key = [string]$keyObject
+			$properties[$key] = ConvertTo-PSObjectTree -Value $Value[$key]
+		}
+		return [pscustomobject]$properties
+	}
+	if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+		$list = New-Object System.Collections.Generic.List[object]
+		foreach ($item in $Value) {
+			$list.Add((ConvertTo-PSObjectTree -Value $item))
+		}
+		return @($list.ToArray())
+	}
+	return $Value
+}
+
+function Import-BenchTemplateRegistry {
+	param(
+		[string]$MatrixDirectory,
+		$MatrixData
+	)
+	$registry = [ordered]@{}
+	foreach ($templatePath in @(Get-OptionalProperty -Object $MatrixData -Name "templatePaths" -DefaultValue @())) {
+		$resolvedTemplatePath = Resolve-PathFromBase -BaseDirectory $MatrixDirectory -CandidatePath ([string]$templatePath)
+		if (-not (Test-Path -LiteralPath $resolvedTemplatePath -PathType Leaf)) {
+			throw "Template file not found: $resolvedTemplatePath"
+		}
+		$templateConfig = ConvertTo-NormalizedBenchValue -Value (
+			Get-Content -Path $resolvedTemplatePath -Encoding UTF8 -Raw | ConvertFrom-Json
+		)
+		$templateMap = Get-OptionalProperty -Object $templateConfig -Name "templates"
+		if ($null -eq $templateMap) {
+			throw "Template file must provide templates object: $resolvedTemplatePath"
+		}
+		foreach ($templateName in $templateMap.Keys) {
+			$registry[[string]$templateName] = Copy-NormalizedBenchValue -Value $templateMap[$templateName]
+		}
+	}
+	return $registry
+}
+
+function Load-BenchCaseDefinitions {
+	param(
+		[string]$MatrixDirectory,
+		$MatrixData,
+		[System.Collections.IDictionary]$TemplateRegistry
+	)
+	$loadedCases = New-Object System.Collections.Generic.List[object]
+	$knownCaseIds = @{}
+
+	foreach ($inlineCase in @(Get-OptionalProperty -Object $MatrixData -Name "cases" -DefaultValue @())) {
+		$expandedCase = Expand-BenchTemplateRefs `
+			-Value (ConvertTo-NormalizedBenchValue -Value $inlineCase) `
+			-TemplateRegistry $TemplateRegistry
+		$caseId = [string](Get-OptionalProperty -Object $expandedCase -Name "id" -DefaultValue "")
+		if ([string]::IsNullOrWhiteSpace($caseId)) {
+			throw "Case id is required in matrix file."
+		}
+		if ($knownCaseIds.ContainsKey($caseId)) {
+			throw "Duplicate case id in matrix: $caseId"
+		}
+		$knownCaseIds[$caseId] = $true
+		$loadedCases.Add($expandedCase)
+	}
+
+	foreach ($casePath in @(Get-OptionalProperty -Object $MatrixData -Name "casePaths" -DefaultValue @())) {
+		$resolvedCasePath = Resolve-PathFromBase -BaseDirectory $MatrixDirectory -CandidatePath ([string]$casePath)
+		if (-not (Test-Path -LiteralPath $resolvedCasePath -PathType Leaf)) {
+			throw "Case file not found: $resolvedCasePath"
+		}
+		$expandedCase = Expand-BenchTemplateRefs `
+			-Value (ConvertTo-NormalizedBenchValue -Value (
+				Get-Content -Path $resolvedCasePath -Encoding UTF8 -Raw | ConvertFrom-Json
+			)) `
+			-TemplateRegistry $TemplateRegistry
+		$caseId = [string](Get-OptionalProperty -Object $expandedCase -Name "id" -DefaultValue "")
+		if ([string]::IsNullOrWhiteSpace($caseId)) {
+			throw "Case id is required in case file: $resolvedCasePath"
+		}
+		if ($knownCaseIds.ContainsKey($caseId)) {
+			throw "Duplicate case id in matrix: $caseId"
+		}
+		$knownCaseIds[$caseId] = $true
+		$loadedCases.Add($expandedCase)
+	}
+
+	return @($loadedCases.ToArray())
 }
 
 function Get-MatrixConfig {
@@ -61,7 +296,17 @@ function Get-MatrixConfig {
 	if (-not (Test-Path $Path)) {
 		throw "Matrix file not found: $Path"
 	}
-	return (Get-Content -Path $Path -Encoding UTF8 -Raw | ConvertFrom-Json)
+	$fullMatrixPath = [System.IO.Path]::GetFullPath($Path)
+	$matrixDirectory = Split-Path -Path $fullMatrixPath -Parent
+	$matrixConfig = ConvertTo-NormalizedBenchValue -Value (
+		Get-Content -Path $fullMatrixPath -Encoding UTF8 -Raw | ConvertFrom-Json
+	)
+	$templateRegistry = Import-BenchTemplateRegistry -MatrixDirectory $matrixDirectory -MatrixData $matrixConfig
+	$matrixConfig["cases"] = Load-BenchCaseDefinitions `
+		-MatrixDirectory $matrixDirectory `
+		-MatrixData $matrixConfig `
+		-TemplateRegistry $templateRegistry
+	return (ConvertTo-PSObjectTree -Value $matrixConfig)
 }
 
 function Get-CaseConfig {
@@ -879,7 +1124,7 @@ function Get-CaseExecutionBounds {
 			$allPositions.Add($pos)
 		}
 	}
-	foreach ($group in @($CaseConfig.sources)) {
+	foreach ($group in @(Get-OptionalProperty -Object $CaseConfig -Name "sources" -DefaultValue @())) {
 		foreach ($pos in @(Expand-CuboidPositions $group.layout)) {
 			$allPositions.Add($pos)
 		}

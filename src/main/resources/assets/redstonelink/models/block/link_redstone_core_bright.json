@@ -1,6 +1,7 @@
 {
-	"parent": "minecraft:block/cube_all",
-	"textures": {
-		"all": "redstonelink:block/link_redstone_core_blue_bright"
-	}
+  "parent": "redstonelink:block/dual_layer_cube",
+  "textures": {
+    "outer": "redstonelink:block/link_redstone_core_blue_bright",
+    "inner": "redstonelink:block/component_core_block"
+  }
 }

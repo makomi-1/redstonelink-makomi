@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "templates": {
+    "sync_square_wave": {
+      "kind": "sync_square_wave",
+      "periodTicks": 4
+    },
+    "activate_batch_pulse": {
+      "kind": "activate_batch",
+      "mode": "pulse",
+      "everyTicks": 8
+    },
+    "activate_batch_toggle": {
+      "kind": "activate_batch",
+      "mode": "toggle",
+      "everyTicks": 20
+    }
+  }
+}

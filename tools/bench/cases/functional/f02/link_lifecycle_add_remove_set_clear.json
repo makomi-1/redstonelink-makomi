@@ -1,0 +1,188 @@
+{
+  "id": "link_lifecycle_add_remove_set_clear",
+  "description": "通过 add/remove/set/clear/get 走完整建链生命周期，并用 pulse 行为验证最终链接状态。",
+  "layer": "F",
+  "scenarioId": "F02",
+  "arena": {
+    "clearFrom": [-8, 63, 38],
+    "clearTo": [24, 66, 46]
+  },
+  "targets": {
+    "id": "core_lifecycle",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 40],
+      "to": [13, 64, 40]
+    }
+  },
+  "sources": [
+    {
+      "id": "pulse_lifecycle",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 40],
+        "to": [0, 64, 40]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_range",
+      "name": "mount_lifecycle_targets",
+      "capacity": 96
+    },
+    {
+      "templateRef": "activate_batch_pulse",
+      "name": "pulse_without_links",
+      "serialRef": "pulse_lifecycle",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_no_link_ticks",
+      "ticks": 6
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "target_should_stay_low_without_link",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": false
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_add_first_target",
+      "action": "add",
+      "sourceRef": "pulse_lifecycle",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_get_after_add",
+      "action": "get",
+      "sourceRef": "pulse_lifecycle"
+    },
+    {
+      "templateRef": "activate_batch_pulse",
+      "name": "pulse_single_link",
+      "serialRef": "pulse_lifecycle",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_single_link_ticks",
+      "ticks": 6
+    },
+    {
+      "templateRef": "trace_read_pulse_core_slash",
+      "name": "first_target_should_pulse",
+      "serialIndex": 0,
+      "mountRef": "mount_lifecycle_targets",
+      "anchorRef": "pulse_single_link",
+      "template": {
+        "phaseRef": "pulse_single_link"
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_remove_first_target",
+      "action": "remove",
+      "sourceRef": "pulse_lifecycle",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "activate_batch_pulse",
+      "name": "pulse_after_remove",
+      "serialRef": "pulse_lifecycle",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_after_remove_ticks",
+      "ticks": 6
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "target_should_stay_low_after_remove",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": false
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_set_all_targets",
+      "action": "set",
+      "sourceRef": "pulse_lifecycle",
+      "targetRef": "targets",
+      "targetIndexes": [0, 1],
+      "targetSerialFormat": "mixed"
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_get_after_set",
+      "action": "get",
+      "sourceRef": "pulse_lifecycle"
+    },
+    {
+      "templateRef": "activate_batch_pulse",
+      "name": "pulse_after_set",
+      "serialRef": "pulse_lifecycle",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_after_set_ticks",
+      "ticks": 6
+    },
+    {
+      "templateRef": "trace_read_pulse_core_mixed",
+      "name": "all_targets_should_pulse_after_set",
+      "serialIndexes": [0, 1],
+      "mountRef": "mount_lifecycle_targets",
+      "anchorRef": "pulse_after_set",
+      "template": {
+        "phaseRef": "pulse_after_set"
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_clear_all_targets",
+      "action": "clear",
+      "sourceRef": "pulse_lifecycle"
+    },
+    {
+      "templateRef": "activate_batch_pulse",
+      "name": "pulse_after_clear",
+      "serialRef": "pulse_lifecycle",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_after_clear_ticks",
+      "ticks": 6
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "all_targets_should_stay_low_after_clear",
+      "serialFormat": "mixed",
+      "serialIndexes": [0, 1],
+      "expectedCount": 2,
+      "expect": {
+        "active": false
+      }
+    },
+    {
+      "templateRef": "trace_unmount_core_range",
+      "name": "unmount_lifecycle_targets"
+    }
+  ]
+}

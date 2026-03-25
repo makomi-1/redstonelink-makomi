@@ -1,0 +1,50 @@
+{
+  "id": "sync_1_to_256_core_dense",
+  "description": "单个 sync triggerSource 广播到 16x16 core block 阵列，作为 P01 首批正式压测入口。",
+  "layer": "P",
+  "scenarioId": "P01",
+  "arena": {
+    "clearFrom": [-16, 63, -8],
+    "clearTo": [20, 66, 20]
+  },
+  "targets": {
+    "id": "core_p01_main",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [0, 64, 0],
+      "to": [15, 64, 15]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p01_main",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [-8, 64, 0],
+        "to": [-8, 64, 0]
+      },
+      "control": {
+        "mode": "north_strip",
+        "onBlock": "minecraft:redstone_block",
+        "offBlock": "minecraft:air"
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p01_main",
+      "mapping": "broadcast_all"
+    }
+  ],
+  "drive": {
+    "totalTicks": 240,
+    "steps": [
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "sync_p01_main"
+      }
+    ]
+  }
+}

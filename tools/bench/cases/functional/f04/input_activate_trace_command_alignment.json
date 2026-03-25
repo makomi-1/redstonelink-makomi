@@ -1,0 +1,158 @@
+{
+  "id": "input_activate_trace_command_alignment",
+  "description": "组合验证 input start、node activate 与 node trace 的链路一致性。",
+  "layer": "F",
+  "scenarioId": "F04",
+  "arena": {
+    "clearFrom": [-8, 63, 48],
+    "clearTo": [24, 66, 58]
+  },
+  "targets": {
+    "id": "core_input_activate",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 50],
+      "to": [13, 64, 50]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_input_case",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 50],
+        "to": [0, 64, 50]
+      }
+    },
+    {
+      "id": "pulse_activate_case",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 52],
+        "to": [0, 64, 52]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "link_command",
+      "name": "link_sync_input_target",
+      "action": "set",
+      "sourceRef": "sync_input_case",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_sync_input_source",
+      "serialRef": "sync_input_case"
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_sync_input_target",
+      "serialIndex": 0
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_sync_input_square",
+      "serialRef": "sync_input_case",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_sync_input_ticks",
+      "ticks": 8
+    },
+    {
+      "templateRef": "trace_read_sync_square_triggerSource_slash",
+      "name": "sync_input_source_should_follow_square",
+      "serialRef": "sync_input_case",
+      "mountRef": "mount_sync_input_source",
+      "anchorRef": "start_sync_input_square",
+      "template": {
+        "phaseRef": "start_sync_input_square"
+      }
+    },
+    {
+      "templateRef": "trace_read_sync_square_core_slash",
+      "name": "sync_input_target_should_follow_square",
+      "serialIndex": 0,
+      "mountRef": "mount_sync_input_target",
+      "anchorRef": "start_sync_input_square",
+      "template": {
+        "phaseRef": "start_sync_input_square"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_sync_input_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_after_input_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "sync_input_target_should_return_low",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": false
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_pulse_activate_target",
+      "action": "set",
+      "sourceRef": "pulse_activate_case",
+      "targetRef": "targets",
+      "targetIndex": 1
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_pulse_activate_target",
+      "serialIndex": 1
+    },
+    {
+      "templateRef": "activate_batch_pulse",
+      "name": "activate_pulse_target",
+      "serialRef": "pulse_activate_case",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_activate_ticks",
+      "ticks": 6
+    },
+    {
+      "templateRef": "trace_read_pulse_core_slash",
+      "name": "pulse_activate_target_should_pulse",
+      "serialIndex": 1,
+      "mountRef": "mount_pulse_activate_target",
+      "anchorRef": "activate_pulse_target",
+      "template": {
+        "phaseRef": "activate_pulse_target"
+      }
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_sync_input_source",
+      "serialRef": "sync_input_case"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_sync_input_target",
+      "serialIndex": 0
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_pulse_activate_target",
+      "serialIndex": 1
+    }
+  ]
+}
