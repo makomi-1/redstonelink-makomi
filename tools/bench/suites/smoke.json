@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "description": "最小烟雾验证，确认 datapack、世界准备、基础功能 case 与结果写出链路可用。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "smoke_sync_range",
+      "caseId": "sync_core_range_square_basic"
+    }
+  ]
+}

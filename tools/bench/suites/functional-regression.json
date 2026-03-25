@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "description": "功能回归集合，覆盖生命周期、基础同步语义、激活链路与命令/trace 对齐。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "f02_link_lifecycle",
+      "caseId": "link_lifecycle_add_remove_set_clear"
+    },
+    {
+      "entryId": "f03_sync_range",
+      "caseId": "sync_core_range_square_basic"
+    },
+    {
+      "entryId": "f03_sync_slash",
+      "caseId": "sync_triggerSource_slash_square_basic"
+    },
+    {
+      "entryId": "f03_sync_custom",
+      "caseId": "sync_triggerSource_custom_mixed_basic"
+    },
+    {
+      "entryId": "f03_pulse",
+      "caseId": "pulse_activate_sparse_zip"
+    },
+    {
+      "entryId": "f03_toggle",
+      "caseId": "toggle_activate_fanin_even_odd"
+    },
+    {
+      "entryId": "f04_input_activate_trace",
+      "caseId": "input_activate_trace_command_alignment"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "description": "跨区块与重启专项回归，覆盖 crosschunk、重启前准备与重启后复验。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "x01_crosschunk_sync",
+      "caseId": "crosschunk_sync_triggerSource_zip_square"
+    },
+    {
+      "entryId": "x04_restart_prepare",
+      "caseId": "restart_persist_toggle_prepare"
+    },
+    {
+      "entryId": "r02_restart_verify",
+      "caseId": "restart_persist_toggle_verify",
+      "reuseWorldFrom": "x04_restart_prepare",
+      "compareSerialsTo": "x04_restart_prepare"
+    }
+  ]
+}

@@ -1,6 +1,4 @@
 # RedstoneLink bench datapack load hook
-# 仅初始化公共 scoreboard，不做破坏性动作。
+# 仅做全局初始化，不执行破坏性场景动作。
 
-scoreboard objectives add rl_bench.state dummy
-scoreboard objectives add rl_bench.tick dummy
-scoreboard objectives add rl_bench.case dummy
+function rl_bench:helper/common/init_scoreboards
