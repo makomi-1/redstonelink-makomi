@@ -1,8 +1,6 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.ActivationMode;
-import com.makomi.util.SignalStrengths;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -12,12 +10,10 @@ import java.util.Optional;
 import java.util.PriorityQueue;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
@@ -31,23 +27,23 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	private static final String DATA_NAME = "redstonelink_crosschunk_dispatch_queue";
-	private static final String KEY_PENDING_ENTRIES = "pendingEntries";
-	private static final String KEY_ACCEPTED_VERSIONS = "acceptedVersions";
-	private static final String KEY_ISSUED_VERSIONS = "issuedVersions";
-	private static final String KEY_SOURCE_TYPE = "sourceType";
-	private static final String KEY_SOURCE_SERIAL = "sourceSerial";
-	private static final String KEY_TARGET_TYPE = "targetType";
-	private static final String KEY_TARGET_SERIAL = "targetSerial";
-	private static final String KEY_DISPATCH_KIND = "dispatchKind";
-	private static final String KEY_DISPATCH_ACTION = "dispatchAction";
-	private static final String KEY_DIMENSION = "dimension";
-	private static final String KEY_POS = "pos";
-	private static final String KEY_ACTIVATION_MODE = "activationMode";
-	private static final String KEY_SYNC_SIGNAL_STRENGTH = "syncSignalStrength";
-	private static final String KEY_ENQUEUE_TICK = "enqueueTick";
-	private static final String KEY_ENQUEUE_SLOT = "enqueueSlot";
-	private static final String KEY_EXPIRE_TICK = "expireTick";
-	private static final String KEY_VERSION = "version";
+	static final String KEY_PENDING_ENTRIES = "pendingEntries";
+	static final String KEY_ACCEPTED_VERSIONS = "acceptedVersions";
+	static final String KEY_ISSUED_VERSIONS = "issuedVersions";
+	static final String KEY_SOURCE_TYPE = "sourceType";
+	static final String KEY_SOURCE_SERIAL = "sourceSerial";
+	static final String KEY_TARGET_TYPE = "targetType";
+	static final String KEY_TARGET_SERIAL = "targetSerial";
+	static final String KEY_DISPATCH_KIND = "dispatchKind";
+	static final String KEY_DISPATCH_ACTION = "dispatchAction";
+	static final String KEY_DIMENSION = "dimension";
+	static final String KEY_POS = "pos";
+	static final String KEY_ACTIVATION_MODE = "activationMode";
+	static final String KEY_SYNC_SIGNAL_STRENGTH = "syncSignalStrength";
+	static final String KEY_ENQUEUE_TICK = "enqueueTick";
+	static final String KEY_ENQUEUE_SLOT = "enqueueSlot";
+	static final String KEY_EXPIRE_TICK = "expireTick";
+	static final String KEY_VERSION = "version";
 
 	private static final SavedData.Factory<CrossChunkDispatchQueueSavedData> FACTORY = new SavedData.Factory<>(
 		CrossChunkDispatchQueueSavedData::new,
@@ -55,32 +51,19 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		DataFixTypes.LEVEL
 	);
 
-	private static final Comparator<DispatchKey> DISPATCH_KEY_COMPARATOR = Comparator
+	static final Comparator<DispatchKey> DISPATCH_KEY_COMPARATOR = Comparator
 		.comparing((DispatchKey key) -> key.sourceType().name())
 		.thenComparingLong(DispatchKey::sourceSerial)
 		.thenComparing(key -> key.targetType().name())
 		.thenComparingLong(DispatchKey::targetSerial)
 		.thenComparing(key -> key.dispatchKind().name());
 
-	private static final Comparator<PendingDispatchEntry> PENDING_ENTRY_COMPARATOR = Comparator
-		.comparingLong(PendingDispatchEntry::expireGameTick)
-		.thenComparingLong(PendingDispatchEntry::enqueueGameTick)
-		.thenComparingInt(PendingDispatchEntry::enqueueGameSlot)
-		.thenComparing((PendingDispatchEntry entry) -> entry.key(), DISPATCH_KEY_COMPARATOR)
-		.thenComparing(entry -> entry.dispatchAction().name())
-		.thenComparingLong(PendingDispatchEntry::version);
-
-	private static final Comparator<ExpireIndex> EXPIRE_INDEX_COMPARATOR = Comparator
-		.comparingLong(ExpireIndex::expireGameTick)
-		.thenComparing(ExpireIndex::key, DISPATCH_KEY_COMPARATOR)
-		.thenComparingLong(ExpireIndex::version);
-
-	private final Map<DispatchKey, PendingDispatchEntry> pendingByKey = new LinkedHashMap<>();
-	private final Map<DispatchKey, Long> lastAcceptedVersionByKey = new HashMap<>();
-	private final Map<DispatchKey, Long> maxIssuedVersionByKey = new HashMap<>();
-	private transient List<PendingDispatchEntry> pendingSnapshotCache = List.of();
-	private transient boolean pendingSnapshotDirty = true;
-	private transient PriorityQueue<ExpireIndex> expireMinHeap = new PriorityQueue<>(EXPIRE_INDEX_COMPARATOR);
+	final Map<DispatchKey, PendingDispatchEntry> pendingByKey = new LinkedHashMap<>();
+	final Map<DispatchKey, Long> lastAcceptedVersionByKey = new HashMap<>();
+	final Map<DispatchKey, Long> maxIssuedVersionByKey = new HashMap<>();
+	transient List<PendingDispatchEntry> pendingSnapshotCache = List.of();
+	transient boolean pendingSnapshotDirty = true;
+	transient PriorityQueue<CrossChunkDispatchQueueStateSupport.ExpireIndex> expireMinHeap = null;
 
 	/**
 	 * 获取跨区块持久队列实例。
@@ -105,15 +88,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			if (parsed.isEmpty()) {
 				continue;
 			}
-			PendingDispatchEntry entry = parsed.get();
-			data.restorePendingEntry(entry);
-			long baseline = Math.max(
-				data.maxIssuedVersionByKey.getOrDefault(entry.key(), 0L),
-				data.lastAcceptedVersionByKey.getOrDefault(entry.key(), 0L)
-			);
-			if (entry.version() > baseline) {
-				data.maxIssuedVersionByKey.put(entry.key(), entry.version());
-			}
+			data.restorePendingEntry(parsed.get());
 		}
 		return data;
 	}
@@ -157,173 +132,55 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 * 批量写入或覆盖 pending 条目，仅在存在有效变更时统一 setDirty 一次。
 	 */
 	public List<UpsertResult> upsertPendingBatch(List<PendingUpsertRequest> requests) {
-		if (requests == null || requests.isEmpty()) {
-			return List.of();
-		}
-		List<UpsertResult> results = new ArrayList<>(requests.size());
-		for (int index = 0; index < requests.size(); index++) {
-			results.add(UpsertResult.rejected());
-		}
-
-		// 批次内同 key 去重：仅保留最后一条有效请求，避免重复分配版本与重复 upsert。
-		Map<DispatchKey, Integer> lastValidIndexByKey = new HashMap<>();
-		for (int index = 0; index < requests.size(); index++) {
-			PendingUpsertRequest request = requests.get(index);
-			if (!isValidPendingEntryInput(
-				request == null ? null : request.key(),
-				request == null ? null : request.dispatchAction(),
-				request == null ? null : request.dimension(),
-				request == null ? null : request.pos(),
-				request == null ? null : request.activationMode(),
-				request == null ? 0L : request.expireGameTick()
-			)) {
-				continue;
-			}
-			lastValidIndexByKey.put(request.key(), index);
-		}
-
-		boolean dirty = false;
-		Map<DispatchKey, UpsertResult> resultByKey = new HashMap<>();
-		for (int index = 0; index < requests.size(); index++) {
-			PendingUpsertRequest request = requests.get(index);
-			if (request == null) {
-				continue;
-			}
-			Integer lastIndex = lastValidIndexByKey.get(request.key());
-			if (lastIndex == null || lastIndex.intValue() != index) {
-				continue;
-			}
-			Optional<PendingDispatchEntry> normalized = buildPendingEntry(
-				request.key(),
-				request.dispatchAction(),
-				request.dimension(),
-				request.pos(),
-				request.activationMode(),
-				request.syncSignalStrength(),
-				request.enqueueGameTick(),
-				request.enqueueGameSlot(),
-				request.expireGameTick()
-			);
-			if (normalized.isEmpty()) {
-				continue;
-			}
-			PendingDispatchEntry pendingEntry = normalized.get();
-			if (upsertPendingEntry(pendingEntry)) {
-				dirty = true;
-			}
-			resultByKey.put(request.key(), new UpsertResult(true, pendingEntry));
-		}
-
-		// 将“最后有效请求”的结果回填到本批内所有同 key 且有效的请求。
-		for (int index = 0; index < requests.size(); index++) {
-			PendingUpsertRequest request = requests.get(index);
-			if (request == null) {
-				continue;
-			}
-			if (!isValidPendingEntryInput(
-				request.key(),
-				request.dispatchAction(),
-				request.dimension(),
-				request.pos(),
-				request.activationMode(),
-				request.expireGameTick()
-			)) {
-				continue;
-			}
-			UpsertResult mappedResult = resultByKey.get(request.key());
-			if (mappedResult != null) {
-				results.set(index, mappedResult);
-			}
-		}
-		if (dirty) {
+		CrossChunkDispatchQueueStateSupport.BatchUpsertOutcome outcome = CrossChunkDispatchQueueStateSupport.upsertPendingBatch(this, requests);
+		if (outcome.dirty()) {
 			setDirty();
 		}
-		return List.copyOf(results);
+		return outcome.results();
 	}
 
 	/**
 	 * 删除 pending 条目。
 	 */
 	public boolean removePending(DispatchKey key) {
-		if (key == null) {
-			return false;
+		boolean removed = CrossChunkDispatchQueueStateSupport.removePending(this, key);
+		if (removed) {
+			setDirty();
 		}
-		PendingDispatchEntry removed = pendingByKey.remove(key);
-		if (removed == null) {
-			return false;
-		}
-		markPendingSnapshotDirty();
-		setDirty();
-		return true;
+		return removed;
 	}
 
 	/**
 	 * 按 key 判断版本是否为旧包。
 	 */
 	public boolean isStaleByAcceptedVersion(DispatchKey key, long version) {
-		if (key == null || version <= 0L) {
-			return true;
-		}
-		return version <= lastAcceptedVersionByKey.getOrDefault(key, 0L);
+		return CrossChunkDispatchQueueStateSupport.isStaleByAcceptedVersion(this, key, version);
 	}
 
 	/**
 	 * 标记 key 已接受版本。
 	 */
 	public boolean markAccepted(DispatchKey key, long version) {
-		if (key == null || version <= 0L) {
-			return false;
+		boolean advanced = CrossChunkDispatchQueueStateSupport.markAccepted(this, key, version);
+		if (advanced) {
+			setDirty();
 		}
-		long previous = lastAcceptedVersionByKey.getOrDefault(key, 0L);
-		if (version <= previous) {
-			return false;
-		}
-		lastAcceptedVersionByKey.put(key, version);
-		long issued = maxIssuedVersionByKey.getOrDefault(key, 0L);
-		if (version > issued) {
-			maxIssuedVersionByKey.put(key, version);
-		}
-		setDirty();
-		return true;
+		return advanced;
 	}
 
 	/**
 	 * 按 key 查询当前 pending 条目。
 	 */
 	public Optional<PendingDispatchEntry> pendingEntry(DispatchKey key) {
-		if (key == null) {
-			return Optional.empty();
-		}
-		return Optional.ofNullable(pendingByKey.get(key));
+		return CrossChunkDispatchQueueStateSupport.pendingEntry(this, key);
 	}
 
 	/**
 	 * 清理过期 pending 条目（基于最小堆闹钟，避免每 tick 全量扫描过期）。
 	 */
 	public int purgeExpired(long nowGameTick) {
-		if (nowGameTick < 0L || pendingByKey.isEmpty()) {
-			return 0;
-		}
-		int removed = 0;
-		ensureExpireHeapReady();
-		while (true) {
-			ExpireIndex expireIndex = expireMinHeap.peek();
-			if (expireIndex == null || expireIndex.expireGameTick() > nowGameTick) {
-				break;
-			}
-			expireMinHeap.poll();
-			PendingDispatchEntry current = pendingByKey.get(expireIndex.key());
-			if (current == null) {
-				continue;
-			}
-			if (current.version() != expireIndex.version() || current.expireGameTick() != expireIndex.expireGameTick()) {
-				continue;
-			}
-			pendingByKey.remove(expireIndex.key());
-			removed++;
-		}
+		int removed = CrossChunkDispatchQueueStateSupport.purgeExpired(this, nowGameTick);
 		if (removed > 0) {
-			markPendingSnapshotDirty();
 			setDirty();
 		}
 		return removed;
@@ -333,15 +190,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 * 返回 pending 快照（脏标记缓存，避免重复创建与排序）。
 	 */
 	public List<PendingDispatchEntry> pendingEntriesSnapshot() {
-		if (pendingByKey.isEmpty()) {
-			return List.of();
-		}
-		if (!pendingSnapshotDirty) {
-			return pendingSnapshotCache;
-		}
-		pendingSnapshotCache = List.copyOf(pendingByKey.values());
-		pendingSnapshotDirty = false;
-		return pendingSnapshotCache;
+		return CrossChunkDispatchQueueStateSupport.pendingEntriesSnapshot(this);
 	}
 
 	/**
@@ -361,7 +210,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 			entryTag.putLong(KEY_POS, entry.pos().asLong());
 			entryTag.putString(KEY_ACTIVATION_MODE, entry.activationMode().name());
 			entryTag.putString(KEY_DISPATCH_ACTION, entry.dispatchAction().name());
-			entryTag.putInt(KEY_SYNC_SIGNAL_STRENGTH, SignalStrengths.clamp(entry.syncSignalStrength()));
+			entryTag.putInt(KEY_SYNC_SIGNAL_STRENGTH, com.makomi.util.SignalStrengths.clamp(entry.syncSignalStrength()));
 			entryTag.putLong(KEY_ENQUEUE_TICK, Math.max(0L, entry.enqueueGameTick()));
 			entryTag.putInt(KEY_ENQUEUE_SLOT, Math.max(0, entry.enqueueGameSlot()));
 			entryTag.putLong(KEY_EXPIRE_TICK, Math.max(0L, entry.expireGameTick()));
@@ -385,23 +234,17 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		int enqueueGameSlot,
 		long expireGameTick
 	) {
-		if (!isValidPendingEntryInput(key, dispatchAction, dimension, pos, activationMode, expireGameTick)) {
-			return Optional.empty();
-		}
-		long version = allocateNextVersion(key);
-		return Optional.of(
-			new PendingDispatchEntry(
-				key,
-				dispatchAction,
-				dimension,
-				pos.immutable(),
-				activationMode,
-				SignalStrengths.clamp(syncSignalStrength),
-				Math.max(0L, enqueueGameTick),
-				Math.max(0, enqueueGameSlot),
-				expireGameTick,
-				version
-			)
+		return CrossChunkDispatchQueueStateSupport.buildPendingEntry(
+			this,
+			key,
+			dispatchAction,
+			dimension,
+			pos,
+			activationMode,
+			syncSignalStrength,
+			enqueueGameTick,
+			enqueueGameSlot,
+			expireGameTick
 		);
 	}
 
@@ -416,184 +259,50 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		ActivationMode activationMode,
 		long expireGameTick
 	) {
-		if (key == null || dispatchAction == null || dimension == null || pos == null || activationMode == null) {
-			return false;
-		}
-		if (!LinkNodeSemantics.isAllowedForRole(key.sourceType(), LinkNodeSemantics.Role.SOURCE)) {
-			return false;
-		}
-		if (!LinkNodeSemantics.isAllowedForRole(key.targetType(), LinkNodeSemantics.Role.TARGET)) {
-			return false;
-		}
-		if (key.sourceSerial() <= 0L || key.targetSerial() <= 0L || expireGameTick <= 0L) {
-			return false;
-		}
-		return true;
+		return CrossChunkDispatchQueueStateSupport.isValidPendingEntryInput(
+			key,
+			dispatchAction,
+			dimension,
+			pos,
+			activationMode,
+			expireGameTick
+		);
 	}
 
 	private boolean upsertPendingEntry(PendingDispatchEntry entry) {
-		PendingDispatchEntry previous = pendingByKey.put(entry.key(), entry);
-		trackExpire(entry);
-		markPendingSnapshotDirty();
-		return !entry.equals(previous);
+		return CrossChunkDispatchQueueStateSupport.upsertPendingEntry(this, entry);
 	}
 
 	private void restorePendingEntry(PendingDispatchEntry entry) {
-		pendingByKey.put(entry.key(), entry);
-		trackExpire(entry);
-		markPendingSnapshotDirty();
-	}
-
-	private void trackExpire(PendingDispatchEntry entry) {
-		if (expireMinHeap == null) {
-			expireMinHeap = new PriorityQueue<>(EXPIRE_INDEX_COMPARATOR);
-		}
-		expireMinHeap.offer(new ExpireIndex(entry.key(), entry.expireGameTick(), entry.version()));
-	}
-
-	private void ensureExpireHeapReady() {
-		if (expireMinHeap != null) {
-			return;
-		}
-		expireMinHeap = new PriorityQueue<>(EXPIRE_INDEX_COMPARATOR);
-		for (PendingDispatchEntry entry : pendingByKey.values()) {
-			expireMinHeap.offer(new ExpireIndex(entry.key(), entry.expireGameTick(), entry.version()));
-		}
-	}
-
-	private void markPendingSnapshotDirty() {
-		pendingSnapshotDirty = true;
-		pendingSnapshotCache = List.of();
+		CrossChunkDispatchQueueStateSupport.restorePendingEntry(this, entry);
 	}
 
 	private List<PendingDispatchEntry> pendingEntriesForSave() {
-		if (pendingByKey.isEmpty()) {
-			return List.of();
-		}
-		List<PendingDispatchEntry> entries = new ArrayList<>(pendingByKey.values());
-		entries.sort(PENDING_ENTRY_COMPARATOR);
-		return entries;
+		return CrossChunkDispatchQueueStateSupport.pendingEntriesForSave(this);
 	}
 
 	private long allocateNextVersion(DispatchKey key) {
-		long baseline = Math.max(
-			lastAcceptedVersionByKey.getOrDefault(key, 0L),
-			maxIssuedVersionByKey.getOrDefault(key, 0L)
-		);
-		PendingDispatchEntry pendingEntry = pendingByKey.get(key);
-		if (pendingEntry != null && pendingEntry.version() > baseline) {
-			baseline = pendingEntry.version();
-		}
-		long nextVersion = baseline + 1L;
-		maxIssuedVersionByKey.put(key, nextVersion);
-		return nextVersion;
+		return CrossChunkDispatchQueueStateSupport.allocateNextVersion(this, key);
 	}
 
 	private void readVersionMap(ListTag listTag, Map<DispatchKey, Long> target) {
-		for (Tag element : listTag) {
-			if (!(element instanceof CompoundTag entryTag)) {
-				continue;
-			}
-			Optional<DispatchKey> key = parseDispatchKey(entryTag);
-			if (key.isEmpty()) {
-				continue;
-			}
-			long version = entryTag.getLong(KEY_VERSION);
-			if (version <= 0L) {
-				continue;
-			}
-			target.merge(key.get(), version, Math::max);
-		}
+		CrossChunkDispatchQueueCodecSupport.readVersionMap(listTag, target);
 	}
 
 	private static ListTag writeVersionMap(Map<DispatchKey, Long> versionByKey) {
-		ListTag listTag = new ListTag();
-		versionByKey
-			.entrySet()
-			.stream()
-			.filter(entry -> entry.getKey() != null && entry.getValue() != null && entry.getValue() > 0L)
-			.sorted(Map.Entry.comparingByKey(DISPATCH_KEY_COMPARATOR))
-			.forEach(entry -> {
-				CompoundTag entryTag = new CompoundTag();
-				writeDispatchKey(entryTag, entry.getKey());
-				entryTag.putLong(KEY_VERSION, entry.getValue());
-				listTag.add(entryTag);
-			});
-		return listTag;
+		return CrossChunkDispatchQueueCodecSupport.writeVersionMap(versionByKey);
 	}
 
 	private static void writeDispatchKey(CompoundTag tag, DispatchKey key) {
-		tag.putString(KEY_SOURCE_TYPE, LinkNodeSemantics.toSemanticName(key.sourceType()));
-		tag.putLong(KEY_SOURCE_SERIAL, key.sourceSerial());
-		tag.putString(KEY_TARGET_TYPE, LinkNodeSemantics.toSemanticName(key.targetType()));
-		tag.putLong(KEY_TARGET_SERIAL, key.targetSerial());
-		tag.putString(KEY_DISPATCH_KIND, key.dispatchKind().name());
+		CrossChunkDispatchQueueCodecSupport.writeDispatchKey(tag, key);
 	}
 
 	private static Optional<DispatchKey> parseDispatchKey(CompoundTag tag) {
-		Optional<LinkNodeType> sourceType = LinkNodeSemantics.tryParseCanonicalType(tag.getString(KEY_SOURCE_TYPE));
-		Optional<LinkNodeType> targetType = LinkNodeSemantics.tryParseCanonicalType(tag.getString(KEY_TARGET_TYPE));
-		if (sourceType.isEmpty() || targetType.isEmpty()) {
-			return Optional.empty();
-		}
-		long sourceSerial = tag.getLong(KEY_SOURCE_SERIAL);
-		long targetSerial = tag.getLong(KEY_TARGET_SERIAL);
-		if (sourceSerial <= 0L || targetSerial <= 0L) {
-			return Optional.empty();
-		}
-		Optional<DispatchKind> dispatchKind = DispatchKind.fromName(tag.getString(KEY_DISPATCH_KIND));
-		if (dispatchKind.isEmpty()) {
-			return Optional.empty();
-		}
-		DispatchKey key = new DispatchKey(sourceType.get(), sourceSerial, targetType.get(), targetSerial, dispatchKind.get());
-		if (!LinkNodeSemantics.isAllowedForRole(key.sourceType(), LinkNodeSemantics.Role.SOURCE)) {
-			return Optional.empty();
-		}
-		if (!LinkNodeSemantics.isAllowedForRole(key.targetType(), LinkNodeSemantics.Role.TARGET)) {
-			return Optional.empty();
-		}
-		return Optional.of(key);
+		return CrossChunkDispatchQueueCodecSupport.parseDispatchKey(tag);
 	}
 
 	private static Optional<PendingDispatchEntry> parsePendingEntry(CompoundTag tag) {
-		Optional<DispatchKey> key = parseDispatchKey(tag);
-		if (key.isEmpty()) {
-			return Optional.empty();
-		}
-		ResourceLocation dimensionId = ResourceLocation.tryParse(tag.getString(KEY_DIMENSION));
-		if (dimensionId == null) {
-			return Optional.empty();
-		}
-		long expireTick = tag.getLong(KEY_EXPIRE_TICK);
-		long version = tag.getLong(KEY_VERSION);
-		if (expireTick <= 0L || version <= 0L) {
-			return Optional.empty();
-		}
-		ActivationMode activationMode = ActivationMode.fromName(tag.getString(KEY_ACTIVATION_MODE));
-		DispatchAction dispatchAction = DispatchAction.fromName(tag.getString(KEY_DISPATCH_ACTION)).orElse(DispatchAction.UPSERT);
-		int syncSignalStrength = SignalStrengths.clamp(tag.getInt(KEY_SYNC_SIGNAL_STRENGTH));
-		long enqueueTick = Math.max(0L, tag.getLong(KEY_ENQUEUE_TICK));
-		int enqueueSlot = Math.max(0, tag.getInt(KEY_ENQUEUE_SLOT));
-		BlockPos pos = BlockPos.of(tag.getLong(KEY_POS));
-		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
-		Optional<DispatchKey> normalizedKey = normalizeLegacyActivationKey(key.get(), dispatchAction, activationMode);
-		if (normalizedKey.isEmpty()) {
-			return Optional.empty();
-		}
-		return Optional.of(
-			new PendingDispatchEntry(
-				normalizedKey.get(),
-				dispatchAction,
-				dimension,
-				pos,
-				activationMode,
-				syncSignalStrength,
-				enqueueTick,
-				enqueueSlot,
-				expireTick,
-				version
-			)
-		);
+		return CrossChunkDispatchQueueCodecSupport.parsePendingEntry(tag);
 	}
 
 	/**
@@ -617,7 +326,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION,
 		TRIGGER_SOURCE_INVALIDATION;
 
-		private static Optional<DispatchKind> fromName(String raw) {
+		static Optional<DispatchKind> fromName(String raw) {
 			if (raw == null || raw.isBlank()) {
 				return Optional.empty();
 			}
@@ -641,19 +350,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		DispatchAction dispatchAction,
 		ActivationMode activationMode
 	) {
-		if (key == null) {
-			return Optional.empty();
-		}
-		if (key.dispatchKind() != DispatchKind.ACTIVATION) {
-			return Optional.of(key);
-		}
-		if (dispatchAction == DispatchAction.REMOVE) {
-			return Optional.empty();
-		}
-		DispatchKind normalizedKind = activationMode == ActivationMode.PULSE
-			? DispatchKind.PULSE_EVENT
-			: DispatchKind.TOGGLE_EVENT;
-		return Optional.of(new DispatchKey(key.sourceType(), key.sourceSerial(), key.targetType(), key.targetSerial(), normalizedKind));
+		return CrossChunkDispatchQueueCodecSupport.normalizeLegacyActivationKey(key, dispatchAction, activationMode);
 	}
 
 	/**
@@ -663,7 +360,7 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		UPSERT,
 		REMOVE;
 
-		private static Optional<DispatchAction> fromName(String raw) {
+		static Optional<DispatchAction> fromName(String raw) {
 			if (raw == null || raw.isBlank()) {
 				return Optional.empty();
 			}
@@ -717,6 +414,4 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		int enqueueGameSlot,
 		long expireGameTick
 	) {}
-
-	private record ExpireIndex(DispatchKey key, long expireGameTick, long version) {}
 }
