@@ -44,6 +44,10 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 构建 `trace` 命令树根节点。
+	 * <p>
+	 * 子命令分为：
+	 * `mount` 挂载采样器、`latest` 读取最新快照、`read` 读取历史、`unmount` 卸载、`list` 查看全局挂载。
+	 * </p>
 	 */
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
@@ -107,6 +111,9 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 挂载或更新节点历史采样器。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `type/serials/every/capacity`
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；任一校验失败时返回 `0`
 	 */
 	private static int executeNodeTraceMount(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -114,10 +121,12 @@ public final class NodeTraceCommandRegistry {
 		int capacity = CommandTreeSupport.getOptionalIntArg(context, "capacity", TRACE_DEFAULT_CAPACITY);
 		LinkNodeType nodeType = CommandTreeSupport.parseNodeTypeArg(source, StringArgumentType.getString(context, "type"));
 		if (nodeType == null) {
+			// 类型解析失败时，公共解析 helper 已发送错误文案。
 			return 0;
 		}
 		List<Long> serials = parseTraceSerialBatch(source, SerialBatchArgumentType.getSerialBatch(context, "serials"));
 		if (serials == null) {
+			// 批量序号解析失败时，错误已在 parseTraceSerialBatch 中输出。
 			return 0;
 		}
 		if (serials.size() == 1) {
@@ -139,11 +148,13 @@ public final class NodeTraceCommandRegistry {
 		List<NodeStateTraceService.MountResult> mountResults = new ArrayList<>();
 		for (long serial : serials) {
 			if (!isTraceSerialActive(savedData, nodeType, serial)) {
+				// 只挂载已分配且未退役的节点；无效序号统一在批量尾部汇总。
 				invalidSerials.add(serial);
 				continue;
 			}
 			NodeRuntimeProbe.TraceNodeKind traceKind = resolveTraceKindForMount(server, nodeType, serial).orElse(null);
 			if (traceKind == null) {
+				// 当前节点不存在可解析探针时，不中断整批，而是汇总到 unsupported 列表。
 				unsupportedSerials.add(serial);
 				continue;
 			}
@@ -185,6 +196,9 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 读取节点当前最新状态。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `type/serials`
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；任一校验失败时返回 `0`
 	 */
 	private static int executeNodeTraceLatest(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -209,11 +223,13 @@ public final class NodeTraceCommandRegistry {
 		List<NodeRuntimeSnapshot> snapshots = new ArrayList<>();
 		for (long serial : serials) {
 			if (!isTraceSerialActive(savedData, nodeType, serial)) {
+				// 批量读取时静默过滤无效序号，最后统一反馈，避免中途打断整个列表。
 				invalidSerials.add(serial);
 				continue;
 			}
 			NodeRuntimeSnapshot snapshot = resolveTraceSnapshot(source.getServer(), nodeType, serial).orElse(null);
 			if (snapshot == null) {
+				// 无法解析当前快照的节点统一汇总为 unsupported。
 				unsupportedSerials.add(serial);
 				continue;
 			}
@@ -239,6 +255,9 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 读取节点最近的历史采样结果。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `type/serial/limit`
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；未挂载或校验失败时返回 `0`
 	 */
 	private static int executeNodeTraceRead(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -254,6 +273,7 @@ public final class NodeTraceCommandRegistry {
 		long serial = LongArgumentType.getLong(context, "serial");
 		List<NodeRuntimeSnapshot> samples = NodeStateTraceService.readSamples(source.getServer(), nodeType, serial, limit);
 		if (samples.isEmpty()) {
+			// `read` 只读取已挂载采样器的历史；未挂载时直接返回明确错误。
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.node.trace.not_mounted",
 				CommandTreeSupport.typeCommandName(nodeType),
@@ -278,6 +298,9 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 卸载节点历史采样器。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `type/serials`
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；任一校验失败时返回 `0`
 	 */
 	private static int executeNodeTraceUnmount(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -303,6 +326,7 @@ public final class NodeTraceCommandRegistry {
 				unmountedSerials.add(serial);
 				continue;
 			}
+			// 批量卸载时，未命中的序号统一汇总，避免前几个失败阻断后续卸载。
 			notMountedSerials.add(serial);
 		}
 		source.sendSuccess(
@@ -331,6 +355,13 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 单节点挂载采样器。
+	 *
+	 * @param source 当前命令来源
+	 * @param nodeType 节点类型
+	 * @param serial 节点序号
+	 * @param everyTicks 采样周期（tick）
+	 * @param capacity 环形缓冲容量
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`
 	 */
 	private static int executeNodeTraceMountSingle(
 		CommandSourceStack source,
@@ -345,11 +376,13 @@ public final class NodeTraceCommandRegistry {
 		}
 		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
 		if (!validateTraceSerialActive(source, savedData, nodeType, serial)) {
+			// 单节点模式直接复用服务端序号校验文案。
 			return 0;
 		}
 		MinecraftServer server = source.getServer();
 		NodeRuntimeProbe.TraceNodeKind traceKind = resolveTraceKindForMount(server, nodeType, serial).orElse(null);
 		if (traceKind == null) {
+			// 节点缺少可解析探针时，不创建空采样器，直接提示 unsupported。
 			source.sendFailure(Component.translatable("message.redstonelink.node.trace.unsupported"));
 			return 0;
 		}
@@ -382,6 +415,11 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 单节点读取当前最新快照。
+	 *
+	 * @param source 当前命令来源
+	 * @param nodeType 节点类型
+	 * @param serial 节点序号
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`
 	 */
 	private static int executeNodeTraceLatestSingle(CommandSourceStack source, LinkNodeType nodeType, long serial) {
 		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
@@ -393,6 +431,7 @@ public final class NodeTraceCommandRegistry {
 		}
 		NodeRuntimeSnapshot snapshot = resolveTraceSnapshot(source.getServer(), nodeType, serial).orElse(null);
 		if (snapshot == null) {
+			// 节点无法解析快照时，保持与 mount 单节点一致的 unsupported 提示。
 			source.sendFailure(Component.translatable("message.redstonelink.node.trace.unsupported"));
 			return 0;
 		}
@@ -402,12 +441,18 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 单节点卸载采样器。
+	 *
+	 * @param source 当前命令来源
+	 * @param nodeType 节点类型
+	 * @param serial 节点序号
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`
 	 */
 	private static int executeNodeTraceUnmountSingle(CommandSourceStack source, LinkNodeType nodeType, long serial) {
 		if (!CommandRateLimitService.tryAcquireOrSendFailure(source, CommandRateLimitService.CommandGroup.OTHER, 1)) {
 			return 0;
 		}
 		if (!NodeStateTraceService.unmount(source.getServer(), nodeType, serial)) {
+			// 单节点模式下，未挂载即直接返回错误，而不是静默忽略。
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.node.trace.not_mounted",
 				CommandTreeSupport.typeCommandName(nodeType),
@@ -428,6 +473,9 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 列出当前服务器所有已挂载采样器。
+	 *
+	 * @param context Brigadier 命令上下文，无额外参数
+	 * @return 有无挂载都返回 `Command.SINGLE_SUCCESS`；仅限流失败时返回 `0`
 	 */
 	private static int executeNodeTraceList(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -463,6 +511,11 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 解析 trace 命令当前可用的节点快照。
+	 *
+	 * @param server 当前服务端实例
+	 * @param nodeType 节点类型
+	 * @param serial 节点序号
+	 * @return 优先返回当前实时探针快照；若已有挂载则退化为按挂载类型即时采样
 	 */
 	private static Optional<NodeRuntimeSnapshot> resolveTraceSnapshot(
 		MinecraftServer server,
@@ -482,6 +535,11 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 解析挂载时应使用的探针类型。
+	 *
+	 * @param server 当前服务端实例
+	 * @param nodeType 节点类型
+	 * @param serial 节点序号
+	 * @return 若已有挂载则复用其 trace kind，否则尝试从当前实时探针推断
 	 */
 	private static Optional<NodeRuntimeProbe.TraceNodeKind> resolveTraceKindForMount(
 		MinecraftServer server,
@@ -497,6 +555,12 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 校验 trace 命令序列号处于已分配且未退役状态。
+	 *
+	 * @param source 当前命令来源
+	 * @param savedData 节点存档视图
+	 * @param nodeType 节点类型
+	 * @param serial 待校验序号
+	 * @return 合法时返回 `true`
 	 */
 	private static boolean validateTraceSerialActive(
 		CommandSourceStack source,
@@ -511,6 +575,11 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 判断节点序号是否已分配且未退役，供批量 trace 命令做静默过滤。
+	 *
+	 * @param savedData 节点存档视图
+	 * @param nodeType 节点类型
+	 * @param serial 待检查序号
+	 * @return 仅在已分配且未退役时返回 `true`
 	 */
 	private static boolean isTraceSerialActive(LinkSavedData savedData, LinkNodeType nodeType, long serial) {
 		return savedData != null && nodeType != null && savedData.isSerialActive(nodeType, serial);
@@ -518,20 +587,27 @@ public final class NodeTraceCommandRegistry {
 
 	/**
 	 * 解析批量 trace 序号。
+	 *
+	 * @param source 当前命令来源，用于发送格式错误提示
+	 * @param rawSerials 用户输入的原始批量序号表达式
+	 * @return 成功时返回升序去重后的不可变列表；失败时返回 `null`
 	 */
 	private static List<Long> parseTraceSerialBatch(CommandSourceStack source, String rawSerials) {
 		var parseResult = com.makomi.util.SerialParseUtil.parseTargets(rawSerials, TRACE_MAX_BATCH_SERIALS);
 		if (!parseResult.invalidEntries().isEmpty()) {
+			// 非法 token 直接失败，避免把拼写错误静默忽略成缺号。
 			source.sendFailure(
 				Component.translatable("message.redstonelink.invalid_target_tokens", String.join(", ", parseResult.invalidEntries()))
 			);
 			return null;
 		}
 		if (parseResult.exceedLimit()) {
+			// trace 批量操作显式限制最大序号数，防止单次命令挂载过大集合。
 			source.sendFailure(Component.translatable("message.redstonelink.node.trace.too_many_serials", TRACE_MAX_BATCH_SERIALS));
 			return null;
 		}
 		if (parseResult.targets().isEmpty()) {
+			// 空集合没有可执行意义，也通常意味着表达式写错。
 			source.sendFailure(Component.translatable("message.redstonelink.node.trace.empty_serials"));
 			return null;
 		}

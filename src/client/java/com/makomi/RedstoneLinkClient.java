@@ -2,12 +2,10 @@ package com.makomi;
 
 import com.makomi.client.ClientHooks;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
+import com.makomi.client.network.PairingNetworkClientHandlerSupport;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
-import com.makomi.client.screen.CorePairingScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
-import com.makomi.data.LinkNodeType;
-import com.makomi.network.PairingNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
 import com.mojang.brigadier.Command;
@@ -20,7 +18,6 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
@@ -182,7 +179,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		});
 
 		ClientHooks.setNodePairingScreenOpener((nodeType, nodeSerial, currentTargetSerial) -> {
-			openPairingScreenBySourceType(nodeType, nodeSerial, List.of());
+			PairingNetworkClientHandlerSupport.openPairingScreenBySourceType(nodeType, nodeSerial, List.of());
 		});
 	}
 
@@ -190,70 +187,6 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 * 注册来自服务端的配对界面打开包。
 	 */
 	private static void registerPairingPacketReceivers() {
-		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, (payload, context) -> {
-			// 网络线程切回客户端主线程后再操作 Screen。
-			context.client().execute(() -> {
-				openPairingScreenBySourceType(LinkNodeType.TRIGGER_SOURCE, payload.sourceSerial(), payload.targets());
-			});
-		});
-
-		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenCorePairingPayload.TYPE, (payload, context) -> {
-			// 网络线程切回客户端主线程后再操作 Screen。
-			context.client().execute(() -> {
-				openPairingScreenBySourceType(LinkNodeType.CORE, payload.sourceSerial(), payload.targets());
-			});
-		});
-
-		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.CurrentLinksSnapshotPayload.TYPE, (payload, context) -> {
-			context.client().execute(() -> {
-				LinkSerialHudOverlayRenderer.updateCurrentLinksSnapshot(
-					payload.dimensionKey(),
-					payload.blockPos(),
-					payload.sourceType(),
-					payload.sourceSerial(),
-					payload.targets()
-				);
-			});
-		});
-
-		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.RuntimeHudSnapshotPayload.TYPE, (payload, context) -> {
-			context.client().execute(() -> {
-				LinkSerialHudOverlayRenderer.updateRuntimeHudSnapshot(
-					payload.dimensionKey(),
-					payload.blockPos(),
-					payload.sourceType(),
-					payload.sourceSerial(),
-					payload.available(),
-					payload.inputPower(),
-					payload.outputPower()
-				);
-			});
-		});
-	}
-
-	/**
-	 * 按来源类型打开配对界面。
-	 * <p>
-	 * triggerSource/core 语义映射保持不变：TRIGGER_SOURCE 对应 triggerSource，CORE 对应 core。
-	 * </p>
-	 *
-	 * @param sourceType 来源类型
-	 * @param sourceSerial 来源序列号
-	 * @param currentTargets 当前目标列表
-	 */
-	private static void openPairingScreenBySourceType(
-		LinkNodeType sourceType,
-		long sourceSerial,
-		List<Long> currentTargets
-	) {
-		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.player == null) {
-			return;
-		}
-		if (sourceType == LinkNodeType.CORE) {
-			minecraft.setScreen(new CorePairingScreen(sourceSerial, currentTargets));
-			return;
-		}
-		minecraft.setScreen(new TriggerSourcePairingScreen(sourceSerial, currentTargets));
+		PairingNetworkClientHandlerSupport.registerReceivers();
 	}
 }

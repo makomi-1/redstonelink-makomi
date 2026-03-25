@@ -160,9 +160,14 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 执行白名单新增（可选常驻）。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `role/type/serial` 参数
+	 * @param resident 是否将新增项标记为 resident 白名单
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；任一校验失败时返回 `0`
 	 */
 	private static int executeWhitelistAddInternal(CommandContext<CommandSourceStack> context, boolean resident) {
 		CommandSourceStack source = context.getSource();
+		// 先做跨区块命令限流，避免批量白名单接口被频繁滥用。
 		if (
 			!CommandRateLimitService.tryAcquireOrSendFailure(
 				source,
@@ -174,6 +179,7 @@ public final class CrossChunkCommandRegistry {
 		}
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
+			// role/type 任一解析失败时，错误信息已由解析 helper 发送，这里直接终止。
 			return 0;
 		}
 
@@ -182,6 +188,7 @@ public final class CrossChunkCommandRegistry {
 		LinkSavedData linkSavedData = LinkSavedData.get(level);
 		boolean serialValid = validateSerial(source, linkSavedData, parsed.role(), parsed.type(), serial);
 		if (!serialValid) {
+			// 序号必须处于“已分配且未退役”状态，否则不允许进入白名单。
 			return 0;
 		}
 		boolean residentDeferred = resident && linkSavedData.findNode(parsed.type(), serial).isEmpty();
@@ -189,6 +196,7 @@ public final class CrossChunkCommandRegistry {
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(level);
 		var upsertResult = whitelistSavedData.upsert(parsed.type(), serial, parsed.role(), resident);
 		if (!upsertResult.valid()) {
+			// 数据层已拒绝本次写入，避免重复发送一层模糊错误。
 			return 0;
 		}
 		if (!upsertResult.changed()) {
@@ -250,6 +258,9 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 执行白名单移除。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `role/type/serial` 参数
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；校验失败或未命中时返回 `0`
 	 */
 	private static int executeWhitelistRemove(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -264,6 +275,7 @@ public final class CrossChunkCommandRegistry {
 		}
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
+			// role/type 不合法时，解析阶段已发送错误文案。
 			return 0;
 		}
 		long serial = LongArgumentType.getLong(context, "serial");
@@ -292,6 +304,9 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 执行白名单列表查询。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `role/type` 参数
+	 * @return 查询命令固定返回 `Command.SINGLE_SUCCESS`；参数解析失败时返回 `0`
 	 */
 	private static int executeWhitelistList(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -306,6 +321,7 @@ public final class CrossChunkCommandRegistry {
 		}
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
+			// role/type 不合法时，解析阶段已发送错误文案。
 			return 0;
 		}
 		LinkSavedData linkSavedData = LinkSavedData.get(source.getLevel());
@@ -344,6 +360,9 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 执行白名单清空。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `role/type` 参数
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；参数解析失败时返回 `0`
 	 */
 	private static int executeWhitelistClear(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -358,6 +377,7 @@ public final class CrossChunkCommandRegistry {
 		}
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
+			// role/type 不合法时，解析阶段已发送错误文案。
 			return 0;
 		}
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(source.getLevel());
@@ -376,6 +396,11 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 执行白名单批量覆盖（set）。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `role/type/serials` 参数
+	 * @param resident 是否以 resident 模式覆盖白名单
+	 * @param confirmed 是否已附带 `confirm` 二次确认后缀
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；任一前置校验失败时返回 `0`
 	 */
 	private static int executeWhitelistSet(
 		CommandContext<CommandSourceStack> context,
@@ -385,6 +410,7 @@ public final class CrossChunkCommandRegistry {
 		CommandSourceStack source = context.getSource();
 		ParsedRoleAndType parsed = parseRoleAndType(context, source);
 		if (parsed == null) {
+			// role/type 不合法时，解析阶段已发送错误文案。
 			return 0;
 		}
 
@@ -392,6 +418,7 @@ public final class CrossChunkCommandRegistry {
 		int maxWhitelistSetSerials = RedstoneLinkConfig.command().crossChunkWhitelistSetMaxSerials();
 		SerialParseUtil.TargetParseResult parseResult = SerialParseUtil.parseTargets(rawSerials, maxWhitelistSetSerials);
 		if (!parseResult.invalidEntries().isEmpty()) {
+			// 只要存在非法 token，就拒绝整批 set，避免半成功覆盖让用户误判。
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.invalid_target_tokens",
 				String.join(", ", parseResult.invalidEntries())
@@ -399,6 +426,7 @@ public final class CrossChunkCommandRegistry {
 			return 0;
 		}
 		if (parseResult.exceedLimit()) {
+			// 批量覆盖的上限走配置项控制，避免一次命令替换过大集合。
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.crosschunk.whitelist.set.too_many",
 				maxWhitelistSetSerials
@@ -407,6 +435,7 @@ public final class CrossChunkCommandRegistry {
 		}
 		Set<Long> targetSerials = parseResult.targets();
 		if (targetSerials.isEmpty()) {
+			// 空集合没有可替换意义，也容易掩盖用户的命令拼写错误。
 			source.sendFailure(Component.translatable("message.redstonelink.crosschunk.whitelist.set.empty"));
 			return 0;
 		}
@@ -439,6 +468,7 @@ public final class CrossChunkCommandRegistry {
 			}
 		}
 		if (!invalidSerials.isEmpty()) {
+			// 批量 set 要求所有序号都合法，避免只写入子集导致配置与用户预期不一致。
 			source.sendFailure(Component.translatable(
 				"message.redstonelink.crosschunk.whitelist.set.invalid_serials",
 				roleName(parsed.role()),
@@ -452,6 +482,7 @@ public final class CrossChunkCommandRegistry {
 			: List.of();
 
 		if (!confirmed) {
+			// `set` 属于整批覆盖语义，默认要求二次确认，防止误清空/误替换。
 			String confirmCommand = "redstonelink crosschunk whitelist set "
 				+ roleName(parsed.role())
 				+ " "
@@ -512,6 +543,9 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 列出只读 preset 名称。
+	 *
+	 * @param context Brigadier 命令上下文，无额外参数
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；限流失败时返回 `0`
 	 */
 	private static int executePresetList(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -541,6 +575,9 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 展示指定只读 preset 详情。
+	 *
+	 * @param context Brigadier 命令上下文，提供 `name` 参数
+	 * @return 成功时返回 `Command.SINGLE_SUCCESS`；preset 不存在时返回 `0`
 	 */
 	private static int executePresetShow(CommandContext<CommandSourceStack> context) {
 		CommandSourceStack source = context.getSource();
@@ -574,6 +611,10 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 解析并校验 role + type 参数。
+	 *
+	 * @param context Brigadier 命令上下文，提供原始 `role/type` 文本
+	 * @param source 当前命令来源，用于发送解析失败提示
+	 * @return 成功时返回解析后的 role/type 组合；失败时返回 `null`
 	 */
 	private static ParsedRoleAndType parseRoleAndType(
 		CommandContext<CommandSourceStack> context,
@@ -594,6 +635,10 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 解析 role 参数。
+	 *
+	 * @param source 当前命令来源，用于发送错误提示
+	 * @param rawRole 用户输入的原始 role 文本
+	 * @return 仅允许 `source/target`；不合法时返回 `null`
 	 */
 	private static LinkNodeSemantics.Role parseRole(CommandSourceStack source, String rawRole) {
 		if (rawRole == null) {
@@ -613,6 +658,11 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 解析 type 参数并执行语义与配置校验。
+	 *
+	 * @param source 当前命令来源，用于发送错误提示
+	 * @param role 已解析出的语义角色，用于约束 type 方向
+	 * @param rawType 用户输入的原始 type 文本
+	 * @return 成功时返回合法 `LinkNodeType`；失败时返回 `null`
 	 */
 	private static LinkNodeType parseType(
 		CommandSourceStack source,
@@ -648,6 +698,13 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 校验序号是否处于“已分配且未退役”状态。
+	 *
+	 * @param source 当前命令来源，用于发送错误提示
+	 * @param savedData 序号与节点数据视图
+	 * @param role 当前白名单语义角色
+	 * @param type 当前节点类型
+	 * @param serial 待校验序号
+	 * @return 合法时返回 `true`
 	 */
 	private static boolean validateSerial(
 		CommandSourceStack source,
@@ -663,6 +720,11 @@ public final class CrossChunkCommandRegistry {
 
 	/**
 	 * 收集批量 resident 设置中的离线序号。
+	 *
+	 * @param savedData 节点数据视图
+	 * @param type 当前节点类型
+	 * @param serials 本次批量 resident 序号集合
+	 * @return 当前未在线节点集合，供结果文案提示“离线后生效”
 	 */
 	private static List<Long> collectOfflineSerials(
 		LinkSavedData savedData,
