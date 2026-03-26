@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "description": "物理世界端到端集合，保留红石块与命令驱动，观察真实输入、邻居更新与命令路径成本。",
+  "defaults": {
+    "benchAction": "RunCase",
+    "matrixPath": "../matrix-physical-world.json"
+  },
+  "entries": [
+    {
+      "entryId": "pw_sync_1_to_64",
+      "caseId": "sync_1_to_64_core_dense"
+    },
+    {
+      "entryId": "pw_toggle_64_to_1",
+      "caseId": "toggle_64_to_1_core_dense"
+    },
+    {
+      "entryId": "pw_mixed_16_to_16",
+      "caseId": "mixed_16_to_16_core_dense"
+    },
+    {
+      "entryId": "pw_sync_1_to_256",
+      "caseId": "sync_1_to_256_core_dense"
+    },
+    {
+      "entryId": "pw_mixed_64_to_64",
+      "caseId": "mixed_64_to_64_core_dense"
+    },
+    {
+      "entryId": "pw_sync_256x256",
+      "caseId": "sync_256_to_256_core_banded16"
+    },
+    {
+      "entryId": "pw_mixed_256x256",
+      "caseId": "mixed_256_to_256_core_banded16"
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "id": "mixed_256_to_256_core_banded16",
+  "description": "256 个 mixed triggerSource 对 256 个 core 做规则化多对多映射，覆盖 sync/pulse/toggle 混合运行态。",
+  "layer": "P",
+  "scenarioId": "P11",
+  "arena": {
+    "clearFrom": [-8, 63, 152],
+    "clearTo": [56, 66, 215]
+  },
+  "targets": {
+    "id": "core_p11_main",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [32, 64, 160],
+      "to": [47, 64, 175]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p11_group",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 160],
+        "to": [7, 64, 175]
+      },
+      "control": {
+        "mode": "north_strip",
+        "onBlock": "minecraft:redstone_block",
+        "offBlock": "minecraft:air"
+      }
+    },
+    {
+      "id": "pulse_p11_group",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 184],
+        "to": [7, 64, 191]
+      }
+    },
+    {
+      "id": "toggle_p11_group",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 200],
+        "to": [7, 64, 207]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p11_group",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "offset": 0,
+      "wrap": true
+    },
+    {
+      "sourceGroup": "pulse_p11_group",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "offset": 4,
+      "wrap": true
+    },
+    {
+      "sourceGroup": "toggle_p11_group",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "offset": 8,
+      "wrap": true
+    }
+  ],
+  "drive": {
+    "totalTicks": 300,
+    "steps": [
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "sync_p11_group"
+      },
+      {
+        "templateRef": "activate_batch_pulse",
+        "sourceGroup": "pulse_p11_group"
+      },
+      {
+        "templateRef": "activate_batch_toggle",
+        "sourceGroup": "toggle_p11_group"
+      }
+    ]
+  }
+}

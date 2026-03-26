@@ -1,0 +1,53 @@
+{
+  "id": "sync_256_to_256_core_banded16",
+  "description": "256 个 sync triggerSource 对 256 个 core 做规则化多对多映射，作为正式性能基线起点。",
+  "layer": "P",
+  "scenarioId": "P10",
+  "arena": {
+    "clearFrom": [-40, 63, 152],
+    "clearTo": [24, 66, 184]
+  },
+  "targets": {
+    "id": "core_p10_main",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [0, 64, 160],
+      "to": [15, 64, 175]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p10_main",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [-24, 64, 160],
+        "to": [-9, 64, 175]
+      },
+      "control": {
+        "mode": "north_strip",
+        "onBlock": "minecraft:redstone_block",
+        "offBlock": "minecraft:air"
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p10_main",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "wrap": true
+    }
+  ],
+  "drive": {
+    "totalTicks": 240,
+    "steps": [
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "sync_p10_main"
+      }
+    ]
+  }
+}

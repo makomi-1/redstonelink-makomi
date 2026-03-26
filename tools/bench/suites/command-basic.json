@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "description": "命令与基础功能回归入口，先复用现有稳定功能 case，独立承接 link、input、trace 等核心链路。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "f02_link_lifecycle",
+      "caseId": "link_lifecycle_add_remove_set_clear"
+    },
+    {
+      "entryId": "f03_sync_range",
+      "caseId": "sync_core_range_square_basic"
+    },
+    {
+      "entryId": "f04_input_activate_trace",
+      "caseId": "input_activate_trace_command_alignment"
+    }
+  ]
+}

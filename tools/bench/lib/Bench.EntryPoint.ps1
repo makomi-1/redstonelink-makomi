@@ -65,7 +65,7 @@ switch ($Action) {
 				$sourceSerialMaps[[string]$group.id] = (Convert-PositionsToSerialMap -Connection $connection -Positions $positions)
 			}
 
-			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerials $targetSerials
+			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerialMap $targetSerialMap
 			$linkOperations = New-Object System.Collections.Generic.List[object]
 			foreach ($command in $linkCommands) {
 				$linkOperations.Add((Invoke-BenchSetupCommand -Connection $connection -Command $command -ExpectedPrefix "[RedstoneLink"))
@@ -77,22 +77,38 @@ switch ($Action) {
 				Start-Sleep -Milliseconds ($settleTicks * [int]$matrix.defaults.tickMillis)
 			}
 
+			$driveExecution = $null
+			$inputCleanup = $null
+			$caseUsesInputDrive = Test-CaseUsesDriveInput -CaseConfig $caseConfig
 			$sparkStart = Start-SparkCapture `
 				-Connection $connection `
 				-SparkDefaults $matrix.defaults.spark `
 				-CaseName $caseConfig.id `
 				-WorldPath $SavePath
-			Invoke-DriveSchedule `
-				-Connection $connection `
-				-CaseConfig $caseConfig `
-				-SourcePositionGroups $sourcePositionGroups `
-				-SourceSerialMaps $sourceSerialMaps `
-				-TickMillis ([int]$matrix.defaults.tickMillis)
-			$sparkStop = Stop-SparkCapture `
-				-Connection $connection `
-				-SparkDefaults $matrix.defaults.spark `
-				-CaseName $caseConfig.id `
-				-ActivityPath ([string](Get-OptionalProperty -Object $sparkStart -Name "activityPath" -DefaultValue ""))
+			$sparkStop = $null
+			try {
+				$driveExecution = Invoke-DriveSchedule `
+					-Connection $connection `
+					-CaseConfig $caseConfig `
+					-SourcePositionGroups $sourcePositionGroups `
+					-SourceSerialMaps $sourceSerialMaps `
+					-TargetSerialMap $targetSerialMap `
+					-TickMillis ([int]$matrix.defaults.tickMillis)
+			}
+			finally {
+				try {
+					$sparkStop = Stop-SparkCapture `
+						-Connection $connection `
+						-SparkDefaults $matrix.defaults.spark `
+						-CaseName $caseConfig.id `
+						-ActivityPath ([string](Get-OptionalProperty -Object $sparkStart -Name "activityPath" -DefaultValue ""))
+				}
+				finally {
+					if ($caseUsesInputDrive) {
+						$inputCleanup = Clear-DriveInputJobs -Connection $connection
+					}
+				}
+			}
 			$auditAfter = Invoke-RconCommand -Connection $connection -Command (Wrap-WithPlayerContext "redstonelink audit summary csv") -Silent
 
 			$result = [ordered]@{
@@ -106,6 +122,8 @@ switch ($Action) {
 					start = $sparkStart
 					stop = $sparkStop
 				}
+				drive = $driveExecution
+				inputCleanup = $inputCleanup
 				audit = [ordered]@{
 					before = $auditBefore
 					after = $auditAfter
@@ -154,7 +172,7 @@ switch ($Action) {
 				$sourceSerialMaps[[string]$group.id] = (Convert-PositionsToSerialMap -Connection $connection -Positions $positions)
 			}
 
-			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerials $targetSerials
+			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerialMap $targetSerialMap
 			$linkOperations = New-Object System.Collections.Generic.List[object]
 			foreach ($command in $linkCommands) {
 				$linkOperations.Add((Invoke-BenchSetupCommand -Connection $connection -Command $command -ExpectedPrefix "[RedstoneLink"))

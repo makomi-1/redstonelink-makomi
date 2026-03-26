@@ -1,30 +1,18 @@
 {
   "version": 1,
-  "description": "性能基线集合，覆盖 lite 与正式性能场景，供本地调优和基线采样使用。",
+  "description": "正式纯性能基线集合，统一改为输入器驱动，从 256x256 规则化多对多场景起步。",
   "defaults": {
     "benchAction": "RunCase",
-    "matrixPath": "../matrix.json"
+    "matrixPath": "../matrix-baseline-256.json"
   },
   "entries": [
     {
-      "entryId": "p01_lite_sync_1_to_64",
-      "caseId": "sync_1_to_64_core_dense"
+      "entryId": "p10_sync_256x256",
+      "caseId": "sync_256_to_256_core_banded16"
     },
     {
-      "entryId": "p02_lite_toggle_64_to_1",
-      "caseId": "toggle_64_to_1_core_dense"
-    },
-    {
-      "entryId": "p03_lite_mixed_16_to_16",
-      "caseId": "mixed_16_to_16_core_dense"
-    },
-    {
-      "entryId": "p01_sync_broadcast",
-      "caseId": "sync_1_to_256_core_dense"
-    },
-    {
-      "entryId": "p03_mixed_concurrency",
-      "caseId": "mixed_64_to_64_core_dense"
+      "entryId": "p11_mixed_256x256",
+      "caseId": "mixed_256_to_256_core_banded16"
     }
   ]
 }

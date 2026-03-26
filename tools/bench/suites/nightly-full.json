@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "夜间全量集合，覆盖当前全部功能、跨区块/重启与性能基线场景。",
+  "description": "夜间全量集合，覆盖当前全部功能、跨区块/重启与纯性能基线场景；物理世界端到端场景单独运行。",
   "defaults": {
     "benchAction": "RunFunctionalCase",
     "matrixPath": "../functional-matrix.json"
@@ -49,34 +49,16 @@
       "compareSerialsTo": "x04_restart_prepare"
     },
     {
-      "entryId": "p01_lite_sync_1_to_64",
+      "entryId": "p10_sync_256x256",
       "benchAction": "RunCase",
-      "matrixPath": "../matrix.json",
-      "caseId": "sync_1_to_64_core_dense"
+      "matrixPath": "../matrix-baseline-256.json",
+      "caseId": "sync_256_to_256_core_banded16"
     },
     {
-      "entryId": "p02_lite_toggle_64_to_1",
+      "entryId": "p11_mixed_256x256",
       "benchAction": "RunCase",
-      "matrixPath": "../matrix.json",
-      "caseId": "toggle_64_to_1_core_dense"
-    },
-    {
-      "entryId": "p03_lite_mixed_16_to_16",
-      "benchAction": "RunCase",
-      "matrixPath": "../matrix.json",
-      "caseId": "mixed_16_to_16_core_dense"
-    },
-    {
-      "entryId": "p01_sync_broadcast",
-      "benchAction": "RunCase",
-      "matrixPath": "../matrix.json",
-      "caseId": "sync_1_to_256_core_dense"
-    },
-    {
-      "entryId": "p03_mixed_concurrency",
-      "benchAction": "RunCase",
-      "matrixPath": "../matrix.json",
-      "caseId": "mixed_64_to_64_core_dense"
+      "matrixPath": "../matrix-baseline-256.json",
+      "caseId": "mixed_256_to_256_core_banded16"
     }
   ]
 }

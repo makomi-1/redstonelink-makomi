@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "轻量纯性能集合，统一改为输入器驱动，用于脚本连通性、spark 链路和快速回归。",
+  "defaults": {
+    "benchAction": "RunCase",
+    "matrixPath": "../matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "p01_lite_sync_1_to_64",
+      "caseId": "sync_1_to_64_core_dense"
+    },
+    {
+      "entryId": "p02_lite_toggle_64_to_1",
+      "caseId": "toggle_64_to_1_core_dense"
+    },
+    {
+      "entryId": "p03_lite_mixed_16_to_16",
+      "caseId": "mixed_16_to_16_core_dense"
+    },
+    {
+      "entryId": "p01_lite_sync_1_to_256",
+      "caseId": "sync_1_to_256_core_dense"
+    },
+    {
+      "entryId": "p03_lite_mixed_64_to_64",
+      "caseId": "mixed_64_to_64_core_dense"
+    }
+  ]
+}
