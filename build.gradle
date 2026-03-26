@@ -263,17 +263,6 @@ tasks.register("testStableCore") {
 	dependsOn(tasks.named("test"))
 }
 
-tasks.register("testApiLegacy", Test) {
-	group = "verification"
-	description = "Run legacy API tests excluded from the default verification gate."
-	testClassesDirs = sourceSets.test.output.classesDirs
-	classpath = sourceSets.test.runtimeClasspath
-	shouldRunAfter(tasks.named("test"))
-	useJUnitPlatform {
-		includeTags "api-legacy"
-	}
-}
-
 java {
 	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
 	// if it is present.

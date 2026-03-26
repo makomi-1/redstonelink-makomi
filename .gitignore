@@ -31,13 +31,7 @@ bin/
 # fabric
 
 run/*
-!run/saves/
-run/saves/*
-!run/saves/rl-test/
-!run/saves/rl-test/**
-!run/saves/test/
-!run/saves/test/**
-run/saves/test/session.lock
+
 
 # java
 
@@ -66,3 +60,4 @@ skills
 .trae/rules/*
 readme0.txt
 docs_dev\~$审查日志与测试记录.xlsx
+readme0.md

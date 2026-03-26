@@ -24,11 +24,6 @@ on:
         required: false
         default: false
         type: boolean
-      run_api_legacy:
-        description: 'Run legacy API tests (excluded from default test gate)'
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   build:
@@ -120,13 +115,6 @@ jobs:
         if: ${{ runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_coverage }}
         shell: pwsh
         run: .\gradlew.bat --no-daemon testCoverage
-      - name: run api legacy tests (Linux)
-        if: ${{ runner.os != 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_api_legacy }}
-        run: ./gradlew --no-daemon testApiLegacy
-      - name: run api legacy tests (Windows)
-        if: ${{ runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && inputs.run_api_legacy }}
-        shell: pwsh
-        run: .\gradlew.bat --no-daemon testApiLegacy
       - name: run extended checks (Linux)
         if: ${{ runner.os != 'Windows' && ((github.event_name == 'workflow_dispatch' && inputs.run_extended) || (github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main'))) }}
         run: ./gradlew --no-daemon check remapJar
@@ -156,15 +144,6 @@ jobs:
             build/reports/tests/testIntegration/**
             build/reports/tests/testClient/**
             build/reports/tests/testSlow/**
-      - name: upload api-legacy test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-api-legacy-${{ matrix.os }}
-          if-no-files-found: warn
-          path: |
-            build/test-results/testApiLegacy/**/*.xml
-            build/reports/tests/testApiLegacy/**
       - name: upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
