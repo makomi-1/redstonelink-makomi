@@ -197,6 +197,9 @@ function Assert-RunCasePlayerContext {
 		return
 	}
 	if ([string]::IsNullOrWhiteSpace($script:BenchAsPlayer)) {
+		if ([bool]$script:BenchAutoTeleportPlayerToObservationPoint) {
+			throw "AutoTeleportPlayerToObservationPoint requires AsPlayer."
+		}
 		Write-Host "[Bench] AsPlayer not provided; server.command.benchmarkMode.enabled must be true or player-only commands will fail."
 		return
 	}
@@ -213,6 +216,187 @@ function Wrap-WithPlayerContext {
 		return $Command
 	}
 	return "execute as $($script:BenchAsPlayer) at $($script:BenchAsPlayer) run $Command"
+}
+
+# 统一返回玩家上下文就绪探针，默认探测当前玩家实体坐标。
+function Get-PlayerReadyProbeCommand {
+	param()
+
+	$probeCommand = [string]$script:BenchPlayerReadyProbeCommand
+	if ([string]::IsNullOrWhiteSpace($probeCommand)) {
+		return "data get entity @s Pos"
+	}
+
+	return $probeCommand.Trim()
+}
+
+# 执行一次玩家上下文探针，判断选择器是否已可用。
+function Test-PlayerContextReady {
+	param(
+		$Connection
+	)
+
+	if ([string]::IsNullOrWhiteSpace($script:BenchAsPlayer)) {
+		return [pscustomobject]@{
+			ready = $true
+			command = $null
+			response = ""
+		}
+	}
+
+	$probeCommand = Get-PlayerReadyProbeCommand
+	$wrappedCommand = Wrap-WithPlayerContext $probeCommand
+	$response = Invoke-RconCommand -Connection $Connection -Command $wrappedCommand -Silent
+	$normalized = ([string]$response).Trim()
+	$ready = $false
+
+	if ((-not [string]::IsNullOrWhiteSpace($normalized)) -and (-not (Test-BenchResponseLooksLikeFailure -ResponseText $normalized))) {
+		$ready = $true
+	}
+
+	return [pscustomobject]@{
+		ready = $ready
+		command = $wrappedCommand
+		response = $normalized
+	}
+}
+
+# 轮询等待玩家上下文就绪，超时则直接失败，避免后续 place/link/input 命令误报。
+function Wait-PlayerContextReady {
+	param(
+		$Connection
+	)
+
+	if ([string]::IsNullOrWhiteSpace($script:BenchAsPlayer)) {
+		return $null
+	}
+
+	$timeoutMs = [Math]::Max(0, [int]$script:BenchPlayerReadyTimeoutMs)
+	$pollIntervalMs = [Math]::Max(50, [int]$script:BenchPlayerReadyPollIntervalMs)
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+	$lastProbe = $null
+
+	do {
+		$lastProbe = Test-PlayerContextReady -Connection $Connection
+		if ([bool]$lastProbe.ready) {
+			Write-Host "[Bench] Player context ready: $($script:BenchAsPlayer) ($($stopwatch.ElapsedMilliseconds)ms)"
+			return [pscustomobject]@{
+				selector = $script:BenchAsPlayer
+				waitMs = $stopwatch.ElapsedMilliseconds
+				probeCommand = (Get-PlayerReadyProbeCommand)
+				wrappedProbeCommand = $lastProbe.command
+				probeResponse = $lastProbe.response
+			}
+		}
+
+		if ($stopwatch.ElapsedMilliseconds -ge $timeoutMs) {
+			break
+		}
+
+		Start-Sleep -Milliseconds $pollIntervalMs
+	} while ($true)
+
+	$lastResponse = ""
+	if ($null -ne $lastProbe) {
+		$lastResponse = [string]$lastProbe.response
+	}
+
+	throw "Timed out waiting for player context '$($script:BenchAsPlayer)' within ${timeoutMs}ms. probe=$(Get-PlayerReadyProbeCommand) lastResponse=$lastResponse"
+}
+
+# 在玩家上下文下执行初始化命令，适合做 tag/tp/gamemode 等测试前准备。
+function Invoke-PlayerContextSetupCommands {
+	param(
+		$Connection
+	)
+
+	if ([string]::IsNullOrWhiteSpace($script:BenchAsPlayer)) {
+		return @()
+	}
+
+	$setupCommands = @($script:BenchPlayerSetupCommands)
+	if ($setupCommands.Count -le 0) {
+		return @()
+	}
+
+	$operations = New-Object System.Collections.Generic.List[object]
+	foreach ($commandText in $setupCommands) {
+		$wrappedCommand = Wrap-WithPlayerContext ([string]$commandText)
+		$response = Invoke-RconCommand -Connection $Connection -Command $wrappedCommand -Silent
+		if (Test-BenchResponseLooksLikeFailure -ResponseText $response) {
+			throw "Player setup command failed: $wrappedCommand | response=$response"
+		}
+
+		$operations.Add([pscustomobject]@{
+			command = $wrappedCommand
+			response = $response
+		})
+	}
+
+	return @($operations.ToArray())
+}
+
+# 对外统一入口：先等玩家就绪，再执行玩家初始化命令，并返回本轮摘要。
+function Ensure-PlayerContextReadyAndSetup {
+	param(
+		$Connection
+	)
+
+	if ([string]::IsNullOrWhiteSpace($script:BenchAsPlayer)) {
+		return $null
+	}
+
+	$readySummary = Wait-PlayerContextReady -Connection $Connection
+	$setupOperations = Invoke-PlayerContextSetupCommands -Connection $Connection
+
+	return [pscustomobject]@{
+		selector = $script:BenchAsPlayer
+		waitTimeoutMs = [Math]::Max(0, [int]$script:BenchPlayerReadyTimeoutMs)
+		pollIntervalMs = [Math]::Max(50, [int]$script:BenchPlayerReadyPollIntervalMs)
+		probeCommand = $readySummary.probeCommand
+		wrappedProbeCommand = $readySummary.wrappedProbeCommand
+		waitMs = $readySummary.waitMs
+		probeResponse = $readySummary.probeResponse
+		setupCommands = $setupOperations
+	}
+}
+
+# Move the player to the computed observation point after place/link.
+function Invoke-PlayerObservationTeleport {
+	param(
+		$Connection,
+		$ObservationPoint
+	)
+
+	if (-not [bool]$script:BenchAutoTeleportPlayerToObservationPoint) {
+		return $null
+	}
+	if ([string]::IsNullOrWhiteSpace($script:BenchAsPlayer)) {
+		throw "AutoTeleportPlayerToObservationPoint requires AsPlayer."
+	}
+	if ($null -eq $ObservationPoint) {
+		throw "Observation point is required when AutoTeleportPlayerToObservationPoint is enabled."
+	}
+
+	$positionText = Format-PreciseVec3 -Vec $ObservationPoint.Position
+	$facingText = Format-PreciseVec3 -Vec $ObservationPoint.Facing
+	$wrappedCommand = Wrap-WithPlayerContext ("tp @s {0} facing {1}" -f $positionText, $facingText)
+	$response = Invoke-RconCommand -Connection $Connection -Command $wrappedCommand -Silent
+	if (Test-BenchResponseLooksLikeFailure -ResponseText $response) {
+		throw "Player observation teleport failed: $wrappedCommand | response=$response"
+	}
+
+	return [pscustomobject]@{
+		command = $wrappedCommand
+		response = $response
+		position = $ObservationPoint.Position
+		facing = $ObservationPoint.Facing
+		bounds = $ObservationPoint.Bounds
+		spanX = $ObservationPoint.SpanX
+		spanY = $ObservationPoint.SpanY
+		spanZ = $ObservationPoint.SpanZ
+		verticalOffset = $ObservationPoint.VerticalOffset
+	}
 }
 
 function Close-RconConnection {

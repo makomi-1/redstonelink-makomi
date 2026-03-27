@@ -3,6 +3,10 @@
 bench 模块：单 case 入口分发与主执行流程。
 #>
 
+if (-not (Get-Command Get-MatrixConfig -ErrorAction SilentlyContinue)) {
+	. (Resolve-Path (Join-Path $PSScriptRoot "Bench.Matrix.ps1"))
+}
+
 $matrix = Get-MatrixConfig -Path $MatrixPath
 
 switch ($Action) {
@@ -36,7 +40,9 @@ switch ($Action) {
 		Assert-RunCasePlayerContext
 
 		$connection = $null
+		$benchClientSession = $null
 		try {
+			$benchClientSession = Start-BenchClientAutomationSession -RepoRootPath $repoRoot
 			if (-not $DryRun) {
 				$connection = Open-RconConnection -ServerHost $RconHost -Port $RconPort -Password $RconPassword
 			}
@@ -47,6 +53,7 @@ switch ($Action) {
 				Invoke-RconCommand -Connection $connection -Command "reload" | Out-Null
 			}
 			Invoke-PrepareFunctions -Connection $connection -Matrix $matrix
+			$playerContextExecution = Ensure-PlayerContextReadyAndSetup -Connection $connection
 			Ensure-CaseChunksLoaded -Connection $connection -CaseConfig $caseConfig
 			$shouldClearArena = [bool](Get-OptionalProperty -Object $caseConfig -Name "clearArena" -DefaultValue $true)
 			if ($shouldClearArena) {
@@ -71,6 +78,8 @@ switch ($Action) {
 				$linkOperations.Add((Invoke-BenchSetupCommand -Connection $connection -Command $command -ExpectedPrefix "[RedstoneLink"))
 			}
 
+			$observationPoint = Get-ObservationPointForPlacedNodes -TargetPositions $targetPositions -SourcePositionGroups $sourcePositionGroups
+			$observationTeleport = Invoke-PlayerObservationTeleport -Connection $connection -ObservationPoint $observationPoint
 			$auditBefore = Invoke-RconCommand -Connection $connection -Command (Wrap-WithPlayerContext "redstonelink audit summary csv") -Silent
 			$settleTicks = [int]$matrix.defaults.settleTicks
 			if ($settleTicks -gt 0) {
@@ -122,6 +131,8 @@ switch ($Action) {
 					start = $sparkStart
 					stop = $sparkStop
 				}
+				playerContext = $playerContextExecution
+				observationTeleport = $observationTeleport
 				drive = $driveExecution
 				inputCleanup = $inputCleanup
 				audit = [ordered]@{
@@ -133,6 +144,7 @@ switch ($Action) {
 		}
 		finally {
 			Close-RconConnection -Connection $connection
+			Stop-BenchClientAutomationSession -Session $benchClientSession
 		}
 		break
 	}
@@ -143,7 +155,9 @@ switch ($Action) {
 		Assert-RunCasePlayerContext
 
 		$connection = $null
+		$benchClientSession = $null
 		try {
+			$benchClientSession = Start-BenchClientAutomationSession -RepoRootPath $repoRoot
 			if (-not $DryRun) {
 				$connection = Open-RconConnection -ServerHost $RconHost -Port $RconPort -Password $RconPassword
 			}
@@ -154,6 +168,7 @@ switch ($Action) {
 				Invoke-RconCommand -Connection $connection -Command "reload" | Out-Null
 			}
 			Invoke-PrepareFunctions -Connection $connection -Matrix $matrix
+			$playerContextExecution = Ensure-PlayerContextReadyAndSetup -Connection $connection
 			Ensure-CaseChunksLoaded -Connection $connection -CaseConfig $caseConfig
 			$shouldClearArena = [bool](Get-OptionalProperty -Object $caseConfig -Name "clearArena" -DefaultValue $true)
 			if ($shouldClearArena) {
@@ -178,6 +193,8 @@ switch ($Action) {
 				$linkOperations.Add((Invoke-BenchSetupCommand -Connection $connection -Command $command -ExpectedPrefix "[RedstoneLink"))
 			}
 
+			$observationPoint = Get-ObservationPointForPlacedNodes -TargetPositions $targetPositions -SourcePositionGroups $sourcePositionGroups
+			$observationTeleport = Invoke-PlayerObservationTeleport -Connection $connection -ObservationPoint $observationPoint
 			# 功能验证优先等待真实服务端 tick，而不是仅依赖本地睡眠。
 			$functionalSettleTicks = 0
 			if ($null -ne $matrix.defaults -and $null -ne $matrix.defaults.settleTicks) {
@@ -196,6 +213,8 @@ switch ($Action) {
 				targetSerials = $targetSerialMap
 				linkCommands = $linkCommands
 				linkOperations = @($linkOperations.ToArray())
+				playerContext = $playerContextExecution
+				observationTeleport = $observationTeleport
 				phases = $phaseExecution.phases
 				checks = $phaseExecution.checks
 				passed = $phaseExecution.passed
@@ -212,6 +231,7 @@ switch ($Action) {
 		}
 		finally {
 			Close-RconConnection -Connection $connection
+			Stop-BenchClientAutomationSession -Session $benchClientSession
 		}
 		break
 	}

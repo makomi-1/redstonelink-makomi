@@ -63,10 +63,11 @@ function Resolve-LocalRuntimeModJarPath {
 	return $candidates[0].FullName
 }
 
-function Sync-ServerModJar {
+function Sync-ModJarToModsDirectory {
 	param(
 		[string]$SourceJarPath,
-		[string]$TargetModsDirectoryPath
+		[string]$TargetModsDirectoryPath,
+		[string]$FileNamePattern = "redstonelink*.jar"
 	)
 	if ([string]::IsNullOrWhiteSpace($SourceJarPath)) {
 		throw "SourceJarPath is required."
@@ -80,7 +81,7 @@ function Sync-ServerModJar {
 
 	$resolvedModsDirectory = New-DirectoryIfMissing -Path $TargetModsDirectoryPath
 	$removedServerJars = New-Object System.Collections.Generic.List[string]
-	foreach ($existingJar in @(Get-ChildItem -LiteralPath $resolvedModsDirectory -Filter "redstonelink*.jar" -File -ErrorAction SilentlyContinue)) {
+	foreach ($existingJar in @(Get-ChildItem -LiteralPath $resolvedModsDirectory -Filter $FileNamePattern -File -ErrorAction SilentlyContinue)) {
 		$removedServerJars.Add($existingJar.Name)
 		Remove-Item -LiteralPath $existingJar.FullName -Force
 	}
@@ -93,4 +94,20 @@ function Sync-ServerModJar {
 		copiedJarPath = [System.IO.Path]::GetFullPath($targetJarPath)
 		removedServerJars = @($removedServerJars.ToArray())
 	}
+}
+
+function Sync-ServerModJar {
+	param(
+		[string]$SourceJarPath,
+		[string]$TargetModsDirectoryPath
+	)
+	return (Sync-ModJarToModsDirectory -SourceJarPath $SourceJarPath -TargetModsDirectoryPath $TargetModsDirectoryPath -FileNamePattern "redstonelink*.jar")
+}
+
+function Sync-ClientModJar {
+	param(
+		[string]$SourceJarPath,
+		[string]$TargetModsDirectoryPath
+	)
+	return (Sync-ModJarToModsDirectory -SourceJarPath $SourceJarPath -TargetModsDirectoryPath $TargetModsDirectoryPath -FileNamePattern "redstonelink*.jar")
 }

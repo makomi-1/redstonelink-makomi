@@ -3,14 +3,18 @@
 bench suite 模块：suite 主入口与 per-case 编排流程。
 #>
 
+if (-not (Get-Command Get-MatrixConfig -ErrorAction SilentlyContinue)) {
+	. (Resolve-Path (Join-Path $PSScriptRoot "Bench.Matrix.ps1"))
+}
+
 if ([string]::IsNullOrWhiteSpace($ServerRoot)) {
 	throw "ServerRoot is required."
 }
 if ([string]::IsNullOrWhiteSpace($TemplateWorldPath)) {
 	throw "TemplateWorldPath is required."
 }
-if ($BuildBeforeSyncLatestModJar -and -not $SyncLatestModJar) {
-	throw "BuildBeforeSyncLatestModJar requires SyncLatestModJar."
+if ($BuildBeforeSyncLatestModJar -and -not ($SyncLatestModJar -or $SyncLatestClientModJar)) {
+	throw "BuildBeforeSyncLatestModJar requires SyncLatestModJar or SyncLatestClientModJar."
 }
 
 $rconPasswordSecure = Convert-PasswordInputToSecureString -SecretInput $RconSecret
@@ -58,25 +62,40 @@ if (Test-RconAlreadyReachable -ServerHost $RconHost -Port $RconPort -Password $r
 
 $modSyncSummary = [ordered]@{
 	syncLatestModJar = [bool]$SyncLatestModJar
+	syncLatestClientModJar = [bool]$SyncLatestClientModJar
 	buildBeforeSyncLatestModJar = [bool]$BuildBeforeSyncLatestModJar
 	buildTask = if ($BuildBeforeSyncLatestModJar) { $BuildTask } else { $null }
 	gradleWrapperPath = if ($BuildBeforeSyncLatestModJar) { $gradleWrapperFullPath } else { $null }
 	requestedModJarPath = if ([string]::IsNullOrWhiteSpace($ModJarPath)) { $null } else { $ModJarPath }
 	serverModsDir = if ($SyncLatestModJar) { $serverModsDirectoryPath } else { $null }
+	clientModsDir = $null
 	sourceJarPath = $null
 	copiedJarPath = $null
+	clientCopiedJarPath = $null
 	removedServerJars = @()
+	removedClientJars = @()
 }
 if ($BuildBeforeSyncLatestModJar) {
 	Invoke-GradleBuildTask -RepoRootPath $repoRoot -GradleWrapperFilePath $gradleWrapperFullPath -TaskName $BuildTask
 }
-if ($SyncLatestModJar) {
+if ($SyncLatestModJar -or $SyncLatestClientModJar) {
 	$localModJarPath = Resolve-LocalRuntimeModJarPath -RepoRootPath $repoRoot -ExplicitModJarPath $ModJarPath
-	$modSyncResult = Sync-ServerModJar -SourceJarPath $localModJarPath -TargetModsDirectoryPath $serverModsDirectoryPath
-	$modSyncSummary.sourceJarPath = $modSyncResult.sourceJarPath
-	$modSyncSummary.copiedJarPath = $modSyncResult.copiedJarPath
-	$modSyncSummary.removedServerJars = $modSyncResult.removedServerJars
-	Write-Host "[BenchSuite] Synced mod jar -> $($modSyncSummary.copiedJarPath)"
+	$modSyncSummary.sourceJarPath = $localModJarPath
+	if ($SyncLatestModJar) {
+		$serverModSyncResult = Sync-ServerModJar -SourceJarPath $localModJarPath -TargetModsDirectoryPath $serverModsDirectoryPath
+		$modSyncSummary.copiedJarPath = $serverModSyncResult.copiedJarPath
+		$modSyncSummary.removedServerJars = $serverModSyncResult.removedServerJars
+		Write-Host "[BenchSuite] Synced server mod jar -> $($modSyncSummary.copiedJarPath)"
+	}
+	if ($SyncLatestClientModJar) {
+		$benchClientInstanceRootPath = Resolve-BenchClientInstanceRootPath -RepoRootPath $repoRoot
+		$clientModsDirectoryPath = Resolve-BenchClientModsDirectoryPath -BenchClientInstanceRootPath $benchClientInstanceRootPath
+		$clientModSyncResult = Sync-ClientModJar -SourceJarPath $localModJarPath -TargetModsDirectoryPath $clientModsDirectoryPath
+		$modSyncSummary.clientModsDir = $clientModsDirectoryPath
+		$modSyncSummary.clientCopiedJarPath = $clientModSyncResult.copiedJarPath
+		$modSyncSummary.removedClientJars = $clientModSyncResult.removedServerJars
+		Write-Host "[BenchSuite] Synced client mod jar -> $($modSyncSummary.clientCopiedJarPath)"
+	}
 }
 
 $suiteSummary = [ordered]@{
@@ -95,6 +114,7 @@ $suiteSummary = [ordered]@{
 	startedAt = (Get-Date).ToString("s")
 	results = @()
 	restoredServerProperties = $false
+	benchClient = $null
 }
 
 Write-Host "[BenchSuite] Suite: $suiteTimestamp"
@@ -107,8 +127,28 @@ if (-not [string]::IsNullOrWhiteSpace([string]$resolvedSuite.suiteConfigPath)) {
 Write-Host "[BenchSuite] Entries: $($entryIds -join ', ')"
 
 $completedEntries = @{}
+$benchClientSession = $null
 
 try {
+	if ($script:BenchAutoStartClient) {
+		$benchClientSession = Start-BenchClientAutomationSession -RepoRootPath $repoRoot -SkipModSync
+		$suiteSummary.benchClient = [ordered]@{
+			autoStart = $true
+			playerName = $benchClientSession.playerName
+			instanceRootPath = $benchClientSession.instanceRootPath
+			workingDirectoryPath = $benchClientSession.workingDirectoryPath
+			modsDirectoryPath = $benchClientSession.modsDirectoryPath
+			processId = $benchClientSession.processId
+			launcherProcessId = $benchClientSession.launcherProcessId
+			gameProcessId = $benchClientSession.gameProcessId
+			trackedProcessId = $benchClientSession.trackedProcessId
+			trackedProcessKind = $benchClientSession.trackedProcessKind
+			serverHost = $benchClientSession.serverHost
+			serverPort = $benchClientSession.serverPort
+			reconnectIntervalMs = $benchClientSession.reconnectIntervalMs
+			initialConnectDelayMs = $benchClientSession.initialConnectDelayMs
+		}
+	}
 	for ($index = 0; $index -lt $suiteEntries.Count; $index++) {
 		$entry = $suiteEntries[$index]
 		$entryId = [string]$entry.entryId
@@ -174,9 +214,18 @@ try {
 				RconHost = $RconHost
 				RconPort = $RconPort
 				RconPassword = $rconPasswordPlainText
+				PlayerReadyTimeoutMs = $PlayerReadyTimeoutMs
+				PlayerReadyPollIntervalMs = $PlayerReadyPollIntervalMs
+				PlayerReadyProbeCommand = $PlayerReadyProbeCommand
 			}
 			if (-not [string]::IsNullOrWhiteSpace($AsPlayer)) {
 				$benchArgs.AsPlayer = $AsPlayer
+			}
+			if (@($PlayerSetupCommands).Count -gt 0) {
+				$benchArgs.PlayerSetupCommands = @($PlayerSetupCommands)
+			}
+			if ($AutoTeleportPlayerToObservationPoint) {
+				$benchArgs.AutoTeleportPlayerToObservationPoint = $true
 			}
 			if (-not [string]::IsNullOrWhiteSpace($SparkActivityPath)) {
 				$benchArgs.SparkActivityPath = $SparkActivityPath
@@ -264,6 +313,12 @@ try {
 		}
 	}
 } finally {
+	try {
+		Stop-BenchClientAutomationSession -Session $benchClientSession
+	} catch {
+		$suiteSummary.benchClientStopError = $_.Exception.Message
+		Write-Host "[BenchSuite] Stop bench client failed: $($suiteSummary.benchClientStopError)"
+	}
 	Write-Utf8NoBomFile -Path $serverPropertiesFullPath -Content $originalServerPropertiesText
 	$suiteSummary.restoredServerProperties = $true
 	$suiteSummary.completedAt = (Get-Date).ToString("s")

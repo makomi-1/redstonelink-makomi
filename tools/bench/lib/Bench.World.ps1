@@ -26,6 +26,32 @@ function Format-Vec3 {
 	return "$($Vec.X) $($Vec.Y) $($Vec.Z)"
 }
 
+# Helper for observation teleport coordinates that may contain decimals.
+function New-PreciseVec3 {
+	param(
+		[double]$X,
+		[double]$Y,
+		[double]$Z
+	)
+	return [pscustomobject]@{
+		X = [double]$X
+		Y = [double]$Y
+		Z = [double]$Z
+	}
+}
+
+# Always format command coordinates with invariant culture.
+function Format-PreciseVec3 {
+	param($Vec)
+	return [string]::Format(
+		[System.Globalization.CultureInfo]::InvariantCulture,
+		"{0:0.###} {1:0.###} {2:0.###}",
+		[double]$Vec.X,
+		[double]$Vec.Y,
+		[double]$Vec.Z
+	)
+}
+
 function Get-BlockIdByKind {
 	param([string]$Kind)
 	switch ($Kind) {
@@ -71,6 +97,57 @@ function Get-BoundsFromPositions {
 		From = New-Vec3 -X (($xs | Measure-Object -Minimum).Minimum) -Y (($ys | Measure-Object -Minimum).Minimum) -Z (($zs | Measure-Object -Minimum).Minimum)
 		To = New-Vec3 -X (($xs | Measure-Object -Maximum).Maximum) -Y (($ys | Measure-Object -Maximum).Maximum) -Z (($zs | Measure-Object -Maximum).Maximum)
 	}
+}
+
+# Build a stable observation point from placed triggerSource/core positions.
+function Get-ObservationPointFromPositions {
+	param($Positions)
+	$normalizedPositions = @($Positions)
+	if ($normalizedPositions.Count -le 0) {
+		return $null
+	}
+
+	$bounds = Get-BoundsFromPositions -Positions $normalizedPositions
+	$spanX = ([Math]::Abs([int]$bounds.To.X - [int]$bounds.From.X)) + 1
+	$spanY = ([Math]::Abs([int]$bounds.To.Y - [int]$bounds.From.Y)) + 1
+	$spanZ = ([Math]::Abs([int]$bounds.To.Z - [int]$bounds.From.Z)) + 1
+	$maxHorizontalSpan = [Math]::Max($spanX, $spanZ)
+	$verticalOffset = [Math]::Min(32, [Math]::Max(8, [int][Math]::Ceiling($maxHorizontalSpan / 3.0)))
+	$centerX = ([double]$bounds.From.X + [double]$bounds.To.X + 1.0) / 2.0
+	$centerZ = ([double]$bounds.From.Z + [double]$bounds.To.Z + 1.0) / 2.0
+	$topY = [double][Math]::Max([int]$bounds.From.Y, [int]$bounds.To.Y)
+	$position = New-PreciseVec3 -X $centerX -Y ($topY + 1.0 + $verticalOffset) -Z $centerZ
+	$facing = New-PreciseVec3 -X $centerX -Y ($topY + 0.5) -Z $centerZ
+
+	return [pscustomobject]@{
+		Bounds = $bounds
+		Position = $position
+		Facing = $facing
+		SpanX = $spanX
+		SpanY = $spanY
+		SpanZ = $spanZ
+		VerticalOffset = $verticalOffset
+	}
+}
+
+# Merge placed node positions for observation teleport calculation.
+function Get-ObservationPointForPlacedNodes {
+	param(
+		$TargetPositions,
+		[hashtable]$SourcePositionGroups
+	)
+	$allPositions = New-Object System.Collections.Generic.List[object]
+	foreach ($pos in @($TargetPositions)) {
+		$allPositions.Add($pos)
+	}
+	if ($null -ne $SourcePositionGroups) {
+		foreach ($groupPositions in $SourcePositionGroups.Values) {
+			foreach ($pos in @($groupPositions)) {
+				$allPositions.Add($pos)
+			}
+		}
+	}
+	return Get-ObservationPointFromPositions -Positions @($allPositions.ToArray())
 }
 
 function Get-ControlPositions {

@@ -1,6 +1,7 @@
 package com.makomi;
 
 import com.makomi.client.ClientHooks;
+import com.makomi.client.bench.BenchClientAutomationController;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.client.network.PairingNetworkClientHandlerSupport;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
@@ -48,6 +49,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerClientDisplayCommands();
 		registerPairingScreenOpeners();
 		registerPairingPacketReceivers();
+		BenchClientAutomationController.initialize();
 		RedstoneLink.LOGGER.info("RedstoneLink client initialized");
 	}
 
