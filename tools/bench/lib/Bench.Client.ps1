@@ -3,6 +3,8 @@
 bench 模块：外部客户端实例自动启动、bench 配置写入与进程回收。
 #>
 
+$script:BenchClientWindowInteropInitialized = $false
+
 function Assert-BenchClientIdentityCompatible {
 	param(
 		[string]$AsPlayer,
@@ -81,7 +83,9 @@ function Write-BenchClientAutomationConfigFile {
 		[string]$ServerHost,
 		[int]$ServerPort,
 		[int]$InitialConnectDelayMs,
-		[int]$ReconnectIntervalMs
+		[int]$ReconnectIntervalMs,
+		[bool]$OpenTickCharts,
+		[int]$PostJoinActionDelayMs
 	)
 	$configContent = @(
 		"enabled=true"
@@ -90,6 +94,8 @@ function Write-BenchClientAutomationConfigFile {
 		"server.port=$ServerPort"
 		"initial.connect.delay.ms=$InitialConnectDelayMs"
 		"reconnect.interval.ms=$ReconnectIntervalMs"
+		"open.tick.chart=$($OpenTickCharts.ToString().ToLowerInvariant())"
+		"post.join.action.delay.ms=$PostJoinActionDelayMs"
 		""
 	) -join "`r`n"
 	Write-Utf8NoBomFile -Path $ConfigFilePath -Content $configContent
@@ -604,6 +610,96 @@ function Stop-BenchClientProcessById {
 	Stop-BenchClientProcess -Process $process -TimeoutMs $TimeoutMs
 }
 
+function Initialize-BenchClientWindowInterop {
+	if ($script:BenchClientWindowInteropInitialized) {
+		return
+	}
+	if ("BenchClientWindowInterop" -as [type]) {
+		$script:BenchClientWindowInteropInitialized = $true
+		return
+	}
+	Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class BenchClientWindowInterop {
+	[DllImport("user32.dll")]
+	public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
+	[DllImport("user32.dll")]
+	public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+	[DllImport("user32.dll")]
+	public static extern bool IsIconic(IntPtr hWnd);
+}
+"@
+	$script:BenchClientWindowInteropInitialized = $true
+}
+
+function Focus-BenchClientWindow {
+	param(
+		[int]$ProcessId,
+		[int]$TimeoutMs
+	)
+	if (-not [bool]$script:BenchClientFocusWindow) {
+		return $null
+	}
+	if ($ProcessId -le 0) {
+		return [ordered]@{
+			enabled = $true
+			focused = $false
+			processId = $ProcessId
+			reason = "invalid_process_id"
+		}
+	}
+	if ($DryRun) {
+		return [ordered]@{
+			enabled = $true
+			focused = $false
+			processId = $ProcessId
+			dryRun = $true
+		}
+	}
+
+	Initialize-BenchClientWindowInterop
+	$normalizedTimeoutMs = [Math]::Max(250, [int]$TimeoutMs)
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+	while ($stopwatch.ElapsedMilliseconds -lt $normalizedTimeoutMs) {
+		$process = Get-BenchClientManagedProcess -ProcessId $ProcessId -RetryCount 1 -RetryDelayMs 0
+		if ($null -eq $process -or $process.HasExited) {
+			return [ordered]@{
+				enabled = $true
+				focused = $false
+				processId = $ProcessId
+				reason = "process_exited"
+			}
+		}
+		$process.Refresh()
+		$windowHandle = $process.MainWindowHandle
+		if (($null -ne $windowHandle) -and ($windowHandle -ne [IntPtr]::Zero)) {
+			$showState = if ([BenchClientWindowInterop]::IsIconic($windowHandle)) { 9 } else { 5 }
+			[BenchClientWindowInterop]::ShowWindowAsync($windowHandle, $showState) | Out-Null
+			$focused = [BenchClientWindowInterop]::SetForegroundWindow($windowHandle)
+			return [ordered]@{
+				enabled = $true
+				focused = [bool]$focused
+				processId = $ProcessId
+				windowHandle = $windowHandle.ToInt64()
+				reason = if ($focused) { "success" } else { "set_foreground_rejected" }
+			}
+		}
+		Start-Sleep -Milliseconds 200
+	}
+
+	return [ordered]@{
+		enabled = $true
+		focused = $false
+		processId = $ProcessId
+		reason = "window_handle_timeout"
+		timeoutMs = $normalizedTimeoutMs
+	}
+}
+
 function Start-BenchClientAutomationSession {
 	param(
 		[string]$RepoRootPath,
@@ -668,6 +764,10 @@ function Start-BenchClientAutomationSession {
 			serverPort = $script:BenchClientGamePort
 			initialConnectDelayMs = $script:BenchClientInitialConnectDelayMs
 			reconnectIntervalMs = $script:BenchClientReconnectIntervalMs
+			openTickCharts = [bool]$script:BenchClientOpenTickCharts
+			postJoinActionDelayMs = [int]$script:BenchClientPostJoinActionDelayMs
+			focusWindow = [bool]$script:BenchClientFocusWindow
+			focusResult = $null
 			modSync = $modSyncSummary
 			dryRun = $true
 		}
@@ -679,7 +779,9 @@ function Start-BenchClientAutomationSession {
 		-ServerHost $script:BenchClientGameHost `
 		-ServerPort $script:BenchClientGamePort `
 		-InitialConnectDelayMs $script:BenchClientInitialConnectDelayMs `
-		-ReconnectIntervalMs $script:BenchClientReconnectIntervalMs
+		-ReconnectIntervalMs $script:BenchClientReconnectIntervalMs `
+		-OpenTickCharts ([bool]$script:BenchClientOpenTickCharts) `
+		-PostJoinActionDelayMs ([int]$script:BenchClientPostJoinActionDelayMs)
 
 	$launcherProcess = $null
 	try {
@@ -690,8 +792,12 @@ function Start-BenchClientAutomationSession {
 			-KnownJavaProcessIds $knownJavaProcessIds `
 			-InstanceRootPath $instanceRootPath `
 			-WorkingDirectoryPath $workingDirectoryPath
+		$focusResult = Focus-BenchClientWindow -ProcessId ([int]$trackedSession.trackedProcessId) -TimeoutMs ([int]$script:BenchClientFocusTimeoutMs)
 
 		Write-Host "[Bench] Started bench client trackedPid=$($trackedSession.trackedProcessId) kind=$($trackedSession.trackedProcessKind) player=$($script:BenchClientPlayerName)"
+		if ($null -ne $focusResult) {
+			Write-Host "[Bench] Bench client focus result: focused=$($focusResult.focused) reason=$($focusResult.reason) pid=$($focusResult.processId)"
+		}
 		return [pscustomobject]@{
 			process = $trackedSession.trackedProcess
 			processId = $trackedSession.trackedProcessId
@@ -712,6 +818,10 @@ function Start-BenchClientAutomationSession {
 			serverPort = $script:BenchClientGamePort
 			initialConnectDelayMs = $script:BenchClientInitialConnectDelayMs
 			reconnectIntervalMs = $script:BenchClientReconnectIntervalMs
+			openTickCharts = [bool]$script:BenchClientOpenTickCharts
+			postJoinActionDelayMs = [int]$script:BenchClientPostJoinActionDelayMs
+			focusWindow = [bool]$script:BenchClientFocusWindow
+			focusResult = $focusResult
 			modSync = $modSyncSummary
 		}
 	} catch {

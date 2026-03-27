@@ -30,13 +30,17 @@ param(
     [string]$BenchClientStartCommand,
     [string]$BenchClientGameHost = "127.0.0.1",
     [int]$BenchClientGamePort = 25565,
-    [int]$BenchClientInitialConnectDelayMs = 2000,
-    [int]$BenchClientReconnectIntervalMs = 5000,
+    [int]$BenchClientInitialConnectDelayMs = 0,
+    [int]$BenchClientReconnectIntervalMs = 1000,
     [int]$BenchClientStopTimeoutMs = 10000,
+    [switch]$BenchClientFocusWindow,
+    [int]$BenchClientFocusTimeoutMs = 15000,
+    [switch]$BenchClientOpenTickCharts,
+    [int]$BenchClientPostJoinActionDelayMs = 1000,
     [string]$BenchClientModsDir,
     [switch]$SyncLatestClientModJar,
     [int]$PlayerReadyTimeoutMs = 120000,
-    [int]$PlayerReadyPollIntervalMs = 1000,
+    [int]$PlayerReadyPollIntervalMs = 250,
     [string]$PlayerReadyProbeCommand = "data get entity @s Pos",
     [string[]]$PlayerSetupCommands = @(),
     [switch]$AutoTeleportPlayerToObservationPoint,
@@ -88,6 +92,10 @@ $script:BenchClientGamePort = [Math]::Max(1, [int]$BenchClientGamePort)
 $script:BenchClientInitialConnectDelayMs = [Math]::Max(0, [int]$BenchClientInitialConnectDelayMs)
 $script:BenchClientReconnectIntervalMs = [Math]::Max(250, [int]$BenchClientReconnectIntervalMs)
 $script:BenchClientStopTimeoutMs = [Math]::Max(1000, [int]$BenchClientStopTimeoutMs)
+$script:BenchClientFocusWindow = [bool]$BenchClientFocusWindow
+$script:BenchClientFocusTimeoutMs = [Math]::Max(1000, [int]$BenchClientFocusTimeoutMs)
+$script:BenchClientOpenTickCharts = [bool]$BenchClientOpenTickCharts
+$script:BenchClientPostJoinActionDelayMs = [Math]::Max(0, [int]$BenchClientPostJoinActionDelayMs)
 $script:BenchClientModsDir = [string]$BenchClientModsDir
 $script:BenchSyncLatestClientModJar = [bool]$SyncLatestClientModJar
 $script:BenchBuildBeforeSyncLatestModJar = [bool]$BuildBeforeSyncLatestModJar

@@ -1,0 +1,45 @@
+{
+  "id": "toggle_256_to_1_core_dense",
+  "description": "256 个 toggle triggerSource 汇聚到单个 core block，作为 256->1 重压基线。",
+  "layer": "P",
+  "scenarioId": "P16",
+  "arena": {
+    "clearFrom": [-8, 63, -8],
+    "clearTo": [32, 66, 24]
+  },
+  "targets": {
+    "id": "core_p16_single",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [24, 64, 8],
+      "to": [24, 64, 8]
+    }
+  },
+  "sources": [
+    {
+      "id": "toggle_p16_main",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 0],
+        "to": [15, 64, 15]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "toggle_p16_main",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "drive": {
+    "totalTicks": 240,
+    "steps": [
+      {
+        "templateRef": "activate_batch_toggle",
+        "sourceGroup": "toggle_p16_main"
+      }
+    ]
+  }
+}

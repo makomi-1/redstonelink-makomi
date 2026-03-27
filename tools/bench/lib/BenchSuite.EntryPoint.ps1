@@ -147,6 +147,10 @@ try {
 			serverPort = $benchClientSession.serverPort
 			reconnectIntervalMs = $benchClientSession.reconnectIntervalMs
 			initialConnectDelayMs = $benchClientSession.initialConnectDelayMs
+			openTickCharts = $benchClientSession.openTickCharts
+			postJoinActionDelayMs = $benchClientSession.postJoinActionDelayMs
+			focusWindow = $benchClientSession.focusWindow
+			focusResult = $benchClientSession.focusResult
 		}
 	}
 	for ($index = 0; $index -lt $suiteEntries.Count; $index++) {

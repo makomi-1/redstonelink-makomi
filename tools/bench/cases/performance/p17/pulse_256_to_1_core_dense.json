@@ -1,0 +1,45 @@
+{
+  "id": "pulse_256_to_1_core_dense",
+  "description": "256 个 pulse triggerSource 汇聚到单个 core block，作为 256->1 重压基线。",
+  "layer": "P",
+  "scenarioId": "P17",
+  "arena": {
+    "clearFrom": [-8, 63, -8],
+    "clearTo": [32, 66, 24]
+  },
+  "targets": {
+    "id": "core_p17_single",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [24, 64, 8],
+      "to": [24, 64, 8]
+    }
+  },
+  "sources": [
+    {
+      "id": "pulse_p17_main",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 0],
+        "to": [15, 64, 15]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "pulse_p17_main",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "drive": {
+    "totalTicks": 240,
+    "steps": [
+      {
+        "templateRef": "activate_batch_pulse",
+        "sourceGroup": "pulse_p17_main"
+      }
+    ]
+  }
+}

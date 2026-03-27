@@ -3,6 +3,11 @@
   "defaults": {
     "tickMillis": 50,
     "settleTicks": 20,
+    "performanceWindow": {
+      "totalTicks": 1600,
+      "warmupTicks": 400,
+      "measureTicks": 1200
+    },
     "prepareFunctions": [
       "rl_bench:prepare/common",
       "rl_bench:reset/common"

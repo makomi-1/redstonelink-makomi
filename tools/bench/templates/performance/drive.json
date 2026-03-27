@@ -4,15 +4,15 @@
     "sync_square_wave": {
       "kind": "input_square",
       "endpoint": "triggerSource",
-      "periodTicks": 4,
-      "highTicks": 2,
+      "periodTicks": 2,
+      "highTicks": 1,
       "highPower": 15,
       "lowPower": 0
     },
     "activate_batch_pulse": {
       "kind": "input_square",
       "endpoint": "triggerSource",
-      "periodTicks": 8,
+      "periodTicks": 2,
       "highTicks": 1,
       "highPower": 15,
       "lowPower": 0
@@ -20,7 +20,7 @@
     "activate_batch_toggle": {
       "kind": "input_square",
       "endpoint": "triggerSource",
-      "periodTicks": 20,
+      "periodTicks": 2,
       "highTicks": 1,
       "highPower": 15,
       "lowPower": 0

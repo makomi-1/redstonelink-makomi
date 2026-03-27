@@ -3,6 +3,7 @@ package com.makomi.client.bench;
 import com.makomi.RedstoneLink;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.DebugScreenOverlay;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.DisconnectedScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -26,6 +27,9 @@ public final class BenchClientAutomationController {
 	private static BenchClientAutomationConfig config = BenchClientAutomationConfig.disabled();
 	private static long nextConnectAttemptAtMs = Long.MAX_VALUE;
 	private static long lastConnectAttemptAtMs = Long.MIN_VALUE;
+	private static boolean wasInWorldLastTick = false;
+	private static boolean postJoinActionsApplied = false;
+	private static long postJoinActionReadyAtMs = Long.MAX_VALUE;
 
 	private BenchClientAutomationController() {
 	}
@@ -41,12 +45,16 @@ public final class BenchClientAutomationController {
 
 		nextConnectAttemptAtMs = System.currentTimeMillis() + config.initialConnectDelayMs();
 		lastConnectAttemptAtMs = Long.MIN_VALUE;
+		wasInWorldLastTick = false;
+		postJoinActionsApplied = false;
+		postJoinActionReadyAtMs = Long.MAX_VALUE;
 		ClientTickEvents.END_CLIENT_TICK.register(BenchClientAutomationController::onClientTick);
 		RedstoneLink.LOGGER.info(
-			"Bench client automation enabled. player={} server={} reconnectIntervalMs={}",
+			"Bench client automation enabled. player={} server={} reconnectIntervalMs={} openTickChart={}",
 			config.playerName(),
 			config.serverAddress(),
-			config.reconnectIntervalMs()
+			config.reconnectIntervalMs(),
+			config.openTickChart()
 		);
 	}
 
@@ -57,10 +65,15 @@ public final class BenchClientAutomationController {
 		if (client == null) {
 			return;
 		}
-		if (client.player != null && client.level != null) {
+		boolean inWorld = client.player != null && client.level != null;
+		if (inWorld) {
+			schedulePostJoinActionsIfNeeded();
 			dismissTransientStartupScreen(client);
+			runPostJoinActionsIfReady(client);
+			wasInWorldLastTick = true;
 			return;
 		}
+		resetPostJoinActionsAfterLeaveIfNeeded();
 		if (client.screen instanceof ConnectScreen) {
 			return;
 		}
@@ -71,6 +84,14 @@ public final class BenchClientAutomationController {
 		}
 
 		attemptConnect(client, now);
+	}
+
+	private static void schedulePostJoinActionsIfNeeded() {
+		if (wasInWorldLastTick) {
+			return;
+		}
+		postJoinActionsApplied = false;
+		postJoinActionReadyAtMs = System.currentTimeMillis() + config.postJoinActionDelayMs();
 	}
 
 	private static void attemptConnect(Minecraft client, long now) {
@@ -88,6 +109,53 @@ public final class BenchClientAutomationController {
 			parentScreen.getClass().getSimpleName()
 		);
 		ConnectScreen.startConnecting(parentScreen, client, serverAddress, serverData, false, (TransferState)null);
+	}
+
+	private static void resetPostJoinActionsAfterLeaveIfNeeded() {
+		if (!wasInWorldLastTick) {
+			return;
+		}
+		wasInWorldLastTick = false;
+		postJoinActionsApplied = false;
+		postJoinActionReadyAtMs = Long.MAX_VALUE;
+	}
+
+	private static void runPostJoinActionsIfReady(Minecraft client) {
+		if (postJoinActionsApplied) {
+			return;
+		}
+		if (System.currentTimeMillis() < postJoinActionReadyAtMs) {
+			return;
+		}
+
+		ensureTickChartVisible(client);
+		postJoinActionsApplied = true;
+		postJoinActionReadyAtMs = Long.MAX_VALUE;
+	}
+
+	/**
+	 * bench 观察模式默认需要 `F3+2` 对应的 tick 曲线。
+	 * <p>
+	 * 原版调试图表是 toggle 语义，因此这里必须先读当前状态，只在未开启时补开。
+	 * </p>
+	 */
+	private static void ensureTickChartVisible(Minecraft client) {
+		if (!config.openTickChart()) {
+			return;
+		}
+
+		DebugScreenOverlay debugOverlay = client.getDebugOverlay();
+		if (!debugOverlay.showDebugScreen()) {
+			debugOverlay.toggleOverlay();
+		}
+		if (!debugOverlay.showFpsCharts()) {
+			debugOverlay.toggleFpsCharts();
+		}
+		RedstoneLink.LOGGER.info(
+			"Bench client automation enabled tick chart after join. player={} server={}",
+			config.playerName(),
+			config.serverAddress()
+		);
 	}
 
 	/**

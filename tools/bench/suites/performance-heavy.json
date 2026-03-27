@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "description": "纯输入器重压集合，覆盖 1->1024 广播与 256->1 汇聚两类 10Hz 单类型压力场景。",
+  "defaults": {
+    "benchAction": "RunCase",
+    "matrixPath": "../matrix-performance-heavy.json"
+  },
+  "entries": [
+    {
+      "entryId": "p12_sync_1_to_1024",
+      "caseId": "sync_1_to_1024_core_dense"
+    },
+    {
+      "entryId": "p13_toggle_1_to_1024",
+      "caseId": "toggle_1_to_1024_core_dense"
+    },
+    {
+      "entryId": "p14_pulse_1_to_1024",
+      "caseId": "pulse_1_to_1024_core_dense"
+    },
+    {
+      "entryId": "p15_sync_256_to_1",
+      "caseId": "sync_256_to_1_core_dense"
+    },
+    {
+      "entryId": "p16_toggle_256_to_1",
+      "caseId": "toggle_256_to_1_core_dense"
+    },
+    {
+      "entryId": "p17_pulse_256_to_1",
+      "caseId": "pulse_256_to_1_core_dense"
+    }
+  ]
+}

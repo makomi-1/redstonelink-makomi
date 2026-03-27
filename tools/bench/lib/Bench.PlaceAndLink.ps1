@@ -153,6 +153,7 @@ function Build-LinkCommands {
 	$orderedTargetSerials = @(Get-OrderedSerialListFromPositionMap -Map $TargetSerialMap)
 	foreach ($rule in $linkRules) {
 		$groupName = [string]$rule.sourceGroup
+		$targetSerialFormat = [string](Get-OptionalProperty -Object $rule -Name "targetSerialFormat" -DefaultValue "slash_list")
 		$sourceSerials = @(Get-OrderedSerialListFromPositionMap -Map $SourceSerialMaps[$groupName])
 		if ($sourceSerials.Count -eq 0) {
 			continue
@@ -163,7 +164,8 @@ function Build-LinkCommands {
 			if ($mappedTargets.Count -eq 0) {
 				continue
 			}
-			$command = "redstonelink link set triggerSource $sourceSerial $(Format-SerialInputText $mappedTargets)"
+			$targetSerialText = Format-SerialInputText -Serials $mappedTargets -Style $targetSerialFormat
+			$command = "redstonelink link set triggerSource $sourceSerial $targetSerialText"
 			if ($mappedTargets.Count -gt 1) {
 				$command += " confirm"
 			}
@@ -201,6 +203,62 @@ function Test-CaseUsesDriveInput {
 		}
 	}
 	return $false
+}
+
+function Test-CaseUsesOnlyDriveInput {
+	param($CaseConfig)
+	$steps = @($CaseConfig.drive.steps)
+	if ($steps.Count -le 0) {
+		return $false
+	}
+	foreach ($step in $steps) {
+		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		if ($kind -ne "input_square" -and $kind -ne "input_custom") {
+			return $false
+		}
+	}
+	return $true
+}
+
+function Get-CaseDriveTotalTicks {
+	param(
+		$CaseConfig,
+		$Matrix
+	)
+	$drive = Get-OptionalProperty -Object $CaseConfig -Name "drive"
+	$configuredTotalTicks = [int](Get-OptionalProperty -Object $drive -Name "totalTicks" -DefaultValue 0)
+	$performanceWindow = Get-OptionalProperty -Object (Get-OptionalProperty -Object $Matrix -Name "defaults") -Name "performanceWindow"
+	$windowTotalTicks = [int](Get-OptionalProperty -Object $performanceWindow -Name "totalTicks" -DefaultValue 0)
+	if ($windowTotalTicks -gt 0) {
+		return $windowTotalTicks
+	}
+	return $configuredTotalTicks
+}
+
+function Get-CasePerformanceWindow {
+	param(
+		$CaseConfig,
+		$Matrix
+	)
+	$performanceWindow = Get-OptionalProperty -Object (Get-OptionalProperty -Object $Matrix -Name "defaults") -Name "performanceWindow"
+	if ($null -eq $performanceWindow) {
+		return $null
+	}
+	$totalTicks = Get-CaseDriveTotalTicks -CaseConfig $CaseConfig -Matrix $Matrix
+	$warmupTicks = [int](Get-OptionalProperty -Object $performanceWindow -Name "warmupTicks" -DefaultValue 0)
+	$measureTicks = [int](Get-OptionalProperty -Object $performanceWindow -Name "measureTicks" -DefaultValue 0)
+	if ($totalTicks -le 0 -or $measureTicks -le 0) {
+		throw "performanceWindow requires totalTicks > 0 and measureTicks > 0."
+	}
+	if (($warmupTicks + $measureTicks) -gt $totalTicks) {
+		throw "performanceWindow exceeds totalTicks. warmup=$warmupTicks measure=$measureTicks total=$totalTicks"
+	}
+	return [ordered]@{
+		totalTicks = $totalTicks
+		warmupTicks = $warmupTicks
+		measureTicks = $measureTicks
+		cooldownTicks = ($totalTicks - $warmupTicks - $measureTicks)
+	}
 }
 
 function Resolve-DriveInputEndpointCommandPath {
@@ -244,7 +302,8 @@ function Start-DriveInputStep {
 		$Step,
 		$CaseConfig,
 		[hashtable]$SourceSerialMaps,
-		[hashtable]$TargetSerialMap
+		[hashtable]$TargetSerialMap,
+		[int]$TotalTicksOverride = 0
 	)
 	$serials = @(Resolve-DriveStepSerials -Step $Step -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
 	if ($serials.Count -le 0) {
@@ -254,7 +313,11 @@ function Start-DriveInputStep {
 	$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
 	$endpoint = [string](Get-OptionalProperty -Object $Step -Name "endpoint" -DefaultValue "triggerSource")
 	$endpointPath = Resolve-DriveInputEndpointCommandPath -Endpoint $endpoint
-	$totalTicks = [int](Get-OptionalProperty -Object $Step -Name "totalTicks" -DefaultValue ([int]$CaseConfig.drive.totalTicks))
+	$totalTicks = if ($TotalTicksOverride -gt 0) {
+		[int]$TotalTicksOverride
+	} else {
+		[int](Get-OptionalProperty -Object $Step -Name "totalTicks" -DefaultValue ([int]$CaseConfig.drive.totalTicks))
+	}
 	switch ([string]$Step.kind) {
 		"input_square" {
 			$periodTicks = [int](Get-OptionalProperty -Object $Step -Name "periodTicks" -DefaultValue 0)
@@ -350,9 +413,10 @@ function Invoke-DriveSchedule {
 		[hashtable]$SourcePositionGroups,
 		[hashtable]$SourceSerialMaps,
 		[hashtable]$TargetSerialMap,
-		[int]$TickMillis
+		[int]$TickMillis,
+		[int]$TotalTicksOverride = 0
 	)
-	$totalTicks = [int]$CaseConfig.drive.totalTicks
+	$totalTicks = if ($TotalTicksOverride -gt 0) { [int]$TotalTicksOverride } else { [int]$CaseConfig.drive.totalTicks }
 	$stepStates = @{}
 	$startedInputCommands = New-Object System.Collections.Generic.List[object]
 	for ($tick = 0; $tick -lt $totalTicks; $tick++) {
@@ -366,7 +430,8 @@ function Invoke-DriveSchedule {
 							-Step $step `
 							-CaseConfig $CaseConfig `
 							-SourceSerialMaps $SourceSerialMaps `
-							-TargetSerialMap $TargetSerialMap
+							-TargetSerialMap $TargetSerialMap `
+							-TotalTicksOverride $totalTicks
 						if ($null -ne $commandResult) {
 							$startedInputCommands.Add($commandResult)
 						}
@@ -380,7 +445,8 @@ function Invoke-DriveSchedule {
 							-Step $step `
 							-CaseConfig $CaseConfig `
 							-SourceSerialMaps $SourceSerialMaps `
-							-TargetSerialMap $TargetSerialMap
+							-TargetSerialMap $TargetSerialMap `
+							-TotalTicksOverride $totalTicks
 						if ($null -ne $commandResult) {
 							$startedInputCommands.Add($commandResult)
 						}
@@ -440,6 +506,39 @@ function Invoke-DriveSchedule {
 	}
 	return [ordered]@{
 		totalTicks = $totalTicks
+		usedInputDrive = ($startedInputCommands.Count -gt 0)
+		inputCommands = @($startedInputCommands.ToArray())
+	}
+}
+
+function Invoke-InputDriveSchedule {
+	param(
+		$Connection,
+		$CaseConfig,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap,
+		[int]$TotalTicks
+	)
+	$normalizedTotalTicks = [Math]::Max(1, [int]$TotalTicks)
+	$startedInputCommands = New-Object System.Collections.Generic.List[object]
+	foreach ($step in @($CaseConfig.drive.steps)) {
+		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		if ($kind -ne "input_square" -and $kind -ne "input_custom") {
+			throw "Invoke-InputDriveSchedule only supports input_square/input_custom steps. kind=$kind"
+		}
+		$commandResult = Start-DriveInputStep `
+			-Connection $Connection `
+			-Step $step `
+			-CaseConfig $CaseConfig `
+			-SourceSerialMaps $SourceSerialMaps `
+			-TargetSerialMap $TargetSerialMap `
+			-TotalTicksOverride $normalizedTotalTicks
+		if ($null -ne $commandResult) {
+			$startedInputCommands.Add($commandResult)
+		}
+	}
+	return [ordered]@{
+		totalTicks = $normalizedTotalTicks
 		usedInputDrive = ($startedInputCommands.Count -gt 0)
 		inputCommands = @($startedInputCommands.ToArray())
 	}

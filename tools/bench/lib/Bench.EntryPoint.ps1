@@ -89,28 +89,72 @@ switch ($Action) {
 			$driveExecution = $null
 			$inputCleanup = $null
 			$caseUsesInputDrive = Test-CaseUsesDriveInput -CaseConfig $caseConfig
-			$sparkStart = Start-SparkCapture `
-				-Connection $connection `
-				-SparkDefaults $matrix.defaults.spark `
-				-CaseName $caseConfig.id `
-				-WorldPath $SavePath
+			$caseUsesOnlyInputDrive = Test-CaseUsesOnlyDriveInput -CaseConfig $caseConfig
+			$performanceWindow = Get-CasePerformanceWindow -CaseConfig $caseConfig -Matrix $matrix
+			$sparkStart = $null
 			$sparkStop = $null
+			$performanceWindowWaits = $null
 			try {
-				$driveExecution = Invoke-DriveSchedule `
-					-Connection $connection `
-					-CaseConfig $caseConfig `
-					-SourcePositionGroups $sourcePositionGroups `
-					-SourceSerialMaps $sourceSerialMaps `
-					-TargetSerialMap $targetSerialMap `
-					-TickMillis ([int]$matrix.defaults.tickMillis)
-			}
-			finally {
-				try {
-					$sparkStop = Stop-SparkCapture `
+				if (($null -ne $performanceWindow) -and $caseUsesOnlyInputDrive) {
+					$driveExecution = Invoke-InputDriveSchedule `
+						-Connection $connection `
+						-CaseConfig $caseConfig `
+						-SourceSerialMaps $sourceSerialMaps `
+						-TargetSerialMap $targetSerialMap `
+						-TotalTicks ([int]$performanceWindow.totalTicks)
+
+					$warmupWait = $null
+					$measureWait = $null
+					$cooldownWait = $null
+					if ([int]$performanceWindow.warmupTicks -gt 0) {
+						$warmupWait = Wait-ServerTicks -Connection $connection -Ticks ([int]$performanceWindow.warmupTicks)
+					}
+					$sparkStart = Start-SparkCapture `
 						-Connection $connection `
 						-SparkDefaults $matrix.defaults.spark `
 						-CaseName $caseConfig.id `
-						-ActivityPath ([string](Get-OptionalProperty -Object $sparkStart -Name "activityPath" -DefaultValue ""))
+						-WorldPath $SavePath
+					if ([int]$performanceWindow.measureTicks -gt 0) {
+						$measureWait = Wait-ServerTicks -Connection $connection -Ticks ([int]$performanceWindow.measureTicks)
+					}
+					if ([int]$performanceWindow.cooldownTicks -gt 0) {
+						$cooldownWait = Wait-ServerTicks -Connection $connection -Ticks ([int]$performanceWindow.cooldownTicks)
+					}
+					$performanceWindowWaits = [ordered]@{
+						warmup = $warmupWait
+						measure = $measureWait
+						cooldown = $cooldownWait
+					}
+					$driveExecution["performanceWindow"] = $performanceWindow
+					$driveExecution["performanceWindowWaits"] = $performanceWindowWaits
+				} else {
+					$sparkStart = Start-SparkCapture `
+						-Connection $connection `
+						-SparkDefaults $matrix.defaults.spark `
+						-CaseName $caseConfig.id `
+						-WorldPath $SavePath
+					$driveExecution = Invoke-DriveSchedule `
+						-Connection $connection `
+						-CaseConfig $caseConfig `
+						-SourcePositionGroups $sourcePositionGroups `
+						-SourceSerialMaps $sourceSerialMaps `
+						-TargetSerialMap $targetSerialMap `
+						-TickMillis ([int]$matrix.defaults.tickMillis) `
+						-TotalTicksOverride (Get-CaseDriveTotalTicks -CaseConfig $caseConfig -Matrix $matrix)
+					if ($null -ne $performanceWindow) {
+						$driveExecution["performanceWindow"] = $performanceWindow
+					}
+				}
+			}
+			finally {
+				try {
+					if ($null -ne $sparkStart) {
+						$sparkStop = Stop-SparkCapture `
+							-Connection $connection `
+							-SparkDefaults $matrix.defaults.spark `
+							-CaseName $caseConfig.id `
+							-ActivityPath ([string](Get-OptionalProperty -Object $sparkStart -Name "activityPath" -DefaultValue ""))
+					}
 				}
 				finally {
 					if ($caseUsesInputDrive) {
@@ -130,6 +174,7 @@ switch ($Action) {
 				spark = [ordered]@{
 					start = $sparkStart
 					stop = $sparkStop
+					performanceWindow = $performanceWindow
 				}
 				playerContext = $playerContextExecution
 				observationTeleport = $observationTeleport

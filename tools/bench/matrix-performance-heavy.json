@@ -12,7 +12,7 @@
       "rl_bench:prepare/common",
       "rl_bench:reset/common"
     ],
-    "resultsDir": "run/profiles/bench-results-baseline-256",
+    "resultsDir": "run/profiles/bench-results-performance-heavy",
     "spark": {
       "startCpu": "spark profiler start",
       "stopCpu": "spark profiler stop --comment {case_id}",
@@ -23,7 +23,11 @@
     "templates/performance/drive.json"
   ],
   "casePaths": [
-    "cases/performance/p10/sync_256_to_256_core_banded16.json",
-    "cases/performance/p11/mixed_256_to_256_core_banded16.json"
+    "cases/performance/p12/sync_1_to_1024_core_dense.json",
+    "cases/performance/p13/toggle_1_to_1024_core_dense.json",
+    "cases/performance/p14/pulse_1_to_1024_core_dense.json",
+    "cases/performance/p15/sync_256_to_1_core_dense.json",
+    "cases/performance/p16/toggle_256_to_1_core_dense.json",
+    "cases/performance/p17/pulse_256_to_1_core_dense.json"
   ]
 }

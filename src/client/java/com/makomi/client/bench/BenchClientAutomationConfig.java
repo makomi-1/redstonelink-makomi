@@ -22,18 +22,30 @@ public record BenchClientAutomationConfig(
 	String serverHost,
 	int serverPort,
 	int initialConnectDelayMs,
-	int reconnectIntervalMs
+	int reconnectIntervalMs,
+	boolean openTickChart,
+	int postJoinActionDelayMs
 ) {
 	public static final String CONFIG_FILE_NAME = "redstonelink-bench-client.properties";
 	private static final int DEFAULT_SERVER_PORT = 25565;
-	private static final int DEFAULT_INITIAL_CONNECT_DELAY_MS = 2000;
-	private static final int DEFAULT_RECONNECT_INTERVAL_MS = 5000;
+	private static final int DEFAULT_INITIAL_CONNECT_DELAY_MS = 0;
+	private static final int DEFAULT_RECONNECT_INTERVAL_MS = 1000;
+	private static final int DEFAULT_POST_JOIN_ACTION_DELAY_MS = 1000;
 
 	/**
 	 * 创建关闭状态的默认配置。
 	 */
 	public static BenchClientAutomationConfig disabled() {
-		return new BenchClientAutomationConfig(false, "", "", DEFAULT_SERVER_PORT, DEFAULT_INITIAL_CONNECT_DELAY_MS, DEFAULT_RECONNECT_INTERVAL_MS);
+		return new BenchClientAutomationConfig(
+			false,
+			"",
+			"",
+			DEFAULT_SERVER_PORT,
+			DEFAULT_INITIAL_CONNECT_DELAY_MS,
+			DEFAULT_RECONNECT_INTERVAL_MS,
+			false,
+			DEFAULT_POST_JOIN_ACTION_DELAY_MS
+		);
 	}
 
 	/**
@@ -59,6 +71,8 @@ public record BenchClientAutomationConfig(
 		int serverPort = parseInt(properties, "server.port", DEFAULT_SERVER_PORT);
 		int initialConnectDelayMs = Math.max(0, parseInt(properties, "initial.connect.delay.ms", DEFAULT_INITIAL_CONNECT_DELAY_MS));
 		int reconnectIntervalMs = Math.max(250, parseInt(properties, "reconnect.interval.ms", DEFAULT_RECONNECT_INTERVAL_MS));
+		boolean openTickChart = Boolean.parseBoolean(readTrimmed(properties, "open.tick.chart", "false"));
+		int postJoinActionDelayMs = Math.max(0, parseInt(properties, "post.join.action.delay.ms", DEFAULT_POST_JOIN_ACTION_DELAY_MS));
 
 		if (!enabled) {
 			return disabled();
@@ -68,7 +82,16 @@ public record BenchClientAutomationConfig(
 			return disabled();
 		}
 
-		return new BenchClientAutomationConfig(true, playerName, serverHost, serverPort, initialConnectDelayMs, reconnectIntervalMs);
+		return new BenchClientAutomationConfig(
+			true,
+			playerName,
+			serverHost,
+			serverPort,
+			initialConnectDelayMs,
+			reconnectIntervalMs,
+			openTickChart,
+			postJoinActionDelayMs
+		);
 	}
 
 	/**

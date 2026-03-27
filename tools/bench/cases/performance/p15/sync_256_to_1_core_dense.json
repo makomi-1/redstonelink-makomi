@@ -1,0 +1,45 @@
+{
+  "id": "sync_256_to_1_core_dense",
+  "description": "256 个 sync triggerSource 汇聚到单个 core block，作为 256->1 重压基线。",
+  "layer": "P",
+  "scenarioId": "P15",
+  "arena": {
+    "clearFrom": [-8, 63, -8],
+    "clearTo": [32, 66, 24]
+  },
+  "targets": {
+    "id": "core_p15_single",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [24, 64, 8],
+      "to": [24, 64, 8]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p15_main",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 0],
+        "to": [15, 64, 15]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p15_main",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "drive": {
+    "totalTicks": 240,
+    "steps": [
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "sync_p15_main"
+      }
+    ]
+  }
+}
