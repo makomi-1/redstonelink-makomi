@@ -8,6 +8,7 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import java.util.Locale;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -33,6 +34,8 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class PlaceCommandRegistry {
 	private static final int PLACE_BLOCK_FLAGS = 2;
+	private static final String BENCH_PLACE_ORDER = "yzx";
+	private static final String BENCH_PLACE_SUMMARY_PREFIX = "[RedstoneLink/Bench] place_summary";
 
 	private PlaceCommandRegistry() {
 	}
@@ -53,7 +56,12 @@ public final class PlaceCommandRegistry {
 								.argument("block", BlockStateArgument.block(registryAccess))
 								.executes(PlaceCommandRegistry::executePlaceSetBlock)
 								.then(Commands.literal("dry_run").executes(PlaceCommandRegistry::executePlaceSetBlockDryRun))
-								.then(Commands.literal("force").executes(PlaceCommandRegistry::executePlaceSetBlockForce))
+								.then(
+									Commands
+										.literal("force")
+										.executes(PlaceCommandRegistry::executePlaceSetBlockForce)
+										.then(Commands.literal("bench").executes(PlaceCommandRegistry::executePlaceSetBlockForceBench))
+								)
 						)
 					)
 			)
@@ -66,8 +74,18 @@ public final class PlaceCommandRegistry {
 								Commands
 									.argument("block", BlockStateArgument.block(registryAccess))
 									.executes(PlaceCommandRegistry::executePlaceFill)
-									.then(Commands.literal("force").executes(PlaceCommandRegistry::executePlaceFillForce))
-									.then(Commands.literal("confirm").executes(PlaceCommandRegistry::executePlaceFillConfirm))
+									.then(
+										Commands
+											.literal("force")
+											.executes(PlaceCommandRegistry::executePlaceFillForce)
+											.then(Commands.literal("bench").executes(PlaceCommandRegistry::executePlaceFillForceBench))
+									)
+									.then(
+										Commands
+											.literal("confirm")
+											.executes(PlaceCommandRegistry::executePlaceFillConfirm)
+											.then(Commands.literal("bench").executes(PlaceCommandRegistry::executePlaceFillConfirmBench))
+									)
 							)
 						)
 					)
@@ -78,21 +96,28 @@ public final class PlaceCommandRegistry {
 	 * 自定义 setblock：放置可配对节点。
 	 */
 	private static int executePlaceSetBlock(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-		return executePlaceSetBlockInternal(context, false, false);
+		return executePlaceSetBlockInternal(context, false, false, false);
 	}
 
 	/**
 	 * 自定义 setblock 预检：仅输出影响，不执行放置。
 	 */
 	private static int executePlaceSetBlockDryRun(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-		return executePlaceSetBlockInternal(context, true, false);
+		return executePlaceSetBlockInternal(context, true, false, false);
 	}
 
 	/**
 	 * 自定义 setblock 强制执行：跳过确认直接放置。
 	 */
 	private static int executePlaceSetBlockForce(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-		return executePlaceSetBlockInternal(context, false, true);
+		return executePlaceSetBlockInternal(context, false, true, false);
+	}
+
+	/**
+	 * bench 专用 setblock 强制执行：返回机器可解析的放置摘要。
+	 */
+	private static int executePlaceSetBlockForceBench(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceSetBlockInternal(context, false, true, true);
 	}
 
 	/**
@@ -101,7 +126,8 @@ public final class PlaceCommandRegistry {
 	private static int executePlaceSetBlockInternal(
 		CommandContext<CommandSourceStack> context,
 		boolean dryRun,
-		boolean force
+		boolean force,
+		boolean benchSummary
 	) throws CommandSyntaxException {
 		CommandSourceStack source = context.getSource();
 		if (!CommandTreeSupport.allowPlayerSourceOrBenchmarkMode(source)) {
@@ -132,28 +158,42 @@ public final class PlaceCommandRegistry {
 		if (!force) {
 			// setblock 仍保留 force 子命令形态，但当前逻辑统一直接执行。
 		}
-		return executePlacementNow(source, level, pendingPlacement);
+		return executePlacementNow(source, level, pendingPlacement, benchSummary);
 	}
 
 	/**
 	 * 自定义 fill：批量放置可配对节点，非 force 执行要求 confirm。
 	 */
 	private static int executePlaceFill(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-		return executePlaceFillInternal(context, false, false);
+		return executePlaceFillInternal(context, false, false, false);
 	}
 
 	/**
 	 * 自定义 fill 强制执行：跳过 confirm 拦截直接放置。
 	 */
 	private static int executePlaceFillForce(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-		return executePlaceFillInternal(context, true, false);
+		return executePlaceFillInternal(context, true, false, false);
+	}
+
+	/**
+	 * bench 专用 fill 强制执行：返回机器可解析的放置摘要。
+	 */
+	private static int executePlaceFillForceBench(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceFillInternal(context, true, false, true);
 	}
 
 	/**
 	 * 自定义 fill 二次确认执行：在原命令末尾追加 confirm 后执行。
 	 */
 	private static int executePlaceFillConfirm(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-		return executePlaceFillInternal(context, false, true);
+		return executePlaceFillInternal(context, false, true, false);
+	}
+
+	/**
+	 * bench 专用 fill confirm 执行：返回机器可解析的放置摘要。
+	 */
+	private static int executePlaceFillConfirmBench(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+		return executePlaceFillInternal(context, false, true, true);
 	}
 
 	/**
@@ -162,7 +202,8 @@ public final class PlaceCommandRegistry {
 	private static int executePlaceFillInternal(
 		CommandContext<CommandSourceStack> context,
 		boolean force,
-		boolean confirmed
+		boolean confirmed,
+		boolean benchSummary
 	) throws CommandSyntaxException {
 		CommandSourceStack source = context.getSource();
 		if (!CommandTreeSupport.allowPlayerSourceOrBenchmarkMode(source)) {
@@ -212,27 +253,46 @@ public final class PlaceCommandRegistry {
 			max,
 			input
 		);
-		return executePlacementNow(source, level, pendingPlacement);
+		return executePlacementNow(source, level, pendingPlacement, benchSummary);
 	}
 
 	/**
 	 * 实际执行放置并在命令路径内补齐缺失序号。
 	 */
-	private static int executePlacementNow(CommandSourceStack source, ServerLevel level, PendingPlacement pending) {
+	private static int executePlacementNow(
+		CommandSourceStack source,
+		ServerLevel level,
+		PendingPlacement pending,
+		boolean benchSummary
+	) {
 		if (!pending.dimension().equals(level.dimension())) {
 			source.sendFailure(Component.translatable("message.redstonelink.place.dimension_mismatch"));
 			return 0;
 		}
 
+		PairableNodeBlockEntity sampleNode = createPairableNodeSample(pending.blockInput(), pending.from());
+		String nodeTypeName = sampleNode == null
+			? "unknown"
+			: CommandTreeSupport.typeCommandName(sampleNode.getLinkNodeType());
 		int changedCount = 0;
+		long firstSerial = 0L;
+		long lastSerial = 0L;
 		if (pending.mode() == PlacementMode.SETBLOCK) {
-			if (placeOne(level, pending.blockInput(), pending.from())) {
+			long assignedSerial = placeOne(level, pending.blockInput(), pending.from());
+			if (assignedSerial > 0L) {
 				changedCount = 1;
+				firstSerial = assignedSerial;
+				lastSerial = assignedSerial;
 			}
 		} else {
 			for (BlockPos pos : BlockPos.betweenClosed(pending.from(), pending.to())) {
-				if (placeOne(level, pending.blockInput(), pos.immutable())) {
+				long assignedSerial = placeOne(level, pending.blockInput(), pos.immutable());
+				if (assignedSerial > 0L) {
+					if (changedCount == 0) {
+						firstSerial = assignedSerial;
+					}
 					changedCount++;
+					lastSerial = assignedSerial;
 				}
 			}
 		}
@@ -241,55 +301,86 @@ public final class PlaceCommandRegistry {
 			source.sendFailure(Component.translatable("message.redstonelink.place.no_block_changed"));
 			return 0;
 		}
-		final int updatedCount = changedCount;
-		source.sendSuccess(() -> Component.translatable("message.redstonelink.place.done", updatedCount), true);
+		PlacementExecutionSummary summary = new PlacementExecutionSummary(nodeTypeName, changedCount, firstSerial, lastSerial);
+		if (benchSummary) {
+			// bench 摘要需要稳定返回给 RCON；这里显式允许管理员广播，避免 execute as 玩家时出现空响应。
+			source.sendSuccess(() -> Component.literal(buildBenchPlacementSummary(summary)), true);
+		} else {
+			final int updatedCount = changedCount;
+			source.sendSuccess(() -> Component.translatable("message.redstonelink.place.done", updatedCount), true);
+		}
 		return Command.SINGLE_SUCCESS;
 	}
 
 	/**
 	 * 执行单点放置并补齐序号。
 	 */
-	private static boolean placeOne(ServerLevel level, BlockInput blockInput, BlockPos pos) {
+	private static long placeOne(ServerLevel level, BlockInput blockInput, BlockPos pos) {
 		boolean changed = blockInput.place(level, pos, PLACE_BLOCK_FLAGS);
 		if (!changed) {
-			return false;
+			return 0L;
 		}
-		initializeSerialForPlacedNode(level, pos);
-		return true;
+		return initializeSerialForPlacedNode(level, pos);
 	}
 
 	/**
 	 * 命令放置路径下，为缺失序号的节点补齐序号。
 	 */
-	private static void initializeSerialForPlacedNode(ServerLevel level, BlockPos pos) {
+	private static long initializeSerialForPlacedNode(ServerLevel level, BlockPos pos) {
 		if (!(level.getBlockEntity(pos) instanceof PairableNodeBlockEntity nodeBlockEntity)) {
-			return;
+			return 0L;
 		}
 		if (nodeBlockEntity.getSerial() > 0L) {
-			return;
+			return nodeBlockEntity.getSerial();
 		}
 		long serial = LinkSavedData.get(level)
 			.resolvePlacementSerial(nodeBlockEntity.getLinkNodeType(), 0L, level.dimension(), pos);
 		if (serial > 0L) {
 			nodeBlockEntity.setLinkData(serial);
 		}
+		return nodeBlockEntity.getSerial();
 	}
 
 	/**
 	 * place 命令仅接受可配对节点方块。
 	 */
 	private static boolean validatePairablePlacementInput(CommandSourceStack source, BlockInput blockInput, BlockPos samplePos) {
-		BlockState state = blockInput.getState();
-		if (!(state.getBlock() instanceof EntityBlock entityBlock)) {
-			source.sendFailure(Component.translatable("message.redstonelink.place.only_pairable_node"));
-			return false;
-		}
-		BlockEntity blockEntity = entityBlock.newBlockEntity(samplePos, state);
-		if (!(blockEntity instanceof PairableNodeBlockEntity)) {
+		if (createPairableNodeSample(blockInput, samplePos) == null) {
 			source.sendFailure(Component.translatable("message.redstonelink.place.only_pairable_node"));
 			return false;
 		}
 		return true;
+	}
+
+	/**
+	 * 创建命令放置的示例节点实体，用于读取节点类型与合法性。
+	 */
+	private static PairableNodeBlockEntity createPairableNodeSample(BlockInput blockInput, BlockPos samplePos) {
+		BlockState state = blockInput.getState();
+		if (!(state.getBlock() instanceof EntityBlock entityBlock)) {
+			return null;
+		}
+		BlockEntity blockEntity = entityBlock.newBlockEntity(samplePos, state);
+		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
+			return null;
+		}
+		return pairableNodeBlockEntity;
+	}
+
+	/**
+	 * 生成 bench 可解析的放置摘要。
+	 */
+	private static String buildBenchPlacementSummary(PlacementExecutionSummary summary) {
+		return String.format(
+			Locale.ROOT,
+			"%s type=%s order=%s count=%d startSerial=%d endSerial=%d",
+			BENCH_PLACE_SUMMARY_PREFIX,
+			summary.nodeTypeName(),
+			BENCH_PLACE_ORDER,
+			summary.changedCount(),
+			summary.firstSerial(),
+			summary.lastSerial()
+		);
 	}
 
 	/**
@@ -353,5 +444,12 @@ public final class PlaceCommandRegistry {
 		BlockPos from,
 		BlockPos to,
 		BlockInput blockInput
+	) {}
+
+	private record PlacementExecutionSummary(
+		String nodeTypeName,
+		int changedCount,
+		long firstSerial,
+		long lastSerial
 	) {}
 }

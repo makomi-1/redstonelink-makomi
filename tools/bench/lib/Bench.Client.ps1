@@ -4,6 +4,7 @@ bench 模块：外部客户端实例自动启动、bench 配置写入与进程�
 #>
 
 $script:BenchClientWindowInteropInitialized = $false
+$script:BenchClientLauncherAutoJoinMinInitialDelayMs = 5000
 
 function Assert-BenchClientIdentityCompatible {
 	param(
@@ -700,6 +701,29 @@ function Focus-BenchClientWindow {
 	}
 }
 
+function Test-BenchClientStartCommandUsesLauncherAutoJoin {
+	param(
+		[string]$Command
+	)
+	$normalizedCommand = ([string]$Command).Trim()
+	if ([string]::IsNullOrWhiteSpace($normalizedCommand)) {
+		return $false
+	}
+	return ([System.Text.RegularExpressions.Regex]::IsMatch($normalizedCommand, '(?i)(^|\s)--server(?:(\s+)|=)'))
+}
+
+function Get-BenchClientEffectiveInitialConnectDelayMs {
+	param(
+		[int]$ConfiguredInitialConnectDelayMs,
+		[bool]$LauncherAutoJoinDetected
+	)
+	$normalizedInitialConnectDelayMs = [Math]::Max(0, [int]$ConfiguredInitialConnectDelayMs)
+	if (-not $LauncherAutoJoinDetected) {
+		return $normalizedInitialConnectDelayMs
+	}
+	return ([Math]::Max($normalizedInitialConnectDelayMs, [int]$script:BenchClientLauncherAutoJoinMinInitialDelayMs))
+}
+
 function Start-BenchClientAutomationSession {
 	param(
 		[string]$RepoRootPath,
@@ -723,6 +747,10 @@ function Start-BenchClientAutomationSession {
 	$modsDirectoryPath = Resolve-BenchClientModsDirectoryPath -BenchClientInstanceRootPath $instanceRootPath
 	$configFilePath = Get-BenchClientConfigFilePath -BenchClientInstanceRootPath $instanceRootPath
 	$matchPaths = Get-BenchClientMatchPaths -InstanceRootPath $instanceRootPath -WorkingDirectoryPath $workingDirectoryPath
+	$launcherAutoJoinDetected = Test-BenchClientStartCommandUsesLauncherAutoJoin -Command $script:BenchClientStartCommand
+	$effectiveInitialConnectDelayMs = Get-BenchClientEffectiveInitialConnectDelayMs `
+		-ConfiguredInitialConnectDelayMs ([int]$script:BenchClientInitialConnectDelayMs) `
+		-LauncherAutoJoinDetected ([bool]$launcherAutoJoinDetected)
 	$modSyncSummary = $null
 	$gradleWrapperFilePath = if ([string]::IsNullOrWhiteSpace($script:BenchGradleWrapperPath)) {
 		""
@@ -762,7 +790,9 @@ function Start-BenchClientAutomationSession {
 			playerName = $script:BenchClientPlayerName
 			serverHost = $script:BenchClientGameHost
 			serverPort = $script:BenchClientGamePort
-			initialConnectDelayMs = $script:BenchClientInitialConnectDelayMs
+			initialConnectDelayMs = $effectiveInitialConnectDelayMs
+			configuredInitialConnectDelayMs = [int]$script:BenchClientInitialConnectDelayMs
+			launcherAutoJoinDetected = [bool]$launcherAutoJoinDetected
 			reconnectIntervalMs = $script:BenchClientReconnectIntervalMs
 			openTickCharts = [bool]$script:BenchClientOpenTickCharts
 			postJoinActionDelayMs = [int]$script:BenchClientPostJoinActionDelayMs
@@ -773,12 +803,16 @@ function Start-BenchClientAutomationSession {
 		}
 	}
 
+	if ([bool]$launcherAutoJoinDetected -and ($effectiveInitialConnectDelayMs -gt [int]$script:BenchClientInitialConnectDelayMs)) {
+		Write-Host "[Bench] Detected launcher auto-join via --server; raised bench client initial connect delay to ${effectiveInitialConnectDelayMs}ms."
+	}
+
 	Write-BenchClientAutomationConfigFile `
 		-ConfigFilePath $configFilePath `
 		-PlayerName $script:BenchClientPlayerName `
 		-ServerHost $script:BenchClientGameHost `
 		-ServerPort $script:BenchClientGamePort `
-		-InitialConnectDelayMs $script:BenchClientInitialConnectDelayMs `
+		-InitialConnectDelayMs $effectiveInitialConnectDelayMs `
 		-ReconnectIntervalMs $script:BenchClientReconnectIntervalMs `
 		-OpenTickCharts ([bool]$script:BenchClientOpenTickCharts) `
 		-PostJoinActionDelayMs ([int]$script:BenchClientPostJoinActionDelayMs)
@@ -794,7 +828,7 @@ function Start-BenchClientAutomationSession {
 			-WorkingDirectoryPath $workingDirectoryPath
 		$focusResult = Focus-BenchClientWindow -ProcessId ([int]$trackedSession.trackedProcessId) -TimeoutMs ([int]$script:BenchClientFocusTimeoutMs)
 
-		Write-Host "[Bench] Started bench client trackedPid=$($trackedSession.trackedProcessId) kind=$($trackedSession.trackedProcessKind) player=$($script:BenchClientPlayerName)"
+		Write-Host "[Bench] Started bench client trackedPid=$($trackedSession.trackedProcessId) kind=$($trackedSession.trackedProcessKind) player=$($script:BenchClientPlayerName) initialConnectDelayMs=$effectiveInitialConnectDelayMs launcherAutoJoin=$([bool]$launcherAutoJoinDetected)"
 		if ($null -ne $focusResult) {
 			Write-Host "[Bench] Bench client focus result: focused=$($focusResult.focused) reason=$($focusResult.reason) pid=$($focusResult.processId)"
 		}
@@ -816,7 +850,9 @@ function Start-BenchClientAutomationSession {
 			playerName = $script:BenchClientPlayerName
 			serverHost = $script:BenchClientGameHost
 			serverPort = $script:BenchClientGamePort
-			initialConnectDelayMs = $script:BenchClientInitialConnectDelayMs
+			initialConnectDelayMs = $effectiveInitialConnectDelayMs
+			configuredInitialConnectDelayMs = [int]$script:BenchClientInitialConnectDelayMs
+			launcherAutoJoinDetected = [bool]$launcherAutoJoinDetected
 			reconnectIntervalMs = $script:BenchClientReconnectIntervalMs
 			openTickCharts = [bool]$script:BenchClientOpenTickCharts
 			postJoinActionDelayMs = [int]$script:BenchClientPostJoinActionDelayMs

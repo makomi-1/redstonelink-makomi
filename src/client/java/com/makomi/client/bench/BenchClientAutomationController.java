@@ -6,6 +6,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.DebugScreenOverlay;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.DisconnectedScreen;
+import net.minecraft.client.gui.screens.LevelLoadingScreen;
+import net.minecraft.client.gui.screens.ProgressScreen;
+import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
@@ -24,10 +27,13 @@ import net.minecraft.client.multiplayer.resolver.ServerAddress;
  * </ul>
  */
 public final class BenchClientAutomationController {
+	private static final long CONNECT_ATTEMPT_STALL_TIMEOUT_MS = 30_000L;
 	private static BenchClientAutomationConfig config = BenchClientAutomationConfig.disabled();
 	private static long nextConnectAttemptAtMs = Long.MAX_VALUE;
 	private static long lastConnectAttemptAtMs = Long.MIN_VALUE;
+	private static long connectAttemptStartedAtMs = Long.MIN_VALUE;
 	private static boolean wasInWorldLastTick = false;
+	private static boolean connectAttemptInProgress = false;
 	private static boolean postJoinActionsApplied = false;
 	private static long postJoinActionReadyAtMs = Long.MAX_VALUE;
 
@@ -45,14 +51,17 @@ public final class BenchClientAutomationController {
 
 		nextConnectAttemptAtMs = System.currentTimeMillis() + config.initialConnectDelayMs();
 		lastConnectAttemptAtMs = Long.MIN_VALUE;
+		connectAttemptStartedAtMs = Long.MIN_VALUE;
 		wasInWorldLastTick = false;
+		connectAttemptInProgress = false;
 		postJoinActionsApplied = false;
 		postJoinActionReadyAtMs = Long.MAX_VALUE;
 		ClientTickEvents.END_CLIENT_TICK.register(BenchClientAutomationController::onClientTick);
 		RedstoneLink.LOGGER.info(
-			"Bench client automation enabled. player={} server={} reconnectIntervalMs={} openTickChart={}",
+			"Bench client automation enabled. player={} server={} initialConnectDelayMs={} reconnectIntervalMs={} openTickChart={}",
 			config.playerName(),
 			config.serverAddress(),
+			config.initialConnectDelayMs(),
 			config.reconnectIntervalMs(),
 			config.openTickChart()
 		);
@@ -67,6 +76,7 @@ public final class BenchClientAutomationController {
 		}
 		boolean inWorld = client.player != null && client.level != null;
 		if (inWorld) {
+			clearConnectAttemptState();
 			schedulePostJoinActionsIfNeeded();
 			dismissTransientStartupScreen(client);
 			runPostJoinActionsIfReady(client);
@@ -74,11 +84,12 @@ public final class BenchClientAutomationController {
 			return;
 		}
 		resetPostJoinActionsAfterLeaveIfNeeded();
-		if (client.screen instanceof ConnectScreen) {
+		long now = System.currentTimeMillis();
+		reconcileConnectAttemptState(client, now);
+		if (connectAttemptInProgress) {
 			return;
 		}
 
-		long now = System.currentTimeMillis();
 		if (now < nextConnectAttemptAtMs) {
 			return;
 		}
@@ -100,6 +111,8 @@ public final class BenchClientAutomationController {
 		serverData.setResourcePackStatus(ServerData.ServerPackStatus.ENABLED);
 		Screen parentScreen = buildParentScreen(client);
 		lastConnectAttemptAtMs = now;
+		connectAttemptStartedAtMs = now;
+		connectAttemptInProgress = true;
 		nextConnectAttemptAtMs = now + config.reconnectIntervalMs();
 
 		RedstoneLink.LOGGER.info(
@@ -118,6 +131,78 @@ public final class BenchClientAutomationController {
 		wasInWorldLastTick = false;
 		postJoinActionsApplied = false;
 		postJoinActionReadyAtMs = Long.MAX_VALUE;
+	}
+
+	/**
+	 * 统一维护“自动连接仍在进行中”状态，避免世界接收阶段再次发起同名连接。
+	 * <p>
+	 * 原版在进入世界前还会经历接收区块/加载关卡等过渡界面，这些阶段虽然
+	 * `player/level` 尚未就绪，但已经属于同一轮连接流程，不能再次 startConnecting。
+	 * </p>
+	 */
+	private static void reconcileConnectAttemptState(Minecraft client, long now) {
+		Screen currentScreen = client.screen;
+		if (isConnectionAttemptScreen(currentScreen)) {
+			adoptObservedConnectionAttemptIfNeeded(currentScreen, now);
+			return;
+		}
+		if (currentScreen instanceof DisconnectedScreen) {
+			clearConnectAttemptState();
+			return;
+		}
+		if (!connectAttemptInProgress) {
+			return;
+		}
+		if (connectAttemptStartedAtMs != Long.MIN_VALUE && (now - connectAttemptStartedAtMs) < CONNECT_ATTEMPT_STALL_TIMEOUT_MS) {
+			return;
+		}
+
+		RedstoneLink.LOGGER.warn(
+			"Bench client automation cleared stalled connect attempt. player={} server={} screen={}",
+			config.playerName(),
+			config.serverAddress(),
+			currentScreen == null ? "<null>" : currentScreen.getClass().getSimpleName()
+		);
+		clearConnectAttemptState();
+	}
+
+	/**
+	 * 收编外部启动器已经触发的连接流程，避免 bench 控制器再抢发一轮同名连接。
+	 */
+	private static void adoptObservedConnectionAttemptIfNeeded(Screen currentScreen, long now) {
+		if (connectAttemptInProgress) {
+			return;
+		}
+		connectAttemptInProgress = true;
+		connectAttemptStartedAtMs = now;
+		nextConnectAttemptAtMs = now + config.reconnectIntervalMs();
+		RedstoneLink.LOGGER.info(
+			"Bench client automation adopted existing connect flow. player={} server={} screen={}",
+			config.playerName(),
+			config.serverAddress(),
+			currentScreen.getClass().getSimpleName()
+		);
+	}
+
+	/**
+	 * 当前 screen 是否仍处于 bench 自动连接链路内部。
+	 */
+	private static boolean isConnectionAttemptScreen(Screen screen) {
+		if (screen == null) {
+			return false;
+		}
+		return screen instanceof ConnectScreen
+			|| screen instanceof ReceivingLevelScreen
+			|| screen instanceof LevelLoadingScreen
+			|| screen instanceof ProgressScreen;
+	}
+
+	/**
+	 * 清空连接中的运行态锁存。
+	 */
+	private static void clearConnectAttemptState() {
+		connectAttemptInProgress = false;
+		connectAttemptStartedAtMs = Long.MIN_VALUE;
 	}
 
 	private static void runPostJoinActionsIfReady(Minecraft client) {
@@ -188,6 +273,9 @@ public final class BenchClientAutomationController {
 		return screen instanceof TitleScreen
 			|| screen instanceof JoinMultiplayerScreen
 			|| screen instanceof ConnectScreen
+			|| screen instanceof ReceivingLevelScreen
+			|| screen instanceof LevelLoadingScreen
+			|| screen instanceof ProgressScreen
 			|| screen instanceof DisconnectedScreen;
 	}
 

@@ -1,0 +1,49 @@
+{
+  "id": "sync_1024_to_1024_core_banded16",
+  "description": "1024 个 sync triggerSource 对 1024 个 core 做规则化多对多映射，作为更高一级正式重压基线。",
+  "layer": "P",
+  "scenarioId": "P18",
+  "arena": {
+    "clearFrom": [-8, 63, -8],
+    "clearTo": [87, 66, 40]
+  },
+  "targets": {
+    "id": "core_p18_main",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [48, 64, 0],
+      "to": [79, 64, 31]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p18_main",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 0],
+        "to": [31, 64, 31]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p18_main",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "wrap": true
+    }
+  ],
+  "drive": {
+    "totalTicks": 240,
+    "steps": [
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "sync_p18_main",
+        "serialFormat": "range"
+      }
+    ]
+  }
+}

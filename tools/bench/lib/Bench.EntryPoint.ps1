@@ -60,16 +60,20 @@ switch ($Action) {
 				Clear-Arena -Connection $connection -Arena $caseConfig.arena
 			}
 
-			$targetPositions = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
-			$targetSerialMap = Convert-PositionsToSerialMap -Connection $connection -Positions $targetPositions
+			$targetPlacement = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
+			$targetPositions = @($targetPlacement.positions)
+			$targetSerialMap = $targetPlacement.serialMap
 			$targetSerials = @(Get-SerialListFromMap $targetSerialMap)
 
 			$sourcePositionGroups = @{}
 			$sourceSerialMaps = @{}
+			$sourceSerialResolution = [ordered]@{}
 			foreach ($group in $caseConfig.sources) {
-				$positions = Place-NodeGroup -Connection $connection -Group $group
+				$groupPlacement = Place-NodeGroup -Connection $connection -Group $group
+				$positions = @($groupPlacement.positions)
 				$sourcePositionGroups[[string]$group.id] = $positions
-				$sourceSerialMaps[[string]$group.id] = (Convert-PositionsToSerialMap -Connection $connection -Positions $positions)
+				$sourceSerialMaps[[string]$group.id] = $groupPlacement.serialMap
+				$sourceSerialResolution[[string]$group.id] = $groupPlacement.serialResolution
 			}
 
 			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerialMap $targetSerialMap
@@ -169,6 +173,10 @@ switch ($Action) {
 				description = $caseConfig.description
 				sourceSerials = $sourceSerialMaps
 				targetSerials = $targetSerialMap
+				serialResolution = [ordered]@{
+					target = $targetPlacement.serialResolution
+					sources = $sourceSerialResolution
+				}
 				linkCommands = $linkCommands
 				linkOperations = @($linkOperations.ToArray())
 				spark = [ordered]@{
@@ -220,16 +228,20 @@ switch ($Action) {
 				Clear-Arena -Connection $connection -Arena $caseConfig.arena
 			}
 
-			$targetPositions = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
-			$targetSerialMap = Convert-PositionsToSerialMap -Connection $connection -Positions $targetPositions
+			$targetPlacement = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
+			$targetPositions = @($targetPlacement.positions)
+			$targetSerialMap = $targetPlacement.serialMap
 			$targetSerials = @(Get-SerialListFromMap $targetSerialMap)
 
 			$sourcePositionGroups = @{}
 			$sourceSerialMaps = @{}
+			$sourceSerialResolution = [ordered]@{}
 			foreach ($group in $caseConfig.sources) {
-				$positions = Place-NodeGroup -Connection $connection -Group $group
+				$groupPlacement = Place-NodeGroup -Connection $connection -Group $group
+				$positions = @($groupPlacement.positions)
 				$sourcePositionGroups[[string]$group.id] = $positions
-				$sourceSerialMaps[[string]$group.id] = (Convert-PositionsToSerialMap -Connection $connection -Positions $positions)
+				$sourceSerialMaps[[string]$group.id] = $groupPlacement.serialMap
+				$sourceSerialResolution[[string]$group.id] = $groupPlacement.serialResolution
 			}
 
 			$linkCommands = Build-LinkCommands -CaseConfig $caseConfig -SourceSerialMaps $sourceSerialMaps -TargetSerialMap $targetSerialMap
@@ -256,6 +268,10 @@ switch ($Action) {
 				description = $caseConfig.description
 				sourceSerials = $sourceSerialMaps
 				targetSerials = $targetSerialMap
+				serialResolution = [ordered]@{
+					target = $targetPlacement.serialResolution
+					sources = $sourceSerialResolution
+				}
 				linkCommands = $linkCommands
 				linkOperations = @($linkOperations.ToArray())
 				playerContext = $playerContextExecution

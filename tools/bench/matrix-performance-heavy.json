@@ -23,11 +23,13 @@
     "templates/performance/drive.json"
   ],
   "casePaths": [
-    "cases/performance/p12/sync_1_to_1024_core_dense.json",
-    "cases/performance/p13/toggle_1_to_1024_core_dense.json",
-    "cases/performance/p14/pulse_1_to_1024_core_dense.json",
-    "cases/performance/p15/sync_256_to_1_core_dense.json",
-    "cases/performance/p16/toggle_256_to_1_core_dense.json",
-    "cases/performance/p17/pulse_256_to_1_core_dense.json"
+    "cases/performance/p12/sync_1_to_2048_core_dense.json",
+    "cases/performance/p13/toggle_1_to_2048_core_dense.json",
+    "cases/performance/p14/pulse_1_to_2048_core_dense.json",
+    "cases/performance/p15/sync_1024_to_1_core_dense.json",
+    "cases/performance/p16/toggle_1024_to_1_core_dense.json",
+    "cases/performance/p17/pulse_1024_to_1_core_dense.json",
+    "cases/performance/p18/sync_1024_to_1024_core_banded16.json",
+    "cases/performance/p19/mixed_1024_to_1024_core_banded16.json"
   ]
 }
