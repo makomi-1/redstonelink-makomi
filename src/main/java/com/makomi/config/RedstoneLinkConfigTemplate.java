@@ -388,12 +388,12 @@ final class RedstoneLinkConfigTemplate {
 			# crosschunk.forceLoad.maxPerTick
 			# zh: 每 tick 最多执行的强制加载请求数量。
 			# en: Maximum force-load requests per tick.
-			crosschunk.forceLoad.maxPerTick=8
+			crosschunk.forceLoad.maxPerTick=256
 
 			# crosschunk.forceLoad.maxPerSourcePerTick
 			# zh: 每个来源每 tick 最多执行的强制加载请求数量。
 			# en: Maximum force-load requests per source per tick.
-			crosschunk.forceLoad.maxPerSourcePerTick=2
+			crosschunk.forceLoad.maxPerSourcePerTick=256
 
 			# ----- [命令与提示 / Command & Notify] ---------------------------------
 			# crosschunk.command.enabled

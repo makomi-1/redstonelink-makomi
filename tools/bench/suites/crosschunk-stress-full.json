@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "description": "扩展压力集：最小回环、1024 queue release、256 resident 与 128 force-load bursty。",
+  "defaults": {
+    "benchAction": "RunCase",
+    "matrixPath": "../matrix-crosschunk-stress.json"
+  },
+  "entries": [
+    {
+      "entryId": "p22_sync_minimal_loop",
+      "caseId": "sync_minimal_loop_single_pair",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "false",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false"
+      }
+    },
+    {
+      "entryId": "p20_sync_queue_release_1024_single_shot",
+      "caseId": "sync_queue_release_1024_single_shot",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "true",
+        "crosschunk.syncSignalPersistent": "true",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false",
+        "crosschunk.forceLoad.enabled": "false",
+        "crosschunk.dispatch.maxPerTick": "2048"
+      }
+    },
+    {
+      "entryId": "p21_sync_queue_release_1024_blank_control",
+      "caseId": "sync_queue_release_1024_blank_control",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "true",
+        "crosschunk.syncSignalPersistent": "true",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false",
+        "crosschunk.forceLoad.enabled": "false",
+        "crosschunk.dispatch.maxPerTick": "2048"
+      }
+    },
+    {
+      "entryId": "p23_sync_resident_256",
+      "caseId": "sync_resident_256_distinct_chunks",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "false",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false"
+      }
+    },
+    {
+      "entryId": "p24_sync_force_load_128_bursty",
+      "caseId": "sync_force_load_128_bursty_distinct_chunks",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "all",
+        "crosschunk.forceLoad.ticketTicks": "80",
+        "crosschunk.forceLoad.maxPerTick": "256",
+        "crosschunk.forceLoad.maxPerSourcePerTick": "256",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false"
+      }
+    }
+  ]
+}

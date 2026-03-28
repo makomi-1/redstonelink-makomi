@@ -1,0 +1,137 @@
+{
+  "id": "sync_force_load_128_bursty_distinct_chunks",
+  "description": "force-load 压测：1 个 sync triggerSource 广播到 128 个 distinct chunks core，利用短 ticket 制造多轮突发拉起，观测首次强加载与后续高低相位切换成本。",
+  "layer": "P",
+  "scenarioId": "P24",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [4196, 63, 4476],
+      "to": [4212, 66, 4484]
+    },
+    {
+      "dimension": "minecraft:the_nether",
+      "from": [5128, 63, 4616],
+      "to": [5368, 65, 4728]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [4196, 63, 4476],
+        "clearTo": [4212, 66, 4484]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [5128, 63, 4616],
+        "clearTo": [5368, 65, 4728]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_p24_force",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [5128, 64, 4616],
+      "to": [5368, 64, 4728],
+      "step": [16, 1, 16]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p24_force",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4204, 64, 4480],
+        "to": [4204, 64, 4480]
+      },
+      "control": {
+        "mode": "north_strip",
+        "onBlock": "minecraft:redstone_block",
+        "offBlock": "minecraft:air"
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p24_force",
+      "mapping": "broadcast_all",
+      "targetSerialFormat": "range"
+    }
+  ],
+  "drive": {
+    "totalTicks": 384,
+    "steps": [
+      {
+        "templateRef": "command_assert",
+        "name": "remove_setup_forceload_targets",
+        "command": "forceload remove 5128 4616 5368 4728",
+        "commandDimension": "minecraft:the_nether"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_targets_offline",
+        "ticks": 40
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "force_target_should_start_offline",
+        "commandTemplate": "redstonelink node get core {{targets[0]}}",
+        "expectedPrefix": "[RedstoneLink/Node]",
+        "expectedRegex": "(?i)(online=false|在线=false)"
+      },
+      {
+        "templateRef": "input_start_square_triggerSource",
+        "name": "start_force_load_bursts",
+        "serialRef": "sync_p24_force",
+        "serialFormat": "slash_list",
+        "periodTicks": 200,
+        "highTicks": 120,
+        "highPower": 15,
+        "lowPower": 0,
+        "phaseTicks": 0,
+        "totalTicks": 360
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_first_burst_window",
+        "ticks": 120
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_interburst_window",
+        "ticks": 80
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_second_burst_window",
+        "ticks": 120
+      },
+      {
+        "templateRef": "input_clear",
+        "name": "clear_force_jobs"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_final_cooldown",
+        "ticks": 40
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "force_target_should_end_quiet_or_unloaded",
+        "commandTemplate": "redstonelink node get core {{targets[0]}}",
+        "expectedPrefix": "[RedstoneLink/Node]",
+        "expectedRegex": "(?i)(online=false|在线=false|active=false|激活=false|resolvedStrength=0|output=0)"
+      }
+    ]
+  }
+}

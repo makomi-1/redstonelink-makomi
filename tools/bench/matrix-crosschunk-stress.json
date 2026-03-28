@@ -18,7 +18,10 @@
     "templates/functional/phases.json"
   ],
   "casePaths": [
+    "cases/performance/p22/sync_minimal_loop_single_pair.json",
     "cases/performance/p20/sync_queue_release_1024_single_shot.json",
-    "cases/performance/p21/sync_queue_release_1024_blank_control.json"
+    "cases/performance/p21/sync_queue_release_1024_blank_control.json",
+    "cases/performance/p23/sync_resident_256_distinct_chunks.json",
+    "cases/performance/p24/sync_force_load_128_bursty_distinct_chunks.json"
   ]
 }

@@ -1,0 +1,108 @@
+{
+  "id": "sync_minimal_loop_single_pair",
+  "description": "最小回环震荡专项：单个 sync triggerSource -> core，使用两级中继延迟反馈形成最小自激回环，观测小规模持续震荡开销。",
+  "layer": "P",
+  "scenarioId": "P22",
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [4218, 63, 4219],
+        "clearTo": [4232, 66, 4228]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_p22_loop",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [4228, 64, 4224],
+      "to": [4228, 64, 4224]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p22_loop",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4224, 64, 4224],
+        "to": [4224, 64, 4224]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p22_loop",
+      "mapping": "zip"
+    }
+  ],
+  "drive": {
+    "totalTicks": 242,
+    "steps": [
+      {
+        "templateRef": "command_assert",
+        "name": "build_loop_floor",
+        "command": "fill 4224 63 4224 4228 63 4224 minecraft:stone replace",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "place_loop_dust",
+        "command": "setblock 4225 64 4224 minecraft:redstone_wire",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "place_loop_repeater_near",
+        "command": "setblock 4226 64 4224 minecraft:repeater[facing=west,delay=2]",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "place_loop_repeater_far",
+        "command": "setblock 4227 64 4224 minecraft:repeater[facing=west,delay=2]",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "kick_loop_high",
+        "command": "setblock 4224 64 4223 minecraft:redstone_block",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_kick_tick",
+        "ticks": 1
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "kick_loop_low",
+        "command": "setblock 4224 64 4223 minecraft:air",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_loop_window",
+        "ticks": 220
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "break_loop_feedback",
+        "command": "fill 4225 64 4224 4227 64 4224 minecraft:air replace",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_loop_quiet",
+        "ticks": 20
+      }
+    ]
+  }
+}

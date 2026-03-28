@@ -1,0 +1,130 @@
+{
+  "id": "sync_resident_256_distinct_chunks",
+  "description": "resident 压测：1 个 sync triggerSource 广播到 256 个跨区块常驻 core，目标按 distinct chunks 点阵分布，观测 resident 持有下的稳定同步成本。",
+  "layer": "P",
+  "scenarioId": "P23",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [4148, 63, 4348],
+      "to": [4164, 66, 4356]
+    },
+    {
+      "dimension": "minecraft:the_nether",
+      "from": [4616, 63, 4616],
+      "to": [4856, 65, 4856]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [4148, 63, 4348],
+        "clearTo": [4164, 66, 4356]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [4616, 63, 4616],
+        "clearTo": [4856, 65, 4856]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_p23_resident",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [4616, 64, 4616],
+      "to": [4856, 64, 4856],
+      "step": [16, 1, 16]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p23_resident",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4156, 64, 4352],
+        "to": [4156, 64, 4352]
+      },
+      "control": {
+        "mode": "north_strip",
+        "onBlock": "minecraft:redstone_block",
+        "offBlock": "minecraft:air"
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p23_resident",
+      "mapping": "broadcast_all",
+      "targetSerialFormat": "range"
+    }
+  ],
+  "drive": {
+    "totalTicks": 270,
+    "steps": [
+      {
+        "templateRef": "command_assert",
+        "name": "resident_set_targets",
+        "commandTemplate": "redstonelink crosschunk whitelist set target core {{targets:range}} resident confirm",
+        "expectedPrefix": "[RedstoneLink/CrossChunk]",
+        "expectedRegex": "(?i)(Whitelist overwritten|白名单已覆盖)"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_resident_ticket_sync",
+        "ticks": 10
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "remove_setup_forceload_targets",
+        "command": "forceload remove 4616 4616 4856 4856",
+        "commandDimension": "minecraft:the_nether"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_resident_handoff",
+        "ticks": 20
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "resident_target_should_stay_online",
+        "commandTemplate": "redstonelink node get core {{targets[0]}}",
+        "expectedPrefix": "[RedstoneLink/Node]",
+        "expectedRegexes": [
+          "(?i)(online=true|在线=true)",
+          "(?i)minecraft:the_nether"
+        ]
+      },
+      {
+        "templateRef": "input_start_square_triggerSource",
+        "name": "start_resident_square",
+        "serialRef": "sync_p23_resident",
+        "serialFormat": "slash_list",
+        "periodTicks": 40,
+        "highTicks": 20,
+        "highPower": 15,
+        "lowPower": 0,
+        "phaseTicks": 0,
+        "totalTicks": 240
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_resident_window",
+        "ticks": 240
+      },
+      {
+        "templateRef": "input_clear",
+        "name": "clear_resident_jobs"
+      }
+    ]
+  }
+}

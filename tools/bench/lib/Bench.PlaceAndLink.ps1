@@ -229,41 +229,61 @@ function Place-NodeGroup {
 	}
 	$bounds = Get-BoundsFromPositions $positions
 	$blockId = Get-BlockIdByKind $Group.kind
-	$command = ""
-	if ($positions.Count -gt 1) {
+	$usesDenseFill = (($positions.Count -gt 1) -and (Test-LayoutUsesDenseUnitStep -Layout $Group.layout))
+	if ($usesDenseFill) {
 		$command = Wrap-WithBenchContexts `
 			-Command ("redstonelink place fill {0} {1} {2} force bench" -f (Format-Vec3 $bounds.From), (Format-Vec3 $bounds.To), $blockId) `
 			-Dimension $dimension
-	} else {
-		$command = Wrap-WithBenchContexts `
-			-Command ("redstonelink place setblock {0} {1} force bench" -f (Format-Vec3 $positions[0]), $blockId) `
-			-Dimension $dimension
-	}
-	$placement = Invoke-BenchPlaceCommand -Connection $Connection -Command $command
-	$summaryResolution = Resolve-SerialMapFromPlaceSummary -Group $Group -Positions $positions -PlacementResponse $placement
-	if ([bool]$summaryResolution.ok) {
+		$placement = Invoke-BenchPlaceCommand -Connection $Connection -Command $command
+		$summaryResolution = Resolve-SerialMapFromPlaceSummary -Group $Group -Positions $positions -PlacementResponse $placement
+		if ([bool]$summaryResolution.ok) {
+			return [ordered]@{
+				positions = $positions
+				dimension = $dimension
+				serialMap = $summaryResolution.serialMap
+				placement = $placement
+				serialResolution = [ordered]@{
+					mode = "place_summary"
+					reason = [string]$summaryResolution.reason
+					summary = $summaryResolution.summary
+				}
+				elapsedMs = $stopwatch.ElapsedMilliseconds
+			}
+		}
 		return [ordered]@{
 			positions = $positions
 			dimension = $dimension
-			serialMap = $summaryResolution.serialMap
+			serialMap = (Convert-PositionsToSerialMap -Connection $Connection -Positions $positions -Dimension $dimension)
 			placement = $placement
 			serialResolution = [ordered]@{
-				mode = "place_summary"
+				mode = "fallback_probe"
 				reason = [string]$summaryResolution.reason
 				summary = $summaryResolution.summary
 			}
 			elapsedMs = $stopwatch.ElapsedMilliseconds
 		}
 	}
+
+	$placementCommands = New-Object System.Collections.Generic.List[object]
+	foreach ($pos in $positions) {
+		$command = Wrap-WithBenchContexts `
+			-Command ("redstonelink place setblock {0} {1} force bench" -f (Format-Vec3 $pos), $blockId) `
+			-Dimension $dimension
+		$placementCommands.Add((Invoke-BenchPlaceCommand -Connection $Connection -Command $command))
+	}
 	return [ordered]@{
 		positions = $positions
 		dimension = $dimension
 		serialMap = (Convert-PositionsToSerialMap -Connection $Connection -Positions $positions -Dimension $dimension)
-		placement = $placement
+		placement = [ordered]@{
+			mode = "sparse_setblock"
+			commandCount = $placementCommands.Count
+			commands = @($placementCommands.ToArray())
+		}
 		serialResolution = [ordered]@{
-			mode = "fallback_probe"
-			reason = [string]$summaryResolution.reason
-			summary = $summaryResolution.summary
+			mode = "sparse_probe"
+			reason = "stepped_layout_setblock_probe"
+			summary = $null
 		}
 		elapsedMs = $stopwatch.ElapsedMilliseconds
 	}
@@ -643,12 +663,21 @@ function Invoke-LinkCommandPlans {
 function Test-CaseUsesDriveInput {
 	param($CaseConfig)
 	foreach ($step in @($CaseConfig.drive.steps)) {
-		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		$kind = Resolve-NormalizedDriveStepKind -Kind ([string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue ""))
 		if ($kind -eq "input_square" -or $kind -eq "input_custom") {
 			return $true
 		}
 	}
 	return $false
+}
+
+function Resolve-NormalizedDriveStepKind {
+	param([string]$Kind)
+	switch ([string]$Kind) {
+		"input_start_square" { return "input_square" }
+		"input_start_custom" { return "input_custom" }
+		default { return [string]$Kind }
+	}
 }
 
 function Test-CaseUsesOnlyDriveInput {
@@ -658,7 +687,7 @@ function Test-CaseUsesOnlyDriveInput {
 		return $false
 	}
 	foreach ($step in $steps) {
-		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		$kind = Resolve-NormalizedDriveStepKind -Kind ([string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue ""))
 		if ($kind -ne "input_square" -and $kind -ne "input_custom") {
 			return $false
 		}
@@ -669,7 +698,7 @@ function Test-CaseUsesOnlyDriveInput {
 function Test-CaseUsesSequentialDriveTimeline {
 	param($CaseConfig)
 	foreach ($step in @($CaseConfig.drive.steps)) {
-		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		$kind = Resolve-NormalizedDriveStepKind -Kind ([string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue ""))
 		if ($kind -eq "wait_ticks" -or $kind -eq "command_assert" -or $kind -eq "input_clear") {
 			return $true
 		}
@@ -775,11 +804,12 @@ function Start-DriveInputStep {
 	} else {
 		[int](Get-OptionalProperty -Object $Step -Name "totalTicks" -DefaultValue ([int]$CaseConfig.drive.totalTicks))
 	}
-	switch ([string]$Step.kind) {
+	$normalizedKind = Resolve-NormalizedDriveStepKind -Kind ([string]$Step.kind)
+	switch ($normalizedKind) {
 		"input_square" {
 			$periodTicks = [int](Get-OptionalProperty -Object $Step -Name "periodTicks" -DefaultValue 0)
 			if ($periodTicks -le 0) {
-				throw "input_square drive step requires periodTicks > 0."
+				throw "$normalizedKind drive step requires periodTicks > 0."
 			}
 			$highTicks = [int](Get-OptionalProperty -Object $Step -Name "highTicks" -DefaultValue ([Math]::Max(1, [int]($periodTicks / 2))))
 			$highPower = [int](Get-OptionalProperty -Object $Step -Name "highPower" -DefaultValue 15)
@@ -798,7 +828,7 @@ function Start-DriveInputStep {
 			)
 			$commandResult = Invoke-BenchSetupCommand -Connection $Connection -Command $command -ExpectedPrefix "[RedstoneLink/Input]" -ExpectedRegex "Started job="
 			return [ordered]@{
-				kind = [string]$Step.kind
+				kind = $normalizedKind
 				endpoint = $endpoint
 				serials = $serials
 				serialText = $serialText
@@ -817,7 +847,7 @@ function Start-DriveInputStep {
 		"input_custom" {
 			$sequence = [string](Get-OptionalProperty -Object $Step -Name "sequence" -DefaultValue "")
 			if ([string]::IsNullOrWhiteSpace($sequence)) {
-				throw "input_custom drive step requires sequence."
+				throw "$normalizedKind drive step requires sequence."
 			}
 			$phaseTicks = [int](Get-OptionalProperty -Object $Step -Name "phaseTicks" -DefaultValue 0)
 			$command = Wrap-WithPlayerContext (
@@ -830,7 +860,7 @@ function Start-DriveInputStep {
 			)
 			$commandResult = Invoke-BenchSetupCommand -Connection $Connection -Command $command -ExpectedPrefix "[RedstoneLink/Input]" -ExpectedRegex "Started job="
 			return [ordered]@{
-				kind = [string]$Step.kind
+				kind = $normalizedKind
 				endpoint = $endpoint
 				serials = $serials
 				serialText = $serialText
@@ -844,7 +874,7 @@ function Start-DriveInputStep {
 			}
 		}
 		default {
-			throw "Unsupported performance input drive kind: $($Step.kind)"
+			throw "Unsupported performance input drive kind: $([string]$Step.kind)"
 		}
 	}
 }
@@ -1109,7 +1139,7 @@ function Invoke-DriveTimelineSchedule {
 	$startedInputCommands = New-Object System.Collections.Generic.List[object]
 	$timelineSteps = New-Object System.Collections.Generic.List[object]
 	foreach ($step in @($CaseConfig.drive.steps)) {
-		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		$kind = Resolve-NormalizedDriveStepKind -Kind ([string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue ""))
 		switch ($kind) {
 			"input_square" {
 				$commandResult = Start-DriveInputStep `
@@ -1204,8 +1234,9 @@ function Invoke-DriveSchedule {
 	$startedInputCommands = New-Object System.Collections.Generic.List[object]
 	for ($tick = 0; $tick -lt $totalTicks; $tick++) {
 		foreach ($step in $CaseConfig.drive.steps) {
-			$stepKey = "{0}:{1}" -f $step.kind, $step.sourceGroup
-			switch ([string]$step.kind) {
+			$kind = Resolve-NormalizedDriveStepKind -Kind ([string]$step.kind)
+			$stepKey = "{0}:{1}" -f $kind, $step.sourceGroup
+			switch ($kind) {
 				"input_square" {
 					if (-not $stepStates.ContainsKey($stepKey)) {
 						$commandResult = Start-DriveInputStep `
@@ -1279,7 +1310,7 @@ function Invoke-DriveSchedule {
 					}
 				}
 				default {
-					throw "Unsupported drive kind: $($step.kind)"
+					throw "Unsupported drive kind: $kind"
 				}
 			}
 		}
@@ -1305,7 +1336,7 @@ function Invoke-InputDriveSchedule {
 	$normalizedTotalTicks = [Math]::Max(1, [int]$TotalTicks)
 	$startedInputCommands = New-Object System.Collections.Generic.List[object]
 	foreach ($step in @($CaseConfig.drive.steps)) {
-		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		$kind = Resolve-NormalizedDriveStepKind -Kind ([string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue ""))
 		if ($kind -ne "input_square" -and $kind -ne "input_custom") {
 			throw "Invoke-InputDriveSchedule only supports input_square/input_custom steps. kind=$kind"
 		}

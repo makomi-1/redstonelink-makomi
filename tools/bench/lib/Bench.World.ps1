@@ -21,6 +21,25 @@ function ConvertTo-Vec3 {
 	return (New-Vec3 -X ([int]$ArrayValue[0]) -Y ([int]$ArrayValue[1]) -Z ([int]$ArrayValue[2]))
 }
 
+function Get-LayoutStepVec3 {
+	param($Layout)
+	$rawStep = Get-OptionalProperty -Object $Layout -Name "step" -DefaultValue $null
+	if ($null -eq $rawStep) {
+		return (New-Vec3 -X 1 -Y 1 -Z 1)
+	}
+	$step = ConvertTo-Vec3 $rawStep
+	if ($step.X -le 0 -or $step.Y -le 0 -or $step.Z -le 0) {
+		throw "Layout step values must be > 0."
+	}
+	return $step
+}
+
+function Test-LayoutUsesDenseUnitStep {
+	param($Layout)
+	$step = Get-LayoutStepVec3 -Layout $Layout
+	return ($step.X -eq 1 -and $step.Y -eq 1 -and $step.Z -eq 1)
+}
+
 function Format-Vec3 {
 	param($Vec)
 	return "$($Vec.X) $($Vec.Y) $($Vec.Z)"
@@ -112,6 +131,7 @@ function Expand-CuboidPositions {
 	}
 	$from = ConvertTo-Vec3 $Layout.from
 	$to = ConvertTo-Vec3 $Layout.to
+	$step = Get-LayoutStepVec3 -Layout $Layout
 	$minX = [Math]::Min($from.X, $to.X)
 	$maxX = [Math]::Max($from.X, $to.X)
 	$minY = [Math]::Min($from.Y, $to.Y)
@@ -119,9 +139,9 @@ function Expand-CuboidPositions {
 	$minZ = [Math]::Min($from.Z, $to.Z)
 	$maxZ = [Math]::Max($from.Z, $to.Z)
 	$positions = New-Object System.Collections.Generic.List[object]
-	for ($y = $minY; $y -le $maxY; $y++) {
-		for ($z = $minZ; $z -le $maxZ; $z++) {
-			for ($x = $minX; $x -le $maxX; $x++) {
+	for ($y = $minY; $y -le $maxY; $y += $step.Y) {
+		for ($z = $minZ; $z -le $maxZ; $z += $step.Z) {
+			for ($x = $minX; $x -le $maxX; $x += $step.X) {
 				$positions.Add((New-Vec3 -X $x -Y $y -Z $z))
 			}
 		}
@@ -360,6 +380,36 @@ function Ensure-CaseChunksLoaded {
 	}
 }
 
+function Get-FillSubBounds {
+	param(
+		$From,
+		$To,
+		[int]$MaxEdgeLength = 32
+	)
+	$edge = [Math]::Max(1, [int]$MaxEdgeLength)
+	$minX = [Math]::Min([int]$From.X, [int]$To.X)
+	$maxX = [Math]::Max([int]$From.X, [int]$To.X)
+	$minY = [Math]::Min([int]$From.Y, [int]$To.Y)
+	$maxY = [Math]::Max([int]$From.Y, [int]$To.Y)
+	$minZ = [Math]::Min([int]$From.Z, [int]$To.Z)
+	$maxZ = [Math]::Max([int]$From.Z, [int]$To.Z)
+	$result = New-Object System.Collections.Generic.List[object]
+	for ($y = $minY; $y -le $maxY; $y += $edge) {
+		$currentMaxY = [Math]::Min($y + $edge - 1, $maxY)
+		for ($z = $minZ; $z -le $maxZ; $z += $edge) {
+			$currentMaxZ = [Math]::Min($z + $edge - 1, $maxZ)
+			for ($x = $minX; $x -le $maxX; $x += $edge) {
+				$currentMaxX = [Math]::Min($x + $edge - 1, $maxX)
+				$result.Add([pscustomobject]@{
+					from = (New-Vec3 -X $x -Y $y -Z $z)
+					to = (New-Vec3 -X $currentMaxX -Y $currentMaxY -Z $currentMaxZ)
+				})
+			}
+		}
+	}
+	return @($result.ToArray())
+}
+
 function Clear-Arena {
 	param(
 		$Connection,
@@ -369,12 +419,11 @@ function Clear-Arena {
 		return
 	}
 	foreach ($zone in @(Get-ArenaClearZones -Arena $Arena)) {
-		Invoke-RconCommand `
-			-Connection $Connection `
-			-Command (Wrap-WithBenchContexts `
-				-Command ("fill {0} {1} minecraft:air replace" -f (Format-Vec3 $zone.from), (Format-Vec3 $zone.to)) `
-				-Dimension ([string]$zone.dimension)
-			) | Out-Null
+		# 原版 fill 单次最多处理 32768 方块，这里固定拆成 32x32x32 子块。
+		foreach ($subBound in @(Get-FillSubBounds -From $zone.from -To $zone.to -MaxEdgeLength 32)) {
+			$clearCommand = Wrap-WithBenchContexts -Command ("fill {0} {1} minecraft:air replace" -f (Format-Vec3 $subBound.from), (Format-Vec3 $subBound.to)) -Dimension ([string]$zone.dimension)
+			Invoke-RconCommand -Connection $Connection -Command $clearCommand | Out-Null
+		}
 	}
 }
 
