@@ -102,6 +102,76 @@ function Resolve-CaseIdList {
 	return @($resolved.ToArray())
 }
 
+function Resolve-SuiteRequestedEntries {
+	param(
+		$SuiteEntries,
+		[string[]]$RequestedCaseIds
+	)
+	if ($null -eq $RequestedCaseIds -or $RequestedCaseIds.Count -eq 0) {
+		return @($SuiteEntries)
+	}
+
+	$requestedLookup = [ordered]@{}
+	foreach ($requestedId in $RequestedCaseIds) {
+		$normalizedRequestedId = [string]$requestedId
+		if ([string]::IsNullOrWhiteSpace($normalizedRequestedId)) {
+			continue
+		}
+		if (-not $requestedLookup.Contains($normalizedRequestedId)) {
+			$requestedLookup[$normalizedRequestedId] = $false
+		}
+	}
+	if ($requestedLookup.Count -eq 0) {
+		return @($SuiteEntries)
+	}
+
+	$selectedEntries = New-Object System.Collections.Generic.List[object]
+	$availableEntryIds = New-Object System.Collections.Generic.List[string]
+	$availableCaseIds = New-Object System.Collections.Generic.List[string]
+	foreach ($entry in @($SuiteEntries)) {
+		$entryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "entryId")
+		if ([string]::IsNullOrWhiteSpace($entryId)) {
+			$entryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "id")
+		}
+		$caseId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "caseId")
+		if (-not [string]::IsNullOrWhiteSpace($entryId)) {
+			$availableEntryIds.Add($entryId)
+		}
+		if (-not [string]::IsNullOrWhiteSpace($caseId)) {
+			$availableCaseIds.Add($caseId)
+		}
+
+		$entrySelected = $false
+		foreach ($requestedId in @($requestedLookup.Keys)) {
+			if ($entryId -eq $requestedId -or $caseId -eq $requestedId) {
+				$requestedLookup[$requestedId] = $true
+				$entrySelected = $true
+			}
+		}
+		if ($entrySelected) {
+			$selectedEntries.Add($entry)
+		}
+	}
+
+	$unmatchedIds = @(
+		$requestedLookup.GetEnumerator() |
+			Where-Object { -not [bool]$_.Value } |
+			ForEach-Object { [string]$_.Key }
+	)
+	if ($unmatchedIds.Count -gt 0) {
+		$availableEntryText = (@($availableEntryIds | Sort-Object -Unique) -join ", ")
+		$availableCaseText = (@($availableCaseIds | Sort-Object -Unique) -join ", ")
+		throw (
+			"Requested suite entryId/caseId not found: {0}. Available entryIds: {1}. Available caseIds: {2}." -f
+			($unmatchedIds -join ", "),
+			$availableEntryText,
+			$availableCaseText
+		)
+	}
+
+	return @($selectedEntries.ToArray())
+}
+
 function Resolve-SuiteEntries {
 	param(
 		[string]$SuiteConfigPath,
@@ -147,7 +217,8 @@ function Resolve-SuiteEntries {
 	}
 
 	$entries = New-Object System.Collections.Generic.List[object]
-	foreach ($entry in @($suiteConfig.entries)) {
+	$resolvedSuiteEntries = @(Resolve-SuiteRequestedEntries -SuiteEntries @($suiteConfig.entries) -RequestedCaseIds $RequestedCaseIds)
+	foreach ($entry in $resolvedSuiteEntries) {
 		$entryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "entryId")
 		if ([string]::IsNullOrWhiteSpace($entryId)) {
 			$entryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "id")

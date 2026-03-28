@@ -28,6 +28,7 @@ import net.minecraft.client.multiplayer.resolver.ServerAddress;
  */
 public final class BenchClientAutomationController {
 	private static final long CONNECT_ATTEMPT_STALL_TIMEOUT_MS = 30_000L;
+	private static final long STARTUP_SCREEN_DISMISS_EXTRA_MS = 10_000L;
 	private static BenchClientAutomationConfig config = BenchClientAutomationConfig.disabled();
 	private static long nextConnectAttemptAtMs = Long.MAX_VALUE;
 	private static long lastConnectAttemptAtMs = Long.MIN_VALUE;
@@ -36,6 +37,8 @@ public final class BenchClientAutomationController {
 	private static boolean connectAttemptInProgress = false;
 	private static boolean postJoinActionsApplied = false;
 	private static long postJoinActionReadyAtMs = Long.MAX_VALUE;
+	private static long startupPauseDismissUntilMs = Long.MIN_VALUE;
+	private static String lastObservedStartupScreenClassName = "";
 
 	private BenchClientAutomationController() {
 	}
@@ -56,6 +59,8 @@ public final class BenchClientAutomationController {
 		connectAttemptInProgress = false;
 		postJoinActionsApplied = false;
 		postJoinActionReadyAtMs = Long.MAX_VALUE;
+		startupPauseDismissUntilMs = Long.MIN_VALUE;
+		lastObservedStartupScreenClassName = "";
 		ClientTickEvents.END_CLIENT_TICK.register(BenchClientAutomationController::onClientTick);
 		RedstoneLink.LOGGER.info(
 			"Bench client automation enabled. player={} server={} initialConnectDelayMs={} reconnectIntervalMs={} openTickChart={}",
@@ -78,7 +83,9 @@ public final class BenchClientAutomationController {
 		if (inWorld) {
 			clearConnectAttemptState();
 			schedulePostJoinActionsIfNeeded();
+			observeStartupScreenIfNeeded(client);
 			dismissTransientStartupScreen(client);
+			dismissStartupPauseScreenIfNeeded(client);
 			runPostJoinActionsIfReady(client);
 			wasInWorldLastTick = true;
 			return;
@@ -101,8 +108,11 @@ public final class BenchClientAutomationController {
 		if (wasInWorldLastTick) {
 			return;
 		}
+		long now = System.currentTimeMillis();
 		postJoinActionsApplied = false;
-		postJoinActionReadyAtMs = System.currentTimeMillis() + config.postJoinActionDelayMs();
+		postJoinActionReadyAtMs = now + config.postJoinActionDelayMs();
+		startupPauseDismissUntilMs = now + Math.max(STARTUP_SCREEN_DISMISS_EXTRA_MS, config.postJoinActionDelayMs() + STARTUP_SCREEN_DISMISS_EXTRA_MS);
+		lastObservedStartupScreenClassName = "";
 	}
 
 	private static void attemptConnect(Minecraft client, long now) {
@@ -131,6 +141,8 @@ public final class BenchClientAutomationController {
 		wasInWorldLastTick = false;
 		postJoinActionsApplied = false;
 		postJoinActionReadyAtMs = Long.MAX_VALUE;
+		startupPauseDismissUntilMs = Long.MIN_VALUE;
+		lastObservedStartupScreenClassName = "";
 	}
 
 	/**
@@ -261,6 +273,69 @@ public final class BenchClientAutomationController {
 			currentScreen.getClass().getSimpleName()
 		);
 		client.setScreen(null);
+	}
+
+	/**
+	 * 记录启动窗口内实际停留的 in-world screen，便于后续定位真实菜单类型。
+	 */
+	private static void observeStartupScreenIfNeeded(Minecraft client) {
+		if (System.currentTimeMillis() > startupPauseDismissUntilMs) {
+			return;
+		}
+		Screen currentScreen = client.screen;
+		if (currentScreen == null) {
+			lastObservedStartupScreenClassName = "";
+			return;
+		}
+
+		String currentScreenClassName = currentScreen.getClass().getName();
+		if (currentScreenClassName.equals(lastObservedStartupScreenClassName)) {
+			return;
+		}
+		lastObservedStartupScreenClassName = currentScreenClassName;
+		RedstoneLink.LOGGER.info(
+			"Bench client automation observed startup in-world screen. player={} screen={} pauseScreen={}",
+			config.playerName(),
+			currentScreenClassName,
+			currentScreen.isPauseScreen()
+		);
+	}
+
+	/**
+	 * bench 自动连接启动阶段有时会额外落在 ESC/暂停类菜单上。
+	 * <p>
+	 * 这里只在“刚进入世界后的一小段窗口”内自动收起 pause-like screen，
+	 * 避免影响玩家后续手动按 ESC 打开的正常暂停菜单。
+	 * </p>
+	 */
+	private static void dismissStartupPauseScreenIfNeeded(Minecraft client) {
+		Screen currentScreen = client.screen;
+		if (!isStartupPauseLikeScreen(currentScreen)) {
+			return;
+		}
+		if (System.currentTimeMillis() > startupPauseDismissUntilMs) {
+			return;
+		}
+
+		RedstoneLink.LOGGER.info(
+			"Bench client automation dismissing startup pause screen after join. player={} screen={}",
+			config.playerName(),
+			currentScreen.getClass().getSimpleName()
+		);
+		client.setScreen(null);
+	}
+
+	/**
+	 * 启动窗口内需要自动收起的 pause-like screen 判定。
+	 */
+	private static boolean isStartupPauseLikeScreen(Screen screen) {
+		if (screen == null) {
+			return false;
+		}
+		if (isTransientStartupScreen(screen)) {
+			return false;
+		}
+		return screen.isPauseScreen();
 	}
 
 	/**

@@ -1,6 +1,7 @@
 package com.makomi.command;
 
 import com.makomi.command.audit.AuditCommandRegistry;
+import com.makomi.command.bench.BenchCommandRegistry;
 import com.makomi.command.crosschunk.CrossChunkCommandRegistry;
 import com.makomi.command.input.InputCommandRegistry;
 import com.makomi.command.link.LinkCommandRegistry;
@@ -34,6 +35,7 @@ public final class ModCommands {
 				.then(PlaceCommandRegistry.createRoot(registryAccess))
 				.then(AuditCommandRegistry.createRoot())
 				.then(CrossChunkCommandRegistry.createRoot())
+				.then(BenchCommandRegistry.createRoot())
 		));
 	}
 }

@@ -263,14 +263,129 @@ function Wait-ProcessExit {
 	throw "Server process did not exit within timeout. pid=$($Process.Id)"
 }
 
+function Get-DedicatedServerChildJavaProcessInfo {
+	param(
+		[int]$ParentProcessId,
+		[int]$TimeoutMs = 6000,
+		[int]$PollIntervalMs = 200
+	)
+	if ($ParentProcessId -le 0) {
+		return $null
+	}
+	$normalizedTimeoutMs = [Math]::Max(0, [int]$TimeoutMs)
+	$normalizedPollIntervalMs = [Math]::Max(50, [int]$PollIntervalMs)
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+	do {
+		$childProcessInfos = @(
+			Get-CimInstance Win32_Process -Filter ("ParentProcessId = {0}" -f $ParentProcessId) -ErrorAction SilentlyContinue |
+				Where-Object { [string]$_.Name -match '^(java|javaw)\.exe$' } |
+				Sort-Object CreationDate -Descending
+		)
+		foreach ($childProcessInfo in $childProcessInfos) {
+			$childProcessId = [int]$childProcessInfo.ProcessId
+			try {
+				$childProcess = Get-Process -Id $childProcessId -ErrorAction Stop
+				return [pscustomobject]@{
+					process = $childProcess
+					processId = $childProcessId
+					processName = [string]$childProcessInfo.Name
+					commandLine = [string]$childProcessInfo.CommandLine
+				}
+			} catch {
+				continue
+			}
+		}
+		if ($stopwatch.ElapsedMilliseconds -ge $normalizedTimeoutMs) {
+			break
+		}
+		Start-Sleep -Milliseconds $normalizedPollIntervalMs
+	} while ($true)
+	return $null
+}
+
+function Set-ProcessPriorityClassIfPossible {
+	param(
+		[System.Diagnostics.Process]$Process,
+		[string]$PriorityClass
+	)
+	if ($null -eq $Process) {
+		return [ordered]@{
+			requested = $PriorityClass
+			processId = 0
+			success = $false
+			skipped = $true
+			reason = "process_missing"
+		}
+	}
+	$trimmedPriorityClass = if ([string]::IsNullOrWhiteSpace($PriorityClass)) { "" } else { $PriorityClass.Trim() }
+	if ([string]::IsNullOrWhiteSpace($trimmedPriorityClass)) {
+		return [ordered]@{
+			requested = $trimmedPriorityClass
+			processId = $Process.Id
+			success = $false
+			skipped = $true
+			reason = "priority_not_requested"
+		}
+	}
+	$validPriorityClasses = @("Idle", "BelowNormal", "Normal", "AboveNormal", "High", "RealTime")
+	if ($validPriorityClasses -notcontains $trimmedPriorityClass) {
+		throw "Unsupported ServerPriorityClass: $trimmedPriorityClass"
+	}
+	try {
+		$Process.Refresh()
+		if ($Process.HasExited) {
+			return [ordered]@{
+				requested = $trimmedPriorityClass
+				processId = $Process.Id
+				success = $false
+				skipped = $false
+				reason = "process_exited"
+			}
+		}
+		$Process.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::$trimmedPriorityClass
+		$Process.Refresh()
+		return [ordered]@{
+			requested = $trimmedPriorityClass
+			processId = $Process.Id
+			success = $true
+			skipped = $false
+			reason = "applied"
+			applied = [string]$Process.PriorityClass
+		}
+	} catch {
+		return [ordered]@{
+			requested = $trimmedPriorityClass
+			processId = $Process.Id
+			success = $false
+			skipped = $false
+			reason = "apply_failed"
+			error = $_.Exception.Message
+		}
+	}
+}
+
 function Start-DedicatedServerProcess {
 	param(
 		[string]$WorkingDirectory,
-		[string]$Command
+		[string]$Command,
+		[ValidateSet("Normal", "Minimized", "Hidden")][string]$WindowMode = "Normal",
+		[string]$PriorityClass
 	)
 	if ([string]::IsNullOrWhiteSpace($Command)) {
 		throw "ServerStartCommand is required."
 	}
 
-	return (Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $Command) -WorkingDirectory $WorkingDirectory -PassThru)
+	$launcherProcess = Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $Command) -WorkingDirectory $WorkingDirectory -WindowStyle $WindowMode -PassThru
+	$trackedProcess = $launcherProcess
+	$trackedProcessKind = "launcherProcess"
+	$childJavaProcessInfo = Get-DedicatedServerChildJavaProcessInfo -ParentProcessId $launcherProcess.Id
+	if ($null -ne $childJavaProcessInfo) {
+		$trackedProcess = $childJavaProcessInfo.process
+		$trackedProcessKind = "javaChildProcess"
+	}
+	$priorityResult = Set-ProcessPriorityClassIfPossible -Process $trackedProcess -PriorityClass $PriorityClass
+	$trackedProcess | Add-Member -NotePropertyName "launcherProcessId" -NotePropertyValue $launcherProcess.Id -Force
+	$trackedProcess | Add-Member -NotePropertyName "trackedProcessKind" -NotePropertyValue $trackedProcessKind -Force
+	$trackedProcess | Add-Member -NotePropertyName "priorityResult" -NotePropertyValue $priorityResult -Force
+	return $trackedProcess
 }

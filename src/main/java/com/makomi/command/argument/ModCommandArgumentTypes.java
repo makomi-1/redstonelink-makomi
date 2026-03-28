@@ -35,6 +35,11 @@ public final class ModCommandArgumentTypes {
 			SignalSequenceArgumentType.class,
 			SingletonArgumentInfo.contextFree(SignalSequenceArgumentType::signalSequence)
 		);
+		ArgumentTypeRegistry.registerArgumentType(
+			id("key_value_token"),
+			KeyValueTokenArgumentType.class,
+			SingletonArgumentInfo.contextFree(KeyValueTokenArgumentType::keyValueToken)
+		);
 	}
 
 	/**

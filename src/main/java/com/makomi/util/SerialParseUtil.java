@@ -14,16 +14,16 @@ public final class SerialParseUtil {
 	}
 
 	/**
-	 * 解析序号列表文本（`/` 分段，支持 `N` 与 `A:B` 区间），并过滤非法段。
+	 * 解析序号列表文本，并保留首次出现顺序。
 	 *
 	 * @param rawText 输入文本
 	 * @param maxTargetCount 目标数量上限（<=0 表示不限制）
-	 * @return 解析结果（包含无效项、重复项与是否超限）
+	 * @return 有序解析结果（包含无效项、重复项与是否超限）
 	 */
-	public static TargetParseResult parseTargets(String rawText, int maxTargetCount) {
+	public static OrderedTargetParseResult parseTargetsOrdered(String rawText, int maxTargetCount) {
 		String text = rawText == null ? "" : rawText.trim();
 		if (text.isEmpty()) {
-			return new TargetParseResult(Set.of(), List.of(), List.of(), false);
+			return new OrderedTargetParseResult(List.of(), List.of(), List.of(), false);
 		}
 
 		// 统一语法：使用 "/" 分段；末尾 "/" 形成的空段会被忽略。
@@ -50,8 +50,8 @@ public final class SerialParseUtil {
 					duplicateMap.putIfAbsent(current, Boolean.TRUE);
 				}
 				if (result.size() > limit) {
-					return new TargetParseResult(
-						Set.of(),
+					return new OrderedTargetParseResult(
+						List.of(),
 						List.copyOf(invalidEntries),
 						List.copyOf(duplicateMap.keySet()),
 						true
@@ -63,11 +63,28 @@ public final class SerialParseUtil {
 				current++;
 			}
 		}
-		return new TargetParseResult(
-			Set.copyOf(result),
+		return new OrderedTargetParseResult(
+			List.copyOf(result),
 			List.copyOf(invalidEntries),
 			List.copyOf(duplicateMap.keySet()),
 			false
+		);
+	}
+
+	/**
+	 * 解析序号列表文本（`/` 分段，支持 `N` 与 `A:B` 区间），并过滤非法段。
+	 *
+	 * @param rawText 输入文本
+	 * @param maxTargetCount 目标数量上限（<=0 表示不限制）
+	 * @return 解析结果（包含无效项、重复项与是否超限）
+	 */
+	public static TargetParseResult parseTargets(String rawText, int maxTargetCount) {
+		OrderedTargetParseResult orderedResult = parseTargetsOrdered(rawText, maxTargetCount);
+		return new TargetParseResult(
+			Set.copyOf(orderedResult.orderedTargets()),
+			orderedResult.invalidEntries(),
+			orderedResult.duplicateEntries(),
+			orderedResult.exceedLimit()
 		);
 	}
 
@@ -127,6 +144,22 @@ public final class SerialParseUtil {
 	 */
 	public record TargetParseResult(
 		Set<Long> targets,
+		List<String> invalidEntries,
+		List<Long> duplicateEntries,
+		boolean exceedLimit
+	) {
+	}
+
+	/**
+	 * 保留首次出现顺序的序号解析结果。
+	 *
+	 * @param orderedTargets 保序后的目标序号列表
+	 * @param invalidEntries 无效条目
+	 * @param duplicateEntries 重复输入条目（按首次检测顺序去重）
+	 * @param exceedLimit 是否超过上限
+	 */
+	public record OrderedTargetParseResult(
+		List<Long> orderedTargets,
 		List<String> invalidEntries,
 		List<Long> duplicateEntries,
 		boolean exceedLimit

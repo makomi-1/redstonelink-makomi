@@ -13,6 +13,8 @@ param(
     [string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
     [string]$ServerPropertiesPath,
     [string]$ServerStartCommand,
+    [ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Normal",
+    [string]$ServerPriorityClass,
     [string]$TemplateWorldPath = "D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template",
     [string[]]$CaseIds,
     [string]$SuitePath,

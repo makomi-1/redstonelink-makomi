@@ -191,6 +191,7 @@ function Place-NodeGroup {
 		$Connection,
 		$Group
 	)
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 	$positions = @(Expand-CuboidPositions $Group.layout)
 	if ($DryRun) {
 		return [ordered]@{
@@ -202,6 +203,7 @@ function Place-NodeGroup {
 				reason = "dry_run_counter"
 				summary = $null
 			}
+			elapsedMs = $stopwatch.ElapsedMilliseconds
 		}
 	}
 	$reuseExisting = [bool](Get-OptionalProperty -Object $Group -Name "reuseExisting" -DefaultValue $false)
@@ -215,6 +217,7 @@ function Place-NodeGroup {
 				reason = "explicit_reuse_existing"
 				summary = $null
 			}
+			elapsedMs = $stopwatch.ElapsedMilliseconds
 		}
 	}
 	$bounds = Get-BoundsFromPositions $positions
@@ -237,6 +240,7 @@ function Place-NodeGroup {
 				reason = [string]$summaryResolution.reason
 				summary = $summaryResolution.summary
 			}
+			elapsedMs = $stopwatch.ElapsedMilliseconds
 		}
 	}
 	return [ordered]@{
@@ -248,6 +252,7 @@ function Place-NodeGroup {
 			reason = [string]$summaryResolution.reason
 			summary = $summaryResolution.summary
 		}
+		elapsedMs = $stopwatch.ElapsedMilliseconds
 	}
 }
 
@@ -339,37 +344,152 @@ function Get-ResolvedLinkTargetsForRule {
 	}
 }
 
+function Resolve-LinkTargetSerialFormat {
+	param(
+		$Rule,
+		[long[]]$TargetSerials
+	)
+	$explicitFormat = [string](Get-OptionalProperty -Object $Rule -Name "targetSerialFormat" -DefaultValue "")
+	if (-not [string]::IsNullOrWhiteSpace($explicitFormat)) {
+		return $explicitFormat
+	}
+
+	$normalizedTargets = @(Get-SortedUniqueSerials $TargetSerials)
+	if ($normalizedTargets.Count -le 1) {
+		return "slash_list"
+	}
+
+	$slashText = Format-SerialInputText -Serials $normalizedTargets -Style "slash_list"
+	$rangeText = Format-SerialInputText -Serials $normalizedTargets -Style "range"
+	if ([string]::IsNullOrWhiteSpace($rangeText)) {
+		return "slash_list"
+	}
+	if ($rangeText.Length -lt $slashText.Length) {
+		return "range"
+	}
+	if ($rangeText.Length -eq $slashText.Length -and $rangeText.Contains(":")) {
+		return "range"
+	}
+	return "slash_list"
+}
+
+function Test-SupportsStructuredBenchLinkMapping {
+	param($Rule)
+	switch ([string]$Rule.mapping) {
+		"broadcast_all" { return $true }
+		"fan_in_first" { return $true }
+		"banded" { return $true }
+		default { return $false }
+	}
+}
+
+function Build-ClassicLinkCommandPlansForRule {
+	param(
+		$Rule,
+		[long[]]$SourceSerials,
+		[long[]]$TargetSerials
+	)
+	$linkPlans = New-Object System.Collections.Generic.List[object]
+	for ($index = 0; $index -lt $SourceSerials.Count; $index++) {
+		$sourceSerial = [long]$SourceSerials[$index]
+		$mappedTargets = @(Get-ResolvedLinkTargetsForRule -Rule $Rule -SourceIndex $index -TargetSerials $TargetSerials)
+		if ($mappedTargets.Count -eq 0) {
+			continue
+		}
+		$targetSerialFormat = Resolve-LinkTargetSerialFormat -Rule $Rule -TargetSerials $mappedTargets
+		$targetSerialText = Format-SerialInputText -Serials $mappedTargets -Style $targetSerialFormat
+		$command = "redstonelink link set triggerSource $sourceSerial $targetSerialText"
+		if ($mappedTargets.Count -gt 1) {
+			$command += " confirm"
+		}
+		$linkPlans.Add([ordered]@{
+			mode = "classic"
+			mapping = [string]$Rule.mapping
+			sourceGroup = [string]$Rule.sourceGroup
+			command = (Wrap-WithPlayerContext $command)
+			fallbackCommands = @()
+			sourceCount = 1
+			targetCount = $mappedTargets.Count
+		})
+	}
+	return @($linkPlans.ToArray())
+}
+
+function New-StructuredLinkCommandPlan {
+	param(
+		$Rule,
+		[long[]]$SourceSerials,
+		[long[]]$TargetSerials
+	)
+	$sourceSerialText = Format-SerialInputText -Serials $SourceSerials -Style "range"
+	$targetSerialText = Format-SerialInputText -Serials $TargetSerials -Style "range"
+	$mappingCommandText = ""
+	switch ([string]$Rule.mapping) {
+		"broadcast_all" {
+			$mappingCommandText = "broadcast_all"
+		}
+		"fan_in_first" {
+			$mappingCommandText = "fan_in_first"
+		}
+		"banded" {
+			$fanout = [int](Get-OptionalProperty -Object $Rule -Name "fanout" -DefaultValue 0)
+			if ($fanout -le 0) {
+				throw "banded mapping requires fanout > 0."
+			}
+			$stride = [int](Get-OptionalProperty -Object $Rule -Name "stride" -DefaultValue $fanout)
+			$offset = [int](Get-OptionalProperty -Object $Rule -Name "offset" -DefaultValue 0)
+			$wrap = [bool](Get-OptionalProperty -Object $Rule -Name "wrap" -DefaultValue $true)
+			$wrapText = if ($wrap) { "true" } else { "false" }
+			$mappingCommandText = "banded fanout=$fanout stride=$stride offset=$offset wrap=$wrapText"
+		}
+		default {
+			throw "Unsupported structured mapping mode: $($Rule.mapping)"
+		}
+	}
+	$command = Wrap-WithPlayerContext (
+		"redstonelink bench link apply triggerSource {0} core {1} {2}" -f
+		$sourceSerialText,
+		$targetSerialText,
+		$mappingCommandText
+	)
+	return [ordered]@{
+		mode = "structured"
+		mapping = [string]$Rule.mapping
+		sourceGroup = [string]$Rule.sourceGroup
+		command = $command
+		fallbackCommands = @(
+			Build-ClassicLinkCommandPlansForRule -Rule $Rule -SourceSerials $SourceSerials -TargetSerials $TargetSerials |
+				ForEach-Object { [string]$_.command }
+		)
+		sourceCount = $SourceSerials.Count
+		targetCount = $TargetSerials.Count
+	}
+}
+
 function Build-LinkCommands {
 	param(
 		$CaseConfig,
 		[hashtable]$SourceSerialMaps,
 		[hashtable]$TargetSerialMap
 	)
-	$linkCommands = New-Object System.Collections.Generic.List[string]
+	$linkPlans = New-Object System.Collections.Generic.List[object]
 	$linkRules = @(Get-OptionalProperty -Object $CaseConfig -Name "links" -DefaultValue @())
 	$orderedTargetSerials = @(Get-OrderedSerialListFromPositionMap -Map $TargetSerialMap)
 	foreach ($rule in $linkRules) {
 		$groupName = [string]$rule.sourceGroup
-		$targetSerialFormat = [string](Get-OptionalProperty -Object $rule -Name "targetSerialFormat" -DefaultValue "slash_list")
 		$sourceSerials = @(Get-OrderedSerialListFromPositionMap -Map $SourceSerialMaps[$groupName])
 		if ($sourceSerials.Count -eq 0) {
 			continue
 		}
-		for ($index = 0; $index -lt $sourceSerials.Count; $index++) {
-			$sourceSerial = $sourceSerials[$index]
-			$mappedTargets = @(Get-ResolvedLinkTargetsForRule -Rule $rule -SourceIndex $index -TargetSerials $orderedTargetSerials)
-			if ($mappedTargets.Count -eq 0) {
-				continue
-			}
-			$targetSerialText = Format-SerialInputText -Serials $mappedTargets -Style $targetSerialFormat
-			$command = "redstonelink link set triggerSource $sourceSerial $targetSerialText"
-			if ($mappedTargets.Count -gt 1) {
-				$command += " confirm"
-			}
-			$linkCommands.Add((Wrap-WithPlayerContext $command))
+		if (Test-SupportsStructuredBenchLinkMapping -Rule $rule) {
+			$linkPlans.Add((New-StructuredLinkCommandPlan -Rule $rule -SourceSerials $sourceSerials -TargetSerials $orderedTargetSerials))
+			continue
+		}
+		foreach ($plan in @(Build-ClassicLinkCommandPlansForRule -Rule $rule -SourceSerials $sourceSerials -TargetSerials $orderedTargetSerials)) {
+			$linkPlans.Add($plan)
 		}
 	}
-	return $linkCommands
+	return @($linkPlans.ToArray())
 }
 
 function Invoke-BenchSetupCommand {
@@ -388,6 +508,101 @@ function Invoke-BenchSetupCommand {
 	return [ordered]@{
 		command = $Command
 		response = $response
+	}
+}
+
+function Invoke-LinkCommandPlans {
+	param(
+		$Connection,
+		$LinkCommandPlans
+	)
+	$operations = New-Object System.Collections.Generic.List[object]
+	$executedCommands = New-Object System.Collections.Generic.List[string]
+	$structuredPlanCount = 0
+	$classicPlanCount = 0
+	$fallbackPlanCount = 0
+	foreach ($plan in @($LinkCommandPlans)) {
+		$mode = [string](Get-OptionalProperty -Object $plan -Name "mode" -DefaultValue "classic")
+		$mapping = [string](Get-OptionalProperty -Object $plan -Name "mapping" -DefaultValue "")
+		$sourceGroup = [string](Get-OptionalProperty -Object $plan -Name "sourceGroup" -DefaultValue "")
+		$command = [string](Get-OptionalProperty -Object $plan -Name "command" -DefaultValue "")
+		$fallbackCommands = @((Get-OptionalProperty -Object $plan -Name "fallbackCommands" -DefaultValue @()))
+		if ($mode -eq "structured") {
+			$structuredPlanCount++
+		} else {
+			$classicPlanCount++
+		}
+		if ([string]::IsNullOrWhiteSpace($command)) {
+			continue
+		}
+
+		if ($mode -ne "structured") {
+			$operation = Invoke-BenchSetupCommand -Connection $Connection -Command $command -ExpectedPrefix "[RedstoneLink"
+			$executedCommands.Add($command)
+			$operations.Add([ordered]@{
+				mode = $mode
+				mapping = $mapping
+				sourceGroup = $sourceGroup
+				fallbackUsed = $false
+				primaryCommand = $command
+				primaryResponse = $operation.response
+				executedCommands = @($command)
+				fallbackCommands = @()
+			})
+			continue
+		}
+
+		$primaryResponse = Invoke-RconCommand -Connection $Connection -Command $command -Silent
+		$normalizedResponse = ([string]$primaryResponse).Trim()
+		$shouldFallback = ([string]::IsNullOrWhiteSpace($normalizedResponse) -or (Test-BenchResponseLooksLikeFailure -ResponseText $normalizedResponse))
+		if ($shouldFallback -and $fallbackCommands.Count -gt 0) {
+			$fallbackPlanCount++
+			Write-Host "[Bench] Structured link apply fallback. mapping=$mapping sourceGroup=$sourceGroup response=$normalizedResponse"
+			$fallbackOperations = New-Object System.Collections.Generic.List[object]
+			$fallbackExecutedCommands = New-Object System.Collections.Generic.List[string]
+			foreach ($fallbackCommand in $fallbackCommands) {
+				$fallbackOperation = Invoke-BenchSetupCommand -Connection $Connection -Command ([string]$fallbackCommand) -ExpectedPrefix "[RedstoneLink"
+				$fallbackExecutedCommands.Add([string]$fallbackCommand)
+				$executedCommands.Add([string]$fallbackCommand)
+				$fallbackOperations.Add($fallbackOperation)
+			}
+			$operations.Add([ordered]@{
+				mode = $mode
+				mapping = $mapping
+				sourceGroup = $sourceGroup
+				fallbackUsed = $true
+				fallbackReason = $normalizedResponse
+				primaryCommand = $command
+				primaryResponse = $primaryResponse
+				executedCommands = @($fallbackExecutedCommands.ToArray())
+				fallbackCommands = @($fallbackCommands)
+				fallbackOperations = @($fallbackOperations.ToArray())
+			})
+			continue
+		}
+
+		Assert-BenchCommandResponse -Command $command -ResponseText $primaryResponse -ExpectedPrefix "[RedstoneLink"
+		$executedCommands.Add($command)
+		$operations.Add([ordered]@{
+			mode = $mode
+			mapping = $mapping
+			sourceGroup = $sourceGroup
+			fallbackUsed = $false
+			primaryCommand = $command
+			primaryResponse = $primaryResponse
+			executedCommands = @($command)
+			fallbackCommands = @($fallbackCommands)
+		})
+	}
+
+	return [ordered]@{
+		planCount = @($LinkCommandPlans).Count
+		executedCommandCount = $executedCommands.Count
+		structuredPlanCount = $structuredPlanCount
+		classicPlanCount = $classicPlanCount
+		fallbackPlanCount = $fallbackPlanCount
+		executedCommands = @($executedCommands.ToArray())
+		operations = @($operations.ToArray())
 	}
 }
 

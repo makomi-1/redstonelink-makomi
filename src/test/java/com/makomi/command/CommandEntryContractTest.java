@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.command.argument.KeyValueTokenArgumentType;
 import com.makomi.command.argument.SerialBatchArgumentType;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.LongArgumentType;
@@ -138,6 +139,124 @@ class CommandEntryContractTest {
 		assertTrue(confirmed.get());
 		assertEquals("1:3", targets.get());
 		assertThrows(CommandSyntaxException.class, () -> dispatcher.execute("set triggerSource 12 1:3 Confirm", new Object()));
+	}
+
+	/**
+	 * bench 结构化批量建链应在双 serial batch 之后继续解析映射 literal。
+	 */
+	@Test
+	void benchLinkApplyShouldParseBroadcastAllAfterTwoSerialBatches() throws Exception {
+		CommandDispatcher<Object> dispatcher = new CommandDispatcher<>();
+		AtomicReference<String> sourceSerials = new AtomicReference<>();
+		AtomicReference<String> targetSerials = new AtomicReference<>();
+		AtomicReference<String> mapping = new AtomicReference<>();
+		dispatcher.register(
+			com.mojang.brigadier.builder.LiteralArgumentBuilder
+				.<Object>literal("apply")
+				.then(
+					com.mojang.brigadier.builder.LiteralArgumentBuilder
+						.<Object>literal("triggerSource")
+						.then(
+							com.mojang.brigadier.builder.RequiredArgumentBuilder
+								.<Object, String>argument("source_serials", SerialBatchArgumentType.serialBatch())
+								.then(
+									com.mojang.brigadier.builder.LiteralArgumentBuilder
+										.<Object>literal("core")
+										.then(
+											com.mojang.brigadier.builder.RequiredArgumentBuilder
+												.<Object, String>argument("target_serials", SerialBatchArgumentType.serialBatch())
+												.then(
+													com.mojang.brigadier.builder.LiteralArgumentBuilder
+														.<Object>literal("broadcast_all")
+														.executes(context -> {
+															sourceSerials.set(SerialBatchArgumentType.getSerialBatch(context, "source_serials"));
+															targetSerials.set(SerialBatchArgumentType.getSerialBatch(context, "target_serials"));
+															mapping.set("broadcast_all");
+															return 1;
+														})
+												)
+										)
+								)
+						)
+				)
+		);
+
+		int result = dispatcher.execute("apply triggerSource 1:4 core 10:20 broadcast_all", new Object());
+
+		assertEquals(1, result);
+		assertEquals("1:4", sourceSerials.get());
+		assertEquals("10:20", targetSerials.get());
+		assertEquals("broadcast_all", mapping.get());
+	}
+
+	/**
+	 * bench banded 映射应保留 `key=value` 风格的显式参数顺序。
+	 */
+	@Test
+	void benchLinkApplyShouldParseNamedBandedSpecs() throws Exception {
+		CommandDispatcher<Object> dispatcher = new CommandDispatcher<>();
+		AtomicReference<String> fanoutSpec = new AtomicReference<>();
+		AtomicReference<String> strideSpec = new AtomicReference<>();
+		AtomicReference<String> offsetSpec = new AtomicReference<>();
+		AtomicReference<String> wrapSpec = new AtomicReference<>();
+		dispatcher.register(
+			com.mojang.brigadier.builder.LiteralArgumentBuilder
+				.<Object>literal("apply")
+				.then(
+					com.mojang.brigadier.builder.LiteralArgumentBuilder
+						.<Object>literal("triggerSource")
+						.then(
+							com.mojang.brigadier.builder.RequiredArgumentBuilder
+								.<Object, String>argument("source_serials", SerialBatchArgumentType.serialBatch())
+								.then(
+									com.mojang.brigadier.builder.LiteralArgumentBuilder
+										.<Object>literal("core")
+										.then(
+											com.mojang.brigadier.builder.RequiredArgumentBuilder
+												.<Object, String>argument("target_serials", SerialBatchArgumentType.serialBatch())
+												.then(
+													com.mojang.brigadier.builder.LiteralArgumentBuilder
+														.<Object>literal("banded")
+														.then(
+															com.mojang.brigadier.builder.RequiredArgumentBuilder
+																.<Object, String>argument("fanout_spec", KeyValueTokenArgumentType.keyValueToken())
+																.then(
+																	com.mojang.brigadier.builder.RequiredArgumentBuilder
+																		.<Object, String>argument("stride_spec", KeyValueTokenArgumentType.keyValueToken())
+																		.then(
+																			com.mojang.brigadier.builder.RequiredArgumentBuilder
+																				.<Object, String>argument("offset_spec", KeyValueTokenArgumentType.keyValueToken())
+																				.then(
+																					com.mojang.brigadier.builder.RequiredArgumentBuilder
+																						.<Object, String>argument("wrap_spec", KeyValueTokenArgumentType.keyValueToken())
+																						.executes(context -> {
+																							fanoutSpec.set(StringArgumentType.getString(context, "fanout_spec"));
+																							strideSpec.set(StringArgumentType.getString(context, "stride_spec"));
+																							offsetSpec.set(StringArgumentType.getString(context, "offset_spec"));
+																							wrapSpec.set(StringArgumentType.getString(context, "wrap_spec"));
+																							return 1;
+																						})
+																				)
+																		)
+																)
+														)
+												)
+										)
+								)
+						)
+				)
+		);
+
+		int result = dispatcher.execute(
+			"apply triggerSource 1:4 core 10:20 banded fanout=16 stride=16 offset=0 wrap=true",
+			new Object()
+		);
+
+		assertEquals(1, result);
+		assertEquals("fanout=16", fanoutSpec.get());
+		assertEquals("stride=16", strideSpec.get());
+		assertEquals("offset=0", offsetSpec.get());
+		assertEquals("wrap=true", wrapSpec.get());
 	}
 
 	/**

@@ -4,6 +4,7 @@ bench 模块：外部客户端实例自动启动、bench 配置写入与进程�
 #>
 
 $script:BenchClientWindowInteropInitialized = $false
+$script:BenchClientAppActivateShell = $null
 $script:BenchClientLauncherAutoJoinMinInitialDelayMs = 5000
 
 function Assert-BenchClientIdentityCompatible {
@@ -637,27 +638,47 @@ public static class BenchClientWindowInterop {
 	$script:BenchClientWindowInteropInitialized = $true
 }
 
+function Get-BenchClientAppActivateShell {
+	if ($null -ne $script:BenchClientAppActivateShell) {
+		return $script:BenchClientAppActivateShell
+	}
+	try {
+		$script:BenchClientAppActivateShell = New-Object -ComObject "WScript.Shell"
+	} catch {
+		$script:BenchClientAppActivateShell = $null
+	}
+	return $script:BenchClientAppActivateShell
+}
+
 function Focus-BenchClientWindow {
 	param(
 		[int]$ProcessId,
-		[int]$TimeoutMs
+		[int]$TimeoutMs,
+		[string]$Stage = "unspecified"
 	)
 	if (-not [bool]$script:BenchClientFocusWindow) {
 		return $null
 	}
 	if ($ProcessId -le 0) {
-		return [ordered]@{
+		return [pscustomobject][ordered]@{
+			stage = $Stage
+			attemptedAt = (Get-Date).ToString("s")
 			enabled = $true
 			focused = $false
 			processId = $ProcessId
+			method = $null
 			reason = "invalid_process_id"
 		}
 	}
 	if ($DryRun) {
-		return [ordered]@{
+		return [pscustomobject][ordered]@{
+			stage = $Stage
+			attemptedAt = (Get-Date).ToString("s")
 			enabled = $true
 			focused = $false
 			processId = $ProcessId
+			method = $null
+			reason = "dry_run"
 			dryRun = $true
 		}
 	}
@@ -668,10 +689,13 @@ function Focus-BenchClientWindow {
 	while ($stopwatch.ElapsedMilliseconds -lt $normalizedTimeoutMs) {
 		$process = Get-BenchClientManagedProcess -ProcessId $ProcessId -RetryCount 1 -RetryDelayMs 0
 		if ($null -eq $process -or $process.HasExited) {
-			return [ordered]@{
+			return [pscustomobject][ordered]@{
+				stage = $Stage
+				attemptedAt = (Get-Date).ToString("s")
 				enabled = $true
 				focused = $false
 				processId = $ProcessId
+				method = $null
 				reason = "process_exited"
 			}
 		}
@@ -680,24 +704,168 @@ function Focus-BenchClientWindow {
 		if (($null -ne $windowHandle) -and ($windowHandle -ne [IntPtr]::Zero)) {
 			$showState = if ([BenchClientWindowInterop]::IsIconic($windowHandle)) { 9 } else { 5 }
 			[BenchClientWindowInterop]::ShowWindowAsync($windowHandle, $showState) | Out-Null
-			$focused = [BenchClientWindowInterop]::SetForegroundWindow($windowHandle)
-			return [ordered]@{
+			$focused = [bool]([BenchClientWindowInterop]::SetForegroundWindow($windowHandle))
+			$focusMethod = "set_foreground_window"
+			$focusReason = if ($focused) { "success" } else { "set_foreground_rejected" }
+			$fallbackMethod = $null
+			$fallbackReason = $null
+			if (-not $focused) {
+				$appActivateShell = Get-BenchClientAppActivateShell
+				if ($null -eq $appActivateShell) {
+					$fallbackMethod = "app_activate"
+					$fallbackReason = "app_activate_unavailable"
+				} else {
+					$fallbackMethod = "app_activate"
+					try {
+						$appActivateFocused = [bool]$appActivateShell.AppActivate([int]$ProcessId)
+						if ($appActivateFocused) {
+							$focused = $true
+							$focusMethod = $fallbackMethod
+							$focusReason = "success"
+							$fallbackReason = "app_activate_success"
+						} else {
+							$fallbackReason = "app_activate_rejected"
+						}
+					} catch {
+						$fallbackReason = "app_activate_failed"
+					}
+				}
+			}
+			return [pscustomobject][ordered]@{
+				stage = $Stage
+				attemptedAt = (Get-Date).ToString("s")
 				enabled = $true
 				focused = [bool]$focused
 				processId = $ProcessId
 				windowHandle = $windowHandle.ToInt64()
-				reason = if ($focused) { "success" } else { "set_foreground_rejected" }
+				method = $focusMethod
+				reason = $focusReason
+				fallbackMethod = $fallbackMethod
+				fallbackReason = $fallbackReason
 			}
 		}
 		Start-Sleep -Milliseconds 200
 	}
 
-	return [ordered]@{
+	return [pscustomobject][ordered]@{
+		stage = $Stage
+		attemptedAt = (Get-Date).ToString("s")
 		enabled = $true
 		focused = $false
 		processId = $ProcessId
+		method = $null
 		reason = "window_handle_timeout"
 		timeoutMs = $normalizedTimeoutMs
+	}
+}
+
+function New-BenchClientFocusEventList {
+	return @()
+}
+function Add-BenchClientFocusEvent {
+	param(
+		$Session,
+		$FocusResult
+	)
+	if ($null -eq $Session -or $null -eq $FocusResult) {
+		return $null
+	}
+	$focusEvents = @()
+	if (($Session.PSObject.Properties.Name -contains "focusEvents") -and ($null -ne $Session.focusEvents)) {
+		$focusEvents = @($Session.focusEvents)
+	}
+	$focusEvents += $FocusResult
+	if ($Session.PSObject.Properties.Name -contains "focusEvents") {
+		$Session.focusEvents = $focusEvents
+	} else {
+		$Session | Add-Member -NotePropertyName "focusEvents" -NotePropertyValue $focusEvents -Force
+	}
+	if ($Session.PSObject.Properties.Name -contains "focusResult") {
+		$Session.focusResult = $FocusResult
+	} else {
+		$Session | Add-Member -NotePropertyName "focusResult" -NotePropertyValue $FocusResult -Force
+	}
+	return $FocusResult
+}
+
+function Get-BenchClientFocusProcessId {
+	param(
+		$Session
+	)
+	if ($null -eq $Session) {
+		return 0
+	}
+	foreach ($propertyName in @("trackedProcessId", "processId", "gameProcessId", "launcherProcessId")) {
+		if ($Session.PSObject.Properties.Name -contains $propertyName) {
+			$processId = [int]$Session.PSObject.Properties[$propertyName].Value
+			if ($processId -gt 0) {
+				return $processId
+			}
+		}
+	}
+	return 0
+}
+function Invoke-BenchClientRefocus {
+	param(
+		$Session,
+		[string]$StageName,
+		[int]$DelayMs = 0
+	)
+	if ($null -eq $Session) {
+		return $null
+	}
+	if ($DelayMs -gt 0 -and -not $DryRun) {
+		Start-Sleep -Milliseconds ([Math]::Max(0, [int]$DelayMs))
+	}
+	$processId = Get-BenchClientFocusProcessId -Session $Session
+	$focusResult = Focus-BenchClientWindow -ProcessId $processId -TimeoutMs ([int]$script:BenchClientFocusTimeoutMs) -Stage $StageName
+	$recordedFocusResult = Add-BenchClientFocusEvent -Session $Session -FocusResult $focusResult
+	if ($null -ne $recordedFocusResult) {
+		Write-Host ("[Bench] Bench client focus stage={0} focused={1} method={2} reason={3} pid={4}" -f `
+			$recordedFocusResult.stage, `
+			$recordedFocusResult.focused, `
+			$recordedFocusResult.method, `
+			$recordedFocusResult.reason, `
+			$recordedFocusResult.processId)
+	}
+	return $recordedFocusResult
+}
+
+function Get-BenchClientSessionSummary {
+	param(
+		$Session
+	)
+	if ($null -eq $Session) {
+		return $null
+	}
+	$focusEvents = @()
+	if (($Session.PSObject.Properties.Name -contains "focusEvents") -and ($null -ne $Session.focusEvents)) {
+		$focusEvents = @($Session.focusEvents)
+	}
+	return [ordered]@{
+		autoStart = $true
+		playerName = $Session.playerName
+		instanceRootPath = $Session.instanceRootPath
+		workingDirectoryPath = $Session.workingDirectoryPath
+		modsDirectoryPath = $Session.modsDirectoryPath
+		processId = $Session.processId
+		launcherProcessId = $Session.launcherProcessId
+		gameProcessId = $Session.gameProcessId
+		trackedProcessId = $Session.trackedProcessId
+		trackedProcessKind = $Session.trackedProcessKind
+		serverHost = $Session.serverHost
+		serverPort = $Session.serverPort
+		reconnectIntervalMs = $Session.reconnectIntervalMs
+		initialConnectDelayMs = $Session.initialConnectDelayMs
+		configuredInitialConnectDelayMs = $Session.configuredInitialConnectDelayMs
+		launcherAutoJoinDetected = $Session.launcherAutoJoinDetected
+		openTickCharts = $Session.openTickCharts
+		postJoinActionDelayMs = $Session.postJoinActionDelayMs
+		focusWindow = $Session.focusWindow
+		focusResult = $Session.focusResult
+		focusEvents = $focusEvents
+		modSync = $Session.modSync
+		dryRun = [bool](Get-OptionalProperty -Object $Session -Name "dryRun" -DefaultValue $false)
 	}
 }
 
@@ -797,6 +965,7 @@ function Start-BenchClientAutomationSession {
 			openTickCharts = [bool]$script:BenchClientOpenTickCharts
 			postJoinActionDelayMs = [int]$script:BenchClientPostJoinActionDelayMs
 			focusWindow = [bool]$script:BenchClientFocusWindow
+			focusEvents = (New-BenchClientFocusEventList)
 			focusResult = $null
 			modSync = $modSyncSummary
 			dryRun = $true
@@ -826,13 +995,7 @@ function Start-BenchClientAutomationSession {
 			-KnownJavaProcessIds $knownJavaProcessIds `
 			-InstanceRootPath $instanceRootPath `
 			-WorkingDirectoryPath $workingDirectoryPath
-		$focusResult = Focus-BenchClientWindow -ProcessId ([int]$trackedSession.trackedProcessId) -TimeoutMs ([int]$script:BenchClientFocusTimeoutMs)
-
-		Write-Host "[Bench] Started bench client trackedPid=$($trackedSession.trackedProcessId) kind=$($trackedSession.trackedProcessKind) player=$($script:BenchClientPlayerName) initialConnectDelayMs=$effectiveInitialConnectDelayMs launcherAutoJoin=$([bool]$launcherAutoJoinDetected)"
-		if ($null -ne $focusResult) {
-			Write-Host "[Bench] Bench client focus result: focused=$($focusResult.focused) reason=$($focusResult.reason) pid=$($focusResult.processId)"
-		}
-		return [pscustomobject]@{
+		$session = [pscustomobject]@{
 			process = $trackedSession.trackedProcess
 			processId = $trackedSession.trackedProcessId
 			launcherProcess = $trackedSession.launcherProcess
@@ -857,9 +1020,13 @@ function Start-BenchClientAutomationSession {
 			openTickCharts = [bool]$script:BenchClientOpenTickCharts
 			postJoinActionDelayMs = [int]$script:BenchClientPostJoinActionDelayMs
 			focusWindow = [bool]$script:BenchClientFocusWindow
-			focusResult = $focusResult
+			focusEvents = (New-BenchClientFocusEventList)
+			focusResult = $null
 			modSync = $modSyncSummary
 		}
+		Write-Host "[Bench] Started bench client trackedPid=$($trackedSession.trackedProcessId) kind=$($trackedSession.trackedProcessKind) player=$($script:BenchClientPlayerName) initialConnectDelayMs=$effectiveInitialConnectDelayMs launcherAutoJoin=$([bool]$launcherAutoJoinDetected)"
+		Invoke-BenchClientRefocus -Session $session -StageName "launch_start" | Out-Null
+		return $session
 	} catch {
 		Remove-BenchClientAutomationConfigFile -ConfigFilePath $configFilePath
 		throw

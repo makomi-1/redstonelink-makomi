@@ -104,6 +104,8 @@ $suiteSummary = [ordered]@{
 	suitePath = $resolvedSuite.suiteConfigPath
 	suiteDescription = $resolvedSuite.description
 	benchAction = $BenchAction
+	serverWindowMode = $ServerWindowMode
+	serverPriorityClass = if ([string]::IsNullOrWhiteSpace([string]$ServerPriorityClass)) { $null } else { ([string]$ServerPriorityClass).Trim() }
 	serverRoot = $serverRootFullPath
 	serverPropertiesPath = $serverPropertiesFullPath
 	templateWorldPath = $templateWorldFullPath
@@ -115,6 +117,10 @@ $suiteSummary = [ordered]@{
 	results = @()
 	restoredServerProperties = $false
 	benchClient = $null
+	benchClientRequested = [bool]$script:BenchAutoStartClient
+	benchClientStartAttempted = $false
+	benchClientStartSucceeded = $false
+	benchClientStartError = $null
 }
 
 Write-Host "[BenchSuite] Suite: $suiteTimestamp"
@@ -125,34 +131,16 @@ if (-not [string]::IsNullOrWhiteSpace([string]$resolvedSuite.suiteConfigPath)) {
 	Write-Host "[BenchSuite] Suite path: $($resolvedSuite.suiteConfigPath)"
 }
 Write-Host "[BenchSuite] Entries: $($entryIds -join ', ')"
+if ($script:BenchAutoStartClient) {
+	Write-Host "[BenchSuite] Bench client requested: true player=$script:BenchClientPlayerName instanceRoot=$script:BenchClientInstanceRoot"
+} else {
+	Write-Host "[BenchSuite] Bench client requested: false"
+}
 
 $completedEntries = @{}
 $benchClientSession = $null
 
 try {
-	if ($script:BenchAutoStartClient) {
-		$benchClientSession = Start-BenchClientAutomationSession -RepoRootPath $repoRoot -SkipModSync
-		$suiteSummary.benchClient = [ordered]@{
-			autoStart = $true
-			playerName = $benchClientSession.playerName
-			instanceRootPath = $benchClientSession.instanceRootPath
-			workingDirectoryPath = $benchClientSession.workingDirectoryPath
-			modsDirectoryPath = $benchClientSession.modsDirectoryPath
-			processId = $benchClientSession.processId
-			launcherProcessId = $benchClientSession.launcherProcessId
-			gameProcessId = $benchClientSession.gameProcessId
-			trackedProcessId = $benchClientSession.trackedProcessId
-			trackedProcessKind = $benchClientSession.trackedProcessKind
-			serverHost = $benchClientSession.serverHost
-			serverPort = $benchClientSession.serverPort
-			reconnectIntervalMs = $benchClientSession.reconnectIntervalMs
-			initialConnectDelayMs = $benchClientSession.initialConnectDelayMs
-			openTickCharts = $benchClientSession.openTickCharts
-			postJoinActionDelayMs = $benchClientSession.postJoinActionDelayMs
-			focusWindow = $benchClientSession.focusWindow
-			focusResult = $benchClientSession.focusResult
-		}
-	}
 	for ($index = 0; $index -lt $suiteEntries.Count; $index++) {
 		$entry = $suiteEntries[$index]
 		$entryId = [string]$entry.entryId
@@ -203,9 +191,61 @@ try {
 			}
 
 			Set-ServerPropertyValue -Path $serverPropertiesFullPath -Key "level-name" -Value $worldLevelName
-			$serverProcess = Start-DedicatedServerProcess -WorkingDirectory $serverRootFullPath -Command $ServerStartCommand
+			$serverProcess = Start-DedicatedServerProcess -WorkingDirectory $serverRootFullPath -Command $ServerStartCommand -WindowMode $ServerWindowMode -PriorityClass $ServerPriorityClass
 			$caseRecord.serverPid = $serverProcess.Id
+			if ($serverProcess.PSObject.Properties.Name -contains "launcherProcessId") {
+				$caseRecord.serverLauncherPid = [int]$serverProcess.launcherProcessId
+			}
+			if ($serverProcess.PSObject.Properties.Name -contains "trackedProcessKind") {
+				$caseRecord.serverTrackedProcessKind = [string]$serverProcess.trackedProcessKind
+			}
+			if ($serverProcess.PSObject.Properties.Name -contains "priorityResult") {
+				$caseRecord.serverPriority = $serverProcess.priorityResult
+			}
+			$serverPriorityApplied = if (
+				($serverProcess.PSObject.Properties.Name -contains "priorityResult") -and
+				($null -ne $serverProcess.priorityResult) -and
+				($serverProcess.priorityResult.Contains("applied"))
+			) {
+				[string]$serverProcess.priorityResult.applied
+			} else {
+				"<none>"
+			}
+			$serverLauncherPidText = if ($serverProcess.PSObject.Properties.Name -contains "launcherProcessId") {
+				[string]$serverProcess.launcherProcessId
+			} else {
+				"<same>"
+			}
+			$serverTrackedProcessKindText = if ($serverProcess.PSObject.Properties.Name -contains "trackedProcessKind") {
+				[string]$serverProcess.trackedProcessKind
+			} else {
+				"launcherProcess"
+			}
+			Write-Host "[BenchSuite] Server process started trackedPid=$($serverProcess.Id) launcherPid=$serverLauncherPidText kind=$serverTrackedProcessKindText priority=$serverPriorityApplied"
+			Write-Host "[BenchSuite] Waiting RCON ready for entry $entryId ($caseId)"
 			Wait-RconReady -ServerHost $RconHost -Port $RconPort -Password $rconPasswordSecure -TimeoutMs $StartupTimeoutMs -PollIntervalMs $StartupPollIntervalMs
+			Write-Host "[BenchSuite] RCON ready for entry $entryId ($caseId)"
+			if ($script:BenchAutoStartClient -and $null -eq $benchClientSession) {
+				# suite 外部客户端延后到首个 dedicated server 真正 ready 后再启动，
+				# 避免启动器自带 --server 时在服务端未就绪阶段提前连服。
+				$suiteSummary.benchClientStartAttempted = $true
+				Write-Host "[BenchSuite] Starting bench client after server ready. player=$script:BenchClientPlayerName instanceRoot=$script:BenchClientInstanceRoot"
+				try {
+					$benchClientSession = Start-BenchClientAutomationSession -RepoRootPath $repoRoot -SkipModSync
+					if ($null -eq $benchClientSession) {
+						throw "AutoStartBenchClient was requested but Start-BenchClientAutomationSession returned null."
+					}
+					$suiteSummary.benchClientStartSucceeded = $true
+					$suiteSummary.benchClientStartError = $null
+					$suiteSummary.benchClient = Get-BenchClientSessionSummary -Session $benchClientSession
+					Write-Host "[BenchSuite] Bench client session ready trackedPid=$($benchClientSession.trackedProcessId) kind=$($benchClientSession.trackedProcessKind)"
+				} catch {
+					$suiteSummary.benchClientStartSucceeded = $false
+					$suiteSummary.benchClientStartError = $_.Exception.Message
+					Write-Host "[BenchSuite] Bench client start failed: $($suiteSummary.benchClientStartError)"
+					throw
+				}
+			}
 
 			$resultsDirPath = Get-ResultsDirectoryPath -RepoRootPath $repoRoot -Matrix $entryMatrix
 			$beforeSnapshot = Get-ResultFileSnapshot -ResultsDirPath $resultsDirPath
@@ -233,6 +273,9 @@ try {
 			}
 			if (-not [string]::IsNullOrWhiteSpace($SparkActivityPath)) {
 				$benchArgs.SparkActivityPath = $SparkActivityPath
+			}
+			if (-not [string]::IsNullOrWhiteSpace($AsPlayer)) {
+				Write-Host "[BenchSuite] Entering bench player-ready wait. entry=$entryId asPlayer=$AsPlayer timeoutMs=$PlayerReadyTimeoutMs"
 			}
 
 			$runException = $null
@@ -317,6 +360,9 @@ try {
 		}
 	}
 } finally {
+	if ($null -ne $benchClientSession) {
+		$suiteSummary.benchClient = Get-BenchClientSessionSummary -Session $benchClientSession
+	}
 	try {
 		Stop-BenchClientAutomationSession -Session $benchClientSession
 	} catch {

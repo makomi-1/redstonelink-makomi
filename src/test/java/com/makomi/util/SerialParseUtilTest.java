@@ -59,4 +59,16 @@ class SerialParseUtilTest {
 		assertTrue(result.targets().isEmpty());
 		assertTrue(result.exceedLimit());
 	}
+
+	/**
+	 * 保序解析应保留首次出现顺序，并继续收集重复项。
+	 */
+	@Test
+	void parseTargetsOrderedShouldPreserveEncounterOrder() {
+		SerialParseUtil.OrderedTargetParseResult result = SerialParseUtil.parseTargetsOrdered("5/3:4/5/2", 20);
+		assertEquals(List.of(5L, 3L, 4L, 2L), result.orderedTargets());
+		assertEquals(List.of(5L), result.duplicateEntries());
+		assertTrue(result.invalidEntries().isEmpty());
+		assertFalse(result.exceedLimit());
+	}
 }

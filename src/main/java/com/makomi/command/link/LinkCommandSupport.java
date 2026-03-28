@@ -25,7 +25,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * 仅承载 link 模块内部复用的命令层辅助能力，不扩散到全局 support。
  * </p>
  */
-final class LinkCommandSupport {
+public final class LinkCommandSupport {
 	private LinkCommandSupport() {
 	}
 
@@ -45,7 +45,7 @@ final class LinkCommandSupport {
 	/**
 	 * 统一执行写入控制判定并返回是否允许继续写入。
 	 */
-	static boolean checkLinkWriteAllowed(
+	public static boolean checkLinkWriteAllowed(
 		CommandSourceStack source,
 		ServerLevel level,
 		LinkNodeType sourceType,
@@ -63,7 +63,7 @@ final class LinkCommandSupport {
 	 * 仍保留 readonly 与 protected 两类控制。
 	 * </p>
 	 */
-	static boolean checkLinkWriteAllowed(
+	public static boolean checkLinkWriteAllowed(
 		CommandSourceStack source,
 		ServerLevel level,
 		LinkNodeType sourceType,
@@ -133,7 +133,7 @@ final class LinkCommandSupport {
 	/**
 	 * 同步玩家背包中同序列号物品的链接快照。
 	 */
-	static void syncPlayerItemLinkSnapshot(
+	public static void syncPlayerItemLinkSnapshot(
 		ServerPlayer player,
 		LinkNodeType sourceType,
 		long sourceSerial
@@ -163,7 +163,7 @@ final class LinkCommandSupport {
 	/**
 	 * 同步受影响节点（来源 + 目标集合）的客户端链接快照。
 	 */
-	static void syncAffectedNodeLinkSnapshots(
+	public static void syncAffectedNodeLinkSnapshots(
 		ServerLevel sourceLevel,
 		LinkNodeType targetType,
 		Set<Long> previousTargets,

@@ -7,6 +7,8 @@
 param(
 	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
 	[string]$ServerStartCommand = ".\start.bat",
+	[ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
+	[string]$ServerPriorityClass = "High",
 	[string]$RconHost = "127.0.0.1",
 	[int]$RconPort = 25575,
 	[Alias("RconPassword")]
@@ -24,6 +26,8 @@ $invokeArgs = @{
 	ServerRoot = $ServerRoot
 	TemplateWorldPath = (Join-Path $ServerRoot "rl-bench-template")
 	ServerStartCommand = $ServerStartCommand
+	ServerWindowMode = $ServerWindowMode
+	ServerPriorityClass = $ServerPriorityClass
 	SuitePath = (Join-Path $PSScriptRoot "suites\first-mandatory.json")
 	RconHost = $RconHost
 	RconPort = $RconPort
