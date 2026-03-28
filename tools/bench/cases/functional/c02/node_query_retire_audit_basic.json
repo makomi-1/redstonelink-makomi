@@ -1,0 +1,110 @@
+{
+  "id": "node_query_retire_audit_basic",
+  "description": "覆盖 node get/list、audit summary text/csv 与 retire batch confirm 的基础运行时路径。",
+  "layer": "C",
+  "scenarioId": "C02",
+  "arena": {
+    "clearFrom": [-8, 63, 14],
+    "clearTo": [24, 66, 26]
+  },
+  "targets": {
+    "id": "core_query_runtime",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 16],
+      "to": [13, 64, 16]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_query_runtime",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 16],
+        "to": [0, 64, 16]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_query_runtime",
+      "mapping": "broadcast_all"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "node_get_trigger_source",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_query_runtime[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(type=triggerSource|类型=triggerSource)",
+        "(?i)(linked=2|目标数=2)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_get_core",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(type=core|类型=core)",
+        "(?i)(retired=false|已退役=false)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_list_core_active",
+      "commandTemplate": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?<!\\d){{targets[1]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "audit_summary_text",
+      "command": "redstonelink audit summary text",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Audit|审计)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "audit_summary_csv",
+      "command": "redstonelink audit summary csv",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)online_core_nodes"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "retire_core_batch_confirm",
+      "commandTemplate": "redstonelink node retire batch core {{targets[1]}} confirm",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Batch retire done|批量退役完成)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_get_retired_core",
+      "commandTemplate": "redstonelink node get core {{targets[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(type=core|类型=core)",
+        "(?i)(retired=true|已退役=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_list_core_retired",
+      "commandTemplate": "redstonelink node list core retired 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=retired|范围=retired)",
+        "(?<!\\d){{targets[1]}}(?!\\d)"
+      ]
+    }
+  ]
+}

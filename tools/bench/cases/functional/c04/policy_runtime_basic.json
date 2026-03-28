@@ -1,0 +1,133 @@
+{
+  "id": "policy_runtime_basic",
+  "description": "覆盖 privacy current_links mask 与 write_control protected 的运行态增删查改路径。",
+  "layer": "C",
+  "scenarioId": "C04",
+  "arena": {
+    "clearFrom": [-8, 63, 42],
+    "clearTo": [24, 66, 54]
+  },
+  "targets": {
+    "id": "core_policy_runtime",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 44],
+      "to": [13, 64, 44]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_policy_runtime",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 44],
+        "to": [0, 64, 44]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "privacy_mask_add_first_core",
+      "commandTemplate": "redstonelink link privacy current_links mask add core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Privacy]",
+      "expectedRegex": "(?i)(Added mask entry|已加入加密名单)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "privacy_mask_list_after_add",
+      "command": "redstonelink link privacy current_links mask list core",
+      "expectedPrefix": "[RedstoneLink/Privacy]",
+      "expectedRegexes": [
+        "(?i)(count=1|数量=1)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "privacy_mask_set_two_cores",
+      "commandTemplate": "redstonelink link privacy current_links mask set core {{targets[0,1]:mixed}} confirm",
+      "expectedPrefix": "[RedstoneLink/Privacy]",
+      "expectedRegex": "(?i)(Mask set done|加密名单已覆盖)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "privacy_mask_list_after_set",
+      "command": "redstonelink link privacy current_links mask list core",
+      "expectedPrefix": "[RedstoneLink/Privacy]",
+      "expectedRegexes": [
+        "(?i)(count=2|数量=2)",
+        "(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?<!\\d){{targets[1]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "protected_add_first_core",
+      "commandTemplate": "redstonelink link write_control protected add core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/WriteControl]",
+      "expectedRegex": "(?i)(Added protected entry|已加入受控名单)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "protected_list_after_add",
+      "command": "redstonelink link write_control protected list core",
+      "expectedPrefix": "[RedstoneLink/WriteControl]",
+      "expectedRegexes": [
+        "(?i)(count=1|数量=1)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "protected_set_second_core",
+      "commandTemplate": "redstonelink link write_control protected set core {{targets[1]}} confirm",
+      "expectedPrefix": "[RedstoneLink/WriteControl]",
+      "expectedRegex": "(?i)(Protected set done|受控名单已覆盖)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "protected_list_after_set",
+      "command": "redstonelink link write_control protected list core",
+      "expectedPrefix": "[RedstoneLink/WriteControl]",
+      "expectedRegexes": [
+        "(?i)(count=1|数量=1)",
+        "(?<!\\d){{targets[1]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "privacy_mask_remove_second_core",
+      "commandTemplate": "redstonelink link privacy current_links mask remove core {{targets[1]}}",
+      "expectedPrefix": "[RedstoneLink/Privacy]",
+      "expectedRegex": "(?i)(Removed mask entry|已移出加密名单)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "privacy_mask_list_after_remove",
+      "command": "redstonelink link privacy current_links mask list core",
+      "expectedPrefix": "[RedstoneLink/Privacy]",
+      "expectedRegexes": [
+        "(?i)(count=1|数量=1)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "protected_remove_second_core",
+      "commandTemplate": "redstonelink link write_control protected remove core {{targets[1]}}",
+      "expectedPrefix": "[RedstoneLink/WriteControl]",
+      "expectedRegex": "(?i)(Removed protected entry|已移出受控名单)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "protected_list_after_remove",
+      "command": "redstonelink link write_control protected list core",
+      "expectedPrefix": "[RedstoneLink/WriteControl]",
+      "expectedRegex": "(?i)(count=0|数量=0)"
+    }
+  ]
+}

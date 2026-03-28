@@ -13,6 +13,11 @@
     "templates/functional/phases.json"
   ],
   "casePaths": [
+    "cases/functional/c01/place_runtime_basic.json",
+    "cases/functional/c02/node_query_retire_audit_basic.json",
+    "cases/functional/c03/input_admin_basic.json",
+    "cases/functional/c04/policy_runtime_basic.json",
+    "cases/functional/c05/crosschunk_command_basic.json",
     "cases/functional/f02/link_lifecycle_add_remove_set_clear.json",
     "cases/functional/f03/sync_core_range_square_basic.json",
     "cases/functional/f03/sync_triggerSource_slash_square_basic.json",

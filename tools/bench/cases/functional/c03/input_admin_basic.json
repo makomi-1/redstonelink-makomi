@@ -1,0 +1,92 @@
+{
+  "id": "input_admin_basic",
+  "description": "覆盖 input list、stop、clear 等运行态管理命令，并复用真实 input start 获取 jobId。",
+  "layer": "C",
+  "scenarioId": "C03",
+  "arena": {
+    "clearFrom": [-8, 63, 28],
+    "clearTo": [24, 66, 40]
+  },
+  "targets": {
+    "id": "core_input_admin",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 30],
+      "to": [12, 64, 30]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_input_admin",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 30],
+        "to": [0, 64, 30]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_square_job",
+      "serialRef": "sync_input_admin",
+      "serialFormat": "slash_list",
+      "periodTicks": 4,
+      "highTicks": 2,
+      "highPower": 15,
+      "lowPower": 0,
+      "phaseTicks": 0,
+      "totalTicks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "input_list_after_square_start",
+      "command": "redstonelink input list",
+      "expectedPrefix": "[RedstoneLink/Input]",
+      "expectedRegexes": [
+        "(?i)(Running input jobs=|运行中的输入 job 数量=)",
+        "(?<!\\d){{phase:start_square_job.jobId}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "input_stop_square_job",
+      "commandTemplate": "redstonelink input stop {{phase:start_square_job.jobId}}",
+      "expectedPrefix": "[RedstoneLink/Input]",
+      "expectedRegex": "(?i)(Stopped input job|已停止输入 job)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "input_list_after_stop",
+      "command": "redstonelink input list",
+      "expectedPrefix": "[RedstoneLink/Input]",
+      "expectedRegex": "(?i)(No input jobs are currently running|当前没有运行中的输入 job)"
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_custom_job",
+      "serialRef": "sync_input_admin",
+      "serialFormat": "slash_list",
+      "sequence": "0/15/0/15",
+      "phaseTicks": 0,
+      "totalTicks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "input_clear_jobs",
+      "command": "redstonelink input clear",
+      "expectedPrefix": "[RedstoneLink/Input]",
+      "expectedRegex": "(?i)(Cleared input jobs|已清空输入 job)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "input_list_after_clear",
+      "command": "redstonelink input list",
+      "expectedPrefix": "[RedstoneLink/Input]",
+      "expectedRegex": "(?i)(No input jobs are currently running|当前没有运行中的输入 job)"
+    }
+  ]
+}

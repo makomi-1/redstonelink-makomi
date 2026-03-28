@@ -1,0 +1,90 @@
+{
+  "id": "crosschunk_command_basic",
+  "description": "覆盖 crosschunk whitelist add/list/set resident/clear 与 preset list 的基础命令路径。",
+  "layer": "C",
+  "scenarioId": "C05",
+  "arena": {
+    "clearFrom": [-8, 63, 56],
+    "clearTo": [24, 66, 68]
+  },
+  "targets": {
+    "id": "core_crosschunk_runtime",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 58],
+      "to": [12, 64, 58]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_crosschunk_runtime",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 58],
+        "to": [0, 64, 58]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_add_source",
+      "commandTemplate": "redstonelink crosschunk whitelist add source triggerSource {{source:sync_crosschunk_runtime[0]}}",
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegex": "(?i)(Whitelist added|已添加白名单)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_list_source",
+      "command": "redstonelink crosschunk whitelist list source triggerSource",
+      "expectedPrefix": "------------------------------",
+      "expectedRegexes": [
+        "(?i)(count=1|数量=1)",
+        "(?<!\\d){{source:sync_crosschunk_runtime[0]}}(?!\\d)",
+        "(?i)resident=off"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_set_target_resident",
+      "commandTemplate": "redstonelink crosschunk whitelist set target core {{targets[0]}} resident confirm",
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegex": "(?i)(Whitelist overwritten|白名单已覆盖)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_list_target",
+      "command": "redstonelink crosschunk whitelist list target core",
+      "expectedPrefix": "------------------------------",
+      "expectedRegexes": [
+        "(?i)(count=1|数量=1)",
+        "(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?i)resident=on"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_clear_source",
+      "command": "redstonelink crosschunk whitelist clear source triggerSource",
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegex": "(?i)(Cleared role=source|已清空角色=source)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_list_source_after_clear",
+      "command": "redstonelink crosschunk whitelist list source triggerSource",
+      "expectedPrefix": "------------------------------",
+      "expectedRegex": "(?i)(count=0|数量=0)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_preset_list",
+      "command": "redstonelink crosschunk preset list",
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegex": "(?i)(Presets:|Preset 列表:|No preset configured|当前未配置 preset)"
+    }
+  ]
+}

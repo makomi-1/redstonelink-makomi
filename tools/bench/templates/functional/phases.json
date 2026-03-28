@@ -10,6 +10,9 @@
     "link_command": {
       "kind": "link_command"
     },
+    "command_assert": {
+      "kind": "command_assert"
+    },
     "input_start_square_triggerSource": {
       "kind": "input_start_square",
       "endpoint": "triggerSource",

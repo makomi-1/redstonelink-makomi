@@ -1,11 +1,31 @@
 {
   "version": 1,
-  "description": "命令与基础功能回归入口，先复用现有稳定功能 case，独立承接 link、input、trace 等核心链路。",
+  "description": "命令与基础功能回归入口，第一期先覆盖 place/node/input/policy/crosschunk 运行时命令，再承接 link、sync、input+trace 等稳定功能链路。",
   "defaults": {
     "benchAction": "RunFunctionalCase",
     "matrixPath": "../functional-matrix.json"
   },
   "entries": [
+    {
+      "entryId": "c01_place_runtime",
+      "caseId": "place_runtime_basic"
+    },
+    {
+      "entryId": "c02_node_query_retire_audit",
+      "caseId": "node_query_retire_audit_basic"
+    },
+    {
+      "entryId": "c03_input_admin",
+      "caseId": "input_admin_basic"
+    },
+    {
+      "entryId": "c04_policy_runtime",
+      "caseId": "policy_runtime_basic"
+    },
+    {
+      "entryId": "c05_crosschunk_command",
+      "caseId": "crosschunk_command_basic"
+    },
     {
       "entryId": "f02_link_lifecycle",
       "caseId": "link_lifecycle_add_remove_set_clear"

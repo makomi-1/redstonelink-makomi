@@ -25,13 +25,7 @@ function Resolve-PhaseSerials {
 		if ([string]::IsNullOrWhiteSpace($serialRef)) {
 			throw "Phase kind '$($Phase.kind)' requires serialRef/sourceGroup or explicit serials."
 		}
-		if ($serialRef -eq "targets") {
-			$resolvedSerials = @(Get-SerialListFromMap $TargetSerialMap)
-		} elseif ($SourceSerialMaps.ContainsKey($serialRef)) {
-			$resolvedSerials = @(Get-SerialListFromMap $SourceSerialMaps[$serialRef])
-		} else {
-			throw "Unknown serialRef/sourceGroup: $serialRef"
-		}
+		$resolvedSerials = @(Resolve-OrderedPhaseSerialsByRef -SerialRef $serialRef -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
 	}
 
 	$requestedIndexes = New-Object System.Collections.Generic.List[int]
@@ -49,6 +43,301 @@ function Resolve-PhaseSerials {
 		return @(Select-SerialsByIndex -Serials $resolvedSerials -IndexValues $requestedIndexes.ToArray())
 	}
 	return $resolvedSerials
+}
+
+function Resolve-OrderedPhaseSerialsByRef {
+	param(
+		[string]$SerialRef,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap
+	)
+	if ([string]::IsNullOrWhiteSpace($SerialRef)) {
+		throw "serialRef/sourceGroup cannot be empty."
+	}
+	if ($SerialRef -eq "targets") {
+		return @(Get-OrderedSerialListFromPositionMap -Map $TargetSerialMap)
+	}
+	if ($null -ne $SourceSerialMaps -and $SourceSerialMaps.ContainsKey($SerialRef)) {
+		return @(Get-OrderedSerialListFromPositionMap -Map $SourceSerialMaps[$SerialRef])
+	}
+	throw "Unknown serialRef/sourceGroup: $SerialRef"
+}
+
+function Parse-FunctionalSerialIndexes {
+	param([string]$RawIndexSpec)
+	if ([string]::IsNullOrWhiteSpace($RawIndexSpec)) {
+		return @()
+	}
+	$trimmed = $RawIndexSpec.Trim()
+	if (-not $trimmed.StartsWith("[") -or -not $trimmed.EndsWith("]")) {
+		throw "Invalid serial index spec: $RawIndexSpec"
+	}
+	$body = $trimmed.Substring(1, $trimmed.Length - 2).Trim()
+	if ([string]::IsNullOrWhiteSpace($body)) {
+		throw "Serial index spec cannot be empty: $RawIndexSpec"
+	}
+	$indexes = New-Object System.Collections.Generic.List[int]
+	foreach ($token in @($body -split ",")) {
+		$item = ([string]$token).Trim()
+		if ([string]::IsNullOrWhiteSpace($item) -or $item -notmatch "^-?\d+$") {
+			throw "Invalid serial index token: $item"
+		}
+		$indexes.Add([int]$item)
+	}
+	return @($indexes.ToArray())
+}
+
+function Resolve-FunctionalSerialTemplateValue {
+	param(
+		[string]$SerialRef,
+		[string]$RawIndexSpec,
+		[string]$Style,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap
+	)
+	$serials = @(Resolve-OrderedPhaseSerialsByRef -SerialRef $SerialRef -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+	if (-not [string]::IsNullOrWhiteSpace($RawIndexSpec)) {
+		$serials = @(Select-SerialsByIndex -Serials $serials -IndexValues (Parse-FunctionalSerialIndexes -RawIndexSpec $RawIndexSpec))
+	}
+	$normalizedSerials = @(Get-SortedUniqueSerials $serials)
+	if ($normalizedSerials.Count -le 0) {
+		throw "Template ref '$SerialRef' resolved no serials."
+	}
+	$resolvedStyle = ([string]$Style).Trim()
+	if ([string]::IsNullOrWhiteSpace($resolvedStyle)) {
+		if ($normalizedSerials.Count -eq 1) {
+			return [string][long]$normalizedSerials[0]
+		}
+		$resolvedStyle = "slash_list"
+	}
+	switch ($resolvedStyle) {
+		"single" {
+			if ($normalizedSerials.Count -ne 1) {
+				throw "Template ref '$SerialRef' expected exactly one serial, actual=$($normalizedSerials.Count)."
+			}
+			return [string][long]$normalizedSerials[0]
+		}
+		"count" {
+			return [string]$normalizedSerials.Count
+		}
+		default {
+			return (Format-SerialInputText -Serials $normalizedSerials -Style $resolvedStyle)
+		}
+	}
+}
+
+function Resolve-FunctionalPhasePropertyValue {
+	param(
+		[hashtable]$PhaseContext,
+		[string]$PhaseName,
+		[string]$PropertyPath
+	)
+	$value = Resolve-FunctionalPhaseResult -PhaseContext $PhaseContext -PhaseName $PhaseName
+	if ([string]::IsNullOrWhiteSpace($PropertyPath)) {
+		return $value
+	}
+	foreach ($segment in @($PropertyPath -split "\.")) {
+		$currentSegment = ([string]$segment).Trim()
+		if ([string]::IsNullOrWhiteSpace($currentSegment)) {
+			throw "Invalid phase property path: $PropertyPath"
+		}
+		if ($null -eq $value) {
+			throw "Phase property '$PropertyPath' resolved to null at segment '$currentSegment'."
+		}
+		if ($value -is [System.Collections.IDictionary]) {
+			if (-not $value.Contains($currentSegment)) {
+				throw "Phase property segment not found: $currentSegment"
+			}
+			$value = $value[$currentSegment]
+			continue
+		}
+		if (($value -is [System.Collections.IList]) -and -not ($value -is [string])) {
+			if ($currentSegment -notmatch "^-?\d+$") {
+				throw "Phase list segment must be integer index: $currentSegment"
+			}
+			$index = [int]$currentSegment
+			if ($index -lt 0 -or $index -ge $value.Count) {
+				throw "Phase list index out of range: $index"
+			}
+			$value = $value[$index]
+			continue
+		}
+		$property = $value.PSObject.Properties[$currentSegment]
+		if ($null -eq $property) {
+			throw "Phase property segment not found: $currentSegment"
+		}
+		$value = $property.Value
+	}
+	return $value
+}
+
+function Convert-FunctionalTemplateValueToString {
+	param($Value)
+	if ($null -eq $Value) {
+		throw "Template placeholder resolved to null."
+	}
+	if ($Value -is [bool]) {
+		return $Value.ToString().ToLowerInvariant()
+	}
+	if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+		$items = New-Object System.Collections.Generic.List[string]
+		foreach ($item in $Value) {
+			$items.Add((Convert-FunctionalTemplateValueToString -Value $item))
+		}
+		return ($items.ToArray() -join "/")
+	}
+	return [string]$Value
+}
+
+function Resolve-FunctionalCommandTemplateToken {
+	param(
+		[string]$Token,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap,
+		[hashtable]$PhaseContext
+	)
+	$trimmedToken = ([string]$Token).Trim()
+	if ([string]::IsNullOrWhiteSpace($trimmedToken)) {
+		throw "Template token cannot be empty."
+	}
+
+	if ($trimmedToken -like "phase:*") {
+		$phaseRef = $trimmedToken.Substring(6)
+		$dotIndex = $phaseRef.IndexOf(".")
+		if ($dotIndex -lt 1 -or $dotIndex -ge ($phaseRef.Length - 1)) {
+			throw "Phase token must be phase:<phaseName>.<propertyPath>: $trimmedToken"
+		}
+		$phaseName = $phaseRef.Substring(0, $dotIndex)
+		$propertyPath = $phaseRef.Substring($dotIndex + 1)
+		$value = Resolve-FunctionalPhasePropertyValue -PhaseContext $PhaseContext -PhaseName $phaseName -PropertyPath $propertyPath
+		return (Convert-FunctionalTemplateValueToString -Value $value)
+	}
+
+	$targetMatch = [System.Text.RegularExpressions.Regex]::Match(
+		$trimmedToken,
+		"^targets(?<indexes>\[[^\]]+\])?(?::(?<style>[A-Za-z_]+))?$"
+	)
+	if ($targetMatch.Success) {
+		return (
+			Resolve-FunctionalSerialTemplateValue `
+				-SerialRef "targets" `
+				-RawIndexSpec ([string]$targetMatch.Groups["indexes"].Value) `
+				-Style ([string]$targetMatch.Groups["style"].Value) `
+				-SourceSerialMaps $SourceSerialMaps `
+				-TargetSerialMap $TargetSerialMap
+		)
+	}
+
+	$sourceMatch = [System.Text.RegularExpressions.Regex]::Match(
+		$trimmedToken,
+		"^source:(?<group>[A-Za-z0-9_.-]+)(?<indexes>\[[^\]]+\])?(?::(?<style>[A-Za-z_]+))?$"
+	)
+	if ($sourceMatch.Success) {
+		return (
+			Resolve-FunctionalSerialTemplateValue `
+				-SerialRef ([string]$sourceMatch.Groups["group"].Value) `
+				-RawIndexSpec ([string]$sourceMatch.Groups["indexes"].Value) `
+				-Style ([string]$sourceMatch.Groups["style"].Value) `
+				-SourceSerialMaps $SourceSerialMaps `
+				-TargetSerialMap $TargetSerialMap
+		)
+	}
+
+	throw "Unsupported command template token: $trimmedToken"
+}
+
+function Resolve-FunctionalCommandTemplate {
+	param(
+		[string]$Template,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap,
+		[hashtable]$PhaseContext
+	)
+	$rawTemplate = if ($null -eq $Template) { "" } else { [string]$Template }
+	if ([string]::IsNullOrWhiteSpace($rawTemplate)) {
+		return ""
+	}
+	$pattern = "\{\{([^{}]+)\}\}"
+	return [System.Text.RegularExpressions.Regex]::Replace(
+		$rawTemplate,
+		$pattern,
+		{
+			param($match)
+			return [string](
+				Resolve-FunctionalCommandTemplateToken `
+					-Token ([string]$match.Groups[1].Value) `
+					-SourceSerialMaps $SourceSerialMaps `
+					-TargetSerialMap $TargetSerialMap `
+					-PhaseContext $PhaseContext
+			)
+		}
+	)
+}
+
+function Get-FunctionalCommandPatternList {
+	param(
+		$Phase,
+		[string]$PrimaryName,
+		[string]$ListName,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap,
+		[hashtable]$PhaseContext
+	)
+	$resolvedPatterns = New-Object System.Collections.Generic.List[string]
+	$primaryPattern = Get-OptionalProperty -Object $Phase -Name $PrimaryName
+	if ($null -ne $primaryPattern) {
+		$resolvedPatterns.Add(
+			(Resolve-FunctionalCommandTemplate -Template ([string]$primaryPattern) -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap -PhaseContext $PhaseContext)
+		)
+	}
+	$listPatterns = Get-OptionalProperty -Object $Phase -Name $ListName
+	if ($null -ne $listPatterns) {
+		foreach ($item in @($listPatterns)) {
+			$resolvedPatterns.Add(
+				(Resolve-FunctionalCommandTemplate -Template ([string]$item) -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap -PhaseContext $PhaseContext)
+			)
+		}
+	}
+	return @(
+		$resolvedPatterns.ToArray() |
+			Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+	)
+}
+
+function Extract-InputJobIdFromResponse {
+	param([string]$ResponseText)
+	$match = [System.Text.RegularExpressions.Regex]::Match(
+		([string]$ResponseText),
+		"(?i)\bjob\s*=\s*(\d+)"
+	)
+	if (-not $match.Success) {
+		return $null
+	}
+	return [long]$match.Groups[1].Value
+}
+
+function Test-FunctionalCommandAssertHardFailure {
+	param([string]$ResponseText)
+	$normalized = ([string]$ResponseText).Trim()
+	if ([string]::IsNullOrWhiteSpace($normalized)) {
+		return $false
+	}
+	$hardFailurePatterns = @(
+		"(?i)\bUnknown(?: or incomplete)? command\b",
+		"(?i)\bCould not parse command\b",
+		"(?i)\bIncorrect argument\b",
+		"(?i)\bNo entity was found\b",
+		"(?i)\bNo player was found\b",
+		"(?i)\bToo many requests\b",
+		"(?i)\binsufficient permission\b",
+		"(?i)\bplayer[- ]only\b"
+	)
+	foreach ($pattern in $hardFailurePatterns) {
+		if ($normalized -match $pattern) {
+			return $true
+		}
+	}
+	return $false
 }
 
 function Resolve-InputEndpointCommandPath {
@@ -861,12 +1150,14 @@ function Invoke-FunctionalPhases {
 					-ResponseText ([string]$commandResult.response) `
 					-ExpectedPrefix "[RedstoneLink/Input]" `
 					-ExpectedRegex "Started job="
+				$jobId = Extract-InputJobIdFromResponse -ResponseText ([string]$commandResult.response)
 				$phaseResult = [ordered]@{
 					kind = $kind
 					name = $phaseName
 					endpoint = $endpoint
 					serials = $serials
 					serialText = $serialText
+					jobId = $jobId
 					command = $command
 					response = $commandResult.response
 					tickWindow = $commandResult.tickWindow
@@ -907,12 +1198,14 @@ function Invoke-FunctionalPhases {
 					-ResponseText ([string]$commandResult.response) `
 					-ExpectedPrefix "[RedstoneLink/Input]" `
 					-ExpectedRegex "Started job="
+				$jobId = Extract-InputJobIdFromResponse -ResponseText ([string]$commandResult.response)
 				$phaseResult = [ordered]@{
 					kind = $kind
 					name = $phaseName
 					endpoint = $endpoint
 					serials = $serials
 					serialText = $serialText
+					jobId = $jobId
 					sequence = $sequence
 					phaseTicks = $phaseTicks
 					totalTicks = $totalTicks
@@ -1027,6 +1320,168 @@ function Invoke-FunctionalPhases {
 					command = $command
 					response = $commandResult.response
 					tickWindow = $commandResult.tickWindow
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"command_assert" {
+				$rawCommand = [string](Get-OptionalProperty -Object $phase -Name "command" -DefaultValue "")
+				$commandTemplate = [string](Get-OptionalProperty -Object $phase -Name "commandTemplate" -DefaultValue "")
+				$commandText = if (-not [string]::IsNullOrWhiteSpace($commandTemplate)) {
+					Resolve-FunctionalCommandTemplate -Template $commandTemplate -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap -PhaseContext $phaseContext
+				} else {
+					Resolve-FunctionalCommandTemplate -Template $rawCommand -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap -PhaseContext $phaseContext
+				}
+				if ([string]::IsNullOrWhiteSpace($commandText)) {
+					throw "command_assert phase requires command or commandTemplate."
+				}
+				$skipPlayerContext = [bool](Get-OptionalProperty -Object $phase -Name "skipPlayerContext" -DefaultValue $false)
+				$command = if ($skipPlayerContext) { $commandText } else { Wrap-WithPlayerContext $commandText }
+				$expectedPrefix = Resolve-FunctionalCommandTemplate `
+					-Template ([string](Get-OptionalProperty -Object $phase -Name "expectedPrefix" -DefaultValue "")) `
+					-SourceSerialMaps $SourceSerialMaps `
+					-TargetSerialMap $TargetSerialMap `
+					-PhaseContext $phaseContext
+				$expectedRegexes = @(Get-FunctionalCommandPatternList `
+					-Phase $phase `
+					-PrimaryName "expectedRegex" `
+					-ListName "expectedRegexes" `
+					-SourceSerialMaps $SourceSerialMaps `
+					-TargetSerialMap $TargetSerialMap `
+					-PhaseContext $phaseContext)
+				$rejectRegexes = @(Get-FunctionalCommandPatternList `
+					-Phase $phase `
+					-PrimaryName "rejectRegex" `
+					-ListName "rejectRegexes" `
+					-SourceSerialMaps $SourceSerialMaps `
+					-TargetSerialMap $TargetSerialMap `
+					-PhaseContext $phaseContext)
+				$captureTickWindow = [bool](Get-OptionalProperty -Object $phase -Name "captureTickWindow" -DefaultValue $false)
+				$allowReadTimeout = [bool](Get-OptionalProperty -Object $phase -Name "allowReadTimeout" -DefaultValue $false)
+				$receiveTimeoutMs = [int](Get-OptionalProperty -Object $phase -Name "receiveTimeoutMs" -DefaultValue 3000)
+
+				if ($DryRun) {
+					$check = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						scope = "command_response"
+						passed = $true
+						skipped = $true
+						reason = "dry_run"
+						command = $command
+						expectedPrefix = $expectedPrefix
+						expectedRegexes = $expectedRegexes
+						rejectRegexes = $rejectRegexes
+					}
+					$checks.Add($check)
+					$phaseResult = [ordered]@{
+						kind = $kind
+						name = $phaseName
+						command = $command
+						response = ""
+						tickWindow = $null
+						expectedPrefix = $expectedPrefix
+						expectedRegexes = $expectedRegexes
+						rejectRegexes = $rejectRegexes
+						passed = $true
+						dryRun = $true
+					}
+					Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+					continue
+				}
+
+				$response = ""
+				$tickWindow = $null
+				$failureReason = ""
+				$errorDetail = ""
+				try {
+					if ($captureTickWindow) {
+						$commandResult = Invoke-RconCommandWithTickWindow `
+							-Connection $Connection `
+							-Command $command `
+							-Silent `
+							-ReceiveTimeoutMs $receiveTimeoutMs `
+							-AllowReadTimeout:$allowReadTimeout
+						$response = [string]$commandResult.response
+						$tickWindow = $commandResult.tickWindow
+					} else {
+						$response = Invoke-RconCommand `
+							-Connection $Connection `
+							-Command $command `
+							-Silent `
+							-ReceiveTimeoutMs $receiveTimeoutMs `
+							-AllowReadTimeout:$allowReadTimeout
+					}
+				} catch {
+					$failureReason = "execution_error"
+					$errorDetail = $_.Exception.Message
+				}
+
+				$normalizedResponse = ([string]$response).Trim()
+				$passed = $true
+				if ([string]::IsNullOrWhiteSpace($failureReason)) {
+					if ([string]::IsNullOrWhiteSpace($normalizedResponse)) {
+						$passed = $false
+						$failureReason = "empty_response"
+					} elseif (Test-FunctionalCommandAssertHardFailure -ResponseText $normalizedResponse) {
+						$passed = $false
+						$failureReason = "failure_response"
+					} elseif (-not [string]::IsNullOrWhiteSpace($expectedPrefix) -and -not $normalizedResponse.StartsWith($expectedPrefix, [System.StringComparison]::Ordinal)) {
+						$passed = $false
+						$failureReason = "prefix_mismatch"
+					} else {
+						foreach ($expectedRegex in $expectedRegexes) {
+							if (-not [System.Text.RegularExpressions.Regex]::IsMatch($normalizedResponse, $expectedRegex)) {
+								$passed = $false
+								$failureReason = "expected_regex_missing"
+								$errorDetail = $expectedRegex
+								break
+							}
+						}
+						if ($passed) {
+							foreach ($rejectRegex in $rejectRegexes) {
+								if ([System.Text.RegularExpressions.Regex]::IsMatch($normalizedResponse, $rejectRegex)) {
+									$passed = $false
+									$failureReason = "reject_regex_matched"
+									$errorDetail = $rejectRegex
+									break
+								}
+							}
+						}
+					}
+				} else {
+					$passed = $false
+				}
+
+				$check = [ordered]@{
+					phase = $phaseName
+					kind = $kind
+					scope = "command_response"
+					passed = $passed
+					command = $command
+					response = $response
+					expectedPrefix = $expectedPrefix
+					expectedRegexes = $expectedRegexes
+					rejectRegexes = $rejectRegexes
+					failureReason = $failureReason
+					errorDetail = $errorDetail
+				}
+				$checks.Add($check)
+				if (-not $passed) {
+					$failedChecks.Add($check)
+				}
+
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					command = $command
+					response = $response
+					tickWindow = $tickWindow
+					expectedPrefix = $expectedPrefix
+					expectedRegexes = $expectedRegexes
+					rejectRegexes = $rejectRegexes
+					passed = $passed
+					failureReason = $failureReason
+					errorDetail = $errorDetail
 				}
 				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
 			}

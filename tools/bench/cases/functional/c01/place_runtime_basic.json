@@ -1,0 +1,54 @@
+{
+  "id": "place_runtime_basic",
+  "description": "覆盖 place setblock dry_run、setblock force 与 fill confirm 的运行时命令路径。",
+  "layer": "C",
+  "scenarioId": "C01",
+  "arena": {
+    "clearFrom": [-8, 63, 0],
+    "clearTo": [24, 66, 12]
+  },
+  "targets": {
+    "id": "core_place_runtime",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 2],
+      "to": [12, 64, 2]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_place_runtime",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 2],
+        "to": [0, 64, 2]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "place_setblock_dry_run",
+      "command": "redstonelink place setblock 18 64 6 redstonelink:link_sync_emitter dry_run",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(dry-run setblock|预检 setblock)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_setblock_force",
+      "command": "redstonelink place setblock 18 64 7 redstonelink:link_sync_emitter force",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Placement complete|放置完成)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_fill_confirm",
+      "command": "redstonelink place fill 20 64 6 21 64 6 redstonelink:link_redstone_core confirm",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Placement complete|放置完成)"
+    }
+  ]
+}
