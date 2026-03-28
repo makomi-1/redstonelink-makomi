@@ -6,7 +6,8 @@ bench 模块：节点放置、取号、建链与驱动步骤。
 function Convert-PositionsToSerialMap {
 	param(
 		$Connection,
-		$Positions
+		$Positions,
+		[string]$Dimension = "minecraft:overworld"
 	)
 	$result = @{}
 	foreach ($pos in $Positions) {
@@ -17,7 +18,7 @@ function Convert-PositionsToSerialMap {
 			continue
 		}
 		$key = (Format-Vec3 $pos)
-		$result[$key] = Get-BlockSerialWithRetry -Connection $Connection -Position $pos
+		$result[$key] = Get-BlockSerialWithRetry -Connection $Connection -Position $pos -Dimension $Dimension
 	}
 	return $result
 }
@@ -132,10 +133,13 @@ function Get-BlockSerialWithRetry {
 	param(
 		$Connection,
 		$Position,
+		[string]$Dimension = "minecraft:overworld",
 		[int]$MaxAttempts = 8,
 		[int]$RetryDelayMs = 250
 	)
-	$command = Wrap-WithPlayerContext ("data get block {0} Serial" -f (Format-Vec3 $Position))
+	$command = Wrap-WithBenchContexts `
+		-Command ("data get block {0} Serial" -f (Format-Vec3 $Position)) `
+		-Dimension $Dimension
 	$normalizedAttempts = [Math]::Max(1, [int]$MaxAttempts)
 	$normalizedDelayMs = [Math]::Max(50, [int]$RetryDelayMs)
 	$lastResponse = ""
@@ -193,10 +197,12 @@ function Place-NodeGroup {
 	)
 	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 	$positions = @(Expand-CuboidPositions $Group.layout)
+	$dimension = Get-LayoutDimensionId -Layout $Group.layout
 	if ($DryRun) {
 		return [ordered]@{
 			positions = $positions
-			serialMap = (Convert-PositionsToSerialMap -Connection $Connection -Positions $positions)
+			dimension = $dimension
+			serialMap = (Convert-PositionsToSerialMap -Connection $Connection -Positions $positions -Dimension $dimension)
 			placement = $null
 			serialResolution = [ordered]@{
 				mode = "dry_run_counter"
@@ -210,7 +216,8 @@ function Place-NodeGroup {
 	if ($reuseExisting) {
 		return [ordered]@{
 			positions = $positions
-			serialMap = (Convert-PositionsToSerialMap -Connection $Connection -Positions $positions)
+			dimension = $dimension
+			serialMap = (Convert-PositionsToSerialMap -Connection $Connection -Positions $positions -Dimension $dimension)
 			placement = $null
 			serialResolution = [ordered]@{
 				mode = "reuse_existing_probe"
@@ -224,15 +231,20 @@ function Place-NodeGroup {
 	$blockId = Get-BlockIdByKind $Group.kind
 	$command = ""
 	if ($positions.Count -gt 1) {
-		$command = Wrap-WithPlayerContext ("redstonelink place fill {0} {1} {2} force bench" -f (Format-Vec3 $bounds.From), (Format-Vec3 $bounds.To), $blockId)
+		$command = Wrap-WithBenchContexts `
+			-Command ("redstonelink place fill {0} {1} {2} force bench" -f (Format-Vec3 $bounds.From), (Format-Vec3 $bounds.To), $blockId) `
+			-Dimension $dimension
 	} else {
-		$command = Wrap-WithPlayerContext ("redstonelink place setblock {0} {1} force bench" -f (Format-Vec3 $positions[0]), $blockId)
+		$command = Wrap-WithBenchContexts `
+			-Command ("redstonelink place setblock {0} {1} force bench" -f (Format-Vec3 $positions[0]), $blockId) `
+			-Dimension $dimension
 	}
 	$placement = Invoke-BenchPlaceCommand -Connection $Connection -Command $command
 	$summaryResolution = Resolve-SerialMapFromPlaceSummary -Group $Group -Positions $positions -PlacementResponse $placement
 	if ([bool]$summaryResolution.ok) {
 		return [ordered]@{
 			positions = $positions
+			dimension = $dimension
 			serialMap = $summaryResolution.serialMap
 			placement = $placement
 			serialResolution = [ordered]@{
@@ -245,7 +257,8 @@ function Place-NodeGroup {
 	}
 	return [ordered]@{
 		positions = $positions
-		serialMap = (Convert-PositionsToSerialMap -Connection $Connection -Positions $positions)
+		dimension = $dimension
+		serialMap = (Convert-PositionsToSerialMap -Connection $Connection -Positions $positions -Dimension $dimension)
 		placement = $placement
 		serialResolution = [ordered]@{
 			mode = "fallback_probe"
@@ -499,6 +512,27 @@ function Invoke-BenchSetupCommand {
 		[string]$ExpectedPrefix = "",
 		[string]$ExpectedRegex = ""
 	)
+	if ($DryRun) {
+		$response = if ($ExpectedPrefix -eq "[RedstoneLink/Input]") {
+			if (-not [string]::IsNullOrWhiteSpace($ExpectedRegex) -and $ExpectedRegex -match "Started job=") {
+				$jobId = [long]$script:DryRunInputJobCounter
+				$script:DryRunInputJobCounter++
+				"[RedstoneLink/Input] Started job=$jobId [DryRun]"
+			} elseif (-not [string]::IsNullOrWhiteSpace($ExpectedRegex) -and $ExpectedRegex -match "Cleared input jobs:") {
+				"[RedstoneLink/Input] Cleared input jobs: [DryRun]"
+			} else {
+				"$ExpectedPrefix [DryRun] skipped"
+			}
+		} elseif (-not [string]::IsNullOrWhiteSpace($ExpectedPrefix)) {
+			"$ExpectedPrefix [DryRun] skipped"
+		} else {
+			"[RedstoneLink] [DryRun] skipped"
+		}
+		return [ordered]@{
+			command = $Command
+			response = $response
+		}
+	}
 	$response = Invoke-RconCommand -Connection $Connection -Command $Command -Silent
 	Assert-BenchCommandResponse `
 		-Command $Command `

@@ -1,0 +1,80 @@
+{
+  "id": "command_boundary_matrix",
+  "description": "覆盖批量命令边界：空集合、非法 token、重复去重、超上限与退役序号失败回包。",
+  "layer": "C",
+  "scenarioId": "C06",
+  "arena": {
+    "clearFrom": [-8, 63, 84],
+    "clearTo": [24, 66, 96]
+  },
+  "targets": {
+    "id": "core_boundary",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 86],
+      "to": [14, 64, 86]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_boundary",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 86],
+        "to": [0, 64, 86]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_set_deduped",
+      "commandTemplate": "redstonelink crosschunk whitelist set target core {{targets[0]}}/{{targets[0]}}/{{targets[1]}} resident confirm",
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegexes": [
+        "(?i)(Duplicate serials were deduplicated|检测到重复序号)",
+        "(?i)(Whitelist overwritten|白名单已覆盖)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_set_empty_should_fail",
+      "command": "redstonelink crosschunk whitelist set target core / confirm",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegex": "(?i)(Whitelist set input is empty|目标为空)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_set_invalid_token_should_fail",
+      "commandTemplate": "redstonelink crosschunk whitelist set target core {{targets[0]}}/abc confirm",
+      "expectFailureResponse": true,
+      "expectedRegex": "(?i)(Invalid serials|无效序号|非法字符)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_set_too_many_should_fail",
+      "commandTemplate": "redstonelink crosschunk whitelist set target core {{targets:range}} confirm",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegex": "(?i)(Too many whitelist set serials|max|数量过多|最多)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "retire_boundary_target",
+      "commandTemplate": "redstonelink node retire batch core {{targets[2]}} confirm",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Batch retire done|批量退役完成)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "crosschunk_whitelist_add_retired_should_fail",
+      "commandTemplate": "redstonelink crosschunk whitelist add target core {{targets[2]}}",
+      "expectFailureResponse": true,
+      "expectedRegex": "(?i)(retired|已退役)"
+    }
+  ]
+}

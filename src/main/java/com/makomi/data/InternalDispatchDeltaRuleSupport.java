@@ -479,14 +479,20 @@ final class InternalDispatchDeltaRuleSupport {
 		}
 		ServerChunkCache chunkSource = sourceNodeLevel.getChunkSource();
 		LevelChunk sourceChunk = chunkSource.getChunkNow(sourceNode.pos().getX() >> 4, sourceNode.pos().getZ() >> 4);
-		if (sourceChunk == null) {
-			return null;
+		if (sourceChunk != null) {
+			BlockEntity sourceBlockEntity = sourceChunk.getBlockEntity(sourceNode.pos(), LevelChunk.EntityCreationType.CHECK);
+			if (sourceBlockEntity instanceof SyncReplaySourceBlockEntity syncReplaySourceBlockEntity) {
+				SyncReplaySourceBlockEntity.ReplaySyncSnapshot liveSnapshot = syncReplaySourceBlockEntity.replaySyncSnapshot()
+					.orElse(null);
+				if (liveSnapshot != null) {
+					return liveSnapshot;
+				}
+			}
 		}
-		BlockEntity sourceBlockEntity = sourceChunk.getBlockEntity(sourceNode.pos(), LevelChunk.EntityCreationType.CHECK);
-		if (!(sourceBlockEntity instanceof SyncReplaySourceBlockEntity syncReplaySourceBlockEntity)) {
-			return null;
-		}
-		return syncReplaySourceBlockEntity.replaySyncSnapshot().orElse(null);
+		return savedData
+			.getTriggerSourceReplaySyncSnapshot(sourceSerial)
+			.map(snapshot -> new SyncReplaySourceBlockEntity.ReplaySyncSnapshot(snapshot.signalStrength(), snapshot.eventMeta()))
+			.orElse(null);
 	}
 
 	/**

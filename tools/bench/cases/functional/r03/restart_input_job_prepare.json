@@ -1,0 +1,73 @@
+{
+  "id": "restart_input_job_prepare",
+  "description": "准备一条运行中的 triggerSource 输入 job，供重启后验证 job 生命周期清理语义。",
+  "layer": "R",
+  "scenarioId": "R03",
+  "arena": {
+    "clearFrom": [-8, 63, 98],
+    "clearTo": [24, 66, 110]
+  },
+  "targets": {
+    "id": "core_restart_input",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 100],
+      "to": [12, 64, 100]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_restart_input",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 100],
+        "to": [0, 64, 100]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_restart_input",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "restart_input_start_square",
+      "serialRef": "sync_restart_input",
+      "serialFormat": "slash_list",
+      "periodTicks": 100,
+      "highTicks": 80,
+      "highPower": 15,
+      "lowPower": 0,
+      "phaseTicks": 0,
+      "totalTicks": 200
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "restart_input_prepare_collect",
+      "ticks": 6
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "restart_input_list_should_show_running_job",
+      "command": "redstonelink input list",
+      "expectedPrefix": "[RedstoneLink/Input]",
+      "expectedRegexes": [
+        "(?i)(Running input jobs=|运行中的输入 job 数量=)",
+        "(?<!\\d){{phase:restart_input_start_square.jobId}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "restart_input_target_should_be_on_before_restart",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true
+      }
+    }
+  ]
+}

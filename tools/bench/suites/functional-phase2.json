@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "description": "bench 二期功能覆盖：命令边界、resident 离线恢复、输入 job 重启语义、跨维度 sync 与 force-load/replay 组合。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "c06_command_boundary",
+      "caseId": "command_boundary_matrix",
+      "serverConfigOverrides": {
+        "server.command.crosschunk.whitelist.maxSetSerials": "2"
+      }
+    },
+    {
+      "entryId": "x02_resident_offline_restore",
+      "caseId": "crosschunk_resident_offline_restore"
+    },
+    {
+      "entryId": "r03_restart_input_prepare",
+      "caseId": "restart_input_job_prepare"
+    },
+    {
+      "entryId": "r04_restart_input_verify",
+      "caseId": "restart_input_job_verify",
+      "reuseWorldFrom": "r03_restart_input_prepare",
+      "compareSerialsTo": "r03_restart_input_prepare"
+    },
+    {
+      "entryId": "x03_crossdim_ow_to_nether",
+      "caseId": "crossdim_sync_overworld_to_nether_zip_square"
+    },
+    {
+      "entryId": "x05_crossdim_nether_to_end",
+      "caseId": "crossdim_sync_nether_to_end_zip_square"
+    },
+    {
+      "entryId": "x06_crossdim_end_to_ow",
+      "caseId": "crossdim_sync_end_to_overworld_zip_square"
+    },
+    {
+      "entryId": "x07_reload_replay_enabled",
+      "caseId": "crosschunk_sync_reload_replay_enabled",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false"
+      }
+    },
+    {
+      "entryId": "x08_reload_replay_disabled",
+      "caseId": "crosschunk_sync_reload_replay_disabled",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false"
+      }
+    },
+    {
+      "entryId": "x09_force_load_all",
+      "caseId": "crosschunk_force_load_mode_all",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "all"
+      }
+    },
+    {
+      "entryId": "x10_force_load_whitelist_unmatched",
+      "caseId": "crosschunk_force_load_mode_whitelist_unmatched",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "whitelist"
+      }
+    }
+  ]
+}

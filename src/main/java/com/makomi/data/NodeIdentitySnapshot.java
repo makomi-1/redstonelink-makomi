@@ -29,8 +29,9 @@ public record NodeIdentitySnapshot(
 	/**
 	 * 按当前服务端已知状态解析节点身份快照。
 	 * <p>
-	 * 这里的 `online` 语义与 `LinkSavedData.findNode(...)` 保持一致，
-	 * 表示服务端当前已登记该节点的在线位置。
+	 * 位置字段保留“最近一次已登记坐标”，以支撑离线目标追踪；
+	 * `online` 则以当前运行态是否真实可达为准：
+	 * 目标维度存在、区块已加载，且该位置仍是同 `type+serial` 的节点。
 	 * </p>
 	 */
 	public static NodeIdentitySnapshot resolve(ServerLevel level, LinkNodeType nodeType, long serial) {
@@ -41,12 +42,13 @@ public record NodeIdentitySnapshot(
 		boolean allocated = savedData.isSerialAllocated(nodeType, serial);
 		boolean retired = savedData.isSerialRetired(nodeType, serial);
 		LinkSavedData.LinkNode node = savedData.findNode(nodeType, serial).orElse(null);
+		boolean online = savedData.findRuntimeOnlineNode(level, nodeType, serial).isPresent();
 		return new NodeIdentitySnapshot(
 			nodeType,
 			serial,
 			allocated,
 			retired,
-			node != null,
+			online,
 			node == null ? null : node.dimension(),
 			node == null ? null : node.pos()
 		);

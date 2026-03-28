@@ -1,0 +1,107 @@
+{
+  "id": "crossdim_sync_nether_to_end_zip_square",
+  "description": "验证下界 triggerSource 到末地 core 的跨维度 sync 基线链路。",
+  "layer": "X",
+  "scenarioId": "X05",
+  "observation": {
+    "dimension": "minecraft:the_end"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [-8, 63, 56],
+        "clearTo": [8, 66, 68]
+      },
+      {
+        "dimension": "minecraft:the_end",
+        "clearFrom": [24, 69, -8],
+        "clearTo": [40, 72, 4]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_crossdim_end",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_end",
+      "from": [32, 70, 0],
+      "to": [34, 70, 0]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_crossdim_nether",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:the_nether",
+        "from": [0, 64, 62],
+        "to": [2, 64, 62]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_crossdim_nether",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_crossdim_nether_sources",
+      "serialRef": "sync_crossdim_nether",
+      "capacity": 96
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_crossdim_end_targets",
+      "capacity": 96
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_crossdim_nether_square",
+      "serialRef": "sync_crossdim_nether",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_crossdim_nether_to_end_ticks",
+      "ticks": 8
+    },
+    {
+      "templateRef": "trace_read_sync_square_triggerSource_slash",
+      "name": "crossdim_nether_sources_should_follow_square",
+      "serialRef": "sync_crossdim_nether",
+      "mountRef": "mount_crossdim_nether_sources",
+      "anchorRef": "start_crossdim_nether_square",
+      "template": {
+        "phaseRef": "start_crossdim_nether_square"
+      }
+    },
+    {
+      "templateRef": "trace_read_sync_square_core_slash",
+      "name": "crossdim_end_targets_should_follow_square",
+      "mountRef": "mount_crossdim_end_targets",
+      "anchorRef": "start_crossdim_nether_square",
+      "template": {
+        "phaseRef": "start_crossdim_nether_square"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_crossdim_nether_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_crossdim_nether_sources",
+      "serialRef": "sync_crossdim_nether"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_crossdim_end_targets"
+    }
+  ]
+}

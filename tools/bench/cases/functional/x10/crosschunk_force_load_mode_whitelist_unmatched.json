@@ -1,0 +1,92 @@
+{
+  "id": "crosschunk_force_load_mode_whitelist_unmatched",
+  "description": "验证 queue 关闭且 forceLoad.mode=whitelist 时，未命中白名单的目标不会被自动加载。",
+  "layer": "X",
+  "scenarioId": "X10",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [-8, 63, 452],
+        "clearTo": [8, 66, 464]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [24, 63, 172],
+        "clearTo": [40, 66, 184]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_force_whitelist",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [32, 64, 178],
+      "to": [32, 64, 178]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_force_whitelist",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [0, 64, 458],
+        "to": [0, 64, 458]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_force_whitelist",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "remove_force_whitelist_target_forceload",
+      "command": "forceload remove 32 178 32 178",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_force_whitelist_target_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_force_whitelist_square",
+      "serialRef": "sync_force_whitelist",
+      "serialFormat": "slash_list",
+      "periodTicks": 100,
+      "highTicks": 80,
+      "highPower": 15,
+      "lowPower": 0,
+      "phaseTicks": 0,
+      "totalTicks": 120
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_force_whitelist_blocked",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "force_whitelist_target_should_stay_offline",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_force_whitelist_jobs"
+    }
+  ]
+}

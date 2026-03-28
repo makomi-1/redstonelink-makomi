@@ -64,6 +64,47 @@ function Get-BlockIdByKind {
 	}
 }
 
+function Get-LayoutDimensionId {
+	param(
+		$Layout,
+		[string]$DefaultDimension = "minecraft:overworld"
+	)
+	$dimension = [string](Get-OptionalProperty -Object $Layout -Name "dimension" -DefaultValue $DefaultDimension)
+	if ([string]::IsNullOrWhiteSpace($dimension)) {
+		return $DefaultDimension
+	}
+	return $dimension.Trim()
+}
+
+function Get-ArenaClearZones {
+	param(
+		$Arena,
+		[string]$DefaultDimension = "minecraft:overworld"
+	)
+	if ($null -eq $Arena) {
+		return @()
+	}
+	$clearZones = @(Get-OptionalProperty -Object $Arena -Name "clearZones" -DefaultValue @())
+	if ($clearZones.Count -gt 0) {
+		$zones = New-Object System.Collections.Generic.List[object]
+		foreach ($zone in $clearZones) {
+			$zones.Add([pscustomobject]@{
+				dimension = [string](Get-OptionalProperty -Object $zone -Name "dimension" -DefaultValue $DefaultDimension)
+				from = ConvertTo-Vec3 (Get-OptionalProperty -Object $zone -Name "clearFrom")
+				to = ConvertTo-Vec3 (Get-OptionalProperty -Object $zone -Name "clearTo")
+			})
+		}
+		return @($zones.ToArray())
+	}
+	return @(
+		[pscustomobject]@{
+			dimension = [string](Get-OptionalProperty -Object $Arena -Name "dimension" -DefaultValue $DefaultDimension)
+			from = ConvertTo-Vec3 $Arena.clearFrom
+			to = ConvertTo-Vec3 $Arena.clearTo
+		}
+	)
+}
+
 function Expand-CuboidPositions {
 	param($Layout)
 	if ($Layout.shape -ne "cuboid") {
@@ -134,20 +175,50 @@ function Get-ObservationPointFromPositions {
 function Get-ObservationPointForPlacedNodes {
 	param(
 		$TargetPositions,
-		[hashtable]$SourcePositionGroups
+		[hashtable]$SourcePositionGroups,
+		[string]$TargetDimension = "minecraft:overworld",
+		[hashtable]$SourceDimensions = $null,
+		[string]$ObservationDimension = ""
 	)
 	$allPositions = New-Object System.Collections.Generic.List[object]
-	foreach ($pos in @($TargetPositions)) {
-		$allPositions.Add($pos)
+	$resolvedObservationDimension = if ([string]::IsNullOrWhiteSpace($ObservationDimension)) {
+		$TargetDimension
+	} else {
+		$ObservationDimension
+	}
+	if ([string]::IsNullOrWhiteSpace($resolvedObservationDimension) -or $TargetDimension -eq $resolvedObservationDimension) {
+		foreach ($pos in @($TargetPositions)) {
+			$allPositions.Add($pos)
+		}
 	}
 	if ($null -ne $SourcePositionGroups) {
-		foreach ($groupPositions in $SourcePositionGroups.Values) {
+		foreach ($groupName in $SourcePositionGroups.Keys) {
+			if ($null -ne $SourceDimensions -and $SourceDimensions.Count -gt 0) {
+				$groupDimension = [string](Get-OptionalProperty -Object $SourceDimensions -Name $groupName -DefaultValue "minecraft:overworld")
+				if ($groupDimension -ne $resolvedObservationDimension) {
+					continue
+				}
+			}
+			$groupPositions = $SourcePositionGroups[$groupName]
 			foreach ($pos in @($groupPositions)) {
 				$allPositions.Add($pos)
 			}
 		}
 	}
-	return Get-ObservationPointFromPositions -Positions @($allPositions.ToArray())
+	$observationPoint = Get-ObservationPointFromPositions -Positions @($allPositions.ToArray())
+	if ($null -eq $observationPoint) {
+		return $null
+	}
+	return [pscustomobject]@{
+		Dimension = $resolvedObservationDimension
+		Bounds = $observationPoint.Bounds
+		Position = $observationPoint.Position
+		Facing = $observationPoint.Facing
+		SpanX = $observationPoint.SpanX
+		SpanY = $observationPoint.SpanY
+		SpanZ = $observationPoint.SpanZ
+		VerticalOffset = $observationPoint.VerticalOffset
+	}
 }
 
 function Get-ControlPositions {
@@ -198,31 +269,39 @@ function Install-BenchDatapack {
 	Write-Host "[Bench] Datapack installed -> $targetPath"
 }
 
-function Get-CaseExecutionBounds {
+function Get-CaseExecutionBoundsByDimension {
 	param($CaseConfig)
-	$arena = Get-OptionalProperty -Object $CaseConfig -Name "arena"
-	if ($null -ne $arena) {
-		return [pscustomobject]@{
-			From = ConvertTo-Vec3 $arena.clearFrom
-			To = ConvertTo-Vec3 $arena.clearTo
-		}
-	}
-
-	$allPositions = New-Object System.Collections.Generic.List[object]
+	$positionsByDimension = @{}
 	if ($null -ne $CaseConfig.targets) {
+		$targetDimension = Get-LayoutDimensionId -Layout $CaseConfig.targets.layout
+		if (-not $positionsByDimension.ContainsKey($targetDimension)) {
+			$positionsByDimension[$targetDimension] = New-Object System.Collections.Generic.List[object]
+		}
 		foreach ($pos in @(Expand-CuboidPositions $CaseConfig.targets.layout)) {
-			$allPositions.Add($pos)
+			$positionsByDimension[$targetDimension].Add($pos)
 		}
 	}
 	foreach ($group in @(Get-OptionalProperty -Object $CaseConfig -Name "sources" -DefaultValue @())) {
+		$groupDimension = Get-LayoutDimensionId -Layout $group.layout
+		if (-not $positionsByDimension.ContainsKey($groupDimension)) {
+			$positionsByDimension[$groupDimension] = New-Object System.Collections.Generic.List[object]
+		}
 		foreach ($pos in @(Expand-CuboidPositions $group.layout)) {
-			$allPositions.Add($pos)
+			$positionsByDimension[$groupDimension].Add($pos)
 		}
 	}
-	if ($allPositions.Count -le 0) {
-		return $null
+	$boundsList = New-Object System.Collections.Generic.List[object]
+	foreach ($dimension in $positionsByDimension.Keys) {
+		$positions = @($positionsByDimension[$dimension].ToArray())
+		if ($positions.Count -le 0) {
+			continue
+		}
+		$boundsList.Add([pscustomobject]@{
+			dimension = $dimension
+			bounds = Get-BoundsFromPositions -Positions $positions
+		})
 	}
-	return Get-BoundsFromPositions -Positions @($allPositions.ToArray())
+	return @($boundsList.ToArray())
 }
 
 function Ensure-CaseChunksLoaded {
@@ -233,16 +312,21 @@ function Ensure-CaseChunksLoaded {
 	if ($DryRun) {
 		return
 	}
-	$bounds = Get-CaseExecutionBounds -CaseConfig $CaseConfig
-	if ($null -eq $bounds) {
+	$boundsByDimension = @(Get-CaseExecutionBoundsByDimension -CaseConfig $CaseConfig)
+	if ($boundsByDimension.Count -le 0) {
 		return
 	}
-	$minX = [Math]::Min([int]$bounds.From.X, [int]$bounds.To.X)
-	$maxX = [Math]::Max([int]$bounds.From.X, [int]$bounds.To.X)
-	$minZ = [Math]::Min([int]$bounds.From.Z, [int]$bounds.To.Z)
-	$maxZ = [Math]::Max([int]$bounds.From.Z, [int]$bounds.To.Z)
-	$command = Wrap-WithPlayerContext ("forceload add {0} {1} {2} {3}" -f $minX, $minZ, $maxX, $maxZ)
-	Invoke-RconCommand -Connection $Connection -Command $command | Out-Null
+	foreach ($entry in $boundsByDimension) {
+		$bounds = $entry.bounds
+		$minX = [Math]::Min([int]$bounds.From.X, [int]$bounds.To.X)
+		$maxX = [Math]::Max([int]$bounds.From.X, [int]$bounds.To.X)
+		$minZ = [Math]::Min([int]$bounds.From.Z, [int]$bounds.To.Z)
+		$maxZ = [Math]::Max([int]$bounds.From.Z, [int]$bounds.To.Z)
+		$command = Wrap-WithBenchContexts `
+			-Command ("forceload add {0} {1} {2} {3}" -f $minX, $minZ, $maxX, $maxZ) `
+			-Dimension ([string]$entry.dimension)
+		Invoke-RconCommand -Connection $Connection -Command $command | Out-Null
+	}
 }
 
 function Clear-Arena {
@@ -253,11 +337,14 @@ function Clear-Arena {
 	if ($null -eq $Arena) {
 		return
 	}
-	$from = ConvertTo-Vec3 $Arena.clearFrom
-	$to = ConvertTo-Vec3 $Arena.clearTo
-	Invoke-RconCommand `
-		-Connection $Connection `
-		-Command (Wrap-WithPlayerContext ("fill {0} {1} minecraft:air replace" -f (Format-Vec3 $from), (Format-Vec3 $to))) | Out-Null
+	foreach ($zone in @(Get-ArenaClearZones -Arena $Arena)) {
+		Invoke-RconCommand `
+			-Connection $Connection `
+			-Command (Wrap-WithBenchContexts `
+				-Command ("fill {0} {1} minecraft:air replace" -f (Format-Vec3 $zone.from), (Format-Vec3 $zone.to)) `
+				-Dimension ([string]$zone.dimension)
+			) | Out-Null
+	}
 }
 
 function Invoke-PrepareFunctions {

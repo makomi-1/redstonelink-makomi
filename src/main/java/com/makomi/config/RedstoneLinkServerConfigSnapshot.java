@@ -83,6 +83,7 @@ record RedstoneLinkServerConfigSnapshot(
 				40,
 				true,
 				true,
+				true,
 				false,
 				200,
 				false,

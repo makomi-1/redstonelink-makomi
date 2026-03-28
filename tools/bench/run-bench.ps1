@@ -49,6 +49,7 @@ $datapackSource = Join-Path $PSScriptRoot "datapack\rl_bench"
 $script:DryRun = [bool]$DryRun
 $script:DryRunSerialCounter = 1L
 $script:DryRunGameTime = 0L
+$script:DryRunInputJobCounter = 1L
 . (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.Client.ps1"))
 if ($AutoStartBenchClient) {
 	$AsPlayer = Assert-BenchClientIdentityCompatible -AsPlayer $AsPlayer -BenchClientPlayerName $BenchClientPlayerName

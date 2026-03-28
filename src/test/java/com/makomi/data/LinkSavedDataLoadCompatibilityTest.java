@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +46,25 @@ class LinkSavedDataLoadCompatibilityTest {
 		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, buttonSerial).isPresent());
 		assertTrue(restored.getLinkedCores(buttonSerial).contains(coreSerial));
 		assertTrue(restored.getLinkedButtons(coreSerial).contains(buttonSerial));
+	}
+
+	/**
+	 * save/load 往返后应保留 triggerSource 最近一次 sync replay 快照。
+	 */
+	@Test
+	void saveAndLoadRoundTripShouldPreserveTriggerSourceReplaySnapshot() {
+		LinkSavedData source = new LinkSavedData();
+		long triggerSourceSerial = source.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+		source.putTriggerSourceReplaySyncSnapshot(triggerSourceSerial, EventMeta.of(321L, 0, 12L), 0);
+
+		CompoundTag saved = source.save(new CompoundTag(), null);
+		LinkSavedData restored = invokeLoad(saved);
+
+		LinkSavedData.ReplaySyncSnapshotRecord snapshot = restored
+			.getTriggerSourceReplaySyncSnapshot(triggerSourceSerial)
+			.orElseThrow();
+		assertEquals(0, snapshot.signalStrength());
+		assertEquals(EventMeta.of(321L, 0, 12L), snapshot.eventMeta());
 	}
 
 	/**

@@ -64,11 +64,13 @@ switch ($Action) {
 
 			$targetPlacement = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
 			$targetPositions = @($targetPlacement.positions)
+			$targetDimension = [string](Get-OptionalProperty -Object $targetPlacement -Name "dimension" -DefaultValue (Get-LayoutDimensionId -Layout $caseConfig.targets.layout))
 			$targetSerialMap = $targetPlacement.serialMap
 			$targetSerials = @(Get-SerialListFromMap $targetSerialMap)
 			$targetPlacementElapsedMs = [long](Get-OptionalProperty -Object $targetPlacement -Name "elapsedMs" -DefaultValue 0L)
 
 			$sourcePositionGroups = @{}
+			$sourceDimensions = @{}
 			$sourceSerialMaps = @{}
 			$sourceSerialResolution = [ordered]@{}
 			$sourcePlacementSummary = [ordered]@{}
@@ -77,6 +79,7 @@ switch ($Action) {
 				$groupPlacement = Place-NodeGroup -Connection $connection -Group $group
 				$positions = @($groupPlacement.positions)
 				$sourcePositionGroups[[string]$group.id] = $positions
+				$sourceDimensions[[string]$group.id] = [string](Get-OptionalProperty -Object $groupPlacement -Name "dimension" -DefaultValue (Get-LayoutDimensionId -Layout $group.layout))
 				$sourceSerialMaps[[string]$group.id] = $groupPlacement.serialMap
 				$sourceSerialResolution[[string]$group.id] = $groupPlacement.serialResolution
 				$groupPlacementElapsedMs = [long](Get-OptionalProperty -Object $groupPlacement -Name "elapsedMs" -DefaultValue 0L)
@@ -121,8 +124,14 @@ switch ($Action) {
 				}
 			}
 
-			$observationPoint = Get-ObservationPointForPlacedNodes -TargetPositions $targetPositions -SourcePositionGroups $sourcePositionGroups
-			$observationTeleport = Invoke-PlayerObservationTeleport -Connection $connection -ObservationPoint $observationPoint
+			$observationDimension = [string](Get-OptionalProperty -Object (Get-OptionalProperty -Object $caseConfig -Name "observation") -Name "dimension" -DefaultValue $targetDimension)
+			$observationPoint = Get-ObservationPointForPlacedNodes `
+				-TargetPositions $targetPositions `
+				-SourcePositionGroups $sourcePositionGroups `
+				-TargetDimension $targetDimension `
+				-SourceDimensions $sourceDimensions `
+				-ObservationDimension $observationDimension
+			$observationTeleport = Invoke-PlayerObservationTeleport -Connection $connection -ObservationPoint $observationPoint -Dimension $observationDimension
 			Invoke-BenchClientRefocus -Session $benchClientSession -StageName "observation_teleport" -DelayMs 250 | Out-Null
 			$auditBefore = Invoke-RconCommand -Connection $connection -Command (Wrap-WithPlayerContext "redstonelink audit summary csv") -Silent
 			$settleTicks = [int]$matrix.defaults.settleTicks
@@ -286,11 +295,13 @@ switch ($Action) {
 
 			$targetPlacement = Place-NodeGroup -Connection $connection -Group $caseConfig.targets
 			$targetPositions = @($targetPlacement.positions)
+			$targetDimension = [string](Get-OptionalProperty -Object $targetPlacement -Name "dimension" -DefaultValue (Get-LayoutDimensionId -Layout $caseConfig.targets.layout))
 			$targetSerialMap = $targetPlacement.serialMap
 			$targetSerials = @(Get-SerialListFromMap $targetSerialMap)
 			$targetPlacementElapsedMs = [long](Get-OptionalProperty -Object $targetPlacement -Name "elapsedMs" -DefaultValue 0L)
 
 			$sourcePositionGroups = @{}
+			$sourceDimensions = @{}
 			$sourceSerialMaps = @{}
 			$sourceSerialResolution = [ordered]@{}
 			$sourcePlacementSummary = [ordered]@{}
@@ -299,6 +310,7 @@ switch ($Action) {
 				$groupPlacement = Place-NodeGroup -Connection $connection -Group $group
 				$positions = @($groupPlacement.positions)
 				$sourcePositionGroups[[string]$group.id] = $positions
+				$sourceDimensions[[string]$group.id] = [string](Get-OptionalProperty -Object $groupPlacement -Name "dimension" -DefaultValue (Get-LayoutDimensionId -Layout $group.layout))
 				$sourceSerialMaps[[string]$group.id] = $groupPlacement.serialMap
 				$sourceSerialResolution[[string]$group.id] = $groupPlacement.serialResolution
 				$groupPlacementElapsedMs = [long](Get-OptionalProperty -Object $groupPlacement -Name "elapsedMs" -DefaultValue 0L)
@@ -343,8 +355,14 @@ switch ($Action) {
 				}
 			}
 
-			$observationPoint = Get-ObservationPointForPlacedNodes -TargetPositions $targetPositions -SourcePositionGroups $sourcePositionGroups
-			$observationTeleport = Invoke-PlayerObservationTeleport -Connection $connection -ObservationPoint $observationPoint
+			$observationDimension = [string](Get-OptionalProperty -Object (Get-OptionalProperty -Object $caseConfig -Name "observation") -Name "dimension" -DefaultValue $targetDimension)
+			$observationPoint = Get-ObservationPointForPlacedNodes `
+				-TargetPositions $targetPositions `
+				-SourcePositionGroups $sourcePositionGroups `
+				-TargetDimension $targetDimension `
+				-SourceDimensions $sourceDimensions `
+				-ObservationDimension $observationDimension
+			$observationTeleport = Invoke-PlayerObservationTeleport -Connection $connection -ObservationPoint $observationPoint -Dimension $observationDimension
 			Invoke-BenchClientRefocus -Session $benchClientSession -StageName "observation_teleport" -DelayMs 250 | Out-Null
 			# 功能验证优先等待真实服务端 tick，而不是仅依赖本地睡眠。
 			$functionalSettleTicks = 0

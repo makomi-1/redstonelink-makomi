@@ -245,6 +245,7 @@ function New-SuiteCaseRecord {
 		worldPath = $null
 		reuseWorldFrom = if ([string]::IsNullOrWhiteSpace($WorldReuseSource)) { $null } else { $WorldReuseSource }
 		worldReuseSource = if ([string]::IsNullOrWhiteSpace($WorldReuseSource)) { $null } else { $WorldReuseSource }
+		serverConfigOverrides = Convert-OptionalObjectToOrderedMap -Object (Get-OptionalPsObjectPropertyValue -Object $Entry -PropertyName "serverConfigOverrides")
 		status = "pending"
 		startedAt = (Get-Date).ToString("s")
 		completedAt = $null

@@ -257,6 +257,11 @@ final class RedstoneLinkConfigTemplate {
 			# en: Whether sync should replay when the target chunk loads. true means restore using the source's latest real sync event time.
 			crosschunk.syncTargetChunkLoadReplay.enabled=true
 
+			# crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst
+			# zh: 目标区块 `CHUNK_LOAD` 时是否先立即尝试一次 sync 补发。true=当前 tick 先试，只有目标尚未真正就绪时才延后到下一 tick 重试；false=始终先延后一 tick。
+			# en: Whether target-chunk-load sync replay should try immediately first. true tries in the current tick and only defers when the target is not ready yet; false always defers by one tick first.
+			crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=true
+
 			# crosschunk.activation.pulse.relay.enabled
 			# zh: 是否启用 PULSE 事件的普通 TTL relay。false=目标未加载时直接跳过。
 			# en: Whether PULSE events use normal TTL relay. false means skip when target is unloaded.

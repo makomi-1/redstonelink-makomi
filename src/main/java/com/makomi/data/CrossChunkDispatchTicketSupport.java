@@ -144,12 +144,14 @@ final class CrossChunkDispatchTicketSupport {
 			desired,
 			whitelistSavedData.residentSnapshot(LinkNodeSemantics.Role.SOURCE),
 			LinkNodeSemantics.Role.SOURCE,
+			overworld,
 			linkSavedData
 		);
 		appendDesiredResidentTickets(
 			desired,
 			whitelistSavedData.residentSnapshot(LinkNodeSemantics.Role.TARGET),
 			LinkNodeSemantics.Role.TARGET,
+			overworld,
 			linkSavedData
 		);
 		return desired;
@@ -162,8 +164,46 @@ final class CrossChunkDispatchTicketSupport {
 		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desired,
 		Map<LinkNodeType, Set<Long>> residentByType,
 		LinkNodeSemantics.Role role,
+		ServerLevel contextLevel,
 		LinkSavedData linkSavedData
 	) {
+		for (Map.Entry<LinkNodeType, Set<Long>> entry : residentByType.entrySet()) {
+			LinkNodeType type = entry.getKey();
+			if (!LinkNodeSemantics.isAllowedForRole(type, role)) {
+				continue;
+			}
+			for (Long serial : entry.getValue()) {
+				if (serial == null || serial <= 0L) {
+					continue;
+				}
+				LinkSavedData.LinkNode node = linkSavedData.findRuntimeOnlineNode(contextLevel, type, serial).orElse(null);
+				if (node == null) {
+					continue;
+				}
+				int chunkX = node.pos().getX() >> 4;
+				int chunkZ = node.pos().getZ() >> 4;
+				CrossChunkDispatchService.ResidentTicketKey ticketKey =
+					new CrossChunkDispatchService.ResidentTicketKey(role, type, serial);
+				desired.put(ticketKey, new CrossChunkDispatchService.ResidentChunkKey(node.dimension(), chunkX, chunkZ));
+			}
+		}
+	}
+
+	/**
+	 * 兼容旧测试入口：仅按已登记节点位置汇总 resident 票据。
+	 * <p>
+	 * 生产路径请优先使用带 `contextLevel` 的重载，以运行态在线语义过滤未加载节点。
+	 * </p>
+	 */
+	static void appendDesiredResidentTickets(
+		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desired,
+		Map<LinkNodeType, Set<Long>> residentByType,
+		LinkNodeSemantics.Role role,
+		LinkSavedData linkSavedData
+	) {
+		if (desired == null || residentByType == null || role == null || linkSavedData == null) {
+			return;
+		}
 		for (Map.Entry<LinkNodeType, Set<Long>> entry : residentByType.entrySet()) {
 			LinkNodeType type = entry.getKey();
 			if (!LinkNodeSemantics.isAllowedForRole(type, role)) {

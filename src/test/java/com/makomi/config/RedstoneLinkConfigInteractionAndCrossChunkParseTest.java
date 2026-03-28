@@ -93,6 +93,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertEquals(500, snapshot.dispatchMaxPerTick());
 		assertTrue(snapshot.syncSignalPersistent());
 		assertTrue(snapshot.syncTargetChunkLoadReplayEnabled());
+		assertTrue(snapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(snapshot.activationPulseRelayEnabled());
 		assertEquals(200, snapshot.activationPulseTtlTicks());
 		assertFalse(snapshot.activationPulsePersistentExperimental());
@@ -166,16 +167,20 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		Properties disabled = new Properties();
 		disabled.setProperty("crosschunk.syncSignalPersistent", "false");
 		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "false");
+		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "false");
 		RedstoneLinkCrossChunkConfig disabledSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(disabled);
 		assertFalse(disabledSnapshot.syncSignalPersistent());
 		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayEnabled());
+		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 
 		Properties invalid = new Properties();
 		invalid.setProperty("crosschunk.syncSignalPersistent", "invalid");
 		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "invalid");
+		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "invalid");
 		RedstoneLinkCrossChunkConfig invalidSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(invalid);
 		assertTrue(invalidSnapshot.syncSignalPersistent());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayEnabled());
+		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 	}
 
 	/**

@@ -102,6 +102,22 @@ final class LinkSavedDataCodecSupport {
 			}
 		}
 
+		ListTag replaySnapshotsTag = tag.getList(LinkSavedData.KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS, Tag.TAG_COMPOUND);
+		for (Tag entryTag : replaySnapshotsTag) {
+			if (!(entryTag instanceof CompoundTag compound)) {
+				continue;
+			}
+			long triggerSourceSerial = compound.getLong(LinkSavedData.KEY_SERIAL);
+			if (triggerSourceSerial <= 0L) {
+				continue;
+			}
+			LinkSavedData.ReplaySyncSnapshotRecord snapshot = loadReplaySyncSnapshotRecord(compound).orElse(null);
+			if (snapshot == null) {
+				continue;
+			}
+			data.triggerSourceReplaySyncSnapshots.put(triggerSourceSerial, snapshot);
+		}
+
 		boolean hasAllocatedCore = tag.contains(LinkSavedData.KEY_ALLOCATED_CORE_SERIALS, Tag.TAG_LONG_ARRAY);
 		boolean hasAllocatedButton = tag.contains(LinkSavedData.KEY_ALLOCATED_BUTTON_SERIALS, Tag.TAG_LONG_ARRAY);
 		if (hasAllocatedCore) {
@@ -150,6 +166,10 @@ final class LinkSavedDataCodecSupport {
 			linksTag.add(compound);
 		}
 		tag.put(LinkSavedData.KEY_LINKS, linksTag);
+
+		ListTag replaySnapshotsTag = new ListTag();
+		saveReplaySnapshots(replaySnapshotsTag, data.triggerSourceReplaySyncSnapshots);
+		tag.put(LinkSavedData.KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS, replaySnapshotsTag);
 		return tag;
 	}
 
@@ -165,6 +185,48 @@ final class LinkSavedDataCodecSupport {
 			entry.putString(LinkSavedData.KEY_TYPE, LinkNodeSemantics.toSemanticName(node.type()));
 			nodesTag.add(entry);
 		}
+	}
+
+	/**
+	 * 保存 triggerSource 最近一次真实 sync replay 快照。
+	 */
+	static void saveReplaySnapshots(
+		ListTag replaySnapshotsTag,
+		Map<Long, LinkSavedData.ReplaySyncSnapshotRecord> replaySnapshots
+	) {
+		List<Map.Entry<Long, LinkSavedData.ReplaySyncSnapshotRecord>> entries = new ArrayList<>(replaySnapshots.entrySet());
+		entries.sort(Map.Entry.comparingByKey());
+		for (Map.Entry<Long, LinkSavedData.ReplaySyncSnapshotRecord> entry : entries) {
+			if (entry.getKey() == null || entry.getKey() <= 0L || entry.getValue() == null || entry.getValue().eventMeta() == null) {
+				continue;
+			}
+			CompoundTag snapshotTag = new CompoundTag();
+			snapshotTag.putLong(LinkSavedData.KEY_SERIAL, entry.getKey());
+			snapshotTag.putInt(LinkSavedData.KEY_SIGNAL_STRENGTH, entry.getValue().signalStrength());
+			snapshotTag.putLong(LinkSavedData.KEY_TICK, entry.getValue().eventMeta().timeKey().tick());
+			snapshotTag.putInt(LinkSavedData.KEY_SLOT, entry.getValue().eventMeta().timeKey().slot());
+			snapshotTag.putLong(LinkSavedData.KEY_SEQ, entry.getValue().eventMeta().seq());
+			replaySnapshotsTag.add(snapshotTag);
+		}
+	}
+
+	/**
+	 * 读取一条 triggerSource sync replay 快照记录。
+	 */
+	static Optional<LinkSavedData.ReplaySyncSnapshotRecord> loadReplaySyncSnapshotRecord(CompoundTag compound) {
+		if (compound == null) {
+			return Optional.empty();
+		}
+		return Optional.of(
+			new LinkSavedData.ReplaySyncSnapshotRecord(
+				com.makomi.util.SignalStrengths.clamp(compound.getInt(LinkSavedData.KEY_SIGNAL_STRENGTH)),
+				com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta.of(
+					Math.max(0L, compound.getLong(LinkSavedData.KEY_TICK)),
+					Math.max(0, compound.getInt(LinkSavedData.KEY_SLOT)),
+					Math.max(0L, compound.getLong(LinkSavedData.KEY_SEQ))
+				)
+			)
+		);
 	}
 
 	/**

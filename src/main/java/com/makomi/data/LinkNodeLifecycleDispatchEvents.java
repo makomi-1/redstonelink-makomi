@@ -30,6 +30,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
  */
 public final class LinkNodeLifecycleDispatchEvents {
 	private static final int STARTUP_REPLAY_MAX_RETRY = 40;
+	private static final int TARGET_CHUNK_LOAD_REPLAY_MAX_RETRY = 40;
 	private static final Map<MinecraftServer, LifecycleState> STATE_BY_SERVER = new IdentityHashMap<>();
 
 	private LinkNodeLifecycleDispatchEvents() {
@@ -58,8 +59,10 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (shouldSkipLifecycleReplay(level, chunk, online)) {
 			return;
 		}
+		MinecraftServer server = level.getServer();
+		LifecycleState state = getOrCreateState(server);
 		if (online) {
-			CrossChunkDispatchService.notifyTargetChunkLoaded(level.getServer(), level.dimension(), chunk.getPos());
+			CrossChunkDispatchService.notifyTargetChunkLoaded(server, level.dimension(), chunk.getPos());
 		}
 		long startNs = System.nanoTime();
 		LinkSavedData savedData = LinkSavedData.get(level);
@@ -83,8 +86,11 @@ public final class LinkNodeLifecycleDispatchEvents {
 			linkedNodeCount++;
 			linkedPeerCount += linkedPeers.size();
 			if (online) {
-				if (RedstoneLinkConfig.crossChunk().syncTargetChunkLoadReplayEnabled()) {
-					InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoad(level, nodeType, serial, linkedPeers);
+				if (
+					RedstoneLinkConfig.crossChunk().syncTargetChunkLoadReplayEnabled()
+						&& LinkNodeSemantics.isAllowedForRole(nodeType, LinkNodeSemantics.Role.TARGET)
+				) {
+					tryHandleTargetChunkLoadReplay(server, state, level.dimension(), nodeType, serial);
 				}
 				continue;
 			}
@@ -132,6 +138,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 		state.serverStopping = false;
 		state.serverStarted = false;
 		state.pendingStartupChunkLoadReplays.clear();
+		state.pendingTargetChunkLoadReplays.clear();
 	}
 
 	/**
@@ -151,6 +158,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 		state.serverStopping = true;
 		state.serverStarted = false;
 		state.pendingStartupChunkLoadReplays.clear();
+		state.pendingTargetChunkLoadReplays.clear();
 	}
 
 	/**
@@ -168,6 +176,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 	private static void onStartServerTick(MinecraftServer server) {
 		LifecycleState state = getOrCreateState(server);
 		consumePendingStartupReplays(server, state);
+		consumePendingTargetChunkLoadReplays(server, state);
 	}
 
 	/**
@@ -217,6 +226,122 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (!retryQueue.isEmpty()) {
 			state.pendingStartupChunkLoadReplays.putAll(retryQueue);
 		}
+	}
+
+	/**
+	 * 处理 target chunk load replay。
+	 * <p>
+	 * 默认先在当前 tick 立即尝试一次；只有目标仍未真正就绪时，才回落到下一 tick 的本地重试队列。
+	 * 若配置显式关闭“立即尝试优先”，则保持统一延后一 tick 的保守行为。
+	 * </p>
+	 */
+	private static void tryHandleTargetChunkLoadReplay(
+		MinecraftServer server,
+		LifecycleState state,
+		ResourceKey<Level> dimension,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		if (state == null || dimension == null || nodeType == null || serial <= 0L) {
+			return;
+		}
+		TargetChunkLoadReplayTask task = new TargetChunkLoadReplayTask(dimension, nodeType, serial, 0);
+		if (!RedstoneLinkConfig.crossChunk().syncTargetChunkLoadReplayImmediateAttemptFirst()) {
+			enqueueTargetChunkLoadReplay(state, dimension, nodeType, serial);
+			return;
+		}
+		TargetChunkLoadReplayConsumeResult result = consumeTargetChunkLoadReplayTask(server, task);
+		if (result == TargetChunkLoadReplayConsumeResult.DEFERRED) {
+			enqueueTargetChunkLoadReplay(state, dimension, nodeType, serial);
+		}
+	}
+
+	/**
+	 * 将 target chunk load replay 延后一 tick 执行，作为“当前 tick 未就绪”的本地兜底。
+	 */
+	private static void enqueueTargetChunkLoadReplay(
+		LifecycleState state,
+		ResourceKey<Level> dimension,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		if (state == null || dimension == null || nodeType == null || serial <= 0L) {
+			return;
+		}
+		TargetChunkLoadReplayTask task = new TargetChunkLoadReplayTask(dimension, nodeType, serial, 0);
+		state.pendingTargetChunkLoadReplays.putIfAbsent(task.key(), task);
+	}
+
+	/**
+	 * 启动稳定后消费 target chunk load replay 队列。
+	 * <p>
+	 * 该队列只负责兜底“当前 tick 仍未完全就绪”的目标，不再默认承接所有 `CHUNK_LOAD` replay。
+	 * </p>
+	 */
+	private static void consumePendingTargetChunkLoadReplays(MinecraftServer server, LifecycleState state) {
+		if (server == null || state == null || !state.serverStarted) {
+			return;
+		}
+		if (state.pendingTargetChunkLoadReplays.isEmpty()) {
+			return;
+		}
+
+		int budget = Math.max(1, RedstoneLinkConfig.crossChunk().dispatchMaxPerTick());
+		int consumed = 0;
+		LinkedHashMap<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask> retryQueue = new LinkedHashMap<>();
+		Iterator<Map.Entry<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask>> iterator = state.pendingTargetChunkLoadReplays
+			.entrySet()
+			.iterator();
+		while (iterator.hasNext() && consumed < budget) {
+			Map.Entry<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask> entry = iterator.next();
+			TargetChunkLoadReplayTask task = entry.getValue();
+			iterator.remove();
+			consumed++;
+			TargetChunkLoadReplayConsumeResult result = consumeTargetChunkLoadReplayTask(server, task);
+			if (result == TargetChunkLoadReplayConsumeResult.COMPLETED) {
+				continue;
+			}
+			if (result == TargetChunkLoadReplayConsumeResult.DEFERRED) {
+				TargetChunkLoadReplayTask retryTask = task.nextAttempt();
+				if (retryTask.attempt() <= TARGET_CHUNK_LOAD_REPLAY_MAX_RETRY) {
+					retryQueue.put(retryTask.key(), retryTask);
+				}
+			}
+		}
+		if (!retryQueue.isEmpty()) {
+			state.pendingTargetChunkLoadReplays.putAll(retryQueue);
+		}
+	}
+
+	/**
+	 * 消费单条 target chunk load replay 任务。
+	 */
+	private static TargetChunkLoadReplayConsumeResult consumeTargetChunkLoadReplayTask(
+		MinecraftServer server,
+		TargetChunkLoadReplayTask task
+	) {
+		if (server == null || task == null) {
+			return TargetChunkLoadReplayConsumeResult.DROPPED;
+		}
+		ServerLevel level = server.getLevel(task.dimension());
+		if (level == null) {
+			return TargetChunkLoadReplayConsumeResult.DEFERRED;
+		}
+		LinkSavedData savedData = LinkSavedData.get(level);
+		LinkSavedData.LinkNode storedNode = savedData.findNode(task.nodeType(), task.serial()).orElse(null);
+		if (storedNode == null) {
+			return TargetChunkLoadReplayConsumeResult.DROPPED;
+		}
+		LinkSavedData.LinkNode runtimeOnlineNode = savedData.findRuntimeOnlineNode(level, task.nodeType(), task.serial()).orElse(null);
+		if (runtimeOnlineNode == null) {
+			return TargetChunkLoadReplayConsumeResult.DEFERRED;
+		}
+		Set<Long> linkedPeers = savedData.linkedTargetsViewBySourceType(task.nodeType(), task.serial());
+		if (linkedPeers.isEmpty()) {
+			return TargetChunkLoadReplayConsumeResult.COMPLETED;
+		}
+		InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoad(level, task.nodeType(), task.serial(), linkedPeers);
+		return TargetChunkLoadReplayConsumeResult.COMPLETED;
 	}
 
 	/**
@@ -310,11 +435,40 @@ public final class LinkNodeLifecycleDispatchEvents {
 	}
 
 	/**
+	 * target chunk load replay 任务键（维度 + 节点类型 + 序号）。
+	 */
+	private record TargetChunkLoadReplayKey(ResourceKey<Level> dimension, LinkNodeType nodeType, long serial) {}
+
+	/**
+	 * target chunk load replay 任务。
+	 */
+	private record TargetChunkLoadReplayTask(ResourceKey<Level> dimension, LinkNodeType nodeType, long serial, int attempt) {
+		private TargetChunkLoadReplayKey key() {
+			return new TargetChunkLoadReplayKey(dimension, nodeType, serial);
+		}
+
+		private TargetChunkLoadReplayTask nextAttempt() {
+			return new TargetChunkLoadReplayTask(dimension, nodeType, serial, attempt + 1);
+		}
+	}
+
+	/**
+	 * target chunk load replay 任务消费结果。
+	 */
+	private enum TargetChunkLoadReplayConsumeResult {
+		COMPLETED,
+		DEFERRED,
+		DROPPED
+	}
+
+	/**
 	 * 生命周期状态。
 	 */
 	private static final class LifecycleState {
 		private boolean serverStopping;
 		private boolean serverStarted;
 		private final LinkedHashMap<StartupReplayKey, StartupReplayTask> pendingStartupChunkLoadReplays = new LinkedHashMap<>();
+		private final LinkedHashMap<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask> pendingTargetChunkLoadReplays =
+			new LinkedHashMap<>();
 	}
 }

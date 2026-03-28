@@ -85,23 +85,45 @@ function Set-ServerPropertyValue {
 		[string]$Key,
 		[string]$Value
 	)
+	Set-PropertiesFileValues -Path $Path -Properties ([ordered]@{ $Key = $Value })
+}
+
+function Set-PropertiesFileValues {
+	param(
+		[string]$Path,
+		$Properties
+	)
+	$propertyMap = Convert-OptionalObjectToOrderedMap -Object $Properties
+	if ($propertyMap.Count -le 0) {
+		return
+	}
 	$text = Read-Utf8Text -Path $Path
 	$lines = New-Object System.Collections.Generic.List[string]
 	$reader = New-Object System.IO.StringReader($text)
 	try {
 		$line = $reader.ReadLine()
-		$updated = $false
+		$updatedKeys = @{}
 		while ($null -ne $line) {
-			if (-not $updated -and $line -match "^\s*$([System.Text.RegularExpressions.Regex]::Escape($Key))\s*=") {
-				$lines.Add("$Key=$Value")
-				$updated = $true
-			} else {
+			$matched = $false
+			foreach ($entry in $propertyMap.GetEnumerator()) {
+				$key = [string]$entry.Key
+				if (-not $updatedKeys.ContainsKey($key) -and $line -match "^\s*$([System.Text.RegularExpressions.Regex]::Escape($key))\s*=") {
+					$lines.Add("$key=$($entry.Value)")
+					$updatedKeys[$key] = $true
+					$matched = $true
+					break
+				}
+			}
+			if (-not $matched) {
 				$lines.Add($line)
 			}
 			$line = $reader.ReadLine()
 		}
-		if (-not $updated) {
-			$lines.Add("$Key=$Value")
+		foreach ($entry in $propertyMap.GetEnumerator()) {
+			$key = [string]$entry.Key
+			if (-not $updatedKeys.ContainsKey($key)) {
+				$lines.Add("$key=$($entry.Value)")
+			}
 		}
 	} finally {
 		$reader.Dispose()
@@ -112,4 +134,12 @@ function Set-ServerPropertyValue {
 		$joined += [Environment]::NewLine
 	}
 	Write-Utf8NoBomFile -Path $Path -Content $joined
+}
+
+function Restore-ExactFileText {
+	param(
+		[string]$Path,
+		[string]$Text
+	)
+	Write-Utf8NoBomFile -Path $Path -Content $Text
 }

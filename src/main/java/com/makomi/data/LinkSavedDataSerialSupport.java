@@ -1,5 +1,7 @@
 package com.makomi.data;
 
+import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
+import com.makomi.util.SignalStrengths;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -105,8 +107,10 @@ final class LinkSavedDataSerialSupport {
 		boolean allocatedMarked = markAllocatedInternal(data, type, serial);
 		boolean retiredMarked = markRetiredInternal(data, type, serial);
 		boolean removed = data.nodeMap(type).remove(serial) != null;
+		boolean replaySnapshotRemoved = type == LinkNodeType.TRIGGER_SOURCE
+			&& data.triggerSourceReplaySyncSnapshots.remove(serial) != null;
 		int clearedLinks = LinkSavedDataLinkIndexSupport.clearLinksForNode(data, type, serial);
-		if (allocatedMarked || retiredMarked || removed || clearedLinks > 0) {
+		if (allocatedMarked || retiredMarked || removed || replaySnapshotRemoved || clearedLinks > 0) {
 			data.setDirty();
 		}
 		return new LinkSavedData.RetireResult(removed, clearedLinks, retiredMarked);
@@ -148,6 +152,31 @@ final class LinkSavedDataSerialSupport {
 	}
 
 	/**
+	 * 更新 triggerSource 最近一次真实 sync replay 快照。
+	 */
+	static void putTriggerSourceReplaySyncSnapshot(
+		LinkSavedData data,
+		long triggerSourceSerial,
+		EventMeta eventMeta,
+		int signalStrength
+	) {
+		if (data == null || triggerSourceSerial <= 0L || eventMeta == null) {
+			return;
+		}
+		LinkSavedData.ReplaySyncSnapshotRecord nextSnapshot = new LinkSavedData.ReplaySyncSnapshotRecord(
+			SignalStrengths.clamp(signalStrength),
+			eventMeta
+		);
+		LinkSavedData.ReplaySyncSnapshotRecord previous = data.triggerSourceReplaySyncSnapshots.put(
+			triggerSourceSerial,
+			nextSnapshot
+		);
+		if (!nextSnapshot.equals(previous)) {
+			data.setDirty();
+		}
+	}
+
+	/**
 	 * 修正下一可分配序列号，确保始终大于当前已知最大序列号。
 	 */
 	static void correctNextSerials(LinkSavedData data) {
@@ -168,6 +197,7 @@ final class LinkSavedDataSerialSupport {
 		}
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.allocatedButtonSerials));
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.retiredButtonSerials));
+		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.triggerSourceReplaySyncSnapshots.keySet()));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.allocatedCoreSerials));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.retiredCoreSerials));
 
@@ -237,6 +267,7 @@ final class LinkSavedDataSerialSupport {
 				data.allocatedCoreSerials.add(coreSerial);
 			}
 		}
+		data.allocatedButtonSerials.addAll(data.triggerSourceReplaySyncSnapshots.keySet());
 	}
 
 	/**

@@ -1,12 +1,14 @@
 package com.makomi.block.entity;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
+import com.makomi.data.LinkSavedData;
 import com.makomi.util.SignalStrengths;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -119,6 +121,7 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 		replaySyncTick = tick;
 		replaySyncSlot = slot;
 		replaySyncSeq = seq;
+		persistReplaySnapshotToLinkSavedData(normalizedStrength, normalizedMeta);
 		setChanged();
 	}
 
@@ -188,5 +191,15 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 			signalStrength = SignalStrengths.clamp(signalStrength);
 			eventMeta = eventMeta == null ? EventMeta.of(0L, 0, 0L) : eventMeta;
 		}
+	}
+
+	/**
+	 * 将最近一次真实 sync replay 快照同步到世界级存档，供来源区块离线后的 target chunk load replay 使用。
+	 */
+	private void persistReplaySnapshotToLinkSavedData(int signalStrength, EventMeta eventMeta) {
+		if (level == null || level.isClientSide || getSerial() <= 0L || !(level instanceof ServerLevel serverLevel)) {
+			return;
+		}
+		LinkSavedData.get(serverLevel).putTriggerSourceReplaySyncSnapshot(getSerial(), eventMeta, signalStrength);
 	}
 }

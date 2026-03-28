@@ -1,0 +1,107 @@
+{
+  "id": "crossdim_sync_overworld_to_nether_zip_square",
+  "description": "验证主世界 triggerSource 到下界 core 的跨维度 sync 基线链路。",
+  "layer": "X",
+  "scenarioId": "X03",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [-8, 63, 292],
+        "clearTo": [8, 66, 304]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [24, 63, 24],
+        "clearTo": [40, 66, 36]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_crossdim_nether",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [32, 64, 30],
+      "to": [34, 64, 30]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_crossdim_overworld",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [0, 64, 298],
+        "to": [2, 64, 298]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_crossdim_overworld",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_crossdim_overworld_sources",
+      "serialRef": "sync_crossdim_overworld",
+      "capacity": 96
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_crossdim_nether_targets",
+      "capacity": 96
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_crossdim_overworld_square",
+      "serialRef": "sync_crossdim_overworld",
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_crossdim_overworld_to_nether_ticks",
+      "ticks": 8
+    },
+    {
+      "templateRef": "trace_read_sync_square_triggerSource_slash",
+      "name": "crossdim_overworld_sources_should_follow_square",
+      "serialRef": "sync_crossdim_overworld",
+      "mountRef": "mount_crossdim_overworld_sources",
+      "anchorRef": "start_crossdim_overworld_square",
+      "template": {
+        "phaseRef": "start_crossdim_overworld_square"
+      }
+    },
+    {
+      "templateRef": "trace_read_sync_square_core_slash",
+      "name": "crossdim_nether_targets_should_follow_square",
+      "mountRef": "mount_crossdim_nether_targets",
+      "anchorRef": "start_crossdim_overworld_square",
+      "template": {
+        "phaseRef": "start_crossdim_overworld_square"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_crossdim_overworld_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_crossdim_overworld_sources",
+      "serialRef": "sync_crossdim_overworld"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_crossdim_nether_targets"
+    }
+  ]
+}

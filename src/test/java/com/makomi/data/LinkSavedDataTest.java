@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -239,5 +240,39 @@ class LinkSavedDataTest {
 
 		int removedAgain = data.clearLinksForNode(LinkNodeType.CORE, core);
 		assertEquals(0, removedAgain);
+	}
+
+	/**
+	 * triggerSource 卸载仅应移除在线坐标，不应丢失最近一次 sync replay 快照。
+	 */
+	@Test
+	void removeNodeShouldKeepTriggerSourceReplaySnapshot() {
+		LinkSavedData data = new LinkSavedData();
+		long triggerSourceSerial = 901L;
+		data.registerNode(triggerSourceSerial, DIMENSION, new BlockPos(9, 64, 9), LinkNodeType.TRIGGER_SOURCE);
+		data.putTriggerSourceReplaySyncSnapshot(triggerSourceSerial, EventMeta.of(123L, 0, 7L), 0);
+
+		data.removeNode(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial);
+
+		LinkSavedData.ReplaySyncSnapshotRecord snapshot = data
+			.getTriggerSourceReplaySyncSnapshot(triggerSourceSerial)
+			.orElseThrow();
+		assertEquals(0, snapshot.signalStrength());
+		assertEquals(EventMeta.of(123L, 0, 7L), snapshot.eventMeta());
+	}
+
+	/**
+	 * triggerSource 退役后应清理持久化 replay 快照，避免序号残留旧态。
+	 */
+	@Test
+	void retireNodeShouldClearTriggerSourceReplaySnapshot() {
+		LinkSavedData data = new LinkSavedData();
+		long triggerSourceSerial = 902L;
+		data.markSerialAllocated(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial);
+		data.putTriggerSourceReplaySyncSnapshot(triggerSourceSerial, EventMeta.of(456L, 0, 8L), 15);
+
+		data.retireNode(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial);
+
+		assertTrue(data.getTriggerSourceReplaySyncSnapshot(triggerSourceSerial).isEmpty());
 	}
 }

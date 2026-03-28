@@ -70,6 +70,37 @@ function Get-OptionalObjectProperty {
 	return $property.Value
 }
 
+function Convert-OptionalObjectToOrderedMap {
+	param($Object)
+	$map = [ordered]@{}
+	if ($null -eq $Object) {
+		return $map
+	}
+	if ($Object -is [System.Collections.IDictionary]) {
+		foreach ($entry in $Object.GetEnumerator()) {
+			$map[[string]$entry.Key] = $entry.Value
+		}
+		return $map
+	}
+	foreach ($property in $Object.PSObject.Properties) {
+		$map[[string]$property.Name] = $property.Value
+	}
+	return $map
+}
+
+function Merge-OptionalObjectMaps {
+	param(
+		$BaseObject,
+		$OverrideObject
+	)
+	$merged = Convert-OptionalObjectToOrderedMap -Object $BaseObject
+	$overrideMap = Convert-OptionalObjectToOrderedMap -Object $OverrideObject
+	foreach ($entry in $overrideMap.GetEnumerator()) {
+		$merged[[string]$entry.Key] = $entry.Value
+	}
+	return $merged
+}
+
 function Get-SuiteConfig {
 	param([string]$Path)
 	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -209,6 +240,9 @@ function Resolve-SuiteEntries {
 	if ([string]::IsNullOrWhiteSpace($defaultBenchAction)) {
 		$defaultBenchAction = $DefaultBenchAction
 	}
+	$defaultServerConfigOverrides = Convert-OptionalObjectToOrderedMap -Object (
+		Get-OptionalPsObjectPropertyValue -Object $suiteDefaults -PropertyName "serverConfigOverrides"
+	)
 	$defaultMatrixPath = [string](Get-OptionalPsObjectPropertyValue -Object $suiteDefaults -PropertyName "matrixPath")
 	if ([string]::IsNullOrWhiteSpace($defaultMatrixPath)) {
 		$defaultMatrixPath = $DefaultMatrixPath
@@ -244,6 +278,9 @@ function Resolve-SuiteEntries {
 		if ([string]::IsNullOrWhiteSpace($entryMatrixPath)) {
 			throw "Suite entry matrixPath is required: $entryId"
 		}
+		$entryServerConfigOverrides = Merge-OptionalObjectMaps `
+			-BaseObject $defaultServerConfigOverrides `
+			-OverrideObject (Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "serverConfigOverrides")
 
 		$matrix = Get-MatrixConfig -Path $entryMatrixPath
 		[void](Resolve-CaseIdList -Matrix $matrix -RequestedCaseIds @($caseId))
@@ -255,6 +292,7 @@ function Resolve-SuiteEntries {
 			matrixPath = $entryMatrixPath
 			reuseWorldFrom = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "reuseWorldFrom")
 			compareSerialsTo = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "compareSerialsTo")
+			serverConfigOverrides = $entryServerConfigOverrides
 		})
 	}
 

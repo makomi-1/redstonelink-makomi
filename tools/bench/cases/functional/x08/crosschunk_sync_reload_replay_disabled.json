@@ -1,0 +1,124 @@
+{
+  "id": "crosschunk_sync_reload_replay_disabled",
+  "description": "验证 syncTargetChunkLoadReplay 关闭时，目标区块 reload 后不会按卸载期间的最新 sync 低态重放。",
+  "layer": "X",
+  "scenarioId": "X08",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [-8, 63, 372],
+        "clearTo": [8, 66, 384]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [24, 63, 108],
+        "clearTo": [40, 66, 120]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_reload_disabled",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [32, 64, 114],
+      "to": [32, 64, 114]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_reload_disabled",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [0, 64, 378],
+        "to": [0, 64, 378]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_reload_disabled",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_reload_disabled_source",
+      "command": "setblock 1 64 378 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_reload_disabled_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reload_disabled_target_should_start_high",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_reload_disabled_target_forceload",
+      "command": "forceload remove 32 114 32 114",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_reload_disabled_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_off_reload_disabled_source",
+      "command": "setblock 1 64 378 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_reload_disabled_low_commit",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reload_disabled_target_should_be_offline_before_reload",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_reload_disabled_target_forceload",
+      "command": "forceload add 32 114 32 114",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_reload_disabled_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reload_disabled_target_should_keep_stale_high_state",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    }
+  ]
+}

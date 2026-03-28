@@ -191,7 +191,7 @@ public final class CrossChunkCommandRegistry {
 			// 序号必须处于“已分配且未退役”状态，否则不允许进入白名单。
 			return 0;
 		}
-		boolean residentDeferred = resident && linkSavedData.findNode(parsed.type(), serial).isEmpty();
+		boolean residentDeferred = resident && linkSavedData.findRuntimeOnlineNode(level, parsed.type(), serial).isEmpty();
 
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(level);
 		var upsertResult = whitelistSavedData.upsert(parsed.type(), serial, parsed.role(), resident);
@@ -339,10 +339,14 @@ public final class CrossChunkCommandRegistry {
 		);
 		for (long serial : serials.stream().sorted().toList()) {
 			boolean resident = whitelistSavedData.isResident(parsed.type(), serial, parsed.role());
-			Optional<LinkSavedData.LinkNode> node = linkSavedData.findNode(parsed.type(), serial);
-			boolean online = node.isPresent();
-			String dimension = node.map(value -> value.dimension().location().toString()).orElse("-");
-			String chunk = node.map(value -> formatChunkPos(value.pos().getX(), value.pos().getZ())).orElse("-");
+			Optional<LinkSavedData.LinkNode> runtimeNode = linkSavedData.findRuntimeOnlineNode(
+				source.getLevel(),
+				parsed.type(),
+				serial
+			);
+			boolean online = runtimeNode.isPresent();
+			String dimension = runtimeNode.map(value -> value.dimension().location().toString()).orElse("-");
+			String chunk = runtimeNode.map(value -> formatChunkPos(value.pos().getX(), value.pos().getZ())).orElse("-");
 			source.sendSuccess(
 				() -> Component.translatable(
 					"message.redstonelink.crosschunk.whitelist.list.entry",
@@ -478,7 +482,7 @@ public final class CrossChunkCommandRegistry {
 			return 0;
 		}
 		List<Long> offlineSerials = resident
-			? collectOfflineSerials(savedData, parsed.type(), targetSerials)
+			? collectOfflineSerials(source.getLevel(), savedData, parsed.type(), targetSerials)
 			: List.of();
 
 		if (!confirmed) {
@@ -727,13 +731,14 @@ public final class CrossChunkCommandRegistry {
 	 * @return 当前未在线节点集合，供结果文案提示“离线后生效”
 	 */
 	private static List<Long> collectOfflineSerials(
+		ServerLevel contextLevel,
 		LinkSavedData savedData,
 		LinkNodeType type,
 		Set<Long> serials
 	) {
 		List<Long> offlineSerials = new ArrayList<>();
 		for (long serial : serials) {
-			if (savedData.findNode(type, serial).isEmpty()) {
+			if (savedData.findRuntimeOnlineNode(contextLevel, type, serial).isEmpty()) {
 				offlineSerials.add(serial);
 			}
 		}

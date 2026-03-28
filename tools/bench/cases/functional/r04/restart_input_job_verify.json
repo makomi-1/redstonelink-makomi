@@ -1,0 +1,51 @@
+{
+  "id": "restart_input_job_verify",
+  "description": "复用已存在世界，验证重启后输入 job 已被清理，目标不再维持激活。",
+  "layer": "R",
+  "scenarioId": "R04",
+  "clearArena": false,
+  "arena": {
+    "clearFrom": [-8, 63, 98],
+    "clearTo": [24, 66, 110]
+  },
+  "targets": {
+    "id": "core_restart_input",
+    "kind": "core_block",
+    "reuseExisting": true,
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 100],
+      "to": [12, 64, 100]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_restart_input",
+      "kind": "sync_emitter",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 100],
+        "to": [0, 64, 100]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "restart_input_list_should_be_empty_after_restart",
+      "command": "redstonelink input list",
+      "expectedPrefix": "[RedstoneLink/Input]",
+      "expectedRegex": "(?i)(No input jobs are currently running|当前没有运行中的输入 job)"
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "restart_input_target_should_be_off_after_restart",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false
+      }
+    }
+  ]
+}

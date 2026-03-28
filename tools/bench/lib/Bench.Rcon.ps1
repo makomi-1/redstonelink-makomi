@@ -90,12 +90,16 @@ function Test-BenchResponseLooksLikeFailure {
 		"(?i)\bToo many requests\b",
 		"(?i)\binsufficient permission\b",
 		"(?i)\bplayer[- ]only\b",
-		"(?i)\binvalid\b",
 		"(?i)\bunallocated\b",
-		"(?i)\bretired\b",
-		"(?i)\boffline\b",
+		"(?i)\bInvalid (?:serial|serials|source|sources|target|targets|role|type|scope|protected serial)\b",
+		"(?i)\b(?:Source|Target) serial \d+ is retired\b",
+		"(?i)\bRetired target serials\b",
+		"(?i)\bOffline targets are blocked\b",
+		"(?i)\bThese targets are offline or in unloaded chunks\b",
 		"(?i)\bnot found\b",
-		"(?i)\bunsupported input endpoint\b"
+		"(?i)\bunsupported input endpoint\b",
+		"\u914d\u7f6e\u5df2\u7981\u6b62\u79bb\u7ebf\u7ed1\u5b9a",
+		"\u4ee5\u4e0b\u76ee\u6807\u5f53\u524d\u4e0d\u5728\u7ebf\u6216\u533a\u5757\u672a\u52a0\u8f7d"
 	)
 	foreach ($pattern in $failurePatterns) {
 		if ($normalized -match $pattern) {
@@ -216,6 +220,33 @@ function Wrap-WithPlayerContext {
 		return $Command
 	}
 	return "execute as $($script:BenchAsPlayer) at $($script:BenchAsPlayer) run $Command"
+}
+
+function Wrap-WithDimensionContext {
+	param(
+		[string]$Command,
+		[string]$Dimension
+	)
+	if ([string]::IsNullOrWhiteSpace($Dimension)) {
+		return $Command
+	}
+	return "execute in $Dimension run $Command"
+}
+
+function Wrap-WithBenchContexts {
+	param(
+		[string]$Command,
+		[string]$Dimension = "",
+		[switch]$SkipPlayerContext
+	)
+	$wrappedCommand = [string]$Command
+	if (-not $SkipPlayerContext) {
+		if ([string]::IsNullOrWhiteSpace($Dimension)) {
+			return (Wrap-WithPlayerContext $wrappedCommand)
+		}
+		return (Wrap-WithPlayerContext (Wrap-WithDimensionContext -Command $wrappedCommand -Dimension $Dimension))
+	}
+	return (Wrap-WithDimensionContext -Command $wrappedCommand -Dimension $Dimension)
 }
 
 # 统一返回玩家上下文就绪探针，默认探测当前玩家实体坐标。
@@ -365,7 +396,8 @@ function Ensure-PlayerContextReadyAndSetup {
 function Invoke-PlayerObservationTeleport {
 	param(
 		$Connection,
-		$ObservationPoint
+		$ObservationPoint,
+		[string]$Dimension = ""
 	)
 
 	if (-not [bool]$script:BenchAutoTeleportPlayerToObservationPoint) {
@@ -380,7 +412,14 @@ function Invoke-PlayerObservationTeleport {
 
 	$positionText = Format-PreciseVec3 -Vec $ObservationPoint.Position
 	$facingText = Format-PreciseVec3 -Vec $ObservationPoint.Facing
-	$wrappedCommand = Wrap-WithPlayerContext ("tp @s {0} facing {1}" -f $positionText, $facingText)
+	$resolvedDimension = if ([string]::IsNullOrWhiteSpace($Dimension)) {
+		[string](Get-OptionalProperty -Object $ObservationPoint -Name "Dimension" -DefaultValue "")
+	} else {
+		$Dimension
+	}
+	$wrappedCommand = Wrap-WithBenchContexts `
+		-Command ("tp @s {0} facing {1}" -f $positionText, $facingText) `
+		-Dimension $resolvedDimension
 	$response = Invoke-RconCommand -Connection $Connection -Command $wrappedCommand -Silent
 	if (Test-BenchResponseLooksLikeFailure -ResponseText $response) {
 		throw "Player observation teleport failed: $wrappedCommand | response=$response"
@@ -389,6 +428,7 @@ function Invoke-PlayerObservationTeleport {
 	return [pscustomobject]@{
 		command = $wrappedCommand
 		response = $response
+		dimension = if ([string]::IsNullOrWhiteSpace($resolvedDimension)) { $null } else { $resolvedDimension }
 		position = $ObservationPoint.Position
 		facing = $ObservationPoint.Facing
 		bounds = $ObservationPoint.Bounds

@@ -41,6 +41,7 @@ $matrixCache = @{}
 $serverRootFullPath = [System.IO.Path]::GetFullPath($ServerRoot)
 $templateWorldFullPath = [System.IO.Path]::GetFullPath($TemplateWorldPath)
 $serverPropertiesFullPath = [System.IO.Path]::GetFullPath($ServerPropertiesPath)
+$serverConfigFullPath = Join-Path $serverRootFullPath "config\redstonelink-server.properties"
 $gradleWrapperFullPath = Resolve-PathFromBase -BaseDirectory $repoRoot -CandidatePath $GradleWrapperPath
 $serverModsDirectoryPath = if ([string]::IsNullOrWhiteSpace($ServerModsDir)) {
 	Join-Path $serverRootFullPath "mods"
@@ -49,6 +50,11 @@ $serverModsDirectoryPath = if ([string]::IsNullOrWhiteSpace($ServerModsDir)) {
 }
 $caseWorldsRootPath = Get-CaseWorldsRootPath -ServerRootPath $serverRootFullPath -DirectoryName $caseWorldsDirectoryName
 $originalServerPropertiesText = Read-Utf8Text -Path $serverPropertiesFullPath
+$originalServerConfigText = if (Test-Path -LiteralPath $serverConfigFullPath -PathType Leaf) {
+	Read-Utf8Text -Path $serverConfigFullPath
+} else {
+	$null
+}
 
 if ($DeleteCaseWorldOnSuccess -and @($suiteEntries | Where-Object {
 	-not [string]::IsNullOrWhiteSpace([string]$_.reuseWorldFrom)
@@ -108,6 +114,7 @@ $suiteSummary = [ordered]@{
 	serverPriorityClass = if ([string]::IsNullOrWhiteSpace([string]$ServerPriorityClass)) { $null } else { ([string]$ServerPriorityClass).Trim() }
 	serverRoot = $serverRootFullPath
 	serverPropertiesPath = $serverPropertiesFullPath
+	serverConfigPath = if ($null -eq $originalServerConfigText) { $null } else { $serverConfigFullPath }
 	templateWorldPath = $templateWorldFullPath
 	caseWorldsRootPath = $caseWorldsRootPath
 	modSync = $modSyncSummary
@@ -116,6 +123,7 @@ $suiteSummary = [ordered]@{
 	startedAt = (Get-Date).ToString("s")
 	results = @()
 	restoredServerProperties = $false
+	restoredServerConfig = ($null -eq $originalServerConfigText)
 	benchClient = $null
 	benchClientRequested = [bool]$script:BenchAutoStartClient
 	benchClientStartAttempted = $false
@@ -149,6 +157,7 @@ try {
 		$entryMatrixPath = [string]$entry.matrixPath
 		$reuseWorldFrom = [string]$entry.reuseWorldFrom
 		$compareSerialsTo = [string]$entry.compareSerialsTo
+		$entryServerConfigOverrides = Convert-OptionalObjectToOrderedMap -Object $entry.serverConfigOverrides
 		if (-not $matrixCache.ContainsKey($entryMatrixPath)) {
 			$matrixCache[$entryMatrixPath] = Get-MatrixConfig -Path $entryMatrixPath
 		}
@@ -191,6 +200,15 @@ try {
 			}
 
 			Set-ServerPropertyValue -Path $serverPropertiesFullPath -Key "level-name" -Value $worldLevelName
+			if ($null -ne $originalServerConfigText) {
+				Restore-ExactFileText -Path $serverConfigFullPath -Text $originalServerConfigText
+				if ($entryServerConfigOverrides.Count -gt 0) {
+					Set-PropertiesFileValues -Path $serverConfigFullPath -Properties $entryServerConfigOverrides
+					Write-Host "[BenchSuite] Applied server config overrides for $($entryId): $($entryServerConfigOverrides.Keys -join ', ')"
+				}
+			} elseif ($entryServerConfigOverrides.Count -gt 0) {
+				throw "Suite entry '$entryId' requested serverConfigOverrides but config file was not found: $serverConfigFullPath"
+			}
 			$serverProcess = Start-DedicatedServerProcess -WorkingDirectory $serverRootFullPath -Command $ServerStartCommand -WindowMode $ServerWindowMode -PriorityClass $ServerPriorityClass
 			$caseRecord.serverPid = $serverProcess.Id
 			if ($serverProcess.PSObject.Properties.Name -contains "launcherProcessId") {
@@ -353,6 +371,9 @@ try {
 				Remove-Item -LiteralPath $worldPath -Recurse -Force
 				$caseRecord.worldDeleted = $true
 			}
+			if ($null -ne $originalServerConfigText) {
+				Restore-ExactFileText -Path $serverConfigFullPath -Text $originalServerConfigText
+			}
 
 			$caseRecord.completedAt = (Get-Date).ToString("s")
 			$completedEntries[$entryId] = [pscustomobject]$caseRecord
@@ -371,6 +392,10 @@ try {
 	}
 	Write-Utf8NoBomFile -Path $serverPropertiesFullPath -Content $originalServerPropertiesText
 	$suiteSummary.restoredServerProperties = $true
+	if ($null -ne $originalServerConfigText) {
+		Restore-ExactFileText -Path $serverConfigFullPath -Text $originalServerConfigText
+		$suiteSummary.restoredServerConfig = $true
+	}
 	$suiteSummary.completedAt = (Get-Date).ToString("s")
 	$suiteSummary.summaryPath = (Join-Path $suiteOutputDirectory "summary.json")
 	Write-SuiteSummaryJson -OutputPath $suiteSummary.summaryPath -SummaryObject $suiteSummary | Out-Null

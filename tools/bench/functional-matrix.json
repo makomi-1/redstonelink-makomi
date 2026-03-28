@@ -18,6 +18,7 @@
     "cases/functional/c03/input_admin_basic.json",
     "cases/functional/c04/policy_runtime_basic.json",
     "cases/functional/c05/crosschunk_command_basic.json",
+    "cases/functional/c06/command_boundary_matrix.json",
     "cases/functional/f02/link_lifecycle_add_remove_set_clear.json",
     "cases/functional/f03/sync_core_range_square_basic.json",
     "cases/functional/f03/sync_triggerSource_slash_square_basic.json",
@@ -26,7 +27,17 @@
     "cases/functional/f03/toggle_activate_fanin_even_odd.json",
     "cases/functional/f04/input_activate_trace_command_alignment.json",
     "cases/functional/x01/crosschunk_sync_triggerSource_zip_square.json",
+    "cases/functional/x02/crosschunk_resident_offline_restore.json",
+    "cases/functional/x03/crossdim_sync_overworld_to_nether_zip_square.json",
     "cases/functional/x04/restart_persist_toggle_prepare.json",
-    "cases/functional/r02/restart_persist_toggle_verify.json"
+    "cases/functional/x05/crossdim_sync_nether_to_end_zip_square.json",
+    "cases/functional/x06/crossdim_sync_end_to_overworld_zip_square.json",
+    "cases/functional/x07/crosschunk_sync_reload_replay_enabled.json",
+    "cases/functional/x08/crosschunk_sync_reload_replay_disabled.json",
+    "cases/functional/x09/crosschunk_force_load_mode_all.json",
+    "cases/functional/x10/crosschunk_force_load_mode_whitelist_unmatched.json",
+    "cases/functional/r02/restart_persist_toggle_verify.json",
+    "cases/functional/r03/restart_input_job_prepare.json",
+    "cases/functional/r04/restart_input_job_verify.json"
   ]
 }

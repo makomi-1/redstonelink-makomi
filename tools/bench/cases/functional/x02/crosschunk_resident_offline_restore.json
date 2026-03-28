@@ -1,0 +1,114 @@
+{
+  "id": "crosschunk_resident_offline_restore",
+  "description": "验证 resident 离线写入、离线列表保留，以及节点重新上线后的自动恢复。",
+  "layer": "X",
+  "scenarioId": "X02",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [24, 63, 24],
+        "clearTo": [40, 66, 40]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_resident_nether",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [32, 64, 32],
+      "to": [32, 64, 32]
+    }
+  },
+  "sources": [],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "resident_add_online",
+      "commandTemplate": "redstonelink crosschunk whitelist add target core {{targets[0]}} resident",
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegex": "(?i)(Whitelist added|已添加白名单)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "resident_list_online",
+      "command": "redstonelink crosschunk whitelist list target core",
+      "expectedPrefix": "------------------------------",
+      "expectedRegexes": [
+        "(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?i)online=true",
+        "(?i)resident=on",
+        "(?i)minecraft:the_nether"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "resident_clear_before_unload",
+      "command": "redstonelink crosschunk whitelist clear target core",
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegex": "(?i)(Cleared role=target|已清空角色=target)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "nether_forceload_remove",
+      "command": "forceload remove 32 32 32 32",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_for_nether_chunk_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "resident_add_offline",
+      "commandTemplate": "redstonelink crosschunk whitelist add target core {{targets[0]}} resident",
+      "expectedPrefix": "[RedstoneLink/CrossChunk]",
+      "expectedRegexes": [
+        "(?i)(Whitelist added|已添加白名单)",
+        "(?i)(Resident saved|resident 已设置)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "resident_list_offline",
+      "command": "redstonelink crosschunk whitelist list target core",
+      "expectedPrefix": "------------------------------",
+      "expectedRegexes": [
+        "(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?i)online=false",
+        "(?i)resident=on",
+        "(?i)(dimension=-|维度=-)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "nether_forceload_add",
+      "command": "forceload add 32 32 32 32",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_for_nether_chunk_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "resident_list_reloaded",
+      "command": "redstonelink crosschunk whitelist list target core",
+      "expectedPrefix": "------------------------------",
+      "expectedRegexes": [
+        "(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?i)online=true",
+        "(?i)resident=on",
+        "(?i)minecraft:the_nether"
+      ]
+    }
+  ]
+}

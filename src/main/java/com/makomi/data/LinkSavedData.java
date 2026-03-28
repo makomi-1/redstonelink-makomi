@@ -42,6 +42,11 @@ public final class LinkSavedData extends SavedData {
 	static final String KEY_ALLOCATED_BUTTON_SERIALS = "allocatedButtonSerials";
 	static final String KEY_RETIRED_CORE_SERIALS = "retiredCoreSerials";
 	static final String KEY_RETIRED_BUTTON_SERIALS = "retiredButtonSerials";
+	static final String KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS = "triggerSourceReplaySyncSnapshots";
+	static final String KEY_SIGNAL_STRENGTH = "signalStrength";
+	static final String KEY_TICK = "tick";
+	static final String KEY_SLOT = "slot";
+	static final String KEY_SEQ = "seq";
 
 	private static final SavedData.Factory<LinkSavedData> FACTORY = new SavedData.Factory<>(
 		LinkSavedData::new,
@@ -59,6 +64,7 @@ public final class LinkSavedData extends SavedData {
 	final Set<Long> allocatedButtonSerials = new HashSet<>();
 	final Set<Long> retiredCoreSerials = new HashSet<>();
 	final Set<Long> retiredButtonSerials = new HashSet<>();
+	final Map<Long, ReplaySyncSnapshotRecord> triggerSourceReplaySyncSnapshots = new HashMap<>();
 
 	/**
 	 * 获取当前服务器共享的联动存档数据实例。
@@ -118,6 +124,13 @@ public final class LinkSavedData extends SavedData {
 	}
 
 	/**
+	 * 查询当前运行态仍在线的节点快照。
+	 */
+	public Optional<LinkNode> findRuntimeOnlineNode(ServerLevel contextLevel, LinkNodeType type, long serial) {
+		return LinkSavedDataQuerySupport.findRuntimeOnlineNode(this, contextLevel, type, serial);
+	}
+
+	/**
 	 * 判断序列号是否已登记分配。
 	 */
 	public boolean isSerialAllocated(LinkNodeType type, long serial) {
@@ -143,6 +156,24 @@ public final class LinkSavedData extends SavedData {
 	 */
 	public boolean markSerialAllocated(LinkNodeType type, long serial) {
 		return LinkSavedDataSerialSupport.markSerialAllocated(this, type, serial);
+	}
+
+	/**
+	 * 记录 triggerSource 最近一次真实 sync replay 快照。
+	 */
+	public void putTriggerSourceReplaySyncSnapshot(
+		long triggerSourceSerial,
+		com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta eventMeta,
+		int signalStrength
+	) {
+		LinkSavedDataSerialSupport.putTriggerSourceReplaySyncSnapshot(this, triggerSourceSerial, eventMeta, signalStrength);
+	}
+
+	/**
+	 * 查询 triggerSource 最近一次已持久化的 sync replay 快照。
+	 */
+	public Optional<ReplaySyncSnapshotRecord> getTriggerSourceReplaySyncSnapshot(long triggerSourceSerial) {
+		return LinkSavedDataQuerySupport.getTriggerSourceReplaySyncSnapshot(this, triggerSourceSerial);
 	}
 
 	/**
@@ -309,4 +340,12 @@ public final class LinkSavedData extends SavedData {
 	 * 覆盖式替换链接结果记录。
 	 */
 	public record ReplaceLinksResult(int currentCount, int addedCount, int removedCount, int changedCount) {}
+
+	/**
+	 * triggerSource 最近一次真实 sync replay 快照。
+	 */
+	public record ReplaySyncSnapshotRecord(
+		int signalStrength,
+		com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta eventMeta
+	) {}
 }

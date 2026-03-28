@@ -14,6 +14,7 @@ public record RedstoneLinkCrossChunkConfig(
 	int syncSignalTtlTicks,
 	boolean syncSignalPersistent,
 	boolean syncTargetChunkLoadReplayEnabled,
+	boolean syncTargetChunkLoadReplayImmediateAttemptFirst,
 	boolean activationPulseRelayEnabled,
 	int activationPulseTtlTicks,
 	boolean activationPulsePersistentExperimental,

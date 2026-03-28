@@ -322,6 +322,11 @@ function Test-FunctionalCommandAssertHardFailure {
 	if ([string]::IsNullOrWhiteSpace($normalized)) {
 		return $false
 	}
+	if (Get-Command Test-BenchResponseLooksLikeFailure -ErrorAction SilentlyContinue) {
+		if (Test-BenchResponseLooksLikeFailure -ResponseText $normalized) {
+			return $true
+		}
+	}
 	$hardFailurePatterns = @(
 		"(?i)\bUnknown(?: or incomplete)? command\b",
 		"(?i)\bCould not parse command\b",
@@ -329,8 +334,18 @@ function Test-FunctionalCommandAssertHardFailure {
 		"(?i)\bNo entity was found\b",
 		"(?i)\bNo player was found\b",
 		"(?i)\bToo many requests\b",
+		"(?i)\bToo many\b",
+		"(?i)\bempty\b",
+		"(?i)\bmax\b",
 		"(?i)\binsufficient permission\b",
-		"(?i)\bplayer[- ]only\b"
+		"(?i)\bplayer[- ]only\b",
+		"\u65e0\u6548\u5e8f\u53f7",
+		"\u975e\u6cd5\u5b57\u7b26",
+		"\u76ee\u6807\u4e3a\u7a7a",
+		"\u8f93\u5165\u4e3a\u7a7a",
+		"\u5df2\u9000\u5f79",
+		"\u6570\u91cf\u8fc7\u591a",
+		"\u6700\u591a"
 	)
 	foreach ($pattern in $hardFailurePatterns) {
 		if ($normalized -match $pattern) {
@@ -1144,6 +1159,33 @@ function Invoke-FunctionalPhases {
 					$phaseTicks,
 					$totalTicks
 				)
+				if ($DryRun) {
+					$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+					$jobId = [long]$script:DryRunInputJobCounter
+					$script:DryRunInputJobCounter++
+					$phaseResult = [ordered]@{
+						kind = $kind
+						name = $phaseName
+						endpoint = $endpoint
+						serials = $serials
+						serialText = $serialText
+						jobId = $jobId
+						command = $command
+						response = "[RedstoneLink/Input] Started job=$jobId [DryRun]"
+						tickWindow = $commandResult.tickWindow
+						waveform = [ordered]@{
+							periodTicks = $periodTicks
+							highTicks = $highTicks
+							highPower = $highPower
+							lowPower = $lowPower
+							phaseTicks = $phaseTicks
+							totalTicks = $totalTicks
+						}
+						dryRun = $true
+					}
+					Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+					continue
+				}
 				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
 				Assert-BenchCommandResponse `
 					-Command $command `
@@ -1192,6 +1234,28 @@ function Invoke-FunctionalPhases {
 					$phaseTicks,
 					$totalTicks
 				)
+				if ($DryRun) {
+					$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+					$jobId = [long]$script:DryRunInputJobCounter
+					$script:DryRunInputJobCounter++
+					$phaseResult = [ordered]@{
+						kind = $kind
+						name = $phaseName
+						endpoint = $endpoint
+						serials = $serials
+						serialText = $serialText
+						jobId = $jobId
+						sequence = $sequence
+						phaseTicks = $phaseTicks
+						totalTicks = $totalTicks
+						command = $command
+						response = "[RedstoneLink/Input] Started job=$jobId [DryRun]"
+						tickWindow = $commandResult.tickWindow
+						dryRun = $true
+					}
+					Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+					continue
+				}
 				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
 				Assert-BenchCommandResponse `
 					-Command $command `
@@ -1217,6 +1281,17 @@ function Invoke-FunctionalPhases {
 			}
 			"input_clear" {
 				$command = Wrap-WithPlayerContext "redstonelink input clear"
+				if ($DryRun) {
+					$phaseResult = [ordered]@{
+						kind = $kind
+						name = $phaseName
+						command = $command
+						response = "[RedstoneLink/Input] Cleared input jobs: [DryRun]"
+						dryRun = $true
+					}
+					Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+					continue
+				}
 				$response = Invoke-RconCommand -Connection $Connection -Command $command -Silent
 				Assert-BenchCommandResponse `
 					-Command $command `
@@ -1335,7 +1410,11 @@ function Invoke-FunctionalPhases {
 					throw "command_assert phase requires command or commandTemplate."
 				}
 				$skipPlayerContext = [bool](Get-OptionalProperty -Object $phase -Name "skipPlayerContext" -DefaultValue $false)
-				$command = if ($skipPlayerContext) { $commandText } else { Wrap-WithPlayerContext $commandText }
+				$commandDimension = [string](Get-OptionalProperty -Object $phase -Name "commandDimension" -DefaultValue "")
+				$command = Wrap-WithBenchContexts `
+					-Command $commandText `
+					-Dimension $commandDimension `
+					-SkipPlayerContext:$skipPlayerContext
 				$expectedPrefix = Resolve-FunctionalCommandTemplate `
 					-Template ([string](Get-OptionalProperty -Object $phase -Name "expectedPrefix" -DefaultValue "")) `
 					-SourceSerialMaps $SourceSerialMaps `
@@ -1357,9 +1436,16 @@ function Invoke-FunctionalPhases {
 					-PhaseContext $phaseContext)
 				$captureTickWindow = [bool](Get-OptionalProperty -Object $phase -Name "captureTickWindow" -DefaultValue $false)
 				$allowReadTimeout = [bool](Get-OptionalProperty -Object $phase -Name "allowReadTimeout" -DefaultValue $false)
+				$allowEmptyResponse = [bool](Get-OptionalProperty -Object $phase -Name "allowEmptyResponse" -DefaultValue $false)
+				$expectFailureResponse = [bool](Get-OptionalProperty -Object $phase -Name "expectFailureResponse" -DefaultValue $false)
 				$receiveTimeoutMs = [int](Get-OptionalProperty -Object $phase -Name "receiveTimeoutMs" -DefaultValue 3000)
 
 				if ($DryRun) {
+					$dryRunResponse = if (-not [string]::IsNullOrWhiteSpace($expectedPrefix)) {
+						"$expectedPrefix [DryRun] skipped"
+					} else {
+						"[DryRun] skipped"
+					}
 					$check = [ordered]@{
 						phase = $phaseName
 						kind = $kind
@@ -1368,6 +1454,8 @@ function Invoke-FunctionalPhases {
 						skipped = $true
 						reason = "dry_run"
 						command = $command
+						commandDimension = if ([string]::IsNullOrWhiteSpace($commandDimension)) { $null } else { $commandDimension }
+						expectFailureResponse = $expectFailureResponse
 						expectedPrefix = $expectedPrefix
 						expectedRegexes = $expectedRegexes
 						rejectRegexes = $rejectRegexes
@@ -1377,8 +1465,10 @@ function Invoke-FunctionalPhases {
 						kind = $kind
 						name = $phaseName
 						command = $command
-						response = ""
+						commandDimension = if ([string]::IsNullOrWhiteSpace($commandDimension)) { $null } else { $commandDimension }
+						response = $dryRunResponse
 						tickWindow = $null
+						expectFailureResponse = $expectFailureResponse
 						expectedPrefix = $expectedPrefix
 						expectedRegexes = $expectedRegexes
 						rejectRegexes = $rejectRegexes
@@ -1418,17 +1508,28 @@ function Invoke-FunctionalPhases {
 
 				$normalizedResponse = ([string]$response).Trim()
 				$passed = $true
+				$responseLooksLikeFailure = $false
 				if ([string]::IsNullOrWhiteSpace($failureReason)) {
 					if ([string]::IsNullOrWhiteSpace($normalizedResponse)) {
-						$passed = $false
-						$failureReason = "empty_response"
-					} elseif (Test-FunctionalCommandAssertHardFailure -ResponseText $normalizedResponse) {
-						$passed = $false
-						$failureReason = "failure_response"
-					} elseif (-not [string]::IsNullOrWhiteSpace($expectedPrefix) -and -not $normalizedResponse.StartsWith($expectedPrefix, [System.StringComparison]::Ordinal)) {
+						if (-not $allowEmptyResponse) {
+							$passed = $false
+							$failureReason = "empty_response"
+						}
+					} else {
+						$responseLooksLikeFailure = Test-FunctionalCommandAssertHardFailure -ResponseText $normalizedResponse
+						if ($expectFailureResponse -and -not $responseLooksLikeFailure) {
+							$passed = $false
+							$failureReason = "expected_failure_missing"
+						} elseif (-not $expectFailureResponse -and $responseLooksLikeFailure) {
+							$passed = $false
+							$failureReason = "failure_response"
+						}
+					}
+					if ($passed -and -not [string]::IsNullOrWhiteSpace($expectedPrefix) -and -not $normalizedResponse.StartsWith($expectedPrefix, [System.StringComparison]::Ordinal)) {
 						$passed = $false
 						$failureReason = "prefix_mismatch"
-					} else {
+					}
+					if ($passed) {
 						foreach ($expectedRegex in $expectedRegexes) {
 							if (-not [System.Text.RegularExpressions.Regex]::IsMatch($normalizedResponse, $expectedRegex)) {
 								$passed = $false
@@ -1458,7 +1559,10 @@ function Invoke-FunctionalPhases {
 					scope = "command_response"
 					passed = $passed
 					command = $command
+					commandDimension = if ([string]::IsNullOrWhiteSpace($commandDimension)) { $null } else { $commandDimension }
 					response = $response
+					responseLooksLikeFailure = $responseLooksLikeFailure
+					expectFailureResponse = $expectFailureResponse
 					expectedPrefix = $expectedPrefix
 					expectedRegexes = $expectedRegexes
 					rejectRegexes = $rejectRegexes
@@ -1474,8 +1578,11 @@ function Invoke-FunctionalPhases {
 					kind = $kind
 					name = $phaseName
 					command = $command
+					commandDimension = if ([string]::IsNullOrWhiteSpace($commandDimension)) { $null } else { $commandDimension }
 					response = $response
 					tickWindow = $tickWindow
+					responseLooksLikeFailure = $responseLooksLikeFailure
+					expectFailureResponse = $expectFailureResponse
 					expectedPrefix = $expectedPrefix
 					expectedRegexes = $expectedRegexes
 					rejectRegexes = $rejectRegexes
