@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "defaults": {
+    "tickMillis": 50,
+    "settleTicks": 20,
+    "prepareFunctions": [
+      "rl_bench:prepare/common",
+      "rl_bench:reset/common"
+    ],
+    "resultsDir": "run/profiles/bench-results-crosschunk-stress",
+    "spark": {
+      "startCpu": "spark profiler start",
+      "stopCpu": "spark profiler stop --comment {case_id}",
+      "health": "spark health --upload --memory"
+    }
+  },
+  "templatePaths": [
+    "templates/functional/phases.json"
+  ],
+  "casePaths": [
+    "cases/performance/p20/sync_queue_release_1024_single_shot.json",
+    "cases/performance/p21/sync_queue_release_1024_blank_control.json"
+  ]
+}

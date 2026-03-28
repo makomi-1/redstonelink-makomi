@@ -666,6 +666,17 @@ function Test-CaseUsesOnlyDriveInput {
 	return $true
 }
 
+function Test-CaseUsesSequentialDriveTimeline {
+	param($CaseConfig)
+	foreach ($step in @($CaseConfig.drive.steps)) {
+		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		if ($kind -eq "wait_ticks" -or $kind -eq "command_assert" -or $kind -eq "input_clear") {
+			return $true
+		}
+	}
+	return $false
+}
+
 function Get-CaseDriveTotalTicks {
 	param(
 		$CaseConfig,
@@ -852,6 +863,324 @@ function Clear-DriveInputJobs {
 		-ExpectedPrefix "[RedstoneLink/Input]"
 }
 
+function Resolve-DriveStepTemplateText {
+	param(
+		$Step,
+		[string]$PrimaryName,
+		[string]$FallbackName,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap
+	)
+	$rawText = [string](Get-OptionalProperty -Object $Step -Name $PrimaryName -DefaultValue "")
+	if ([string]::IsNullOrWhiteSpace($rawText) -and -not [string]::IsNullOrWhiteSpace($FallbackName)) {
+		$rawText = [string](Get-OptionalProperty -Object $Step -Name $FallbackName -DefaultValue "")
+	}
+	if ([string]::IsNullOrWhiteSpace($rawText)) {
+		return ""
+	}
+	if (Get-Command Resolve-FunctionalCommandTemplate -ErrorAction SilentlyContinue) {
+		return (
+			Resolve-FunctionalCommandTemplate `
+				-Template $rawText `
+				-SourceSerialMaps $SourceSerialMaps `
+				-TargetSerialMap $TargetSerialMap `
+				-PhaseContext @{}
+		)
+	}
+	return $rawText
+}
+
+function Get-DriveCommandPatternList {
+	param(
+		$Step,
+		[string]$PrimaryName,
+		[string]$ListName,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap
+	)
+	if (Get-Command Get-FunctionalCommandPatternList -ErrorAction SilentlyContinue) {
+		return @(
+			Get-FunctionalCommandPatternList `
+				-Phase $Step `
+				-PrimaryName $PrimaryName `
+				-ListName $ListName `
+				-SourceSerialMaps $SourceSerialMaps `
+				-TargetSerialMap $TargetSerialMap `
+				-PhaseContext @{}
+		)
+	}
+
+	$patterns = New-Object System.Collections.Generic.List[string]
+	$primaryPattern = Resolve-DriveStepTemplateText `
+		-Step $Step `
+		-PrimaryName $PrimaryName `
+		-FallbackName "" `
+		-SourceSerialMaps $SourceSerialMaps `
+		-TargetSerialMap $TargetSerialMap
+	if (-not [string]::IsNullOrWhiteSpace($primaryPattern)) {
+		$patterns.Add($primaryPattern)
+	}
+	foreach ($rawPattern in @(Get-OptionalProperty -Object $Step -Name $ListName -DefaultValue @())) {
+		$resolvedPattern = Resolve-DriveStepTemplateText `
+			-Step ([pscustomobject]@{ value = [string]$rawPattern }) `
+			-PrimaryName "value" `
+			-FallbackName "" `
+			-SourceSerialMaps $SourceSerialMaps `
+			-TargetSerialMap $TargetSerialMap
+		if (-not [string]::IsNullOrWhiteSpace($resolvedPattern)) {
+			$patterns.Add($resolvedPattern)
+		}
+	}
+	return @($patterns.ToArray())
+}
+
+function Invoke-DriveCommandAssertStep {
+	param(
+		$Connection,
+		$Step,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap
+	)
+	$commandText = Resolve-DriveStepTemplateText `
+		-Step $Step `
+		-PrimaryName "commandTemplate" `
+		-FallbackName "command" `
+		-SourceSerialMaps $SourceSerialMaps `
+		-TargetSerialMap $TargetSerialMap
+	if ([string]::IsNullOrWhiteSpace($commandText)) {
+		throw "command_assert drive step requires command or commandTemplate."
+	}
+
+	$skipPlayerContext = [bool](Get-OptionalProperty -Object $Step -Name "skipPlayerContext" -DefaultValue $false)
+	$commandDimension = [string](Get-OptionalProperty -Object $Step -Name "commandDimension" -DefaultValue "")
+	$command = Wrap-WithBenchContexts `
+		-Command $commandText `
+		-Dimension $commandDimension `
+		-SkipPlayerContext:$skipPlayerContext
+	$expectedPrefix = Resolve-DriveStepTemplateText `
+		-Step $Step `
+		-PrimaryName "expectedPrefix" `
+		-FallbackName "" `
+		-SourceSerialMaps $SourceSerialMaps `
+		-TargetSerialMap $TargetSerialMap
+	$expectedRegexes = @(Get-DriveCommandPatternList `
+		-Step $Step `
+		-PrimaryName "expectedRegex" `
+		-ListName "expectedRegexes" `
+		-SourceSerialMaps $SourceSerialMaps `
+		-TargetSerialMap $TargetSerialMap)
+	$rejectRegexes = @(Get-DriveCommandPatternList `
+		-Step $Step `
+		-PrimaryName "rejectRegex" `
+		-ListName "rejectRegexes" `
+		-SourceSerialMaps $SourceSerialMaps `
+		-TargetSerialMap $TargetSerialMap)
+	$captureTickWindow = [bool](Get-OptionalProperty -Object $Step -Name "captureTickWindow" -DefaultValue $false)
+	$allowReadTimeout = [bool](Get-OptionalProperty -Object $Step -Name "allowReadTimeout" -DefaultValue $false)
+	$allowEmptyResponse = [bool](Get-OptionalProperty -Object $Step -Name "allowEmptyResponse" -DefaultValue $false)
+	$expectFailureResponse = [bool](Get-OptionalProperty -Object $Step -Name "expectFailureResponse" -DefaultValue $false)
+	$receiveTimeoutMs = [int](Get-OptionalProperty -Object $Step -Name "receiveTimeoutMs" -DefaultValue 3000)
+
+	if ($DryRun) {
+		$dryRunResponse = if (-not [string]::IsNullOrWhiteSpace($expectedPrefix)) {
+			"$expectedPrefix [DryRun] skipped"
+		} else {
+			"[DryRun] skipped"
+		}
+		return [ordered]@{
+			kind = "command_assert"
+			name = [string](Get-OptionalProperty -Object $Step -Name "name" -DefaultValue "command_assert")
+			command = $command
+			commandDimension = if ([string]::IsNullOrWhiteSpace($commandDimension)) { $null } else { $commandDimension }
+			response = $dryRunResponse
+			tickWindow = $null
+			expectFailureResponse = $expectFailureResponse
+			expectedPrefix = $expectedPrefix
+			expectedRegexes = $expectedRegexes
+			rejectRegexes = $rejectRegexes
+			passed = $true
+			dryRun = $true
+		}
+	}
+
+	$response = ""
+	$tickWindow = $null
+	$failureReason = ""
+	$errorDetail = ""
+	try {
+		if ($captureTickWindow) {
+			$commandResult = Invoke-RconCommandWithTickWindow `
+				-Connection $Connection `
+				-Command $command `
+				-Silent `
+				-ReceiveTimeoutMs $receiveTimeoutMs `
+				-AllowReadTimeout:$allowReadTimeout
+			$response = [string]$commandResult.response
+			$tickWindow = $commandResult.tickWindow
+		} else {
+			$response = Invoke-RconCommand `
+				-Connection $Connection `
+				-Command $command `
+				-Silent `
+				-ReceiveTimeoutMs $receiveTimeoutMs `
+				-AllowReadTimeout:$allowReadTimeout
+		}
+	} catch {
+		$failureReason = "execution_error"
+		$errorDetail = $_.Exception.Message
+	}
+
+	$normalizedResponse = ([string]$response).Trim()
+	$passed = $true
+	$responseLooksLikeFailure = $false
+	if ([string]::IsNullOrWhiteSpace($failureReason)) {
+		if ([string]::IsNullOrWhiteSpace($normalizedResponse)) {
+			if (-not $allowEmptyResponse) {
+				$passed = $false
+				$failureReason = "empty_response"
+			}
+		} else {
+			if (Get-Command Test-FunctionalCommandAssertHardFailure -ErrorAction SilentlyContinue) {
+				$responseLooksLikeFailure = Test-FunctionalCommandAssertHardFailure -ResponseText $normalizedResponse
+			} else {
+				$responseLooksLikeFailure = Test-BenchResponseLooksLikeFailure -ResponseText $normalizedResponse
+			}
+			if ($expectFailureResponse -and -not $responseLooksLikeFailure) {
+				$passed = $false
+				$failureReason = "expected_failure_missing"
+			} elseif (-not $expectFailureResponse -and $responseLooksLikeFailure) {
+				$passed = $false
+				$failureReason = "failure_response"
+			}
+		}
+		if ($passed -and -not [string]::IsNullOrWhiteSpace($expectedPrefix) -and -not $normalizedResponse.StartsWith($expectedPrefix, [System.StringComparison]::Ordinal)) {
+			$passed = $false
+			$failureReason = "prefix_mismatch"
+		}
+		if ($passed) {
+			foreach ($expectedRegex in $expectedRegexes) {
+				if (-not [System.Text.RegularExpressions.Regex]::IsMatch($normalizedResponse, $expectedRegex)) {
+					$passed = $false
+					$failureReason = "expected_regex_missing"
+					$errorDetail = $expectedRegex
+					break
+				}
+			}
+			if ($passed) {
+				foreach ($rejectRegex in $rejectRegexes) {
+					if ([System.Text.RegularExpressions.Regex]::IsMatch($normalizedResponse, $rejectRegex)) {
+						$passed = $false
+						$failureReason = "reject_regex_matched"
+						$errorDetail = $rejectRegex
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if (-not $passed) {
+		throw "Drive command_assert failed: reason=$failureReason detail=$errorDetail command=$command response=$normalizedResponse"
+	}
+
+	return [ordered]@{
+		kind = "command_assert"
+		name = [string](Get-OptionalProperty -Object $Step -Name "name" -DefaultValue "command_assert")
+		command = $command
+		commandDimension = if ([string]::IsNullOrWhiteSpace($commandDimension)) { $null } else { $commandDimension }
+		response = $response
+		tickWindow = $tickWindow
+		expectFailureResponse = $expectFailureResponse
+		expectedPrefix = $expectedPrefix
+		expectedRegexes = $expectedRegexes
+		rejectRegexes = $rejectRegexes
+		passed = $true
+	}
+}
+
+function Invoke-DriveTimelineSchedule {
+	param(
+		$Connection,
+		$CaseConfig,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap,
+		[int]$TotalTicksOverride = 0
+	)
+	$startedInputCommands = New-Object System.Collections.Generic.List[object]
+	$timelineSteps = New-Object System.Collections.Generic.List[object]
+	foreach ($step in @($CaseConfig.drive.steps)) {
+		$kind = [string](Get-OptionalProperty -Object $step -Name "kind" -DefaultValue "")
+		switch ($kind) {
+			"input_square" {
+				$commandResult = Start-DriveInputStep `
+					-Connection $Connection `
+					-Step $step `
+					-CaseConfig $CaseConfig `
+					-SourceSerialMaps $SourceSerialMaps `
+					-TargetSerialMap $TargetSerialMap `
+					-TotalTicksOverride $TotalTicksOverride
+				if ($null -ne $commandResult) {
+					$startedInputCommands.Add($commandResult)
+					$timelineSteps.Add($commandResult)
+				}
+			}
+			"input_custom" {
+				$commandResult = Start-DriveInputStep `
+					-Connection $Connection `
+					-Step $step `
+					-CaseConfig $CaseConfig `
+					-SourceSerialMaps $SourceSerialMaps `
+					-TargetSerialMap $TargetSerialMap `
+					-TotalTicksOverride $TotalTicksOverride
+				if ($null -ne $commandResult) {
+					$startedInputCommands.Add($commandResult)
+					$timelineSteps.Add($commandResult)
+				}
+			}
+			"input_clear" {
+				$clearResult = Clear-DriveInputJobs -Connection $Connection
+				$timelineSteps.Add([ordered]@{
+					kind = "input_clear"
+					name = [string](Get-OptionalProperty -Object $step -Name "name" -DefaultValue "input_clear")
+					command = $clearResult.command
+					response = $clearResult.response
+				})
+			}
+			"wait_ticks" {
+				$ticks = [int](Get-OptionalProperty -Object $step -Name "ticks" -DefaultValue 0)
+				if ($ticks -lt 0) {
+					throw "wait_ticks drive step requires ticks >= 0."
+				}
+				$waitInfo = Wait-ServerTicks -Connection $Connection -Ticks $ticks
+				$timelineSteps.Add([ordered]@{
+					kind = "wait_ticks"
+					name = [string](Get-OptionalProperty -Object $step -Name "name" -DefaultValue "wait_ticks")
+					ticks = $ticks
+					wait = $waitInfo
+				})
+			}
+			"command_assert" {
+				$timelineSteps.Add((Invoke-DriveCommandAssertStep `
+					-Connection $Connection `
+					-Step $step `
+					-SourceSerialMaps $SourceSerialMaps `
+					-TargetSerialMap $TargetSerialMap
+				))
+			}
+			default {
+				throw "Unsupported sequential drive kind: $kind"
+			}
+		}
+	}
+	return [ordered]@{
+		totalTicks = if ($TotalTicksOverride -gt 0) { [int]$TotalTicksOverride } else { [int](Get-OptionalProperty -Object $CaseConfig.drive -Name "totalTicks" -DefaultValue 0) }
+		usedInputDrive = ($startedInputCommands.Count -gt 0)
+		inputCommands = @($startedInputCommands.ToArray())
+		timeline = @($timelineSteps.ToArray())
+		sequential = $true
+	}
+}
+
 function Invoke-DriveSchedule {
 	param(
 		$Connection,
@@ -862,6 +1191,14 @@ function Invoke-DriveSchedule {
 		[int]$TickMillis,
 		[int]$TotalTicksOverride = 0
 	)
+	if (Test-CaseUsesSequentialDriveTimeline -CaseConfig $CaseConfig) {
+		return (Invoke-DriveTimelineSchedule `
+			-Connection $Connection `
+			-CaseConfig $CaseConfig `
+			-SourceSerialMaps $SourceSerialMaps `
+			-TargetSerialMap $TargetSerialMap `
+			-TotalTicksOverride $TotalTicksOverride)
+	}
 	$totalTicks = if ($TotalTicksOverride -gt 0) { [int]$TotalTicksOverride } else { [int]$CaseConfig.drive.totalTicks }
 	$stepStates = @{}
 	$startedInputCommands = New-Object System.Collections.Generic.List[object]

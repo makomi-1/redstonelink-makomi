@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "description": "crosschunk sync 持久队列压力一期：1024 pending reload release 与空白对照。",
+  "defaults": {
+    "benchAction": "RunCase",
+    "matrixPath": "../matrix-crosschunk-stress.json"
+  },
+  "entries": [
+    {
+      "entryId": "p20_sync_queue_release_1024_single_shot",
+      "caseId": "sync_queue_release_1024_single_shot",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "true",
+        "crosschunk.syncSignalPersistent": "true",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false",
+        "crosschunk.forceLoad.enabled": "false",
+        "crosschunk.dispatch.maxPerTick": "2048"
+      }
+    },
+    {
+      "entryId": "p21_sync_queue_release_1024_blank_control",
+      "caseId": "sync_queue_release_1024_blank_control",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "true",
+        "crosschunk.syncSignalPersistent": "true",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false",
+        "crosschunk.forceLoad.enabled": "false",
+        "crosschunk.dispatch.maxPerTick": "2048"
+      }
+    }
+  ]
+}

@@ -304,6 +304,28 @@ function Get-CaseExecutionBoundsByDimension {
 	return @($boundsList.ToArray())
 }
 
+function Get-CaseBenchForceLoadZones {
+	param(
+		$CaseConfig,
+		[string]$DefaultDimension = "minecraft:overworld"
+	)
+	$zones = @(Get-OptionalProperty -Object $CaseConfig -Name "benchForceLoadZones" -DefaultValue @())
+	if ($zones.Count -le 0) {
+		return @()
+	}
+	$resolvedZones = New-Object System.Collections.Generic.List[object]
+	foreach ($zone in $zones) {
+		$resolvedZones.Add([pscustomobject]@{
+			dimension = [string](Get-OptionalProperty -Object $zone -Name "dimension" -DefaultValue $DefaultDimension)
+			bounds = [pscustomobject]@{
+				From = ConvertTo-Vec3 (Get-OptionalProperty -Object $zone -Name "from")
+				To = ConvertTo-Vec3 (Get-OptionalProperty -Object $zone -Name "to")
+			}
+		})
+	}
+	return @($resolvedZones.ToArray())
+}
+
 function Ensure-CaseChunksLoaded {
 	param(
 		$Connection,
@@ -312,19 +334,28 @@ function Ensure-CaseChunksLoaded {
 	if ($DryRun) {
 		return
 	}
-	$boundsByDimension = @(Get-CaseExecutionBoundsByDimension -CaseConfig $CaseConfig)
+
+	# Allow crosschunk cases to disable broad case-bound autoloading.
+	# benchForceLoadZones explicitly keeps required setup/drive chunks loaded.
+	$boundsByDimension = New-Object System.Collections.Generic.List[object]
+	foreach ($zone in @(Get-CaseBenchForceLoadZones -CaseConfig $CaseConfig)) {
+		$boundsByDimension.Add($zone)
+	}
+	if ([bool](Get-OptionalProperty -Object $CaseConfig -Name "autoLoadCaseChunks" -DefaultValue $true)) {
+		foreach ($boundsEntry in @(Get-CaseExecutionBoundsByDimension -CaseConfig $CaseConfig)) {
+			$boundsByDimension.Add($boundsEntry)
+		}
+	}
 	if ($boundsByDimension.Count -le 0) {
 		return
 	}
-	foreach ($entry in $boundsByDimension) {
+	foreach ($entry in @($boundsByDimension.ToArray())) {
 		$bounds = $entry.bounds
 		$minX = [Math]::Min([int]$bounds.From.X, [int]$bounds.To.X)
 		$maxX = [Math]::Max([int]$bounds.From.X, [int]$bounds.To.X)
 		$minZ = [Math]::Min([int]$bounds.From.Z, [int]$bounds.To.Z)
 		$maxZ = [Math]::Max([int]$bounds.From.Z, [int]$bounds.To.Z)
-		$command = Wrap-WithBenchContexts `
-			-Command ("forceload add {0} {1} {2} {3}" -f $minX, $minZ, $maxX, $maxZ) `
-			-Dimension ([string]$entry.dimension)
+		$command = Wrap-WithBenchContexts -Command ("forceload add {0} {1} {2} {3}" -f $minX, $minZ, $maxX, $maxZ) -Dimension ([string]$entry.dimension)
 		Invoke-RconCommand -Connection $Connection -Command $command | Out-Null
 	}
 }
