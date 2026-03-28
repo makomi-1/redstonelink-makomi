@@ -125,9 +125,27 @@ public final class LinkSavedData extends SavedData {
 
 	/**
 	 * 查询当前运行态仍在线的节点快照。
+	 * <p>
+	 * 该入口保留“严格在线真值”语义，适用于低频命令/诊断查询；
+	 * 主线程敏感热路径请改用 `probeRuntimeOnlineNodeNonBlocking(...)`。
+	 * </p>
 	 */
 	public Optional<LinkNode> findRuntimeOnlineNode(ServerLevel contextLevel, LinkNodeType type, long serial) {
 		return LinkSavedDataQuerySupport.findRuntimeOnlineNode(this, contextLevel, type, serial);
+	}
+
+	/**
+	 * 以非阻塞方式探测节点当前是否已真正就绪。
+	 * <p>
+	 * 该入口不会触发阻塞式取块，适用于 `CHUNK_LOAD`、tick 消费等热路径。
+	 * </p>
+	 */
+	public RuntimeOnlineProbeResult probeRuntimeOnlineNodeNonBlocking(
+		ServerLevel contextLevel,
+		LinkNodeType type,
+		long serial
+	) {
+		return LinkSavedDataQuerySupport.probeRuntimeOnlineNodeNonBlocking(this, contextLevel, type, serial);
 	}
 
 	/**
@@ -340,6 +358,55 @@ public final class LinkSavedData extends SavedData {
 	 * 覆盖式替换链接结果记录。
 	 */
 	public record ReplaceLinksResult(int currentCount, int addedCount, int removedCount, int changedCount) {}
+
+	/**
+	 * 非阻塞在线探针状态。
+	 */
+	public enum RuntimeOnlineProbeStatus {
+		READY,
+		NOT_READY,
+		MISMATCH,
+		MISSING
+	}
+
+	/**
+	 * 非阻塞在线探针结果。
+	 */
+	public record RuntimeOnlineProbeResult(RuntimeOnlineProbeStatus status, LinkNode node) {
+		public RuntimeOnlineProbeResult {
+			status = status == null ? RuntimeOnlineProbeStatus.MISSING : status;
+		}
+
+		static RuntimeOnlineProbeResult ready(LinkNode node) {
+			return new RuntimeOnlineProbeResult(RuntimeOnlineProbeStatus.READY, node);
+		}
+
+		static RuntimeOnlineProbeResult notReady(LinkNode node) {
+			return new RuntimeOnlineProbeResult(RuntimeOnlineProbeStatus.NOT_READY, node);
+		}
+
+		static RuntimeOnlineProbeResult mismatch(LinkNode node) {
+			return new RuntimeOnlineProbeResult(RuntimeOnlineProbeStatus.MISMATCH, node);
+		}
+
+		static RuntimeOnlineProbeResult missing(LinkNode node) {
+			return new RuntimeOnlineProbeResult(RuntimeOnlineProbeStatus.MISSING, node);
+		}
+
+		/**
+		 * 当前是否可以立即安全消费。
+		 */
+		public boolean ready() {
+			return status == RuntimeOnlineProbeStatus.READY;
+		}
+
+		/**
+		 * 当前是否仅仅因为“尚未就绪”而需要短暂重试。
+		 */
+		public boolean retryable() {
+			return status == RuntimeOnlineProbeStatus.NOT_READY;
+		}
+	}
 
 	/**
 	 * triggerSource 最近一次真实 sync replay 快照。

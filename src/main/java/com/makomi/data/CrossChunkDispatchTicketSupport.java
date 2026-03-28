@@ -176,8 +176,13 @@ final class CrossChunkDispatchTicketSupport {
 				if (serial == null || serial <= 0L) {
 					continue;
 				}
-				LinkSavedData.LinkNode node = linkSavedData.findRuntimeOnlineNode(contextLevel, type, serial).orElse(null);
-				if (node == null) {
+				LinkSavedData.RuntimeOnlineProbeResult probeResult = linkSavedData.probeRuntimeOnlineNodeNonBlocking(
+					contextLevel,
+					type,
+					serial
+				);
+				LinkSavedData.LinkNode node = probeResult.node();
+				if (!probeResult.ready() || node == null) {
 					continue;
 				}
 				int chunkX = node.pos().getX() >> 4;

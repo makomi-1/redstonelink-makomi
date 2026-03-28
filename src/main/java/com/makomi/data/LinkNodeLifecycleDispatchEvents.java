@@ -328,17 +328,20 @@ public final class LinkNodeLifecycleDispatchEvents {
 			return TargetChunkLoadReplayConsumeResult.DEFERRED;
 		}
 		LinkSavedData savedData = LinkSavedData.get(level);
-		LinkSavedData.LinkNode storedNode = savedData.findNode(task.nodeType(), task.serial()).orElse(null);
-		if (storedNode == null) {
-			return TargetChunkLoadReplayConsumeResult.DROPPED;
-		}
-		LinkSavedData.LinkNode runtimeOnlineNode = savedData.findRuntimeOnlineNode(level, task.nodeType(), task.serial()).orElse(null);
-		if (runtimeOnlineNode == null) {
-			return TargetChunkLoadReplayConsumeResult.DEFERRED;
-		}
 		Set<Long> linkedPeers = savedData.linkedTargetsViewBySourceType(task.nodeType(), task.serial());
 		if (linkedPeers.isEmpty()) {
 			return TargetChunkLoadReplayConsumeResult.COMPLETED;
+		}
+		LinkSavedData.RuntimeOnlineProbeResult probeResult = savedData.probeRuntimeOnlineNodeNonBlocking(
+			level,
+			task.nodeType(),
+			task.serial()
+		);
+		if (probeResult.retryable()) {
+			return TargetChunkLoadReplayConsumeResult.DEFERRED;
+		}
+		if (!probeResult.ready()) {
+			return TargetChunkLoadReplayConsumeResult.DROPPED;
 		}
 		InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoad(level, task.nodeType(), task.serial(), linkedPeers);
 		return TargetChunkLoadReplayConsumeResult.COMPLETED;

@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
 
 /**
  * LinkSavedData 查询与审计视图 helper。
@@ -32,6 +33,11 @@ final class LinkSavedDataQuerySupport {
 	 * 1. 已登记过位置；
 	 * 2. 所在维度与区块当前已加载；
 	 * 3. 该位置上的方块实体仍为同 `type + serial` 的节点。
+	 * </p>
+	 * <p>
+	 * 该方法面向低频的“严格在线真值”查询，允许为了拿到权威结果而同步访问世界。
+	 * 请不要直接在 `CHUNK_LOAD`、tick 消费等主线程敏感热路径中调用；
+	 * 这些场景应改用 `probeRuntimeOnlineNodeNonBlocking(...)`。
 	 * </p>
 	 */
 	static Optional<LinkSavedData.LinkNode> findRuntimeOnlineNode(
@@ -59,6 +65,52 @@ final class LinkSavedDataQuerySupport {
 			return Optional.empty();
 		}
 		return Optional.of(node);
+	}
+
+	/**
+	 * 以“非阻塞就绪探针”方式检查节点是否在线。
+	 * <p>
+	 * 该探针只使用 `getChunkNow(...) + getBlockEntity(..., CHECK)`：
+	 * 1. 当前 tick 能安全拿到同 `type + serial` 的节点时返回 `READY`；
+	 * 2. 若区块/方块实体尚未完全就绪，则返回 `NOT_READY`；
+	 * 3. 若已明确不是该节点，返回 `MISMATCH`；
+	 * 4. 若存档侧已无该节点记录，返回 `MISSING`。
+	 * </p>
+	 */
+	static LinkSavedData.RuntimeOnlineProbeResult probeRuntimeOnlineNodeNonBlocking(
+		LinkSavedData data,
+		ServerLevel contextLevel,
+		LinkNodeType type,
+		long serial
+	) {
+		if (data == null || contextLevel == null || type == null || serial <= 0L) {
+			return LinkSavedData.RuntimeOnlineProbeResult.missing(null);
+		}
+		LinkSavedData.LinkNode node = data.nodeMap(type).get(serial);
+		if (node == null) {
+			return LinkSavedData.RuntimeOnlineProbeResult.missing(null);
+		}
+		ServerLevel nodeLevel = contextLevel.getServer().getLevel(node.dimension());
+		if (nodeLevel == null) {
+			return LinkSavedData.RuntimeOnlineProbeResult.missing(node);
+		}
+		LevelChunk nodeChunk = nodeLevel.getChunkSource().getChunkNow(node.pos().getX() >> 4, node.pos().getZ() >> 4);
+		if (nodeChunk == null) {
+			return LinkSavedData.RuntimeOnlineProbeResult.notReady(node);
+		}
+		BlockEntity blockEntity = nodeChunk.getBlockEntity(node.pos(), LevelChunk.EntityCreationType.CHECK);
+		if (blockEntity == null) {
+			return nodeChunk.getBlockState(node.pos()).hasBlockEntity()
+				? LinkSavedData.RuntimeOnlineProbeResult.notReady(node)
+				: LinkSavedData.RuntimeOnlineProbeResult.mismatch(node);
+		}
+		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
+			return LinkSavedData.RuntimeOnlineProbeResult.mismatch(node);
+		}
+		if (pairableNodeBlockEntity.getLinkNodeType() != type || pairableNodeBlockEntity.getSerial() != serial) {
+			return LinkSavedData.RuntimeOnlineProbeResult.mismatch(node);
+		}
+		return LinkSavedData.RuntimeOnlineProbeResult.ready(node);
 	}
 
 	/**
