@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "description": "推荐生命周期回归集合：跨区块、跨维度、重启、reload replay、force-load、resident 与模板世界加载。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "x01_crosschunk_sync",
+      "caseId": "crosschunk_sync_triggerSource_zip_square"
+    },
+    {
+      "entryId": "x02_resident_offline_restore",
+      "caseId": "crosschunk_resident_offline_restore"
+    },
+    {
+      "entryId": "x03_crossdim_ow_to_nether",
+      "caseId": "crossdim_sync_overworld_to_nether_zip_square"
+    },
+    {
+      "entryId": "x05_crossdim_nether_to_end",
+      "caseId": "crossdim_sync_nether_to_end_zip_square"
+    },
+    {
+      "entryId": "x06_crossdim_end_to_ow",
+      "caseId": "crossdim_sync_end_to_overworld_zip_square"
+    },
+    {
+      "entryId": "x04_restart_persist_prepare",
+      "caseId": "restart_persist_toggle_prepare"
+    },
+    {
+      "entryId": "r02_restart_persist_verify",
+      "caseId": "restart_persist_toggle_verify",
+      "reuseWorldFrom": "x04_restart_persist_prepare",
+      "compareSerialsTo": "x04_restart_persist_prepare"
+    },
+    {
+      "entryId": "r03_restart_input_prepare",
+      "caseId": "restart_input_job_prepare"
+    },
+    {
+      "entryId": "r04_restart_input_verify",
+      "caseId": "restart_input_job_verify",
+      "reuseWorldFrom": "r03_restart_input_prepare",
+      "compareSerialsTo": "r03_restart_input_prepare"
+    },
+    {
+      "entryId": "x07_reload_replay_enabled",
+      "caseId": "crosschunk_sync_reload_replay_enabled",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false"
+      }
+    },
+    {
+      "entryId": "x08_reload_replay_disabled",
+      "caseId": "crosschunk_sync_reload_replay_disabled",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false"
+      }
+    },
+    {
+      "entryId": "x09_force_load_all",
+      "caseId": "crosschunk_force_load_mode_all",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "all"
+      }
+    },
+    {
+      "entryId": "x10_force_load_whitelist_unmatched",
+      "caseId": "crosschunk_force_load_mode_whitelist_unmatched",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "whitelist"
+      }
+    },
+    {
+      "entryId": "x11_reload_template_world_boot",
+      "caseId": "reload_template_world_boot_basic",
+      "templateWorldPath": "D:/OpenProjects/RedstoneLink/mcserver/rl-bench-reload"
+    }
+  ]
+}

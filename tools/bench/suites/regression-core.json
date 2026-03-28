@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "description": "推荐核心回归集合：命令、基础行为、link 生命周期与 input/trace 主链路。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "c01_place_runtime",
+      "caseId": "place_runtime_basic"
+    },
+    {
+      "entryId": "c02_node_query_retire_audit",
+      "caseId": "node_query_retire_audit_basic"
+    },
+    {
+      "entryId": "c03_input_admin",
+      "caseId": "input_admin_basic"
+    },
+    {
+      "entryId": "c04_policy_runtime",
+      "caseId": "policy_runtime_basic"
+    },
+    {
+      "entryId": "c05_crosschunk_command",
+      "caseId": "crosschunk_command_basic"
+    },
+    {
+      "entryId": "c06_command_boundary",
+      "caseId": "command_boundary_matrix"
+    },
+    {
+      "entryId": "f02_link_lifecycle",
+      "caseId": "link_lifecycle_add_remove_set_clear"
+    },
+    {
+      "entryId": "f03_sync_range",
+      "caseId": "sync_core_range_square_basic"
+    },
+    {
+      "entryId": "f03_sync_slash",
+      "caseId": "sync_triggerSource_slash_square_basic"
+    },
+    {
+      "entryId": "f03_sync_custom",
+      "caseId": "sync_triggerSource_custom_mixed_basic"
+    },
+    {
+      "entryId": "f03_pulse",
+      "caseId": "pulse_activate_sparse_zip"
+    },
+    {
+      "entryId": "f03_toggle",
+      "caseId": "toggle_activate_fanin_even_odd"
+    },
+    {
+      "entryId": "f04_input_activate_trace",
+      "caseId": "input_activate_trace_command_alignment"
+    }
+  ]
+}
