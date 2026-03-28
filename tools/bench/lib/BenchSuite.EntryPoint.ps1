@@ -155,9 +155,15 @@ try {
 		$caseId = [string]$entry.caseId
 		$entryBenchAction = [string]$entry.benchAction
 		$entryMatrixPath = [string]$entry.matrixPath
+		$entryTemplateWorldPath = [string]$entry.templateWorldPath
 		$reuseWorldFrom = [string]$entry.reuseWorldFrom
 		$compareSerialsTo = [string]$entry.compareSerialsTo
 		$entryServerConfigOverrides = Convert-OptionalObjectToOrderedMap -Object $entry.serverConfigOverrides
+		$resolvedTemplateWorldPath = if ([string]::IsNullOrWhiteSpace($entryTemplateWorldPath)) {
+			$templateWorldFullPath
+		} else {
+			[System.IO.Path]::GetFullPath($entryTemplateWorldPath)
+		}
 		if (-not $matrixCache.ContainsKey($entryMatrixPath)) {
 			$matrixCache[$entryMatrixPath] = Get-MatrixConfig -Path $entryMatrixPath
 		}
@@ -174,14 +180,15 @@ try {
 			-CaseConfig $entryCaseConfig `
 			-WorldName $worldName `
 			-WorldLevelName $worldLevelName `
-			-WorldReuseSource $reuseWorldFrom
+			-WorldReuseSource $reuseWorldFrom `
+			-TemplateWorldPath $resolvedTemplateWorldPath
 		$serverProcess = $null
 		$worldPath = $null
 		try {
 			if ([string]::IsNullOrWhiteSpace($reuseWorldFrom)) {
-				$worldPath = Copy-TemplateWorld -TemplatePath $templateWorldFullPath -CaseWorldsRootPath $caseWorldsRootPath -WorldName $worldName
+				$worldPath = Copy-TemplateWorld -TemplatePath $resolvedTemplateWorldPath -CaseWorldsRootPath $caseWorldsRootPath -WorldName $worldName
 				$caseRecord.worldPath = $worldPath
-				Write-Host "[BenchSuite] Entry $entryId -> case $caseId -> world $worldName"
+				Write-Host "[BenchSuite] Entry $entryId -> case $caseId -> world $worldName template=$resolvedTemplateWorldPath"
 			} else {
 				if (-not $completedEntries.ContainsKey($reuseWorldFrom)) {
 					throw "Entry '$entryId' references unknown reuseWorldFrom entry: $reuseWorldFrom"

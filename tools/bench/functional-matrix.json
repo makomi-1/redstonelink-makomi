@@ -36,6 +36,7 @@
     "cases/functional/x08/crosschunk_sync_reload_replay_disabled.json",
     "cases/functional/x09/crosschunk_force_load_mode_all.json",
     "cases/functional/x10/crosschunk_force_load_mode_whitelist_unmatched.json",
+    "cases/functional/x11/reload_template_world_boot_basic.json",
     "cases/functional/r02/restart_persist_toggle_verify.json",
     "cases/functional/r03/restart_input_job_prepare.json",
     "cases/functional/r04/restart_input_job_verify.json"

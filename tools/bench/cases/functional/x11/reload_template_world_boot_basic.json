@@ -1,0 +1,92 @@
+{
+  "id": "reload_template_world_boot_basic",
+  "description": "使用 rl-bench-reload 模板世界启动，验证地图加载完成后审计、建链与 sync 基本响应正常。",
+  "layer": "X",
+  "scenarioId": "X11",
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearFrom": [4796, 63, 4798],
+    "clearTo": [4814, 66, 4802]
+  },
+  "targets": {
+    "id": "core_reload_boot",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [4812, 64, 4800],
+      "to": [4812, 64, 4800]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_reload_boot",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4800, 64, 4800],
+        "to": [4800, 64, 4800]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_reload_boot",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "reload_template_audit_should_respond",
+      "command": "redstonelink audit summary csv",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(online_core_nodes|online_trigger_source_nodes)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reload_template_power_on_source",
+      "command": "setblock 4799 64 4800 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_reload_template_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reload_template_target_should_be_active",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reload_template_power_off_source",
+      "command": "setblock 4799 64 4800 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_reload_template_low",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reload_template_target_should_be_quiet",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    }
+  ]
+}

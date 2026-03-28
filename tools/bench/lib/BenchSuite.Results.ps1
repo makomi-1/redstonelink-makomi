@@ -229,7 +229,8 @@ function New-SuiteCaseRecord {
 		$CaseConfig,
 		[string]$WorldName,
 		[string]$WorldLevelName,
-		[string]$WorldReuseSource
+		[string]$WorldReuseSource,
+		[string]$TemplateWorldPath = $null
 	)
 	$resolvedEntryId = [string]$Entry.entryId
 	$resolvedCaseId = [string]$Entry.caseId
@@ -243,6 +244,7 @@ function New-SuiteCaseRecord {
 		worldName = $WorldName
 		worldLevelName = $WorldLevelName
 		worldPath = $null
+		templateWorldPath = if ([string]::IsNullOrWhiteSpace($TemplateWorldPath)) { $null } else { $TemplateWorldPath }
 		reuseWorldFrom = if ([string]::IsNullOrWhiteSpace($WorldReuseSource)) { $null } else { $WorldReuseSource }
 		worldReuseSource = if ([string]::IsNullOrWhiteSpace($WorldReuseSource)) { $null } else { $WorldReuseSource }
 		serverConfigOverrides = Convert-OptionalObjectToOrderedMap -Object (Get-OptionalPsObjectPropertyValue -Object $Entry -PropertyName "serverConfigOverrides")

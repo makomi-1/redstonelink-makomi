@@ -25,6 +25,10 @@
     {
       "entryId": "p03_lite_mixed_64_to_64",
       "caseId": "mixed_64_to_64_core_dense"
+    },
+    {
+      "entryId": "p22_lite_sync_minimal_loop",
+      "caseId": "sync_minimal_loop_single_pair"
     }
   ]
 }

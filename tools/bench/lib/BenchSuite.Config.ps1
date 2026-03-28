@@ -290,6 +290,7 @@ function Resolve-SuiteEntries {
 			caseId = $caseId
 			benchAction = $entryBenchAction
 			matrixPath = $entryMatrixPath
+			templateWorldPath = Resolve-PathFromBase -BaseDirectory $suiteBaseDirectory -CandidatePath ([string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "templateWorldPath"))
 			reuseWorldFrom = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "reuseWorldFrom")
 			compareSerialsTo = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "compareSerialsTo")
 			serverConfigOverrides = $entryServerConfigOverrides
