@@ -4,9 +4,11 @@ import com.makomi.RedstoneLink;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
+import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
@@ -203,14 +205,12 @@ public final class LinkNodeLifecycleDispatchEvents {
 		}
 
 		int budget = Math.max(1, RedstoneLinkConfig.crossChunk().dispatchMaxPerTick());
-		int consumed = 0;
+		List<StartupReplayTask> drainedTasks = drainStartupReplayBatch(state, budget);
+		if (drainedTasks.isEmpty()) {
+			return;
+		}
 		LinkedHashMap<StartupReplayKey, StartupReplayTask> retryQueue = new LinkedHashMap<>();
-		Iterator<Map.Entry<StartupReplayKey, StartupReplayTask>> iterator = state.pendingStartupChunkLoadReplays.entrySet().iterator();
-		while (iterator.hasNext() && consumed < budget) {
-			Map.Entry<StartupReplayKey, StartupReplayTask> entry = iterator.next();
-			StartupReplayTask task = entry.getValue();
-			iterator.remove();
-			consumed++;
+		for (StartupReplayTask task : drainedTasks) {
 			StartupReplayConsumeResult result = consumeStartupReplayTask(server, task);
 			if (result == StartupReplayConsumeResult.COMPLETED) {
 				continue;
@@ -287,16 +287,12 @@ public final class LinkNodeLifecycleDispatchEvents {
 		}
 
 		int budget = Math.max(1, RedstoneLinkConfig.crossChunk().dispatchMaxPerTick());
-		int consumed = 0;
+		List<TargetChunkLoadReplayTask> drainedTasks = drainTargetChunkLoadReplayBatch(state, budget);
+		if (drainedTasks.isEmpty()) {
+			return;
+		}
 		LinkedHashMap<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask> retryQueue = new LinkedHashMap<>();
-		Iterator<Map.Entry<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask>> iterator = state.pendingTargetChunkLoadReplays
-			.entrySet()
-			.iterator();
-		while (iterator.hasNext() && consumed < budget) {
-			Map.Entry<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask> entry = iterator.next();
-			TargetChunkLoadReplayTask task = entry.getValue();
-			iterator.remove();
-			consumed++;
+		for (TargetChunkLoadReplayTask task : drainedTasks) {
 			TargetChunkLoadReplayConsumeResult result = consumeTargetChunkLoadReplayTask(server, task);
 			if (result == TargetChunkLoadReplayConsumeResult.COMPLETED) {
 				continue;
@@ -311,6 +307,50 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (!retryQueue.isEmpty()) {
 			state.pendingTargetChunkLoadReplays.putAll(retryQueue);
 		}
+	}
+
+	/**
+	 * 先从启动回放队列摘出一个批次，再在队列外消费。
+	 * <p>
+	 * 这样即便消费过程中再次触发新的 lifecycle replay，也只会留到下一 tick，
+	 * 不会修改当前正在遍历的 `LinkedHashMap`。
+	 * </p>
+	 */
+	private static List<StartupReplayTask> drainStartupReplayBatch(LifecycleState state, int budget) {
+		if (state == null || budget <= 0 || state.pendingStartupChunkLoadReplays.isEmpty()) {
+			return List.of();
+		}
+		List<StartupReplayTask> drainedTasks = new ArrayList<>(Math.min(budget, state.pendingStartupChunkLoadReplays.size()));
+		Iterator<Map.Entry<StartupReplayKey, StartupReplayTask>> iterator = state.pendingStartupChunkLoadReplays.entrySet().iterator();
+		while (iterator.hasNext() && drainedTasks.size() < budget) {
+			Map.Entry<StartupReplayKey, StartupReplayTask> entry = iterator.next();
+			drainedTasks.add(entry.getValue());
+			iterator.remove();
+		}
+		return drainedTasks;
+	}
+
+	/**
+	 * 先从 target chunk load replay 队列摘出一个批次，再在队列外消费。
+	 * <p>
+	 * 进入地图时，消费某个任务可能继续触发新的 target replay 入队；
+	 * 批次摘取后再执行可避免同 tick 的重入写入打断当前迭代。
+	 * </p>
+	 */
+	private static List<TargetChunkLoadReplayTask> drainTargetChunkLoadReplayBatch(LifecycleState state, int budget) {
+		if (state == null || budget <= 0 || state.pendingTargetChunkLoadReplays.isEmpty()) {
+			return List.of();
+		}
+		List<TargetChunkLoadReplayTask> drainedTasks = new ArrayList<>(Math.min(budget, state.pendingTargetChunkLoadReplays.size()));
+		Iterator<Map.Entry<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask>> iterator = state.pendingTargetChunkLoadReplays
+			.entrySet()
+			.iterator();
+		while (iterator.hasNext() && drainedTasks.size() < budget) {
+			Map.Entry<TargetChunkLoadReplayKey, TargetChunkLoadReplayTask> entry = iterator.next();
+			drainedTasks.add(entry.getValue());
+			iterator.remove();
+		}
+		return drainedTasks;
 	}
 
 	/**

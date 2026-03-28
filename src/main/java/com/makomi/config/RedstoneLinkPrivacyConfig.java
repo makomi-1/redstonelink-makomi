@@ -5,6 +5,7 @@ package com.makomi.config;
  */
 public record RedstoneLinkPrivacyConfig(
 	RedstoneLinkConfig.CurrentLinksPrivacyMode mode,
+	int overlayResponsePermissionLevel,
 	int viewPermissionLevel,
 	int managePermissionLevel
 ) {}

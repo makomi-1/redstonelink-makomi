@@ -89,6 +89,7 @@ final class RedstoneLinkConfigParser {
 			RedstoneLinkConfig.CurrentLinksPrivacyMode.fromConfigValue(
 				props.getProperty("server.currentLinksPrivacy.mode", "masked")
 			),
+			RedstoneLinkConfigParseSupport.parseInt(props, "server.currentLinksPrivacy.overlayResponsePermissionLevel", 0, 0, 4),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.currentLinksPrivacy.viewPermissionLevel", 2, 0, 4),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.currentLinksPrivacy.managePermissionLevel", 2, 0, 4)
 		);
@@ -112,7 +113,7 @@ final class RedstoneLinkConfigParser {
 	 */
 	private static RedstoneLinkInteractionConfig parseInteraction(Properties props) {
 		return new RedstoneLinkInteractionConfig(
-			RedstoneLinkConfigParseSupport.parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
+			RedstoneLinkConfigParseSupport.parseBoolean(props, "interaction.requireSneakToOpenPairing", false),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
 		);

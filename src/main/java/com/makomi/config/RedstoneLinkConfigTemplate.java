@@ -141,6 +141,11 @@ final class RedstoneLinkConfigTemplate {
 			# en: Note: historical item-NBT snapshots written in plain mode are not automatically rewritten after switching back to masked/hidden.
 			server.currentLinksPrivacy.mode=masked
 
+			# server.currentLinksPrivacy.overlayResponsePermissionLevel
+			# zh: 服务端是否回任何近外显包所需权限等级（0~4）；不满足时直接拒绝回“当前连接/最终 IO”外显包。
+			# en: Permission level required for the server to send any near-overlay packets (0~4); requests below this level receive no current-links/runtime-HUD response.
+			server.currentLinksPrivacy.overlayResponsePermissionLevel=0
+
 			# server.currentLinksPrivacy.viewPermissionLevel
 			# zh: 查看被加密“当前连接”所需权限等级（0~4）。
 			# en: Permission level required to view masked current links (0~4).
@@ -209,9 +214,9 @@ final class RedstoneLinkConfigTemplate {
 			
 			# --- [交互行为 / Interaction] -------------------------------------------
 			# interaction.requireSneakToOpenPairing
-			# zh: 打开配对 UI 是否必须潜行。
-			# en: Require sneaking to open pairing UI.
-			interaction.requireSneakToOpenPairing=true
+			# zh: 打开配对 UI 是否必须潜行。默认 false，普通右键即可打开。
+			# en: Require sneaking to open pairing UI. Default false means normal right-click opens the UI.
+			interaction.requireSneakToOpenPairing=false
 
 			# interaction.requireSneakToOpenLinkerPairing
 			# zh: 遥控器打开配对 UI 是否必须潜行。默认 true，避免与站立右键触发冲突。

@@ -10,9 +10,10 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * 多目标配对界面抽象基类。
@@ -48,20 +49,40 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	/**
 	 * 按钮行在 render 基准下的 Y 偏移。
 	 */
-	private static final int BUTTON_ROW_Y_OFFSET_RENDER = 102;
+	private static final int BUTTON_ROW_MARGIN = 8;
 	/**
 	 * 按钮高度（像素）。
 	 */
 	private static final int ACTION_BUTTON_HEIGHT = 20;
 	/**
+	 * 按钮宽度（像素）。
+	 */
+	private static final int ACTION_BUTTON_WIDTH = 108;
+	/**
+	 * 按钮之间的水平间距（像素）。
+	 */
+	private static final int ACTION_BUTTON_GAP = 4;
+	/**
+	 * 输入区域总宽度（像素）。
+	 */
+	private static final int INPUT_BOX_WIDTH = ACTION_BUTTON_WIDTH * 2 + ACTION_BUTTON_GAP;
+	/**
+	 * 输入框高度（像素）。
+	 */
+	private static final int INPUT_BOX_HEIGHT = 56;
+	/**
 	 * 非法提示与按钮底部的间距（像素）。
 	 */
 	private static final int STATUS_MESSAGE_MARGIN = 4;
+	/**
+	 * 输入标签与输入框顶部的间距（像素）。
+	 */
+	private static final int INPUT_LABEL_MARGIN = 2;
 
 	protected final long sourceSerial;
 	protected final List<Long> currentTargets;
 
-	private EditBox serialInput;
+	private MultiLineEditBox serialInput;
 	private Component statusMessage = Component.empty();
 
 	protected AbstractMultiPairingScreen(Component title, long sourceSerial, List<Long> currentTargets) {
@@ -74,10 +95,11 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected void init() {
 		super.init();
 		int centerX = width / 2;
-		int baseY = height / 2 - 42;
+		int inputX = panelLeftX();
+		int inputY = inputBoxY();
 
-		serialInput = new EditBox(font, centerX - 110, baseY + 52, 220, 20, inputLabel());
-		serialInput.setMaxLength(RedstoneLinkClientDisplayConfig.pairing().inputMaxLength());
+		serialInput = new MultiLineEditBox(font, inputX, inputY, INPUT_BOX_WIDTH, INPUT_BOX_HEIGHT, inputLabel(), Component.empty());
+		serialInput.setCharacterLimit(RedstoneLinkClientDisplayConfig.pairing().inputMaxLength());
 
 		String initialInputText = joinTargets(currentTargets);
 		// 仅在非空场景回填并自动聚焦，空场景不抢焦点，避免光标跳动影响示例阅读。
@@ -87,8 +109,14 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		setInitialFocus(serialInput);
 		addRenderableWidget(serialInput);
 
-		addRenderableWidget(Button.builder(CONFIRM, button -> submit()).bounds(centerX - 110, baseY + 80, 108, 20).build());
-		addRenderableWidget(Button.builder(CLEAR, button -> clearPair()).bounds(centerX + 2, baseY + 80, 108, 20).build());
+		int buttonRowY = actionButtonRowY();
+		addRenderableWidget(Button.builder(CONFIRM, button -> submit()).bounds(inputX, buttonRowY, ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT).build());
+		addRenderableWidget(
+			Button
+				.builder(CLEAR, button -> clearPair())
+				.bounds(inputX + ACTION_BUTTON_WIDTH + ACTION_BUTTON_GAP, buttonRowY, ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT)
+				.build()
+		);
 	}
 
 	@Override
@@ -97,20 +125,18 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
 		int centerX = width / 2;
-		int baseY = height / 2 - 64;
+		int baseY = titleY();
+		int currentLinksX = panelLeftX();
+		int currentLinksY = currentLinksY();
 
 		guiGraphics.drawCenteredString(font, title, centerX, baseY, 0xFFFFFF);
 		guiGraphics.drawCenteredString(font, serialLine(sourceSerial), centerX, baseY + 14, 0xC8C8C8);
-		int currentLinksX = centerX - 110;
-		int currentLinksY = baseY + 30;
 		Component currentLinksLine = currentLinksLine(currentTargets);
 		guiGraphics.drawString(font, currentLinksLine, currentLinksX, currentLinksY, 0xC8C8C8, false);
-		guiGraphics.drawString(font, inputLabel(), centerX - 110, baseY + 42, 0xFFFFFF, false);
+		guiGraphics.drawString(font, inputLabel(), currentLinksX, inputLabelY(), 0xFFFFFF, false);
 
 		if (!statusMessage.getString().isEmpty()) {
-			// 锚定到按钮底部下方，保持靠近但不与按钮重合。
-			int statusMessageY = baseY + BUTTON_ROW_Y_OFFSET_RENDER + ACTION_BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, statusMessageY, 0xFF6666);
+			guiGraphics.drawCenteredString(font, statusMessage, centerX, statusMessageY(), 0xFF6666);
 		}
 
 		if (isMouseOverInput(mouseX, mouseY)) {
@@ -131,7 +157,14 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-		if (keyCode == 257 || keyCode == 335) {
+		if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+			if (serialInput != null && serialInput.isFocused()) {
+				if (hasControlDown()) {
+					submit();
+					return true;
+				}
+				return super.keyPressed(keyCode, scanCode, modifiers);
+			}
 			submit();
 			return true;
 		}
@@ -403,13 +436,14 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
-		List<String> invalidEntries = collectInvalidTargetTokens(serialInput.getValue());
+		String normalizedInput = normalizeSubmittedTargetsInput(serialInput.getValue());
+		List<String> invalidEntries = collectInvalidTargetTokens(normalizedInput);
 		if (!invalidEntries.isEmpty()) {
 			statusMessage = Component.translatable("screen.redstonelink.pairing.invalid_tokens", String.join(", ", invalidEntries));
 			return;
 		}
 
-		sendSetLinksCommand(sourceSerial, serialInput.getValue());
+		sendSetLinksCommand(sourceSerial, normalizedInput);
 		onClose();
 	}
 
@@ -434,6 +468,29 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return "";
 		}
 		return SerialDisplayFormatUtil.buildExpression(targets).joinAll();
+	}
+
+	/**
+	 * 将多行输入规范化为单行命令参数。
+	 * <p>
+	 * 显示层允许用换行拆分阅读，但发送命令前仍统一折叠为 `/` 分隔，
+	 * 以保持现有批量序号解析语义不变。
+	 * </p>
+	 */
+	private static String normalizeSubmittedTargetsInput(String rawText) {
+		if (rawText == null) {
+			return "";
+		}
+		String normalizedLineBreaks = rawText.replace("\r\n", "\n").replace('\r', '\n');
+		String[] lines = normalizedLineBreaks.split("\n", -1);
+		List<String> nonEmptyLines = new ArrayList<>(lines.length);
+		for (String rawLine : lines) {
+			String line = rawLine == null ? "" : rawLine.trim();
+			if (!line.isEmpty()) {
+				nonEmptyLines.add(line);
+			}
+		}
+		return String.join("/", nonEmptyLines);
 	}
 
 	/**
@@ -493,5 +550,54 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		} catch (NumberFormatException ex) {
 			return null;
 		}
+	}
+
+	/**
+	 * @return 内容面板左上区域的 X 起点。
+	 */
+	private int panelLeftX() {
+		return width / 2 - INPUT_BOX_WIDTH / 2;
+	}
+
+	/**
+	 * @return 标题绘制基线 Y。
+	 */
+	private int titleY() {
+		return height / 2 - 64;
+	}
+
+	/**
+	 * @return “当前连接”行 Y。
+	 */
+	private int currentLinksY() {
+		return titleY() + 30;
+	}
+
+	/**
+	 * @return 输入标签 Y。
+	 */
+	private int inputLabelY() {
+		return titleY() + 42;
+	}
+
+	/**
+	 * @return 输入框顶部 Y。
+	 */
+	private int inputBoxY() {
+		return inputLabelY() + font.lineHeight + INPUT_LABEL_MARGIN;
+	}
+
+	/**
+	 * @return 按钮行顶部 Y。
+	 */
+	private int actionButtonRowY() {
+		return inputBoxY() + INPUT_BOX_HEIGHT + BUTTON_ROW_MARGIN + 4;
+	}
+
+	/**
+	 * @return 状态/报错文本 Y。
+	 */
+	private int statusMessageY() {
+		return actionButtonRowY() + ACTION_BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
 	}
 }

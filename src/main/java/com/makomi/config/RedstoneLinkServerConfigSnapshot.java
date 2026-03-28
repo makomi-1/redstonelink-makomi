@@ -59,6 +59,7 @@ record RedstoneLinkServerConfigSnapshot(
 			),
 			new RedstoneLinkPrivacyConfig(
 				RedstoneLinkConfig.CurrentLinksPrivacyMode.MASKED,
+				0,
 				2,
 				2
 			),
@@ -70,7 +71,7 @@ record RedstoneLinkServerConfigSnapshot(
 				2
 			),
 			new RedstoneLinkInteractionConfig(
-				true,
+				false,
 				true,
 				true
 			),

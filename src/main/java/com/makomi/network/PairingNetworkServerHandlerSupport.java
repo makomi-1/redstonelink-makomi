@@ -1,6 +1,7 @@
 package com.makomi.network;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeRuntimeSnapshot;
@@ -32,6 +33,9 @@ final class PairingNetworkServerHandlerSupport {
 	 * @param payload 客户端上传的节点定位上下文
 	 */
 	static void handleRequestCurrentLinks(ServerPlayer player, PairingNetwork.RequestCurrentLinksPayload payload) {
+		if (!canReceiveNearOverlayPackets(player)) {
+			return;
+		}
 		Optional<LinkNodeType> requestedType = LinkNodeSemantics.tryParseCanonicalType(payload.sourceType());
 		if (requestedType.isEmpty() || payload.sourceSerial() <= 0L) {
 			return;
@@ -61,6 +65,9 @@ final class PairingNetworkServerHandlerSupport {
 	 * @param payload 客户端上传的节点定位上下文
 	 */
 	static void handleRequestRuntimeHudSnapshot(ServerPlayer player, PairingNetwork.RequestRuntimeHudSnapshotPayload payload) {
+		if (!canReceiveNearOverlayPackets(player)) {
+			return;
+		}
 		Optional<LinkNodeType> requestedType = LinkNodeSemantics.tryParseCanonicalType(payload.sourceType());
 		if (requestedType.isEmpty() || payload.sourceSerial() <= 0L) {
 			return;
@@ -135,6 +142,13 @@ final class PairingNetworkServerHandlerSupport {
 			return null;
 		}
 		return pairableNodeBlockEntity;
+	}
+
+	/**
+	 * 判断玩家是否具备接收近外显回包的最低权限。
+	 */
+	private static boolean canReceiveNearOverlayPackets(ServerPlayer player) {
+		return player != null && player.hasPermissions(RedstoneLinkConfig.privacy().overlayResponsePermissionLevel());
 	}
 
 	/**

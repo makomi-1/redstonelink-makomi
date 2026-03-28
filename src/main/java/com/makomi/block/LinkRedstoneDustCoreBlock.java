@@ -257,11 +257,7 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 			openPairingScreen(level, pos, player);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
-
-		if (!level.isClientSide && level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
-			coreBlockEntity.triggerByPlayer();
-		}
-		return InteractionResult.sidedSuccess(level.isClientSide);
+		return InteractionResult.PASS;
 	}
 
 	@Override

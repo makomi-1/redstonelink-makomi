@@ -19,7 +19,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	@Test
 	void parseShouldUseInteractionDefaultsWhenPropertiesMissing() {
 		RedstoneLinkServerConfigSnapshot snapshot = RedstoneLinkConfigTestHelper.parseServer(new Properties());
-		assertTrue(snapshot.interaction().requireSneakToOpenPairing());
+		assertFalse(snapshot.interaction().requireSneakToOpenPairing());
 		assertTrue(snapshot.interaction().requireSneakToOpenLinkerPairing());
 		assertTrue(snapshot.interaction().requireEmptyOffhandToOpenPairing());
 	}
@@ -77,9 +77,23 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		properties.setProperty("interaction.requireEmptyOffhandToOpenPairing", "invalid");
 
 		RedstoneLinkServerConfigSnapshot snapshot = RedstoneLinkConfigTestHelper.parseServer(properties);
-		assertTrue(snapshot.interaction().requireSneakToOpenPairing());
+		assertFalse(snapshot.interaction().requireSneakToOpenPairing());
 		assertTrue(snapshot.interaction().requireSneakToOpenLinkerPairing());
 		assertTrue(snapshot.interaction().requireEmptyOffhandToOpenPairing());
+	}
+
+	/**
+	 * 近外显回包权限缺省应回退到 0，并执行 0~4 的边界夹紧。
+	 */
+	@Test
+	void parseShouldApplyNearOverlayResponsePermissionLevel() {
+		RedstoneLinkServerConfigSnapshot defaultsSnapshot = RedstoneLinkConfigTestHelper.parseServer(new Properties());
+		assertEquals(0, defaultsSnapshot.privacy().overlayResponsePermissionLevel());
+
+		Properties highProperties = new Properties();
+		highProperties.setProperty("server.currentLinksPrivacy.overlayResponsePermissionLevel", "99");
+		RedstoneLinkServerConfigSnapshot highSnapshot = RedstoneLinkConfigTestHelper.parseServer(highProperties);
+		assertEquals(4, highSnapshot.privacy().overlayResponsePermissionLevel());
 	}
 
 	/**
