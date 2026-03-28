@@ -1,0 +1,232 @@
+{
+  "id": "mixed_1024_to_1024_topology_mutation_batches",
+  "description": "连续并发批量拓扑修改专项：1024 个 mixed triggerSource 在持续输入下，分组连续执行结构化批量 relink，观测运行期大批量拓扑替换成本。",
+  "layer": "P",
+  "scenarioId": "P25",
+  "arena": {
+    "clearFrom": [-8, 63, -8],
+    "clearTo": [87, 66, 87]
+  },
+  "targets": {
+    "id": "core_p25_main",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [48, 64, 0],
+      "to": [79, 64, 31]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p25_group",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 0],
+        "to": [15, 64, 31]
+      }
+    },
+    {
+      "id": "pulse_p25_group",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 40],
+        "to": [15, 64, 55]
+      }
+    },
+    {
+      "id": "toggle_p25_group",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 64],
+        "to": [15, 64, 79]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p25_group",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "offset": 0,
+      "wrap": true
+    },
+    {
+      "sourceGroup": "pulse_p25_group",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "offset": 4,
+      "wrap": true
+    },
+    {
+      "sourceGroup": "toggle_p25_group",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "offset": 8,
+      "wrap": true
+    }
+  ],
+  "drive": {
+    "totalTicks": 260,
+    "steps": [
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "sync_p25_group",
+        "serialFormat": "range",
+        "phaseTicks": 0
+      },
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "pulse_p25_group",
+        "serialFormat": "range",
+        "phaseTicks": 1
+      },
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "toggle_p25_group",
+        "serialFormat": "range",
+        "phaseTicks": 0
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_mutation_window_start",
+        "ticks": 20
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round1_sync_banded32",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:sync_p25_group:range}} core {{targets:range}} banded fanout=32 stride=32 offset=0 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round1_pulse_banded32",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:pulse_p25_group:range}} core {{targets:range}} banded fanout=32 stride=32 offset=7 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round1_toggle_banded32",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:toggle_p25_group:range}} core {{targets:range}} banded fanout=32 stride=32 offset=15 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_between_round1_round2",
+        "ticks": 8
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round2_sync_fan_in_first",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:sync_p25_group:range}} core {{targets:range}} fan_in_first",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=fan_in_first"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round2_pulse_fan_in_first",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:pulse_p25_group:range}} core {{targets:range}} fan_in_first",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=fan_in_first"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round2_toggle_fan_in_first",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:toggle_p25_group:range}} core {{targets:range}} fan_in_first",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=fan_in_first"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_between_round2_round3",
+        "ticks": 8
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round3_sync_banded64",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:sync_p25_group:range}} core {{targets:range}} banded fanout=64 stride=16 offset=2 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round3_pulse_banded64",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:pulse_p25_group:range}} core {{targets:range}} banded fanout=64 stride=16 offset=18 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round3_toggle_banded64",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:toggle_p25_group:range}} core {{targets:range}} banded fanout=64 stride=16 offset=34 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_between_round3_round4",
+        "ticks": 8
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round4_sync_overlap16",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:sync_p25_group:range}} core {{targets:range}} banded fanout=16 stride=8 offset=1 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round4_pulse_overlap16",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:pulse_p25_group:range}} core {{targets:range}} banded fanout=16 stride=8 offset=5 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "mutate_round4_toggle_overlap16",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:toggle_p25_group:range}} core {{targets:range}} banded fanout=16 stride=8 offset=9 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_between_round4_restore",
+        "ticks": 8
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "restore_sync_banded16",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:sync_p25_group:range}} core {{targets:range}} banded fanout=16 stride=16 offset=0 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "restore_pulse_banded16",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:pulse_p25_group:range}} core {{targets:range}} banded fanout=16 stride=16 offset=4 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "restore_toggle_banded16",
+        "commandTemplate": "redstonelink bench link apply triggerSource {{source:toggle_p25_group:range}} core {{targets:range}} banded fanout=16 stride=16 offset=8 wrap=true",
+        "expectedPrefix": "[RedstoneLink/Bench]",
+        "expectedRegex": "(?i)link_apply mapping=banded"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_post_restore_window",
+        "ticks": 200
+      }
+    ]
+  }
+}

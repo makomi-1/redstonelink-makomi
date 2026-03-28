@@ -37,6 +37,17 @@
     {
       "entryId": "p19_mixed_1024_to_1024",
       "caseId": "mixed_1024_to_1024_core_banded16"
+    },
+    {
+      "entryId": "p25_mixed_topology_mutation",
+      "caseId": "mixed_1024_to_1024_topology_mutation_batches",
+      "serverConfigOverrides": {
+        "server.command.rateLimit.global.capacity": "8192",
+        "server.command.rateLimit.actor.baseCapacity": "256",
+        "server.command.rateLimit.actor.stepPerLevel": "64",
+        "server.command.rateLimit.actorGroup.linkRw.baseCapacity": "128",
+        "server.command.rateLimit.actorGroup.linkRw.stepPerLevel": "32"
+      }
     }
   ]
 }
