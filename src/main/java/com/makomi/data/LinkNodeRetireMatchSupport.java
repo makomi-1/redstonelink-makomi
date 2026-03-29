@@ -130,7 +130,16 @@ final class LinkNodeRetireMatchSupport {
 		LinkNodeRetireEvents.PendingKey key,
 		boolean requireDestroyCandidate
 	) {
-		LinkNodeRetireEvents.PendingKey resolved = pendingKeyFromStack(stack, requireDestroyCandidate);
-		return resolved != null && resolved.equals(key);
+		if (stack.isEmpty() || key == null) {
+			return false;
+		}
+		if (requireDestroyCandidate && !LinkItemData.isDestroyRetireCandidate(stack)) {
+			return false;
+		}
+		LinkNodeType nodeType = LinkItemData.getNodeType(stack).orElse(null);
+		if (nodeType != key.nodeType()) {
+			return false;
+		}
+		return LinkItemData.containsSerial(stack, key.serial());
 	}
 }

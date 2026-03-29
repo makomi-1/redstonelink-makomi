@@ -94,7 +94,6 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	@Override
 	protected void init() {
 		super.init();
-		int centerX = width / 2;
 		int inputX = panelLeftX();
 		int inputY = inputBoxY();
 

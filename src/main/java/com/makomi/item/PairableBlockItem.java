@@ -10,12 +10,15 @@ import java.util.Objects;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.SlotAccess;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ClickAction;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -47,6 +50,9 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		ensureSerial(level, heldStack);
+		if (PairableItemAggregateClickSupport.blocksDirectUse(heldStack)) {
+			return InteractionResultHolder.pass(heldStack);
+		}
 		if (!canOpenPairingUi(player, hand)) {
 			return InteractionResultHolder.pass(heldStack);
 		}
@@ -68,6 +74,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 
 		Player player = context.getPlayer();
 		if (player != null
+			&& !PairableItemAggregateClickSupport.blocksDirectUse(heldStack)
 			&& canOpenPairingUi(player, context.getHand())
 			&& (nodeType == LinkNodeType.TRIGGER_SOURCE || nodeType == LinkNodeType.CORE)) {
 			if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
@@ -79,7 +86,12 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
 
-		return super.useOn(context);
+		List<Long> serialGroup = LinkItemData.getSerialGroup(heldStack);
+		List<Long> remainderSerials = serialGroup.size() > 1 ? List.copyOf(serialGroup.subList(1, serialGroup.size())) : List.of();
+		ItemStack remainderTemplate = remainderSerials.isEmpty() ? ItemStack.EMPTY : heldStack.copyWithCount(1);
+		InteractionResult result = super.useOn(context);
+		restoreAggregateRemainderAfterPlacement(level, player, context.getHand(), result, remainderTemplate, remainderSerials);
+		return result;
 	}
 
 	@Override
@@ -97,6 +109,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		TooltipFlag tooltipFlag
 	) {
 		long serial = LinkItemData.getSerial(stack);
+		List<Long> serialGroup = LinkItemData.getSerialGroup(stack);
 		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
 
 		tooltipComponents.add(
@@ -105,6 +118,15 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 				serial > 0L ? Long.toString(serial) : "-"
 			)
 		);
+		if (serialGroup.size() > 1) {
+			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_count", serialGroup.size()));
+			tooltipComponents.add(
+				Component.translatable(
+					"tooltip.redstonelink.aggregate_serials",
+					TooltipTextTruncateUtil.buildSerialsText(serialGroup, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
+				)
+			);
+		}
 		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
 		String linkedText = TooltipTextTruncateUtil.buildTargetsText(
 			linkedSerials,
@@ -117,9 +139,38 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			)
 		);
 		if (nodeType == LinkNodeType.TRIGGER_SOURCE || nodeType == LinkNodeType.CORE) {
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
+			tooltipComponents.add(
+				Component.translatable(
+					LinkItemData.isAggregated(stack)
+						? "tooltip.redstonelink.aggregate_single_only"
+						: "tooltip.redstonelink.open_pairing"
+				)
+			);
 		}
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+	}
+
+	@Override
+	public boolean overrideStackedOnOther(ItemStack stack, Slot slot, ClickAction action, Player player) {
+		if (PairableItemAggregateClickSupport.overrideStackedOnOther(stack, slot, action, player)) {
+			return true;
+		}
+		return super.overrideStackedOnOther(stack, slot, action, player);
+	}
+
+	@Override
+	public boolean overrideOtherStackedOnMe(
+		ItemStack stack,
+		ItemStack otherStack,
+		Slot slot,
+		ClickAction action,
+		Player player,
+		SlotAccess access
+	) {
+		if (PairableItemAggregateClickSupport.overrideOtherStackedOnMe(stack, otherStack, slot, action, player, access)) {
+			return true;
+		}
+		return super.overrideOtherStackedOnMe(stack, otherStack, slot, action, player, access);
 	}
 
 	/**
@@ -145,6 +196,28 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	 */
 	private boolean canOpenPairingUi(Player player, InteractionHand hand) {
 		return RedstoneLinkConfig.canOpenPairingByHeldItem(player, hand);
+	}
+
+	/**
+	 * 方块放置成功后，将聚合栈剩余序号重新塞回玩家当前手，避免一次放置吞掉整组。
+	 */
+	private void restoreAggregateRemainderAfterPlacement(
+		Level level,
+		Player player,
+		InteractionHand hand,
+		InteractionResult result,
+		ItemStack remainderTemplate,
+		List<Long> remainderSerials
+	) {
+		if (level.isClientSide || player == null || !result.consumesAction() || remainderSerials.isEmpty()) {
+			return;
+		}
+		if (player.getAbilities().instabuild) {
+			return;
+		}
+		ItemStack remainderStack = remainderTemplate.copyWithCount(1);
+		LinkItemData.setSerialGroup(remainderStack, remainderSerials);
+		player.setItemInHand(hand, remainderStack);
 	}
 }
 

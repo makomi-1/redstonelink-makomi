@@ -13,11 +13,14 @@ import java.util.Set;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.SlotAccess;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ClickAction;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -73,6 +76,9 @@ public class LinkerItem extends Item implements PairableItem {
 	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		ensureSerial(level, heldStack);
+		if (PairableItemAggregateClickSupport.blocksDirectUse(heldStack)) {
+			return InteractionResultHolder.pass(heldStack);
+		}
 
 		if (shouldOpenPairingUi(player, hand)) {
 			openPairingScreen(level, player, heldStack);
@@ -101,11 +107,15 @@ public class LinkerItem extends Item implements PairableItem {
 		ensureSerial(level, heldStack);
 
 		Player player = context.getPlayer();
-		if (player != null && shouldOpenPairingUi(player, context.getHand())) {
+		if (player != null
+			&& !PairableItemAggregateClickSupport.blocksDirectUse(heldStack)
+			&& shouldOpenPairingUi(player, context.getHand())) {
 			openPairingScreen(level, player, heldStack);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
-		if (player != null && canTrigger(player, context.getHand())) {
+		if (player != null
+			&& !PairableItemAggregateClickSupport.blocksDirectUse(heldStack)
+			&& canTrigger(player, context.getHand())) {
 			triggerLinkedTargets(level, player, heldStack);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
@@ -149,6 +159,7 @@ public class LinkerItem extends Item implements PairableItem {
 		TooltipFlag tooltipFlag
 	) {
 		long serial = LinkItemData.getSerial(stack);
+		List<Long> serialGroup = LinkItemData.getSerialGroup(stack);
 		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
 
 		tooltipComponents.add(
@@ -157,15 +168,51 @@ public class LinkerItem extends Item implements PairableItem {
 				serial > 0L ? Long.toString(serial) : "-"
 			)
 		);
+		if (serialGroup.size() > 1) {
+			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_count", serialGroup.size()));
+			tooltipComponents.add(
+				Component.translatable(
+					"tooltip.redstonelink.aggregate_serials",
+					TooltipTextTruncateUtil.buildSerialsText(serialGroup, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
+				)
+			);
+		}
 		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
 		String linkedText = TooltipTextTruncateUtil.buildTargetsText(
 			linkedSerials,
 			TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.links", linkedText));
-		tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
-		tooltipComponents.add(Component.translatable("tooltip.redstonelink.trigger_linker"));
+		if (LinkItemData.isAggregated(stack)) {
+			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_single_only"));
+		} else {
+			tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
+			tooltipComponents.add(Component.translatable("tooltip.redstonelink.trigger_linker"));
+		}
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+	}
+
+	@Override
+	public boolean overrideStackedOnOther(ItemStack stack, Slot slot, ClickAction action, Player player) {
+		if (PairableItemAggregateClickSupport.overrideStackedOnOther(stack, slot, action, player)) {
+			return true;
+		}
+		return super.overrideStackedOnOther(stack, slot, action, player);
+	}
+
+	@Override
+	public boolean overrideOtherStackedOnMe(
+		ItemStack stack,
+		ItemStack otherStack,
+		Slot slot,
+		ClickAction action,
+		Player player,
+		SlotAccess access
+	) {
+		if (PairableItemAggregateClickSupport.overrideOtherStackedOnMe(stack, otherStack, slot, action, player, access)) {
+			return true;
+		}
+		return super.overrideOtherStackedOnMe(stack, otherStack, slot, action, player, access);
 	}
 
 	/**

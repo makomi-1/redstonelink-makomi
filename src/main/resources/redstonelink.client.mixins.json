@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "com.makomi.client.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"AbstractContainerScreenAggregateItemCountMixin",
+		"GuiAggregateItemCountMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

@@ -28,4 +28,15 @@ public final class TooltipTextTruncateUtil {
 	public static String buildTargetsText(List<Long> targets, int maxChars) {
 		return SerialDisplayFormatUtil.buildText(targets, maxChars);
 	}
+
+	/**
+	 * 根据最大字符数构建序号组文本。
+	 *
+	 * @param serials 序号组
+	 * @param maxChars 最大允许字符数
+	 * @return 处理后的文本，空列表返回 `-`
+	 */
+	public static String buildSerialsText(List<Long> serials, int maxChars) {
+		return SerialDisplayFormatUtil.buildText(serials, maxChars);
+	}
 }

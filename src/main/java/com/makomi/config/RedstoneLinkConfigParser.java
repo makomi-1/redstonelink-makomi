@@ -113,7 +113,7 @@ final class RedstoneLinkConfigParser {
 	 */
 	private static RedstoneLinkInteractionConfig parseInteraction(Properties props) {
 		return new RedstoneLinkInteractionConfig(
-			RedstoneLinkConfigParseSupport.parseBoolean(props, "interaction.requireSneakToOpenPairing", false),
+			RedstoneLinkConfigParseSupport.parseBoolean(props, "interaction.requireSneakToOpenPairing", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "interaction.requireSneakToOpenLinkerPairing", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "interaction.requireEmptyOffhandToOpenPairing", true)
 		);

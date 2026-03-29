@@ -214,9 +214,9 @@ final class RedstoneLinkConfigTemplate {
 			
 			# --- [交互行为 / Interaction] -------------------------------------------
 			# interaction.requireSneakToOpenPairing
-			# zh: 打开配对 UI 是否必须潜行。默认 false，普通右键即可打开。
-			# en: Require sneaking to open pairing UI. Default false means normal right-click opens the UI.
-			interaction.requireSneakToOpenPairing=false
+			# zh: 打开配对 UI 是否必须潜行。默认 true，需潜行右键打开。
+			# en: Require sneaking to open pairing UI. Default true means sneaking + right-click opens the UI.
+			interaction.requireSneakToOpenPairing=true
 
 			# interaction.requireSneakToOpenLinkerPairing
 			# zh: 遥控器打开配对 UI 是否必须潜行。默认 true，避免与站立右键触发冲突。

@@ -19,7 +19,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	@Test
 	void parseShouldUseInteractionDefaultsWhenPropertiesMissing() {
 		RedstoneLinkServerConfigSnapshot snapshot = RedstoneLinkConfigTestHelper.parseServer(new Properties());
-		assertFalse(snapshot.interaction().requireSneakToOpenPairing());
+		assertTrue(snapshot.interaction().requireSneakToOpenPairing());
 		assertTrue(snapshot.interaction().requireSneakToOpenLinkerPairing());
 		assertTrue(snapshot.interaction().requireEmptyOffhandToOpenPairing());
 	}
@@ -77,7 +77,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		properties.setProperty("interaction.requireEmptyOffhandToOpenPairing", "invalid");
 
 		RedstoneLinkServerConfigSnapshot snapshot = RedstoneLinkConfigTestHelper.parseServer(properties);
-		assertFalse(snapshot.interaction().requireSneakToOpenPairing());
+		assertTrue(snapshot.interaction().requireSneakToOpenPairing());
 		assertTrue(snapshot.interaction().requireSneakToOpenLinkerPairing());
 		assertTrue(snapshot.interaction().requireEmptyOffhandToOpenPairing());
 	}
