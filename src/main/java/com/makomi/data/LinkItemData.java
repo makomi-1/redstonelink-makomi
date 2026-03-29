@@ -305,6 +305,28 @@ public final class LinkItemData {
 	}
 
 	/**
+	 * 为单件物品同步当前连接快照。
+	 * <p>
+	 * 仅当物品当前承载单个序号时才执行，避免把聚合态误解释为“顶部单件”的
+	 * 当前连接视图。
+	 * </p>
+	 */
+	public static void syncCurrentLinksSnapshotIfSingle(ItemStack stack, ServerLevel level) {
+		if (stack == null || stack.isEmpty() || level == null || getSerialCount(stack) != 1) {
+			return;
+		}
+		Optional<LinkNodeType> nodeType = getNodeType(stack);
+		if (nodeType.isEmpty()) {
+			return;
+		}
+		long serial = getSerial(stack);
+		if (serial <= 0L) {
+			return;
+		}
+		setLinkedSerials(stack, NodeSnapshotQueryService.queryItemSnapshotLinks(level, nodeType.get(), serial).visibleTargetSet());
+	}
+
+	/**
 	 * 设置“销毁即退役”标记。
 	 */
 	public static void setDestroyRetireCandidate(ItemStack stack, boolean retireCandidate) {

@@ -3,6 +3,7 @@ package com.makomi.item;
 import com.makomi.data.LinkItemData;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.SlotAccess;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ClickAction;
@@ -32,8 +33,8 @@ public final class PairableItemAggregateClickSupport {
 			return false;
 		}
 		return switch (action) {
-			case PRIMARY -> tryMergeIntoSlot(carriedStack, slot);
-			case SECONDARY -> tryPlaceOneFromCarried(carriedStack, slot);
+			case PRIMARY -> tryMergeIntoSlot(carriedStack, slot, player);
+			case SECONDARY -> tryPlaceOneFromCarried(carriedStack, slot, player);
 		};
 	}
 
@@ -58,8 +59,8 @@ public final class PairableItemAggregateClickSupport {
 			return false;
 		}
 		return switch (action) {
-			case PRIMARY -> tryMergeIntoSlotWithCursorAccess(slotStack, carriedStack, slot, carriedAccess);
-			case SECONDARY -> tryPlaceOneFromCarriedWithCursorAccess(slotStack, carriedStack, slot, carriedAccess);
+			case PRIMARY -> tryMergeIntoSlotWithCursorAccess(slotStack, carriedStack, slot, player, carriedAccess);
+			case SECONDARY -> tryPlaceOneFromCarriedWithCursorAccess(slotStack, carriedStack, slot, player, carriedAccess);
 		};
 	}
 
@@ -73,7 +74,7 @@ public final class PairableItemAggregateClickSupport {
 	/**
 	 * 左键同类槽位时，将光标内全部序号并入目标槽位。
 	 */
-	private static boolean tryMergeIntoSlot(ItemStack carriedStack, Slot slot) {
+	private static boolean tryMergeIntoSlot(ItemStack carriedStack, Slot slot, Player player) {
 		ItemStack slotStack = slot.getItem();
 		if (slotStack.isEmpty() || !canAggregateTogether(carriedStack, slotStack) || !slot.mayPlace(carriedStack)) {
 			return false;
@@ -82,6 +83,7 @@ public final class PairableItemAggregateClickSupport {
 			return false;
 		}
 		slot.setChanged();
+		syncCurrentLinksSnapshotIfSingle(player, carriedStack);
 		return true;
 	}
 
@@ -92,6 +94,7 @@ public final class PairableItemAggregateClickSupport {
 		ItemStack slotStack,
 		ItemStack carriedStack,
 		Slot slot,
+		Player player,
 		SlotAccess carriedAccess
 	) {
 		if (!canAggregateTogether(carriedStack, slotStack) || !slot.mayPlace(carriedStack)) {
@@ -101,6 +104,7 @@ public final class PairableItemAggregateClickSupport {
 			return false;
 		}
 		slot.setChanged();
+		syncCurrentLinksSnapshotIfSingle(player, carriedStack);
 		carriedAccess.set(carriedStack.isEmpty() ? ItemStack.EMPTY : carriedStack);
 		return true;
 	}
@@ -108,7 +112,7 @@ public final class PairableItemAggregateClickSupport {
 	/**
 	 * 右键时从光标栈弹出顶部一个序号，放入空槽或同类槽位。
 	 */
-	private static boolean tryPlaceOneFromCarried(ItemStack carriedStack, Slot slot) {
+	private static boolean tryPlaceOneFromCarried(ItemStack carriedStack, Slot slot, Player player) {
 		ItemStack slotStack = slot.getItem();
 		if (slotStack.isEmpty()) {
 			if (LinkItemData.getSerialCount(carriedStack) <= 1 || !slot.mayPlace(carriedStack)) {
@@ -125,6 +129,8 @@ public final class PairableItemAggregateClickSupport {
 			}
 			slot.set(placed);
 			slot.setChanged();
+			syncCurrentLinksSnapshotIfSingle(player, placed);
+			syncCurrentLinksSnapshotIfSingle(player, carriedStack);
 			return true;
 		}
 
@@ -135,6 +141,7 @@ public final class PairableItemAggregateClickSupport {
 			return false;
 		}
 		slot.setChanged();
+		syncCurrentLinksSnapshotIfSingle(player, carriedStack);
 		return true;
 	}
 
@@ -145,6 +152,7 @@ public final class PairableItemAggregateClickSupport {
 		ItemStack slotStack,
 		ItemStack carriedStack,
 		Slot slot,
+		Player player,
 		SlotAccess carriedAccess
 	) {
 		if (!canAggregateTogether(carriedStack, slotStack) || !slot.mayPlace(carriedStack)) {
@@ -154,6 +162,7 @@ public final class PairableItemAggregateClickSupport {
 			return false;
 		}
 		slot.setChanged();
+		syncCurrentLinksSnapshotIfSingle(player, carriedStack);
 		carriedAccess.set(carriedStack.isEmpty() ? ItemStack.EMPTY : carriedStack);
 		return true;
 	}
@@ -179,8 +188,20 @@ public final class PairableItemAggregateClickSupport {
 		ItemStack carriedStack = template.copyWithCount(1);
 		LinkItemData.setSerialGroup(carriedStack, upperHalf);
 		slot.setChanged();
+		syncCurrentLinksSnapshotIfSingle(player, slotStack);
+		syncCurrentLinksSnapshotIfSingle(player, carriedStack);
 		carriedAccess.set(carriedStack);
 		return true;
+	}
+
+	/**
+	 * 当聚合交互把物品变回单件时，回填当前连接快照。
+	 */
+	private static void syncCurrentLinksSnapshotIfSingle(Player player, ItemStack stack) {
+		if (!(player instanceof ServerPlayer serverPlayer) || stack == null || stack.isEmpty()) {
+			return;
+		}
+		LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, serverPlayer.serverLevel());
 	}
 
 	/**

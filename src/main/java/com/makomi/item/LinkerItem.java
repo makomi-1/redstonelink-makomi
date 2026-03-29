@@ -158,16 +158,7 @@ public class LinkerItem extends Item implements PairableItem {
 		List<Component> tooltipComponents,
 		TooltipFlag tooltipFlag
 	) {
-		long serial = LinkItemData.getSerial(stack);
 		List<Long> serialGroup = LinkItemData.getSerialGroup(stack);
-		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
-
-		tooltipComponents.add(
-			Component.translatable(
-				"tooltip.redstonelink.serial",
-				serial > 0L ? Long.toString(serial) : "-"
-			)
-		);
 		if (serialGroup.size() > 1) {
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_count", serialGroup.size()));
 			tooltipComponents.add(
@@ -176,19 +167,27 @@ public class LinkerItem extends Item implements PairableItem {
 					TooltipTextTruncateUtil.buildSerialsText(serialGroup, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
 				)
 			);
+			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_single_only"));
+			super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+			return;
 		}
+
+		long serial = LinkItemData.getSerial(stack);
+		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.serial",
+				serial > 0L ? Long.toString(serial) : "-"
+			)
+		);
 		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
 		String linkedText = TooltipTextTruncateUtil.buildTargetsText(
 			linkedSerials,
 			TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.links", linkedText));
-		if (LinkItemData.isAggregated(stack)) {
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_single_only"));
-		} else {
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.trigger_linker"));
-		}
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.trigger_linker"));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 

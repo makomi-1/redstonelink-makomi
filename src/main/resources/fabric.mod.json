@@ -26,6 +26,7 @@
 		]
 	},
 	"mixins": [
+		"redstonelink.mixins.json",
 		"redstonelink.client.mixins.json"
 	],
 	"depends": {

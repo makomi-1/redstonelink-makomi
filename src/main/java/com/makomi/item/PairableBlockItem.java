@@ -108,16 +108,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		List<Component> tooltipComponents,
 		TooltipFlag tooltipFlag
 	) {
-		long serial = LinkItemData.getSerial(stack);
 		List<Long> serialGroup = LinkItemData.getSerialGroup(stack);
-		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
-
-		tooltipComponents.add(
-			Component.translatable(
-				"tooltip.redstonelink.serial",
-				serial > 0L ? Long.toString(serial) : "-"
-			)
-		);
 		if (serialGroup.size() > 1) {
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_count", serialGroup.size()));
 			tooltipComponents.add(
@@ -126,7 +117,19 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 					TooltipTextTruncateUtil.buildSerialsText(serialGroup, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
 				)
 			);
+			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_single_only"));
+			super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+			return;
 		}
+
+		long serial = LinkItemData.getSerial(stack);
+		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.serial",
+				serial > 0L ? Long.toString(serial) : "-"
+			)
+		);
 		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
 		String linkedText = TooltipTextTruncateUtil.buildTargetsText(
 			linkedSerials,
@@ -141,9 +144,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		if (nodeType == LinkNodeType.TRIGGER_SOURCE || nodeType == LinkNodeType.CORE) {
 			tooltipComponents.add(
 				Component.translatable(
-					LinkItemData.isAggregated(stack)
-						? "tooltip.redstonelink.aggregate_single_only"
-						: "tooltip.redstonelink.open_pairing"
+					"tooltip.redstonelink.open_pairing"
 				)
 			);
 		}
@@ -217,6 +218,9 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		}
 		ItemStack remainderStack = remainderTemplate.copyWithCount(1);
 		LinkItemData.setSerialGroup(remainderStack, remainderSerials);
+		if (level instanceof ServerLevel serverLevel) {
+			LinkItemData.syncCurrentLinksSnapshotIfSingle(remainderStack, serverLevel);
+		}
 		player.setItemInHand(hand, remainderStack);
 	}
 }

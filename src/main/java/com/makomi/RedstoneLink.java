@@ -9,6 +9,7 @@ import com.makomi.data.InternalDispatchDeltaProjector;
 import com.makomi.data.LinkNodeLifecycleDispatchEvents;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.NodeStateTraceService;
+import com.makomi.data.PairableItemAggregateMenuNormalizationService;
 import com.makomi.data.TriggerSourceInputStateResyncService;
 import com.makomi.data.input.InputPlaybackService;
 import com.makomi.network.PairingNetwork;
@@ -44,6 +45,7 @@ public class RedstoneLink implements ModInitializer {
 		InternalDispatchDeltaProjector.register();
 		LinkNodeLifecycleDispatchEvents.register();
 		LinkNodeRetireEvents.register();
+		PairableItemAggregateMenuNormalizationService.register();
 		if (RedstoneLinkConfig.command().nodeTraceEnabled()) {
 			NodeStateTraceService.register();
 		}
