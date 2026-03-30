@@ -3,6 +3,7 @@ package com.makomi.item;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
@@ -18,6 +19,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ClickAction;
 import net.minecraft.world.inventory.Slot;
@@ -212,6 +214,15 @@ public class LinkerItem extends Item implements PairableItem {
 			return true;
 		}
 		return super.overrideOtherStackedOnMe(stack, otherStack, slot, action, player, access);
+	}
+
+	/**
+	 * 记录“遥控器物品实体因伤害销毁”的标记，供卸载退役事件区分销毁与拾取路径。
+	 */
+	@Override
+	public void onDestroyed(ItemEntity itemEntity) {
+		LinkNodeRetireEvents.markDamageDiscard(itemEntity);
+		super.onDestroyed(itemEntity);
 	}
 
 	/**
