@@ -14,6 +14,7 @@ import com.makomi.data.TriggerSourceInputStateResyncService;
 import com.makomi.data.input.InputPlaybackService;
 import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
+import com.makomi.network.StatePanelNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
 import com.makomi.registry.ModItemGroups;
@@ -38,6 +39,7 @@ public class RedstoneLink implements ModInitializer {
 		RedstoneLinkConfig.load();
 		PairingNetwork.register();
 		QuickLinkNetwork.register();
+		StatePanelNetwork.register();
 		ModBlocks.register();
 		ModBlockEntities.register();
 		ModItems.register();

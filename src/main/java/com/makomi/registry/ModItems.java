@@ -6,6 +6,7 @@ import com.makomi.item.LinkerItem;
 import com.makomi.item.PairableBlockItem;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.item.SyncLinkerItem;
+import com.makomi.item.StatePanelToolItem;
 import com.makomi.data.LinkNodeType;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -97,6 +98,11 @@ public final class ModItems {
 	public static final Item QUICK_LINK_TOOL = register(
 		"quick_link_tool",
 		new QuickLinkToolItem(new Item.Properties().stacksTo(1))
+	);
+
+	public static final Item REDSTONELINK_STATUS_PANEL = register(
+		"redstonelink_status_panel",
+		new StatePanelToolItem(new Item.Properties().stacksTo(1))
 	);
 
 	private ModItems() {

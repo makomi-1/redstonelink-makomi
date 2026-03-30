@@ -5,6 +5,7 @@ import com.makomi.client.bench.BenchClientAutomationController;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.client.network.PairingNetworkClientHandlerSupport;
 import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
+import com.makomi.client.network.StatePanelNetworkClientHandlerSupport;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.render.QuickLinkOutlineRenderer;
@@ -59,6 +60,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerPairingScreenOpeners();
 		registerPairingPacketReceivers();
 		registerQuickLinkClientHooks();
+		registerStatePanelClientHooks();
 		BenchClientAutomationController.initialize();
 		RedstoneLink.LOGGER.info("RedstoneLink client initialized");
 	}
@@ -295,5 +297,12 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		QuickLinkNetworkClientHandlerSupport.registerReceivers();
 		QuickLinkNetworkClientHandlerSupport.registerInteractionCallbacks();
 		QuickLinkOutlineRenderer.register();
+	}
+
+	/**
+	 * 注册状态面板工具客户端接包。
+	 */
+	private static void registerStatePanelClientHooks() {
+		StatePanelNetworkClientHandlerSupport.registerReceivers();
 	}
 }

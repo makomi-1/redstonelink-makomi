@@ -40,6 +40,16 @@ final class RedstoneLinkConfigTemplate {
 			# en: Whether offline targets can be bound.
 			server.allowOfflineTargetBinding=true
 
+			# server.statePanel.refreshHz
+			# zh: 状态面板整体刷新动作节流频率（Hz），用于限制一次 refresh 的最小间隔。
+			# en: Throttle frequency (Hz) for state-panel full refresh actions.
+			server.statePanel.refreshHz=5
+
+			# server.statePanel.maxSubscriptions
+			# zh: 状态面板订阅上限（总条目数，含 core 与 triggerSource）。
+			# en: Maximum subscription entries in state panel (core + triggerSource combined).
+			server.statePanel.maxSubscriptions=50
+
 			# --- [命令权限与限流 / Command Permission & Rate Limit] -----------------
 			# server.command.permissionLevel
 			# zh: /redstonelink 整个命令树所需权限等级（0~4）。

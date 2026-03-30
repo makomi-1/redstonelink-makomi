@@ -27,7 +27,9 @@ record RedstoneLinkServerConfigSnapshot(
 				RedstoneLinkConfig.EmitterEdgeMode.RISING,
 				15,
 				1024,
-				true
+				true,
+				5,
+				50
 			),
 			new RedstoneLinkCommandConfig(
 				0,

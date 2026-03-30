@@ -1,5 +1,6 @@
 package com.makomi.network;
 
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.QuickLinkApplyService;
 import com.makomi.data.QuickLinkCollectService;
 import com.makomi.data.QuickLinkOperationFeedback;
@@ -25,6 +26,19 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (!(mainHandItem.getItem() instanceof QuickLinkToolItem)) {
 			return;
 		}
+
+		int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
+		if (
+			isInputTooLong(payload.serialCacheExpression(), maxInputLength)
+				|| isInputTooLong(payload.channelCache(), maxInputLength)
+		) {
+			sendFeedback(
+				player,
+				QuickLinkOperationFeedback.failure("message.redstonelink.link.set.input_too_long", Integer.toString(maxInputLength))
+			);
+			return;
+		}
+
 		QuickLinkToolData.write(
 			mainHandItem,
 			QuickLinkToolData.fromTokens(
@@ -93,5 +107,12 @@ final class QuickLinkNetworkServerHandlerSupport {
 			player,
 			new QuickLinkNetwork.QuickLinkFeedbackPayload(result.success(), result.messageKey(), result.messageArgs())
 		);
+	}
+
+	/**
+	 * 判断输入是否超过服务端配置上限。
+	 */
+	private static boolean isInputTooLong(String input, int maxInputLength) {
+		return input != null && input.length() > maxInputLength;
 	}
 }

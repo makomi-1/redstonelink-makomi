@@ -37,7 +37,9 @@ final class RedstoneLinkConfigParser {
 			RedstoneLinkConfig.EmitterEdgeMode.fromConfigValue(props.getProperty("server.emitterEdgeMode", "rising")),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.coreOutputPower", 15, 0, 15),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.maxTargetsPerSetLinks", 1024, 1, 4096),
-			RedstoneLinkConfigParseSupport.parseBoolean(props, "server.allowOfflineTargetBinding", true)
+			RedstoneLinkConfigParseSupport.parseBoolean(props, "server.allowOfflineTargetBinding", true),
+			RedstoneLinkConfigParseSupport.parseInt(props, "server.statePanel.refreshHz", 5, 1, 20),
+			RedstoneLinkConfigParseSupport.parseInt(props, "server.statePanel.maxSubscriptions", 50, 1, 512)
 		);
 	}
 

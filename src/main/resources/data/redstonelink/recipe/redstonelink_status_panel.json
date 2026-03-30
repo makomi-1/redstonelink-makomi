@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "G": {
+      "item": "minecraft:glass"
+    },
+    "S": {
+      "item": "redstonelink:link_sync_emitter"
+    },
+    "C": {
+      "item": "redstonelink:redstone_link_component"
+    },
+    "R": {
+      "item": "redstonelink:link_redstone_core"
+    }
+  },
+  "pattern": [
+    " G ",
+    "SCR",
+    "   "
+  ],
+  "result": {
+    "count": 1,
+    "id": "redstonelink:redstonelink_status_panel"
+  }
+}

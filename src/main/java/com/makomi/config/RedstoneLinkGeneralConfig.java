@@ -8,5 +8,7 @@ public record RedstoneLinkGeneralConfig(
 	RedstoneLinkConfig.EmitterEdgeMode emitterEdgeMode,
 	int coreOutputPower,
 	int maxTargetsPerSetLinks,
-	boolean allowOfflineTargetBinding
+	boolean allowOfflineTargetBinding,
+	int statePanelRefreshHz,
+	int statePanelMaxSubscriptions
 ) {}
