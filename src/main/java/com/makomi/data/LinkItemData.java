@@ -13,6 +13,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.component.CustomData;
 
 /**
@@ -37,6 +38,10 @@ public final class LinkItemData {
 	private static final String KEY_PAIR = "rl_pair";
 	private static final String KEY_LINKS = "rl_links";
 	private static final String KEY_DESTROY_RETIRE = "rl_destroy_retire";
+	private static final String KEY_SYNC_LINKER_SIGNAL = "rl_sync_linker_signal";
+	private static final int SYNC_LINKER_SIGNAL_OFF = 0;
+	private static final int SYNC_LINKER_SIGNAL_ON = 15;
+	private static final int SYNC_LINKER_MODEL_ACTIVE = 1;
 
 	private LinkItemData() {
 	}
@@ -168,6 +173,9 @@ public final class LinkItemData {
 	public static void setSerialGroup(ItemStack stack, Collection<Long> serials) {
 		List<Long> normalized = clampToAggregateStackLimit(normalizePositiveSerials(serials));
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> applySerialGroup(tag, normalized));
+		if (normalized.size() != 1) {
+			clearSyncLinkerSignalState(stack);
+		}
 	}
 
 	/**
@@ -357,6 +365,64 @@ public final class LinkItemData {
 		return Optional.empty();
 	}
 
+	/**
+	 * 读取同步遥控器当前缓存的同步强度。
+	 * <p>
+	 * 同步遥控器只存在 `0/15` 两态，任何正值都会折叠为 15。
+	 * </p>
+	 */
+	public static int getSyncLinkerSignalStrength(ItemStack stack) {
+		CompoundTag tag = readTag(stack);
+		if (!tag.contains(KEY_SYNC_LINKER_SIGNAL, Tag.TAG_INT)) {
+			return SYNC_LINKER_SIGNAL_OFF;
+		}
+		return normalizeSyncLinkerSignalStrength(tag.getInt(KEY_SYNC_LINKER_SIGNAL));
+	}
+
+	/**
+	 * 写入同步遥控器当前同步强度，并同步镜像物品模型状态。
+	 */
+	public static void setSyncLinkerSignalStrength(ItemStack stack, int signalStrength) {
+		int normalizedStrength = normalizeSyncLinkerSignalStrength(signalStrength);
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+			if (normalizedStrength > SYNC_LINKER_SIGNAL_OFF) {
+				tag.putInt(KEY_SYNC_LINKER_SIGNAL, normalizedStrength);
+			} else {
+				tag.remove(KEY_SYNC_LINKER_SIGNAL);
+			}
+		});
+		syncSyncLinkerModelState(stack);
+	}
+
+	/**
+	 * 依据当前持久化状态补齐同步遥控器渲染态。
+	 * <p>
+	 * 该方法用于兼容旧栈或缺失镜像组件的场景，保证物品栏贴图与持久化状态一致。
+	 * </p>
+	 */
+	public static void syncSyncLinkerModelState(ItemStack stack) {
+		if (stack == null) {
+			return;
+		}
+		if (stack.isEmpty() || getSerialCount(stack) != 1) {
+			stack.remove(DataComponents.CUSTOM_MODEL_DATA);
+			return;
+		}
+		if (getSyncLinkerSignalStrength(stack) > SYNC_LINKER_SIGNAL_OFF) {
+			stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(SYNC_LINKER_MODEL_ACTIVE));
+			return;
+		}
+		stack.remove(DataComponents.CUSTOM_MODEL_DATA);
+	}
+
+	/**
+	 * 清空同步遥控器状态与模型镜像。
+	 */
+	public static void clearSyncLinkerSignalState(ItemStack stack) {
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.remove(KEY_SYNC_LINKER_SIGNAL));
+		stack.remove(DataComponents.CUSTOM_MODEL_DATA);
+	}
+
 	private static CompoundTag readTag(ItemStack stack) {
 		CustomData customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
 		return customData.copyTag();
@@ -436,5 +502,12 @@ public final class LinkItemData {
 			return serials == null ? List.of() : serials;
 		}
 		return List.copyOf(serials.subList(0, AGGREGATE_STACK_LIMIT));
+	}
+
+	/**
+	 * 同步遥控器仅支持 `0/15` 两态。
+	 */
+	private static int normalizeSyncLinkerSignalStrength(int signalStrength) {
+		return signalStrength > SYNC_LINKER_SIGNAL_OFF ? SYNC_LINKER_SIGNAL_ON : SYNC_LINKER_SIGNAL_OFF;
 	}
 }

@@ -75,17 +75,17 @@ public class LinkerItem extends Item implements PairableItem {
 	@Override
 	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
-		ensureSerial(level, heldStack);
+		ensureSerialAssigned(level, heldStack);
 		if (PairableItemAggregateClickSupport.blocksDirectUse(heldStack)) {
 			return InteractionResultHolder.pass(heldStack);
 		}
 
 		if (shouldOpenPairingUi(player, hand)) {
-			openPairingScreen(level, player, heldStack);
+			openPairingUi(level, player, heldStack);
 			return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
 		}
-		if (canTrigger(player, hand)) {
-			triggerLinkedTargets(level, player, heldStack);
+		if (canExecutePrimaryUse(player, hand)) {
+			executePrimaryUse(level, player, heldStack);
 			return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
 		}
 		return InteractionResultHolder.pass(heldStack);
@@ -104,19 +104,19 @@ public class LinkerItem extends Item implements PairableItem {
 	public InteractionResult useOn(UseOnContext context) {
 		Level level = context.getLevel();
 		ItemStack heldStack = context.getItemInHand();
-		ensureSerial(level, heldStack);
+		ensureSerialAssigned(level, heldStack);
 
 		Player player = context.getPlayer();
 		if (player != null
 			&& !PairableItemAggregateClickSupport.blocksDirectUse(heldStack)
 			&& shouldOpenPairingUi(player, context.getHand())) {
-			openPairingScreen(level, player, heldStack);
+			openPairingUi(level, player, heldStack);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
 		if (player != null
 			&& !PairableItemAggregateClickSupport.blocksDirectUse(heldStack)
-			&& canTrigger(player, context.getHand())) {
-			triggerLinkedTargets(level, player, heldStack);
+			&& canExecutePrimaryUse(player, context.getHand())) {
+			executePrimaryUse(level, player, heldStack);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
 		return InteractionResult.PASS;
@@ -187,7 +187,7 @@ public class LinkerItem extends Item implements PairableItem {
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.links", linkedText));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
-		tooltipComponents.add(Component.translatable("tooltip.redstonelink.trigger_linker"));
+		tooltipComponents.add(buildPrimaryUseTooltip());
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 
@@ -217,14 +217,14 @@ public class LinkerItem extends Item implements PairableItem {
 	/**
 	 * 判断是否允许通过遥控器手势打开配对界面。
 	 */
-	private static boolean shouldOpenPairingUi(Player player, InteractionHand hand) {
+	protected boolean shouldOpenPairingUi(Player player, InteractionHand hand) {
 		return RedstoneLinkConfig.canOpenPairingByLinker(player, hand);
 	}
 
 	/**
 	 * 遥控器触发条件：主手 + 非潜行 + 副手为空。
 	 */
-	private static boolean canTrigger(Player player, InteractionHand hand) {
+	protected boolean canExecutePrimaryUse(Player player, InteractionHand hand) {
 		if (hand != InteractionHand.MAIN_HAND) {
 			return false;
 		}
@@ -233,6 +233,40 @@ public class LinkerItem extends Item implements PairableItem {
 		}
 		// 副手必须为空，防止与副手物品交互语义冲突。
 		return player.getOffhandItem().isEmpty();
+	}
+
+	/**
+	 * 追加本轮主动作提示。
+	 * <p>
+	 * 默认遥控器展示“触发已连接核心”；同步遥控器会覆盖为同步语义提示。
+	 * </p>
+	 */
+	protected Component buildPrimaryUseTooltip() {
+		return Component.translatable("tooltip.redstonelink.trigger_linker");
+	}
+
+	/**
+	 * 执行站立右键主动作。
+	 * <p>
+	 * 默认行为为 TOGGLE/PULSE 触发；子类可覆盖为同步派发。
+	 * </p>
+	 */
+	protected void executePrimaryUse(Level level, Player player, ItemStack stack) {
+		triggerLinkedTargets(level, player, stack);
+	}
+
+	/**
+	 * 供子类复用的序号补齐入口。
+	 */
+	protected final void ensureSerialAssigned(Level level, ItemStack stack) {
+		ensureSerial(level, stack);
+	}
+
+	/**
+	 * 供子类复用的配对界面打开入口。
+	 */
+	protected final void openPairingUi(Level level, Player player, ItemStack stack) {
+		openPairingScreen(level, player, stack);
 	}
 
 	/**

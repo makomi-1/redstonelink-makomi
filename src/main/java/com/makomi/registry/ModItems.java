@@ -5,6 +5,7 @@ import com.makomi.block.entity.ActivationMode;
 import com.makomi.item.LinkerItem;
 import com.makomi.item.PairableBlockItem;
 import com.makomi.item.QuickLinkToolItem;
+import com.makomi.item.SyncLinkerItem;
 import com.makomi.data.LinkNodeType;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -86,6 +87,11 @@ public final class ModItems {
 	public static final Item REDSTONELINK_PULSE_LINKER = register(
 		"redstonelink_pulse_linker",
 		new LinkerItem(new Item.Properties().stacksTo(1), ActivationMode.PULSE)
+	);
+
+	public static final Item REDSTONELINK_SYNC_LINKER = register(
+		"redstonelink_sync_linker",
+		new SyncLinkerItem(new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item QUICK_LINK_TOOL = register(

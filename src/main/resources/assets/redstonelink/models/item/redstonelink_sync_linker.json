@@ -1,0 +1,14 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "redstonelink:item/redstonelink_sync_linker_0"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "custom_model_data": 1
+      },
+      "model": "redstonelink:item/redstonelink_sync_linker_on"
+    }
+  ]
+}
