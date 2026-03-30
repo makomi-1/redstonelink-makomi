@@ -16,6 +16,8 @@ final class RedstoneLinkClientDisplayParser {
 	static final String KEY_SERIAL_OVERLAY_TOGGLE_KEY = "client.serialOverlayToggleKey";
 	static final String KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH = "client.serialOverlayFarSeeThrough";
 	static final String KEY_PAIRING_INPUT_MAX_LENGTH = "client.pairingInputMaxLength";
+	static final String KEY_QUICK_LINK_MODE_TOGGLE_KEY = "client.quickLinkModeToggleKey";
+	static final String KEY_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH = "client.quickLinkSerialCacheMaxLength";
 	static final int DEFAULT_SERIAL_OVERLAY_MAX_DISTANCE = 24;
 	static final int MIN_SERIAL_OVERLAY_MAX_DISTANCE = 4;
 	static final int MAX_SERIAL_OVERLAY_MAX_DISTANCE = 256;
@@ -26,8 +28,12 @@ final class RedstoneLinkClientDisplayParser {
 	static final String DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY = "key.keyboard.k";
 	static final boolean DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH = false;
 	static final int DEFAULT_PAIRING_INPUT_MAX_LENGTH = 1024;
+	static final String DEFAULT_QUICK_LINK_MODE_TOGGLE_KEY = "key.keyboard.b";
+	static final int DEFAULT_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH = 1024;
 	static final int MIN_PAIRING_INPUT_MAX_LENGTH = 64;
 	static final int MAX_PAIRING_INPUT_MAX_LENGTH = 32768;
+	static final int MIN_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH = 64;
+	static final int MAX_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH = 32768;
 
 	private RedstoneLinkClientDisplayParser() {
 	}
@@ -77,6 +83,22 @@ final class RedstoneLinkClientDisplayParser {
 					DEFAULT_PAIRING_INPUT_MAX_LENGTH,
 					MIN_PAIRING_INPUT_MAX_LENGTH,
 					MAX_PAIRING_INPUT_MAX_LENGTH,
+					logger
+				)
+			),
+			new RedstoneLinkClientQuickLinkConfig(
+				RedstoneLinkClientKeyConfigSupport.parseKey(
+					properties.getProperty(KEY_QUICK_LINK_MODE_TOGGLE_KEY),
+					KEY_QUICK_LINK_MODE_TOGGLE_KEY,
+					DEFAULT_QUICK_LINK_MODE_TOGGLE_KEY,
+					logger
+				),
+				parseInt(
+					properties,
+					KEY_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH,
+					DEFAULT_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH,
+					MIN_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH,
+					MAX_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH,
 					logger
 				)
 			)

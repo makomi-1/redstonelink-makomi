@@ -106,6 +106,13 @@ public final class RedstoneLinkClientDisplayConfig {
 	}
 
 	/**
+	 * @return 客户端快速连接工具配置
+	 */
+	public static RedstoneLinkClientQuickLinkConfig quickLink() {
+		return snapshot.quickLink();
+	}
+
+	/**
 	 * 按“远 -> 近 -> 远+近 -> 关闭”切换序号外显模式，并持久化到客户端配置文件。
 	 */
 	public static SerialOverlayMode cycleSerialOverlayMode() {
@@ -119,7 +126,8 @@ public final class RedstoneLinkClientDisplayConfig {
 				current.toggleKey(),
 				current.farSeeThrough()
 			),
-			pairing()
+			pairing(),
+			quickLink()
 		);
 		saveCurrentValues();
 		return snapshot.overlay().mode();
@@ -139,7 +147,8 @@ public final class RedstoneLinkClientDisplayConfig {
 				current.toggleKey(),
 				seeThrough
 			),
-			pairing()
+			pairing(),
+			quickLink()
 		);
 		saveCurrentValues();
 	}

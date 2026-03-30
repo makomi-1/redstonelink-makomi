@@ -1,3 +1,4 @@
 {
+	"render_type": "minecraft:cutout",
 	"parent": "redstonelink:block/link_toggle_button_inventory"
 }

@@ -7,9 +7,11 @@ import com.makomi.client.network.PairingNetworkClientHandlerSupport;
 import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
-import com.makomi.client.render.QuickLinkFeedbackOverlayRenderer;
 import com.makomi.client.render.QuickLinkOutlineRenderer;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
+import com.makomi.data.QuickLinkToolData;
+import com.makomi.item.QuickLinkToolItem;
+import com.makomi.network.QuickLinkNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
 import com.mojang.brigadier.Command;
@@ -17,6 +19,7 @@ import com.mojang.brigadier.context.CommandContext;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
@@ -39,8 +42,11 @@ import net.minecraft.network.chat.Component;
 public class RedstoneLinkClient implements ClientModInitializer {
 	private static final String KEY_CATEGORY = "key.categories.redstonelink";
 	private static final String KEY_TOGGLE_SERIAL_OVERLAY = "key.redstonelink.toggle_serial_overlay";
+	private static final String KEY_TOGGLE_QUICK_LINK_MODE = "key.redstonelink.toggle_quick_link_mode";
 	private static final String CLIENT_DISPLAY_COMMAND_ROOT = "rlclient";
 	private static KeyMapping toggleSerialOverlayKey;
+	private static KeyMapping toggleQuickLinkModeKey;
+	private static boolean quickLinkClearKeyWasDown;
 
 	@Override
 	public void onInitializeClient() {
@@ -64,9 +70,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_TOGGLE_BUTTON, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_PUSH_BUTTON, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SYNC_LEVER, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_TOGGLE_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_PUSH_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SYNC_LEVER, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_TOGGLE_EMITTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_PULSE_EMITTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SYNC_EMITTER, RenderType.translucent());
@@ -95,7 +101,6 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerHudRenderers() {
 		HudRenderCallback.EVENT.register(LinkSerialHudOverlayRenderer::onHudRender);
-		HudRenderCallback.EVENT.register(QuickLinkFeedbackOverlayRenderer::onHudRender);
 	}
 
 	/**
@@ -106,11 +111,20 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerClientKeyBindings() {
 		InputConstants.Key defaultToggleKey = RedstoneLinkClientDisplayConfig.overlay().toggleKey();
+		InputConstants.Key defaultQuickLinkToggleKey = RedstoneLinkClientDisplayConfig.quickLink().modeToggleKey();
 		toggleSerialOverlayKey = KeyBindingHelper.registerKeyBinding(
 			new KeyMapping(
 				KEY_TOGGLE_SERIAL_OVERLAY,
 				defaultToggleKey.getType(),
 				defaultToggleKey.getValue(),
+				KEY_CATEGORY
+			)
+		);
+		toggleQuickLinkModeKey = KeyBindingHelper.registerKeyBinding(
+			new KeyMapping(
+				KEY_TOGGLE_QUICK_LINK_MODE,
+				defaultQuickLinkToggleKey.getType(),
+				defaultQuickLinkToggleKey.getValue(),
 				KEY_CATEGORY
 			)
 		);
@@ -125,7 +139,81 @@ public class RedstoneLinkClient implements ClientModInitializer {
 					);
 				}
 			}
+
+			while (toggleQuickLinkModeKey.consumeClick()) {
+				handleQuickLinkModeToggle(client);
+			}
+
+			boolean quickLinkClearKeyDown = client.options.keyPickItem.isDown();
+			if (quickLinkClearKeyDown && !quickLinkClearKeyWasDown) {
+				handleQuickLinkClear(client);
+			}
+			quickLinkClearKeyWasDown = quickLinkClearKeyDown;
 		});
+	}
+
+	/**
+	 * 处理快速连接工具模式切换按键。
+	 */
+	private static void handleQuickLinkModeToggle(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		if (client.screen != null) {
+			return;
+		}
+		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+			return;
+		}
+
+		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(client.player.getMainHandItem());
+		QuickLinkToolData.Mode nextMode = snapshot.mode().next();
+		if (nextMode == QuickLinkToolData.Mode.CHANNEL) {
+			client.player.displayClientMessage(Component.translatable("message.redstonelink.quick_link.mode.channel_future"), true);
+			return;
+		}
+
+		ClientPlayNetworking.send(
+			new QuickLinkNetwork.SaveQuickLinkPayload(
+				nextMode.token(),
+				com.makomi.data.LinkNodeSemantics.toSemanticName(snapshot.serialCacheType()),
+				snapshot.serialCacheExpression(),
+				snapshot.channelCache()
+			)
+		);
+		client.player.displayClientMessage(
+			Component.translatable(
+				"message.redstonelink.quick_link.mode_switched",
+				Component.translatable(nextMode.translationKey())
+			),
+			true
+		);
+	}
+
+	/**
+	 * 处理中键清空快速连接工具缓存。
+	 */
+	private static void handleQuickLinkClear(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		if (client.screen != null) {
+			return;
+		}
+		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+			return;
+		}
+
+		QuickLinkToolData.Snapshot cleared = QuickLinkToolData.clearCaches(client.player.getMainHandItem());
+		ClientPlayNetworking.send(
+			new QuickLinkNetwork.SaveQuickLinkPayload(
+				cleared.mode().token(),
+				com.makomi.data.LinkNodeSemantics.toSemanticName(cleared.serialCacheType()),
+				cleared.serialCacheExpression(),
+				cleared.channelCache()
+			)
+		);
+		client.player.displayClientMessage(Component.translatable("message.redstonelink.quick_link.cache_cleared"), true);
 	}
 
 	/**
@@ -205,7 +293,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerQuickLinkClientHooks() {
 		QuickLinkNetworkClientHandlerSupport.registerReceivers();
-		QuickLinkNetworkClientHandlerSupport.registerAttackCallback();
+		QuickLinkNetworkClientHandlerSupport.registerInteractionCallbacks();
 		QuickLinkOutlineRenderer.register();
 	}
 }

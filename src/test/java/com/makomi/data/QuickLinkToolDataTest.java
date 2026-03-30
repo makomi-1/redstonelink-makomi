@@ -65,4 +65,76 @@ class QuickLinkToolDataTest {
 		assertEquals(QuickLinkToolData.Mode.CHANNEL, QuickLinkToolData.cycleMode(stack).mode());
 		assertEquals(QuickLinkToolData.Mode.SERIAL, QuickLinkToolData.cycleMode(stack).mode());
 	}
+
+	/**
+	 * 同类型序号采集应执行增量追加，并保持去重。
+	 */
+	@Test
+	void collectSerialShouldAppendAndDeduplicateWhenTypeMatches() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		QuickLinkToolData.write(
+			stack,
+			new QuickLinkToolData.Snapshot(
+				QuickLinkToolData.Mode.SERIAL,
+				LinkNodeType.CORE,
+				"1:3",
+				"reserved-channel"
+			)
+		);
+
+		QuickLinkToolData.SerialCollectOutcome appended = QuickLinkToolData.collectSerial(stack, LinkNodeType.CORE, 5L);
+		assertEquals(QuickLinkToolData.SerialCollectAction.APPENDED, appended.action());
+		assertEquals("1:3/5", appended.snapshot().serialCacheExpression());
+		assertEquals("reserved-channel", appended.snapshot().channelCache());
+
+		QuickLinkToolData.SerialCollectOutcome duplicate = QuickLinkToolData.collectSerial(stack, LinkNodeType.CORE, 3L);
+		assertEquals(QuickLinkToolData.SerialCollectAction.DUPLICATE, duplicate.action());
+		assertEquals("1:3/5", duplicate.snapshot().serialCacheExpression());
+	}
+
+	/**
+	 * 不同类型序号采集应重建当前序号缓存。
+	 */
+	@Test
+	void collectSerialShouldReplaceCacheWhenTypeChanges() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		QuickLinkToolData.write(
+			stack,
+			new QuickLinkToolData.Snapshot(
+				QuickLinkToolData.Mode.SERIAL,
+				LinkNodeType.CORE,
+				"1:3",
+				"reserved-channel"
+			)
+		);
+
+		QuickLinkToolData.SerialCollectOutcome replaced = QuickLinkToolData.collectSerial(stack, LinkNodeType.TRIGGER_SOURCE, 12L);
+		assertEquals(QuickLinkToolData.SerialCollectAction.REPLACED, replaced.action());
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, replaced.snapshot().serialCacheType());
+		assertEquals("12", replaced.snapshot().serialCacheExpression());
+		assertEquals("reserved-channel", replaced.snapshot().channelCache());
+	}
+
+	/**
+	 * 清空缓存应保留当前模式与序号缓存类型。
+	 */
+	@Test
+	void clearCachesShouldKeepModeAndSerialCacheType() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		QuickLinkToolData.write(
+			stack,
+			new QuickLinkToolData.Snapshot(
+				QuickLinkToolData.Mode.SERIAL,
+				LinkNodeType.TRIGGER_SOURCE,
+				"1:3/5",
+				"channel-42"
+			)
+		);
+
+		QuickLinkToolData.Snapshot cleared = QuickLinkToolData.clearCaches(stack);
+		assertEquals(QuickLinkToolData.Mode.SERIAL, cleared.mode());
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, cleared.serialCacheType());
+		assertEquals("", cleared.serialCacheExpression());
+		assertEquals("", cleared.channelCache());
+	}
 }

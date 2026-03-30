@@ -2,7 +2,6 @@ package com.makomi.client.render;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.LinkNodeType;
-import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
@@ -11,14 +10,21 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
- * 快速连接工具合法命中描边渲染器。
+ * 快速连接工具命中描边渲染器。
  */
 public final class QuickLinkOutlineRenderer {
+	private static final float CORE_RED = 0.22F;
+	private static final float CORE_GREEN = 0.66F;
+	private static final float CORE_BLUE = 1.00F;
+	private static final float TRIGGER_SOURCE_RED = 1.00F;
+	private static final float TRIGGER_SOURCE_GREEN = 0.58F;
+	private static final float TRIGGER_SOURCE_BLUE = 0.18F;
+
 	private QuickLinkOutlineRenderer() {
 	}
 
 	/**
-	 * 在默认方块描边阶段绘制亮红描边。
+	 * 在默认方块描边阶段绘制 quick-link 自定义描边。
 	 *
 	 * @return `false` 表示已自行渲染并取消默认白色描边；其余情况保持默认行为
 	 */
@@ -36,16 +42,8 @@ public final class QuickLinkOutlineRenderer {
 		if (!(minecraft.level.getBlockEntity(blockOutlineContext.blockPos()) instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
 			return true;
 		}
-
-		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
-		if (snapshot.mode() != QuickLinkToolData.Mode.SERIAL || snapshot.serialCacheExpression().isBlank()) {
-			return true;
-		}
-
-		LinkNodeType expectedTargetType = snapshot.serialCacheType() == LinkNodeType.TRIGGER_SOURCE
-			? LinkNodeType.CORE
-			: LinkNodeType.TRIGGER_SOURCE;
-		if (pairableNodeBlockEntity.getLinkNodeType() != expectedTargetType) {
+		LinkNodeType targetType = pairableNodeBlockEntity.getLinkNodeType();
+		if (targetType == null) {
 			return true;
 		}
 
@@ -61,9 +59,9 @@ public final class QuickLinkOutlineRenderer {
 			(double) blockOutlineContext.blockPos().getX() - blockOutlineContext.cameraX(),
 			(double) blockOutlineContext.blockPos().getY() - blockOutlineContext.cameraY(),
 			(double) blockOutlineContext.blockPos().getZ() - blockOutlineContext.cameraZ(),
-			1.0F,
-			0.2F,
-			0.2F,
+			targetType == LinkNodeType.CORE ? CORE_RED : TRIGGER_SOURCE_RED,
+			targetType == LinkNodeType.CORE ? CORE_GREEN : TRIGGER_SOURCE_GREEN,
+			targetType == LinkNodeType.CORE ? CORE_BLUE : TRIGGER_SOURCE_BLUE,
 			1.0F,
 			false
 		);

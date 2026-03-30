@@ -7,7 +7,8 @@ import com.mojang.blaze3d.platform.InputConstants;
  */
 record RedstoneLinkClientDisplaySnapshot(
 	RedstoneLinkClientOverlayConfig overlay,
-	RedstoneLinkClientPairingConfig pairing
+	RedstoneLinkClientPairingConfig pairing,
+	RedstoneLinkClientQuickLinkConfig quickLink
 ) {
 	/**
 	 * @return 客户端显示配置默认值
@@ -22,7 +23,8 @@ record RedstoneLinkClientDisplaySnapshot(
 				InputConstants.getKey("key.keyboard.k"),
 				false
 			),
-			new RedstoneLinkClientPairingConfig(1024)
+			new RedstoneLinkClientPairingConfig(1024),
+			new RedstoneLinkClientQuickLinkConfig(InputConstants.getKey("key.keyboard.b"), 1024)
 		);
 	}
 }

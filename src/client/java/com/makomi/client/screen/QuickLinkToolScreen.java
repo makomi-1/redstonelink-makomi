@@ -20,6 +20,13 @@ import org.lwjgl.glfw.GLFW;
 public class QuickLinkToolScreen extends Screen {
 	private static final Component SAVE = Component.translatable("screen.redstonelink.quick_link.save");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.quick_link.clear");
+	private static final int TITLE_TOP_MARGIN = 48;
+	private static final int MODE_LINE_MARGIN = 14;
+	private static final int LABEL_MARGIN = 14;
+	private static final int CHANNEL_NOTE_MARGIN = 2;
+	private static final int CACHE_TYPE_BUTTON_MARGIN = 8;
+	private static final int BUTTON_ROW_MARGIN = 6;
+	private static final int STATUS_MESSAGE_MARGIN = 16;
 	private static final int BUTTON_WIDTH = 108;
 	private static final int BUTTON_HEIGHT = 20;
 	private static final int BUTTON_GAP = 4;
@@ -42,23 +49,24 @@ public class QuickLinkToolScreen extends Screen {
 	@Override
 	protected void init() {
 		super.init();
-		int inputX = width / 2 - INPUT_BOX_WIDTH / 2;
-		int inputY = height / 2 - 24;
+		int inputX = inputBoxX();
+		int inputY = inputBoxY();
 		inputBox = new MultiLineEditBox(font, inputX, inputY, INPUT_BOX_WIDTH, INPUT_BOX_HEIGHT, inputLabel(), Component.empty());
-		inputBox.setCharacterLimit(RedstoneLinkClientDisplayConfig.pairing().inputMaxLength());
+		inputBox.setCharacterLimit(RedstoneLinkClientDisplayConfig.quickLink().serialCacheMaxLength());
 		inputBox.setValue(initialInputValue());
 		addRenderableWidget(inputBox);
 		setInitialFocus(inputBox);
 
-		int buttonY = inputY + INPUT_BOX_HEIGHT + 10;
-		addRenderableWidget(Button.builder(SAVE, button -> saveAndClose()).bounds(inputX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT).build());
+		int cacheTypeButtonY = cacheTypeButtonY();
+		int buttonRowY = actionButtonRowY();
+		addRenderableWidget(Button.builder(SAVE, button -> saveAndClose()).bounds(inputX, buttonRowY, BUTTON_WIDTH, BUTTON_HEIGHT).build());
 		addRenderableWidget(
 			Button
 				.builder(CLEAR, button -> {
 					inputBox.setValue("");
 					statusMessage = Component.empty();
 				})
-				.bounds(inputX + BUTTON_WIDTH + BUTTON_GAP, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT)
+				.bounds(inputX + BUTTON_WIDTH + BUTTON_GAP, buttonRowY, BUTTON_WIDTH, BUTTON_HEIGHT)
 				.build()
 		);
 
@@ -70,7 +78,7 @@ public class QuickLinkToolScreen extends Screen {
 						: LinkNodeType.TRIGGER_SOURCE;
 					button.setMessage(cacheTypeButtonLabel());
 				})
-				.bounds(inputX, buttonY - BUTTON_HEIGHT - 6, INPUT_BOX_WIDTH, BUTTON_HEIGHT)
+				.bounds(inputX, cacheTypeButtonY, INPUT_BOX_WIDTH, BUTTON_HEIGHT)
 				.build()
 		);
 		cacheTypeButton.active = isSerialMode();
@@ -82,32 +90,32 @@ public class QuickLinkToolScreen extends Screen {
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
 		int centerX = width / 2;
-		int titleY = height / 2 - 72;
-		int leftX = width / 2 - INPUT_BOX_WIDTH / 2;
+		int titleY = titleY();
+		int leftX = inputBoxX();
 		guiGraphics.drawCenteredString(font, title, centerX, titleY, 0xFFFFFF);
 		guiGraphics.drawCenteredString(
 			font,
 			Component.translatable("screen.redstonelink.quick_link.mode_line", Component.translatable(currentMode().translationKey())),
 			centerX,
-			titleY + 14,
+			titleY + MODE_LINE_MARGIN,
 			0xC8C8C8
 		);
 		if (isSerialMode()) {
-			guiGraphics.drawString(font, inputLabel(), leftX, titleY + 34, 0xFFFFFF, false);
+			guiGraphics.drawString(font, inputLabel(), leftX, inputLabelY(), 0xFFFFFF, false);
 		} else {
-			guiGraphics.drawString(font, inputLabel(), leftX, titleY + 34, 0xFFFFFF, false);
+			guiGraphics.drawString(font, inputLabel(), leftX, inputLabelY(), 0xFFFFFF, false);
 			guiGraphics.drawString(
 				font,
 				Component.translatable("screen.redstonelink.quick_link.channel_note"),
 				leftX,
-				titleY + 46,
+				channelNoteY(),
 				0xE0B040,
 				false
 			);
 		}
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, inputBox.getY() + inputBox.getHeight() + 36, 0xFF6666);
+			guiGraphics.drawCenteredString(font, statusMessage, centerX, statusMessageY(), 0xFF6666);
 		}
 	}
 
@@ -202,5 +210,68 @@ public class QuickLinkToolScreen extends Screen {
 			"screen.redstonelink.quick_link.serial_cache_type_button",
 			LinkNodeSemantics.toSemanticName(currentSerialCacheType)
 		);
+	}
+
+	/**
+	 * @return 输入框左上角 X 坐标
+	 */
+	private int inputBoxX() {
+		return width / 2 - INPUT_BOX_WIDTH / 2;
+	}
+
+	/**
+	 * @return 输入框左上角 Y 坐标
+	 */
+	private int inputBoxY() {
+		return height / 2 - 24;
+	}
+
+	/**
+	 * @return 标题 Y 坐标
+	 */
+	private int titleY() {
+		return inputBoxY() - TITLE_TOP_MARGIN;
+	}
+
+	/**
+	 * @return 输入标签 Y 坐标
+	 */
+	private int inputLabelY() {
+		return inputBoxY() - LABEL_MARGIN;
+	}
+
+	/**
+	 * @return 频道预留说明 Y 坐标
+	 */
+	private int channelNoteY() {
+		return inputBoxY() - CHANNEL_NOTE_MARGIN;
+	}
+
+	/**
+	 * @return 缓存类型按钮 Y 坐标
+	 */
+	private int cacheTypeButtonY() {
+		return inputBoxY() + resolvedInputBoxHeight() + CACHE_TYPE_BUTTON_MARGIN + 4;
+	}
+
+	/**
+	 * @return 保存/清空按钮行 Y 坐标
+	 */
+	private int actionButtonRowY() {
+		return cacheTypeButtonY() + BUTTON_HEIGHT + BUTTON_ROW_MARGIN;
+	}
+
+	/**
+	 * @return 界面内状态提示 Y 坐标
+	 */
+	private int statusMessageY() {
+		return actionButtonRowY() + BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
+	}
+
+	/**
+	 * @return 当前输入框实际高度
+	 */
+	private int resolvedInputBoxHeight() {
+		return inputBox == null ? INPUT_BOX_HEIGHT : inputBox.getHeight();
 	}
 }

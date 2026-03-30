@@ -1,5 +1,9 @@
 package com.makomi.data;
 
+import com.makomi.util.SerialDisplayFormatUtil;
+import com.makomi.util.SerialParseUtil;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
@@ -62,6 +66,54 @@ public final class QuickLinkToolData {
 		Snapshot next = current.withMode(current.mode().next());
 		write(stack, next);
 		return next;
+	}
+
+	/**
+	 * 采集单个序号节点到工具缓存。
+	 * <p>
+	 * 仅当当前模式仍为 `serial` 且缓存类型一致时才执行增量去重；否则重建序号缓存。
+	 * </p>
+	 */
+	public static SerialCollectOutcome collectSerial(ItemStack stack, LinkNodeType serialCacheType, long collectedSerial) {
+		LinkNodeType normalizedType = normalizeSerialCacheType(serialCacheType);
+		Snapshot current = read(stack);
+		List<Long> mergedSerials = new ArrayList<>();
+		SerialCollectAction action = SerialCollectAction.REPLACED;
+
+		if (
+			current.mode() == Mode.SERIAL &&
+			current.serialCacheType() == normalizedType &&
+			!current.serialCacheExpression().isBlank()
+		) {
+			SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(current.serialCacheExpression(), 0);
+			if (!parseResult.exceedLimit() && parseResult.invalidEntries().isEmpty()) {
+				mergedSerials.addAll(parseResult.orderedTargets());
+				action = SerialCollectAction.APPENDED;
+			}
+		}
+
+		if (mergedSerials.contains(collectedSerial)) {
+			action = SerialCollectAction.DUPLICATE;
+		} else {
+			mergedSerials.add(collectedSerial);
+		}
+
+		String nextExpression = SerialDisplayFormatUtil.buildExpression(mergedSerials).joinAll();
+		Snapshot next = new Snapshot(Mode.SERIAL, normalizedType, nextExpression, current.channelCache());
+		write(stack, next);
+		return new SerialCollectOutcome(action, normalizedType, collectedSerial, mergedSerials.size(), next);
+	}
+
+	/**
+	 * 清空当前工具缓存，但保留模式与序号缓存类型。
+	 *
+	 * @return 清空后的新快照
+	 */
+	public static Snapshot clearCaches(ItemStack stack) {
+		Snapshot current = read(stack);
+		Snapshot cleared = new Snapshot(current.mode(), current.serialCacheType(), "", "");
+		write(stack, cleared);
+		return cleared;
 	}
 
 	/**
@@ -198,5 +250,45 @@ public final class QuickLinkToolData {
 		public Snapshot withMode(Mode nextMode) {
 			return new Snapshot(nextMode, serialCacheType, serialCacheExpression, channelCache);
 		}
+
+		/**
+		 * 返回频道缓存值语义包装。
+		 */
+		public ChannelCacheValue channelCacheValue() {
+			return new ChannelCacheValue(channelCache);
+		}
+	}
+
+	/**
+	 * 频道缓存值语义包装。
+	 * <p>
+	 * 当前仅预留接口，不对其进行数值级解析；后续可平滑切换为 `long` 等强类型实现。
+	 * </p>
+	 */
+	public record ChannelCacheValue(String rawValue) {
+		public ChannelCacheValue {
+			rawValue = normalizeText(rawValue);
+		}
+	}
+
+	/**
+	 * 序号采集动作类型。
+	 */
+	public enum SerialCollectAction {
+		REPLACED,
+		APPENDED,
+		DUPLICATE
+	}
+
+	/**
+	 * 序号采集结果。
+	 */
+	public record SerialCollectOutcome(
+		SerialCollectAction action,
+		LinkNodeType serialCacheType,
+		long collectedSerial,
+		int serialCount,
+		Snapshot snapshot
+	) {
 	}
 }

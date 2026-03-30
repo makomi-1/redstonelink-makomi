@@ -37,19 +37,37 @@ class QuickLinkNetworkPayloadTest {
 	}
 
 	/**
-	 * 应用结果回执应保留成功状态、翻译键和参数列表。
+	 * 采集请求编解码往返应保留命中维度与方块坐标。
 	 */
 	@Test
-	void applyResultPayloadCodecRoundTripShouldPreserveFields() {
-		QuickLinkNetwork.QuickLinkApplyResultPayload original = new QuickLinkNetwork.QuickLinkApplyResultPayload(
+	void collectPayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.CollectQuickLinkPayload original = new QuickLinkNetwork.CollectQuickLinkPayload(
+			"minecraft:overworld",
+			42L
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.CollectQuickLinkPayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.CollectQuickLinkPayload decoded = QuickLinkNetwork.CollectQuickLinkPayload.CODEC.decode(buffer);
+
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+	}
+
+	/**
+	 * 统一 quick-link 反馈回执应保留成功状态、翻译键和参数列表。
+	 */
+	@Test
+	void feedbackPayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.QuickLinkFeedbackPayload original = new QuickLinkNetwork.QuickLinkFeedbackPayload(
 			true,
 			"message.redstonelink.quick_link.apply.done.core",
 			List.of("3", "42")
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
-		QuickLinkNetwork.QuickLinkApplyResultPayload.CODEC.encode(buffer, original);
-		QuickLinkNetwork.QuickLinkApplyResultPayload decoded = QuickLinkNetwork.QuickLinkApplyResultPayload.CODEC.decode(buffer);
+		QuickLinkNetwork.QuickLinkFeedbackPayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.QuickLinkFeedbackPayload decoded = QuickLinkNetwork.QuickLinkFeedbackPayload.CODEC.decode(buffer);
 
 		assertEquals(original.success(), decoded.success());
 		assertEquals(original.messageKey(), decoded.messageKey());

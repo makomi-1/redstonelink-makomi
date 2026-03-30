@@ -1,5 +1,5 @@
 {
-  "render_type": "minecraft:translucent",
+  "render_type": "minecraft:cutout",
   "parent": "minecraft:block/button",
   "textures": {
     "texture": "redstonelink:block/link_push_button_blue_overlay"

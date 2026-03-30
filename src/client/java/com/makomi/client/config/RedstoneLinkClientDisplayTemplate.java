@@ -44,13 +44,25 @@ final class RedstoneLinkClientDisplayTemplate {
 			# zh: 配对输入框最大输入长度（字符），范围 64~32768，默认 1024。
 			# en: Maximum input length (chars) for pairing textbox, range 64~32768, default 1024.
 			client.pairingInputMaxLength=%s
+
+			# client.quickLinkModeToggleKey
+			# zh: 快速连接工具模式切换按键（默认 B；当前频道模式仅预留，按键切换时会提示未来扩展）。
+			# en: Quick Link mode toggle key (default B; channel mode is reserved for future expansion).
+			client.quickLinkModeToggleKey=%s
+
+			# client.quickLinkSerialCacheMaxLength
+			# zh: 快速连接工具序号缓存输入最大长度（字符），范围 64~32768，默认 1024。
+			# en: Maximum serial-cache input length (chars) for Quick Link Tool, range 64~32768, default 1024.
+			client.quickLinkSerialCacheMaxLength=%s
 			""".formatted(
 				overlay.mode().configToken(),
 				overlay.maxDistance(),
 				overlay.fontScale(),
 				overlay.toggleKey().getName(),
 				Boolean.toString(overlay.farSeeThrough()),
-				snapshot.pairing().inputMaxLength()
+				snapshot.pairing().inputMaxLength(),
+				snapshot.quickLink().modeToggleKey().getName(),
+				snapshot.quickLink().serialCacheMaxLength()
 			);
 	}
 }

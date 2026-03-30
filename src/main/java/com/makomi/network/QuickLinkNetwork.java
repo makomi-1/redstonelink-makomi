@@ -95,6 +95,37 @@ public final class QuickLinkNetwork {
 	}
 
 	/**
+	 * 客户端左键采集缓存的 C2S 请求。
+	 */
+	public record CollectQuickLinkPayload(String dimensionKey, long blockPosLong) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<CollectQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "collect_quick_link_payload")
+		);
+		public static final StreamCodec<FriendlyByteBuf, CollectQuickLinkPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
+				buffer,
+				payload.dimensionKey(),
+				payload.blockPosLong()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedBlockTargetPayload decoded = QuickLinkNetworkPayloadSupport.decodeBlockTargetPayload(
+					buffer
+				);
+				return new CollectQuickLinkPayload(decoded.dimensionKey(), decoded.blockPosLong());
+			}
+		);
+
+		public CollectQuickLinkPayload {
+			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 客户端左键应用缓存的 C2S 请求。
 	 */
 	public record ApplyQuickLinkPayload(String dimensionKey, long blockPosLong) implements CustomPacketPayload {
@@ -102,9 +133,15 @@ public final class QuickLinkNetwork {
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_payload")
 		);
 		public static final StreamCodec<FriendlyByteBuf, ApplyQuickLinkPayload> CODEC = CustomPacketPayload.codec(
-			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeApplyPayload(buffer, payload.dimensionKey(), payload.blockPosLong()),
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
+				buffer,
+				payload.dimensionKey(),
+				payload.blockPosLong()
+			),
 			buffer -> {
-				QuickLinkNetworkPayloadSupport.DecodedApplyPayload decoded = QuickLinkNetworkPayloadSupport.decodeApplyPayload(buffer);
+				QuickLinkNetworkPayloadSupport.DecodedBlockTargetPayload decoded = QuickLinkNetworkPayloadSupport.decodeBlockTargetPayload(
+					buffer
+				);
 				return new ApplyQuickLinkPayload(decoded.dimensionKey(), decoded.blockPosLong());
 			}
 		);
@@ -120,29 +157,29 @@ public final class QuickLinkNetwork {
 	}
 
 	/**
-	 * 服务端返回给客户端的应用结果回执。
+	 * 服务端返回给客户端的统一 quick-link 反馈回执。
 	 */
-	public record QuickLinkApplyResultPayload(boolean success, String messageKey, List<String> messageArgs)
+	public record QuickLinkFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
 		implements CustomPacketPayload {
-		public static final CustomPacketPayload.Type<QuickLinkApplyResultPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_apply_result")
+		public static final CustomPacketPayload.Type<QuickLinkFeedbackPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_feedback")
 		);
-		public static final StreamCodec<FriendlyByteBuf, QuickLinkApplyResultPayload> CODEC = CustomPacketPayload.codec(
-			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeApplyResultPayload(
+		public static final StreamCodec<FriendlyByteBuf, QuickLinkFeedbackPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeFeedbackPayload(
 				buffer,
 				payload.success(),
 				payload.messageKey(),
 				payload.messageArgs()
 			),
 			buffer -> {
-				QuickLinkNetworkPayloadSupport.DecodedApplyResultPayload decoded = QuickLinkNetworkPayloadSupport.decodeApplyResultPayload(
+				QuickLinkNetworkPayloadSupport.DecodedFeedbackPayload decoded = QuickLinkNetworkPayloadSupport.decodeFeedbackPayload(
 					buffer
 				);
-				return new QuickLinkApplyResultPayload(decoded.success(), decoded.messageKey(), decoded.messageArgs());
+				return new QuickLinkFeedbackPayload(decoded.success(), decoded.messageKey(), decoded.messageArgs());
 			}
 		);
 
-		public QuickLinkApplyResultPayload {
+		public QuickLinkFeedbackPayload {
 			messageKey = messageKey == null ? "" : messageKey;
 			messageArgs = List.copyOf(messageArgs == null ? List.of() : messageArgs);
 		}

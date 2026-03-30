@@ -66,7 +66,7 @@ final class QuickLinkNetworkPayloadSupport {
 	/**
 	 * 编码应用请求。
 	 */
-	static void encodeApplyPayload(FriendlyByteBuf buffer, String dimensionKey, long blockPosLong) {
+	static void encodeBlockTargetPayload(FriendlyByteBuf buffer, String dimensionKey, long blockPosLong) {
 		buffer.writeUtf(dimensionKey == null ? "" : dimensionKey);
 		buffer.writeLong(blockPosLong);
 	}
@@ -74,14 +74,14 @@ final class QuickLinkNetworkPayloadSupport {
 	/**
 	 * 解码应用请求。
 	 */
-	static DecodedApplyPayload decodeApplyPayload(FriendlyByteBuf buffer) {
-		return new DecodedApplyPayload(buffer.readUtf(), buffer.readLong());
+	static DecodedBlockTargetPayload decodeBlockTargetPayload(FriendlyByteBuf buffer) {
+		return new DecodedBlockTargetPayload(buffer.readUtf(), buffer.readLong());
 	}
 
 	/**
 	 * 编码应用结果回执。
 	 */
-	static void encodeApplyResultPayload(FriendlyByteBuf buffer, boolean success, String messageKey, List<String> messageArgs) {
+	static void encodeFeedbackPayload(FriendlyByteBuf buffer, boolean success, String messageKey, List<String> messageArgs) {
 		buffer.writeBoolean(success);
 		buffer.writeUtf(messageKey == null ? "" : messageKey);
 		List<String> args = messageArgs == null ? List.of() : List.copyOf(messageArgs);
@@ -94,7 +94,7 @@ final class QuickLinkNetworkPayloadSupport {
 	/**
 	 * 解码应用结果回执。
 	 */
-	static DecodedApplyResultPayload decodeApplyResultPayload(FriendlyByteBuf buffer) {
+	static DecodedFeedbackPayload decodeFeedbackPayload(FriendlyByteBuf buffer) {
 		boolean success = buffer.readBoolean();
 		String messageKey = buffer.readUtf();
 		int size = buffer.readVarInt();
@@ -102,7 +102,7 @@ final class QuickLinkNetworkPayloadSupport {
 		for (int index = 0; index < size; index++) {
 			messageArgs.add(buffer.readUtf());
 		}
-		return new DecodedApplyResultPayload(success, messageKey, List.copyOf(messageArgs));
+		return new DecodedFeedbackPayload(success, messageKey, List.copyOf(messageArgs));
 	}
 
 	/**
@@ -119,12 +119,12 @@ final class QuickLinkNetworkPayloadSupport {
 	/**
 	 * 应用请求解码结果。
 	 */
-	record DecodedApplyPayload(String dimensionKey, long blockPosLong) {
+	record DecodedBlockTargetPayload(String dimensionKey, long blockPosLong) {
 	}
 
 	/**
 	 * 应用结果回执解码结果。
 	 */
-	record DecodedApplyResultPayload(boolean success, String messageKey, List<String> messageArgs) {
+	record DecodedFeedbackPayload(boolean success, String messageKey, List<String> messageArgs) {
 	}
 }

@@ -32,12 +32,16 @@ final class QuickLinkNetworkRegistrationSupport {
 			QuickLinkNetwork.SaveQuickLinkPayload.CODEC
 		);
 		PayloadTypeRegistry.playC2S().register(
+			QuickLinkNetwork.CollectQuickLinkPayload.TYPE,
+			QuickLinkNetwork.CollectQuickLinkPayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
 			QuickLinkNetwork.ApplyQuickLinkPayload.TYPE,
 			QuickLinkNetwork.ApplyQuickLinkPayload.CODEC
 		);
 		PayloadTypeRegistry.playS2C().register(
-			QuickLinkNetwork.QuickLinkApplyResultPayload.TYPE,
-			QuickLinkNetwork.QuickLinkApplyResultPayload.CODEC
+			QuickLinkNetwork.QuickLinkFeedbackPayload.TYPE,
+			QuickLinkNetwork.QuickLinkFeedbackPayload.CODEC
 		);
 	}
 
@@ -51,6 +55,13 @@ final class QuickLinkNetworkRegistrationSupport {
 				return;
 			}
 			player.server.execute(() -> QuickLinkNetworkServerHandlerSupport.handleSaveQuickLink(player, payload));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.CollectQuickLinkPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> QuickLinkNetworkServerHandlerSupport.handleCollectQuickLink(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.ApplyQuickLinkPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
