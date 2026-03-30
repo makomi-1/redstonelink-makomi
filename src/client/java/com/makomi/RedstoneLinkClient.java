@@ -4,8 +4,11 @@ import com.makomi.client.ClientHooks;
 import com.makomi.client.bench.BenchClientAutomationController;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.client.network.PairingNetworkClientHandlerSupport;
+import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
+import com.makomi.client.render.QuickLinkFeedbackOverlayRenderer;
+import com.makomi.client.render.QuickLinkOutlineRenderer;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
@@ -49,6 +52,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerClientDisplayCommands();
 		registerPairingScreenOpeners();
 		registerPairingPacketReceivers();
+		registerQuickLinkClientHooks();
 		BenchClientAutomationController.initialize();
 		RedstoneLink.LOGGER.info("RedstoneLink client initialized");
 	}
@@ -91,6 +95,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerHudRenderers() {
 		HudRenderCallback.EVENT.register(LinkSerialHudOverlayRenderer::onHudRender);
+		HudRenderCallback.EVENT.register(QuickLinkFeedbackOverlayRenderer::onHudRender);
 	}
 
 	/**
@@ -193,5 +198,14 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerPairingPacketReceivers() {
 		PairingNetworkClientHandlerSupport.registerReceivers();
+	}
+
+	/**
+	 * 注册快速连接工具客户端接包与渲染钩子。
+	 */
+	private static void registerQuickLinkClientHooks() {
+		QuickLinkNetworkClientHandlerSupport.registerReceivers();
+		QuickLinkNetworkClientHandlerSupport.registerAttackCallback();
+		QuickLinkOutlineRenderer.register();
 	}
 }

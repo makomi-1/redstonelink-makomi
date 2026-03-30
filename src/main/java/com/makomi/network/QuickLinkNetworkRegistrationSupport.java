@@ -1,0 +1,63 @@
+package com.makomi.network;
+
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.server.level.ServerPlayer;
+
+/**
+ * 快速连接工具网络注册壳。
+ */
+final class QuickLinkNetworkRegistrationSupport {
+	private QuickLinkNetworkRegistrationSupport() {
+	}
+
+	/**
+	 * 注册全部 payload 与服务端接包器。
+	 */
+	static void register() {
+		registerPayloadTypes();
+		registerServerReceivers();
+	}
+
+	/**
+	 * 注册 C2S / S2C payload 类型。
+	 */
+	private static void registerPayloadTypes() {
+		PayloadTypeRegistry.playS2C().register(
+			QuickLinkNetwork.OpenQuickLinkEditorPayload.TYPE,
+			QuickLinkNetwork.OpenQuickLinkEditorPayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
+			QuickLinkNetwork.SaveQuickLinkPayload.TYPE,
+			QuickLinkNetwork.SaveQuickLinkPayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
+			QuickLinkNetwork.ApplyQuickLinkPayload.TYPE,
+			QuickLinkNetwork.ApplyQuickLinkPayload.CODEC
+		);
+		PayloadTypeRegistry.playS2C().register(
+			QuickLinkNetwork.QuickLinkApplyResultPayload.TYPE,
+			QuickLinkNetwork.QuickLinkApplyResultPayload.CODEC
+		);
+	}
+
+	/**
+	 * 注册服务端接包器，并统一切回主线程处理。
+	 */
+	private static void registerServerReceivers() {
+		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.SaveQuickLinkPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> QuickLinkNetworkServerHandlerSupport.handleSaveQuickLink(player, payload));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.ApplyQuickLinkPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> QuickLinkNetworkServerHandlerSupport.handleApplyQuickLink(player, payload));
+		});
+	}
+}

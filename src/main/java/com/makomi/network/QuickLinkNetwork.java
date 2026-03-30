@@ -1,0 +1,155 @@
+package com.makomi.network;
+
+import com.makomi.RedstoneLink;
+import com.makomi.data.QuickLinkToolData;
+import java.util.List;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+
+/**
+ * 快速连接工具网络通道。
+ */
+public final class QuickLinkNetwork {
+	private QuickLinkNetwork() {
+	}
+
+	/**
+	 * 注册快速连接工具全部 payload 与接包器。
+	 */
+	public static void register() {
+		QuickLinkNetworkRegistrationSupport.register();
+	}
+
+	/**
+	 * 打开快速连接工具编辑器。
+	 */
+	public static void openEditor(ServerPlayer player, ItemStack stack) {
+		if (player == null || stack == null || stack.isEmpty()) {
+			return;
+		}
+		ServerPlayNetworking.send(player, new OpenQuickLinkEditorPayload(QuickLinkToolData.read(stack)));
+	}
+
+	/**
+	 * 服务端打开编辑器的 S2C 包。
+	 */
+	public record OpenQuickLinkEditorPayload(QuickLinkToolData.Snapshot snapshot) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<OpenQuickLinkEditorPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_quick_link_editor")
+		);
+		public static final StreamCodec<FriendlyByteBuf, OpenQuickLinkEditorPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeOpenEditorPayload(buffer, payload.snapshot()),
+			buffer -> new OpenQuickLinkEditorPayload(QuickLinkNetworkPayloadSupport.decodeOpenEditorPayload(buffer))
+		);
+
+		public OpenQuickLinkEditorPayload {
+			snapshot = QuickLinkToolData.normalize(snapshot);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 客户端保存工具缓存的 C2S 请求。
+	 */
+	public record SaveQuickLinkPayload(
+		String modeToken,
+		String serialCacheTypeToken,
+		String serialCacheExpression,
+		String channelCache
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<SaveQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_quick_link_payload")
+		);
+		public static final StreamCodec<FriendlyByteBuf, SaveQuickLinkPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeSavePayload(
+				buffer,
+				payload.modeToken(),
+				payload.serialCacheTypeToken(),
+				payload.serialCacheExpression(),
+				payload.channelCache()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedSavePayload decoded = QuickLinkNetworkPayloadSupport.decodeSavePayload(buffer);
+				return new SaveQuickLinkPayload(
+					decoded.modeToken(),
+					decoded.serialCacheTypeToken(),
+					decoded.serialCacheExpression(),
+					decoded.channelCache()
+				);
+			}
+		);
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 客户端左键应用缓存的 C2S 请求。
+	 */
+	public record ApplyQuickLinkPayload(String dimensionKey, long blockPosLong) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<ApplyQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_payload")
+		);
+		public static final StreamCodec<FriendlyByteBuf, ApplyQuickLinkPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeApplyPayload(buffer, payload.dimensionKey(), payload.blockPosLong()),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedApplyPayload decoded = QuickLinkNetworkPayloadSupport.decodeApplyPayload(buffer);
+				return new ApplyQuickLinkPayload(decoded.dimensionKey(), decoded.blockPosLong());
+			}
+		);
+
+		public ApplyQuickLinkPayload {
+			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端返回给客户端的应用结果回执。
+	 */
+	public record QuickLinkApplyResultPayload(boolean success, String messageKey, List<String> messageArgs)
+		implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<QuickLinkApplyResultPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_apply_result")
+		);
+		public static final StreamCodec<FriendlyByteBuf, QuickLinkApplyResultPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeApplyResultPayload(
+				buffer,
+				payload.success(),
+				payload.messageKey(),
+				payload.messageArgs()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedApplyResultPayload decoded = QuickLinkNetworkPayloadSupport.decodeApplyResultPayload(
+					buffer
+				);
+				return new QuickLinkApplyResultPayload(decoded.success(), decoded.messageKey(), decoded.messageArgs());
+			}
+		);
+
+		public QuickLinkApplyResultPayload {
+			messageKey = messageKey == null ? "" : messageKey;
+			messageArgs = List.copyOf(messageArgs == null ? List.of() : messageArgs);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+}
