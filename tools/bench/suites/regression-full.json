@@ -28,7 +28,10 @@
     },
     {
       "entryId": "c06_command_boundary",
-      "caseId": "command_boundary_matrix"
+      "caseId": "command_boundary_matrix",
+      "serverConfigOverrides": {
+        "server.command.crosschunk.whitelist.maxSetSerials": "2"
+      }
     },
     {
       "entryId": "f02_link_lifecycle",

@@ -71,7 +71,8 @@ public final class NodeSnapshotQueryService {
 	/**
 	 * 查询适合写入物品 NBT 的当前连接视图。
 	 * <p>
-	 * 物品快照默认不携带额外查看权限，因此统一按 `hasViewPermission=false` 处理。
+	 * 物品快照写入面向“物品自身展示”，不走隐私读控裁剪；
+	 * 仅保留当前源节点的真实连接快照，供 tooltip 与物品栏展示复用。
 	 * </p>
 	 */
 	public static NodeLinksSnapshot queryItemSnapshotLinks(
@@ -79,7 +80,7 @@ public final class NodeSnapshotQueryService {
 		LinkNodeType nodeType,
 		long serial
 	) {
-		return queryLinks(level, nodeType, serial, false);
+		return buildItemSnapshotLinks(level, nodeType, serial, readRawTargets(level, nodeType, serial));
 	}
 
 	/**
@@ -98,6 +99,22 @@ public final class NodeSnapshotQueryService {
 			return Set.of();
 		}
 		return LinkSavedData.get(level).getLinkedTargetsBySourceType(nodeType, serial);
+	}
+
+	/**
+	 * 按物品快照口径构建未过滤的当前连接视图。
+	 * <p>
+	 * 该入口仅用于“回写物品 NBT 快照”，与命令/面板读取的隐私视图隔离。
+	 * </p>
+	 */
+	static NodeLinksSnapshot buildItemSnapshotLinks(
+		ServerLevel level,
+		LinkNodeType nodeType,
+		long serial,
+		Set<Long> rawTargets
+	) {
+		NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(level, nodeType, serial);
+		return new NodeLinksSnapshot(identity, rawTargets == null ? java.util.List.of() : java.util.List.copyOf(rawTargets), false);
 	}
 
 	/**
