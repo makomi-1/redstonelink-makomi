@@ -104,6 +104,7 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
 			if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+				triggerSourceBlockEntity.markPhysicalRemovalInProgress();
 				triggerSourceBlockEntity.unregisterNode(true);
 			}
 		}

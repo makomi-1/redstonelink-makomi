@@ -122,6 +122,7 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 		if (!state.is(newState.getBlock())) {
 			if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
 				// 走“待确认退役”路径，避免正常掉落被误判为销毁。
+				coreBlockEntity.markPhysicalRemovalInProgress();
 				coreBlockEntity.unregisterNode(true);
 			}
 			if (!level.isClientSide) {

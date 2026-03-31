@@ -114,6 +114,7 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
 			if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
+				coreBlockEntity.markPhysicalRemovalInProgress();
 				coreBlockEntity.unregisterNode(true);
 			}
 			if (!level.isClientSide) {

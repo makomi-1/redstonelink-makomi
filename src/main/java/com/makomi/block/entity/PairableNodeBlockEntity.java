@@ -2,6 +2,7 @@ package com.makomi.block.entity;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.data.InternalDispatchDeltaEvents;
+import com.makomi.data.LinkNodeLifecycleDispatchEvents;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
@@ -36,6 +37,7 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	private long serial;
 	private long cachedDisplaySerial = Long.MIN_VALUE;
 	private String cachedDisplayText = "";
+	private final PairableNodeLifecycleState lifecycleState = new PairableNodeLifecycleState();
 
 	protected PairableNodeBlockEntity(
 		BlockEntityType<? extends PairableNodeBlockEntity> blockEntityType,
@@ -78,10 +80,12 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	public void setLinkData(long serial) {
 		if (this.serial > 0L && this.serial != serial) {
 			unregisterNode();
+			lifecycleState.onNodeIdentityChangedWhileAttached();
 		}
 
 		this.serial = serial;
 		registerNode();
+		flushPendingContextAttachIfReady();
 		syncToClient();
 	}
 
@@ -142,6 +146,17 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	protected abstract LinkNodeType getNodeType();
 
 	/**
+	 * 标记当前实例正在进入真实物理移除路径。
+	 * <p>
+	 * 该入口应由 block 的 `onRemove(...)` 提前调用，
+	 * 用于让后续 `setRemoved()` 不再把这次移除误判为普通区块/上下文脱附。
+	 * </p>
+	 */
+	public final void markPhysicalRemovalInProgress() {
+		lifecycleState.onPhysicalRemovalStarted();
+	}
+
+	/**
 	 * 将当前节点写入在线节点表。
 	 */
 	protected void registerNode() {
@@ -160,6 +175,13 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		if (tag.contains(KEY_SERIAL, Tag.TAG_LONG)) {
 			serial = tag.getLong(KEY_SERIAL);
 		}
+	}
+
+	@Override
+	public void clearRemoved() {
+		super.clearRemoved();
+		lifecycleState.onContextAttached();
+		flushPendingContextAttachIfReady();
 	}
 
 	@Override
@@ -189,6 +211,48 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 			BlockState state = getBlockState();
 			level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
 		}
+	}
+
+	@Override
+	public void setRemoved() {
+		boolean shouldPublishDetach = lifecycleState.onContextDetached(isLifecycleEventPublishReady());
+		super.setRemoved();
+		if (!shouldPublishDetach || !(level instanceof ServerLevel serverLevel)) {
+			return;
+		}
+		LinkNodeLifecycleDispatchEvents.publishNodeContextDetached(
+			serverLevel,
+			getNodeType(),
+			serial,
+			worldPosition.immutable()
+		);
+	}
+
+	/**
+	 * 在服务端上下文和 serial 都已就绪时，冲刷一次待发布 attach。
+	 * <p>
+	 * 这样可同时覆盖两条路径：
+	 * </p>
+	 * <ul>
+	 * <li>读档恢复：`serial` 已先从 NBT 读入，`clearRemoved()` 后即可立即发布；</li>
+	 * <li>新放置：`clearRemoved()` 先挂起，等 `setLinkData(...)` 再发布。</li>
+	 * </ul>
+	 */
+	protected final void flushPendingContextAttachIfReady() {
+		if (!lifecycleState.tryMarkAttachPublished(isLifecycleEventPublishReady())) {
+			return;
+		}
+		if (!(level instanceof ServerLevel serverLevel)) {
+			return;
+		}
+		LinkNodeLifecycleDispatchEvents.publishNodeContextAttached(this);
+	}
+
+	/**
+	 * 当前实例是否满足发布生命周期事件的最小条件。
+	 */
+	private boolean isLifecycleEventPublishReady() {
+		return level instanceof ServerLevel && serial > 0L && !lifecycleState.physicalRemovalInProgress();
 	}
 
 	/**
