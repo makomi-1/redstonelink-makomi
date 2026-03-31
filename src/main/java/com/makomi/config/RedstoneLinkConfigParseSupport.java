@@ -45,4 +45,20 @@ final class RedstoneLinkConfigParseSupport {
 		RedstoneLinkConfig.logger().warn("Config {}={} is invalid; falling back to default {}", key, raw, defaultValue);
 		return defaultValue;
 	}
+
+	/**
+	 * 解析布尔配置，并在主键缺失时回退到旧键。
+	 */
+	static boolean parseBooleanWithFallback(Properties props, String key, String legacyKey, boolean defaultValue) {
+		if (props == null) {
+			return defaultValue;
+		}
+		if (key != null && props.getProperty(key) != null) {
+			return parseBoolean(props, key, defaultValue);
+		}
+		if (legacyKey != null && props.getProperty(legacyKey) != null) {
+			return parseBoolean(props, legacyKey, defaultValue);
+		}
+		return defaultValue;
+	}
 }

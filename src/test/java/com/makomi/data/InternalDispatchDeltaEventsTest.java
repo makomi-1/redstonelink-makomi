@@ -158,6 +158,31 @@ class InternalDispatchDeltaEventsTest {
 	}
 
 	/**
+	 * 旧的 hard invalidation 配置键即使写成 false，也不应让普通来源失效事件静默。
+	 */
+	@Test
+	void publishLinkDetachedShouldIgnoreLegacyHardInvalidationProperty() throws Exception {
+		AtomicReference<InternalDispatchDeltaEvents.DispatchDeltaEvent> published = new AtomicReference<>();
+		InternalDispatchDeltaEvents.register(published::set);
+
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.triggerSourceHardInvalidation.enabled", "false");
+		withCrossChunkConfig(properties, () ->
+			InternalDispatchDeltaEvents.publishLinkDetached(
+				dummyServerLevel(),
+				LinkNodeType.TRIGGER_SOURCE,
+				11L,
+				Set.of(101L),
+				EventMeta.of(401L, 0, 8L)
+			)
+		);
+
+		assertEquals(ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION, published.get().deltaKind());
+		assertEquals(11L, published.get().sourceSerial());
+		assertEquals(101L, published.get().targetSerial());
+	}
+
+	/**
 	 * triggerSource 区块卸载失效默认关闭，未开启时不应发布事件。
 	 */
 	@Test
@@ -187,7 +212,7 @@ class InternalDispatchDeltaEventsTest {
 		InternalDispatchDeltaEvents.register(published::set);
 
 		Properties properties = new Properties();
-		properties.setProperty("crosschunk.triggerSourceChunkUnloadInvalidation.enabled", "true");
+		properties.setProperty("crosschunk.triggerSourceContextDetachInvalidation.enabled", "true");
 		withCrossChunkConfig(properties, () ->
 			InternalDispatchDeltaEvents.publishLinkChunkUnloaded(
 				dummyServerLevel(),

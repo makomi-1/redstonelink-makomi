@@ -263,9 +263,9 @@ final class RedstoneLinkConfigTemplate {
 			crosschunk.syncSignalTtlTicks=40
 
 			# crosschunk.syncSignalPersistent
-			# zh: 是否启用 SYNC 信号不限时持久化。true=不受 TTL 过期影响，按“最新状态”等待投递。
-			# en: Whether SYNC uses unlimited persistence. true means latest-state delivery without TTL expiry.
-			crosschunk.syncSignalPersistent=true
+			# zh: 是否启用 SYNC 信号不限时持久化兜底。true=不受 TTL 过期影响，按“最新状态”等待目标恢复后补投递；默认关闭，常规恢复优先依赖 target attach replay。
+			# en: Whether SYNC uses unlimited persistence as a fallback. true keeps the latest-state pending without TTL expiry until the target recovers; disabled by default because normal recovery primarily relies on target attach replay.
+			crosschunk.syncSignalPersistent=false
 
 			# crosschunk.syncTargetChunkLoadReplay.enabled
 			# zh: 是否启用目标区块 `CHUNK_LOAD` 时的 sync 补发。true=按来源端最近一次真实 sync 时间键恢复。
@@ -276,6 +276,11 @@ final class RedstoneLinkConfigTemplate {
 			# zh: 目标区块 `CHUNK_LOAD` 时是否先立即尝试一次 sync 补发。true=当前 tick 先试，只有目标尚未真正就绪时才延后到下一 tick 重试；false=始终先延后一 tick。
 			# en: Whether target-chunk-load sync replay should try immediately first. true tries in the current tick and only defers when the target is not ready yet; false always defers by one tick first.
 			crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=true
+
+			# crosschunk.syncSourceAttachReplay.enabled
+			# zh: 是否启用来源节点重新 attach 时的 sync 恢复。true=来源重新上线后，按当前来源状态向其已链接的 `core` 重新发布一次 sync；默认关闭，避免与放置后的真实输入派发重复。
+			# en: Whether to replay sync when a triggerSource re-attaches. true republishes one sync recovery to linked cores using the source's current state; disabled by default to avoid duplicating real placement/input dispatches.
+			crosschunk.syncSourceAttachReplay.enabled=false
 
 			# crosschunk.activation.pulse.relay.enabled
 			# zh: 是否启用 PULSE 事件的普通 TTL relay。false=目标未加载时直接跳过。
@@ -308,15 +313,12 @@ final class RedstoneLinkConfigTemplate {
 			crosschunk.activation.toggle.persistentExperimental=false
 
 			# ----- [失效处理 / Invalidation] ---------------------------------------
-			# crosschunk.triggerSourceChunkUnloadInvalidation.enabled
-			# zh: 是否启用 triggerSource 区块卸载失效。该事件仅剔除目标上的 sync 贡献并重算。
-			# en: Enable triggerSource chunk-unload invalidation. This only removes sync contribution from the target and recomputes.
-			crosschunk.triggerSourceChunkUnloadInvalidation.enabled=false
-
-			# crosschunk.triggerSourceInvalidation.enabled
-			# zh: 是否启用 triggerSource 其它失效（离线/解绑/退役/删除）。该事件会剔除目标上的 toggle/pulse/sync 贡献并重算。
-			# en: Enable triggerSource invalidation for offline/unlink/retire/remove. This removes toggle/pulse/sync contributions from the target and recomputes.
-			crosschunk.triggerSourceInvalidation.enabled=true
+			# crosschunk.triggerSourceContextDetachInvalidation.enabled
+			# zh: 是否启用 triggerSource 的 soft/context-detach 失效。true=来源仅因上下文脱附（如区块活动）时，也会剔除目标上的 sync 贡献并重算；默认关闭，推荐稳定玩法保持 false。
+			# en: Enable soft/context-detach invalidation for triggerSource. true removes sync contribution when the source only detaches from world context (such as chunk activity); disabled by default for the stable gameplay mode.
+			crosschunk.triggerSourceContextDetachInvalidation.enabled=false
+			# zh: triggerSource 的 hard invalidation 固定开启，不再提供独立配置项。
+			# en: Hard invalidation for triggerSource is always enabled and is no longer configurable.
 
 			# ----- [队列与重试 / Queue & Retry] ------------------------------------
 			# crosschunk.queue.enabled

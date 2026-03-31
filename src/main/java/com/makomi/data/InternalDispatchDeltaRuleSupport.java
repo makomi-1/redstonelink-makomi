@@ -272,7 +272,7 @@ final class InternalDispatchDeltaRuleSupport {
 		if (!LinkNodeSemantics.isAllowedForRole(targetType, LinkNodeSemantics.Role.TARGET)) {
 			return;
 		}
-		if (!RedstoneLinkConfig.crossChunk().triggerSourceChunkUnloadInvalidationEnabled()) {
+		if (!RedstoneLinkConfig.crossChunk().triggerSourceContextDetachInvalidationEnabled()) {
 			return;
 		}
 		EventMeta normalizedMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;
@@ -313,7 +313,7 @@ final class InternalDispatchDeltaRuleSupport {
 		if (!LinkNodeSemantics.isAllowedForRole(targetType, LinkNodeSemantics.Role.TARGET)) {
 			return;
 		}
-		if (!RedstoneLinkConfig.crossChunk().triggerSourceInvalidationEnabled()) {
+		if (!TriggerSourceEffectiveActivationPolicy.hardDownFilteringEnabled()) {
 			return;
 		}
 		EventMeta normalizedMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;

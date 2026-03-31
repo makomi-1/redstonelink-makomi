@@ -105,17 +105,17 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertTrue(snapshot.commandEnabled());
 		assertEquals(2, snapshot.commandPermissionLevel());
 		assertEquals(500, snapshot.dispatchMaxPerTick());
-		assertTrue(snapshot.syncSignalPersistent());
+		assertFalse(snapshot.syncSignalPersistent());
 		assertTrue(snapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(snapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
+		assertFalse(snapshot.syncSourceAttachReplayEnabled());
 		assertFalse(snapshot.activationPulseRelayEnabled());
 		assertEquals(200, snapshot.activationPulseTtlTicks());
 		assertFalse(snapshot.activationPulsePersistentExperimental());
 		assertFalse(snapshot.activationToggleRelayEnabled());
 		assertEquals(200, snapshot.activationToggleTtlTicks());
 		assertFalse(snapshot.activationTogglePersistentExperimental());
-		assertFalse(snapshot.triggerSourceChunkUnloadInvalidationEnabled());
-		assertTrue(snapshot.triggerSourceInvalidationEnabled());
+		assertFalse(snapshot.triggerSourceContextDetachInvalidationEnabled());
 		assertTrue(snapshot.queueEnabled());
 		assertEquals(200, snapshot.queueDefaultTtlTicks());
 		assertEquals(200, snapshot.retry().warnThreshold());
@@ -174,27 +174,31 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	}
 
 	/**
-	 * SYNC 持久化开关应支持显式配置，并在非法值时回退默认 true。
+	 * SYNC 持久化开关应支持显式配置，并在非法值时回退默认 false。
 	 */
 	@Test
-	void parseCrossChunkShouldApplySyncSignalPersistentFlag() {
+	void parseCrossChunkShouldApplySyncReplayFlags() {
 		Properties disabled = new Properties();
 		disabled.setProperty("crosschunk.syncSignalPersistent", "false");
 		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "false");
 		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "false");
+		disabled.setProperty("crosschunk.syncSourceAttachReplay.enabled", "true");
 		RedstoneLinkCrossChunkConfig disabledSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(disabled);
 		assertFalse(disabledSnapshot.syncSignalPersistent());
 		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
+		assertTrue(disabledSnapshot.syncSourceAttachReplayEnabled());
 
 		Properties invalid = new Properties();
 		invalid.setProperty("crosschunk.syncSignalPersistent", "invalid");
 		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "invalid");
 		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "invalid");
+		invalid.setProperty("crosschunk.syncSourceAttachReplay.enabled", "invalid");
 		RedstoneLinkCrossChunkConfig invalidSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(invalid);
-		assertTrue(invalidSnapshot.syncSignalPersistent());
+		assertFalse(invalidSnapshot.syncSignalPersistent());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
+		assertFalse(invalidSnapshot.syncSourceAttachReplayEnabled());
 	}
 
 	/**
@@ -259,16 +263,26 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	}
 
 	/**
-	 * triggerSource 两类失效事件应支持独立配置。
+	 * triggerSource 的 context-detach invalidation 应支持独立配置。
 	 */
 	@Test
-	void parseCrossChunkShouldApplyTriggerSourceInvalidationFlags() {
+	void parseCrossChunkShouldApplyTriggerSourceContextDetachInvalidationFlag() {
 		Properties properties = new Properties();
-		properties.setProperty("crosschunk.triggerSourceChunkUnloadInvalidation.enabled", "true");
-		properties.setProperty("crosschunk.triggerSourceInvalidation.enabled", "false");
+		properties.setProperty("crosschunk.triggerSourceContextDetachInvalidation.enabled", "true");
 
 		RedstoneLinkCrossChunkConfig snapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(properties);
-		assertTrue(snapshot.triggerSourceChunkUnloadInvalidationEnabled());
-		assertFalse(snapshot.triggerSourceInvalidationEnabled());
+		assertTrue(snapshot.triggerSourceContextDetachInvalidationEnabled());
+	}
+
+	/**
+	 * 旧的 context-detach 配置键仍应可读，保持“读旧写新”的兼容边界。
+	 */
+	@Test
+	void parseCrossChunkShouldFallbackToLegacyContextDetachInvalidationKey() {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.triggerSourceChunkUnloadInvalidation.enabled", "true");
+
+		RedstoneLinkCrossChunkConfig snapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(properties);
+		assertTrue(snapshot.triggerSourceContextDetachInvalidationEnabled());
 	}
 }

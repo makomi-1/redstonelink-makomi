@@ -36,6 +36,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * <ul>
  * <li>target chunk load replay；</li>
  * <li>core / triggerSource 加载后自愈；</li>
+ * <li>可选的 triggerSource attach sync replay；</li>
  * <li>实验性 triggerSource context-detach invalidation。</li>
  * </ul>
  */
@@ -205,6 +206,9 @@ public final class LinkNodeLifecycleDispatchEvents {
 			);
 			triggerSourceBlockEntity.clearPendingLoadInputStateResync();
 		}
+		if (LinkNodeSemantics.isAllowedForRole(task.nodeType(), LinkNodeSemantics.Role.SOURCE)) {
+			replaySourceAttachSyncIfEnabled(level, task.nodeType(), task.serial(), savedData);
+		}
 
 		if (!LinkNodeSemantics.isAllowedForRole(task.nodeType(), LinkNodeSemantics.Role.TARGET)) {
 			return ConsumeResult.COMPLETED;
@@ -227,6 +231,9 @@ public final class LinkNodeLifecycleDispatchEvents {
 		ServerLevel level = server.getLevel(task.dimension());
 		if (level == null) {
 			return ConsumeResult.DROPPED;
+		}
+		if (!RedstoneLinkConfig.crossChunk().triggerSourceContextDetachInvalidationEnabled()) {
+			return ConsumeResult.COMPLETED;
 		}
 		if (!LinkNodeSemantics.isAllowedForRole(task.nodeType(), LinkNodeSemantics.Role.SOURCE)) {
 			return ConsumeResult.COMPLETED;
@@ -262,8 +269,38 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (!probeResult.ready()) {
 			return ConsumeResult.DROPPED;
 		}
-		InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoad(level, nodeType, serial, linkedPeers);
+		Set<Long> replayEligibleSources = TriggerSourceEffectiveActivationPolicy.filterReplayEligibleSyncSourcesForTargetAttachReplay(
+			level,
+			savedData,
+			linkedPeers
+		);
+		if (replayEligibleSources.isEmpty()) {
+			return ConsumeResult.COMPLETED;
+		}
+		InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoad(level, nodeType, serial, replayEligibleSources);
 		return ConsumeResult.COMPLETED;
+	}
+
+	/**
+	 * 对来源 attach 执行一次可选的 sync 恢复。
+	 */
+	private static void replaySourceAttachSyncIfEnabled(
+		ServerLevel level,
+		LinkNodeType nodeType,
+		long serial,
+		LinkSavedData savedData
+	) {
+		if (level == null || nodeType == null || serial <= 0L || savedData == null) {
+			return;
+		}
+		if (!RedstoneLinkConfig.crossChunk().syncSourceAttachReplayEnabled()) {
+			return;
+		}
+		Set<Long> linkedPeers = savedData.linkedTargetsViewBySourceType(nodeType, serial);
+		if (linkedPeers.isEmpty()) {
+			return;
+		}
+		InternalDispatchDeltaEvents.publishLinkAttached(level, nodeType, serial, linkedPeers, EventMeta.now(level));
 	}
 
 	private static void enqueueTask(MinecraftServer server, NodeLifecycleTask task) {

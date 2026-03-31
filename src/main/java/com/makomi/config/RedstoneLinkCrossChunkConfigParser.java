@@ -40,17 +40,22 @@ final class RedstoneLinkCrossChunkConfigParser {
 		RedstoneLinkCrossChunkRetryConfig retry = parseRetry(props);
 		return new RedstoneLinkCrossChunkConfig(
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.syncSignalTtlTicks", 40, 1, 72_000),
-			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSignalPersistent", true),
+			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSignalPersistent", false),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.enabled", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", true),
+			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSourceAttachReplay.enabled", false),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.pulse.relay.enabled", false),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.activation.pulse.ttlTicks", 200, 1, 72_000),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.pulse.persistentExperimental", false),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.toggle.relay.enabled", false),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.activation.toggle.ttlTicks", 200, 1, 72_000),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.toggle.persistentExperimental", false),
-			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.triggerSourceChunkUnloadInvalidation.enabled", false),
-			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.triggerSourceInvalidation.enabled", true),
+			RedstoneLinkConfigParseSupport.parseBooleanWithFallback(
+				props,
+				"crosschunk.triggerSourceContextDetachInvalidation.enabled",
+				"crosschunk.triggerSourceChunkUnloadInvalidation.enabled",
+				false
+			),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.queue.enabled", true),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.queue.defaultTtlTicks", 200, 1, 72_000),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.dispatch.maxPerTick", 500, 1, 20_000),
