@@ -65,6 +65,7 @@ public class QuickLinkToolItem extends Item {
 		List<Component> tooltipComponents,
 		TooltipFlag tooltipFlag
 	) {
+		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(stack);
 		tooltipComponents.add(
 			Component.translatable(

@@ -56,6 +56,7 @@ public class StatePanelToolItem extends Item {
 		List<Component> tooltipComponents,
 		TooltipFlag tooltipFlag
 	) {
+		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		int count = StatePanelToolData.subscriptionCount(stack);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.subscriptions", Integer.toString(count)));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.open_panel"));

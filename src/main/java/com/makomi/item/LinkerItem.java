@@ -160,6 +160,7 @@ public class LinkerItem extends Item implements PairableItem {
 		List<Component> tooltipComponents,
 		TooltipFlag tooltipFlag
 	) {
+		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		List<Long> serialGroup = LinkItemData.getSerialGroup(stack);
 		if (serialGroup.size() > 1) {
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_count", serialGroup.size()));
