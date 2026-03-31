@@ -3,6 +3,7 @@ package com.makomi;
 import com.makomi.command.ModCommands;
 import com.makomi.command.argument.ModCommandArgumentTypes;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CoreDispatchBatchScheduler;
 import com.makomi.data.CrossChunkDispatchService;
 import com.makomi.data.InternalDispatchDeltaProjector;
 import com.makomi.data.LinkNodeLifecycleDispatchEvents;
@@ -55,6 +56,7 @@ public class RedstoneLink implements ModInitializer {
 			InputPlaybackService.register();
 		}
 		CrossChunkDispatchService.register();
+		CoreDispatchBatchScheduler.register();
 		LOGGER.info("RedstoneLink initialized");
 	}
 }

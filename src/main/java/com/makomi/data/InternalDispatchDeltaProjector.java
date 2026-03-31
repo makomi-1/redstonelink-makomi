@@ -115,6 +115,19 @@ public final class InternalDispatchDeltaProjector {
 			savedData.removeNode(event.targetType(), event.targetSerial());
 			return;
 		}
+		if (
+			event.deliveryMode() == InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH
+				&& CoreDispatchBatchScheduler.supportsBatching(event.deltaKind())
+		) {
+			CoreDispatchBatchScheduler.enqueueLoadedTargetDelta(
+				targetLevel.getServer(),
+				targetBlockEntity,
+				event.targetType(),
+				event.targetSerial(),
+				event
+			);
+			return;
+		}
 		targetBlockEntity.applyDispatchDelta(
 			event.deltaKind(),
 			event.deltaAction(),

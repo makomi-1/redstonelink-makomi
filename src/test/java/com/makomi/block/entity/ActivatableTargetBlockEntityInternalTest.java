@@ -9,6 +9,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.SharedConstants;
@@ -460,6 +461,74 @@ class ActivatableTargetBlockEntityInternalTest {
 		assertEquals(1, target.getSetChangedCount());
 		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
 		assertEquals(Set.of(2L), getLongSetField(target, "syncSignalMaxSources"));
+	}
+
+	/**
+	 * 批提交应把同一批的多来源 sync 合并成一次最终重算与一次脏标记。
+	 */
+	@Test
+	void applyDispatchBatchShouldCommitMultipleSyncUpdatesOnce() {
+		TestTargetEntity target = createTarget();
+
+		target.applyDispatchBatch(
+			List.of(
+				new ActivatableTargetBlockEntity.DispatchBatchEntry(
+					ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
+					ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+					LinkNodeType.TRIGGER_SOURCE,
+					1L,
+					ActivationMode.TOGGLE,
+					12,
+					ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L)
+				),
+				new ActivatableTargetBlockEntity.DispatchBatchEntry(
+					ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
+					ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+					LinkNodeType.TRIGGER_SOURCE,
+					2L,
+					ActivationMode.TOGGLE,
+					15,
+					ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 2L)
+				)
+			)
+		);
+
+		assertEquals(1, target.getSetChangedCount());
+		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(2L), getLongSetField(target, "syncSignalMaxSources"));
+		assertEquals(2, getLongIntMapField(target, "syncSignalStrengthBySource").size());
+	}
+
+	/**
+	 * 批提交中的 later invalidation 应清掉该来源历史贡献，并只提交一次最终结果。
+	 */
+	@Test
+	void applyDispatchBatchShouldClearHistoricalSourceContributionsOnce() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		target.triggerBySource(1L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+		target.triggerBySource(1L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(12L, 0, 3L));
+		target.resetSetChangedCount();
+
+		target.applyDispatchBatch(
+			List.of(
+				new ActivatableTargetBlockEntity.DispatchBatchEntry(
+					ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION,
+					ActivatableTargetBlockEntity.DeltaAction.REMOVE,
+					LinkNodeType.TRIGGER_SOURCE,
+					1L,
+					ActivationMode.TOGGLE,
+					0,
+					ActivatableTargetBlockEntity.EventMeta.of(20L, 0, 4L)
+				)
+			)
+		);
+
+		assertEquals(1, target.getSetChangedCount());
+		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+		assertTrue(getConcurrentBucketField(target, "pulseConcurrentBuckets").isEmpty());
+		assertTrue(getConcurrentBucketField(target, "toggleConcurrentBuckets").isEmpty());
+		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
 	}
 
 	/**

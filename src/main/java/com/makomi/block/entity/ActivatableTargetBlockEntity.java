@@ -4,6 +4,8 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.util.SignalStrengths;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;
@@ -127,6 +129,35 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			return of(tick, 0, 0L);
 		}
 	}
+
+	/**
+	 * `core` 目标端批提交条目。
+	 * <p>
+	 * 当前仅用于 `SYNC_SIGNAL` 与两类 `triggerSource` 失效语义的批量规约提交；
+	 * `ACTIVATION` 仍保持独立事件语义，不接入该批次模型。
+	 * </p>
+	 */
+	public record DispatchBatchEntry(
+		DeltaKind deltaKind,
+		DeltaAction deltaAction,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		ActivationMode activationMode,
+		int syncSignalStrength,
+		EventMeta eventMeta
+	) {
+		public DispatchBatchEntry {
+			activationMode = activationMode == null ? ActivationMode.TOGGLE : activationMode;
+			syncSignalStrength = SignalStrengths.clamp(syncSignalStrength);
+			eventMeta = eventMeta == null ? EventMeta.of(0L, 0, 0L) : eventMeta;
+		}
+	}
+
+	private static final Comparator<DispatchBatchEntry> DISPATCH_BATCH_ENTRY_COMPARATOR =
+		Comparator
+			.comparing((DispatchBatchEntry entry) -> entry.eventMeta().timeKey())
+			.thenComparingLong(entry -> entry.eventMeta().seq())
+			.thenComparingInt(entry -> dispatchBatchDeltaPriority(entry.deltaKind()));
 
 	protected ActivatableTargetBlockEntity(
 		BlockEntityType<? extends PairableNodeBlockEntity> blockEntityType,
@@ -291,6 +322,34 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 				applyTriggerSourceChunkUnloadInvalidationDelta(sourceKey, deltaAction, normalizedMeta);
 			case TRIGGER_SOURCE_INVALIDATION -> applyTriggerSourceInvalidationDelta(sourceKey, deltaAction, normalizedMeta);
 		}
+	}
+
+	/**
+	 * 批量应用异步 SYNC / invalidation 变更。
+	 * <p>
+	 * 该入口会先按时间键与固定优先级排序，再在批末统一执行一次真值重算与派生态写回。
+	 * </p>
+	 */
+	public final void applyDispatchBatch(List<DispatchBatchEntry> batchEntries) {
+		if (batchEntries == null || batchEntries.isEmpty()) {
+			return;
+		}
+		List<DispatchBatchEntry> sortedEntries = new ArrayList<>(batchEntries.size());
+		for (DispatchBatchEntry batchEntry : batchEntries) {
+			if (batchEntry != null) {
+				sortedEntries.add(batchEntry);
+			}
+		}
+		if (sortedEntries.isEmpty()) {
+			return;
+		}
+		sortedEntries.sort(DISPATCH_BATCH_ENTRY_COMPARATOR);
+
+		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
+		for (DispatchBatchEntry batchEntry : sortedEntries) {
+			applyStructuredBatchEntry(batchEntry, accumulator);
+		}
+		finalizeStructuredBatchMutation(accumulator);
 	}
 
 	/**
@@ -472,28 +531,9 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 统一处理 SYNC delta（UPSERT/REMOVE）。
 	 */
 	private void applySyncDelta(SourceKey sourceKey, DeltaAction deltaAction, int signalStrength, EventMeta eventMeta) {
-		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
-		boolean bucketChanged = concurrentComponent.pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
-		int normalizedStrength = normalizeSignalStrength(signalStrength);
-		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
-			bucketChanged |= concurrentComponent.removeSyncConcurrentSource(sourceKey);
-		} else {
-			bucketChanged |= concurrentComponent.upsertSyncConcurrentSource(
-				sourceKey,
-				eventMeta.timeKey(),
-				normalizedStrength,
-				eventMeta.seq()
-			);
-			concurrentComponent.setPulseUntilGameTime(0L);
-			concurrentComponent.setPulseResetArmed(false);
-		}
-		recomputeSyncTruthFromConcurrentBuckets();
-		recomputeToggleTruthFromConcurrentBuckets();
-		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
-		applyDerivedStateFromTruth();
-		markStructuredTruthDirty(bucketChanged);
+		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
+		applySyncDeltaMutation(sourceKey, deltaAction, signalStrength, eventMeta, accumulator);
+		finalizeStructuredBatchMutation(accumulator);
 	}
 
 	/**
@@ -592,39 +632,18 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		DeltaAction deltaAction,
 		EventMeta eventMeta
 	) {
-		if (deltaAction != DeltaAction.REMOVE) {
-			return;
-		}
-		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
-		boolean bucketChanged = concurrentComponent.removeSyncConcurrentSource(sourceKey);
-		recomputeSyncTruthFromConcurrentBuckets();
-		recomputeToggleTruthFromConcurrentBuckets();
-		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
-		applyDerivedStateFromTruth();
-		markStructuredTruthDirty(bucketChanged);
+		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
+		applyTriggerSourceChunkUnloadInvalidationMutation(sourceKey, deltaAction, eventMeta, accumulator);
+		finalizeStructuredBatchMutation(accumulator);
 	}
 
 	/**
 	 * 统一处理“triggerSource 其它失效”delta：剔除该来源的 toggle/pulse/sync 贡献并重算。
 	 */
 	private void applyTriggerSourceInvalidationDelta(SourceKey sourceKey, DeltaAction deltaAction, EventMeta eventMeta) {
-		if (deltaAction != DeltaAction.REMOVE) {
-			return;
-		}
-		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
-		boolean bucketChanged = concurrentComponent.removeSyncConcurrentSource(sourceKey);
-		bucketChanged |= concurrentComponent.removePulseConcurrentSource(sourceKey);
-		bucketChanged |= concurrentComponent.removeToggleConcurrentSource(sourceKey);
-		recomputeSyncTruthFromConcurrentBuckets();
-		bucketChanged |= recomputePulseTruthFromConcurrentBuckets();
-		recomputeToggleTruthFromConcurrentBuckets();
-		recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
-		applyDerivedStateFromTruth();
-		markStructuredTruthDirty(bucketChanged);
+		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
+		applyTriggerSourceInvalidationMutation(sourceKey, deltaAction, eventMeta, accumulator);
+		finalizeStructuredBatchMutation(accumulator);
 	}
 
 	/**
@@ -837,6 +856,212 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 */
 	private EventMeta normalizeEventMeta(EventMeta eventMeta) {
 		return eventMeta == null ? EventMeta.now(level) : eventMeta;
+	}
+
+	/**
+	 * 批次内按时间顺序应用一条结构化变更，但不立即提交重算结果。
+	 */
+	private void applyStructuredBatchEntry(DispatchBatchEntry batchEntry, StructuredBatchMutationAccumulator accumulator) {
+		if (batchEntry == null || accumulator == null || batchEntry.deltaKind() == null || batchEntry.deltaAction() == null) {
+			return;
+		}
+		if (batchEntry.sourceSerial() <= 0L) {
+			return;
+		}
+		if (!canBeTriggeredBy(batchEntry.sourceSerial())) {
+			return;
+		}
+		SourceKey sourceKey = new SourceKey(batchEntry.sourceType(), batchEntry.sourceSerial());
+		if (!LinkNodeSemantics.isAllowedForRole(sourceKey.sourceType(), LinkNodeSemantics.Role.SOURCE)) {
+			return;
+		}
+		EventMeta normalizedMeta = normalizeEventMeta(batchEntry.eventMeta());
+		switch (batchEntry.deltaKind()) {
+			case SYNC_SIGNAL -> applySyncDeltaMutation(
+				sourceKey,
+				batchEntry.deltaAction(),
+				batchEntry.syncSignalStrength(),
+				normalizedMeta,
+				accumulator
+			);
+			case SOURCE_INVALIDATION, TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION -> applyTriggerSourceChunkUnloadInvalidationMutation(
+				sourceKey,
+				batchEntry.deltaAction(),
+				normalizedMeta,
+				accumulator
+			);
+			case TRIGGER_SOURCE_INVALIDATION -> applyTriggerSourceInvalidationMutation(
+				sourceKey,
+				batchEntry.deltaAction(),
+				normalizedMeta,
+				accumulator
+			);
+			case ACTIVATION -> {
+				// ACTIVATION 仍按事件语义独立处理，不进入本批次入口。
+			}
+		}
+	}
+
+	/**
+	 * 批次内应用 SYNC 变更，只更新来源桶与仲裁时间，不立即提交结果。
+	 */
+	private void applySyncDeltaMutation(
+		SourceKey sourceKey,
+		DeltaAction deltaAction,
+		int signalStrength,
+		EventMeta eventMeta,
+		StructuredBatchMutationAccumulator accumulator
+	) {
+		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
+			return;
+		}
+		boolean bucketChanged = concurrentComponent.pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
+		int normalizedStrength = normalizeSignalStrength(signalStrength);
+		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
+			bucketChanged |= concurrentComponent.removeSyncConcurrentSource(sourceKey);
+		} else {
+			bucketChanged |= concurrentComponent.upsertSyncConcurrentSource(
+				sourceKey,
+				eventMeta.timeKey(),
+				normalizedStrength,
+				eventMeta.seq()
+			);
+			concurrentComponent.setPulseUntilGameTime(0L);
+			concurrentComponent.setPulseResetArmed(false);
+		}
+		accumulator.record(eventMeta, bucketChanged, false);
+	}
+
+	/**
+	 * 批次内应用“triggerSource 区块卸载失效”，仅剔除 sync 贡献。
+	 */
+	private void applyTriggerSourceChunkUnloadInvalidationMutation(
+		SourceKey sourceKey,
+		DeltaAction deltaAction,
+		EventMeta eventMeta,
+		StructuredBatchMutationAccumulator accumulator
+	) {
+		if (deltaAction != DeltaAction.REMOVE) {
+			return;
+		}
+		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
+			return;
+		}
+		boolean bucketChanged = concurrentComponent.removeSyncConcurrentSource(sourceKey);
+		accumulator.record(eventMeta, bucketChanged, false);
+	}
+
+	/**
+	 * 批次内应用“triggerSource 其它失效”，剔除该来源的全部结构化贡献。
+	 */
+	private void applyTriggerSourceInvalidationMutation(
+		SourceKey sourceKey,
+		DeltaAction deltaAction,
+		EventMeta eventMeta,
+		StructuredBatchMutationAccumulator accumulator
+	) {
+		if (deltaAction != DeltaAction.REMOVE) {
+			return;
+		}
+		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
+			return;
+		}
+		boolean bucketChanged = concurrentComponent.removeSyncConcurrentSource(sourceKey);
+		bucketChanged |= concurrentComponent.removePulseConcurrentSource(sourceKey);
+		bucketChanged |= concurrentComponent.removeToggleConcurrentSource(sourceKey);
+		accumulator.record(eventMeta, bucketChanged, true);
+	}
+
+	/**
+	 * 批末统一提交结构化变更，避免逐条 delta 重复重算。
+	 */
+	private void finalizeStructuredBatchMutation(StructuredBatchMutationAccumulator accumulator) {
+		if (accumulator == null || !accumulator.acceptedAny()) {
+			return;
+		}
+		recomputeSyncTruthFromConcurrentBuckets();
+		if (accumulator.requiresPulseTruthRecompute()) {
+			accumulator.mergeBucketChanged(recomputePulseTruthFromConcurrentBuckets());
+		}
+		recomputeToggleTruthFromConcurrentBuckets();
+		recomputeAuthorityFromConcurrentBuckets(accumulator.fallbackTimeKey(), accumulator.fallbackSeq());
+		applyDerivedStateFromTruth();
+		markStructuredTruthDirty(accumulator.bucketChanged());
+	}
+
+	/**
+	 * 同时间粒度内的批条目固定排序：先按时间键/序列，再按失效覆盖优先级。
+	 */
+	private static int dispatchBatchDeltaPriority(DeltaKind deltaKind) {
+		if (deltaKind == null) {
+			return Integer.MAX_VALUE;
+		}
+		return switch (deltaKind) {
+			case SYNC_SIGNAL -> 0;
+			case SOURCE_INVALIDATION, TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION -> 1;
+			case TRIGGER_SOURCE_INVALIDATION -> 2;
+			case ACTIVATION -> 3;
+		};
+	}
+
+	private static int compareEventMeta(EventMeta left, EventMeta right) {
+		if (left == null && right == null) {
+			return 0;
+		}
+		if (left == null) {
+			return -1;
+		}
+		if (right == null) {
+			return 1;
+		}
+		int timeKeyCompare = left.timeKey().compareTo(right.timeKey());
+		if (timeKeyCompare != 0) {
+			return timeKeyCompare;
+		}
+		return Long.compare(left.seq(), right.seq());
+	}
+
+	/**
+	 * 批次内结构化变更累计器。
+	 */
+	private static final class StructuredBatchMutationAccumulator {
+		private boolean acceptedAny;
+		private boolean bucketChanged;
+		private boolean requiresPulseTruthRecompute;
+		private EventMeta fallbackEventMeta = EventMeta.of(0L, 0, 0L);
+
+		void record(EventMeta eventMeta, boolean mutationChanged, boolean pulseTruthChangedPossible) {
+			acceptedAny = true;
+			bucketChanged |= mutationChanged;
+			requiresPulseTruthRecompute |= pulseTruthChangedPossible;
+			if (compareEventMeta(eventMeta, fallbackEventMeta) >= 0) {
+				fallbackEventMeta = eventMeta == null ? EventMeta.of(0L, 0, 0L) : eventMeta;
+			}
+		}
+
+		boolean acceptedAny() {
+			return acceptedAny;
+		}
+
+		boolean bucketChanged() {
+			return bucketChanged;
+		}
+
+		void mergeBucketChanged(boolean mutationChanged) {
+			bucketChanged |= mutationChanged;
+		}
+
+		boolean requiresPulseTruthRecompute() {
+			return requiresPulseTruthRecompute;
+		}
+
+		TimeKey fallbackTimeKey() {
+			return fallbackEventMeta.timeKey();
+		}
+
+		long fallbackSeq() {
+			return fallbackEventMeta.seq();
+		}
 	}
 
 	/**

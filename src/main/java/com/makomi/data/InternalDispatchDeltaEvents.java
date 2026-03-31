@@ -37,6 +37,14 @@ public final class InternalDispatchDeltaEvents {
 	}
 
 	/**
+	 * 内部 delta 的目标端交付模式。
+	 */
+	public enum DeliveryMode {
+		IMMEDIATE,
+		ASYNC_BATCH
+	}
+
+	/**
 	 * 注册内部监听器。
 	 */
 	public static void register(Listener listener) {
@@ -96,6 +104,26 @@ public final class InternalDispatchDeltaEvents {
 	}
 
 	/**
+	 * 发布“triggerSource 区块卸载失效”事件，并优先走异步批提交。
+	 */
+	public static void publishLinkChunkUnloadedAsyncBatch(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		java.util.Set<Long> affectedSerials,
+		EventMeta eventMeta
+	) {
+		InternalDispatchDeltaRuleSupport.publishLinkChunkUnloaded(
+			sourceLevel,
+			linkViewSourceType,
+			linkViewSourceSerial,
+			affectedSerials,
+			eventMeta,
+			DeliveryMode.ASYNC_BATCH
+		);
+	}
+
+	/**
 	 * 发布“链路解绑”对应的 triggerSource 其它失效事件（单目标入口）。
 	 */
 	public static void publishLinkDetached(
@@ -134,6 +162,26 @@ public final class InternalDispatchDeltaEvents {
 	}
 
 	/**
+	 * 发布“链路建立/恢复”对应的来源增量事件，并优先走异步批提交。
+	 */
+	public static void publishLinkAttachedAsyncBatch(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		java.util.Set<Long> attachedSerials,
+		EventMeta eventMeta
+	) {
+		InternalDispatchDeltaRuleSupport.publishLinkAttached(
+			sourceLevel,
+			linkViewSourceType,
+			linkViewSourceSerial,
+			attachedSerials,
+			eventMeta,
+			DeliveryMode.ASYNC_BATCH
+		);
+	}
+
+	/**
 	 * 发布“目标区块加载”场景下的 sync 恢复事件。
 	 */
 	public static void publishLinkAttachedFromTargetChunkLoad(
@@ -147,6 +195,24 @@ public final class InternalDispatchDeltaEvents {
 			linkViewSourceType,
 			linkViewSourceSerial,
 			attachedSerials
+		);
+	}
+
+	/**
+	 * 发布“目标区块加载”场景下的 sync 恢复事件，并优先走异步批提交。
+	 */
+	public static void publishLinkAttachedFromTargetChunkLoadAsyncBatch(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		java.util.Set<Long> attachedSerials
+	) {
+		InternalDispatchDeltaRuleSupport.publishLinkAttachedFromTargetChunkLoad(
+			sourceLevel,
+			linkViewSourceType,
+			linkViewSourceSerial,
+			attachedSerials,
+			DeliveryMode.ASYNC_BATCH
 		);
 	}
 
@@ -326,12 +392,41 @@ public final class InternalDispatchDeltaEvents {
 		ActivatableTargetBlockEntity.DeltaAction deltaAction,
 		ActivationMode activationMode,
 		int syncSignalStrength,
-		EventMeta eventMeta
+		EventMeta eventMeta,
+		DeliveryMode deliveryMode
 	) {
 		public DispatchDeltaEvent {
 			activationMode = activationMode == null ? ActivationMode.TOGGLE : activationMode;
 			syncSignalStrength = SignalStrengths.clamp(syncSignalStrength);
 			eventMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;
+			deliveryMode = deliveryMode == null ? DeliveryMode.IMMEDIATE : deliveryMode;
+		}
+
+		public DispatchDeltaEvent(
+			ServerLevel sourceLevel,
+			LinkNodeType sourceType,
+			long sourceSerial,
+			LinkNodeType targetType,
+			long targetSerial,
+			ActivatableTargetBlockEntity.DeltaKind deltaKind,
+			ActivatableTargetBlockEntity.DeltaAction deltaAction,
+			ActivationMode activationMode,
+			int syncSignalStrength,
+			EventMeta eventMeta
+		) {
+			this(
+				sourceLevel,
+				sourceType,
+				sourceSerial,
+				targetType,
+				targetSerial,
+				deltaKind,
+				deltaAction,
+				activationMode,
+				syncSignalStrength,
+				eventMeta,
+				DeliveryMode.IMMEDIATE
+			);
 		}
 	}
 }

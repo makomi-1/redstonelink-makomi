@@ -243,7 +243,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (linkedPeers.isEmpty()) {
 			return ConsumeResult.COMPLETED;
 		}
-		InternalDispatchDeltaEvents.publishLinkChunkUnloaded(
+		InternalDispatchDeltaEvents.publishLinkChunkUnloadedAsyncBatch(
 			level,
 			task.nodeType(),
 			task.serial(),
@@ -277,7 +277,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (replayEligibleSources.isEmpty()) {
 			return ConsumeResult.COMPLETED;
 		}
-		InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoad(level, nodeType, serial, replayEligibleSources);
+		InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoadAsyncBatch(level, nodeType, serial, replayEligibleSources);
 		return ConsumeResult.COMPLETED;
 	}
 
@@ -300,7 +300,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (linkedPeers.isEmpty()) {
 			return;
 		}
-		InternalDispatchDeltaEvents.publishLinkAttached(level, nodeType, serial, linkedPeers, EventMeta.now(level));
+		InternalDispatchDeltaEvents.publishLinkAttachedAsyncBatch(level, nodeType, serial, linkedPeers, EventMeta.now(level));
 	}
 
 	private static void enqueueTask(MinecraftServer server, NodeLifecycleTask task) {

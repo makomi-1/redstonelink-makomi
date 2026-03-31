@@ -136,15 +136,32 @@ final class CrossChunkDispatchRuntimeSupport {
 		ActivatableTargetBlockEntity.DeltaAction deltaAction = pending.dispatchAction() == CrossChunkDispatchQueueSavedData.DispatchAction.REMOVE
 			? ActivatableTargetBlockEntity.DeltaAction.REMOVE
 			: ActivatableTargetBlockEntity.DeltaAction.UPSERT;
-		targetBlockEntity.applyDispatchDelta(
-			deltaKind,
-			deltaAction,
-			pending.key().sourceType(),
-			pending.key().sourceSerial(),
-			pending.activationMode(),
-			pending.syncSignalStrength(),
-			EventMeta.of(pending.enqueueGameTick(), pending.enqueueGameSlot(), pending.version())
-		);
+		EventMeta eventMeta = EventMeta.of(pending.enqueueGameTick(), pending.enqueueGameSlot(), pending.version());
+		if (CoreDispatchBatchScheduler.supportsBatching(deltaKind)) {
+			CoreDispatchBatchScheduler.enqueueLoadedTargetDispatch(
+				server,
+				targetBlockEntity,
+				pending.key().targetType(),
+				pending.key().targetSerial(),
+				deltaKind,
+				deltaAction,
+				pending.key().sourceType(),
+				pending.key().sourceSerial(),
+				pending.activationMode(),
+				pending.syncSignalStrength(),
+				eventMeta
+			);
+		} else {
+			targetBlockEntity.applyDispatchDelta(
+				deltaKind,
+				deltaAction,
+				pending.key().sourceType(),
+				pending.key().sourceSerial(),
+				pending.activationMode(),
+				pending.syncSignalStrength(),
+				eventMeta
+			);
+		}
 		queueData.markAccepted(pending.key(), pending.version());
 		return true;
 	}

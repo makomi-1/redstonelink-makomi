@@ -62,6 +62,27 @@ final class InternalDispatchDeltaRuleSupport {
 		Set<Long> affectedSerials,
 		EventMeta eventMeta
 	) {
+		publishLinkChunkUnloaded(
+			sourceLevel,
+			linkViewSourceType,
+			linkViewSourceSerial,
+			affectedSerials,
+			eventMeta,
+			InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE
+		);
+	}
+
+	/**
+	 * 发布“triggerSource 区块卸载失效”事件（集合入口），并指定交付模式。
+	 */
+	static void publishLinkChunkUnloaded(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		Set<Long> affectedSerials,
+		EventMeta eventMeta,
+		InternalDispatchDeltaEvents.DeliveryMode deliveryMode
+	) {
 		if (
 			sourceLevel == null
 				|| linkViewSourceType == null
@@ -81,7 +102,8 @@ final class InternalDispatchDeltaRuleSupport {
 				sourceSerial,
 				LinkNodeType.CORE,
 				targetSerial,
-				eventMeta
+				eventMeta,
+				deliveryMode
 			)
 		);
 	}
@@ -124,6 +146,27 @@ final class InternalDispatchDeltaRuleSupport {
 		Set<Long> attachedSerials,
 		EventMeta eventMeta
 	) {
+		publishLinkAttached(
+			sourceLevel,
+			linkViewSourceType,
+			linkViewSourceSerial,
+			attachedSerials,
+			eventMeta,
+			InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE
+		);
+	}
+
+	/**
+	 * 发布“链路建立/恢复”对应的来源增量事件（UPSERT），并指定交付模式。
+	 */
+	static void publishLinkAttached(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		Set<Long> attachedSerials,
+		EventMeta eventMeta,
+		InternalDispatchDeltaEvents.DeliveryMode deliveryMode
+	) {
 		if (
 			sourceLevel == null
 				|| linkViewSourceType == null
@@ -151,7 +194,8 @@ final class InternalDispatchDeltaRuleSupport {
 					LinkNodeType.CORE,
 					targetSerial,
 					normalizedMeta,
-					replayStrength
+					replayStrength,
+					deliveryMode
 				);
 			}
 		);
@@ -165,6 +209,25 @@ final class InternalDispatchDeltaRuleSupport {
 		LinkNodeType linkViewSourceType,
 		long linkViewSourceSerial,
 		Set<Long> attachedSerials
+	) {
+		publishLinkAttachedFromTargetChunkLoad(
+			sourceLevel,
+			linkViewSourceType,
+			linkViewSourceSerial,
+			attachedSerials,
+			InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE
+		);
+	}
+
+	/**
+	 * 发布“目标区块加载”场景下的 sync 恢复事件，并指定交付模式。
+	 */
+	static void publishLinkAttachedFromTargetChunkLoad(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		Set<Long> attachedSerials,
+		InternalDispatchDeltaEvents.DeliveryMode deliveryMode
 	) {
 		if (
 			sourceLevel == null
@@ -185,7 +248,7 @@ final class InternalDispatchDeltaRuleSupport {
 					sourceSerial,
 					serial -> resolveReplaySyncSnapshot(sourceLevel, LinkNodeType.TRIGGER_SOURCE, serial)
 				);
-				publishResolvedTargetChunkLoadSyncReplay(sourceLevel, sourceSerial, targetSerial, replaySnapshot);
+				publishResolvedTargetChunkLoadSyncReplay(sourceLevel, sourceSerial, targetSerial, replaySnapshot, deliveryMode);
 			}
 		);
 	}
@@ -263,6 +326,29 @@ final class InternalDispatchDeltaRuleSupport {
 		long targetSerial,
 		EventMeta eventMeta
 	) {
+		publishTriggerSourceChunkUnloadInvalidation(
+			sourceLevel,
+			sourceType,
+			sourceSerial,
+			targetType,
+			targetSerial,
+			eventMeta,
+			InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE
+		);
+	}
+
+	/**
+	 * 发布单条“triggerSource 区块卸载失效”事件，并指定交付模式。
+	 */
+	static void publishTriggerSourceChunkUnloadInvalidation(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		long targetSerial,
+		EventMeta eventMeta,
+		InternalDispatchDeltaEvents.DeliveryMode deliveryMode
+	) {
 		if (sourceLevel == null || sourceType == null || targetType == null || sourceSerial <= 0L || targetSerial <= 0L) {
 			return;
 		}
@@ -288,7 +374,8 @@ final class InternalDispatchDeltaRuleSupport {
 				ActivatableTargetBlockEntity.DeltaAction.REMOVE,
 				ActivationMode.TOGGLE,
 				0,
-				normalizedMeta
+				normalizedMeta,
+				deliveryMode
 			)
 		);
 	}
@@ -379,6 +466,31 @@ final class InternalDispatchDeltaRuleSupport {
 		EventMeta eventMeta,
 		int replayStrength
 	) {
+		publishSourceRebuildUpsertResolved(
+			sourceLevel,
+			sourceType,
+			sourceSerial,
+			targetType,
+			targetSerial,
+			eventMeta,
+			replayStrength,
+			InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE
+		);
+	}
+
+	/**
+	 * 按已解析强度发布来源恢复 UPSERT，并指定交付模式。
+	 */
+	static void publishSourceRebuildUpsertResolved(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		long targetSerial,
+		EventMeta eventMeta,
+		int replayStrength,
+		InternalDispatchDeltaEvents.DeliveryMode deliveryMode
+	) {
 		if (replayStrength < 0) {
 			return;
 		}
@@ -394,7 +506,8 @@ final class InternalDispatchDeltaRuleSupport {
 				ActivatableTargetBlockEntity.DeltaAction.UPSERT,
 				ActivationMode.TOGGLE,
 				replayStrength,
-				normalizedMeta
+				normalizedMeta,
+				deliveryMode
 			)
 		);
 	}
@@ -408,6 +521,25 @@ final class InternalDispatchDeltaRuleSupport {
 		long targetSerial,
 		SyncReplaySourceBlockEntity.ReplaySyncSnapshot replaySnapshot
 	) {
+		publishResolvedTargetChunkLoadSyncReplay(
+			sourceLevel,
+			sourceSerial,
+			targetSerial,
+			replaySnapshot,
+			InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE
+		);
+	}
+
+	/**
+	 * 按已解析快照发布 `CHUNK_LOAD` 专用 sync replay，并指定交付模式。
+	 */
+	static void publishResolvedTargetChunkLoadSyncReplay(
+		ServerLevel sourceLevel,
+		long sourceSerial,
+		long targetSerial,
+		SyncReplaySourceBlockEntity.ReplaySyncSnapshot replaySnapshot,
+		InternalDispatchDeltaEvents.DeliveryMode deliveryMode
+	) {
 		if (sourceLevel == null || sourceSerial <= 0L || targetSerial <= 0L || replaySnapshot == null) {
 			return;
 		}
@@ -418,7 +550,8 @@ final class InternalDispatchDeltaRuleSupport {
 			LinkNodeType.CORE,
 			targetSerial,
 			replaySnapshot.eventMeta(),
-			replaySnapshot.signalStrength()
+			replaySnapshot.signalStrength(),
+			deliveryMode
 		);
 	}
 
