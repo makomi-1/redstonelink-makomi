@@ -5,7 +5,7 @@ import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.network.QuickLinkNetwork;
-import com.makomi.util.SerialParseUtil;
+import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -32,6 +32,9 @@ public class QuickLinkToolScreen extends Screen {
 	private static final int BUTTON_GAP = 4;
 	private static final int INPUT_BOX_WIDTH = BUTTON_WIDTH * 2 + BUTTON_GAP;
 	private static final int INPUT_BOX_HEIGHT = 64;
+	private static final int SCREEN_EDGE_MARGIN = 16;
+	private static final int PANEL_CONTENT_HEIGHT = 188;
+	private static final int ACTION_BUTTON_COUNT = 2;
 
 	private final QuickLinkToolData.Snapshot initialSnapshot;
 
@@ -49,24 +52,29 @@ public class QuickLinkToolScreen extends Screen {
 	@Override
 	protected void init() {
 		super.init();
-		int inputX = inputBoxX();
-		int inputY = inputBoxY();
-		inputBox = new MultiLineEditBox(font, inputX, inputY, INPUT_BOX_WIDTH, INPUT_BOX_HEIGHT, inputLabel(), Component.empty());
+		String preservedInput = inputBox == null ? initialInputValue() : inputBox.getValue();
+		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
+		int inputX = layout.panelLeft();
+		int inputY = layout.inputY();
+		inputBox = new MultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty());
 		inputBox.setCharacterLimit(RedstoneLinkClientDisplayConfig.quickLink().serialCacheMaxLength());
-		inputBox.setValue(initialInputValue());
+		inputBox.setValue(preservedInput);
 		addRenderableWidget(inputBox);
 		setInitialFocus(inputBox);
 
-		int cacheTypeButtonY = cacheTypeButtonY();
-		int buttonRowY = actionButtonRowY();
-		addRenderableWidget(Button.builder(SAVE, button -> saveAndClose()).bounds(inputX, buttonRowY, BUTTON_WIDTH, BUTTON_HEIGHT).build());
+		int cacheTypeButtonY = layout.cacheTypeButtonY();
+		int buttonRowY = layout.actionButtonY();
+		int actionButtonWidth = layout.actionButtonWidth();
+		addRenderableWidget(
+			Button.builder(SAVE, button -> saveAndClose()).bounds(layout.actionButtonX(0), buttonRowY, actionButtonWidth, BUTTON_HEIGHT).build()
+		);
 		addRenderableWidget(
 			Button
 				.builder(CLEAR, button -> {
 					inputBox.setValue("");
 					statusMessage = Component.empty();
 				})
-				.bounds(inputX + BUTTON_WIDTH + BUTTON_GAP, buttonRowY, BUTTON_WIDTH, BUTTON_HEIGHT)
+				.bounds(layout.actionButtonX(1), buttonRowY, actionButtonWidth, BUTTON_HEIGHT)
 				.build()
 		);
 
@@ -78,7 +86,7 @@ public class QuickLinkToolScreen extends Screen {
 						: LinkNodeType.TRIGGER_SOURCE;
 					button.setMessage(cacheTypeButtonLabel());
 				})
-				.bounds(inputX, cacheTypeButtonY, INPUT_BOX_WIDTH, BUTTON_HEIGHT)
+				.bounds(layout.panelLeft(), cacheTypeButtonY, layout.panelWidth(), BUTTON_HEIGHT)
 				.build()
 		);
 		cacheTypeButton.active = isSerialMode();
@@ -89,9 +97,10 @@ public class QuickLinkToolScreen extends Screen {
 		renderBackground(guiGraphics, mouseX, mouseY, partialTick);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
+		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
-		int titleY = titleY();
-		int leftX = inputBoxX();
+		int titleY = layout.titleY();
+		int leftX = layout.panelLeft();
 		guiGraphics.drawCenteredString(font, title, centerX, titleY, 0xFFFFFF);
 		guiGraphics.drawCenteredString(
 			font,
@@ -101,21 +110,21 @@ public class QuickLinkToolScreen extends Screen {
 			0xC8C8C8
 		);
 		if (isSerialMode()) {
-			guiGraphics.drawString(font, inputLabel(), leftX, inputLabelY(), 0xFFFFFF, false);
+			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), 0xFFFFFF, false);
 		} else {
-			guiGraphics.drawString(font, inputLabel(), leftX, inputLabelY(), 0xFFFFFF, false);
+			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), 0xFFFFFF, false);
 			guiGraphics.drawString(
 				font,
 				Component.translatable("screen.redstonelink.quick_link.channel_note"),
 				leftX,
-				channelNoteY(),
+				layout.channelNoteY(),
 				0xE0B040,
 				false
 			);
 		}
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, statusMessageY(), 0xFF6666);
+			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
 	}
 
@@ -137,7 +146,10 @@ public class QuickLinkToolScreen extends Screen {
 	 * 保存缓存并关闭界面。
 	 */
 	private void saveAndClose() {
-		if (isSerialMode() && !validateSerialInput(inputBox.getValue())) {
+		SerialInputSyntaxSupport.ValidationResult validation = isSerialMode()
+			? validateSerialInput(inputBox.getValue())
+			: new SerialInputSyntaxSupport.ValidationResult("", List.of());
+		if (isSerialMode() && !validation.valid()) {
 			return;
 		}
 
@@ -145,7 +157,7 @@ public class QuickLinkToolScreen extends Screen {
 			new QuickLinkNetwork.SaveQuickLinkPayload(
 				currentMode().token(),
 				LinkNodeSemantics.toSemanticName(currentSerialCacheType),
-				isSerialMode() ? inputBox.getValue() : initialSnapshot.serialCacheExpression(),
+				isSerialMode() ? validation.normalizedExpression() : initialSnapshot.serialCacheExpression(),
 				isSerialMode() ? initialSnapshot.channelCache() : inputBox.getValue()
 			)
 		);
@@ -155,21 +167,21 @@ public class QuickLinkToolScreen extends Screen {
 	/**
 	 * 校验序号模式输入，仅在客户端做语法级提示。
 	 */
-	private boolean validateSerialInput(String rawInput) {
-		if (rawInput == null || rawInput.isBlank()) {
+	private SerialInputSyntaxSupport.ValidationResult validateSerialInput(String rawInput) {
+		SerialInputSyntaxSupport.ValidationResult validation = SerialInputSyntaxSupport.validate(rawInput);
+		if (validation.empty()) {
 			statusMessage = Component.empty();
-			return true;
+			return validation;
 		}
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(rawInput, 0);
-		if (!parseResult.invalidEntries().isEmpty()) {
+		if (!validation.valid()) {
 			statusMessage = Component.translatable(
 				"screen.redstonelink.pairing.invalid_tokens",
-				String.join(", ", parseResult.invalidEntries())
+				String.join(", ", validation.invalidEntries())
 			);
-			return false;
+			return validation;
 		}
 		statusMessage = Component.empty();
-		return true;
+		return validation;
 	}
 
 	/**
@@ -215,63 +227,55 @@ public class QuickLinkToolScreen extends Screen {
 	/**
 	 * @return 输入框左上角 X 坐标
 	 */
-	private int inputBoxX() {
-		return width / 2 - INPUT_BOX_WIDTH / 2;
+	static QuickLinkLayout resolveLayout(int screenWidth, int screenHeight, int fontLineHeight) {
+		CenteredFormLayoutSupport.CenteredPanelBox panelBox = CenteredFormLayoutSupport.resolvePanelBox(
+			screenWidth,
+			screenHeight,
+			INPUT_BOX_WIDTH,
+			PANEL_CONTENT_HEIGHT,
+			SCREEN_EDGE_MARGIN
+		);
+		int titleY = panelBox.top();
+		int inputLabelY = titleY + TITLE_TOP_MARGIN - LABEL_MARGIN;
+		int inputY = titleY + TITLE_TOP_MARGIN;
+		int channelNoteY = inputY - CHANNEL_NOTE_MARGIN;
+		int cacheTypeButtonY = inputY + INPUT_BOX_HEIGHT + CACHE_TYPE_BUTTON_MARGIN + 4;
+		int actionButtonY = cacheTypeButtonY + BUTTON_HEIGHT + BUTTON_ROW_MARGIN;
+		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelBox.width(), BUTTON_GAP, ACTION_BUTTON_COUNT);
+		int statusMessageY = actionButtonY + BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
+		return new QuickLinkLayout(
+			panelBox.left(),
+			panelBox.top(),
+			panelBox.width(),
+			titleY,
+			inputLabelY,
+			inputY,
+			channelNoteY,
+			cacheTypeButtonY,
+			actionButtonY,
+			actionButtonWidth,
+			statusMessageY
+		);
 	}
 
 	/**
-	 * @return 输入框左上角 Y 坐标
+	 * QuickLink 编辑界面布局结果。
 	 */
-	private int inputBoxY() {
-		return height / 2 - 24;
-	}
-
-	/**
-	 * @return 标题 Y 坐标
-	 */
-	private int titleY() {
-		return inputBoxY() - TITLE_TOP_MARGIN;
-	}
-
-	/**
-	 * @return 输入标签 Y 坐标
-	 */
-	private int inputLabelY() {
-		return inputBoxY() - LABEL_MARGIN;
-	}
-
-	/**
-	 * @return 频道预留说明 Y 坐标
-	 */
-	private int channelNoteY() {
-		return inputBoxY() - CHANNEL_NOTE_MARGIN;
-	}
-
-	/**
-	 * @return 缓存类型按钮 Y 坐标
-	 */
-	private int cacheTypeButtonY() {
-		return inputBoxY() + resolvedInputBoxHeight() + CACHE_TYPE_BUTTON_MARGIN + 4;
-	}
-
-	/**
-	 * @return 保存/清空按钮行 Y 坐标
-	 */
-	private int actionButtonRowY() {
-		return cacheTypeButtonY() + BUTTON_HEIGHT + BUTTON_ROW_MARGIN;
-	}
-
-	/**
-	 * @return 界面内状态提示 Y 坐标
-	 */
-	private int statusMessageY() {
-		return actionButtonRowY() + BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
-	}
-
-	/**
-	 * @return 当前输入框实际高度
-	 */
-	private int resolvedInputBoxHeight() {
-		return inputBox == null ? INPUT_BOX_HEIGHT : inputBox.getHeight();
+	static record QuickLinkLayout(
+		int panelLeft,
+		int panelTop,
+		int panelWidth,
+		int titleY,
+		int inputLabelY,
+		int inputY,
+		int channelNoteY,
+		int cacheTypeButtonY,
+		int actionButtonY,
+		int actionButtonWidth,
+		int statusMessageY
+	) {
+		int actionButtonX(int index) {
+			return panelLeft + (actionButtonWidth + BUTTON_GAP) * Math.max(0, index);
+		}
 	}
 }

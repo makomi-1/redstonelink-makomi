@@ -3,7 +3,6 @@ package com.makomi.client.screen;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.StatePanelNetwork;
-import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -223,20 +222,21 @@ public class StatePanelToolScreen extends Screen {
 	}
 
 	private void subscribe() {
-		String input = inputBox.getValue() == null ? "" : inputBox.getValue().trim();
-		if (input.isEmpty()) {
+		SerialInputSyntaxSupport.ValidationResult validation = SerialInputSyntaxSupport.validate(inputBox.getValue());
+		if (validation.empty()) {
 			statusMessage = Component.translatable("screen.redstonelink.state_panel.input_empty");
 			return;
 		}
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(input, 0);
-		if (!parseResult.invalidEntries().isEmpty()) {
+		if (!validation.valid()) {
 			statusMessage = Component.translatable(
 				"screen.redstonelink.pairing.invalid_tokens",
-				String.join(", ", parseResult.invalidEntries())
+				String.join(", ", validation.invalidEntries())
 			);
 			return;
 		}
-		ClientPlayNetworking.send(new StatePanelNetwork.SubscribeStatePanelPayload(LinkNodeSemantics.toSemanticName(currentType), input));
+		ClientPlayNetworking.send(
+			new StatePanelNetwork.SubscribeStatePanelPayload(LinkNodeSemantics.toSemanticName(currentType), validation.normalizedExpression())
+		);
 		statusMessage = Component.empty();
 	}
 
@@ -438,9 +438,13 @@ public class StatePanelToolScreen extends Screen {
 	 */
 	static StatePanelLayout resolveLayout(int screenWidth, int screenHeight) {
 		int panelWidth = Math.min(PANEL_WIDTH, Math.max(1, screenWidth - SCREEN_EDGE_MARGIN * 2));
-		int panelLeft = clampVisibleStart((screenWidth - panelWidth) / 2, panelWidth, screenWidth);
-		int panelTop = clampVisibleStart((screenHeight - PANEL_CONTENT_HEIGHT) / 2, PANEL_CONTENT_HEIGHT, screenHeight);
-		int actionButtonWidth = Math.max(1, (panelWidth - PADDING * (ACTION_BUTTON_COUNT - 1)) / ACTION_BUTTON_COUNT);
+		int panelLeft = CenteredFormLayoutSupport.clampVisibleStart((screenWidth - panelWidth) / 2, panelWidth, screenWidth);
+		int panelTop = CenteredFormLayoutSupport.clampVisibleStart(
+			(screenHeight - PANEL_CONTENT_HEIGHT) / 2,
+			PANEL_CONTENT_HEIGHT,
+			screenHeight
+		);
+		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelWidth, PADDING, ACTION_BUTTON_COUNT);
 		int inputY = panelTop + INPUT_TOP_OFFSET;
 		int typeToggleY = inputY + INPUT_HEIGHT + PADDING;
 		int actionY = typeToggleY + BUTTON_HEIGHT + PADDING;
@@ -500,21 +504,6 @@ public class StatePanelToolScreen extends Screen {
 		int maxStatusWidth = Math.max(0, panelLeft + panelWidth - REMOVE_BUTTON_WIDTH - REMOVE_BUTTON_GAP - statusX);
 		statusWidth = Math.min(statusWidth, maxStatusWidth);
 		return new ColumnLayout(typeX, Math.max(0, typeWidth), serialX, Math.max(0, serialWidth), statusX, Math.max(0, statusWidth));
-	}
-
-	/**
-	 * 保证面板左上角不被推到可视区域外。
-	 */
-	private static int clampVisibleStart(int desiredStart, int elementSize, int containerSize) {
-		if (containerSize <= 0) {
-			return 0;
-		}
-		int minStart = 0;
-		int maxStart = containerSize - elementSize;
-		if (maxStart < minStart) {
-			return Math.max(0, (containerSize - elementSize) / 2);
-		}
-		return Math.max(minStart, Math.min(desiredStart, maxStart));
 	}
 
 	/**
