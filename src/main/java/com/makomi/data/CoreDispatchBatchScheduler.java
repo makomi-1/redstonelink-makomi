@@ -114,23 +114,10 @@ public final class CoreDispatchBatchScheduler {
 		if (deltaAction == null || !supportsBatching(deltaKind) || sourceSerial <= 0L) {
 			return;
 		}
-		if (targetBlockEntity.getLevel() == null || targetBlockEntity.getLevel().isClientSide) {
+		TargetBatchAccumulator accumulator = resolveTargetAccumulator(server, targetBlockEntity, targetType, targetSerial);
+		if (accumulator == null) {
 			return;
 		}
-		if (targetBlockEntity.getSerial() != targetSerial || targetBlockEntity.getLinkNodeType() != targetType) {
-			return;
-		}
-		SchedulerState state = STATE_BY_SERVER.computeIfAbsent(server, ignored -> new SchedulerState());
-		TargetBatchKey targetBatchKey = new TargetBatchKey(
-			targetBlockEntity.getLevel().dimension(),
-			targetBlockEntity.getBlockPos().immutable(),
-			targetType,
-			targetSerial
-		);
-		TargetBatchAccumulator accumulator = state.pendingByTarget.computeIfAbsent(
-			targetBatchKey,
-			ignored -> new TargetBatchAccumulator(targetBlockEntity)
-		);
 		accumulator.merge(
 			new DispatchBatchEntry(
 				deltaKind,
@@ -142,6 +129,26 @@ public final class CoreDispatchBatchScheduler {
 				eventMeta
 			)
 		);
+	}
+
+	/**
+	 * 将同一 `core` 的多条 ready batchable dispatch 一次性写入 scheduler。
+	 */
+	static boolean enqueueLoadedTargetDispatchBatch(
+		MinecraftServer server,
+		ActivatableTargetBlockEntity targetBlockEntity,
+		LinkNodeType targetType,
+		long targetSerial,
+		List<DispatchBatchEntry> batchEntries
+	) {
+		if (batchEntries == null || batchEntries.isEmpty()) {
+			return false;
+		}
+		TargetBatchAccumulator accumulator = resolveTargetAccumulator(server, targetBlockEntity, targetType, targetSerial);
+		if (accumulator == null) {
+			return false;
+		}
+		return accumulator.mergeAll(batchEntries);
 	}
 
 	/**
@@ -217,6 +224,31 @@ public final class CoreDispatchBatchScheduler {
 		};
 	}
 
+	private static TargetBatchAccumulator resolveTargetAccumulator(
+		MinecraftServer server,
+		ActivatableTargetBlockEntity targetBlockEntity,
+		LinkNodeType targetType,
+		long targetSerial
+	) {
+		if (server == null || targetBlockEntity == null || targetType == null || targetSerial <= 0L) {
+			return null;
+		}
+		if (targetBlockEntity.getLevel() == null || targetBlockEntity.getLevel().isClientSide) {
+			return null;
+		}
+		if (targetBlockEntity.getSerial() != targetSerial || targetBlockEntity.getLinkNodeType() != targetType) {
+			return null;
+		}
+		SchedulerState state = STATE_BY_SERVER.computeIfAbsent(server, ignored -> new SchedulerState());
+		TargetBatchKey targetBatchKey = new TargetBatchKey(
+			targetBlockEntity.getLevel().dimension(),
+			targetBlockEntity.getBlockPos().immutable(),
+			targetType,
+			targetSerial
+		);
+		return state.pendingByTarget.computeIfAbsent(targetBatchKey, ignored -> new TargetBatchAccumulator(targetBlockEntity));
+	}
+
 	/**
 	 * 同一 `core` 的单 tick 聚合缓存。
 	 */
@@ -244,6 +276,24 @@ public final class CoreDispatchBatchScheduler {
 			if (batchEntry.deltaKind() == ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION) {
 				dropCoveredEntries(batchEntry);
 			}
+		}
+
+		private boolean mergeAll(List<DispatchBatchEntry> batchEntries) {
+			if (batchEntries == null || batchEntries.isEmpty()) {
+				return false;
+			}
+			boolean merged = false;
+			for (DispatchBatchEntry batchEntry : batchEntries) {
+				if (batchEntry == null) {
+					continue;
+				}
+				if (batchEntry.deltaAction() == null || !supportsBatching(batchEntry.deltaKind()) || batchEntry.sourceSerial() <= 0L) {
+					continue;
+				}
+				merge(batchEntry);
+				merged = true;
+			}
+			return merged;
 		}
 
 		/**

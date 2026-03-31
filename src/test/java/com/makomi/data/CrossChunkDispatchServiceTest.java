@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfigTestHelper;
 import java.lang.reflect.Constructor;
@@ -14,11 +15,17 @@ import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +34,12 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class CrossChunkDispatchServiceTest {
+	@BeforeAll
+	static void bootstrapRegistries() {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+	}
+
 	/**
 	 * register 入口应可重复调用（仅注册回调，不抛异常）。
 	 */
@@ -679,6 +692,185 @@ class CrossChunkDispatchServiceTest {
 	}
 
 	/**
+	 * TargetLocatorCache 应按同一 target 键复用定位结果，避免同 tick 重复建桶。
+	 */
+	@Test
+	void targetLocatorCacheShouldReuseSameTargetKey() {
+		CrossChunkDispatchRuntimeSupport.TargetLocatorCache cache = new CrossChunkDispatchRuntimeSupport.TargetLocatorCache();
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry firstPending = new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+			new CrossChunkDispatchQueueSavedData.DispatchKey(
+				LinkNodeType.TRIGGER_SOURCE,
+				201L,
+				LinkNodeType.CORE,
+				301L,
+				CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+			),
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+			Level.OVERWORLD,
+			new BlockPos(32, 64, 32),
+			ActivationMode.TOGGLE,
+			15,
+			50L,
+			0,
+			100L,
+			1L
+		);
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry sameTargetPending = new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+			new CrossChunkDispatchQueueSavedData.DispatchKey(
+				LinkNodeType.TRIGGER_SOURCE,
+				202L,
+				LinkNodeType.CORE,
+				301L,
+				CrossChunkDispatchQueueSavedData.DispatchKind.TRIGGER_SOURCE_INVALIDATION
+			),
+			CrossChunkDispatchQueueSavedData.DispatchAction.REMOVE,
+			Level.OVERWORLD,
+			new BlockPos(32, 64, 32),
+			ActivationMode.TOGGLE,
+			0,
+			50L,
+			1,
+			100L,
+			2L
+		);
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry otherTargetPending = new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+			new CrossChunkDispatchQueueSavedData.DispatchKey(
+				LinkNodeType.TRIGGER_SOURCE,
+				203L,
+				LinkNodeType.CORE,
+				302L,
+				CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+			),
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+			Level.OVERWORLD,
+			new BlockPos(48, 64, 48),
+			ActivationMode.TOGGLE,
+			7,
+			50L,
+			2,
+			100L,
+			3L
+		);
+
+		assertEquals(
+			CrossChunkDispatchRuntimeSupport.TargetLocatorStatus.RETRYABLE_MISS,
+			cache.locate(null, firstPending).status()
+		);
+		assertEquals(
+			CrossChunkDispatchRuntimeSupport.TargetLocatorStatus.RETRYABLE_MISS,
+			cache.locate(null, sameTargetPending).status()
+		);
+		assertEquals(1, cache.size());
+
+		cache.locate(null, otherTargetPending);
+		assertEquals(2, cache.size());
+	}
+
+	/**
+	 * ChunkReadyDrainCache 应先按 chunk，再按 core 分组 ready 的 batchable 条目。
+	 */
+	@Test
+	void chunkReadyDrainCacheShouldGroupBatchableEntriesByChunkAndTarget() {
+		CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache drainCache = new CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache();
+		TestTargetEntity firstTarget = createTarget();
+		TestTargetEntity secondTarget = createTarget();
+		TestTargetEntity thirdTarget = createTarget();
+
+		CrossChunkDispatchRuntimeSupport.PreparedDispatch firstDispatch = CrossChunkDispatchRuntimeSupport.prepareDispatch(
+			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+				new CrossChunkDispatchQueueSavedData.DispatchKey(
+					LinkNodeType.TRIGGER_SOURCE,
+					401L,
+					LinkNodeType.CORE,
+					501L,
+					CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+				),
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+				Level.OVERWORLD,
+				new BlockPos(32, 64, 32),
+				ActivationMode.TOGGLE,
+				15,
+				60L,
+				0,
+				200L,
+				11L
+			),
+			firstTarget
+		);
+		CrossChunkDispatchRuntimeSupport.PreparedDispatch secondDispatch = CrossChunkDispatchRuntimeSupport.prepareDispatch(
+			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+				new CrossChunkDispatchQueueSavedData.DispatchKey(
+					LinkNodeType.TRIGGER_SOURCE,
+					402L,
+					LinkNodeType.CORE,
+					501L,
+					CrossChunkDispatchQueueSavedData.DispatchKind.TRIGGER_SOURCE_INVALIDATION
+				),
+				CrossChunkDispatchQueueSavedData.DispatchAction.REMOVE,
+				Level.OVERWORLD,
+				new BlockPos(32, 64, 32),
+				ActivationMode.TOGGLE,
+				0,
+				60L,
+				1,
+				200L,
+				12L
+			),
+			firstTarget
+		);
+		CrossChunkDispatchRuntimeSupport.PreparedDispatch thirdDispatch = CrossChunkDispatchRuntimeSupport.prepareDispatch(
+			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+				new CrossChunkDispatchQueueSavedData.DispatchKey(
+					LinkNodeType.TRIGGER_SOURCE,
+					403L,
+					LinkNodeType.CORE,
+					502L,
+					CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+				),
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+				Level.OVERWORLD,
+				new BlockPos(40, 64, 40),
+				ActivationMode.TOGGLE,
+				9,
+				60L,
+				2,
+				200L,
+				13L
+			),
+			secondTarget
+		);
+		CrossChunkDispatchRuntimeSupport.PreparedDispatch fourthDispatch = CrossChunkDispatchRuntimeSupport.prepareDispatch(
+			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+				new CrossChunkDispatchQueueSavedData.DispatchKey(
+					LinkNodeType.TRIGGER_SOURCE,
+					404L,
+					LinkNodeType.CORE,
+					503L,
+					CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+				),
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+				Level.OVERWORLD,
+				new BlockPos(64, 64, 64),
+				ActivationMode.TOGGLE,
+				6,
+				60L,
+				3,
+				200L,
+				14L
+			),
+			thirdTarget
+		);
+
+		drainCache.stageBatchable(firstDispatch);
+		drainCache.stageBatchable(secondDispatch);
+		drainCache.stageBatchable(thirdDispatch);
+		drainCache.stageBatchable(fourthDispatch);
+
+		assertEquals(2, drainCache.chunkBucketCount());
+		assertEquals(3, drainCache.targetGroupCount());
+	}
+
+	/**
 	 * appendDesiredResidentTickets 应按 role/type 约束构造常驻票据目标。
 	 */
 	@Test
@@ -751,6 +943,43 @@ class CrossChunkDispatchServiceTest {
 
 	private static void withCrossChunkConfig(Properties properties, ThrowingRunnable action) throws Exception {
 		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, action::run);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static BlockEntityType<? extends com.makomi.block.entity.PairableNodeBlockEntity> castType(BlockEntityType<?> type) {
+		return (BlockEntityType<? extends com.makomi.block.entity.PairableNodeBlockEntity>) type;
+	}
+
+	private static TestTargetEntity createTarget() {
+		return new TestTargetEntity(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
+	}
+
+	/**
+	 * 供 runtime 分组测试使用的最小 `core` 实体。
+	 */
+	private static final class TestTargetEntity extends ActivatableTargetBlockEntity {
+		private TestTargetEntity(BlockPos pos, BlockState state) {
+			super(castType(BlockEntityType.BEACON), pos, state);
+		}
+
+		@Override
+		protected void onActiveChanged(boolean active) {}
+
+		@Override
+		protected void syncBlockStateFromDerivedState(boolean active) {}
+
+		@Override
+		protected boolean shouldQueueLoadBlockStateSync(boolean active) {
+			return false;
+		}
+
+		@Override
+		protected void schedulePulseReset(int pulseTicks) {}
+
+		@Override
+		protected LinkNodeType getNodeType() {
+			return LinkNodeType.CORE;
+		}
 	}
 
 	@FunctionalInterface

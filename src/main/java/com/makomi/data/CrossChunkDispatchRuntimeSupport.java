@@ -2,10 +2,13 @@ package com.makomi.data;
 
 import com.makomi.RedstoneLink;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.block.entity.ActivatableTargetBlockEntity.DispatchBatchEntry;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.config.RedstoneLinkConfig;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +56,8 @@ final class CrossChunkDispatchRuntimeSupport {
 		int startIndex = Math.floorMod(state.pendingCursor, snapshotSize);
 		int processed = 0;
 		int visited = 0;
+		TargetLocatorCache targetLocatorCache = new TargetLocatorCache();
+		ChunkReadyDrainCache readyDrainCache = new ChunkReadyDrainCache();
 		while (visited < snapshotSize && processed < budget) {
 			int currentIndex = (startIndex + visited) % snapshotSize;
 			CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending = snapshot.get(currentIndex);
@@ -71,15 +76,33 @@ final class CrossChunkDispatchRuntimeSupport {
 			if (shouldDeferRetryUntilEligible(state, pending, gameTime)) {
 				continue;
 			}
-			if (tryDispatch(server, state, queueData, pending, gameTime)) {
+			DispatchAttemptResult dispatchAttemptResult = tryDispatch(
+				server,
+				state,
+				queueData,
+				pending,
+				gameTime,
+				targetLocatorCache,
+				readyDrainCache
+			);
+			if (dispatchAttemptResult == DispatchAttemptResult.ACCEPTED) {
 				queueData.removePending(pending.key());
 				clearRetryState(state, pending);
+				continue;
+			}
+			if (dispatchAttemptResult == DispatchAttemptResult.READY_STAGED) {
 				continue;
 			}
 			if (recordRetryFailureAndShouldDrop(state, pending, gameTime)) {
 				queueData.removePending(pending.key());
 				clearRetryState(state, pending);
 			}
+		}
+		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> drainedAcceptedPendings =
+			readyDrainCache.drainToBatchScheduler(server, queueData);
+		for (CrossChunkDispatchQueueSavedData.PendingDispatchEntry acceptedPending : drainedAcceptedPendings) {
+			queueData.removePending(acceptedPending.key());
+			clearRetryState(state, acceptedPending);
 		}
 		if (queueData.pendingSize() <= 0) {
 			clearRetryTracking(state);
@@ -92,40 +115,55 @@ final class CrossChunkDispatchRuntimeSupport {
 	/**
 	 * 尝试将单条 pending 投递到已加载目标。
 	 */
-	static boolean tryDispatch(
+	static DispatchAttemptResult tryDispatch(
 		MinecraftServer server,
 		CrossChunkDispatchService.DispatchState state,
 		CrossChunkDispatchQueueSavedData queueData,
 		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
-		long gameTime
+		long gameTime,
+		TargetLocatorCache targetLocatorCache,
+		ChunkReadyDrainCache readyDrainCache
 	) {
 		if (queueData.isStaleByAcceptedVersion(pending.key(), pending.version())) {
-			return true;
+			return DispatchAttemptResult.ACCEPTED;
 		}
-		ServerLevel targetLevel = server.getLevel(pending.dimension());
-		if (targetLevel == null) {
-			return false;
-		}
-		if (!targetLevel.isLoaded(pending.pos())) {
-			if (CrossChunkDispatchService.shouldForceLoad(targetLevel, pending)) {
+		TargetLocatorResult locatorResult = targetLocatorCache.locate(server, pending);
+		if (locatorResult.status() == TargetLocatorStatus.RETRYABLE_MISS) {
+			if (locatorResult.shouldAttemptForceLoad() && CrossChunkDispatchService.shouldForceLoad(locatorResult.targetLevel(), pending)) {
 				CrossChunkDispatchService.tryForceLoad(server, state, pending, gameTime);
 			}
-			return false;
+			return DispatchAttemptResult.RETRYABLE_MISS;
 		}
-
-		LevelChunk targetChunk = targetLevel.getChunkSource().getChunkNow(pending.pos().getX() >> 4, pending.pos().getZ() >> 4);
-		if (targetChunk == null) {
-			return false;
-		}
-		BlockEntity blockEntity = targetChunk.getBlockEntity(pending.pos(), LevelChunk.EntityCreationType.CHECK);
-		if (!(blockEntity instanceof ActivatableTargetBlockEntity targetBlockEntity)) {
-			if (blockEntity == null && targetChunk.getBlockState(pending.pos()).hasBlockEntity()) {
-				return false;
+		if (locatorResult.status() == TargetLocatorStatus.INVALID_TARGET) {
+			if (locatorResult.targetLevel() != null) {
+				LinkSavedData.get(locatorResult.targetLevel()).removeNode(pending.key().targetType(), pending.key().targetSerial());
 			}
-			LinkSavedData.get(targetLevel).removeNode(pending.key().targetType(), pending.key().targetSerial());
-			return true;
+			return DispatchAttemptResult.ACCEPTED;
 		}
 
+		PreparedDispatch preparedDispatch = prepareDispatch(pending, locatorResult.targetBlockEntity());
+		if (preparedDispatch == null) {
+			return DispatchAttemptResult.RETRYABLE_MISS;
+		}
+		if (preparedDispatch.supportsBatching()) {
+			readyDrainCache.stageBatchable(preparedDispatch);
+			return DispatchAttemptResult.READY_STAGED;
+		}
+		preparedDispatch.applyDirect();
+		queueData.markAccepted(pending.key(), pending.version());
+		return DispatchAttemptResult.ACCEPTED;
+	}
+
+	/**
+	 * 将 pending 规约为可直接应用或可进入 batch 的内部派发项。
+	 */
+	static PreparedDispatch prepareDispatch(
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
+		ActivatableTargetBlockEntity targetBlockEntity
+	) {
+		if (pending == null || pending.key() == null || targetBlockEntity == null) {
+			return null;
+		}
 		ActivatableTargetBlockEntity.DeltaKind deltaKind = switch (pending.key().dispatchKind()) {
 			case ACTIVATION, PULSE_EVENT, TOGGLE_EVENT -> ActivatableTargetBlockEntity.DeltaKind.ACTIVATION;
 			case SYNC_SIGNAL -> ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL;
@@ -137,12 +175,44 @@ final class CrossChunkDispatchRuntimeSupport {
 			? ActivatableTargetBlockEntity.DeltaAction.REMOVE
 			: ActivatableTargetBlockEntity.DeltaAction.UPSERT;
 		EventMeta eventMeta = EventMeta.of(pending.enqueueGameTick(), pending.enqueueGameSlot(), pending.version());
-		if (CoreDispatchBatchScheduler.supportsBatching(deltaKind)) {
-			CoreDispatchBatchScheduler.enqueueLoadedTargetDispatch(
-				server,
-				targetBlockEntity,
-				pending.key().targetType(),
-				pending.key().targetSerial(),
+		return new PreparedDispatch(pending, targetBlockEntity, deltaKind, deltaAction, eventMeta);
+	}
+
+	/**
+	 * 当前 pending 的尝试结果。
+	 */
+	enum DispatchAttemptResult {
+		ACCEPTED,
+		READY_STAGED,
+		RETRYABLE_MISS
+	}
+
+	/**
+	 * ready 目标的内部派发项。
+	 */
+	record PreparedDispatch(
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
+		ActivatableTargetBlockEntity targetBlockEntity,
+		ActivatableTargetBlockEntity.DeltaKind deltaKind,
+		ActivatableTargetBlockEntity.DeltaAction deltaAction,
+		EventMeta eventMeta
+	) {
+		PreparedDispatch {
+			eventMeta = eventMeta == null ? EventMeta.of(0L, 0, 0L) : eventMeta;
+		}
+
+		/**
+		 * 当前条目是否允许进入 `core` 批调度。
+		 */
+		boolean supportsBatching() {
+			return CoreDispatchBatchScheduler.supportsBatching(deltaKind);
+		}
+
+		/**
+		 * 转换为 `core` 批调度使用的 batch entry。
+		 */
+		DispatchBatchEntry toBatchEntry() {
+			return new DispatchBatchEntry(
 				deltaKind,
 				deltaAction,
 				pending.key().sourceType(),
@@ -151,7 +221,12 @@ final class CrossChunkDispatchRuntimeSupport {
 				pending.syncSignalStrength(),
 				eventMeta
 			);
-		} else {
+		}
+
+		/**
+		 * 保持 direct 语义的 ready 派发。
+		 */
+		void applyDirect() {
 			targetBlockEntity.applyDispatchDelta(
 				deltaKind,
 				deltaAction,
@@ -162,8 +237,265 @@ final class CrossChunkDispatchRuntimeSupport {
 				eventMeta
 			);
 		}
-		queueData.markAccepted(pending.key(), pending.version());
-		return true;
+	}
+
+	/**
+	 * 目标定位缓存键：同 tick 内同一 `core` 只解析一次。
+	 */
+	private record TargetLocatorKey(ResourceKey<Level> dimension, net.minecraft.core.BlockPos pos, LinkNodeType targetType, long targetSerial) {
+		private static TargetLocatorKey of(CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending) {
+			if (pending == null || pending.key() == null || pending.dimension() == null || pending.pos() == null) {
+				return null;
+			}
+			return new TargetLocatorKey(
+				pending.dimension(),
+				pending.pos().immutable(),
+				pending.key().targetType(),
+				pending.key().targetSerial()
+			);
+		}
+	}
+
+	/**
+	 * 目标定位三态。
+	 */
+	enum TargetLocatorStatus {
+		READY_TARGET,
+		RETRYABLE_MISS,
+		INVALID_TARGET
+	}
+
+	/**
+	 * 目标定位结果。
+	 */
+	record TargetLocatorResult(
+		TargetLocatorStatus status,
+		ServerLevel targetLevel,
+		ActivatableTargetBlockEntity targetBlockEntity,
+		boolean shouldAttemptForceLoad
+	) {
+		private static TargetLocatorResult ready(ServerLevel targetLevel, ActivatableTargetBlockEntity targetBlockEntity) {
+			return new TargetLocatorResult(TargetLocatorStatus.READY_TARGET, targetLevel, targetBlockEntity, false);
+		}
+
+		private static TargetLocatorResult retryable(ServerLevel targetLevel, boolean shouldAttemptForceLoad) {
+			return new TargetLocatorResult(TargetLocatorStatus.RETRYABLE_MISS, targetLevel, null, shouldAttemptForceLoad);
+		}
+
+		private static TargetLocatorResult invalid(ServerLevel targetLevel) {
+			return new TargetLocatorResult(TargetLocatorStatus.INVALID_TARGET, targetLevel, null, false);
+		}
+	}
+
+	/**
+	 * 同 tick 内的目标定位短缓存。
+	 */
+	static final class TargetLocatorCache {
+		private final LinkedHashMap<TargetLocatorKey, TargetLocatorResult> locatorResults = new LinkedHashMap<>();
+
+		/**
+		 * 定位 pending 当前指向的目标实体。
+		 */
+		TargetLocatorResult locate(MinecraftServer server, CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending) {
+			TargetLocatorKey locatorKey = TargetLocatorKey.of(pending);
+			if (locatorKey == null) {
+				return TargetLocatorResult.retryable(null, false);
+			}
+			return locatorResults.computeIfAbsent(locatorKey, ignored -> resolveTarget(server, pending));
+		}
+
+		/**
+		 * 暴露缓存大小，便于单元测试验证是否发生复用。
+		 */
+		int size() {
+			return locatorResults.size();
+		}
+
+		private static TargetLocatorResult resolveTarget(
+			MinecraftServer server,
+			CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending
+		) {
+			if (server == null || pending == null || pending.key() == null || pending.dimension() == null || pending.pos() == null) {
+				return TargetLocatorResult.retryable(null, false);
+			}
+			ServerLevel targetLevel = server.getLevel(pending.dimension());
+			if (targetLevel == null) {
+				return TargetLocatorResult.retryable(null, false);
+			}
+			if (!targetLevel.isLoaded(pending.pos())) {
+				return TargetLocatorResult.retryable(targetLevel, true);
+			}
+
+			LevelChunk targetChunk = targetLevel.getChunkSource().getChunkNow(pending.pos().getX() >> 4, pending.pos().getZ() >> 4);
+			if (targetChunk == null) {
+				return TargetLocatorResult.retryable(targetLevel, false);
+			}
+			BlockEntity blockEntity = targetChunk.getBlockEntity(pending.pos(), LevelChunk.EntityCreationType.CHECK);
+			if (!(blockEntity instanceof ActivatableTargetBlockEntity targetBlockEntity)) {
+				if (blockEntity == null && targetChunk.getBlockState(pending.pos()).hasBlockEntity()) {
+					return TargetLocatorResult.retryable(targetLevel, false);
+				}
+				return TargetLocatorResult.invalid(targetLevel);
+			}
+			if (
+				targetBlockEntity.getSerial() != pending.key().targetSerial()
+					|| targetBlockEntity.getLinkNodeType() != pending.key().targetType()
+			) {
+				return TargetLocatorResult.invalid(targetLevel);
+			}
+			return TargetLocatorResult.ready(targetLevel, targetBlockEntity);
+		}
+	}
+
+	/**
+	 * ready batchable pending 的 chunk/core 分组缓存。
+	 */
+	static final class ChunkReadyDrainCache {
+		private final LinkedHashMap<
+			CrossChunkDispatchService.TargetChunkKey,
+			LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup>
+		> readyGroupsByChunk = new LinkedHashMap<>();
+
+		/**
+		 * 将 ready 的 batchable 派发项写入 drain 缓存。
+		 */
+		void stageBatchable(PreparedDispatch preparedDispatch) {
+			if (preparedDispatch == null || !preparedDispatch.supportsBatching()) {
+				return;
+			}
+			CrossChunkDispatchService.TargetChunkKey targetChunkKey = targetChunkKeyOf(preparedDispatch.pending());
+			ReadyDrainTargetKey readyDrainTargetKey = ReadyDrainTargetKey.of(preparedDispatch.pending());
+			if (targetChunkKey == null || readyDrainTargetKey == null) {
+				return;
+			}
+			LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget = readyGroupsByChunk.computeIfAbsent(
+				targetChunkKey,
+				ignored -> new LinkedHashMap<>()
+			);
+			ReadyDrainTargetGroup readyDrainTargetGroup = groupsByTarget.computeIfAbsent(
+				readyDrainTargetKey,
+				ignored -> new ReadyDrainTargetGroup(preparedDispatch.targetBlockEntity(), readyDrainTargetKey)
+			);
+			readyDrainTargetGroup.add(preparedDispatch);
+		}
+
+		/**
+		 * 将当前 tick 命中的 ready batchable pending 统一写入 batch scheduler。
+		 */
+		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> drainToBatchScheduler(
+			MinecraftServer server,
+			CrossChunkDispatchQueueSavedData queueData
+		) {
+			if (server == null || queueData == null || readyGroupsByChunk.isEmpty()) {
+				return List.of();
+			}
+			List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> acceptedPendings = new ArrayList<>();
+			for (Map<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget : readyGroupsByChunk.values()) {
+				for (ReadyDrainTargetGroup readyDrainTargetGroup : groupsByTarget.values()) {
+					acceptedPendings.addAll(readyDrainTargetGroup.drain(server, queueData));
+				}
+			}
+			readyGroupsByChunk.clear();
+			return List.copyOf(acceptedPendings);
+		}
+
+		/**
+		 * 暴露 ready chunk 桶数量，便于测试验证按 chunk 聚合。
+		 */
+		int chunkBucketCount() {
+			return readyGroupsByChunk.size();
+		}
+
+		/**
+		 * 暴露 ready target 分组数量，便于测试验证按 core 聚合。
+		 */
+		int targetGroupCount() {
+			int count = 0;
+			for (Map<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget : readyGroupsByChunk.values()) {
+				count += groupsByTarget.size();
+			}
+			return count;
+		}
+	}
+
+	/**
+	 * ready drain 的目标分组键。
+	 */
+	private record ReadyDrainTargetKey(ResourceKey<Level> dimension, net.minecraft.core.BlockPos pos, LinkNodeType targetType, long targetSerial) {
+		private static ReadyDrainTargetKey of(CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending) {
+			if (pending == null || pending.key() == null || pending.dimension() == null || pending.pos() == null) {
+				return null;
+			}
+			return new ReadyDrainTargetKey(
+				pending.dimension(),
+				pending.pos().immutable(),
+				pending.key().targetType(),
+				pending.key().targetSerial()
+			);
+		}
+	}
+
+	/**
+	 * 单个 `core` 的 ready drain 分组。
+	 */
+	private static final class ReadyDrainTargetGroup {
+		private final ActivatableTargetBlockEntity targetBlockEntity;
+		private final ReadyDrainTargetKey readyDrainTargetKey;
+		private final List<PreparedDispatch> stagedBatchableDispatches = new ArrayList<>();
+
+		private ReadyDrainTargetGroup(
+			ActivatableTargetBlockEntity targetBlockEntity,
+			ReadyDrainTargetKey readyDrainTargetKey
+		) {
+			this.targetBlockEntity = targetBlockEntity;
+			this.readyDrainTargetKey = readyDrainTargetKey;
+		}
+
+		private void add(PreparedDispatch preparedDispatch) {
+			if (preparedDispatch != null) {
+				stagedBatchableDispatches.add(preparedDispatch);
+			}
+		}
+
+		private List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> drain(
+			MinecraftServer server,
+			CrossChunkDispatchQueueSavedData queueData
+		) {
+			if (
+				server == null
+					|| queueData == null
+					|| targetBlockEntity == null
+					|| targetBlockEntity.isRemoved()
+					|| targetBlockEntity.getLevel() == null
+					|| targetBlockEntity.getLevel().isClientSide
+					|| targetBlockEntity.getSerial() != readyDrainTargetKey.targetSerial()
+					|| targetBlockEntity.getLinkNodeType() != readyDrainTargetKey.targetType()
+					|| stagedBatchableDispatches.isEmpty()
+			) {
+				return List.of();
+			}
+			List<DispatchBatchEntry> batchEntries = new ArrayList<>(stagedBatchableDispatches.size());
+			List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> acceptedPendings = new ArrayList<>(stagedBatchableDispatches.size());
+			for (PreparedDispatch preparedDispatch : stagedBatchableDispatches) {
+				batchEntries.add(preparedDispatch.toBatchEntry());
+				acceptedPendings.add(preparedDispatch.pending());
+			}
+			if (
+				!CoreDispatchBatchScheduler.enqueueLoadedTargetDispatchBatch(
+					server,
+					targetBlockEntity,
+					readyDrainTargetKey.targetType(),
+					readyDrainTargetKey.targetSerial(),
+					batchEntries
+				)
+			) {
+				return List.of();
+			}
+			for (CrossChunkDispatchQueueSavedData.PendingDispatchEntry acceptedPending : acceptedPendings) {
+				queueData.markAccepted(acceptedPending.key(), acceptedPending.version());
+			}
+			return List.copyOf(acceptedPendings);
+		}
 	}
 
 	/**
