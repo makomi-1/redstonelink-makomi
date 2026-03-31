@@ -1,6 +1,9 @@
 package com.makomi.item;
 
+import com.makomi.data.StatePanelToolData;
 import com.makomi.network.StatePanelNetwork;
+import java.util.List;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -8,6 +11,7 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 
@@ -43,6 +47,21 @@ public class StatePanelToolItem extends Item {
 		}
 		openPanel(context.getLevel(), player, context.getItemInHand());
 		return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+	}
+
+	@Override
+	public void appendHoverText(
+		ItemStack stack,
+		Item.TooltipContext context,
+		List<Component> tooltipComponents,
+		TooltipFlag tooltipFlag
+	) {
+		int count = StatePanelToolData.subscriptionCount(stack);
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.subscriptions", Integer.toString(count)));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.open_panel"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.validation"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.auto_refresh"));
+		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 
 	/**

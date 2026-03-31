@@ -43,6 +43,10 @@ final class StatePanelNetworkRegistrationSupport {
 			StatePanelNetwork.RecordStatePanelPayload.TYPE,
 			StatePanelNetwork.RecordStatePanelPayload.CODEC
 		);
+		PayloadTypeRegistry.playC2S().register(
+			StatePanelNetwork.CleanAllStatePanelPayload.TYPE,
+			StatePanelNetwork.CleanAllStatePanelPayload.CODEC
+		);
 		PayloadTypeRegistry.playS2C().register(
 			StatePanelNetwork.StatePanelSnapshotPayload.TYPE,
 			StatePanelNetwork.StatePanelSnapshotPayload.CODEC
@@ -84,6 +88,13 @@ final class StatePanelNetworkRegistrationSupport {
 				return;
 			}
 			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleRecord(player));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.CleanAllStatePanelPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleCleanAll(player));
 		});
 	}
 }

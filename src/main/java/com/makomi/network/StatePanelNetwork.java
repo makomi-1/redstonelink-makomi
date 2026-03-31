@@ -160,6 +160,25 @@ public final class StatePanelNetwork {
 	}
 
 	/**
+	 * 客户端清空全部订阅的 C2S 请求。
+	 */
+	public record CleanAllStatePanelPayload() implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<CleanAllStatePanelPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "clean_all_state_panel")
+		);
+		public static final StreamCodec<FriendlyByteBuf, CleanAllStatePanelPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> {
+			},
+			buffer -> new CleanAllStatePanelPayload()
+		);
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 服务端返回的状态快照回执。
 	 */
 	public record StatePanelSnapshotPayload(List<StatePanelSnapshotEntry> entries) implements CustomPacketPayload {

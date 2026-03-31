@@ -53,6 +53,20 @@ class StatePanelNetworkPayloadTest {
 	}
 
 	/**
+	 * 清空全部订阅请求包应支持空体往返编解码。
+	 */
+	@Test
+	void cleanAllPayloadCodecRoundTripShouldPreserveType() {
+		StatePanelNetwork.CleanAllStatePanelPayload original = new StatePanelNetwork.CleanAllStatePanelPayload();
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		StatePanelNetwork.CleanAllStatePanelPayload.CODEC.encode(buffer, original);
+		StatePanelNetwork.CleanAllStatePanelPayload decoded = StatePanelNetwork.CleanAllStatePanelPayload.CODEC.decode(buffer);
+
+		assertEquals(StatePanelNetwork.CleanAllStatePanelPayload.TYPE, decoded.type());
+	}
+
+	/**
 	 * 快照回执编解码应保留节点状态字段。
 	 */
 	@Test

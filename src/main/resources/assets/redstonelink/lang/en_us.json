@@ -46,6 +46,10 @@
   "tooltip.redstonelink.quick_link.toggle_mode": "Press the Quick Link mode key to switch modes (default B; channel mode is reserved for future expansion)",
   "tooltip.redstonelink.quick_link.collect": "Left-click a valid node to collect the current cache",
   "tooltip.redstonelink.quick_link.apply": "Right-click while standing on a valid node to apply the current cache",
+  "tooltip.redstonelink.state_panel.subscriptions": "Current subscriptions: %s",
+  "tooltip.redstonelink.state_panel.open_panel": "Right-click to open state panel",
+  "tooltip.redstonelink.state_panel.validation": "New subscriptions only accept allocated and non-retired nodes",
+  "tooltip.redstonelink.state_panel.auto_refresh": "Automatically refresh once after new subscriptions are added",
   "screen.redstonelink.pairing.title": "Redstone Link Pairing",
   "screen.redstonelink.pairing.input": "Target Serial",
   "screen.redstonelink.pairing.input_hint": "Enter target serial, 0 clears all links",
@@ -282,5 +286,10 @@
   "message.redstonelink.state_panel.remove.invalid": "[RedstoneLink] Invalid remove request.",
   "message.redstonelink.state_panel.remove.not_found": "[RedstoneLink] Subscription entry not found.",
   "message.redstonelink.state_panel.remove.done": "[RedstoneLink] Subscription entry removed.",
-  "message.redstonelink.state_panel.record.future": "[RedstoneLink] Recording will be available in a future release."
+  "message.redstonelink.state_panel.record.future": "[RedstoneLink] Recording will be available in a future release.",
+  "screen.redstonelink.state_panel.clean_all": "Clean All",
+  "screen.redstonelink.state_panel.header_type": "Type",
+  "screen.redstonelink.state_panel.header_serial": "Serial",
+  "screen.redstonelink.state_panel.header_status": "Status",
+  "message.redstonelink.state_panel.clean_all.done": "[RedstoneLink] Cleared all subscriptions (%s removed)."
 }

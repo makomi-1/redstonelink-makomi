@@ -12,8 +12,10 @@ import com.makomi.item.StatePanelToolItem;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.level.ServerPlayer;
@@ -83,11 +85,43 @@ final class StatePanelNetworkServerHandlerSupport {
 		}
 
 		List<StatePanelToolData.SubscriptionEntry> current = StatePanelToolData.readSubscriptions(mainHandItem);
-		List<StatePanelToolData.SubscriptionEntry> merged = StatePanelToolData.mergeSubscriptions(
-			current,
-			nodeType,
-			parseResult.orderedTargets()
-		);
+		List<Long> newSerials = collectNewSerials(current, nodeType, parseResult.orderedTargets());
+		if (newSerials.isEmpty()) {
+			sendFeedback(
+				player,
+				QuickLinkOperationFeedback.success(
+					"message.redstonelink.state_panel.subscribe.done",
+					Integer.toString(current.size())
+				)
+			);
+			return;
+		}
+
+		List<String> unallocatedSerials = new ArrayList<>();
+		List<String> retiredSerials = new ArrayList<>();
+		collectInvalidNewSerials(player, nodeType, newSerials, unallocatedSerials, retiredSerials);
+		if (!unallocatedSerials.isEmpty()) {
+			sendFeedback(
+				player,
+				QuickLinkOperationFeedback.failure(
+					"message.redstonelink.invalid_target_unallocated",
+					String.join(", ", unallocatedSerials)
+				)
+			);
+			return;
+		}
+		if (!retiredSerials.isEmpty()) {
+			sendFeedback(
+				player,
+				QuickLinkOperationFeedback.failure(
+					"message.redstonelink.invalid_target_retired",
+					String.join(", ", retiredSerials)
+				)
+			);
+			return;
+		}
+
+		List<StatePanelToolData.SubscriptionEntry> merged = StatePanelToolData.mergeSubscriptions(current, nodeType, newSerials);
 		if (merged.size() > maxSubscriptions) {
 			sendFeedback(
 				player,
@@ -108,6 +142,7 @@ final class StatePanelNetworkServerHandlerSupport {
 				Integer.toString(merged.size())
 			)
 		);
+		// 仅在本次确有新增订阅时回传一次快照，避免无效重复刷新。
 		sendSnapshot(player, merged);
 	}
 
@@ -167,6 +202,28 @@ final class StatePanelNetworkServerHandlerSupport {
 			return;
 		}
 		sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.state_panel.record.future"));
+	}
+
+	/**
+	 * 处理清空全部订阅请求。
+	 */
+	static void handleCleanAll(ServerPlayer player) {
+		ItemStack mainHandItem = resolveStatePanelItem(player);
+		if (mainHandItem.isEmpty()) {
+			return;
+		}
+		List<StatePanelToolData.SubscriptionEntry> current = StatePanelToolData.readSubscriptions(mainHandItem);
+		int removedCount = current.size();
+		StatePanelToolData.writeSubscriptions(mainHandItem, List.of());
+		player.containerMenu.broadcastChanges();
+		sendFeedback(
+			player,
+			QuickLinkOperationFeedback.success(
+				"message.redstonelink.state_panel.clean_all.done",
+				Integer.toString(removedCount)
+			)
+		);
+		sendSnapshot(player, List.of());
 	}
 
 	/**
@@ -247,5 +304,64 @@ final class StatePanelNetworkServerHandlerSupport {
 			return ItemStack.EMPTY;
 		}
 		return mainHandItem;
+	}
+
+	/**
+	 * 从输入序号中筛出“本次新加入订阅”的序号。
+	 */
+	private static List<Long> collectNewSerials(
+		List<StatePanelToolData.SubscriptionEntry> current,
+		LinkNodeType nodeType,
+		List<Long> requestedSerials
+	) {
+		if (requestedSerials == null || requestedSerials.isEmpty()) {
+			return List.of();
+		}
+		Set<Long> existing = new HashSet<>();
+		if (current != null && !current.isEmpty()) {
+			for (StatePanelToolData.SubscriptionEntry entry : current) {
+				if (entry.nodeType() == nodeType && entry.serial() > 0L) {
+					existing.add(entry.serial());
+				}
+			}
+		}
+		List<Long> newSerials = new ArrayList<>();
+		for (Long requested : requestedSerials) {
+			long serial = requested == null ? 0L : requested;
+			if (serial <= 0L || existing.contains(serial)) {
+				continue;
+			}
+			newSerials.add(serial);
+		}
+		return newSerials.isEmpty() ? List.of() : List.copyOf(newSerials);
+	}
+
+	/**
+	 * 对“新增订阅序号组”执行已分配且未退役校验。
+	 */
+	private static void collectInvalidNewSerials(
+		ServerPlayer player,
+		LinkNodeType nodeType,
+		List<Long> newSerials,
+		List<String> unallocatedSerials,
+		List<String> retiredSerials
+	) {
+		if (newSerials == null || newSerials.isEmpty()) {
+			return;
+		}
+		for (Long serialValue : newSerials) {
+			long serial = serialValue == null ? 0L : serialValue;
+			if (serial <= 0L) {
+				continue;
+			}
+			NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(player.serverLevel(), nodeType, serial);
+			if (!identity.allocated()) {
+				unallocatedSerials.add(Long.toString(serial));
+				continue;
+			}
+			if (identity.retired()) {
+				retiredSerials.add(Long.toString(serial));
+			}
+		}
 	}
 }
