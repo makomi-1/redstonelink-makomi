@@ -26,6 +26,8 @@ public class StatePanelToolScreen extends Screen {
 	private static final Component HEADER_TYPE = Component.translatable("screen.redstonelink.state_panel.header_type");
 	private static final Component HEADER_SERIAL = Component.translatable("screen.redstonelink.state_panel.header_serial");
 	private static final Component HEADER_STATUS = Component.translatable("screen.redstonelink.state_panel.header_status");
+	private static final Component STATUS_LOADING = Component.translatable("screen.redstonelink.state_panel.status_loading");
+	private static final Component STATUS_HIDDEN = Component.translatable("screen.redstonelink.state_panel.status_hidden");
 
 	/** 面板主体默认宽度。 */
 	private static final int PANEL_WIDTH = 500;
@@ -66,6 +68,7 @@ public class StatePanelToolScreen extends Screen {
 	private Component statusMessage = Component.empty();
 	private int scrollOffset;
 	private boolean initialRefreshRequested;
+	private boolean hasAppliedServerSnapshot;
 
 	public StatePanelToolScreen(List<StatePanelNetwork.SubscriptionEntryPayload> subscriptions) {
 		super(TITLE);
@@ -201,6 +204,7 @@ public class StatePanelToolScreen extends Screen {
 	 * 接收服务端快照后刷新列表。
 	 */
 	public void applySnapshot(List<StatePanelNetwork.StatePanelSnapshotEntry> snapshotEntries) {
+		hasAppliedServerSnapshot = true;
 		entries.clear();
 		if (snapshotEntries != null && !snapshotEntries.isEmpty()) {
 			entries.addAll(snapshotEntries);
@@ -278,7 +282,8 @@ public class StatePanelToolScreen extends Screen {
 					false,
 					false,
 					0,
-					0
+					0,
+					true
 				)
 			);
 		}
@@ -323,7 +328,7 @@ public class StatePanelToolScreen extends Screen {
 			StatePanelNetwork.StatePanelSnapshotEntry entry = entries.get(index);
 			String typeLabel = LinkNodeSemantics.toSemanticName(entry.nodeType());
 			String serialLabel = "#" + entry.serial();
-			String status = buildStatusText(entry);
+			String status = buildStatusText(entry, hasAppliedServerSnapshot);
 
 			guiGraphics.drawString(font, clipTextToWidth(typeLabel, layout.typeWidth()), layout.typeX(), rowY + LIST_ROW_TEXT_OFFSET_Y, 0xE6E6E6, false);
 			guiGraphics.drawString(
@@ -355,7 +360,13 @@ public class StatePanelToolScreen extends Screen {
 			.thenComparingLong(StatePanelNetwork.StatePanelSnapshotEntry::serial);
 	}
 
-	private static String buildStatusText(StatePanelNetwork.StatePanelSnapshotEntry entry) {
+	static String buildStatusText(StatePanelNetwork.StatePanelSnapshotEntry entry, boolean hasAppliedServerSnapshot) {
+		if (!hasAppliedServerSnapshot) {
+			return STATUS_LOADING.getString();
+		}
+		if (entry == null || !entry.readable()) {
+			return STATUS_HIDDEN.getString();
+		}
 		String online = entry.online() ? "online" : "offline";
 		String active = entry.active() ? "active" : "idle";
 		String retired = entry.retired() ? "retired" : "alive";

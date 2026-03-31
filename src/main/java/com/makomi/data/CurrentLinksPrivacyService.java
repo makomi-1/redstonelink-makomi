@@ -16,6 +16,40 @@ public final class CurrentLinksPrivacyService {
 	}
 
 	/**
+	 * 判定玩家是否可读取指定节点的状态面板读模型。
+	 * <p>
+	 * 当前状态面板与“当前连接”来源节点读权限保持一致，
+	 * 因此直接复用同一套 `hidden/masked/plain` + 权限等级规则。
+	 * </p>
+	 *
+	 * @param player 服务端玩家
+	 * @param nodeType 节点类型（triggerSource/core）
+	 * @param serial 节点序号
+	 * @return true 表示允许读取；false 表示应走隐藏态
+	 */
+	public static boolean canReadNodeState(ServerPlayer player, LinkNodeType nodeType, long serial) {
+		return canViewCurrentLinks(player, nodeType, serial);
+	}
+
+	/**
+	 * 判定当前上下文是否可读取指定节点的状态面板读模型。
+	 *
+	 * @param level 服务端世界
+	 * @param nodeType 节点类型（triggerSource/core）
+	 * @param serial 节点序号
+	 * @param hasViewPermission 是否具备查看受控连接权限
+	 * @return true 表示允许读取；false 表示应走隐藏态
+	 */
+	public static boolean canReadNodeState(
+		ServerLevel level,
+		LinkNodeType nodeType,
+		long serial,
+		boolean hasViewPermission
+	) {
+		return canViewCurrentLinks(level, nodeType, serial, hasViewPermission);
+	}
+
+	/**
 	 * 判定玩家是否可查看指定节点的“当前连接”明文。
 	 *
 	 * @param player 服务端玩家

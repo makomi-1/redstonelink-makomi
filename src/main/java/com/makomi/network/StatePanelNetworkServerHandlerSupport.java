@@ -1,6 +1,7 @@
 package com.makomi.network;
 
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeIdentitySnapshot;
@@ -116,6 +117,17 @@ final class StatePanelNetworkServerHandlerSupport {
 				QuickLinkOperationFeedback.failure(
 					"message.redstonelink.invalid_target_retired",
 					String.join(", ", retiredSerials)
+				)
+			);
+			return;
+		}
+		List<String> privacyDeniedSerials = collectPrivacyDeniedSerials(player, nodeType, newSerials);
+		if (!privacyDeniedSerials.isEmpty()) {
+			sendFeedback(
+				player,
+				QuickLinkOperationFeedback.failure(
+					"message.redstonelink.state_panel.subscribe.privacy_denied",
+					String.join(", ", privacyDeniedSerials)
 				)
 			);
 			return;
@@ -246,25 +258,16 @@ final class StatePanelNetworkServerHandlerSupport {
 		}
 		List<StatePanelNetwork.StatePanelSnapshotEntry> values = new ArrayList<>(subscriptions.size());
 		for (StatePanelToolData.SubscriptionEntry subscription : subscriptions) {
-			NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(player.serverLevel(), subscription.nodeType(), subscription.serial());
-			NodeRuntimeSnapshot runtimeSnapshot = NodeSnapshotQueryService
-				.resolveRuntimeSnapshot(player.serverLevel().getServer(), subscription.nodeType(), subscription.serial())
-				.orElse(null);
-			boolean active = runtimeSnapshot != null && runtimeSnapshot.active();
-			int inputPower = runtimeSnapshot == null ? 0 : runtimeSnapshot.inputPower();
-			int outputPower = runtimeSnapshot == null ? 0 : runtimeSnapshot.outputPower();
-			values.add(
-				new StatePanelNetwork.StatePanelSnapshotEntry(
-					subscription.nodeType(),
-					subscription.serial(),
-					identity.allocated(),
-					identity.retired(),
-					identity.online(),
-					active,
-					inputPower,
-					outputPower
-				)
-			);
+			boolean readable = CurrentLinksPrivacyService.canReadNodeState(player, subscription.nodeType(), subscription.serial());
+			NodeIdentitySnapshot identity = readable
+				? NodeIdentitySnapshot.resolve(player.serverLevel(), subscription.nodeType(), subscription.serial())
+				: null;
+			NodeRuntimeSnapshot runtimeSnapshot = readable
+				? NodeSnapshotQueryService
+					.resolveRuntimeSnapshot(player.serverLevel().getServer(), subscription.nodeType(), subscription.serial())
+					.orElse(null)
+				: null;
+			values.add(buildSnapshotEntry(subscription, readable, identity, runtimeSnapshot));
 		}
 		return List.copyOf(values);
 	}
@@ -363,5 +366,58 @@ final class StatePanelNetworkServerHandlerSupport {
 				retiredSerials.add(Long.toString(serial));
 			}
 		}
+	}
+
+	/**
+	 * 收集因隐私读控而不允许新增订阅的序号。
+	 */
+	private static List<String> collectPrivacyDeniedSerials(ServerPlayer player, LinkNodeType nodeType, List<Long> newSerials) {
+		if (player == null || nodeType == null || newSerials == null || newSerials.isEmpty()) {
+			return List.of();
+		}
+		List<String> deniedSerials = new ArrayList<>();
+		for (Long serialValue : newSerials) {
+			long serial = serialValue == null ? 0L : serialValue;
+			if (serial <= 0L) {
+				continue;
+			}
+			if (!CurrentLinksPrivacyService.canReadNodeState(player, nodeType, serial)) {
+				deniedSerials.add(Long.toString(serial));
+			}
+		}
+		return deniedSerials.isEmpty() ? List.of() : List.copyOf(deniedSerials);
+	}
+
+	/**
+	 * 构造状态面板单条快照；不可读条目统一回传隐藏态。
+	 */
+	static StatePanelNetwork.StatePanelSnapshotEntry buildSnapshotEntry(
+		StatePanelToolData.SubscriptionEntry subscription,
+		boolean readable,
+		NodeIdentitySnapshot identity,
+		NodeRuntimeSnapshot runtimeSnapshot
+	) {
+		LinkNodeType nodeType = subscription == null ? LinkNodeType.CORE : subscription.nodeType();
+		long serial = subscription == null ? 0L : subscription.serial();
+		if (!readable) {
+			return new StatePanelNetwork.StatePanelSnapshotEntry(nodeType, serial, false, false, false, false, 0, 0, false);
+		}
+		NodeIdentitySnapshot resolvedIdentity = identity == null
+			? new NodeIdentitySnapshot(nodeType, serial, false, false, false, null, null)
+			: identity;
+		boolean active = runtimeSnapshot != null && runtimeSnapshot.active();
+		int inputPower = runtimeSnapshot == null ? 0 : runtimeSnapshot.inputPower();
+		int outputPower = runtimeSnapshot == null ? 0 : runtimeSnapshot.outputPower();
+		return new StatePanelNetwork.StatePanelSnapshotEntry(
+			nodeType,
+			serial,
+			resolvedIdentity.allocated(),
+			resolvedIdentity.retired(),
+			resolvedIdentity.online(),
+			active,
+			inputPower,
+			outputPower,
+			true
+		);
 	}
 }

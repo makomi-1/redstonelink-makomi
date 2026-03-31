@@ -84,6 +84,7 @@ final class StatePanelNetworkPayloadSupport {
 			buffer.writeBoolean(entry.active());
 			buffer.writeVarInt(entry.inputPower());
 			buffer.writeVarInt(entry.outputPower());
+			buffer.writeBoolean(entry.readable());
 		}
 	}
 
@@ -102,7 +103,20 @@ final class StatePanelNetworkPayloadSupport {
 			boolean active = buffer.readBoolean();
 			int inputPower = buffer.readVarInt();
 			int outputPower = buffer.readVarInt();
-			values.add(new StatePanelNetwork.StatePanelSnapshotEntry(nodeType, serial, allocated, retired, online, active, inputPower, outputPower));
+			boolean readable = buffer.readBoolean();
+			values.add(
+				new StatePanelNetwork.StatePanelSnapshotEntry(
+					nodeType,
+					serial,
+					allocated,
+					retired,
+					online,
+					active,
+					inputPower,
+					outputPower,
+					readable
+				)
+			);
 		}
 		return List.copyOf(values);
 	}

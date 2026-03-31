@@ -73,8 +73,8 @@ class StatePanelNetworkPayloadTest {
 	void snapshotPayloadCodecRoundTripShouldPreserveEntries() {
 		StatePanelNetwork.StatePanelSnapshotPayload original = new StatePanelNetwork.StatePanelSnapshotPayload(
 			List.of(
-				new StatePanelNetwork.StatePanelSnapshotEntry(LinkNodeType.CORE, 21L, true, false, true, true, 7, 15),
-				new StatePanelNetwork.StatePanelSnapshotEntry(LinkNodeType.TRIGGER_SOURCE, 33L, true, false, false, false, 0, 0)
+				new StatePanelNetwork.StatePanelSnapshotEntry(LinkNodeType.CORE, 21L, true, false, true, true, 7, 15, true),
+				new StatePanelNetwork.StatePanelSnapshotEntry(LinkNodeType.TRIGGER_SOURCE, 33L, false, false, false, false, 0, 0, false)
 			)
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());

@@ -253,7 +253,8 @@ public final class StatePanelNetwork {
 		boolean online,
 		boolean active,
 		int inputPower,
-		int outputPower
+		int outputPower,
+		boolean readable
 	) {
 		public StatePanelSnapshotEntry {
 			nodeType = nodeType == LinkNodeType.TRIGGER_SOURCE ? LinkNodeType.TRIGGER_SOURCE : LinkNodeType.CORE;
