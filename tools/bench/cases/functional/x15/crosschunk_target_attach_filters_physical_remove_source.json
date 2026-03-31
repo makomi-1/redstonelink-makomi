@@ -1,0 +1,127 @@
+{
+  "id": "crosschunk_target_attach_filters_physical_remove_source",
+  "description": "验证 target reload 时不会把已真实物理移除的 triggerSource 重新纳入重算对象；来源被拆除后 core 保持低态，reload 后也不会被旧来源补亮。",
+  "layer": "X",
+  "scenarioId": "X15",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [24, 63, 450],
+        "clearTo": [40, 66, 458]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [56, 63, 188],
+        "clearTo": [72, 66, 200]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_physical_remove_filter",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [64, 64, 194],
+      "to": [64, 64, 194]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_physical_drop",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [32, 64, 454],
+        "to": [32, 64, 454]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_physical_drop",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_physical_source",
+      "command": "setblock 33 64 454 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_physical_source_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "physical_target_should_start_high",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "physically_remove_source",
+      "command": "setblock 32 64 454 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_physical_source_removed",
+      "ticks": 6
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "physical_target_should_turn_off_after_remove",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_physical_target_forceload",
+      "command": "forceload remove 64 194 64 194",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_physical_target_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_physical_target_forceload",
+      "command": "forceload add 64 194 64 194",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_physical_target_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "physical_target_should_stay_low_after_reload",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    }
+  ]
+}

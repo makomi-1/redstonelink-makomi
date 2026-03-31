@@ -1,0 +1,133 @@
+{
+  "id": "crosschunk_sync_source_attach_replay_disabled",
+  "description": "验证 syncSourceAttachReplay 关闭时，triggerSource context-detach 后重新 attach 不会把当前高态补发给在线 core。",
+  "layer": "X",
+  "scenarioId": "X13",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [-8, 63, 410],
+        "clearTo": [8, 66, 426]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [24, 63, 148],
+        "clearTo": [40, 66, 160]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_source_attach_disabled",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [32, 64, 154],
+      "to": [32, 64, 154]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_source_attach_disabled",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [0, 64, 418],
+        "to": [0, 64, 418]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_source_attach_disabled",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_source_attach_disabled_source",
+      "command": "setblock 1 64 418 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_source_attach_disabled_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "source_attach_disabled_target_should_start_high",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_source_attach_disabled_source_forceload",
+      "command": "forceload remove 0 418 0 418",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_source_attach_disabled_source_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "source_attach_disabled_source_should_be_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_source_attach_disabled[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "source_attach_disabled_target_should_turn_off_after_detach",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_source_attach_disabled_source_forceload",
+      "command": "forceload add 0 418 0 418",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_source_attach_disabled_source_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "source_attach_disabled_source_should_reload_high",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_source_attach_disabled[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "source_attach_disabled_target_should_stay_low_without_attach_replay",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    }
+  ]
+}

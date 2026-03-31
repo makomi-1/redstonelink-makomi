@@ -1,0 +1,134 @@
+{
+  "id": "crosschunk_target_attach_filters_context_detach_source",
+  "description": "验证 target reload 时不会把已 context-detach 的 triggerSource 重新纳入重算对象；来源离线后 core 保持低态，reload 后也不会被旧来源补亮。",
+  "layer": "X",
+  "scenarioId": "X14",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [24, 63, 430],
+        "clearTo": [40, 66, 438]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [56, 63, 168],
+        "clearTo": [72, 66, 180]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_context_detach_filter",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [64, 64, 174],
+      "to": [64, 64, 174]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_context_drop",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [32, 64, 434],
+        "to": [32, 64, 434]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_context_drop",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_context_source",
+      "command": "setblock 33 64 434 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_context_source_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "context_target_should_start_high",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_context_source_forceload",
+      "command": "forceload remove 32 434 32 434",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_context_source_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "context_source_should_be_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_context_drop[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "context_target_should_turn_off_after_detach",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_context_target_forceload",
+      "command": "forceload remove 64 174 64 174",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_context_target_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_context_target_forceload",
+      "command": "forceload add 64 174 64 174",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_context_target_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "context_target_should_stay_low_after_reload",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    }
+  ]
+}

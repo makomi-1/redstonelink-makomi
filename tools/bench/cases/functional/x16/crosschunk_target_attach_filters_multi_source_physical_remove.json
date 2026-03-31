@@ -1,0 +1,220 @@
+{
+  "id": "crosschunk_target_attach_filters_multi_source_physical_remove",
+  "description": "验证 target reload 时会在多来源中只保留仍合格的 triggerSource；一路来源被真实物理移除后，保留来源重新驱动时，core 重载后的 linked/targets 仅保留仍合格的 triggerSource。",
+  "layer": "X",
+  "scenarioId": "X16",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [-8, 63, 468],
+        "clearTo": [40, 66, 480]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [56, 63, 208],
+        "clearTo": [72, 66, 220]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_multi_source_physical_filter",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [64, 64, 214],
+      "to": [64, 64, 214]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_keep_left",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [0, 64, 474],
+        "to": [0, 64, 474]
+      }
+    },
+    {
+      "id": "sync_keep_right",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4, 64, 474],
+        "to": [4, 64, 474]
+      }
+    },
+    {
+      "id": "sync_physical_drop",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [32, 64, 474],
+        "to": [32, 64, 474]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_keep_left",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_keep_right",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_physical_drop",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "multi_source_target_should_link_all_sources_initially",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked={{serialRefs:sync_keep_left+sync_keep_right+sync_physical_drop:count}}(?:,|，)",
+        "(?i)targets={{serialRefs:sync_keep_left+sync_keep_right+sync_physical_drop:csv}}(?:\\.|。)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_physical_drop_source",
+      "command": "setblock 33 64 474 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_physical_drop_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "multi_source_target_should_start_high_from_physical_source",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)",
+        "(?i)maxSources={{source:sync_physical_drop:csv}}(?:\\.|。)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "physically_remove_drop_source",
+      "command": "setblock 32 64 474 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_physical_drop_removed",
+      "ticks": 6
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "multi_source_target_should_turn_off_after_physical_remove",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_keep_pair_constant_input",
+      "serialRefs": [
+        "sync_keep_left",
+        "sync_keep_right"
+      ],
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_keep_pair_constant_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "keep_left_should_be_online_high",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_keep_left[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "keep_right_should_be_online_high",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_keep_right[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "multi_source_target_should_return_high_before_reload",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_multi_source_target_forceload",
+      "command": "forceload remove 64 214 64 214",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_multi_source_target_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_multi_source_target_forceload",
+      "command": "forceload add 64 214 64 214",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_multi_source_target_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "multi_source_target_should_reload_high_with_only_eligible_sources",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)",
+        "(?i)linked={{serialRefs:sync_keep_left+sync_keep_right:count}}(?:,|，)",
+        "(?i)targets={{serialRefs:sync_keep_left+sync_keep_right:csv}}(?:\\.|。)"
+      ]
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_keep_pair_input_jobs"
+    }
+  ]
+}

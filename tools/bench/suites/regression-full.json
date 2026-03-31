@@ -138,6 +138,48 @@
       "entryId": "x11_reload_template_world_boot",
       "caseId": "reload_template_world_boot_basic",
       "templateWorldPath": "D:/OpenProjects/RedstoneLink/mcserver/rl-bench-reload"
+    },
+    {
+      "entryId": "x12_source_attach_replay_enabled",
+      "caseId": "crosschunk_sync_source_attach_replay_enabled",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false",
+        "crosschunk.syncSourceAttachReplay.enabled": "true",
+        "crosschunk.triggerSourceContextDetachInvalidation.enabled": "true"
+      }
+    },
+    {
+      "entryId": "x13_source_attach_replay_disabled",
+      "caseId": "crosschunk_sync_source_attach_replay_disabled",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false",
+        "crosschunk.syncSourceAttachReplay.enabled": "false",
+        "crosschunk.triggerSourceContextDetachInvalidation.enabled": "true"
+      }
+    },
+    {
+      "entryId": "x14_target_attach_filter_context_detach",
+      "caseId": "crosschunk_target_attach_filters_context_detach_source",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.triggerSourceContextDetachInvalidation.enabled": "true"
+      }
+    },
+    {
+      "entryId": "x15_target_attach_filter_physical_remove",
+      "caseId": "crosschunk_target_attach_filters_physical_remove_source",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false"
+      }
+    },
+    {
+      "entryId": "x16_target_attach_filter_multi_source_physical_remove",
+      "caseId": "crosschunk_target_attach_filters_multi_source_physical_remove",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false"
+      }
     }
   ]
 }

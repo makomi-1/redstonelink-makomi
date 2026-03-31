@@ -3,6 +3,53 @@
 bench 模块：functional phase、node trace 与断言逻辑。
 #>
 
+function Resolve-PhaseSerialRefList {
+	param($Phase)
+	$serialRefs = @(Get-OptionalProperty -Object $Phase -Name "serialRefs" -DefaultValue @())
+	$singleRef = [string](Get-OptionalProperty -Object $Phase -Name "serialRef" -DefaultValue "")
+	$legacySourceGroup = [string](Get-OptionalProperty -Object $Phase -Name "sourceGroup" -DefaultValue "")
+	if ($serialRefs.Count -gt 0) {
+		if (-not [string]::IsNullOrWhiteSpace($singleRef) -or -not [string]::IsNullOrWhiteSpace($legacySourceGroup)) {
+			throw "serialRefs cannot be mixed with serialRef/sourceGroup in the same phase."
+		}
+		$normalizedRefs = New-Object System.Collections.Generic.List[string]
+		foreach ($rawRef in @($serialRefs)) {
+			$trimmedRef = ([string]$rawRef).Trim()
+			if ([string]::IsNullOrWhiteSpace($trimmedRef)) {
+				throw "serialRefs cannot contain empty items."
+			}
+			$normalizedRefs.Add($trimmedRef)
+		}
+		return @($normalizedRefs.ToArray())
+	}
+	if ([string]::IsNullOrWhiteSpace($singleRef)) {
+		$singleRef = $legacySourceGroup
+	}
+	if ([string]::IsNullOrWhiteSpace($singleRef)) {
+		return @()
+	}
+	$trimmedSingleRef = ([string]$singleRef).Trim()
+	return @($trimmedSingleRef)
+}
+
+function Resolve-OrderedPhaseSerialsByRefs {
+	param(
+		[string[]]$SerialRefs,
+		[hashtable]$SourceSerialMaps,
+		[hashtable]$TargetSerialMap
+	)
+	if ($null -eq $SerialRefs -or $SerialRefs.Count -le 0) {
+		throw "serialRefs cannot be empty."
+	}
+	$resolved = @()
+	foreach ($serialRef in @($SerialRefs)) {
+		$currentRef = ([string]$serialRef).Trim()
+		$currentSerials = Resolve-OrderedPhaseSerialsByRef -SerialRef $currentRef -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap
+		$resolved += @($currentSerials)
+	}
+	return @($resolved)
+}
+
 function Resolve-PhaseSerials {
 	param(
 		$Phase,
@@ -18,14 +65,11 @@ function Resolve-PhaseSerials {
 			)
 		)
 	} else {
-		$serialRef = [string](Get-OptionalProperty -Object $Phase -Name "serialRef" -DefaultValue "")
-		if ([string]::IsNullOrWhiteSpace($serialRef)) {
-			$serialRef = [string](Get-OptionalProperty -Object $Phase -Name "sourceGroup" -DefaultValue "")
+		$serialRefs = @(Resolve-PhaseSerialRefList -Phase $Phase)
+		if ($serialRefs.Count -le 0) {
+			throw "Phase kind '$($Phase.kind)' requires serialRef/serialRefs/sourceGroup or explicit serials."
 		}
-		if ([string]::IsNullOrWhiteSpace($serialRef)) {
-			throw "Phase kind '$($Phase.kind)' requires serialRef/sourceGroup or explicit serials."
-		}
-		$resolvedSerials = @(Resolve-OrderedPhaseSerialsByRef -SerialRef $serialRef -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+		$resolvedSerials = @(Resolve-OrderedPhaseSerialsByRefs -SerialRefs $serialRefs -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
 	}
 
 	$requestedIndexes = New-Object System.Collections.Generic.List[int]
@@ -87,21 +131,60 @@ function Parse-FunctionalSerialIndexes {
 	return @($indexes.ToArray())
 }
 
+function Format-FunctionalSerialTemplateText {
+	param(
+		[long[]]$Serials,
+		[string]$Style
+	)
+	$normalizedSerials = @(Get-SortedUniqueSerials $Serials)
+	if ($normalizedSerials.Count -le 0) {
+		throw "Template serial list resolved no serials."
+	}
+	$resolvedStyle = ([string]$Style).Trim()
+	if ($resolvedStyle -eq "single") {
+		if ($normalizedSerials.Count -ne 1) {
+			throw "Template serial list expected exactly one serial, actual=$($normalizedSerials.Count)."
+		}
+		return [string][long]$normalizedSerials[0]
+	}
+	if ($resolvedStyle -eq "count") {
+		return [string]$normalizedSerials.Count
+	}
+	if ($resolvedStyle -eq "csv") {
+		$csvItems = New-Object System.Collections.Generic.List[string]
+		foreach ($serial in $normalizedSerials) {
+			$csvItems.Add([string][long]$serial)
+		}
+		$csvArray = @($csvItems.ToArray())
+		return [string]::Join(", ", $csvArray)
+	}
+	$inputStyleText = Format-SerialInputText -Serials $normalizedSerials -Style $Style
+	return $inputStyleText
+}
+
 function Resolve-FunctionalSerialTemplateValue {
 	param(
-		[string]$SerialRef,
+		[string[]]$SerialRefs,
 		[string]$RawIndexSpec,
 		[string]$Style,
 		[hashtable]$SourceSerialMaps,
 		[hashtable]$TargetSerialMap
 	)
-	$serials = @(Resolve-OrderedPhaseSerialsByRef -SerialRef $SerialRef -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+	$resolvedSerialRefs = @(
+		@($SerialRefs) |
+			Where-Object { -not [string]::IsNullOrWhiteSpace(([string]$_).Trim()) } |
+			ForEach-Object { ([string]$_).Trim() }
+	)
+	if ($resolvedSerialRefs.Count -le 0) {
+		throw "Template serialRefs cannot be empty."
+	}
+	$serials = @(Resolve-OrderedPhaseSerialsByRefs -SerialRefs $resolvedSerialRefs -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
 	if (-not [string]::IsNullOrWhiteSpace($RawIndexSpec)) {
 		$serials = @(Select-SerialsByIndex -Serials $serials -IndexValues (Parse-FunctionalSerialIndexes -RawIndexSpec $RawIndexSpec))
 	}
 	$normalizedSerials = @(Get-SortedUniqueSerials $serials)
 	if ($normalizedSerials.Count -le 0) {
-		throw "Template ref '$SerialRef' resolved no serials."
+		throw "Template refs '$($resolvedSerialRefs -join "+")' resolved no serials."
 	}
 	$resolvedStyle = ([string]$Style).Trim()
 	if ([string]::IsNullOrWhiteSpace($resolvedStyle)) {
@@ -110,20 +193,8 @@ function Resolve-FunctionalSerialTemplateValue {
 		}
 		$resolvedStyle = "slash_list"
 	}
-	switch ($resolvedStyle) {
-		"single" {
-			if ($normalizedSerials.Count -ne 1) {
-				throw "Template ref '$SerialRef' expected exactly one serial, actual=$($normalizedSerials.Count)."
-			}
-			return [string][long]$normalizedSerials[0]
-		}
-		"count" {
-			return [string]$normalizedSerials.Count
-		}
-		default {
-			return (Format-SerialInputText -Serials $normalizedSerials -Style $resolvedStyle)
-		}
-	}
+	$resolvedText = Format-FunctionalSerialTemplateText -Serials $normalizedSerials -Style $resolvedStyle
+	return $resolvedText
 }
 
 function Resolve-FunctionalPhasePropertyValue {
@@ -218,11 +289,28 @@ function Resolve-FunctionalCommandTemplateToken {
 		"^targets(?<indexes>\[[^\]]+\])?(?::(?<style>[A-Za-z_]+))?$"
 	)
 	if ($targetMatch.Success) {
+		$targetRefs = @("targets")
 		return (
 			Resolve-FunctionalSerialTemplateValue `
-				-SerialRef "targets" `
+				-SerialRefs $targetRefs `
 				-RawIndexSpec ([string]$targetMatch.Groups["indexes"].Value) `
 				-Style ([string]$targetMatch.Groups["style"].Value) `
+				-SourceSerialMaps $SourceSerialMaps `
+				-TargetSerialMap $TargetSerialMap
+		)
+	}
+
+	$multiSourceMatch = [System.Text.RegularExpressions.Regex]::Match(
+		$trimmedToken,
+		"^serialRefs:(?<refs>[A-Za-z0-9_.-]+(?:\+[A-Za-z0-9_.-]+)*)(?<indexes>\[[^\]]+\])?(?::(?<style>[A-Za-z_]+))?$"
+	)
+	if ($multiSourceMatch.Success) {
+		$multiSourceRefs = @(([string]$multiSourceMatch.Groups["refs"].Value) -split "\+")
+		return (
+			Resolve-FunctionalSerialTemplateValue `
+				-SerialRefs $multiSourceRefs `
+				-RawIndexSpec ([string]$multiSourceMatch.Groups["indexes"].Value) `
+				-Style ([string]$multiSourceMatch.Groups["style"].Value) `
 				-SourceSerialMaps $SourceSerialMaps `
 				-TargetSerialMap $TargetSerialMap
 		)
@@ -233,9 +321,10 @@ function Resolve-FunctionalCommandTemplateToken {
 		"^source:(?<group>[A-Za-z0-9_.-]+)(?<indexes>\[[^\]]+\])?(?::(?<style>[A-Za-z_]+))?$"
 	)
 	if ($sourceMatch.Success) {
+		$singleSourceRefs = @(([string]$sourceMatch.Groups["group"].Value))
 		return (
 			Resolve-FunctionalSerialTemplateValue `
-				-SerialRef ([string]$sourceMatch.Groups["group"].Value) `
+				-SerialRefs $singleSourceRefs `
 				-RawIndexSpec ([string]$sourceMatch.Groups["indexes"].Value) `
 				-Style ([string]$sourceMatch.Groups["style"].Value) `
 				-SourceSerialMaps $SourceSerialMaps `
