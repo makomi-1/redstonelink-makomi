@@ -257,7 +257,7 @@
   "message.redstonelink.input.invalid_sequence": "[RedstoneLink/Input] Invalid custom sequence: %s.",
   "message.redstonelink.input.start.offline": "[RedstoneLink/Input] These targets are offline or in unloaded chunks (type=%s): %s.",
   "message.redstonelink.input.start.unsupported": "[RedstoneLink/Input] These targets do not support the selected input endpoint (type=%s): %s.",
-  "message.redstonelink.input.start.done": "[RedstoneLink/Input] Started job=%s, endpoint=%s, waveform=%s, targets=%s, totalTicks=%s, serials=%s.",
+  "message.redstonelink.input.start.done": "[RedstoneLink/Input] Started job=%s, startTick=%s, endpoint=%s, waveform=%s, targets=%s, totalTicks=%s, serials=%s.",
   "message.redstonelink.input.stop.not_found": "[RedstoneLink/Input] Input job not found: %s.",
   "message.redstonelink.input.stop.done": "[RedstoneLink/Input] Stopped input job: %s.",
   "message.redstonelink.input.list.empty": "[RedstoneLink/Input] No input jobs are currently running.",

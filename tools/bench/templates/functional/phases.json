@@ -221,6 +221,19 @@
         "kind": "toggle_hold",
         "activePower": 15
       }
+    },
+    "trace_sync_latency_collect_triggerSource_range": {
+      "kind": "trace_sync_latency_collect",
+      "type": "triggerSource",
+      "serialFormat": "range",
+      "windowTicks": [0, 1, 2]
+    },
+    "trace_sync_latency_collect_core_range": {
+      "kind": "trace_sync_latency_collect",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "range",
+      "windowTicks": [0, 1, 2]
     }
   }
 }

@@ -254,6 +254,7 @@ public final class InputCommandRegistry {
 			() -> Component.translatable(
 				"message.redstonelink.input.start.done",
 				jobInfo.jobId(),
+				jobInfo.startTick(),
 				jobInfo.endpointKind().commandName(),
 				jobInfo.waveformSummary(),
 				jobInfo.targetCount(),

@@ -45,6 +45,8 @@
     "cases/functional/x17/direct_sync_batching_all_sync_multi_source_square.json",
     "cases/functional/x18/crosschunk_pending_queue_batching_multi_source_manual_reload.json",
     "cases/functional/x19/crosschunk_force_load_preload_batching_multi_source.json",
+    "cases/functional/x20/sync_samechunk_latency_1024_to_1024_banded16_square.json",
+    "cases/functional/x21/sync_samechunk_latency_1024_to_1024_banded16_single_burst.json",
     "cases/functional/r02/restart_persist_toggle_verify.json",
     "cases/functional/r03/restart_input_job_prepare.json",
     "cases/functional/r04/restart_input_job_verify.json"

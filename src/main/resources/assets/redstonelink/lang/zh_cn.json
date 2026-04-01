@@ -257,7 +257,7 @@
     "message.redstonelink.input.invalid_sequence":  "[RedstoneLink/Input] 无效自定义序列：%s。",
     "message.redstonelink.input.start.offline":  "[RedstoneLink/Input] 以下目标当前不在线或区块未加载（类型=%s）：%s。",
     "message.redstonelink.input.start.unsupported":  "[RedstoneLink/Input] 以下目标不支持当前输入端点（类型=%s）：%s。",
-    "message.redstonelink.input.start.done":  "[RedstoneLink/Input] 已启动 job=%s，endpoint=%s，waveform=%s，targets=%s，totalTicks=%s，serials=%s。",
+    "message.redstonelink.input.start.done":  "[RedstoneLink/Input] 已启动 job=%s，startTick=%s，endpoint=%s，waveform=%s，targets=%s，totalTicks=%s，serials=%s。",
     "message.redstonelink.input.stop.not_found":  "[RedstoneLink/Input] 未找到输入 job：%s。",
     "message.redstonelink.input.stop.done":  "[RedstoneLink/Input] 已停止输入 job：%s。",
     "message.redstonelink.input.list.empty":  "[RedstoneLink/Input] 当前没有运行中的输入 job。",

@@ -220,8 +220,10 @@ function Resolve-SuiteEntries {
 				caseId = [string]$caseId
 				benchAction = $DefaultBenchAction
 				matrixPath = [System.IO.Path]::GetFullPath($DefaultMatrixPath)
+				templateWorldPath = $null
 				reuseWorldFrom = $null
 				compareSerialsTo = $null
+				serverConfigOverrides = [ordered]@{}
 			})
 		}
 		return [ordered]@{

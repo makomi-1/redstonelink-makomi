@@ -23,6 +23,7 @@ public final class BenchCommandRegistry {
 		return Commands
 			.literal("bench")
 			.requires(source -> RedstoneLinkConfig.command().benchmarkModeEnabled() && CommandTreeSupport.hasOtherCommandPermission(source))
-			.then(BenchLinkCommandRegistry.createRoot());
+			.then(BenchLinkCommandRegistry.createRoot())
+			.then(BenchTraceCommandRegistry.createRoot());
 	}
 }

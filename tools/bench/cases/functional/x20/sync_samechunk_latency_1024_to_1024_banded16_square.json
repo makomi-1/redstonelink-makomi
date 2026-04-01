@@ -1,0 +1,131 @@
+{
+  "id": "sync_samechunk_latency_1024_to_1024_banded16_square",
+  "description": "同区块 1024 个 sync triggerSource 对 1024 个 core 做 banded16 多对多映射，批量采集有限 square burst 下的 source/core SYNC 延迟与窗口覆盖率。",
+  "layer": "X",
+  "scenarioId": "X20",
+  "arena": {
+    "clearFrom": [-8, 63, -8],
+    "clearTo": [87, 66, 40]
+  },
+  "targets": {
+    "id": "core_x20_main",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [48, 64, 0],
+      "to": [79, 64, 31]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_x20_main",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 0],
+        "to": [31, 64, 31]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_x20_main",
+      "mapping": "banded",
+      "fanout": 16,
+      "stride": 16,
+      "offset": 0,
+      "wrap": true
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_sync_latency_sources_square",
+      "serialRef": "sync_x20_main",
+      "serialFormat": "range",
+      "capacity": 256,
+      "chunkSize": 1024,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_core_range",
+      "name": "mount_sync_latency_targets_square",
+      "capacity": 256,
+      "chunkSize": 1024,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_trace_mount_square",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_sync_latency_square",
+      "serialRef": "sync_x20_main",
+      "serialFormat": "range",
+      "periodTicks": 4,
+      "highTicks": 2,
+      "highPower": 15,
+      "lowPower": 0,
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_sync_latency_square_ticks",
+      "ticks": 16
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_sync_latency_source_square",
+      "serialRef": "sync_x20_main",
+      "mountRef": "mount_sync_latency_sources_square",
+      "anchorRef": "start_sync_latency_square",
+      "anchorTickStrategy": "end",
+      "chunkSize": 64,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 24,
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_square",
+        "phaseRef": "start_sync_latency_square"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_core_range",
+      "name": "collect_sync_latency_target_square",
+      "mountRef": "mount_sync_latency_targets_square",
+      "anchorRef": "start_sync_latency_square",
+      "anchorTickStrategy": "end",
+      "referencePhaseRef": "collect_sync_latency_source_square",
+      "referenceStartStrategy": "min",
+      "chunkSize": 64,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 24,
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_square",
+        "phaseRef": "start_sync_latency_square"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_sync_latency_square_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_sync_latency_sources_square",
+      "serialRef": "sync_x20_main",
+      "serialFormat": "range",
+      "chunkSize": 1024,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_core_range",
+      "name": "unmount_sync_latency_targets_square",
+      "chunkSize": 1024,
+      "batchPauseMs": 0
+    }
+  ]
+}
