@@ -79,6 +79,9 @@ final class LinkSavedDataSerialSupport {
 		LinkSavedData.LinkNode node = new LinkSavedData.LinkNode(serial, dimension, pos.immutable(), type);
 		LinkSavedData.LinkNode previous = data.nodeMap(type).put(serial, node);
 		boolean changed = previous == null || !previous.equals(node);
+		if (changed) {
+			data.bumpRuntimeNodeVersion();
+		}
 		if (markAllocatedInternal(data, type, serial) || changed) {
 			data.setDirty();
 		}
@@ -92,6 +95,7 @@ final class LinkSavedDataSerialSupport {
 			return;
 		}
 		if (data.nodeMap(type).remove(serial) != null) {
+			data.bumpRuntimeNodeVersion();
 			data.setDirty();
 		}
 	}
@@ -110,6 +114,9 @@ final class LinkSavedDataSerialSupport {
 		boolean replaySnapshotRemoved = type == LinkNodeType.TRIGGER_SOURCE
 			&& data.triggerSourceReplaySyncSnapshots.remove(serial) != null;
 		int clearedLinks = LinkSavedDataLinkIndexSupport.clearLinksForNode(data, type, serial);
+		if (removed) {
+			data.bumpRuntimeNodeVersion();
+		}
 		if (allocatedMarked || retiredMarked || removed || replaySnapshotRemoved || clearedLinks > 0) {
 			data.setDirty();
 		}

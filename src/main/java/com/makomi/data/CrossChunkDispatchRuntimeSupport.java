@@ -56,8 +56,10 @@ final class CrossChunkDispatchRuntimeSupport {
 		int startIndex = Math.floorMod(state.pendingCursor, snapshotSize);
 		int processed = 0;
 		int visited = 0;
-		TargetLocatorCache targetLocatorCache = new TargetLocatorCache();
-		ChunkReadyDrainCache readyDrainCache = new ChunkReadyDrainCache();
+		TargetLocatorCache targetLocatorCache = state.targetLocatorCache;
+		ChunkReadyDrainCache readyDrainCache = state.readyDrainCache;
+		targetLocatorCache.reset();
+		readyDrainCache.reset();
 		while (visited < snapshotSize && processed < budget) {
 			int currentIndex = (startIndex + visited) % snapshotSize;
 			CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending = snapshot.get(currentIndex);
@@ -98,12 +100,10 @@ final class CrossChunkDispatchRuntimeSupport {
 				clearRetryState(state, pending);
 			}
 		}
-		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> drainedAcceptedPendings =
-			readyDrainCache.drainToBatchScheduler(server, queueData);
-		for (CrossChunkDispatchQueueSavedData.PendingDispatchEntry acceptedPending : drainedAcceptedPendings) {
+		readyDrainCache.drainToBatchScheduler(server, queueData, acceptedPending -> {
 			queueData.removePending(acceptedPending.key());
 			clearRetryState(state, acceptedPending);
-		}
+		});
 		if (queueData.pendingSize() <= 0) {
 			clearRetryTracking(state);
 			state.pendingCursor = 0L;
@@ -294,6 +294,13 @@ final class CrossChunkDispatchRuntimeSupport {
 		private final LinkedHashMap<TargetLocatorKey, TargetLocatorResult> locatorResults = new LinkedHashMap<>();
 
 		/**
+		 * 进入新一轮 tick 处理前清空定位缓存，但复用内部 map 容器。
+		 */
+		void reset() {
+			locatorResults.clear();
+		}
+
+		/**
 		 * 定位 pending 当前指向的目标实体。
 		 */
 		TargetLocatorResult locate(MinecraftServer server, CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending) {
@@ -355,6 +362,15 @@ final class CrossChunkDispatchRuntimeSupport {
 			CrossChunkDispatchService.TargetChunkKey,
 			LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup>
 		> readyGroupsByChunk = new LinkedHashMap<>();
+		private final List<LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup>> readyGroupMapPool = new ArrayList<>();
+		private final List<ReadyDrainTargetGroup> readyGroupPool = new ArrayList<>();
+
+		/**
+		 * 进入新一轮 tick 处理前重置缓存状态，但复用内部容器对象。
+		 */
+		void reset() {
+			recycleAllGroups();
+		}
 
 		/**
 		 * 将 ready 的 batchable 派发项写入 drain 缓存。
@@ -368,35 +384,42 @@ final class CrossChunkDispatchRuntimeSupport {
 			if (targetChunkKey == null || readyDrainTargetKey == null) {
 				return;
 			}
-			LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget = readyGroupsByChunk.computeIfAbsent(
-				targetChunkKey,
-				ignored -> new LinkedHashMap<>()
-			);
-			ReadyDrainTargetGroup readyDrainTargetGroup = groupsByTarget.computeIfAbsent(
-				readyDrainTargetKey,
-				ignored -> new ReadyDrainTargetGroup(preparedDispatch.targetBlockEntity(), readyDrainTargetKey)
-			);
+			LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget = readyGroupsByChunk.get(targetChunkKey);
+			if (groupsByTarget == null) {
+				groupsByTarget = acquireReadyGroupMap();
+				readyGroupsByChunk.put(targetChunkKey, groupsByTarget);
+			}
+			ReadyDrainTargetGroup readyDrainTargetGroup = groupsByTarget.get(readyDrainTargetKey);
+			if (readyDrainTargetGroup == null) {
+				readyDrainTargetGroup = acquireReadyGroup(preparedDispatch.targetBlockEntity(), readyDrainTargetKey);
+				groupsByTarget.put(readyDrainTargetKey, readyDrainTargetGroup);
+			}
 			readyDrainTargetGroup.add(preparedDispatch);
 		}
 
 		/**
 		 * 将当前 tick 命中的 ready batchable pending 统一写入 batch scheduler。
 		 */
-		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> drainToBatchScheduler(
+		void drainToBatchScheduler(
 			MinecraftServer server,
-			CrossChunkDispatchQueueSavedData queueData
+			CrossChunkDispatchQueueSavedData queueData,
+			java.util.function.Consumer<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> acceptedConsumer
 		) {
-			if (server == null || queueData == null || readyGroupsByChunk.isEmpty()) {
-				return List.of();
+			if (readyGroupsByChunk.isEmpty()) {
+				return;
 			}
-			List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> acceptedPendings = new ArrayList<>();
-			for (Map<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget : readyGroupsByChunk.values()) {
-				for (ReadyDrainTargetGroup readyDrainTargetGroup : groupsByTarget.values()) {
-					acceptedPendings.addAll(readyDrainTargetGroup.drain(server, queueData));
+			try {
+				if (server == null || queueData == null) {
+					return;
 				}
+				for (Map<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget : readyGroupsByChunk.values()) {
+					for (ReadyDrainTargetGroup readyDrainTargetGroup : groupsByTarget.values()) {
+						readyDrainTargetGroup.drain(server, queueData, acceptedConsumer);
+					}
+				}
+			} finally {
+				recycleAllGroups();
 			}
-			readyGroupsByChunk.clear();
-			return List.copyOf(acceptedPendings);
 		}
 
 		/**
@@ -415,6 +438,50 @@ final class CrossChunkDispatchRuntimeSupport {
 				count += groupsByTarget.size();
 			}
 			return count;
+		}
+
+		/**
+		 * 获取可复用的 target->group 映射容器。
+		 */
+		private LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup> acquireReadyGroupMap() {
+			int lastIndex = readyGroupMapPool.size() - 1;
+			if (lastIndex < 0) {
+				return new LinkedHashMap<>();
+			}
+			return readyGroupMapPool.remove(lastIndex);
+		}
+
+		/**
+		 * 获取可复用的单 target 分组容器。
+		 */
+		private ReadyDrainTargetGroup acquireReadyGroup(
+			ActivatableTargetBlockEntity targetBlockEntity,
+			ReadyDrainTargetKey readyDrainTargetKey
+		) {
+			int lastIndex = readyGroupPool.size() - 1;
+			ReadyDrainTargetGroup readyDrainTargetGroup = lastIndex < 0
+				? new ReadyDrainTargetGroup()
+				: readyGroupPool.remove(lastIndex);
+			readyDrainTargetGroup.resetForStage(targetBlockEntity, readyDrainTargetKey);
+			return readyDrainTargetGroup;
+		}
+
+		/**
+		 * 回收本 tick 内已使用的 chunk/target 分组容器。
+		 */
+		private void recycleAllGroups() {
+			if (readyGroupsByChunk.isEmpty()) {
+				return;
+			}
+			for (LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget : readyGroupsByChunk.values()) {
+				for (ReadyDrainTargetGroup readyDrainTargetGroup : groupsByTarget.values()) {
+					readyDrainTargetGroup.recycle();
+					readyGroupPool.add(readyDrainTargetGroup);
+				}
+				groupsByTarget.clear();
+				readyGroupMapPool.add(groupsByTarget);
+			}
+			readyGroupsByChunk.clear();
 		}
 	}
 
@@ -439,16 +506,22 @@ final class CrossChunkDispatchRuntimeSupport {
 	 * 单个 `core` 的 ready drain 分组。
 	 */
 	private static final class ReadyDrainTargetGroup {
-		private final ActivatableTargetBlockEntity targetBlockEntity;
-		private final ReadyDrainTargetKey readyDrainTargetKey;
+		private ActivatableTargetBlockEntity targetBlockEntity;
+		private ReadyDrainTargetKey readyDrainTargetKey;
 		private final List<PreparedDispatch> stagedBatchableDispatches = new ArrayList<>();
+		private final List<DispatchBatchEntry> batchEntriesScratch = new ArrayList<>();
 
-		private ReadyDrainTargetGroup(
+		/**
+		 * 以新的 target 信息重置分组，复用内部 list 容器。
+		 */
+		private void resetForStage(
 			ActivatableTargetBlockEntity targetBlockEntity,
 			ReadyDrainTargetKey readyDrainTargetKey
 		) {
 			this.targetBlockEntity = targetBlockEntity;
 			this.readyDrainTargetKey = readyDrainTargetKey;
+			stagedBatchableDispatches.clear();
+			batchEntriesScratch.clear();
 		}
 
 		private void add(PreparedDispatch preparedDispatch) {
@@ -457,9 +530,10 @@ final class CrossChunkDispatchRuntimeSupport {
 			}
 		}
 
-		private List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> drain(
+		private void drain(
 			MinecraftServer server,
-			CrossChunkDispatchQueueSavedData queueData
+			CrossChunkDispatchQueueSavedData queueData,
+			java.util.function.Consumer<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> acceptedConsumer
 		) {
 			if (
 				server == null
@@ -472,13 +546,11 @@ final class CrossChunkDispatchRuntimeSupport {
 					|| targetBlockEntity.getLinkNodeType() != readyDrainTargetKey.targetType()
 					|| stagedBatchableDispatches.isEmpty()
 			) {
-				return List.of();
+				return;
 			}
-			List<DispatchBatchEntry> batchEntries = new ArrayList<>(stagedBatchableDispatches.size());
-			List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> acceptedPendings = new ArrayList<>(stagedBatchableDispatches.size());
+			batchEntriesScratch.clear();
 			for (PreparedDispatch preparedDispatch : stagedBatchableDispatches) {
-				batchEntries.add(preparedDispatch.toBatchEntry());
-				acceptedPendings.add(preparedDispatch.pending());
+				batchEntriesScratch.add(preparedDispatch.toBatchEntry());
 			}
 			if (
 				!CoreDispatchBatchScheduler.enqueueLoadedTargetDispatchBatch(
@@ -486,15 +558,28 @@ final class CrossChunkDispatchRuntimeSupport {
 					targetBlockEntity,
 					readyDrainTargetKey.targetType(),
 					readyDrainTargetKey.targetSerial(),
-					batchEntries
+					batchEntriesScratch
 				)
 			) {
-				return List.of();
+				return;
 			}
-			for (CrossChunkDispatchQueueSavedData.PendingDispatchEntry acceptedPending : acceptedPendings) {
+			for (PreparedDispatch preparedDispatch : stagedBatchableDispatches) {
+				CrossChunkDispatchQueueSavedData.PendingDispatchEntry acceptedPending = preparedDispatch.pending();
 				queueData.markAccepted(acceptedPending.key(), acceptedPending.version());
+				if (acceptedConsumer != null) {
+					acceptedConsumer.accept(acceptedPending);
+				}
 			}
-			return List.copyOf(acceptedPendings);
+		}
+
+		/**
+		 * 回收到对象池前清理 target 引用与 staged 数据。
+		 */
+		private void recycle() {
+			targetBlockEntity = null;
+			readyDrainTargetKey = null;
+			stagedBatchableDispatches.clear();
+			batchEntriesScratch.clear();
 		}
 	}
 
@@ -512,7 +597,8 @@ final class CrossChunkDispatchRuntimeSupport {
 			clearRetryTracking(state);
 			return;
 		}
-		Set<CrossChunkDispatchService.PendingAttemptKey> activeKeys = new HashSet<>(snapshot.size());
+		Set<CrossChunkDispatchService.PendingAttemptKey> activeKeys = state.retryActiveKeysScratch;
+		activeKeys.clear();
 		for (CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending : snapshot) {
 			if (pending == null || pending.key() == null) {
 				continue;
@@ -529,6 +615,7 @@ final class CrossChunkDispatchRuntimeSupport {
 			removePendingAttemptFromWakeIndex(state, entry.getKey(), entry.getValue());
 			iterator.remove();
 		}
+		activeKeys.clear();
 	}
 
 	/**
@@ -691,7 +778,9 @@ final class CrossChunkDispatchRuntimeSupport {
 			return 0;
 		}
 		int awakened = 0;
-		List<CrossChunkDispatchService.PendingAttemptKey> snapshot = List.copyOf(indexedAttemptKeys);
+		List<CrossChunkDispatchService.PendingAttemptKey> snapshot = state.wakeAttemptSnapshotScratch;
+		snapshot.clear();
+		snapshot.addAll(indexedAttemptKeys);
 		for (CrossChunkDispatchService.PendingAttemptKey attemptKey : snapshot) {
 			CrossChunkDispatchService.RetryState retryState = state.retryStateByAttemptKey.get(attemptKey);
 			if (retryState == null) {
@@ -716,6 +805,7 @@ final class CrossChunkDispatchRuntimeSupport {
 			removePendingAttemptFromWakeIndex(state, attemptKey, retryState);
 			awakened++;
 		}
+		snapshot.clear();
 		return awakened;
 	}
 

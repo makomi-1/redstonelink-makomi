@@ -65,6 +65,7 @@ public final class LinkSavedData extends SavedData {
 	final Set<Long> retiredCoreSerials = new HashSet<>();
 	final Set<Long> retiredButtonSerials = new HashSet<>();
 	final Map<Long, ReplaySyncSnapshotRecord> triggerSourceReplaySyncSnapshots = new HashMap<>();
+	long runtimeNodeVersion;
 
 	/**
 	 * 获取当前服务器共享的联动存档数据实例。
@@ -146,6 +147,16 @@ public final class LinkSavedData extends SavedData {
 		long serial
 	) {
 		return LinkSavedDataQuerySupport.probeRuntimeOnlineNodeNonBlocking(this, contextLevel, type, serial);
+	}
+
+	/**
+	 * 获取运行态在线节点拓扑版本。
+	 * <p>
+	 * 仅在节点坐标注册、移除或退役导致在线拓扑变化时递增，用于 resident 票据同步的脏检查。
+	 * </p>
+	 */
+	public long runtimeNodeVersion() {
+		return runtimeNodeVersion;
 	}
 
 	/**
@@ -330,6 +341,13 @@ public final class LinkSavedData extends SavedData {
 	 */
 	Set<Long> retiredSerialSet(LinkNodeType type) {
 		return type == LinkNodeType.TRIGGER_SOURCE ? retiredButtonSerials : retiredCoreSerials;
+	}
+
+	/**
+	 * 运行态在线节点拓扑发生变化时推进版本。
+	 */
+	void bumpRuntimeNodeVersion() {
+		runtimeNodeVersion++;
 	}
 
 	/**

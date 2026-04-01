@@ -40,6 +40,7 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 	private final Map<LinkNodeType, Set<Long>> targetWhitelist = new HashMap<>();
 	private final Map<LinkNodeType, Set<Long>> sourceResidents = new HashMap<>();
 	private final Map<LinkNodeType, Set<Long>> targetResidents = new HashMap<>();
+	private long residentStateVersion;
 
 	/**
 	 * 获取跨区块白名单数据实例。
@@ -85,6 +86,23 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 	}
 
 	/**
+	 * 获取当前 resident 白名单状态版本。
+	 * <p>
+	 * 仅在 resident 集合本身发生变化时递增，用于跨区块 resident 票据同步的脏检查。
+	 * </p>
+	 */
+	public long residentStateVersion() {
+		return residentStateVersion;
+	}
+
+	/**
+	 * 当前是否仍存在 resident 白名单条目。
+	 */
+	public boolean hasResidents() {
+		return !sourceResidents.isEmpty() || !targetResidents.isEmpty();
+	}
+
+	/**
 	 * 执行白名单条目写入，并返回变更细节。
 	 *
 	 * @param type 节点类型
@@ -110,6 +128,9 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 			residentChanged = removeResidentSerial(residentBucket, type, serial);
 		}
 
+		if (residentChanged) {
+			bumpResidentStateVersion();
+		}
 		if (created || residentChanged) {
 			setDirty();
 		}
@@ -148,6 +169,9 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 		Map<LinkNodeType, Set<Long>> residentBucket = residentBucket(role);
 		boolean whitelistRemoved = removeWhitelistSerial(whitelistBucket, type, serial);
 		boolean residentRemoved = removeResidentSerial(residentBucket, type, serial);
+		if (residentRemoved) {
+			bumpResidentStateVersion();
+		}
 		if (whitelistRemoved || residentRemoved) {
 			setDirty();
 		}
@@ -247,6 +271,32 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 	}
 
 	/**
+	 * 以无快照方式遍历指定角色下的 resident 序号。
+	 * <p>
+	 * 该入口仅用于主线程内的临时汇总路径，避免热路径每 tick 构建 resident 快照容器。
+	 * </p>
+	 */
+	public void forEachResidentSerial(LinkNodeSemantics.Role role, ResidentSerialConsumer consumer) {
+		if (role == null || consumer == null) {
+			return;
+		}
+		Map<LinkNodeType, Set<Long>> residentBucket = residentBucket(role);
+		if (residentBucket.isEmpty()) {
+			return;
+		}
+		for (Map.Entry<LinkNodeType, Set<Long>> entry : residentBucket.entrySet()) {
+			if (entry.getValue() == null || entry.getValue().isEmpty()) {
+				continue;
+			}
+			for (Long serial : entry.getValue()) {
+				if (serial != null && serial > 0L) {
+					consumer.accept(entry.getKey(), serial);
+				}
+			}
+		}
+	}
+
+	/**
 	 * 清空指定类型的白名单。
 	 *
 	 * @param type 节点类型
@@ -260,8 +310,15 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 		Map<LinkNodeType, Set<Long>> whitelistBucket = bucket(role);
 		Map<LinkNodeType, Set<Long>> residentBucket = residentBucket(role);
 		Set<Long> serials = whitelistBucket.remove(type);
-		residentBucket.remove(type);
+		Set<Long> residentSerials = residentBucket.remove(type);
+		boolean residentRemoved = residentSerials != null && !residentSerials.isEmpty();
+		if (residentSerials != null && !residentSerials.isEmpty()) {
+			bumpResidentStateVersion();
+		}
 		if (serials == null || serials.isEmpty()) {
+			if (residentRemoved) {
+				setDirty();
+			}
 			return 0;
 		}
 		int removed = serials.size();
@@ -345,6 +402,9 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 			residentBucket.put(type, residentSerials);
 		}
 		int changed = added + removed + residentChanged;
+		if (residentChanged > 0) {
+			bumpResidentStateVersion();
+		}
 		if (changed > 0) {
 			setDirty();
 		}
@@ -364,6 +424,13 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 
 	private Map<LinkNodeType, Set<Long>> residentBucket(LinkNodeSemantics.Role role) {
 		return role == LinkNodeSemantics.Role.SOURCE ? sourceResidents : targetResidents;
+	}
+
+	/**
+	 * resident 集合发生变化时推进版本。
+	 */
+	private void bumpResidentStateVersion() {
+		residentStateVersion++;
 	}
 
 	private void readBucket(
@@ -521,4 +588,12 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 		int residentChangedCount,
 		int changedCount
 	) {}
+
+	/**
+	 * resident 序号遍历回调。
+	 */
+	@FunctionalInterface
+	public interface ResidentSerialConsumer {
+		void accept(LinkNodeType type, long serial);
+	}
 }

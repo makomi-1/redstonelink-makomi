@@ -908,6 +908,74 @@ class CrossChunkDispatchServiceTest {
 	}
 
 	/**
+	 * resident 版本门禁应仅在 resident 集合真值变化时递增。
+	 */
+	@Test
+	void crossChunkWhitelistSavedDataResidentStateVersionShouldTrackResidentMutationOnly() {
+		CrossChunkWhitelistSavedData whitelistSavedData = new CrossChunkWhitelistSavedData();
+		assertEquals(0L, whitelistSavedData.residentStateVersion());
+		assertFalse(whitelistSavedData.hasResidents());
+
+		CrossChunkWhitelistSavedData.UpsertResult nonResidentUpsert = whitelistSavedData.upsert(
+			LinkNodeType.TRIGGER_SOURCE,
+			151L,
+			LinkNodeSemantics.Role.SOURCE,
+			false
+		);
+		assertTrue(nonResidentUpsert.created());
+		assertFalse(nonResidentUpsert.residentChanged());
+		assertEquals(0L, whitelistSavedData.residentStateVersion());
+		assertFalse(whitelistSavedData.hasResidents());
+
+		CrossChunkWhitelistSavedData.UpsertResult residentUpsert = whitelistSavedData.upsert(
+			LinkNodeType.TRIGGER_SOURCE,
+			151L,
+			LinkNodeSemantics.Role.SOURCE,
+			true
+		);
+		assertTrue(residentUpsert.residentChanged());
+		assertEquals(1L, whitelistSavedData.residentStateVersion());
+		assertTrue(whitelistSavedData.hasResidents());
+
+		CrossChunkWhitelistSavedData.UpsertResult residentNoop = whitelistSavedData.upsert(
+			LinkNodeType.TRIGGER_SOURCE,
+			151L,
+			LinkNodeSemantics.Role.SOURCE,
+			true
+		);
+		assertFalse(residentNoop.changed());
+		assertEquals(1L, whitelistSavedData.residentStateVersion());
+
+		assertTrue(whitelistSavedData.remove(LinkNodeType.TRIGGER_SOURCE, 151L, LinkNodeSemantics.Role.SOURCE));
+		assertEquals(2L, whitelistSavedData.residentStateVersion());
+		assertFalse(whitelistSavedData.hasResidents());
+	}
+
+	/**
+	 * 运行态节点版本应只在在线节点拓扑变化时递增。
+	 */
+	@Test
+	void linkSavedDataRuntimeNodeVersionShouldTrackOnlineTopologyOnly() {
+		LinkSavedData linkSavedData = new LinkSavedData();
+		assertEquals(0L, linkSavedData.runtimeNodeVersion());
+
+		linkSavedData.registerNode(261L, Level.OVERWORLD, new BlockPos(16, 64, 16), LinkNodeType.TRIGGER_SOURCE);
+		assertEquals(1L, linkSavedData.runtimeNodeVersion());
+
+		linkSavedData.registerNode(261L, Level.OVERWORLD, new BlockPos(16, 64, 16), LinkNodeType.TRIGGER_SOURCE);
+		assertEquals(1L, linkSavedData.runtimeNodeVersion());
+
+		linkSavedData.registerNode(261L, Level.OVERWORLD, new BlockPos(32, 64, 32), LinkNodeType.TRIGGER_SOURCE);
+		assertEquals(2L, linkSavedData.runtimeNodeVersion());
+
+		linkSavedData.removeNode(LinkNodeType.TRIGGER_SOURCE, 261L);
+		assertEquals(3L, linkSavedData.runtimeNodeVersion());
+
+		linkSavedData.removeNode(LinkNodeType.TRIGGER_SOURCE, 261L);
+		assertEquals(3L, linkSavedData.runtimeNodeVersion());
+	}
+
+	/**
 	 * resident 票据键应可稳定构造并暴露记录字段。
 	 */
 	@Test

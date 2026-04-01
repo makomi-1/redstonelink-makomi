@@ -85,31 +85,34 @@ final class CrossChunkDispatchTicketSupport {
 	 * 同步 resident 白名单对应的常驻区块票据。
 	 */
 	static void syncResidentTickets(MinecraftServer server, CrossChunkDispatchService.DispatchState state) {
-		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desiredTickets =
-			collectDesiredResidentTickets(server);
-		if (!state.residentTickets.isEmpty()) {
-			Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> currentSnapshot =
-				Map.copyOf(state.residentTickets);
-			for (Map.Entry<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> currentEntry :
-				currentSnapshot.entrySet()) {
-				CrossChunkDispatchService.ResidentTicketKey key = currentEntry.getKey();
-				CrossChunkDispatchService.ResidentChunkKey currentChunk = currentEntry.getValue();
-				CrossChunkDispatchService.ResidentChunkKey desiredChunk = desiredTickets.remove(key);
-				if (desiredChunk != null && desiredChunk.equals(currentChunk)) {
-					continue;
-				}
-				removeResidentTicket(server, key, currentChunk);
-				state.residentTickets.remove(key);
-				if (desiredChunk != null && addResidentTicket(server, key, desiredChunk)) {
-					state.residentTickets.put(key, desiredChunk);
-				}
-			}
+		if (server == null || state == null) {
+			return;
 		}
-		for (Map.Entry<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desiredEntry :
-			desiredTickets.entrySet()) {
-			if (addResidentTicket(server, desiredEntry.getKey(), desiredEntry.getValue())) {
-				state.residentTickets.put(desiredEntry.getKey(), desiredEntry.getValue());
-			}
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) {
+			return;
+		}
+		LinkSavedData linkSavedData = LinkSavedData.get(overworld);
+		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(overworld);
+		long residentWhitelistVersion = whitelistSavedData.residentStateVersion();
+		long runtimeNodeVersion = linkSavedData.runtimeNodeVersion();
+		state.residentSyncArmed = whitelistSavedData.hasResidents();
+		if (
+			state.residentWhitelistVersion == residentWhitelistVersion
+				&& state.residentRuntimeNodeVersion == runtimeNodeVersion
+		) {
+			return;
+		}
+
+		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desiredTickets =
+			state.residentDesiredTicketsScratch;
+		try {
+			collectDesiredResidentTickets(overworld, linkSavedData, whitelistSavedData, desiredTickets);
+			syncResidentTicketDiff(server, state, desiredTickets);
+			state.residentWhitelistVersion = residentWhitelistVersion;
+			state.residentRuntimeNodeVersion = runtimeNodeVersion;
+		} finally {
+			desiredTickets.clear();
 		}
 	}
 
@@ -129,32 +132,41 @@ final class CrossChunkDispatchTicketSupport {
 	/**
 	 * 汇总当前 resident 白名单期望持有的区块票据映射。
 	 */
-	static Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> collectDesiredResidentTickets(
-		MinecraftServer server
+	static void collectDesiredResidentTickets(
+		ServerLevel contextLevel,
+		LinkSavedData linkSavedData,
+		CrossChunkWhitelistSavedData whitelistSavedData,
+		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desired
 	) {
-		ServerLevel overworld = server.overworld();
-		if (overworld == null) {
-			return Map.of();
+		if (desired == null) {
+			return;
 		}
-		LinkSavedData linkSavedData = LinkSavedData.get(overworld);
-		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(overworld);
-		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desired =
-			new java.util.HashMap<>();
-		appendDesiredResidentTickets(
-			desired,
-			whitelistSavedData.residentSnapshot(LinkNodeSemantics.Role.SOURCE),
+		desired.clear();
+		if (contextLevel == null || linkSavedData == null || whitelistSavedData == null) {
+			return;
+		}
+		whitelistSavedData.forEachResidentSerial(
 			LinkNodeSemantics.Role.SOURCE,
-			overworld,
-			linkSavedData
+			(type, serial) -> appendDesiredResidentTicket(
+				desired,
+				type,
+				serial,
+				LinkNodeSemantics.Role.SOURCE,
+				contextLevel,
+				linkSavedData
+			)
 		);
-		appendDesiredResidentTickets(
-			desired,
-			whitelistSavedData.residentSnapshot(LinkNodeSemantics.Role.TARGET),
+		whitelistSavedData.forEachResidentSerial(
 			LinkNodeSemantics.Role.TARGET,
-			overworld,
-			linkSavedData
+			(type, serial) -> appendDesiredResidentTicket(
+				desired,
+				type,
+				serial,
+				LinkNodeSemantics.Role.TARGET,
+				contextLevel,
+				linkSavedData
+			)
 		);
-		return desired;
 	}
 
 	/**
@@ -167,31 +179,58 @@ final class CrossChunkDispatchTicketSupport {
 		ServerLevel contextLevel,
 		LinkSavedData linkSavedData
 	) {
+		if (desired == null || residentByType == null || role == null || contextLevel == null || linkSavedData == null) {
+			return;
+		}
 		for (Map.Entry<LinkNodeType, Set<Long>> entry : residentByType.entrySet()) {
 			LinkNodeType type = entry.getKey();
 			if (!LinkNodeSemantics.isAllowedForRole(type, role)) {
 				continue;
 			}
 			for (Long serial : entry.getValue()) {
-				if (serial == null || serial <= 0L) {
-					continue;
+				if (serial != null) {
+					appendDesiredResidentTicket(desired, type, serial, role, contextLevel, linkSavedData);
 				}
-				LinkSavedData.RuntimeOnlineProbeResult probeResult = linkSavedData.probeRuntimeOnlineNodeNonBlocking(
-					contextLevel,
-					type,
-					serial
-				);
-				LinkSavedData.LinkNode node = probeResult.node();
-				if (!probeResult.ready() || node == null) {
-					continue;
-				}
-				int chunkX = node.pos().getX() >> 4;
-				int chunkZ = node.pos().getZ() >> 4;
-				CrossChunkDispatchService.ResidentTicketKey ticketKey =
-					new CrossChunkDispatchService.ResidentTicketKey(role, type, serial);
-				desired.put(ticketKey, new CrossChunkDispatchService.ResidentChunkKey(node.dimension(), chunkX, chunkZ));
 			}
 		}
+	}
+
+	/**
+	 * 将单条 resident 序号追加到期望票据集合。
+	 */
+	private static void appendDesiredResidentTicket(
+		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desired,
+		LinkNodeType type,
+		long serial,
+		LinkNodeSemantics.Role role,
+		ServerLevel contextLevel,
+		LinkSavedData linkSavedData
+	) {
+		if (
+			desired == null
+				|| type == null
+				|| serial <= 0L
+				|| role == null
+				|| contextLevel == null
+				|| linkSavedData == null
+				|| !LinkNodeSemantics.isAllowedForRole(type, role)
+		) {
+			return;
+		}
+		LinkSavedData.RuntimeOnlineProbeResult probeResult = linkSavedData.probeRuntimeOnlineNodeNonBlocking(
+			contextLevel,
+			type,
+			serial
+		);
+		LinkSavedData.LinkNode node = probeResult.node();
+		if (!probeResult.ready() || node == null) {
+			return;
+		}
+		int chunkX = node.pos().getX() >> 4;
+		int chunkZ = node.pos().getZ() >> 4;
+		CrossChunkDispatchService.ResidentTicketKey ticketKey =
+			new CrossChunkDispatchService.ResidentTicketKey(role, type, serial);
+		desired.put(ticketKey, new CrossChunkDispatchService.ResidentChunkKey(node.dimension(), chunkX, chunkZ));
 	}
 
 	/**
@@ -316,11 +355,53 @@ final class CrossChunkDispatchTicketSupport {
 		releaseResidentTickets(server, state);
 		state.forcedChunksUntilTick.clear();
 		state.residentTickets.clear();
+		state.residentDesiredTicketsScratch.clear();
 		state.forceLoadCountBySource.clear();
+		state.residentSyncArmed = false;
+		state.residentWhitelistVersion = Long.MIN_VALUE;
+		state.residentRuntimeNodeVersion = Long.MIN_VALUE;
 		state.forceLoadCountThisTick = 0;
 		state.forceLoadWindowTick = Long.MIN_VALUE;
 		state.pendingCursor = 0L;
 		stateByServer.remove(server);
+	}
+
+	/**
+	 * 原地比对 resident 当前票据与本轮期望票据。
+	 */
+	private static void syncResidentTicketDiff(
+		MinecraftServer server,
+		CrossChunkDispatchService.DispatchState state,
+		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desiredTickets
+	) {
+		Iterator<Map.Entry<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey>> iterator =
+			state.residentTickets.entrySet().iterator();
+		while (iterator.hasNext()) {
+			Map.Entry<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> currentEntry =
+				iterator.next();
+			CrossChunkDispatchService.ResidentTicketKey key = currentEntry.getKey();
+			CrossChunkDispatchService.ResidentChunkKey currentChunk = currentEntry.getValue();
+			CrossChunkDispatchService.ResidentChunkKey desiredChunk = desiredTickets.remove(key);
+			if (desiredChunk != null && desiredChunk.equals(currentChunk)) {
+				continue;
+			}
+			removeResidentTicket(server, key, currentChunk);
+			if (desiredChunk == null) {
+				iterator.remove();
+				continue;
+			}
+			if (addResidentTicket(server, key, desiredChunk)) {
+				currentEntry.setValue(desiredChunk);
+				continue;
+			}
+			iterator.remove();
+		}
+		for (Map.Entry<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desiredEntry :
+			desiredTickets.entrySet()) {
+			if (addResidentTicket(server, desiredEntry.getKey(), desiredEntry.getValue())) {
+				state.residentTickets.put(desiredEntry.getKey(), desiredEntry.getValue());
+			}
+		}
 	}
 
 	/**

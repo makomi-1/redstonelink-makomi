@@ -179,14 +179,19 @@ public final class CoreDispatchBatchScheduler {
 		if (state == null || state.pendingByTarget.isEmpty()) {
 			return;
 		}
-		List<TargetBatchAccumulator> pendingSnapshot = new ArrayList<>(state.pendingByTarget.values());
+		List<TargetBatchAccumulator> pendingSnapshot = state.pendingSnapshotScratch;
+		pendingSnapshot.clear();
+		pendingSnapshot.addAll(state.pendingByTarget.values());
 		state.pendingByTarget.clear();
 		for (TargetBatchAccumulator accumulator : pendingSnapshot) {
-			if (accumulator != null) {
-				accumulator.flush();
+			if (accumulator == null) {
+				continue;
 			}
+			accumulator.flush();
+			state.recycleAccumulator(accumulator);
 		}
-		if (state.pendingByTarget.isEmpty()) {
+		pendingSnapshot.clear();
+		if (state.pendingByTarget.isEmpty() && state.accumulatorPool.isEmpty()) {
 			STATE_BY_SERVER.remove(server);
 		}
 	}
@@ -246,18 +251,28 @@ public final class CoreDispatchBatchScheduler {
 			targetType,
 			targetSerial
 		);
-		return state.pendingByTarget.computeIfAbsent(targetBatchKey, ignored -> new TargetBatchAccumulator(targetBlockEntity));
+		return state.pendingByTarget.computeIfAbsent(targetBatchKey, ignored -> state.acquireAccumulator(targetBlockEntity));
 	}
 
 	/**
 	 * 同一 `core` 的单 tick 聚合缓存。
 	 */
 	private static final class TargetBatchAccumulator {
-		private final ActivatableTargetBlockEntity targetBlockEntity;
+		private ActivatableTargetBlockEntity targetBlockEntity;
 		private final LinkedHashMap<SourceDispatchKey, DispatchBatchEntry> entriesBySourceAndKind = new LinkedHashMap<>();
+		private final List<DispatchBatchEntry> flushEntriesScratch = new ArrayList<>();
 
 		private TargetBatchAccumulator(ActivatableTargetBlockEntity targetBlockEntity) {
 			this.targetBlockEntity = targetBlockEntity;
+		}
+
+		/**
+		 * 以新的 target 上下文重置聚合器，复用内部容器。
+		 */
+		private void reset(ActivatableTargetBlockEntity targetBlockEntity) {
+			this.targetBlockEntity = targetBlockEntity;
+			entriesBySourceAndKind.clear();
+			flushEntriesScratch.clear();
 		}
 
 		private void merge(DispatchBatchEntry batchEntry) {
@@ -344,7 +359,20 @@ public final class CoreDispatchBatchScheduler {
 			if (entriesBySourceAndKind.isEmpty()) {
 				return;
 			}
-			targetBlockEntity.applyDispatchBatch(List.copyOf(entriesBySourceAndKind.values()));
+			flushEntriesScratch.clear();
+			flushEntriesScratch.addAll(entriesBySourceAndKind.values());
+			targetBlockEntity.applyDispatchBatch(flushEntriesScratch);
+			entriesBySourceAndKind.clear();
+			flushEntriesScratch.clear();
+		}
+
+		/**
+		 * 回收到对象池前释放 target 引用与残留条目。
+		 */
+		private void recycle() {
+			targetBlockEntity = null;
+			entriesBySourceAndKind.clear();
+			flushEntriesScratch.clear();
 		}
 	}
 
@@ -358,5 +386,30 @@ public final class CoreDispatchBatchScheduler {
 
 	private static final class SchedulerState {
 		private final LinkedHashMap<TargetBatchKey, TargetBatchAccumulator> pendingByTarget = new LinkedHashMap<>();
+		private final List<TargetBatchAccumulator> pendingSnapshotScratch = new ArrayList<>();
+		private final List<TargetBatchAccumulator> accumulatorPool = new ArrayList<>();
+
+		/**
+		 * 获取可复用的 target 聚合器。
+		 */
+		private TargetBatchAccumulator acquireAccumulator(ActivatableTargetBlockEntity targetBlockEntity) {
+			int lastIndex = accumulatorPool.size() - 1;
+			TargetBatchAccumulator accumulator = lastIndex < 0
+				? new TargetBatchAccumulator(targetBlockEntity)
+				: accumulatorPool.remove(lastIndex);
+			accumulator.reset(targetBlockEntity);
+			return accumulator;
+		}
+
+		/**
+		 * 回收本 tick 已 flush 的 target 聚合器。
+		 */
+		private void recycleAccumulator(TargetBatchAccumulator accumulator) {
+			if (accumulator == null) {
+				return;
+			}
+			accumulator.recycle();
+			accumulatorPool.add(accumulator);
+		}
 	}
 }

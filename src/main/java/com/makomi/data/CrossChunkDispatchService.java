@@ -506,7 +506,12 @@ public final class CrossChunkDispatchService {
 		resetForceLoadWindow(state, gameTime);
 		releaseExpiredForcedChunks(server, state, gameTime);
 		processPendingDispatches(server, state, queueData, gameTime);
-		if (queueData.pendingSize() <= 0 && state.forcedChunksUntilTick.isEmpty() && state.residentTickets.isEmpty()) {
+		if (
+			queueData.pendingSize() <= 0
+				&& state.forcedChunksUntilTick.isEmpty()
+				&& state.residentTickets.isEmpty()
+				&& !state.residentSyncArmed
+		) {
 			STATE_BY_SERVER.remove(server);
 		}
 	}
@@ -669,9 +674,19 @@ public final class CrossChunkDispatchService {
 	static final class DispatchState {
 		final Map<ForcedChunkKey, Long> forcedChunksUntilTick = new HashMap<>();
 		final Map<ResidentTicketKey, ResidentChunkKey> residentTickets = new HashMap<>();
+		final Map<ResidentTicketKey, ResidentChunkKey> residentDesiredTicketsScratch = new HashMap<>();
 		final Map<SourceKey, Integer> forceLoadCountBySource = new HashMap<>();
 		final Map<PendingAttemptKey, RetryState> retryStateByAttemptKey = new HashMap<>();
 		final Map<TargetChunkKey, Set<PendingAttemptKey>> waitingUnlimitedAttemptKeysByTargetChunk = new HashMap<>();
+		final Set<PendingAttemptKey> retryActiveKeysScratch = new java.util.HashSet<>();
+		final List<PendingAttemptKey> wakeAttemptSnapshotScratch = new ArrayList<>();
+		final CrossChunkDispatchRuntimeSupport.TargetLocatorCache targetLocatorCache =
+			new CrossChunkDispatchRuntimeSupport.TargetLocatorCache();
+		final CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache readyDrainCache =
+			new CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache();
+		boolean residentSyncArmed;
+		long residentWhitelistVersion = Long.MIN_VALUE;
+		long residentRuntimeNodeVersion = Long.MIN_VALUE;
 		long forceLoadWindowTick = Long.MIN_VALUE;
 		int forceLoadCountThisTick;
 		long pendingCursor;
