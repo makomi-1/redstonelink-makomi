@@ -33,7 +33,17 @@ $resolvedSuite = Resolve-SuiteEntries `
 	-DefaultMatrixPath $MatrixPath
 $suiteEntries = @($resolvedSuite.entries)
 $entryIds = @($suiteEntries | ForEach-Object { [string]$_.entryId })
-$resolvedCaseIds = @($suiteEntries | ForEach-Object { [string]$_.caseId })
+$resolvedCaseIds = @(
+	$suiteEntries |
+		ForEach-Object {
+			$summaryCaseId = [string]$_.summaryCaseId
+			if ([string]::IsNullOrWhiteSpace($summaryCaseId)) {
+				return [string]$_.caseId
+			}
+			return $summaryCaseId
+		}
+)
+$resolvedMatrixCaseIds = @($suiteEntries | ForEach-Object { [string]$_.caseId })
 $suiteTimestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $suiteOutputDirectory = New-DirectoryIfMissing -Path (Join-Path $SuiteResultsDir $suiteTimestamp)
 $benchScriptPath = Join-Path $PSScriptRoot "..\run-bench.ps1"
@@ -120,6 +130,7 @@ $suiteSummary = [ordered]@{
 	modSync = $modSyncSummary
 	entryIds = $entryIds
 	caseIds = $resolvedCaseIds
+	matrixCaseIds = $resolvedMatrixCaseIds
 	startedAt = (Get-Date).ToString("s")
 	results = @()
 	restoredServerProperties = $false
@@ -158,6 +169,7 @@ try {
 		$entryTemplateWorldPath = [string]$entry.templateWorldPath
 		$reuseWorldFrom = [string]$entry.reuseWorldFrom
 		$compareSerialsTo = [string]$entry.compareSerialsTo
+		$entryParameters = Convert-BenchParametersToOrderedMap -Parameters $entry.parameters
 		$entryServerConfigOverrides = Convert-OptionalObjectToOrderedMap -Object $entry.serverConfigOverrides
 		$resolvedTemplateWorldPath = if ([string]::IsNullOrWhiteSpace($entryTemplateWorldPath)) {
 			$templateWorldFullPath
@@ -168,7 +180,7 @@ try {
 			$matrixCache[$entryMatrixPath] = Get-MatrixConfig -Path $entryMatrixPath
 		}
 		$entryMatrix = $matrixCache[$entryMatrixPath]
-		$entryCaseConfig = Get-CaseConfig -Matrix $entryMatrix -Id $caseId
+		$entryCaseConfig = Get-CaseConfig -Matrix $entryMatrix -Id $caseId -Parameters $entryParameters
 		$worldName = $null
 		$worldLevelName = $null
 		if ([string]::IsNullOrWhiteSpace($reuseWorldFrom)) {
@@ -279,6 +291,7 @@ try {
 				Action = $entryBenchAction
 				CaseId = $caseId
 				MatrixPath = $entryMatrixPath
+				CaseParameters = $entryParameters
 				SavePath = $worldPath
 				RconHost = $RconHost
 				RconPort = $RconPort

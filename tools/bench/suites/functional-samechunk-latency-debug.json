@@ -1,17 +1,45 @@
 {
   "version": 1,
-  "description": "同区块 sync 延迟专项调试套件；使用唯一 burst 序列作为确定性基线，并仅在 bench 运行时关闭命令限流。",
+  "description": "同区块 sync 延迟专项调试套件；按参数化批打包窗口验证同区块 burst 延迟，并仅在 bench 运行时关闭命令限流。",
   "defaults": {
     "benchAction": "RunFunctionalCase",
     "matrixPath": "../functional-matrix.json",
+    "parameters": {
+      "dispatchBatchWindowTicks": 0
+    },
     "serverConfigOverrides": {
-      "server.command.rateLimit.enabled": "false"
+      "server.command.rateLimit.enabled": "false",
+      "crosschunk.directSyncBatching": "all_sync",
+      "crosschunk.dispatch.batchWindowTicks": "{{param:dispatchBatchWindowTicks}}"
     }
   },
   "entries": [
     {
-      "entryId": "x21_samechunk_latency_burst_debug",
-      "caseId": "sync_samechunk_latency_1024_to_1024_banded16_single_burst"
+      "entryId": "x21_samechunk_latency_burst_window_0_debug",
+      "summaryCaseId": "x21_samechunk_latency_burst_window_{{param:dispatchBatchWindowTicks}}",
+      "title": "同区块 sync 延迟专项，批打包窗口={{param:dispatchBatchWindowTicks}}",
+      "caseId": "sync_samechunk_latency_1024_to_1024_banded16_single_burst",
+      "parameters": {
+        "dispatchBatchWindowTicks": 0
+      }
+    },
+    {
+      "entryId": "x21_samechunk_latency_burst_window_1_debug",
+      "summaryCaseId": "x21_samechunk_latency_burst_window_{{param:dispatchBatchWindowTicks}}",
+      "title": "同区块 sync 延迟专项，批打包窗口={{param:dispatchBatchWindowTicks}}",
+      "caseId": "sync_samechunk_latency_1024_to_1024_banded16_single_burst",
+      "parameters": {
+        "dispatchBatchWindowTicks": 1
+      }
+    },
+    {
+      "entryId": "x21_samechunk_latency_burst_window_2_debug",
+      "summaryCaseId": "x21_samechunk_latency_burst_window_{{param:dispatchBatchWindowTicks}}",
+      "title": "同区块 sync 延迟专项，批打包窗口={{param:dispatchBatchWindowTicks}}",
+      "caseId": "sync_samechunk_latency_1024_to_1024_banded16_single_burst",
+      "parameters": {
+        "dispatchBatchWindowTicks": 2
+      }
     }
   ]
 }

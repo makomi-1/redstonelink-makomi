@@ -71,6 +71,137 @@ function ConvertTo-NormalizedBenchValue {
 	return $Value
 }
 
+function Convert-BenchParametersToOrderedMap {
+	param($Parameters)
+	$map = [ordered]@{}
+	if ($null -eq $Parameters) {
+		return $map
+	}
+	if ($Parameters -is [System.Collections.IDictionary]) {
+		foreach ($keyObject in $Parameters.Keys) {
+			$key = [string]$keyObject
+			$map[$key] = ConvertTo-NormalizedBenchValue -Value $Parameters[$keyObject]
+		}
+		return $map
+	}
+	foreach ($property in $Parameters.PSObject.Properties) {
+		$map[[string]$property.Name] = ConvertTo-NormalizedBenchValue -Value $property.Value
+	}
+	return $map
+}
+
+function Merge-BenchParameterMaps {
+	param(
+		$BaseParameters,
+		$OverrideParameters
+	)
+	$merged = Convert-BenchParametersToOrderedMap -Parameters $BaseParameters
+	$overrideMap = Convert-BenchParametersToOrderedMap -Parameters $OverrideParameters
+	foreach ($keyObject in $overrideMap.Keys) {
+		$key = [string]$keyObject
+		$merged[$key] = Copy-NormalizedBenchValue -Value $overrideMap[$key]
+	}
+	return $merged
+}
+
+function Convert-BenchParameterValueToString {
+	param($Value)
+	if ($null -eq $Value) {
+		throw "Template parameter resolved to null."
+	}
+	if ($Value -is [bool]) {
+		return $Value.ToString().ToLowerInvariant()
+	}
+	if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+		$list = New-Object System.Collections.Generic.List[string]
+		foreach ($item in $Value) {
+			$list.Add((Convert-BenchParameterValueToString -Value $item))
+		}
+		return [string]::Join("/", @($list.ToArray()))
+	}
+	return [string]$Value
+}
+
+function Resolve-BenchParameterizedString {
+	param(
+		[string]$Text,
+		$Parameters
+	)
+	if ([string]::IsNullOrEmpty($Text)) {
+		return $Text
+	}
+	$parameterMap = Convert-BenchParametersToOrderedMap -Parameters $Parameters
+	$pattern = "\{\{\s*param:(?<name>[A-Za-z0-9_.-]+)\s*\}\}"
+	return [System.Text.RegularExpressions.Regex]::Replace(
+		$Text,
+		$pattern,
+		{
+			param($match)
+			$parameterName = [string]$match.Groups["name"].Value
+			if (-not $parameterMap.Contains($parameterName)) {
+				throw "Missing bench parameter: $parameterName"
+			}
+			return [string](Convert-BenchParameterValueToString -Value $parameterMap[$parameterName])
+		}
+	)
+}
+
+function Expand-BenchParameterizedValue {
+	param(
+		$Value,
+		$Parameters
+	)
+	if ($null -eq $Value) {
+		return $null
+	}
+	if ($Value -is [System.Collections.IDictionary]) {
+		$expanded = [ordered]@{}
+		foreach ($keyObject in $Value.Keys) {
+			$key = [string]$keyObject
+			$expanded[$key] = Expand-BenchParameterizedValue -Value $Value[$key] -Parameters $Parameters
+		}
+		return $expanded
+	}
+	if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+		$list = New-Object System.Collections.Generic.List[object]
+		foreach ($item in $Value) {
+			$list.Add((Expand-BenchParameterizedValue -Value $item -Parameters $Parameters))
+		}
+		return @($list.ToArray())
+	}
+	if ($Value -is [string]) {
+		return (Resolve-BenchParameterizedString -Text ([string]$Value) -Parameters $Parameters)
+	}
+	return $Value
+}
+
+function Resolve-CaseConfigParameters {
+	param(
+		$CaseConfig,
+		$Parameters
+	)
+	$defaultParameters = Get-OptionalProperty -Object $CaseConfig -Name "parameters"
+	return (Merge-BenchParameterMaps -BaseParameters $defaultParameters -OverrideParameters $Parameters)
+}
+
+function Expand-CaseConfigWithParameters {
+	param(
+		$CaseConfig,
+		$Parameters
+	)
+	$resolvedParameters = Resolve-CaseConfigParameters -CaseConfig $CaseConfig -Parameters $Parameters
+	if ($resolvedParameters.Count -le 0) {
+		return $CaseConfig
+	}
+	$expandedCase = Expand-BenchParameterizedValue `
+		-Value (ConvertTo-NormalizedBenchValue -Value $CaseConfig) `
+		-Parameters $resolvedParameters
+	$caseObject = ConvertTo-PSObjectTree -Value $expandedCase
+	$caseObject.id = [string](Get-OptionalProperty -Object $CaseConfig -Name "id" -DefaultValue "")
+	$caseObject.parameters = ConvertTo-PSObjectTree -Value $resolvedParameters
+	return $caseObject
+}
+
 function Copy-NormalizedBenchValue {
 	param($Value)
 	if ($null -eq $Value) {
@@ -281,14 +412,15 @@ function Get-MatrixConfig {
 function Get-CaseConfig {
 	param(
 		$Matrix,
-		[string]$Id
+		[string]$Id,
+		$Parameters = $null
 	)
 	if ([string]::IsNullOrWhiteSpace($Id)) {
 		throw "CaseId is required for action $Action."
 	}
 	foreach ($case in $Matrix.cases) {
 		if ($case.id -eq $Id) {
-			return $case
+			return (Expand-CaseConfigWithParameters -CaseConfig $case -Parameters $Parameters)
 		}
 	}
 	throw "Case not found: $Id"

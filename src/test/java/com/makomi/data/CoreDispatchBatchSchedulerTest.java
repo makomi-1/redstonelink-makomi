@@ -16,6 +16,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -239,6 +240,50 @@ class CoreDispatchBatchSchedulerTest {
 		assertTrue(invokeIsFlushDue(accumulator, 301L, 1));
 	}
 
+	/**
+	 * late arrival 补 flush 只应在 `window=0` 且当前 tick 的 END 已完成时触发。
+	 */
+	@Test
+	void shouldFlushLateArrivalsShouldOnlyAllowWindowZeroAfterEndTick() throws Exception {
+		assertTrue(invokeShouldFlushLateArrivals(400L, 0, 400L));
+		assertFalse(invokeShouldFlushLateArrivals(400L, 1, 400L));
+		assertFalse(invokeShouldFlushLateArrivals(401L, 0, 400L));
+		assertFalse(invokeShouldFlushLateArrivals(400L, 0, null));
+	}
+
+	/**
+	 * 当 `window=0` 且当前 tick 的 END 已经过去后，新入队 batch 应被立刻补 flush。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void flushLateArrivalsIfCurrentTickEndAlreadyPassedShouldFlushPendingBatchWhenWindowZero() throws Exception {
+		CoreDispatchBatchScheduler.resetForTesting();
+		Object schedulerState = createSchedulerState();
+		Object accumulator = createAccumulator();
+		assertTrue(invokeMergeAll(accumulator, List.of(createSyncEntry(71L, 1L, 15))));
+		invokeOpenWindowIfNeeded(accumulator, 0L);
+
+		Field stateByServerField = CoreDispatchBatchScheduler.class.getDeclaredField("STATE_BY_SERVER");
+		stateByServerField.setAccessible(true);
+		Map<MinecraftServer, Object> stateByServer = (Map<MinecraftServer, Object>) stateByServerField.get(null);
+		stateByServer.put(null, schedulerState);
+
+		Field pendingByTargetField = schedulerState.getClass().getDeclaredField("pendingByTarget");
+		pendingByTargetField.setAccessible(true);
+		Map<Object, Object> pendingByTarget = (Map<Object, Object>) pendingByTargetField.get(schedulerState);
+		pendingByTarget.put(createTargetBatchKey(1L), accumulator);
+
+		setLastCompletedEndTick(null, 0L);
+		invokeFlushLateArrivalsIfCurrentTickEndAlreadyPassed(null, 0L);
+
+		assertTrue(pendingByTarget.isEmpty());
+
+		Field accumulatorPoolField = schedulerState.getClass().getDeclaredField("accumulatorPool");
+		accumulatorPoolField.setAccessible(true);
+		List<?> accumulatorPool = (List<?>) accumulatorPoolField.get(schedulerState);
+		assertEquals(1, accumulatorPool.size());
+	}
+
 	private static Object createAccumulator() throws Exception {
 		Class<?> accumulatorClass = Class.forName("com.makomi.data.CoreDispatchBatchScheduler$TargetBatchAccumulator");
 		Constructor<?> constructor = accumulatorClass.getDeclaredConstructor(ActivatableTargetBlockEntity.class);
@@ -297,6 +342,49 @@ class CoreDispatchBatchSchedulerTest {
 		Method method = accumulator.getClass().getDeclaredMethod("isFlushDue", long.class, int.class);
 		method.setAccessible(true);
 		return (Boolean) method.invoke(accumulator, currentTick, windowTicks);
+	}
+
+	private static boolean invokeShouldFlushLateArrivals(long currentTick, int windowTicks, Long lastCompletedEndTick)
+		throws Exception {
+		Method method = CoreDispatchBatchScheduler.class.getDeclaredMethod(
+			"shouldFlushLateArrivals",
+			long.class,
+			int.class,
+			Long.class
+		);
+		method.setAccessible(true);
+		return (Boolean) method.invoke(null, currentTick, windowTicks, lastCompletedEndTick);
+	}
+
+	private static void invokeFlushLateArrivalsIfCurrentTickEndAlreadyPassed(MinecraftServer server, long currentTick)
+		throws Exception {
+		Method method = CoreDispatchBatchScheduler.class.getDeclaredMethod(
+			"flushLateArrivalsIfCurrentTickEndAlreadyPassed",
+			MinecraftServer.class,
+			long.class
+		);
+		method.setAccessible(true);
+		method.invoke(null, server, currentTick);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static void setLastCompletedEndTick(MinecraftServer server, long tick) throws Exception {
+		Field field = CoreDispatchBatchScheduler.class.getDeclaredField("LAST_COMPLETED_END_TICK_BY_SERVER");
+		field.setAccessible(true);
+		Map<MinecraftServer, Long> lastCompletedByServer = (Map<MinecraftServer, Long>) field.get(null);
+		lastCompletedByServer.put(server, tick);
+	}
+
+	private static Object createTargetBatchKey(long targetSerial) throws Exception {
+		Class<?> keyClass = Class.forName("com.makomi.data.CoreDispatchBatchScheduler$TargetBatchKey");
+		Constructor<?> constructor = keyClass.getDeclaredConstructor(
+			net.minecraft.resources.ResourceKey.class,
+			BlockPos.class,
+			LinkNodeType.class,
+			long.class
+		);
+		constructor.setAccessible(true);
+		return constructor.newInstance(Level.OVERWORLD, BlockPos.ZERO, LinkNodeType.CORE, targetSerial);
 	}
 
 	@SuppressWarnings("unchecked")

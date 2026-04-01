@@ -218,11 +218,14 @@ function Resolve-SuiteEntries {
 			$entries.Add([pscustomobject]@{
 				entryId = [string]$caseId
 				caseId = [string]$caseId
+				summaryCaseId = [string]$caseId
+				title = $null
 				benchAction = $DefaultBenchAction
 				matrixPath = [System.IO.Path]::GetFullPath($DefaultMatrixPath)
 				templateWorldPath = $null
 				reuseWorldFrom = $null
 				compareSerialsTo = $null
+				parameters = [ordered]@{}
 				serverConfigOverrides = [ordered]@{}
 			})
 		}
@@ -245,6 +248,9 @@ function Resolve-SuiteEntries {
 	$defaultServerConfigOverrides = Convert-OptionalObjectToOrderedMap -Object (
 		Get-OptionalPsObjectPropertyValue -Object $suiteDefaults -PropertyName "serverConfigOverrides"
 	)
+	$defaultParameters = Convert-BenchParametersToOrderedMap -Parameters (
+		Get-OptionalPsObjectPropertyValue -Object $suiteDefaults -PropertyName "parameters"
+	)
 	$defaultMatrixPath = [string](Get-OptionalPsObjectPropertyValue -Object $suiteDefaults -PropertyName "matrixPath")
 	if ([string]::IsNullOrWhiteSpace($defaultMatrixPath)) {
 		$defaultMatrixPath = $DefaultMatrixPath
@@ -255,16 +261,31 @@ function Resolve-SuiteEntries {
 	$entries = New-Object System.Collections.Generic.List[object]
 	$resolvedSuiteEntries = @(Resolve-SuiteRequestedEntries -SuiteEntries @($suiteConfig.entries) -RequestedCaseIds $RequestedCaseIds)
 	foreach ($entry in $resolvedSuiteEntries) {
-		$entryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "entryId")
-		if ([string]::IsNullOrWhiteSpace($entryId)) {
-			$entryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "id")
+		$rawEntryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "entryId")
+		if ([string]::IsNullOrWhiteSpace($rawEntryId)) {
+			$rawEntryId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "id")
 		}
 		$caseId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "caseId")
-		if ([string]::IsNullOrWhiteSpace($entryId)) {
-			$entryId = $caseId
+		if ([string]::IsNullOrWhiteSpace($rawEntryId)) {
+			$rawEntryId = $caseId
 		}
-		if ([string]::IsNullOrWhiteSpace($entryId) -or [string]::IsNullOrWhiteSpace($caseId)) {
+		if ([string]::IsNullOrWhiteSpace($rawEntryId) -or [string]::IsNullOrWhiteSpace($caseId)) {
 			throw "Each suite entry must provide entryId/id and caseId."
+		}
+		$entryParameters = Merge-BenchParameterMaps `
+			-BaseParameters $defaultParameters `
+			-OverrideParameters (Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "parameters")
+		$entryId = Resolve-BenchParameterizedString -Text $rawEntryId -Parameters $entryParameters
+		$rawSummaryCaseId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "summaryCaseId")
+		if ([string]::IsNullOrWhiteSpace($rawSummaryCaseId)) {
+			$rawSummaryCaseId = $entryId
+		}
+		$summaryCaseId = Resolve-BenchParameterizedString -Text $rawSummaryCaseId -Parameters $entryParameters
+		$rawTitle = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "title")
+		$entryTitle = if ([string]::IsNullOrWhiteSpace($rawTitle)) {
+			$null
+		} else {
+			Resolve-BenchParameterizedString -Text $rawTitle -Parameters $entryParameters
 		}
 
 		$entryBenchAction = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "benchAction")
@@ -283,6 +304,11 @@ function Resolve-SuiteEntries {
 		$entryServerConfigOverrides = Merge-OptionalObjectMaps `
 			-BaseObject $defaultServerConfigOverrides `
 			-OverrideObject (Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "serverConfigOverrides")
+		$entryServerConfigOverrides = Convert-OptionalObjectToOrderedMap -Object (
+			Expand-BenchParameterizedValue `
+				-Value (ConvertTo-NormalizedBenchValue -Value $entryServerConfigOverrides) `
+				-Parameters $entryParameters
+		)
 
 		$matrix = Get-MatrixConfig -Path $entryMatrixPath
 		[void](Resolve-CaseIdList -Matrix $matrix -RequestedCaseIds @($caseId))
@@ -290,11 +316,14 @@ function Resolve-SuiteEntries {
 		$entries.Add([pscustomobject]@{
 			entryId = $entryId
 			caseId = $caseId
+			summaryCaseId = $summaryCaseId
+			title = $entryTitle
 			benchAction = $entryBenchAction
 			matrixPath = $entryMatrixPath
 			templateWorldPath = Resolve-PathFromBase -BaseDirectory $suiteBaseDirectory -CandidatePath ([string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "templateWorldPath"))
 			reuseWorldFrom = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "reuseWorldFrom")
 			compareSerialsTo = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "compareSerialsTo")
+			parameters = $entryParameters
 			serverConfigOverrides = $entryServerConfigOverrides
 		})
 	}

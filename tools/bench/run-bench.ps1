@@ -5,6 +5,7 @@ RedstoneLink bench 自动化脚本入口壳。
 param(
 	[ValidateSet("List", "PrintCase", "InstallDatapack", "RunCase", "RunFunctionalCase")][string]$Action = "List",
 	[string]$CaseId,
+	$CaseParameters = $null,
 	[string]$MatrixPath = (Join-Path $PSScriptRoot "matrix.json"),
 	[string]$SavePath = (Join-Path $PSScriptRoot "..\..\run\saves\rl-bench"),
 	[string]$RconHost = "127.0.0.1",

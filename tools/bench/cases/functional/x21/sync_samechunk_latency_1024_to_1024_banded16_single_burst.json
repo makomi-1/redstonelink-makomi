@@ -1,6 +1,9 @@
 {
   "id": "sync_samechunk_latency_1024_to_1024_banded16_single_burst",
   "description": "同区块 1024 个 sync triggerSource 对 1024 个 core 做 banded16 多对多映射，批量采集单次 burst 自定义序列下的 source/core SYNC 延迟与窗口覆盖率。",
+  "parameters": {
+    "dispatchBatchWindowTicks": 0
+  },
   "layer": "X",
   "scenarioId": "X21",
   "arena": {
@@ -83,6 +86,17 @@
       "chunkSize": 32,
       "batchPauseMs": 0,
       "maxDelayTicks": 24,
+      "expectedDelayTicks": 1,
+      "windowCoverageChecks": [
+        {
+          "windowTicks": 0,
+          "expectedRatio": 0.0
+        },
+        {
+          "windowTicks": 1,
+          "expectedRatio": 1.0
+        }
+      ],
       "tickCount": 8,
       "template": {
         "kind": "sync_custom",
@@ -100,6 +114,13 @@
       "chunkSize": 32,
       "batchPauseMs": 0,
       "maxDelayTicks": 24,
+      "expectedDelayTicks": "{{param:dispatchBatchWindowTicks}}",
+      "windowCoverageChecks": [
+        {
+          "windowTicks": "{{param:dispatchBatchWindowTicks}}",
+          "expectedRatio": 1.0
+        }
+      ],
       "tickCount": 8,
       "template": {
         "kind": "sync_custom",

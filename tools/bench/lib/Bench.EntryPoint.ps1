@@ -17,7 +17,7 @@ switch ($Action) {
 		break
 	}
 	"PrintCase" {
-		$caseConfig = Get-CaseConfig -Matrix $matrix -Id $CaseId
+		$caseConfig = Get-CaseConfig -Matrix $matrix -Id $CaseId -Parameters $CaseParameters
 		Show-CaseSummary -CaseConfig $caseConfig
 		$targetPositions = @(Expand-CuboidPositions $caseConfig.targets.layout)
 		$targetBounds = Get-BoundsFromPositions $targetPositions
@@ -34,7 +34,7 @@ switch ($Action) {
 		break
 	}
 	"RunCase" {
-		$caseConfig = Get-CaseConfig -Matrix $matrix -Id $CaseId
+		$caseConfig = Get-CaseConfig -Matrix $matrix -Id $CaseId -Parameters $CaseParameters
 		Install-BenchDatapack -SourcePath $datapackSource -WorldPath $SavePath
 		Show-CaseSummary -CaseConfig $caseConfig
 		Assert-RunCasePlayerContext
@@ -266,7 +266,7 @@ switch ($Action) {
 		break
 	}
 	"RunFunctionalCase" {
-		$caseConfig = Get-CaseConfig -Matrix $matrix -Id $CaseId
+		$caseConfig = Get-CaseConfig -Matrix $matrix -Id $CaseId -Parameters $CaseParameters
 		Install-BenchDatapack -SourcePath $datapackSource -WorldPath $SavePath
 		Show-CaseSummary -CaseConfig $caseConfig
 		Assert-RunCasePlayerContext

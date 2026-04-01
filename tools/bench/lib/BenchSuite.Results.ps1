@@ -233,14 +233,25 @@ function New-SuiteCaseRecord {
 		[string]$TemplateWorldPath = $null
 	)
 	$resolvedEntryId = [string]$Entry.entryId
-	$resolvedCaseId = [string]$Entry.caseId
+	$resolvedMatrixCaseId = [string]$Entry.caseId
+	$resolvedSummaryCaseId = [string](Get-OptionalPsObjectPropertyValue -Object $Entry -PropertyName "summaryCaseId")
+	if ([string]::IsNullOrWhiteSpace($resolvedSummaryCaseId)) {
+		$resolvedSummaryCaseId = $resolvedMatrixCaseId
+	}
+	$resolvedTitle = [string](Get-OptionalPsObjectPropertyValue -Object $Entry -PropertyName "title")
+	if ([string]::IsNullOrWhiteSpace($resolvedTitle)) {
+		$resolvedTitle = [string](Get-OptionalProperty -Object $CaseConfig -Name "description" -DefaultValue "")
+	}
 	return [ordered]@{
 		entryId = $resolvedEntryId
-		caseId = $resolvedCaseId
+		caseId = $resolvedSummaryCaseId
+		matrixCaseId = $resolvedMatrixCaseId
+		title = $resolvedTitle
 		scenarioId = [string](Get-OptionalProperty -Object $CaseConfig -Name "scenarioId" -DefaultValue "")
 		layer = [string](Get-OptionalProperty -Object $CaseConfig -Name "layer" -DefaultValue "")
 		benchAction = [string]$Entry.benchAction
 		matrixPath = [string]$Entry.matrixPath
+		parameters = Convert-BenchParametersToOrderedMap -Parameters (Get-OptionalPsObjectPropertyValue -Object $Entry -PropertyName "parameters")
 		worldName = $WorldName
 		worldLevelName = $WorldLevelName
 		worldPath = $null

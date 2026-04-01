@@ -34,6 +34,7 @@ import net.minecraft.world.level.Level;
  */
 public final class CoreDispatchBatchScheduler {
 	private static final Map<MinecraftServer, SchedulerState> STATE_BY_SERVER = new IdentityHashMap<>();
+	private static final Map<MinecraftServer, Long> LAST_COMPLETED_END_TICK_BY_SERVER = new IdentityHashMap<>();
 	private static final int MAX_RETAINED_ACCUMULATORS = 32;
 	private static final int MAX_IDLE_TICKS_BEFORE_POOL_RELEASE = 20;
 	private static boolean registered;
@@ -50,7 +51,10 @@ public final class CoreDispatchBatchScheduler {
 		}
 		ServerTickEvents.END_SERVER_TICK.register(CoreDispatchBatchScheduler::onEndServerTick);
 		ServerLifecycleEvents.SERVER_STOPPING.register(CoreDispatchBatchScheduler::onServerStopping);
-		ServerLifecycleEvents.SERVER_STOPPED.register(server -> STATE_BY_SERVER.remove(server));
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+			STATE_BY_SERVER.remove(server);
+			LAST_COMPLETED_END_TICK_BY_SERVER.remove(server);
+		});
 		registered = true;
 	}
 
@@ -166,15 +170,47 @@ public final class CoreDispatchBatchScheduler {
 	 */
 	static void resetForTesting() {
 		STATE_BY_SERVER.clear();
+		LAST_COMPLETED_END_TICK_BY_SERVER.clear();
 	}
 
 	private static void onEndServerTick(MinecraftServer server) {
 		flushServerBatches(server);
+		recordCompletedEndTick(server, resolveCurrentTick(server, null));
 	}
 
 	private static void onServerStopping(MinecraftServer server) {
 		flushServerBatches(server, true);
 		STATE_BY_SERVER.remove(server);
+		LAST_COMPLETED_END_TICK_BY_SERVER.remove(server);
+	}
+
+	/**
+	 * 当 `window=0` 且当前 tick 的 `END_SERVER_TICK` 已执行完后，补一次对齐 flush。
+	 * <p>
+	 * 这样可以覆盖“END 之后、下一 tick 之前”才新入队的 loaded `SYNC`，
+	 * 避免它们无谓地拖到下一 tick 末，破坏 `window=0` 的设计目的。
+	 * </p>
+	 */
+	static void flushLateArrivalsIfCurrentTickEndAlreadyPassed(MinecraftServer server, long currentTick) {
+		long normalizedCurrentTick = Math.max(0L, currentTick);
+		Long lastCompletedEndTick = LAST_COMPLETED_END_TICK_BY_SERVER.get(server);
+		if (!shouldFlushLateArrivals(normalizedCurrentTick, configuredBatchWindowTicks(), lastCompletedEndTick)) {
+			return;
+		}
+		flushServerBatches(server);
+	}
+
+	/**
+	 * 判断当前是否应对 late arrival 触发一次 `window=0` 补 flush。
+	 */
+	static boolean shouldFlushLateArrivals(long currentTick, int windowTicks, Long lastCompletedEndTick) {
+		if (Math.max(0, windowTicks) != 0) {
+			return false;
+		}
+		if (lastCompletedEndTick == null) {
+			return false;
+		}
+		return Math.max(0L, currentTick) == Math.max(0L, lastCompletedEndTick.longValue());
 	}
 
 	private static void flushServerBatches(MinecraftServer server) {
@@ -226,6 +262,13 @@ public final class CoreDispatchBatchScheduler {
 
 	private static int configuredBatchWindowTicks() {
 		return Math.max(0, RedstoneLinkConfig.crossChunk().dispatchBatchWindowTicks());
+	}
+
+	/**
+	 * 记录指定服务端最近一次已经完成的 `END_SERVER_TICK`。
+	 */
+	private static void recordCompletedEndTick(MinecraftServer server, long completedTick) {
+		LAST_COMPLETED_END_TICK_BY_SERVER.put(server, Math.max(0L, completedTick));
 	}
 
 	private static int compareBatchEntries(DispatchBatchEntry left, DispatchBatchEntry right) {

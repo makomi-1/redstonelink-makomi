@@ -1017,6 +1017,57 @@ function Resolve-TraceLatencyWindowTicks {
 	return @($normalized.ToArray() | Sort-Object -Unique)
 }
 
+function Resolve-TraceLatencyWindowCoverageChecks {
+	param($Phase)
+	$rawChecks = Get-OptionalProperty -Object $Phase -Name "windowCoverageChecks"
+	if ($null -eq $rawChecks) {
+		return @()
+	}
+	$items = @($rawChecks)
+	if ($items.Count -le 0) {
+		return @()
+	}
+	$resolvedChecks = New-Object System.Collections.Generic.List[object]
+	foreach ($item in $items) {
+		if ($null -eq $item) {
+			continue
+		}
+		$windowTickRaw = Get-OptionalProperty -Object $item -Name "windowTicks"
+		if ($null -eq $windowTickRaw) {
+			throw "windowCoverageChecks requires windowTicks."
+		}
+		$expectedRatioRaw = Get-OptionalProperty -Object $item -Name "expectedRatio"
+		$expectedMinimumRaw = Get-OptionalProperty -Object $item -Name "expectedMinimum"
+		$expectedMaximumRaw = Get-OptionalProperty -Object $item -Name "expectedMaximum"
+		$expectedMinimum = if ($null -ne $expectedRatioRaw) {
+			[Math]::Max(0.0, [Math]::Min(1.0, [double]$expectedRatioRaw))
+		} elseif ($null -ne $expectedMinimumRaw) {
+			[Math]::Max(0.0, [Math]::Min(1.0, [double]$expectedMinimumRaw))
+		} else {
+			$null
+		}
+		$expectedMaximum = if ($null -ne $expectedRatioRaw) {
+			[Math]::Max(0.0, [Math]::Min(1.0, [double]$expectedRatioRaw))
+		} elseif ($null -ne $expectedMaximumRaw) {
+			[Math]::Max(0.0, [Math]::Min(1.0, [double]$expectedMaximumRaw))
+		} else {
+			$null
+		}
+		if ($null -eq $expectedMinimum -and $null -eq $expectedMaximum) {
+			throw "windowCoverageChecks requires expectedRatio or expectedMinimum/expectedMaximum."
+		}
+		if ($null -ne $expectedMinimum -and $null -ne $expectedMaximum -and [double]$expectedMinimum -gt [double]$expectedMaximum) {
+			throw "windowCoverageChecks expectedMinimum must be <= expectedMaximum."
+		}
+		$resolvedChecks.Add([ordered]@{
+			windowTicks = [Math]::Max(0, [int]$windowTickRaw)
+			expectedMinimum = $expectedMinimum
+			expectedMaximum = $expectedMaximum
+		})
+	}
+	return @($resolvedChecks.ToArray())
+}
+
 function Find-TraceCycleMatch {
 	param(
 		$Samples,
@@ -2602,7 +2653,14 @@ function Invoke-FunctionalPhases {
 				$expectedSequenceText = Format-SignalSequenceText -Sequence $expectedPowers
 				$referencePhaseRef = [string](Get-OptionalProperty -Object $phase -Name "referencePhaseRef" -DefaultValue "")
 				$referenceStartStrategy = [string](Get-OptionalProperty -Object $phase -Name "referenceStartStrategy" -DefaultValue "min")
+				$expectedDelayTicksRaw = Get-OptionalProperty -Object $phase -Name "expectedDelayTicks"
+				$expectedDelayTicks = if ($null -eq $expectedDelayTicksRaw) { $null } else { [long]$expectedDelayTicksRaw }
 				$windowTicks = @(Resolve-TraceLatencyWindowTicks -Phase $phase)
+				$windowCoverageChecks = @(Resolve-TraceLatencyWindowCoverageChecks -Phase $phase)
+				foreach ($windowCoverageCheck in @($windowCoverageChecks)) {
+					$windowTicks += [int](Get-OptionalProperty -Object $windowCoverageCheck -Name "windowTicks" -DefaultValue 0)
+				}
+				$windowTicks = @($windowTicks | Sort-Object -Unique)
 				$requiredMatchRatio = [double](Get-OptionalProperty -Object $phase -Name "requiredMatchRatio" -DefaultValue 1.0)
 				$maxDelayTicksRaw = Get-OptionalProperty -Object $phase -Name "maxDelayTicks"
 				$maxDelayTicks = if ($null -eq $maxDelayTicksRaw) { $null } else { [Math]::Max(0, [int]$maxDelayTicksRaw) }
@@ -2655,6 +2713,7 @@ function Invoke-FunctionalPhases {
 							referenceStartTick = $null
 							referenceDelayStats = (New-TraceLatencyStats -Values @())
 							evaluatedDelayField = "inputDelayTicks"
+							expectedDelayTicks = $expectedDelayTicks
 							windowCoverage = @()
 						}
 						items = @()
@@ -2765,9 +2824,22 @@ function Invoke-FunctionalPhases {
 						coverageRatio = $coverageRatio
 					})
 				}
-				$matchedStartTickStats = New-TraceLatencyStats -Values $matchedStartTicks.ToArray()
-				$inputDelayStats = New-TraceLatencyStats -Values $inputDelayValues.ToArray()
-				$referenceDelayStats = New-TraceLatencyStats -Values $referenceDelayValues.ToArray()
+				$matchedStartTickArray = @($matchedStartTicks.ToArray())
+				$inputDelayValueArray = @($inputDelayValues.ToArray())
+				$referenceDelayValueArray = @($referenceDelayValues.ToArray())
+				$matchedStartTickStats = New-TraceLatencyStats -Values $matchedStartTickArray
+				$inputDelayStats = New-TraceLatencyStats -Values $inputDelayValueArray
+				$referenceDelayStats = New-TraceLatencyStats -Values $referenceDelayValueArray
+				$evaluatedDelayStats = if ($evaluatedDelayField -eq "referenceDelayTicks") {
+					$referenceDelayStats
+				} else {
+					$inputDelayStats
+				}
+				$evaluatedDelayValues = if ($evaluatedDelayField -eq "referenceDelayTicks") {
+					$referenceDelayValueArray
+				} else {
+					$inputDelayValueArray
+				}
 				$phasePassed = ($matchedRatio -ge $requiredMatchRatio)
 				$matchCheck = [ordered]@{
 					phase = $phaseName
@@ -2783,6 +2855,88 @@ function Invoke-FunctionalPhases {
 				$checks.Add($matchCheck)
 				if (-not $matchCheck.passed) {
 					$failedChecks.Add($matchCheck)
+				}
+				if ($null -ne $expectedDelayTicks) {
+					# 参数化窗口场景直接校验实际延迟值，避免只看覆盖率时无法区分“正好延迟 N tick”和“更早到达”。
+					$actualDelayMinimum = $null
+					$actualDelayMaximum = $null
+					$sortedEvaluatedDelayValues = @(@($evaluatedDelayValues) | Sort-Object)
+					if ($sortedEvaluatedDelayValues.Count -gt 0) {
+						$actualDelayMinimum = [long]$sortedEvaluatedDelayValues[0]
+						$actualDelayMaximum = [long]$sortedEvaluatedDelayValues[$sortedEvaluatedDelayValues.Count - 1]
+					}
+					$delayPassed = $false
+					if ($matchedCount -gt 0 -and $null -ne $actualDelayMinimum -and $null -ne $actualDelayMaximum) {
+						$delayPassed = (
+							([long]$actualDelayMinimum -eq [long]$expectedDelayTicks) -and
+							([long]$actualDelayMaximum -eq [long]$expectedDelayTicks)
+						)
+					}
+					$delayCheck = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						scope = "delay_ticks"
+						type = $type
+						delayField = $evaluatedDelayField
+						passed = $delayPassed
+						expected = [long]$expectedDelayTicks
+						actualMinimum = $actualDelayMinimum
+						actualMaximum = $actualDelayMaximum
+						matched = $matchedCount
+						evaluated = [int]$matchedCount
+						evaluatedMatched = [int]$matchedCount
+						delayCheckVersion = "v2"
+					}
+					$checks.Add($delayCheck)
+					if (-not $delayCheck.passed) {
+						$failedChecks.Add($delayCheck)
+					}
+					$phasePassed = $phasePassed -and $delayCheck.passed
+				}
+				foreach ($windowCoverageCheck in @($windowCoverageChecks)) {
+					$targetWindowTick = [int](Get-OptionalProperty -Object $windowCoverageCheck -Name "windowTicks" -DefaultValue 0)
+					$expectedMinimum = Get-OptionalProperty -Object $windowCoverageCheck -Name "expectedMinimum"
+					$expectedMaximum = Get-OptionalProperty -Object $windowCoverageCheck -Name "expectedMaximum"
+					$windowCoverageEntry = @(
+						@($windowCoverage.ToArray()) |
+							Where-Object { [int](Get-OptionalProperty -Object $_ -Name "windowTicks" -DefaultValue -1) -eq $targetWindowTick } |
+							Select-Object -First 1
+					) | Select-Object -First 1
+					$coveragePassed = ($null -ne $windowCoverageEntry)
+					$actualCoverage = if ($null -eq $windowCoverageEntry) {
+						$null
+					} else {
+						[double](Get-OptionalProperty -Object $windowCoverageEntry -Name "coverageRatio" -DefaultValue 0.0)
+					}
+					$coveredCount = if ($null -eq $windowCoverageEntry) {
+						0
+					} else {
+						[int](Get-OptionalProperty -Object $windowCoverageEntry -Name "covered" -DefaultValue 0)
+					}
+					if ($coveragePassed -and $null -ne $expectedMinimum -and [double]$actualCoverage -lt [double]$expectedMinimum) {
+						$coveragePassed = $false
+					}
+					if ($coveragePassed -and $null -ne $expectedMaximum -and [double]$actualCoverage -gt [double]$expectedMaximum) {
+						$coveragePassed = $false
+					}
+					$coverageCheckResult = [ordered]@{
+						phase = $phaseName
+						kind = $kind
+						scope = "window_coverage"
+						type = $type
+						windowTicks = $targetWindowTick
+						passed = $coveragePassed
+						expectedMinimum = $expectedMinimum
+						expectedMaximum = $expectedMaximum
+						actual = $actualCoverage
+						covered = $coveredCount
+						totalMatched = $matchedCount
+					}
+					$checks.Add($coverageCheckResult)
+					if (-not $coverageCheckResult.passed) {
+						$failedChecks.Add($coverageCheckResult)
+					}
+					$phasePassed = $phasePassed -and $coverageCheckResult.passed
 				}
 				$phaseResult = [ordered]@{
 					kind = $kind
@@ -2816,6 +2970,7 @@ function Invoke-FunctionalPhases {
 						referenceStartTick = $referenceStartTick
 						referenceDelayStats = $referenceDelayStats
 						evaluatedDelayField = $evaluatedDelayField
+						expectedDelayTicks = $expectedDelayTicks
 						windowCoverage = @($windowCoverage.ToArray())
 					}
 					items = @($items.ToArray())

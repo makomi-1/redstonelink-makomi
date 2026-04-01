@@ -257,6 +257,16 @@ public final class LinkedTargetDispatchService {
 			}
 		}
 
+		if (dispatchKind == DispatchKind.SYNC_SIGNAL) {
+			// `window=0` 的设计目的是保持当前 tick 对齐。
+			// 若本次 fanout 发生在当前 tick 的 END 之后，则在整批入队完成后补一次 flush，
+			// 既保留统一 scheduler 的 merge 语义，也避免这批 late arrival 整体晚到下一 tick 末。
+			CoreDispatchBatchScheduler.flushLateArrivalsIfCurrentTickEndAlreadyPassed(
+				sourceLevel.getServer(),
+				eventTick
+			);
+		}
+
 		DispatchSummary summary = new DispatchSummary(
 			sourceType,
 			sourceSerial,
