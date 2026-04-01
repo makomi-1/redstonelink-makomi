@@ -17,6 +17,7 @@ public record RedstoneLinkCrossChunkConfig(
 	boolean syncTargetChunkLoadReplayImmediateAttemptFirst,
 	boolean syncSourceAttachReplayEnabled,
 	RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode directSyncBatchingMode,
+	int dispatchBatchWindowTicks,
 	boolean activationPulseRelayEnabled,
 	int activationPulseTtlTicks,
 	boolean activationPulsePersistentExperimental,

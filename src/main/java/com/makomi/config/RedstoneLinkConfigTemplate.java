@@ -287,6 +287,11 @@ final class RedstoneLinkConfigTemplate {
 			# en: Batching mode for loaded `SYNC`: off=all loaded sync stays immediate, queued_only=only async/queued loaded sync uses batching, all_sync=all loaded direct/async sync goes through target-level batching.
 			crosschunk.directSyncBatching=queued_only
 
+			# crosschunk.dispatch.batchWindowTicks
+			# zh: `core` 目标级批提交的 flush 窗口（tick）。0=保持当前 tick 末提交；1=延后一 tick 提交；2+ 仅建议用于高稳定性实验，不建议默认开启。
+			# en: Flush window in ticks for target-level `core` batching. 0 keeps end-of-tick flush, 1 delays by one tick, and 2+ is intended only for high-stability experiments.
+			crosschunk.dispatch.batchWindowTicks=0
+
 			# crosschunk.activation.pulse.relay.enabled
 			# zh: 是否启用 PULSE 事件的普通 TTL relay。false=目标未加载时直接跳过。
 			# en: Whether PULSE events use normal TTL relay. false means skip when target is unloaded.

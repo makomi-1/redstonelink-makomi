@@ -357,6 +357,8 @@ final class CrossChunkDispatchTicketSupport {
 		state.residentTickets.clear();
 		state.residentDesiredTicketsScratch.clear();
 		state.forceLoadCountBySource.clear();
+		CrossChunkDispatchRuntimeSupport.clearRetryTracking(state);
+		CrossChunkDispatchRuntimeSupport.clearTransientRuntimeState(state);
 		state.residentSyncArmed = false;
 		state.residentWhitelistVersion = Long.MIN_VALUE;
 		state.residentRuntimeNodeVersion = Long.MIN_VALUE;

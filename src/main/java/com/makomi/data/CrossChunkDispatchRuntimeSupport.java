@@ -27,6 +27,9 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * </p>
  */
 final class CrossChunkDispatchRuntimeSupport {
+	private static final int MAX_RETAINED_READY_GROUP_MAPS = 32;
+	private static final int MAX_RETAINED_READY_GROUPS = 64;
+
 	private CrossChunkDispatchRuntimeSupport() {
 	}
 
@@ -40,12 +43,14 @@ final class CrossChunkDispatchRuntimeSupport {
 		long gameTime
 	) {
 		if (queueData == null) {
+			clearTransientRuntimeState(state);
 			return;
 		}
 		queueData.purgeExpired(gameTime);
 		List<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> snapshot = queueData.pendingEntriesSnapshot();
 		if (snapshot.isEmpty()) {
 			clearRetryTracking(state);
+			clearTransientRuntimeState(state);
 			state.pendingCursor = 0L;
 			return;
 		}
@@ -106,10 +111,24 @@ final class CrossChunkDispatchRuntimeSupport {
 		});
 		if (queueData.pendingSize() <= 0) {
 			clearRetryTracking(state);
+			clearTransientRuntimeState(state);
 			state.pendingCursor = 0L;
 			return;
 		}
 		state.pendingCursor = state.pendingCursor + processed;
+	}
+
+	/**
+	 * 在 pending 刷队列完全空闲时释放仅用于临时调度的 retained 容器。
+	 */
+	static void clearTransientRuntimeState(CrossChunkDispatchService.DispatchState state) {
+		if (state == null) {
+			return;
+		}
+		state.retryActiveKeysScratch.clear();
+		state.wakeAttemptSnapshotScratch.clear();
+		state.targetLocatorCache.clearRetainedState();
+		state.readyDrainCache.clearRetainedState();
 	}
 
 	/**
@@ -301,6 +320,13 @@ final class CrossChunkDispatchRuntimeSupport {
 		}
 
 		/**
+		 * 在运行态完全空闲时释放 retained locator 缓存。
+		 */
+		void clearRetainedState() {
+			locatorResults.clear();
+		}
+
+		/**
 		 * 定位 pending 当前指向的目标实体。
 		 */
 		TargetLocatorResult locate(MinecraftServer server, CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending) {
@@ -370,6 +396,7 @@ final class CrossChunkDispatchRuntimeSupport {
 		 */
 		void reset() {
 			recycleAllGroups();
+			trimRetainedPools();
 		}
 
 		/**
@@ -476,12 +503,38 @@ final class CrossChunkDispatchRuntimeSupport {
 			for (LinkedHashMap<ReadyDrainTargetKey, ReadyDrainTargetGroup> groupsByTarget : readyGroupsByChunk.values()) {
 				for (ReadyDrainTargetGroup readyDrainTargetGroup : groupsByTarget.values()) {
 					readyDrainTargetGroup.recycle();
-					readyGroupPool.add(readyDrainTargetGroup);
+					if (readyGroupPool.size() < MAX_RETAINED_READY_GROUPS) {
+						readyGroupPool.add(readyDrainTargetGroup);
+					}
 				}
 				groupsByTarget.clear();
-				readyGroupMapPool.add(groupsByTarget);
+				if (readyGroupMapPool.size() < MAX_RETAINED_READY_GROUP_MAPS) {
+					readyGroupMapPool.add(groupsByTarget);
+				}
 			}
 			readyGroupsByChunk.clear();
+			trimRetainedPools();
+		}
+
+		/**
+		 * 在跨区块调度完全空闲时释放 retained ready-drain 池。
+		 */
+		void clearRetainedState() {
+			recycleAllGroups();
+			readyGroupMapPool.clear();
+			readyGroupPool.clear();
+		}
+
+		/**
+		 * 对 retained pool 做一次上限裁剪，避免历史峰值长期驻留。
+		 */
+		private void trimRetainedPools() {
+			while (readyGroupMapPool.size() > MAX_RETAINED_READY_GROUP_MAPS) {
+				readyGroupMapPool.remove(readyGroupMapPool.size() - 1);
+			}
+			while (readyGroupPool.size() > MAX_RETAINED_READY_GROUPS) {
+				readyGroupPool.remove(readyGroupPool.size() - 1);
+			}
 		}
 	}
 

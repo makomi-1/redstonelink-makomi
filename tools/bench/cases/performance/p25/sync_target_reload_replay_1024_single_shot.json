@@ -1,0 +1,142 @@
+{
+  "id": "sync_target_reload_replay_1024_single_shot",
+  "description": "远坐标 crosschunk sync 专项：目标离线时制造 1->1024 的单次高态切换，再通过 target reload replay 观察 1024 目标的集中恢复。",
+  "layer": "P",
+  "scenarioId": "P25",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [4152, 63, 4088],
+      "to": [4168, 66, 4104]
+    },
+    {
+      "dimension": "minecraft:the_nether",
+      "from": [4416, 63, 4352],
+      "to": [4431, 68, 4367]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [4152, 63, 4088],
+        "clearTo": [4168, 66, 4104]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [4416, 63, 4352],
+        "clearTo": [4431, 68, 4367]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_p25_replay",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [4416, 64, 4352],
+      "to": [4431, 67, 4367]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p25_replay",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4160, 64, 4096],
+        "to": [4160, 64, 4096]
+      },
+      "control": {
+        "mode": "north_strip",
+        "onBlock": "minecraft:redstone_block",
+        "offBlock": "minecraft:air"
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p25_replay",
+      "mapping": "broadcast_all",
+      "targetSerialFormat": "range"
+    }
+  ],
+  "drive": {
+    "totalTicks": 174,
+    "steps": [
+      {
+        "templateRef": "command_assert",
+        "name": "force_source_low_before_unload",
+        "command": "setblock 4160 64 4095 minecraft:air",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "remove_target_forceload",
+        "command": "forceload remove 4416 4352 4431 4367",
+        "commandDimension": "minecraft:the_nether"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_target_unload",
+        "ticks": 40
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "target_should_be_offline_before_replay",
+        "commandTemplate": "redstonelink node get core {{targets[0]}}",
+        "expectedPrefix": "[RedstoneLink/Node]",
+        "expectedRegex": "(?i)(online=false|在线=false)"
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "power_on_source_while_target_offline",
+        "command": "setblock 4160 64 4095 minecraft:redstone_block",
+        "commandDimension": "minecraft:overworld"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_replay_commit",
+        "ticks": 4
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "readd_target_forceload",
+        "command": "forceload add 4416 4352 4431 4367",
+        "commandDimension": "minecraft:the_nether"
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "wait_target_reload",
+        "ticks": 10
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "target_should_restore_high_after_reload_replay",
+        "commandTemplate": "redstonelink node get core {{targets[0]}}",
+        "expectedPrefix": "[RedstoneLink/Node]",
+        "expectedRegexes": [
+          "(?i)(online=true|在线=true)",
+          "(?i)(active=true|激活=true)"
+        ]
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_replay_window",
+        "ticks": 120
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "power_off_source_after_window",
+        "command": "setblock 4160 64 4095 minecraft:air",
+        "commandDimension": "minecraft:overworld"
+      }
+    ]
+  }
+}

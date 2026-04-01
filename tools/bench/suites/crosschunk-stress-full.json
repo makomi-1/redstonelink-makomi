@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "扩展压力集：最小回环、1024 queue release、256 resident 与 128 force-load bursty。",
+  "description": "扩展压力集：最小回环、1024 queue release、1024 target reload replay、256 resident 与 128 force-load bursty。",
   "defaults": {
     "benchAction": "RunCase",
     "matrixPath": "../matrix-crosschunk-stress.json"
@@ -33,6 +33,18 @@
         "crosschunk.queue.enabled": "true",
         "crosschunk.syncSignalPersistent": "true",
         "crosschunk.syncTargetChunkLoadReplay.enabled": "false",
+        "crosschunk.forceLoad.enabled": "false",
+        "crosschunk.dispatch.maxPerTick": "2048"
+      }
+    },
+    {
+      "entryId": "p25_sync_target_reload_replay_1024_single_shot",
+      "caseId": "sync_target_reload_replay_1024_single_shot",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.syncSignalPersistent": "false",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "true",
+        "crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst": "true",
         "crosschunk.forceLoad.enabled": "false",
         "crosschunk.dispatch.maxPerTick": "2048"
       }

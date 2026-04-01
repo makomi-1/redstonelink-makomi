@@ -4,6 +4,7 @@ import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.DispatchBatchEntry;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.config.RedstoneLinkConfig;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -28,11 +29,13 @@ import net.minecraft.world.level.Level;
  * 1. 同一 `core` 在同一 tick 内先聚合；
  * 2. 同源同 kind 仅保留最新条目；
  * 3. `TRIGGER_SOURCE_INVALIDATION` 可覆盖同窗口内更早的 sync / chunk-unload invalidation；
- * 4. tick 末统一 flush 到 `core.applyDispatchBatch(...)`。
+ * 4. 窗口到期时统一 flush 到 `core.applyDispatchBatch(...)`，默认窗口为当前 tick。
  * </p>
  */
 public final class CoreDispatchBatchScheduler {
 	private static final Map<MinecraftServer, SchedulerState> STATE_BY_SERVER = new IdentityHashMap<>();
+	private static final int MAX_RETAINED_ACCUMULATORS = 32;
+	private static final int MAX_IDLE_TICKS_BEFORE_POOL_RELEASE = 20;
 	private static boolean registered;
 
 	private CoreDispatchBatchScheduler() {
@@ -155,7 +158,7 @@ public final class CoreDispatchBatchScheduler {
 	 * 测试专用：强制 flush 指定服务端的当前批次。
 	 */
 	static void flushPendingForTesting(MinecraftServer server) {
-		flushServerBatches(server);
+		flushServerBatches(server, true);
 	}
 
 	/**
@@ -170,19 +173,44 @@ public final class CoreDispatchBatchScheduler {
 	}
 
 	private static void onServerStopping(MinecraftServer server) {
-		flushServerBatches(server);
+		flushServerBatches(server, true);
 		STATE_BY_SERVER.remove(server);
 	}
 
 	private static void flushServerBatches(MinecraftServer server) {
+		flushServerBatches(server, false);
+	}
+
+	private static void flushServerBatches(MinecraftServer server, boolean forceFlush) {
 		SchedulerState state = STATE_BY_SERVER.get(server);
-		if (state == null || state.pendingByTarget.isEmpty()) {
+		if (state == null) {
 			return;
 		}
+		if (state.pendingByTarget.isEmpty()) {
+			if (state.onIdleTickAndShouldRelease()) {
+				STATE_BY_SERVER.remove(server);
+			}
+			return;
+		}
+		state.markActive();
+		int batchWindowTicks = forceFlush ? 0 : configuredBatchWindowTicks();
 		List<TargetBatchAccumulator> pendingSnapshot = state.pendingSnapshotScratch;
 		pendingSnapshot.clear();
-		pendingSnapshot.addAll(state.pendingByTarget.values());
-		state.pendingByTarget.clear();
+		Iterator<Map.Entry<TargetBatchKey, TargetBatchAccumulator>> iterator = state.pendingByTarget.entrySet().iterator();
+		while (iterator.hasNext()) {
+			Map.Entry<TargetBatchKey, TargetBatchAccumulator> pendingEntry = iterator.next();
+			TargetBatchAccumulator accumulator = pendingEntry.getValue();
+			if (accumulator == null) {
+				iterator.remove();
+				continue;
+			}
+			long currentTick = resolveCurrentTick(server, accumulator.targetBlockEntity);
+			if (!forceFlush && !accumulator.isFlushDue(currentTick, batchWindowTicks)) {
+				continue;
+			}
+			pendingSnapshot.add(accumulator);
+			iterator.remove();
+		}
 		for (TargetBatchAccumulator accumulator : pendingSnapshot) {
 			if (accumulator == null) {
 				continue;
@@ -194,6 +222,10 @@ public final class CoreDispatchBatchScheduler {
 		if (state.pendingByTarget.isEmpty() && state.accumulatorPool.isEmpty()) {
 			STATE_BY_SERVER.remove(server);
 		}
+	}
+
+	private static int configuredBatchWindowTicks() {
+		return Math.max(0, RedstoneLinkConfig.crossChunk().dispatchBatchWindowTicks());
 	}
 
 	private static int compareBatchEntries(DispatchBatchEntry left, DispatchBatchEntry right) {
@@ -251,7 +283,23 @@ public final class CoreDispatchBatchScheduler {
 			targetType,
 			targetSerial
 		);
-		return state.pendingByTarget.computeIfAbsent(targetBatchKey, ignored -> state.acquireAccumulator(targetBlockEntity));
+		state.markActive();
+		TargetBatchAccumulator accumulator = state.pendingByTarget.computeIfAbsent(
+			targetBatchKey,
+			ignored -> state.acquireAccumulator(targetBlockEntity)
+		);
+		accumulator.openWindowIfNeeded(resolveCurrentTick(server, targetBlockEntity));
+		return accumulator;
+	}
+
+	private static long resolveCurrentTick(MinecraftServer server, ActivatableTargetBlockEntity targetBlockEntity) {
+		if (server != null && server.overworld() != null) {
+			return Math.max(0L, server.overworld().getGameTime());
+		}
+		if (targetBlockEntity != null && targetBlockEntity.getLevel() != null) {
+			return Math.max(0L, targetBlockEntity.getLevel().getGameTime());
+		}
+		return 0L;
 	}
 
 	/**
@@ -261,6 +309,7 @@ public final class CoreDispatchBatchScheduler {
 		private ActivatableTargetBlockEntity targetBlockEntity;
 		private final LinkedHashMap<SourceDispatchKey, DispatchBatchEntry> entriesBySourceAndKind = new LinkedHashMap<>();
 		private final List<DispatchBatchEntry> flushEntriesScratch = new ArrayList<>();
+		private long windowStartTick = Long.MIN_VALUE;
 
 		private TargetBatchAccumulator(ActivatableTargetBlockEntity targetBlockEntity) {
 			this.targetBlockEntity = targetBlockEntity;
@@ -273,6 +322,27 @@ public final class CoreDispatchBatchScheduler {
 			this.targetBlockEntity = targetBlockEntity;
 			entriesBySourceAndKind.clear();
 			flushEntriesScratch.clear();
+			windowStartTick = Long.MIN_VALUE;
+		}
+
+		/**
+		 * 目标首次进入 pending 窗口时记录起点，后续 merge 不再刷新。
+		 */
+		private void openWindowIfNeeded(long currentTick) {
+			if (windowStartTick == Long.MIN_VALUE) {
+				windowStartTick = Math.max(0L, currentTick);
+			}
+		}
+
+		/**
+		 * 当前目标批次是否已达到可 flush 的窗口。
+		 */
+		private boolean isFlushDue(long currentTick, int windowTicks) {
+			if (entriesBySourceAndKind.isEmpty() || windowTicks <= 0 || windowStartTick == Long.MIN_VALUE) {
+				return true;
+			}
+			long elapsedTicks = Math.max(0L, currentTick - windowStartTick);
+			return elapsedTicks >= windowTicks;
 		}
 
 		private void merge(DispatchBatchEntry batchEntry) {
@@ -373,6 +443,7 @@ public final class CoreDispatchBatchScheduler {
 			targetBlockEntity = null;
 			entriesBySourceAndKind.clear();
 			flushEntriesScratch.clear();
+			windowStartTick = Long.MIN_VALUE;
 		}
 	}
 
@@ -388,6 +459,14 @@ public final class CoreDispatchBatchScheduler {
 		private final LinkedHashMap<TargetBatchKey, TargetBatchAccumulator> pendingByTarget = new LinkedHashMap<>();
 		private final List<TargetBatchAccumulator> pendingSnapshotScratch = new ArrayList<>();
 		private final List<TargetBatchAccumulator> accumulatorPool = new ArrayList<>();
+		private int idleTicks;
+
+		/**
+		 * 当前 tick 存在批调度活动时重置 idle 计数。
+		 */
+		private void markActive() {
+			idleTicks = 0;
+		}
 
 		/**
 		 * 获取可复用的 target 聚合器。
@@ -409,7 +488,40 @@ public final class CoreDispatchBatchScheduler {
 				return;
 			}
 			accumulator.recycle();
-			accumulatorPool.add(accumulator);
+			if (accumulatorPool.size() < MAX_RETAINED_ACCUMULATORS) {
+				accumulatorPool.add(accumulator);
+			}
+		}
+
+		/**
+		 * 空闲 tick 内递增 idle 计数；达到阈值后释放 retained pool。
+		 */
+		private boolean onIdleTickAndShouldRelease() {
+			if (!pendingByTarget.isEmpty()) {
+				idleTicks = 0;
+				return false;
+			}
+			if (accumulatorPool.isEmpty()) {
+				pendingSnapshotScratch.clear();
+				idleTicks = 0;
+				return true;
+			}
+			idleTicks++;
+			if (idleTicks < MAX_IDLE_TICKS_BEFORE_POOL_RELEASE) {
+				return false;
+			}
+			clearRetainedState();
+			return true;
+		}
+
+		/**
+		 * 释放当前 scheduler state 挂住的复用容器。
+		 */
+		private void clearRetainedState() {
+			pendingByTarget.clear();
+			pendingSnapshotScratch.clear();
+			accumulatorPool.clear();
+			idleTicks = 0;
 		}
 	}
 }

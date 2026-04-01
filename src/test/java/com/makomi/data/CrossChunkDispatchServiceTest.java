@@ -12,6 +12,7 @@ import com.makomi.config.RedstoneLinkConfigTestHelper;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -871,6 +872,83 @@ class CrossChunkDispatchServiceTest {
 	}
 
 	/**
+	 * ChunkReadyDrainCache 的 retained pool 应限制在常态复用上限内。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void chunkReadyDrainCacheShouldCapRetainedPools() throws Exception {
+		CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache drainCache = new CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache();
+		Field mapCapField = CrossChunkDispatchRuntimeSupport.class.getDeclaredField("MAX_RETAINED_READY_GROUP_MAPS");
+		mapCapField.setAccessible(true);
+		int mapCap = mapCapField.getInt(null);
+		Field groupCapField = CrossChunkDispatchRuntimeSupport.class.getDeclaredField("MAX_RETAINED_READY_GROUPS");
+		groupCapField.setAccessible(true);
+		int groupCap = groupCapField.getInt(null);
+		int dispatchCount = Math.max(mapCap, groupCap) + 5;
+
+		for (int index = 0; index < dispatchCount; index++) {
+			drainCache.stageBatchable(
+				createPreparedDispatch(600L + index, 900L + index, new BlockPos(index * 16, 64, index * 16), 50L + index)
+			);
+		}
+		drainCache.reset();
+
+		Field readyGroupMapPoolField = CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache.class.getDeclaredField(
+			"readyGroupMapPool"
+		);
+		readyGroupMapPoolField.setAccessible(true);
+		Field readyGroupPoolField = CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache.class.getDeclaredField(
+			"readyGroupPool"
+		);
+		readyGroupPoolField.setAccessible(true);
+
+		assertEquals(mapCap, ((List<?>) readyGroupMapPoolField.get(drainCache)).size());
+		assertEquals(groupCap, ((List<?>) readyGroupPoolField.get(drainCache)).size());
+	}
+
+	/**
+	 * 当 pending 队列已空时，应释放 ready drain retained pool，避免继续挂在 dispatch state 上。
+	 */
+	@Test
+	void processPendingDispatchesShouldClearReadyDrainRetainedPoolsWhenQueueIsEmpty() throws Exception {
+		Class<?> dispatchStateClass = Class.forName("com.makomi.data.CrossChunkDispatchService$DispatchState");
+		Constructor<?> stateConstructor = dispatchStateClass.getDeclaredConstructor();
+		stateConstructor.setAccessible(true);
+		Object state = stateConstructor.newInstance();
+
+		Field readyDrainCacheField = dispatchStateClass.getDeclaredField("readyDrainCache");
+		readyDrainCacheField.setAccessible(true);
+		CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache drainCache =
+			(CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache) readyDrainCacheField.get(state);
+		drainCache.stageBatchable(createPreparedDispatch(700L, 800L, new BlockPos(32, 64, 32), 88L));
+		drainCache.reset();
+
+		Field readyGroupMapPoolField = CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache.class.getDeclaredField(
+			"readyGroupMapPool"
+		);
+		readyGroupMapPoolField.setAccessible(true);
+		Field readyGroupPoolField = CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache.class.getDeclaredField(
+			"readyGroupPool"
+		);
+		readyGroupPoolField.setAccessible(true);
+		assertEquals(1, ((List<?>) readyGroupMapPoolField.get(drainCache)).size());
+		assertEquals(1, ((List<?>) readyGroupPoolField.get(drainCache)).size());
+
+		Method processPendingDispatches = CrossChunkDispatchService.class.getDeclaredMethod(
+			"processPendingDispatches",
+			MinecraftServer.class,
+			dispatchStateClass,
+			CrossChunkDispatchQueueSavedData.class,
+			long.class
+		);
+		processPendingDispatches.setAccessible(true);
+		processPendingDispatches.invoke(null, null, state, new CrossChunkDispatchQueueSavedData(), 0L);
+
+		assertEquals(0, ((List<?>) readyGroupMapPoolField.get(drainCache)).size());
+		assertEquals(0, ((List<?>) readyGroupPoolField.get(drainCache)).size());
+	}
+
+	/**
 	 * appendDesiredResidentTickets 应按 role/type 约束构造常驻票据目标。
 	 */
 	@Test
@@ -1020,6 +1098,35 @@ class CrossChunkDispatchServiceTest {
 
 	private static TestTargetEntity createTarget() {
 		return new TestTargetEntity(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
+	}
+
+	private static CrossChunkDispatchRuntimeSupport.PreparedDispatch createPreparedDispatch(
+		long sourceSerial,
+		long targetSerial,
+		BlockPos pos,
+		long version
+	) {
+		return CrossChunkDispatchRuntimeSupport.prepareDispatch(
+			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+				new CrossChunkDispatchQueueSavedData.DispatchKey(
+					LinkNodeType.TRIGGER_SOURCE,
+					sourceSerial,
+					LinkNodeType.CORE,
+					targetSerial,
+					CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+				),
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+				Level.OVERWORLD,
+				pos,
+				ActivationMode.TOGGLE,
+				15,
+				60L,
+				0,
+				200L,
+				version
+			),
+			createTarget()
+		);
 	}
 
 	/**
