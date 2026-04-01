@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.config.RedstoneLinkConfig;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -9,7 +10,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * 内部 delta 事件到运行态的同步投影器。
  * <p>
  * 投影规则固定为两段：
- * 1. 目标在线且区块已加载：直接调用目标统一 delta 入口；
+ * 1. 目标在线且区块已加载：按配置直接调用目标统一 delta 入口，或转入目标级 batch；
  * 2. 目标不在线或区块未加载：转跨区块队列，等待后续投递。
  * </p>
  */
@@ -116,8 +117,11 @@ public final class InternalDispatchDeltaProjector {
 			return;
 		}
 		if (
-			event.deliveryMode() == InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH
-				&& CoreDispatchBatchScheduler.supportsBatching(event.deltaKind())
+			shouldBatchLoadedDelta(
+				event.deltaKind(),
+				event.deliveryMode(),
+				RedstoneLinkConfig.crossChunk().directSyncBatchingMode()
+			)
 		) {
 			CoreDispatchBatchScheduler.enqueueLoadedTargetDelta(
 				targetLevel.getServer(),
@@ -137,6 +141,33 @@ public final class InternalDispatchDeltaProjector {
 			event.syncSignalStrength(),
 			event.eventMeta()
 		);
+	}
+
+	/**
+	 * 判断 loaded 目标上的当前 delta 是否应进入统一 batch 调度。
+	 */
+	static boolean shouldBatchLoadedDelta(
+		ActivatableTargetBlockEntity.DeltaKind deltaKind,
+		InternalDispatchDeltaEvents.DeliveryMode deliveryMode,
+		RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode directSyncBatchingMode
+	) {
+		if (!CoreDispatchBatchScheduler.supportsBatching(deltaKind)) {
+			return false;
+		}
+		InternalDispatchDeltaEvents.DeliveryMode normalizedDeliveryMode = deliveryMode == null
+			? InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE
+			: deliveryMode;
+		if (deltaKind != ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL) {
+			return normalizedDeliveryMode == InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH;
+		}
+		RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode normalizedMode = directSyncBatchingMode == null
+			? RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY
+			: directSyncBatchingMode;
+		return switch (normalizedMode) {
+			case OFF -> false;
+			case QUEUED_ONLY -> normalizedDeliveryMode == InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH;
+			case ALL_SYNC -> true;
+		};
 	}
 
 	/**

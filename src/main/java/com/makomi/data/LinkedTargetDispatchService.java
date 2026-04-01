@@ -191,6 +191,11 @@ public final class LinkedTargetDispatchService {
 				savedData.removeNode(targetType, targetSerial);
 				continue;
 			}
+			if (targetBlockEntity.getSerial() != targetSerial || targetBlockEntity.getLinkNodeType() != targetType) {
+				// 节点快照命中了错误实体时，同样视为脏在线节点。
+				savedData.removeNode(targetType, targetSerial);
+				continue;
+			}
 
 			if (dispatchKind == DispatchKind.ACTIVATION) {
 				targetBlockEntity.applyDispatchDelta(
@@ -203,12 +208,13 @@ public final class LinkedTargetDispatchService {
 					immediateEventMeta
 				);
 			} else {
-				targetBlockEntity.applyDispatchDelta(
-					ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
-					ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+				applyLoadedSyncDispatch(
+					sourceLevel,
+					targetBlockEntity,
 					sourceType,
 					sourceSerial,
-					ActivationMode.TOGGLE,
+					targetType,
+					targetSerial,
 					syncSignalStrength,
 					immediateEventMeta
 				);
@@ -406,6 +412,66 @@ public final class LinkedTargetDispatchService {
 	 */
 	private static List<Long> immutableSortedSerials(List<Long> serials) {
 		return serials.stream().sorted().toList();
+	}
+
+	/**
+	 * 将已加载目标上的 direct `SYNC` 以 immediate 或 batch 方式投递。
+	 */
+	private static void applyLoadedSyncDispatch(
+		ServerLevel sourceLevel,
+		ActivatableTargetBlockEntity targetBlockEntity,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		long targetSerial,
+		int syncSignalStrength,
+		EventMeta eventMeta
+	) {
+		if (
+			shouldBatchLoadedDispatch(
+				DispatchKind.SYNC_SIGNAL,
+				RedstoneLinkConfig.crossChunk().directSyncBatchingMode()
+			)
+		) {
+			CoreDispatchBatchScheduler.enqueueLoadedTargetDispatch(
+				sourceLevel.getServer(),
+				targetBlockEntity,
+				targetType,
+				targetSerial,
+				ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
+				ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+				sourceType,
+				sourceSerial,
+				ActivationMode.TOGGLE,
+				syncSignalStrength,
+				eventMeta
+			);
+			return;
+		}
+		targetBlockEntity.applyDispatchDelta(
+			ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
+			ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+			sourceType,
+			sourceSerial,
+			ActivationMode.TOGGLE,
+			syncSignalStrength,
+			eventMeta
+		);
+	}
+
+	/**
+	 * 判断当前 loaded 派发是否应进入 direct `SYNC` 批提交。
+	 */
+	static boolean shouldBatchLoadedDispatch(
+		DispatchKind dispatchKind,
+		RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode directSyncBatchingMode
+	) {
+		return dispatchKind == DispatchKind.SYNC_SIGNAL
+			&& InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
+				ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
+				InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE,
+				directSyncBatchingMode
+			);
 	}
 
 	private enum DispatchKind {

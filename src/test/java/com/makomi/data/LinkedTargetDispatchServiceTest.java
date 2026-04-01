@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.config.RedstoneLinkConfig;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Set;
@@ -135,5 +136,52 @@ class LinkedTargetDispatchServiceTest {
 		);
 		assertEquals(3, summary.crossChunkHandledCount());
 		assertTrue(summary.hasCrossChunkHandled());
+	}
+
+	/**
+	 * direct loaded `SYNC` 仅在 `all_sync` 下进入 batch，激活语义保持 immediate。
+	 */
+	@Test
+	void shouldBatchLoadedDispatchShouldOnlyEnableAllSyncForSyncKind() throws Exception {
+		Class<?> dispatchKindClass = Class.forName("com.makomi.data.LinkedTargetDispatchService$DispatchKind");
+		Method method = LinkedTargetDispatchService.class.getDeclaredMethod(
+			"shouldBatchLoadedDispatch",
+			dispatchKindClass,
+			RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.class
+		);
+		method.setAccessible(true);
+
+		Object syncKind = java.util.Arrays
+			.stream(dispatchKindClass.getEnumConstants())
+			.filter(constant -> ((Enum<?>) constant).name().equals("SYNC_SIGNAL"))
+			.findFirst()
+			.orElseThrow();
+		Object activationKind = java.util.Arrays
+			.stream(dispatchKindClass.getEnumConstants())
+			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
+			.findFirst()
+			.orElseThrow();
+
+		assertFalse(
+			(boolean) method.invoke(
+				null,
+				syncKind,
+				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY
+			)
+		);
+		assertTrue(
+			(boolean) method.invoke(
+				null,
+				syncKind,
+				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC
+			)
+		);
+		assertFalse(
+			(boolean) method.invoke(
+				null,
+				activationKind,
+				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC
+			)
+		);
 	}
 }

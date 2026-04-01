@@ -42,6 +42,9 @@
     "cases/functional/x14/crosschunk_target_attach_filters_context_detach_source.json",
     "cases/functional/x15/crosschunk_target_attach_filters_physical_remove_source.json",
     "cases/functional/x16/crosschunk_target_attach_filters_multi_source_physical_remove.json",
+    "cases/functional/x17/direct_sync_batching_all_sync_multi_source_square.json",
+    "cases/functional/x18/crosschunk_pending_queue_batching_multi_source_manual_reload.json",
+    "cases/functional/x19/crosschunk_force_load_preload_batching_multi_source.json",
     "cases/functional/r02/restart_persist_toggle_verify.json",
     "cases/functional/r03/restart_input_job_prepare.json",
     "cases/functional/r04/restart_input_job_verify.json"

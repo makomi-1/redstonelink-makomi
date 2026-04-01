@@ -109,6 +109,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertTrue(snapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(snapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(snapshot.syncSourceAttachReplayEnabled());
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY, snapshot.directSyncBatchingMode());
 		assertFalse(snapshot.activationPulseRelayEnabled());
 		assertEquals(200, snapshot.activationPulseTtlTicks());
 		assertFalse(snapshot.activationPulsePersistentExperimental());
@@ -183,22 +184,26 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "false");
 		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "false");
 		disabled.setProperty("crosschunk.syncSourceAttachReplay.enabled", "true");
+		disabled.setProperty("crosschunk.directSyncBatching", "all_sync");
 		RedstoneLinkCrossChunkConfig disabledSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(disabled);
 		assertFalse(disabledSnapshot.syncSignalPersistent());
 		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertTrue(disabledSnapshot.syncSourceAttachReplayEnabled());
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC, disabledSnapshot.directSyncBatchingMode());
 
 		Properties invalid = new Properties();
 		invalid.setProperty("crosschunk.syncSignalPersistent", "invalid");
 		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "invalid");
 		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "invalid");
 		invalid.setProperty("crosschunk.syncSourceAttachReplay.enabled", "invalid");
+		invalid.setProperty("crosschunk.directSyncBatching", "invalid");
 		RedstoneLinkCrossChunkConfig invalidSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(invalid);
 		assertFalse(invalidSnapshot.syncSignalPersistent());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(invalidSnapshot.syncSourceAttachReplayEnabled());
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY, invalidSnapshot.directSyncBatchingMode());
 	}
 
 	/**

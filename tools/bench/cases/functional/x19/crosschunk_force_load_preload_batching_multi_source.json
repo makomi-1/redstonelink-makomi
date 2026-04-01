@@ -1,0 +1,153 @@
+{
+  "id": "crosschunk_force_load_preload_batching_multi_source",
+  "description": "验证 queue 开启、syncTargetChunkLoadReplay 关闭且 forceLoad.mode=all 时，多来源 sync 在目标离线期间会触发预加载，目标自动 ready 后按队列批打包结果恢复高态。",
+  "layer": "X",
+  "scenarioId": "X19",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [-8, 63, 572],
+        "clearTo": [16, 66, 584]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [56, 63, 264],
+        "clearTo": [72, 66, 276]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_force_preload_batch",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [64, 64, 270],
+      "to": [64, 64, 270]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_left_force_preload",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [0, 64, 578],
+        "to": [0, 64, 578]
+      }
+    },
+    {
+      "id": "sync_right_force_preload",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4, 64, 578],
+        "to": [4, 64, 578]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_left_force_preload",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_right_force_preload",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "force_preload_target_should_link_both_sources_initially",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked={{serialRefs:sync_left_force_preload+sync_right_force_preload:count}}(?:,|，)",
+        "(?i)targets=.*{{source:sync_left_force_preload[0]}}",
+        "(?i)targets=.*{{source:sync_right_force_preload[0]}}"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_force_preload_target_forceload",
+      "command": "forceload remove 64 270 64 270",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_force_preload_target_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "force_preload_target_should_be_offline_before_auto_preload",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_force_preload_pair_constant_input",
+      "serialRefs": [
+        "sync_left_force_preload",
+        "sync_right_force_preload"
+      ],
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_force_preload_auto_load",
+      "ticks": 30
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "force_preload_left_source_should_be_online_high",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_left_force_preload[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "force_preload_right_source_should_be_online_high",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_right_force_preload[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "force_preload_target_should_auto_load_high_with_both_sources",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)",
+        "(?i)linked={{serialRefs:sync_left_force_preload+sync_right_force_preload:count}}(?:,|，)",
+        "(?i)targets=.*{{source:sync_left_force_preload[0]}}",
+        "(?i)targets=.*{{source:sync_right_force_preload[0]}}",
+        "(?i)maxSources=.*{{source:sync_left_force_preload[0]}}",
+        "(?i)maxSources=.*{{source:sync_right_force_preload[0]}}"
+      ]
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_force_preload_input_jobs"
+    }
+  ]
+}

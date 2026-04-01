@@ -1,0 +1,171 @@
+{
+  "id": "crosschunk_pending_queue_batching_multi_source_manual_reload",
+  "description": "验证 queue 开启且 syncTargetChunkLoadReplay 关闭时，多来源 sync 在目标离线期间进入 pending，目标手动 reload 后会按队列批打包结果恢复高态。",
+  "layer": "X",
+  "scenarioId": "X18",
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [-8, 63, 548],
+        "clearTo": [16, 66, 560]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [56, 63, 240],
+        "clearTo": [72, 66, 252]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_pending_batch_reload",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [64, 64, 246],
+      "to": [64, 64, 246]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_left_pending_batch",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [0, 64, 554],
+        "to": [0, 64, 554]
+      }
+    },
+    {
+      "id": "sync_right_pending_batch",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4, 64, 554],
+        "to": [4, 64, 554]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_left_pending_batch",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_right_pending_batch",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "pending_batch_target_should_link_both_sources_initially",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked={{serialRefs:sync_left_pending_batch+sync_right_pending_batch:count}}(?:,|，)",
+        "(?i)targets=.*{{source:sync_left_pending_batch[0]}}",
+        "(?i)targets=.*{{source:sync_right_pending_batch[0]}}"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_pending_batch_target_forceload",
+      "command": "forceload remove 64 246 64 246",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_pending_batch_target_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "pending_batch_target_should_be_offline_before_queue_release",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_pending_batch_pair_constant_input",
+      "serialRefs": [
+        "sync_left_pending_batch",
+        "sync_right_pending_batch"
+      ],
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_pending_batch_sources_constant_high",
+      "ticks": 6
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "pending_batch_left_source_should_be_online_high",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_left_pending_batch[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "pending_batch_right_source_should_be_online_high",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_right_pending_batch[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "pending_batch_target_should_stay_offline_while_queued",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_pending_batch_target_forceload",
+      "command": "forceload add 64 246 64 246",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_pending_batch_target_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "pending_batch_target_should_reload_high_with_both_sources",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)",
+        "(?i)linked={{serialRefs:sync_left_pending_batch+sync_right_pending_batch:count}}(?:,|，)",
+        "(?i)targets=.*{{source:sync_left_pending_batch[0]}}",
+        "(?i)targets=.*{{source:sync_right_pending_batch[0]}}",
+        "(?i)maxSources=.*{{source:sync_left_pending_batch[0]}}",
+        "(?i)maxSources=.*{{source:sync_right_pending_batch[0]}}"
+      ]
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_pending_batch_input_jobs"
+    }
+  ]
+}

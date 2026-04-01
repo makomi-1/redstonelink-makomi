@@ -282,6 +282,11 @@ final class RedstoneLinkConfigTemplate {
 			# en: Whether to replay sync when a triggerSource re-attaches. true republishes one sync recovery to linked cores using the source's current state; disabled by default to avoid duplicating real placement/input dispatches.
 			crosschunk.syncSourceAttachReplay.enabled=false
 
+			# crosschunk.directSyncBatching
+			# zh: loaded `SYNC` 的批提交模式：off=loaded sync 一律立即生效，queued_only=仅异步/队列链路进入批提交，all_sync=loaded direct/async sync 全部进入目标级批提交；默认 queued_only。
+			# en: Batching mode for loaded `SYNC`: off=all loaded sync stays immediate, queued_only=only async/queued loaded sync uses batching, all_sync=all loaded direct/async sync goes through target-level batching.
+			crosschunk.directSyncBatching=queued_only
+
 			# crosschunk.activation.pulse.relay.enabled
 			# zh: 是否启用 PULSE 事件的普通 TTL relay。false=目标未加载时直接跳过。
 			# en: Whether PULSE events use normal TTL relay. false means skip when target is unloaded.

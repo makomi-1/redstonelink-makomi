@@ -180,6 +180,34 @@
       "serverConfigOverrides": {
         "crosschunk.queue.enabled": "false"
       }
+    },
+    {
+      "entryId": "x17_direct_sync_batching_all_sync",
+      "caseId": "direct_sync_batching_all_sync_multi_source_square",
+      "serverConfigOverrides": {
+        "crosschunk.directSyncBatching": "all_sync",
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "false"
+      }
+    },
+    {
+      "entryId": "x18_pending_queue_batching_reload",
+      "caseId": "crosschunk_pending_queue_batching_multi_source_manual_reload",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "true",
+        "crosschunk.forceLoad.enabled": "false",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false"
+      }
+    },
+    {
+      "entryId": "x19_force_load_preload_batching",
+      "caseId": "crosschunk_force_load_preload_batching_multi_source",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "true",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "all",
+        "crosschunk.syncTargetChunkLoadReplay.enabled": "false"
+      }
     }
   ]
 }

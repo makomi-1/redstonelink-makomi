@@ -88,6 +88,7 @@ record RedstoneLinkServerConfigSnapshot(
 				true,
 				true,
 				false,
+				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY,
 				false,
 				200,
 				false,

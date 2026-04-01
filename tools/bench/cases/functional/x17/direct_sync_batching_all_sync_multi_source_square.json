@@ -1,0 +1,163 @@
+{
+  "id": "direct_sync_batching_all_sync_multi_source_square",
+  "description": "在 loaded 场景下启用 crosschunk.directSyncBatching=all_sync，验证多来源 direct SYNC fan-in 同一 core 时目标 trace 仍与 square 输入一致。",
+  "layer": "X",
+  "scenarioId": "X17",
+  "arena": {
+    "clearFrom": [
+      -8,
+      63,
+      520
+    ],
+    "clearTo": [
+      40,
+      66,
+      528
+    ]
+  },
+  "targets": {
+    "id": "core_direct_sync_batching",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [
+        32,
+        64,
+        522
+      ],
+      "to": [
+        32,
+        64,
+        522
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_left_direct_batch",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [
+          0,
+          64,
+          522
+        ],
+        "to": [
+          0,
+          64,
+          522
+        ]
+      }
+    },
+    {
+      "id": "sync_right_direct_batch",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [
+          4,
+          64,
+          522
+        ],
+        "to": [
+          4,
+          64,
+          522
+        ]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_left_direct_batch",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_right_direct_batch",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "direct_sync_batching_target_should_link_both_sources",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked={{serialRefs:sync_left_direct_batch+sync_right_direct_batch:count}}(?:,|，)",
+        "(?i)targets={{serialRefs:sync_left_direct_batch+sync_right_direct_batch:csv}}(?:\\.|。)"
+      ]
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_direct_sync_batching_sources",
+      "serialRefs": [
+        "sync_left_direct_batch",
+        "sync_right_direct_batch"
+      ],
+      "serialFormat": "slash_list",
+      "capacity": 96
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_direct_sync_batching_target",
+      "capacity": 96
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_direct_sync_batching_square",
+      "serialRefs": [
+        "sync_left_direct_batch",
+        "sync_right_direct_batch"
+      ],
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_direct_sync_batching_ticks",
+      "ticks": 8
+    },
+    {
+      "templateRef": "trace_read_sync_square_triggerSource_slash",
+      "name": "direct_sync_batching_sources_should_follow_square",
+      "serialRefs": [
+        "sync_left_direct_batch",
+        "sync_right_direct_batch"
+      ],
+      "serialFormat": "slash_list",
+      "mountRef": "mount_direct_sync_batching_sources",
+      "anchorRef": "start_direct_sync_batching_square",
+      "template": {
+        "phaseRef": "start_direct_sync_batching_square"
+      }
+    },
+    {
+      "templateRef": "trace_read_sync_square_core_slash",
+      "name": "direct_sync_batching_target_should_follow_square",
+      "mountRef": "mount_direct_sync_batching_target",
+      "anchorRef": "start_direct_sync_batching_square",
+      "template": {
+        "phaseRef": "start_direct_sync_batching_square"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_direct_sync_batching_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_direct_sync_batching_sources",
+      "serialRefs": [
+        "sync_left_direct_batch",
+        "sync_right_direct_batch"
+      ],
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_direct_sync_batching_target"
+    }
+  ]
+}

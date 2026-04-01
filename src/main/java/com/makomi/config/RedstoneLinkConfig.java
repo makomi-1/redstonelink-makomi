@@ -107,6 +107,30 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * loaded `SYNC` 批提交模式。
+	 */
+	public enum CrossChunkDirectSyncBatchingMode {
+		OFF,
+		QUEUED_ONLY,
+		ALL_SYNC;
+
+		/**
+		 * 解析 loaded `SYNC` 批提交模式配置。
+		 */
+		public static CrossChunkDirectSyncBatchingMode fromConfigValue(String raw) {
+			if (raw == null) {
+				return QUEUED_ONLY;
+			}
+			return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+				case "off" -> OFF;
+				case "all_sync" -> ALL_SYNC;
+				case "queued_only" -> QUEUED_ONLY;
+				default -> QUEUED_ONLY;
+			};
+		}
+	}
+
+	/**
 	 * 链接写入控制模式。
 	 */
 	public enum LinkWriteControlMode {
