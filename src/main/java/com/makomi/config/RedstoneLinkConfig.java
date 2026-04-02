@@ -119,13 +119,13 @@ public final class RedstoneLinkConfig {
 		 */
 		public static CrossChunkDirectSyncBatchingMode fromConfigValue(String raw) {
 			if (raw == null) {
-				return QUEUED_ONLY;
+				return ALL_SYNC;
 			}
 			return switch (raw.trim().toLowerCase(Locale.ROOT)) {
 				case "off" -> OFF;
 				case "all_sync" -> ALL_SYNC;
 				case "queued_only" -> QUEUED_ONLY;
-				default -> QUEUED_ONLY;
+				default -> ALL_SYNC;
 			};
 		}
 	}

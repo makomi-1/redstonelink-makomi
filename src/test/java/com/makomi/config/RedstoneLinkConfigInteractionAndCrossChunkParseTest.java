@@ -109,7 +109,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertTrue(snapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(snapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(snapshot.syncSourceAttachReplayEnabled());
-		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY, snapshot.directSyncBatchingMode());
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC, snapshot.directSyncBatchingMode());
 		assertEquals(0, snapshot.dispatchBatchWindowTicks());
 		assertFalse(snapshot.activationPulseRelayEnabled());
 		assertEquals(200, snapshot.activationPulseTtlTicks());
@@ -176,7 +176,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	}
 
 	/**
-	 * 目标级批提交窗口应支持 0~2000 的边界夹紧。
+	 * 目标级批提交窗口应支持 0~2 的边界夹紧。
 	 */
 	@Test
 	void parseCrossChunkShouldClampDispatchBatchWindowTicksToRange() {
@@ -188,7 +188,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		Properties highProperties = new Properties();
 		highProperties.setProperty("crosschunk.dispatch.batchWindowTicks", "900000");
 		RedstoneLinkCrossChunkConfig highSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(highProperties);
-		assertEquals(2_000, highSnapshot.dispatchBatchWindowTicks());
+		assertEquals(2, highSnapshot.dispatchBatchWindowTicks());
 	}
 
 	/**
@@ -220,7 +220,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(invalidSnapshot.syncSourceAttachReplayEnabled());
-		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY, invalidSnapshot.directSyncBatchingMode());
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC, invalidSnapshot.directSyncBatchingMode());
 	}
 
 	/**

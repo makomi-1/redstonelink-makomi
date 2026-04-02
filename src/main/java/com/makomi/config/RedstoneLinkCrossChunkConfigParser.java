@@ -45,9 +45,9 @@ final class RedstoneLinkCrossChunkConfigParser {
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSourceAttachReplay.enabled", false),
 			RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.fromConfigValue(
-				props.getProperty("crosschunk.directSyncBatching", "queued_only")
+				props.getProperty("crosschunk.directSyncBatching", "all_sync")
 			),
-			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.dispatch.batchWindowTicks", 0, 0, 2_000),
+			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.dispatch.batchWindowTicks", 0, 0, 2),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.pulse.relay.enabled", false),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.activation.pulse.ttlTicks", 200, 1, 72_000),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.pulse.persistentExperimental", false),

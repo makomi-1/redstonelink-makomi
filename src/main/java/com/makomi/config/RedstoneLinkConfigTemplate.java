@@ -283,13 +283,13 @@ final class RedstoneLinkConfigTemplate {
 			crosschunk.syncSourceAttachReplay.enabled=false
 
 			# crosschunk.directSyncBatching
-			# zh: loaded `SYNC` 的批提交模式：off=loaded sync 一律立即生效，queued_only=仅异步/队列链路进入批提交，all_sync=loaded direct/async sync 全部进入目标级批提交；默认 queued_only。
-			# en: Batching mode for loaded `SYNC`: off=all loaded sync stays immediate, queued_only=only async/queued loaded sync uses batching, all_sync=all loaded direct/async sync goes through target-level batching.
-			crosschunk.directSyncBatching=queued_only
+			# zh: loaded `SYNC` 的批提交模式：off=loaded sync 一律立即生效，queued_only=仅异步/队列链路进入批提交，all_sync=loaded direct/async sync 全部进入目标级批提交；默认 all_sync。
+			# en: Batching mode for loaded `SYNC`: off=all loaded sync stays immediate, queued_only=only async/queued loaded sync uses batching, all_sync=all loaded direct/async sync goes through target-level batching; default is all_sync.
+			crosschunk.directSyncBatching=all_sync
 
 			# crosschunk.dispatch.batchWindowTicks
-			# zh: `core` 目标级批提交的 flush 窗口（tick）。0=保持当前 tick 末提交；1=延后一 tick 提交；2+ 仅建议用于高稳定性实验，不建议默认开启。
-			# en: Flush window in ticks for target-level `core` batching. 0 keeps end-of-tick flush, 1 delays by one tick, and 2+ is intended only for high-stability experiments.
+			# zh: `core` 目标级批提交的固定延迟（tick），范围 0~2。0=保持当前 tick 对齐（END 后同 tick late-arrival 仍补 flush）；1=固定延迟 1 tick；2=固定延迟 2 tick。
+			# en: Fixed delay in ticks for target-level `core` batching, range 0..2. 0 keeps same-tick alignment (late arrivals after END still get a same-tick late flush), 1 enforces a fixed 1-tick delay, and 2 enforces a fixed 2-tick delay.
 			crosschunk.dispatch.batchWindowTicks=0
 
 			# crosschunk.activation.pulse.relay.enabled

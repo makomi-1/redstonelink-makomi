@@ -67,9 +67,9 @@
       "name": "start_sync_latency_single_burst",
       "serialRef": "sync_x21_main",
       "serialFormat": "range",
-      "sequence": "15/14/13/12/11/10/9/0",
+      "sequence": "15/14/13/12/11/10/9/0/15/14/13/12/11/10/9/0/15/14/13/12/11/10/9/0",
       "phaseTicks": 0,
-      "totalTicks": 8
+      "totalTicks": 24
     },
     {
       "templateRef": "wait_ticks",
@@ -97,7 +97,7 @@
           "expectedRatio": 1.0
         }
       ],
-      "tickCount": 8,
+      "tickCount": 24,
       "template": {
         "kind": "sync_custom",
         "phaseRef": "start_sync_latency_single_burst"
@@ -121,7 +121,7 @@
           "expectedRatio": 1.0
         }
       ],
-      "tickCount": 8,
+      "tickCount": 24,
       "template": {
         "kind": "sync_custom",
         "phaseRef": "start_sync_latency_single_burst"

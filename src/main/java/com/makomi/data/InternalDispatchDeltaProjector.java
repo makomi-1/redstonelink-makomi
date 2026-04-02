@@ -161,7 +161,7 @@ public final class InternalDispatchDeltaProjector {
 			return normalizedDeliveryMode == InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH;
 		}
 		RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode normalizedMode = directSyncBatchingMode == null
-			? RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY
+			? RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC
 			: directSyncBatchingMode;
 		return switch (normalizedMode) {
 			case OFF -> false;
