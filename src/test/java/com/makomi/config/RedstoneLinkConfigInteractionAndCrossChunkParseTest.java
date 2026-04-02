@@ -109,7 +109,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertTrue(snapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(snapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(snapshot.syncSourceAttachReplayEnabled());
-		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC, snapshot.directSyncBatchingMode());
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, snapshot.directBatchingMode());
 		assertEquals(0, snapshot.dispatchBatchWindowTicks());
 		assertFalse(snapshot.activationPulseRelayEnabled());
 		assertEquals(200, snapshot.activationPulseTtlTicks());
@@ -201,26 +201,43 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "false");
 		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "false");
 		disabled.setProperty("crosschunk.syncSourceAttachReplay.enabled", "true");
-		disabled.setProperty("crosschunk.directSyncBatching", "all_sync");
+		disabled.setProperty("crosschunk.directBatching", "all_direct");
 		RedstoneLinkCrossChunkConfig disabledSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(disabled);
 		assertFalse(disabledSnapshot.syncSignalPersistent());
 		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertTrue(disabledSnapshot.syncSourceAttachReplayEnabled());
-		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC, disabledSnapshot.directSyncBatchingMode());
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, disabledSnapshot.directBatchingMode());
 
 		Properties invalid = new Properties();
 		invalid.setProperty("crosschunk.syncSignalPersistent", "invalid");
 		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "invalid");
 		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "invalid");
 		invalid.setProperty("crosschunk.syncSourceAttachReplay.enabled", "invalid");
-		invalid.setProperty("crosschunk.directSyncBatching", "invalid");
+		invalid.setProperty("crosschunk.directBatching", "invalid");
 		RedstoneLinkCrossChunkConfig invalidSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(invalid);
 		assertFalse(invalidSnapshot.syncSignalPersistent());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(invalidSnapshot.syncSourceAttachReplayEnabled());
-		assertEquals(RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC, invalidSnapshot.directSyncBatchingMode());
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, invalidSnapshot.directBatchingMode());
+	}
+
+	/**
+	 * direct batching 应优先读取新键，并兼容旧键与旧值。
+	 */
+	@Test
+	void parseCrossChunkShouldPreferNewDirectBatchingKeyAndKeepLegacyFallback() {
+		Properties preferred = new Properties();
+		preferred.setProperty("crosschunk.directBatching", "queued_only");
+		preferred.setProperty("crosschunk.directSyncBatching", "all_sync");
+		RedstoneLinkCrossChunkConfig preferredSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(preferred);
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.QUEUED_ONLY, preferredSnapshot.directBatchingMode());
+
+		Properties legacy = new Properties();
+		legacy.setProperty("crosschunk.directSyncBatching", "all_sync");
+		RedstoneLinkCrossChunkConfig legacySnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(legacy);
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, legacySnapshot.directBatchingMode());
 	}
 
 	/**

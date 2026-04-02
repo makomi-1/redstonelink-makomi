@@ -1,0 +1,92 @@
+{
+  "id": "restart_mixed_replay_redstone_prepare",
+  "description": "用红石块同 tick 驱动 sync/pulse/toggle emitter，准备 mixed 并发态供重启后验证 replay 分层仲裁。",
+  "layer": "X",
+  "scenarioId": "X25",
+  "arena": {
+    "clearFrom": [-8, 63, 560],
+    "clearTo": [20, 66, 568]
+  },
+  "targets": {
+    "id": "core_mixed_restart",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 561],
+      "to": [12, 64, 561]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_mixed_restart",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 560],
+        "to": [0, 64, 560]
+      }
+    },
+    {
+      "id": "pulse_mixed_restart",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 561],
+        "to": [0, 64, 561]
+      }
+    },
+    {
+      "id": "toggle_mixed_restart",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 562],
+        "to": [0, 64, 562]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_mixed_restart",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "pulse_mixed_restart",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "toggle_mixed_restart",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_mixed_restart_target_prepare"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_mixed_restart_sources_same_tick",
+      "command": "fill 1 64 560 1 64 562 minecraft:redstone_block",
+      "captureTickWindow": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_mixed_restart_prepare_high",
+      "ticks": 2
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "mixed_restart_prepare_target_should_be_on",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true
+      }
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_mixed_restart_target_prepare"
+    }
+  ]
+}

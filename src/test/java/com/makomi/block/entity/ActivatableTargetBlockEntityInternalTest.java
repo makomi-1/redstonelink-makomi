@@ -500,6 +500,46 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
+	 * 批提交中的 pulse + toggle 应保留“pulse 当前生效、toggle 作为回落候选”的最终态，并只提交一次。
+	 */
+	@Test
+	void applyDispatchBatchShouldKeepPulseWinnerAndToggleFallbackWithinSingleCommit() {
+		TestTargetEntity target = createTarget();
+
+		target.applyDispatchBatch(
+			List.of(
+				new ActivatableTargetBlockEntity.DispatchBatchEntry(
+					ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+					ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+					LinkNodeType.TRIGGER_SOURCE,
+					1L,
+					ActivationMode.PULSE,
+					0,
+					ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L)
+				),
+				new ActivatableTargetBlockEntity.DispatchBatchEntry(
+					ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+					ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+					LinkNodeType.TRIGGER_SOURCE,
+					2L,
+					ActivationMode.TOGGLE,
+					0,
+					ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 2L)
+				)
+			)
+		);
+
+		assertEquals(1, target.getSetChangedCount());
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
+		assertFalse(getConcurrentBucketField(target, "pulseConcurrentBuckets").isEmpty());
+		assertFalse(getConcurrentBucketField(target, "toggleConcurrentBuckets").isEmpty());
+
+		expirePulseWindow(target, 10L, 2L);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
+		assertTrue(getBooleanField(target, "toggleState"));
+	}
+
+	/**
 	 * 批提交中的 later invalidation 应清掉该来源历史贡献，并只提交一次最终结果。
 	 */
 	@Test

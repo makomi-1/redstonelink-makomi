@@ -133,8 +133,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * `core` 目标端批提交条目。
 	 * <p>
-	 * 当前仅用于 `SYNC_SIGNAL` 与两类 `triggerSource` 失效语义的批量规约提交；
-	 * `ACTIVATION` 仍保持独立事件语义，不接入该批次模型。
+	 * 用于目标级批窗口内的结构化规约提交：
+	 * `SYNC_SIGNAL`、`ACTIVATION` 与两类 `triggerSource` 失效语义均可复用该结构。
 	 * </p>
 	 */
 	public record DispatchBatchEntry(
@@ -325,7 +325,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
-	 * 批量应用异步 SYNC / invalidation 变更。
+	 * 批量应用目标级批窗口内的结构化变更。
 	 * <p>
 	 * 该入口会先按时间键与固定优先级排序，再在批末统一执行一次真值重算与派生态写回。
 	 * </p>
@@ -896,9 +896,13 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 				normalizedMeta,
 				accumulator
 			);
-			case ACTIVATION -> {
-				// ACTIVATION 仍按事件语义独立处理，不进入本批次入口。
-			}
+			case ACTIVATION -> applyActivationDeltaMutation(
+				sourceKey,
+				batchEntry.deltaAction(),
+				batchEntry.activationMode(),
+				normalizedMeta,
+				accumulator
+			);
 		}
 	}
 
@@ -928,6 +932,53 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			);
 			concurrentComponent.setPulseUntilGameTime(0L);
 			concurrentComponent.setPulseResetArmed(false);
+		}
+		accumulator.record(eventMeta, bucketChanged, false);
+	}
+
+	/**
+	 * 批次内应用 ACTIVATION 变更，只更新并发桶，批末再统一计算派生态。
+	 */
+	private void applyActivationDeltaMutation(
+		SourceKey sourceKey,
+		DeltaAction deltaAction,
+		ActivationMode activationMode,
+		EventMeta eventMeta,
+		StructuredBatchMutationAccumulator accumulator
+	) {
+		ActivationMode normalizedMode = activationMode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
+		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
+		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
+		TimeKey normalizedTimeKey = eventMeta.timeKey() == null ? TimeKey.of(0L, 0) : eventMeta.timeKey();
+		boolean priorityAccepted = acceptByPriority(normalizedTimeKey, priority, incomingMode, eventMeta.seq());
+		if (!priorityAccepted && normalizedTimeKey.compareTo(arbitrationComponent.authorityTimeKey()) < 0) {
+			return;
+		}
+
+		boolean sameSourceHadToggleContribution = normalizedMode == ActivationMode.TOGGLE
+			&& deltaAction != DeltaAction.REMOVE
+			&& concurrentComponent.resolveToggleContributionBeforePrune(sourceKey);
+		boolean bucketChanged = concurrentComponent.pruneOlderFramesForIncoming(normalizedTimeKey, incomingMode);
+		if (normalizedMode == ActivationMode.PULSE) {
+			if (deltaAction == DeltaAction.REMOVE) {
+				bucketChanged |= concurrentComponent.removePulseConcurrentSource(sourceKey);
+			} else {
+				bucketChanged |= concurrentComponent.upsertPulseConcurrentSource(this, sourceKey, normalizedTimeKey, eventMeta.seq());
+			}
+			accumulator.record(eventMeta, bucketChanged, true);
+			return;
+		}
+
+		concurrentComponent.markToggleSourceTouchedInCurrentFrame(sourceKey);
+		if (deltaAction == DeltaAction.REMOVE) {
+			bucketChanged |= concurrentComponent.removeToggleConcurrentSource(sourceKey);
+		} else {
+			bucketChanged |= concurrentComponent.upsertToggleConcurrentSource(
+				sourceKey,
+				normalizedTimeKey,
+				eventMeta.seq(),
+				sameSourceHadToggleContribution
+			);
 		}
 		accumulator.record(eventMeta, bucketChanged, false);
 	}

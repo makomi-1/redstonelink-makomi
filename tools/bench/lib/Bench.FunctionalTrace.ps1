@@ -671,7 +671,8 @@ function Invoke-NodeTraceRead {
 		[long]$Serial,
 		[int]$Limit
 	)
-	$normalizedLimit = [Math]::Max(1, [int]$Limit)
+	# Clamp to the command-side hard limit to avoid invalid trace-read requests.
+	$normalizedLimit = [Math]::Min(256, [Math]::Max(1, [int]$Limit))
 	$command = Wrap-WithPlayerContext "redstonelink node trace read $Type $Serial $normalizedLimit"
 	$response = Invoke-RconCommand -Connection $Connection -Command $command -Silent
 	return [ordered]@{
@@ -2418,6 +2419,11 @@ function Invoke-FunctionalPhases {
 				if ($commandStartTick -lt 0L -or $commandEndTick -lt 0L) {
 					throw "trace_read_tick_assert anchorRef tickWindow is invalid."
 				}
+				$anchorJobStartTick = Get-OptionalProperty -Object $anchorPhaseResult -Name "jobStartTick"
+				$resolvedAnchorStartTick = $commandStartTick
+				if ($null -ne $anchorJobStartTick -and [long]$anchorJobStartTick -ge 0L) {
+					$resolvedAnchorStartTick = [long]$anchorJobStartTick
+				}
 				$expectedTicks = @(Resolve-TraceTickExpectations -Phase $phase -Type $type -PhaseContext $phaseContext)
 				if ($expectedTicks.Count -le 0) {
 					throw "trace_read_tick_assert phase resolved no expected ticks."
@@ -2457,11 +2463,11 @@ function Invoke-FunctionalPhases {
 					$mountTick = Get-TraceMountTickForSerial -MountPhaseResult $mountPhaseResult -Serial $serial
 					$mountCapacity = [int](Get-OptionalProperty -Object $mountPhaseResult -Name "capacity" -DefaultValue $limit)
 					$searchTickMax = 0L
-					$startTickMin = $commandStartTick
+					$startTickMin = $resolvedAnchorStartTick
 					if ($null -ne $mountTick) {
 						$startTickMin = [Math]::Max([long]$startTickMin, ([long]$mountTick + 1L))
 					}
-					$startTickMax = [long]$commandEndTick + [Math]::Max(0, $alignmentSlackTicks)
+					$startTickMax = [long]$resolvedAnchorStartTick + [Math]::Max(0, $alignmentSlackTicks)
 					$searchTickMax = [long]$startTickMax
 					$currentLimit = [Math]::Min([Math]::Max(1, $limit), [Math]::Max(1, $mountCapacity))
 					$readResult = Invoke-NodeTraceRead -Connection $Connection -Type $type -Serial $serial -Limit $currentLimit

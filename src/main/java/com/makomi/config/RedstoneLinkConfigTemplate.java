@@ -282,10 +282,10 @@ final class RedstoneLinkConfigTemplate {
 			# en: Whether to replay sync when a triggerSource re-attaches. true republishes one sync recovery to linked cores using the source's current state; disabled by default to avoid duplicating real placement/input dispatches.
 			crosschunk.syncSourceAttachReplay.enabled=false
 
-			# crosschunk.directSyncBatching
-			# zh: loaded `SYNC` 的批提交模式：off=loaded sync 一律立即生效，queued_only=仅异步/队列链路进入批提交，all_sync=loaded direct/async sync 全部进入目标级批提交；默认 all_sync。
-			# en: Batching mode for loaded `SYNC`: off=all loaded sync stays immediate, queued_only=only async/queued loaded sync uses batching, all_sync=all loaded direct/async sync goes through target-level batching; default is all_sync.
-			crosschunk.directSyncBatching=all_sync
+			# crosschunk.directBatching
+			# zh: loaded direct 链路的批提交模式：off=loaded direct `sync/toggle/pulse` 一律立即生效，queued_only=仅异步/队列链路命中的 loaded `sync` 进入批提交，all_direct=loaded direct `sync/toggle/pulse` 与异步 loaded `sync` 全部进入目标级批提交；默认 all_direct。兼容读取旧键 `crosschunk.directSyncBatching` 与旧值 `all_sync`。
+			# en: Batching mode for loaded direct dispatches: off keeps loaded direct `sync/toggle/pulse` immediate, queued_only batches only async/queued loaded `sync`, and all_direct batches loaded direct `sync/toggle/pulse` together with async loaded `sync`; default is all_direct. Legacy key `crosschunk.directSyncBatching` and legacy value `all_sync` are still accepted on read.
+			crosschunk.directBatching=all_direct
 
 			# crosschunk.dispatch.batchWindowTicks
 			# zh: `core` 目标级批提交的固定延迟（tick），范围 0~2。0=保持当前 tick 对齐（END 后同 tick late-arrival 仍补 flush）；1=固定延迟 1 tick；2=固定延迟 2 tick。

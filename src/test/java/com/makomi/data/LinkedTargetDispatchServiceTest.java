@@ -139,15 +139,15 @@ class LinkedTargetDispatchServiceTest {
 	}
 
 	/**
-	 * direct loaded `SYNC` 仅在 `all_sync` 下进入 batch，激活语义保持 immediate。
+	 * direct loaded 派发仅在 `all_direct` 下开放 activation batching；`queued_only` 仍只放行异步 sync。
 	 */
 	@Test
-	void shouldBatchLoadedDispatchShouldOnlyEnableAllSyncForSyncKind() throws Exception {
+	void shouldBatchLoadedDispatchShouldOnlyEnableAllDirectForLoadedDirectDispatch() throws Exception {
 		Class<?> dispatchKindClass = Class.forName("com.makomi.data.LinkedTargetDispatchService$DispatchKind");
 		Method method = LinkedTargetDispatchService.class.getDeclaredMethod(
 			"shouldBatchLoadedDispatch",
 			dispatchKindClass,
-			RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.class
+			RedstoneLinkConfig.CrossChunkDirectBatchingMode.class
 		);
 		method.setAccessible(true);
 
@@ -166,21 +166,35 @@ class LinkedTargetDispatchServiceTest {
 			(boolean) method.invoke(
 				null,
 				syncKind,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.QUEUED_ONLY
 			)
 		);
 		assertTrue(
 			(boolean) method.invoke(
 				null,
 				syncKind,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
 			)
 		);
 		assertFalse(
 			(boolean) method.invoke(
 				null,
 				activationKind,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.QUEUED_ONLY
+			)
+		);
+		assertFalse(
+			(boolean) method.invoke(
+				null,
+				activationKind,
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.OFF
+			)
+		);
+		assertTrue(
+			(boolean) method.invoke(
+				null,
+				activationKind,
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
 			)
 		);
 	}

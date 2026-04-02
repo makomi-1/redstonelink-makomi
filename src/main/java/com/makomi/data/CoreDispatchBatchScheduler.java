@@ -23,15 +23,16 @@ import net.minecraft.world.level.Level;
 /**
  * `core` 目标级批提交调度器。
  * <p>
- * 本调度器仅承接异步 SYNC / invalidation 链路：
- * 1. 生命周期 replay；
- * 2. crosschunk ready release。
+ * 本调度器承接目标级批提交链路：
+ * 1. loaded direct `sync/toggle/pulse`；
+ * 2. crosschunk ready release；
+ * 3. 生命周期 replay（仍仅 `sync`）。
  * <p>
  * 调度策略保持轻量：
  * 1. `window=0` 继续保持当前 tick 对齐，并允许同 tick late-arrival 补 flush；
  * 2. `window>=1` 改为按目标级 `dueTick` 小桶做固定延迟；
- * 3. 同一 `dueTick` bucket 内，同源同 kind 仅保留最新条目；
- * 4. `TRIGGER_SOURCE_INVALIDATION` 仅覆盖同 bucket 内更早的 sync / chunk-unload invalidation；
+ * 3. 同一 `dueTick` bucket 内，同源同 kind 仅保留最新条目；`ACTIVATION` 额外按 `activationMode` 分桶；
+ * 4. `TRIGGER_SOURCE_INVALIDATION` 可覆盖同 bucket 内更早的 `sync/toggle/pulse` 与局部 invalidation；
  * 5. 到期 bucket 统一 flush 到 `core.applyDispatchBatch(...)`。
  * </p>
  */
@@ -69,8 +70,11 @@ public final class CoreDispatchBatchScheduler {
 			return false;
 		}
 		return switch (deltaKind) {
-			case SYNC_SIGNAL, SOURCE_INVALIDATION, TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION, TRIGGER_SOURCE_INVALIDATION -> true;
-			case ACTIVATION -> false;
+			case SYNC_SIGNAL,
+				SOURCE_INVALIDATION,
+				TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION,
+				TRIGGER_SOURCE_INVALIDATION,
+				ACTIVATION -> true;
 		};
 	}
 
@@ -195,7 +199,7 @@ public final class CoreDispatchBatchScheduler {
 	/**
 	 * 当 `window=0` 且当前 tick 的 `END_SERVER_TICK` 已执行完后，补一次对齐 flush。
 	 * <p>
-	 * 这样可以覆盖“END 之后、下一 tick 之前”才新入队的 loaded `SYNC`，
+	 * 这样可以覆盖“END 之后、下一 tick 之前”才新入队的 loaded batchable dispatch，
 	 * 避免它们无谓地拖到下一 tick 末，破坏 `window=0` 的设计目的。
 	 * </p>
 	 */
@@ -467,11 +471,7 @@ public final class CoreDispatchBatchScheduler {
 			if (batchEntry == null) {
 				return;
 			}
-			SourceDispatchKey sourceDispatchKey = new SourceDispatchKey(
-				batchEntry.sourceType(),
-				batchEntry.sourceSerial(),
-				batchEntry.deltaKind()
-			);
+			SourceDispatchKey sourceDispatchKey = sourceDispatchKeyOf(batchEntry);
 			DispatchBatchEntry previous = entriesBySourceAndKind.get(sourceDispatchKey);
 			if (previous == null || compareBatchEntries(batchEntry, previous) >= 0) {
 				entriesBySourceAndKind.put(sourceDispatchKey, batchEntry);
@@ -482,7 +482,7 @@ public final class CoreDispatchBatchScheduler {
 		}
 
 		/**
-		 * 完整 invalidation 可以覆盖同 bucket 内更早的 sync / chunk-unload invalidation。
+		 * 完整 invalidation 可以覆盖同 bucket 内更早的 sync / activation / 局部 invalidation。
 		 */
 		private void dropCoveredEntries(DispatchBatchEntry invalidationEntry) {
 			Iterator<Map.Entry<SourceDispatchKey, DispatchBatchEntry>> iterator = entriesBySourceAndKind.entrySet().iterator();
@@ -500,6 +500,7 @@ public final class CoreDispatchBatchScheduler {
 				}
 				if (
 					existingEntry.deltaKind() != ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL
+						&& existingEntry.deltaKind() != ActivatableTargetBlockEntity.DeltaKind.ACTIVATION
 						&& existingEntry.deltaKind() != ActivatableTargetBlockEntity.DeltaKind.SOURCE_INVALIDATION
 						&& existingEntry.deltaKind() != ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION
 				) {
@@ -509,14 +510,7 @@ public final class CoreDispatchBatchScheduler {
 					iterator.remove();
 				}
 			}
-			entriesBySourceAndKind.put(
-				new SourceDispatchKey(
-					invalidationEntry.sourceType(),
-					invalidationEntry.sourceSerial(),
-					invalidationEntry.deltaKind()
-				),
-				invalidationEntry
-			);
+			entriesBySourceAndKind.put(sourceDispatchKeyOf(invalidationEntry), invalidationEntry);
 		}
 
 		private void flush(ActivatableTargetBlockEntity targetBlockEntity) {
@@ -539,6 +533,18 @@ public final class CoreDispatchBatchScheduler {
 			entriesBySourceAndKind.clear();
 			flushEntriesScratch.clear();
 		}
+
+		private static SourceDispatchKey sourceDispatchKeyOf(DispatchBatchEntry batchEntry) {
+			if (batchEntry == null) {
+				return new SourceDispatchKey(null, 0L, null, null);
+			}
+			return new SourceDispatchKey(
+				batchEntry.sourceType(),
+				batchEntry.sourceSerial(),
+				batchEntry.deltaKind(),
+				batchEntry.deltaKind() == ActivatableTargetBlockEntity.DeltaKind.ACTIVATION ? batchEntry.activationMode() : null
+			);
+		}
 	}
 
 	private record TargetBatchKey(ResourceKey<Level> dimension, BlockPos blockPos, LinkNodeType targetType, long targetSerial) {}
@@ -546,7 +552,8 @@ public final class CoreDispatchBatchScheduler {
 	private record SourceDispatchKey(
 		LinkNodeType sourceType,
 		long sourceSerial,
-		ActivatableTargetBlockEntity.DeltaKind deltaKind
+		ActivatableTargetBlockEntity.DeltaKind deltaKind,
+		ActivationMode activationMode
 	) {}
 
 	private static final class SchedulerState {

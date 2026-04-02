@@ -1,0 +1,237 @@
+{
+  "id": "mixed_samechunk_direct_window2_tick_assert",
+  "description": "同区块 single-core mixed 运行态逐 tick 验证，all_direct + batchWindowTicks=2 下校验固定 2 tick 延迟后的 sync/pulse/toggle 仲裁序列。",
+  "layer": "X",
+  "scenarioId": "X24",
+  "arena": {
+    "clearFrom": [-8, 63, 540],
+    "clearTo": [20, 66, 548]
+  },
+  "targets": {
+    "id": "core_mixed_direct",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 542],
+      "to": [12, 64, 542]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_mixed_direct",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 540],
+        "to": [0, 64, 540]
+      }
+    },
+    {
+      "id": "pulse_mixed_direct",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 542],
+        "to": [0, 64, 542]
+      }
+    },
+    {
+      "id": "toggle_mixed_direct",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 544],
+        "to": [0, 64, 544]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_mixed_direct",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "pulse_mixed_direct",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "toggle_mixed_direct",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_mixed_direct_sources",
+      "serialRefs": [
+        "sync_mixed_direct",
+        "pulse_mixed_direct",
+        "toggle_mixed_direct"
+      ],
+      "serialFormat": "slash_list",
+      "capacity": 512
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_mixed_direct_target",
+      "capacity": 512
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_mixed_direct_sync",
+      "serialRef": "sync_mixed_direct",
+      "serialFormat": "slash_list",
+      "sequence": "15/0/15/0/0/0/0/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_before_mixed_direct_pulse",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_mixed_direct_pulse",
+      "serialRef": "pulse_mixed_direct",
+      "serialFormat": "slash_list",
+      "sequence": "14/0/0/0/0/14/0/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_before_mixed_direct_toggle",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_mixed_direct_toggle",
+      "serialRef": "toggle_mixed_direct",
+      "serialFormat": "slash_list",
+      "sequence": "13/0/0/13/0/0/13/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_mixed_direct_ticks",
+      "ticks": 8
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "mixed_direct_target_ticks_window2",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 256,
+      "mountRef": "mount_mixed_direct_target",
+      "anchorRef": "start_mixed_direct_sync",
+      "expectTicks": [
+        {
+          "active": false,
+          "resolvedStrength": 0
+        },
+        {
+          "active": false,
+          "resolvedStrength": 0
+        },
+        {
+          "active": true,
+          "effectiveMode": "sync",
+          "resolvedStrength": 15
+        },
+        {
+          "active": false,
+          "resolvedStrength": 0
+        },
+        {
+          "active": true,
+          "effectiveMode": "sync",
+          "resolvedStrength": 15
+        },
+        {
+          "active": false,
+          "resolvedStrength": 0
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "toggle",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": false,
+          "resolvedStrength": 0
+        },
+        {
+          "active": true,
+          "effectiveMode": "toggle",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "toggle",
+          "resolvedStrength": 15
+        }
+      ]
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_mixed_direct_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_mixed_direct_sources",
+      "serialRefs": [
+        "sync_mixed_direct",
+        "pulse_mixed_direct",
+        "toggle_mixed_direct"
+      ],
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_mixed_direct_target"
+    }
+  ]
+}

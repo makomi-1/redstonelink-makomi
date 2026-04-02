@@ -20,6 +20,10 @@ final class RedstoneLinkCrossChunkConfigParser {
 	 * 解析跨区块配置快照。
 	 */
 	static RedstoneLinkCrossChunkConfig parse(Properties props) {
+		String directBatchingRaw = props == null ? null : props.getProperty("crosschunk.directBatching");
+		if (directBatchingRaw == null && props != null) {
+			directBatchingRaw = props.getProperty("crosschunk.directSyncBatching");
+		}
 		Set<LinkNodeType> allowedSourceTypes = RedstoneLinkCrossChunkPresetParser.parseTypeSet(
 			props,
 			"crosschunk.whitelist.sourceTypes",
@@ -44,9 +48,7 @@ final class RedstoneLinkCrossChunkConfigParser {
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.enabled", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSourceAttachReplay.enabled", false),
-			RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.fromConfigValue(
-				props.getProperty("crosschunk.directSyncBatching", "all_sync")
-			),
+			RedstoneLinkConfig.CrossChunkDirectBatchingMode.fromConfigValue(directBatchingRaw),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.dispatch.batchWindowTicks", 0, 0, 2),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.pulse.relay.enabled", false),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.activation.pulse.ttlTicks", 200, 1, 72_000),

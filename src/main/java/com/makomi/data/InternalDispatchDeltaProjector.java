@@ -120,7 +120,7 @@ public final class InternalDispatchDeltaProjector {
 			shouldBatchLoadedDelta(
 				event.deltaKind(),
 				event.deliveryMode(),
-				RedstoneLinkConfig.crossChunk().directSyncBatchingMode()
+				RedstoneLinkConfig.crossChunk().directBatchingMode()
 			)
 		) {
 			CoreDispatchBatchScheduler.enqueueLoadedTargetDelta(
@@ -149,7 +149,7 @@ public final class InternalDispatchDeltaProjector {
 	static boolean shouldBatchLoadedDelta(
 		ActivatableTargetBlockEntity.DeltaKind deltaKind,
 		InternalDispatchDeltaEvents.DeliveryMode deliveryMode,
-		RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode directSyncBatchingMode
+		RedstoneLinkConfig.CrossChunkDirectBatchingMode directBatchingMode
 	) {
 		if (!CoreDispatchBatchScheduler.supportsBatching(deltaKind)) {
 			return false;
@@ -160,13 +160,13 @@ public final class InternalDispatchDeltaProjector {
 		if (deltaKind != ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL) {
 			return normalizedDeliveryMode == InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH;
 		}
-		RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode normalizedMode = directSyncBatchingMode == null
-			? RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC
-			: directSyncBatchingMode;
+		RedstoneLinkConfig.CrossChunkDirectBatchingMode normalizedMode = directBatchingMode == null
+			? RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
+			: directBatchingMode;
 		return switch (normalizedMode) {
 			case OFF -> false;
 			case QUEUED_ONLY -> normalizedDeliveryMode == InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH;
-			case ALL_SYNC -> true;
+			case ALL_DIRECT -> true;
 		};
 	}
 

@@ -60,35 +60,35 @@ class InternalDispatchDeltaProjectorTest {
 			InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
 				ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
 				InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.QUEUED_ONLY
 			)
 		);
 		assertTrue(
 			InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
 				ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
 				InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.QUEUED_ONLY
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.QUEUED_ONLY
 			)
 		);
 	}
 
 	/**
-	 * loaded `SYNC` 在 all_sync/off 下应分别全开/全关。
+	 * loaded `SYNC` 在 all_direct/off 下应分别全开/全关。
 	 */
 	@Test
-	void shouldBatchLoadedDeltaShouldApplyAllSyncAndOffModes() {
+	void shouldBatchLoadedDeltaShouldApplyAllDirectAndOffModes() {
 		assertTrue(
 			InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
 				ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
 				InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
 			)
 		);
 		assertFalse(
 			InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
 				ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
 				InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.OFF
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.OFF
 			)
 		);
 	}
@@ -102,14 +102,14 @@ class InternalDispatchDeltaProjectorTest {
 			InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
 				ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION,
 				InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.ALL_SYNC
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
 			)
 		);
 		assertTrue(
 			InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
 				ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION,
 				InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH,
-				RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode.OFF
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.OFF
 			)
 		);
 	}

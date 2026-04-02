@@ -164,6 +164,9 @@ public final class LinkedTargetDispatchService {
 		long eventTick = Math.max(0L, sourceLevel.getGameTime());
 		int eventSlot = 0;
 		EventMeta immediateEventMeta = EventMeta.of(eventTick, eventSlot, 0L);
+		RedstoneLinkConfig.CrossChunkDirectBatchingMode directBatchingMode =
+			RedstoneLinkConfig.crossChunk().directBatchingMode();
+		boolean shouldBatchLoadedDirectDispatch = shouldBatchLoadedDispatch(dispatchKind, directBatchingMode);
 		int handledCount = 0;
 		List<Long> forceLoadTargetSerials = new ArrayList<>();
 		List<Long> relayTargetSerials = new ArrayList<>();
@@ -198,14 +201,16 @@ public final class LinkedTargetDispatchService {
 			}
 
 			if (dispatchKind == DispatchKind.ACTIVATION) {
-				targetBlockEntity.applyDispatchDelta(
-					ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
-					ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+				applyLoadedActivationDispatch(
+					sourceLevel,
+					targetBlockEntity,
 					sourceType,
 					sourceSerial,
+					targetType,
+					targetSerial,
 					activationMode,
-					0,
-					immediateEventMeta
+					immediateEventMeta,
+					shouldBatchLoadedDirectDispatch
 				);
 			} else {
 				applyLoadedSyncDispatch(
@@ -216,7 +221,8 @@ public final class LinkedTargetDispatchService {
 					targetType,
 					targetSerial,
 					syncSignalStrength,
-					immediateEventMeta
+					immediateEventMeta,
+					shouldBatchLoadedDirectDispatch
 				);
 			}
 			handledCount++;
@@ -257,9 +263,9 @@ public final class LinkedTargetDispatchService {
 			}
 		}
 
-		if (dispatchKind == DispatchKind.SYNC_SIGNAL) {
+		if (shouldBatchLoadedDirectDispatch) {
 			// `window=0` 的设计目的是保持当前 tick 对齐。
-			// 若本次 fanout 发生在当前 tick 的 END 之后，则在整批入队完成后补一次 flush，
+			// 若本次 loaded direct 批派发发生在当前 tick 的 END 之后，则在整批入队完成后补一次 flush，
 			// 既保留统一 scheduler 的 merge 语义，也避免这批 late arrival 整体晚到下一 tick 末。
 			CoreDispatchBatchScheduler.flushLateArrivalsIfCurrentTickEndAlreadyPassed(
 				sourceLevel.getServer(),
@@ -425,6 +431,47 @@ public final class LinkedTargetDispatchService {
 	}
 
 	/**
+	 * 将已加载目标上的 direct `ACTIVATION` 以 immediate 或 batch 方式投递。
+	 */
+	private static void applyLoadedActivationDispatch(
+		ServerLevel sourceLevel,
+		ActivatableTargetBlockEntity targetBlockEntity,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		long targetSerial,
+		ActivationMode activationMode,
+		EventMeta eventMeta,
+		boolean shouldBatchLoadedDispatch
+	) {
+		if (shouldBatchLoadedDispatch) {
+			CoreDispatchBatchScheduler.enqueueLoadedTargetDispatch(
+				sourceLevel.getServer(),
+				targetBlockEntity,
+				targetType,
+				targetSerial,
+				ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+				ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+				sourceType,
+				sourceSerial,
+				activationMode,
+				0,
+				eventMeta
+			);
+			return;
+		}
+		targetBlockEntity.applyDispatchDelta(
+			ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+			ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+			sourceType,
+			sourceSerial,
+			activationMode,
+			0,
+			eventMeta
+		);
+	}
+
+	/**
 	 * 将已加载目标上的 direct `SYNC` 以 immediate 或 batch 方式投递。
 	 */
 	private static void applyLoadedSyncDispatch(
@@ -435,14 +482,10 @@ public final class LinkedTargetDispatchService {
 		LinkNodeType targetType,
 		long targetSerial,
 		int syncSignalStrength,
-		EventMeta eventMeta
+		EventMeta eventMeta,
+		boolean shouldBatchLoadedDispatch
 	) {
-		if (
-			shouldBatchLoadedDispatch(
-				DispatchKind.SYNC_SIGNAL,
-				RedstoneLinkConfig.crossChunk().directSyncBatchingMode()
-			)
-		) {
+		if (shouldBatchLoadedDispatch) {
 			CoreDispatchBatchScheduler.enqueueLoadedTargetDispatch(
 				sourceLevel.getServer(),
 				targetBlockEntity,
@@ -470,18 +513,23 @@ public final class LinkedTargetDispatchService {
 	}
 
 	/**
-	 * 判断当前 loaded 派发是否应进入 direct `SYNC` 批提交。
+	 * 判断当前 loaded direct 派发是否应进入目标级批提交。
 	 */
 	static boolean shouldBatchLoadedDispatch(
 		DispatchKind dispatchKind,
-		RedstoneLinkConfig.CrossChunkDirectSyncBatchingMode directSyncBatchingMode
+		RedstoneLinkConfig.CrossChunkDirectBatchingMode directBatchingMode
 	) {
-		return dispatchKind == DispatchKind.SYNC_SIGNAL
-			&& InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
-				ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
-				InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE,
-				directSyncBatchingMode
-			);
+		RedstoneLinkConfig.CrossChunkDirectBatchingMode normalizedMode = directBatchingMode == null
+			? RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
+			: directBatchingMode;
+		if (dispatchKind == DispatchKind.ACTIVATION) {
+			return normalizedMode == RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT;
+		}
+		return InternalDispatchDeltaProjector.shouldBatchLoadedDelta(
+			ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
+			InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE,
+			normalizedMode
+		);
 	}
 
 	private enum DispatchKind {

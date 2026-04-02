@@ -77,7 +77,58 @@ class CoreDispatchBatchSchedulerTest {
 	}
 
 	/**
-	 * 同一 `dueTick` bucket 内，完整 invalidation 应覆盖更早的 sync / source invalidation / chunk-unload invalidation。
+	 * 同一 `dueTick` bucket 内，同源 `toggle/pulse` 应分别保留，避免互相覆盖。
+	 */
+	@Test
+	void mergeAllShouldKeepActivationEntriesSeparatedByModeWithinSameDueTickBucket() throws Exception {
+		Object accumulator = createAccumulator();
+		assertTrue(
+			invokeMergeAll(
+				accumulator,
+				125L,
+				List.of(
+					new ActivatableTargetBlockEntity.DispatchBatchEntry(
+						ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+						ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+						LinkNodeType.TRIGGER_SOURCE,
+						21L,
+						ActivationMode.TOGGLE,
+						0,
+						ActivatableTargetBlockEntity.EventMeta.of(21L, 0, 1L)
+					),
+					new ActivatableTargetBlockEntity.DispatchBatchEntry(
+						ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+						ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+						LinkNodeType.TRIGGER_SOURCE,
+						21L,
+						ActivationMode.PULSE,
+						0,
+						ActivatableTargetBlockEntity.EventMeta.of(21L, 0, 2L)
+					)
+				)
+			)
+		);
+
+		Map<?, ?> entries = getEntriesBySourceAndKind(accumulator, 125L);
+		assertEquals(2, entries.size());
+		assertTrue(
+			entries
+				.values()
+				.stream()
+				.map(ActivatableTargetBlockEntity.DispatchBatchEntry.class::cast)
+				.anyMatch(entry -> entry.activationMode() == ActivationMode.TOGGLE)
+		);
+		assertTrue(
+			entries
+				.values()
+				.stream()
+				.map(ActivatableTargetBlockEntity.DispatchBatchEntry.class::cast)
+				.anyMatch(entry -> entry.activationMode() == ActivationMode.PULSE)
+		);
+	}
+
+	/**
+	 * 同一 `dueTick` bucket 内，完整 invalidation 应覆盖更早的 sync / activation / 局部 invalidation。
 	 */
 	@Test
 	void mergeAllShouldDropCoveredEntriesWhenFullInvalidationArrivesWithinSameDueTickBucket() throws Exception {
@@ -97,13 +148,22 @@ class CoreDispatchBatchSchedulerTest {
 						ActivatableTargetBlockEntity.EventMeta.of(30L, 0, 1L)
 					),
 					new ActivatableTargetBlockEntity.DispatchBatchEntry(
+						ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+						ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+						LinkNodeType.TRIGGER_SOURCE,
+						31L,
+						ActivationMode.PULSE,
+						0,
+						ActivatableTargetBlockEntity.EventMeta.of(30L, 0, 2L)
+					),
+					new ActivatableTargetBlockEntity.DispatchBatchEntry(
 						ActivatableTargetBlockEntity.DeltaKind.SOURCE_INVALIDATION,
 						ActivatableTargetBlockEntity.DeltaAction.REMOVE,
 						LinkNodeType.TRIGGER_SOURCE,
 						31L,
 						ActivationMode.TOGGLE,
 						0,
-						ActivatableTargetBlockEntity.EventMeta.of(30L, 0, 2L)
+						ActivatableTargetBlockEntity.EventMeta.of(30L, 0, 3L)
 					),
 					new ActivatableTargetBlockEntity.DispatchBatchEntry(
 						ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION,
@@ -112,7 +172,7 @@ class CoreDispatchBatchSchedulerTest {
 						31L,
 						ActivationMode.TOGGLE,
 						0,
-						ActivatableTargetBlockEntity.EventMeta.of(30L, 0, 3L)
+						ActivatableTargetBlockEntity.EventMeta.of(30L, 0, 4L)
 					)
 				)
 			)
@@ -123,7 +183,7 @@ class CoreDispatchBatchSchedulerTest {
 		ActivatableTargetBlockEntity.DispatchBatchEntry mergedEntry =
 			(ActivatableTargetBlockEntity.DispatchBatchEntry) entries.values().iterator().next();
 		assertEquals(ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION, mergedEntry.deltaKind());
-		assertEquals(3L, mergedEntry.eventMeta().seq());
+		assertEquals(4L, mergedEntry.eventMeta().seq());
 	}
 
 	/**

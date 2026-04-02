@@ -1,0 +1,147 @@
+{
+  "id": "restart_mixed_replay_redstone_verify",
+  "description": "复用 mixed 红石块并发场景，重启后先验证整体恢复，再通过移除 sync emitter 验证 pulse 与 toggle 的分层回放结果。",
+  "parameters": {
+    "pulseExpiryWaitTicks": 45
+  },
+  "layer": "R",
+  "scenarioId": "R05",
+  "clearArena": false,
+  "arena": {
+    "clearFrom": [-8, 63, 560],
+    "clearTo": [20, 66, 568]
+  },
+  "targets": {
+    "id": "core_mixed_restart",
+    "kind": "core_block",
+    "reuseExisting": true,
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 561],
+      "to": [12, 64, 561]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_mixed_restart",
+      "kind": "sync_emitter",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 560],
+        "to": [0, 64, 560]
+      }
+    },
+    {
+      "id": "pulse_mixed_restart",
+      "kind": "pulse_emitter",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 561],
+        "to": [0, 64, 561]
+      }
+    },
+    {
+      "id": "toggle_mixed_restart",
+      "kind": "toggle_emitter",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 562],
+        "to": [0, 64, 562]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_mixed_restart_target_verify"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_mixed_restart_verify_mount_ticks",
+      "ticks": 2
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "mixed_restart_verify_target_should_recover_active",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_sync_mixed_restart_emitter",
+      "command": "setblock 0 64 560 minecraft:air",
+      "captureTickWindow": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_after_remove_sync_mixed_restart",
+      "ticks": 3
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "mixed_restart_verify_target_should_fall_back_to_pulse",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 12,
+      "mountRef": "mount_mixed_restart_target_verify",
+      "anchorRef": "remove_sync_mixed_restart_emitter",
+      "expectTicks": [
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        },
+        {
+          "active": true,
+          "effectiveMode": "pulse",
+          "resolvedStrength": 15
+        }
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_mixed_restart_pulse_expire",
+      "ticks": "{{param:pulseExpiryWaitTicks}}"
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "mixed_restart_verify_target_should_fall_back_to_toggle",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_toggle_mixed_restart_emitter",
+      "command": "setblock 0 64 562 minecraft:air",
+      "captureTickWindow": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_after_remove_toggle_mixed_restart",
+      "ticks": 3
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "mixed_restart_verify_target_should_turn_off",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false
+      }
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_mixed_restart_target_verify"
+    }
+  ]
+}
