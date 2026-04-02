@@ -11,6 +11,8 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.BlockPos;
@@ -26,10 +28,11 @@ import net.minecraft.world.level.Level;
  * 2. crosschunk ready release。
  * <p>
  * 调度策略保持轻量：
- * 1. 同一 `core` 在同一 tick 内先聚合；
- * 2. 同源同 kind 仅保留最新条目；
- * 3. `TRIGGER_SOURCE_INVALIDATION` 可覆盖同窗口内更早的 sync / chunk-unload invalidation；
- * 4. 窗口到期时统一 flush 到 `core.applyDispatchBatch(...)`，默认窗口为当前 tick。
+ * 1. `window=0` 继续保持当前 tick 对齐，并允许同 tick late-arrival 补 flush；
+ * 2. `window>=1` 改为按目标级 `dueTick` 小桶做固定延迟；
+ * 3. 同一 `dueTick` bucket 内，同源同 kind 仅保留最新条目；
+ * 4. `TRIGGER_SOURCE_INVALIDATION` 仅覆盖同 bucket 内更早的 sync / chunk-unload invalidation；
+ * 5. 到期 bucket 统一 flush 到 `core.applyDispatchBatch(...)`。
  * </p>
  */
 public final class CoreDispatchBatchScheduler {
@@ -121,11 +124,14 @@ public final class CoreDispatchBatchScheduler {
 		if (deltaAction == null || !supportsBatching(deltaKind) || sourceSerial <= 0L) {
 			return;
 		}
+		long currentTick = resolveCurrentTick(server, targetBlockEntity);
+		long dueTick = resolveDueTick(currentTick, configuredBatchWindowTicks());
 		TargetBatchAccumulator accumulator = resolveTargetAccumulator(server, targetBlockEntity, targetType, targetSerial);
 		if (accumulator == null) {
 			return;
 		}
 		accumulator.merge(
+			dueTick,
 			new DispatchBatchEntry(
 				deltaKind,
 				deltaAction,
@@ -151,11 +157,13 @@ public final class CoreDispatchBatchScheduler {
 		if (batchEntries == null || batchEntries.isEmpty()) {
 			return false;
 		}
+		long currentTick = resolveCurrentTick(server, targetBlockEntity);
+		long dueTick = resolveDueTick(currentTick, configuredBatchWindowTicks());
 		TargetBatchAccumulator accumulator = resolveTargetAccumulator(server, targetBlockEntity, targetType, targetSerial);
 		if (accumulator == null) {
 			return false;
 		}
-		return accumulator.mergeAll(batchEntries);
+		return accumulator.mergeAll(dueTick, batchEntries);
 	}
 
 	/**
@@ -229,9 +237,6 @@ public final class CoreDispatchBatchScheduler {
 			return;
 		}
 		state.markActive();
-		int batchWindowTicks = forceFlush ? 0 : configuredBatchWindowTicks();
-		List<TargetBatchAccumulator> pendingSnapshot = state.pendingSnapshotScratch;
-		pendingSnapshot.clear();
 		Iterator<Map.Entry<TargetBatchKey, TargetBatchAccumulator>> iterator = state.pendingByTarget.entrySet().iterator();
 		while (iterator.hasNext()) {
 			Map.Entry<TargetBatchKey, TargetBatchAccumulator> pendingEntry = iterator.next();
@@ -241,20 +246,13 @@ public final class CoreDispatchBatchScheduler {
 				continue;
 			}
 			long currentTick = resolveCurrentTick(server, accumulator.targetBlockEntity);
-			if (!forceFlush && !accumulator.isFlushDue(currentTick, batchWindowTicks)) {
+			accumulator.flushDueBuckets(currentTick, forceFlush);
+			if (!accumulator.isEmpty()) {
 				continue;
 			}
-			pendingSnapshot.add(accumulator);
 			iterator.remove();
-		}
-		for (TargetBatchAccumulator accumulator : pendingSnapshot) {
-			if (accumulator == null) {
-				continue;
-			}
-			accumulator.flush();
 			state.recycleAccumulator(accumulator);
 		}
-		pendingSnapshot.clear();
 		if (state.pendingByTarget.isEmpty() && state.accumulatorPool.isEmpty()) {
 			STATE_BY_SERVER.remove(server);
 		}
@@ -262,6 +260,10 @@ public final class CoreDispatchBatchScheduler {
 
 	private static int configuredBatchWindowTicks() {
 		return Math.max(0, RedstoneLinkConfig.crossChunk().dispatchBatchWindowTicks());
+	}
+
+	private static long resolveDueTick(long enqueueTick, int windowTicks) {
+		return Math.max(0L, enqueueTick) + Math.max(0, windowTicks);
 	}
 
 	/**
@@ -331,7 +333,6 @@ public final class CoreDispatchBatchScheduler {
 			targetBatchKey,
 			ignored -> state.acquireAccumulator(targetBlockEntity)
 		);
-		accumulator.openWindowIfNeeded(resolveCurrentTick(server, targetBlockEntity));
 		return accumulator;
 	}
 
@@ -346,13 +347,12 @@ public final class CoreDispatchBatchScheduler {
 	}
 
 	/**
-	 * 同一 `core` 的单 tick 聚合缓存。
+	 * 同一 `core` 的多 `dueTick` 聚合缓存。
 	 */
 	private static final class TargetBatchAccumulator {
 		private ActivatableTargetBlockEntity targetBlockEntity;
-		private final LinkedHashMap<SourceDispatchKey, DispatchBatchEntry> entriesBySourceAndKind = new LinkedHashMap<>();
-		private final List<DispatchBatchEntry> flushEntriesScratch = new ArrayList<>();
-		private long windowStartTick = Long.MIN_VALUE;
+		private final NavigableMap<Long, DueTickBucket> bucketsByDueTick = new TreeMap<>();
+		private final List<DueTickBucket> flushBucketsScratch = new ArrayList<>();
 
 		private TargetBatchAccumulator(ActivatableTargetBlockEntity targetBlockEntity) {
 			this.targetBlockEntity = targetBlockEntity;
@@ -363,30 +363,105 @@ public final class CoreDispatchBatchScheduler {
 		 */
 		private void reset(ActivatableTargetBlockEntity targetBlockEntity) {
 			this.targetBlockEntity = targetBlockEntity;
-			entriesBySourceAndKind.clear();
-			flushEntriesScratch.clear();
-			windowStartTick = Long.MIN_VALUE;
+			bucketsByDueTick.clear();
+			flushBucketsScratch.clear();
 		}
 
 		/**
-		 * 目标首次进入 pending 窗口时记录起点，后续 merge 不再刷新。
+		 * 指定 `dueTick` 的 bucket 不存在时创建。
 		 */
-		private void openWindowIfNeeded(long currentTick) {
-			if (windowStartTick == Long.MIN_VALUE) {
-				windowStartTick = Math.max(0L, currentTick);
-			}
+		private DueTickBucket resolveDueTickBucket(long dueTick) {
+			return bucketsByDueTick.computeIfAbsent(Math.max(0L, dueTick), ignored -> new DueTickBucket());
 		}
 
 		/**
-		 * 当前目标批次是否已达到可 flush 的窗口。
+		 * @return 当前目标是否仍有待到期 bucket。
 		 */
-		private boolean isFlushDue(long currentTick, int windowTicks) {
-			if (entriesBySourceAndKind.isEmpty() || windowTicks <= 0 || windowStartTick == Long.MIN_VALUE) {
-				return true;
-			}
-			long elapsedTicks = Math.max(0L, currentTick - windowStartTick);
-			return elapsedTicks >= windowTicks;
+		private boolean isEmpty() {
+			return bucketsByDueTick.isEmpty();
 		}
+
+		private void merge(long dueTick, DispatchBatchEntry batchEntry) {
+			if (batchEntry == null) {
+				return;
+			}
+			resolveDueTickBucket(dueTick).merge(batchEntry);
+		}
+
+		private boolean mergeAll(long dueTick, List<DispatchBatchEntry> batchEntries) {
+			if (batchEntries == null || batchEntries.isEmpty()) {
+				return false;
+			}
+			DueTickBucket bucket = null;
+			boolean merged = false;
+			for (DispatchBatchEntry batchEntry : batchEntries) {
+				if (batchEntry == null) {
+					continue;
+				}
+				if (batchEntry.deltaAction() == null || !supportsBatching(batchEntry.deltaKind()) || batchEntry.sourceSerial() <= 0L) {
+					continue;
+				}
+				if (bucket == null) {
+					bucket = resolveDueTickBucket(dueTick);
+				}
+				bucket.merge(batchEntry);
+				merged = true;
+			}
+			return merged;
+		}
+
+		/**
+		 * flush 当前已到期的 bucket；`forceFlush` 时直接清空全部 bucket。
+		 */
+		private void flushDueBuckets(long currentTick, boolean forceFlush) {
+			if (bucketsByDueTick.isEmpty()) {
+				return;
+			}
+			long normalizedCurrentTick = Math.max(0L, currentTick);
+			flushBucketsScratch.clear();
+			Iterator<Map.Entry<Long, DueTickBucket>> iterator = bucketsByDueTick.entrySet().iterator();
+			while (iterator.hasNext()) {
+				Map.Entry<Long, DueTickBucket> dueEntry = iterator.next();
+				if (dueEntry == null) {
+					iterator.remove();
+					continue;
+				}
+				Long dueTick = dueEntry.getKey();
+				if (!forceFlush && dueTick != null && dueTick.longValue() > normalizedCurrentTick) {
+					break;
+				}
+				DueTickBucket bucket = dueEntry.getValue();
+				iterator.remove();
+				if (bucket == null) {
+					continue;
+				}
+				flushBucketsScratch.add(bucket);
+			}
+			for (DueTickBucket bucket : flushBucketsScratch) {
+				if (bucket == null) {
+					continue;
+				}
+				bucket.flush(targetBlockEntity);
+			}
+			flushBucketsScratch.clear();
+		}
+
+		/**
+		 * 回收到对象池前释放 target 引用与残留条目。
+		 */
+		private void recycle() {
+			targetBlockEntity = null;
+			bucketsByDueTick.clear();
+			flushBucketsScratch.clear();
+		}
+	}
+
+	/**
+	 * 同一 `core` 在同一 `dueTick` 的 batch bucket。
+	 */
+	private static final class DueTickBucket {
+		private final LinkedHashMap<SourceDispatchKey, DispatchBatchEntry> entriesBySourceAndKind = new LinkedHashMap<>();
+		private final List<DispatchBatchEntry> flushEntriesScratch = new ArrayList<>();
 
 		private void merge(DispatchBatchEntry batchEntry) {
 			if (batchEntry == null) {
@@ -406,26 +481,8 @@ public final class CoreDispatchBatchScheduler {
 			}
 		}
 
-		private boolean mergeAll(List<DispatchBatchEntry> batchEntries) {
-			if (batchEntries == null || batchEntries.isEmpty()) {
-				return false;
-			}
-			boolean merged = false;
-			for (DispatchBatchEntry batchEntry : batchEntries) {
-				if (batchEntry == null) {
-					continue;
-				}
-				if (batchEntry.deltaAction() == null || !supportsBatching(batchEntry.deltaKind()) || batchEntry.sourceSerial() <= 0L) {
-					continue;
-				}
-				merge(batchEntry);
-				merged = true;
-			}
-			return merged;
-		}
-
 		/**
-		 * 完整 invalidation 可以覆盖窗口内更早的 sync / chunk-unload invalidation。
+		 * 完整 invalidation 可以覆盖同 bucket 内更早的 sync / chunk-unload invalidation。
 		 */
 		private void dropCoveredEntries(DispatchBatchEntry invalidationEntry) {
 			Iterator<Map.Entry<SourceDispatchKey, DispatchBatchEntry>> iterator = entriesBySourceAndKind.entrySet().iterator();
@@ -462,11 +519,15 @@ public final class CoreDispatchBatchScheduler {
 			);
 		}
 
-		private void flush() {
+		private void flush(ActivatableTargetBlockEntity targetBlockEntity) {
 			if (targetBlockEntity == null || targetBlockEntity.isRemoved()) {
+				entriesBySourceAndKind.clear();
+				flushEntriesScratch.clear();
 				return;
 			}
 			if (targetBlockEntity.getLevel() == null || targetBlockEntity.getLevel().isClientSide) {
+				entriesBySourceAndKind.clear();
+				flushEntriesScratch.clear();
 				return;
 			}
 			if (entriesBySourceAndKind.isEmpty()) {
@@ -477,16 +538,6 @@ public final class CoreDispatchBatchScheduler {
 			targetBlockEntity.applyDispatchBatch(flushEntriesScratch);
 			entriesBySourceAndKind.clear();
 			flushEntriesScratch.clear();
-		}
-
-		/**
-		 * 回收到对象池前释放 target 引用与残留条目。
-		 */
-		private void recycle() {
-			targetBlockEntity = null;
-			entriesBySourceAndKind.clear();
-			flushEntriesScratch.clear();
-			windowStartTick = Long.MIN_VALUE;
 		}
 	}
 
@@ -500,7 +551,6 @@ public final class CoreDispatchBatchScheduler {
 
 	private static final class SchedulerState {
 		private final LinkedHashMap<TargetBatchKey, TargetBatchAccumulator> pendingByTarget = new LinkedHashMap<>();
-		private final List<TargetBatchAccumulator> pendingSnapshotScratch = new ArrayList<>();
 		private final List<TargetBatchAccumulator> accumulatorPool = new ArrayList<>();
 		private int idleTicks;
 
@@ -545,7 +595,6 @@ public final class CoreDispatchBatchScheduler {
 				return false;
 			}
 			if (accumulatorPool.isEmpty()) {
-				pendingSnapshotScratch.clear();
 				idleTicks = 0;
 				return true;
 			}
@@ -562,7 +611,6 @@ public final class CoreDispatchBatchScheduler {
 		 */
 		private void clearRetainedState() {
 			pendingByTarget.clear();
-			pendingSnapshotScratch.clear();
 			accumulatorPool.clear();
 			idleTicks = 0;
 		}

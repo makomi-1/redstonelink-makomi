@@ -36,14 +36,15 @@ class CoreDispatchBatchSchedulerTest {
 	}
 
 	/**
-	 * 批量 merge 时，同源同 kind 应只保留时间键更新的一条。
+	 * 同一 `dueTick` bucket 内批量 merge 时，同源同 kind 应只保留时间键更新的一条。
 	 */
 	@Test
-	void mergeAllShouldKeepLatestEntryPerSourceAndKind() throws Exception {
+	void mergeAllShouldKeepLatestEntryPerSourceAndKindWithinSameDueTickBucket() throws Exception {
 		Object accumulator = createAccumulator();
 		assertTrue(
 			invokeMergeAll(
 				accumulator,
+				120L,
 				List.of(
 					new ActivatableTargetBlockEntity.DispatchBatchEntry(
 						ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
@@ -67,7 +68,7 @@ class CoreDispatchBatchSchedulerTest {
 			)
 		);
 
-		Map<?, ?> entries = getEntriesBySourceAndKind(accumulator);
+		Map<?, ?> entries = getEntriesBySourceAndKind(accumulator, 120L);
 		assertEquals(1, entries.size());
 		ActivatableTargetBlockEntity.DispatchBatchEntry mergedEntry =
 			(ActivatableTargetBlockEntity.DispatchBatchEntry) entries.values().iterator().next();
@@ -76,14 +77,15 @@ class CoreDispatchBatchSchedulerTest {
 	}
 
 	/**
-	 * 完整 invalidation 应覆盖窗口内更早的 sync / source invalidation / chunk-unload invalidation。
+	 * 同一 `dueTick` bucket 内，完整 invalidation 应覆盖更早的 sync / source invalidation / chunk-unload invalidation。
 	 */
 	@Test
-	void mergeAllShouldDropCoveredEntriesWhenFullInvalidationArrives() throws Exception {
+	void mergeAllShouldDropCoveredEntriesWhenFullInvalidationArrivesWithinSameDueTickBucket() throws Exception {
 		Object accumulator = createAccumulator();
 		assertTrue(
 			invokeMergeAll(
 				accumulator,
+				130L,
 				List.of(
 					new ActivatableTargetBlockEntity.DispatchBatchEntry(
 						ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
@@ -116,7 +118,7 @@ class CoreDispatchBatchSchedulerTest {
 			)
 		);
 
-		Map<?, ?> entries = getEntriesBySourceAndKind(accumulator);
+		Map<?, ?> entries = getEntriesBySourceAndKind(accumulator, 130L);
 		assertEquals(1, entries.size());
 		ActivatableTargetBlockEntity.DispatchBatchEntry mergedEntry =
 			(ActivatableTargetBlockEntity.DispatchBatchEntry) entries.values().iterator().next();
@@ -201,43 +203,46 @@ class CoreDispatchBatchSchedulerTest {
 	}
 
 	/**
-	 * 窗口为 0 时应保持当前 tick 可 flush，等价于现有语义。
+	 * 不同 `dueTick` 的条目应保留在不同 bucket，避免后到条目借用首条窗口。
 	 */
 	@Test
-	void isFlushDueShouldFlushImmediatelyWhenWindowTicksIsZero() throws Exception {
+	void mergeAllShouldKeepSeparateDueTickBucketsForSameTarget() throws Exception {
 		Object accumulator = createAccumulator();
-		assertTrue(invokeMergeAll(accumulator, List.of(createSyncEntry(41L, 1L, 9))));
+		assertTrue(invokeMergeAll(accumulator, 201L, List.of(createSyncEntry(41L, 1L, 9))));
+		assertTrue(invokeMergeAll(accumulator, 202L, List.of(createSyncEntry(41L, 2L, 13))));
 
-		invokeOpenWindowIfNeeded(accumulator, 100L);
-		assertTrue(invokeIsFlushDue(accumulator, 100L, 0));
+		Map<?, ?> bucketsByDueTick = getBucketsByDueTick(accumulator);
+		assertEquals(2, bucketsByDueTick.size());
+		assertEquals(1, getEntriesBySourceAndKind(accumulator, 201L).size());
+		assertEquals(1, getEntriesBySourceAndKind(accumulator, 202L).size());
 	}
 
 	/**
-	 * 窗口为 1 时首次 tick 不 flush，下一 tick 才允许 flush。
+	 * `dueTick` 未到时不应 flush，到期后才允许 flush。
 	 */
 	@Test
-	void isFlushDueShouldDelayUntilNextTickWhenWindowTicksIsOne() throws Exception {
+	void flushDueBucketsShouldDelayUntilDueTick() throws Exception {
 		Object accumulator = createAccumulator();
-		assertTrue(invokeMergeAll(accumulator, List.of(createSyncEntry(51L, 1L, 12))));
+		assertTrue(invokeMergeAll(accumulator, 210L, List.of(createSyncEntry(51L, 1L, 12))));
 
-		invokeOpenWindowIfNeeded(accumulator, 200L);
-		assertFalse(invokeIsFlushDue(accumulator, 200L, 1));
-		assertTrue(invokeIsFlushDue(accumulator, 201L, 1));
+		invokeFlushDueBuckets(accumulator, 209L, false);
+		assertEquals(1, getBucketsByDueTick(accumulator).size());
+		invokeFlushDueBuckets(accumulator, 210L, false);
+		assertTrue(getBucketsByDueTick(accumulator).isEmpty());
 	}
 
 	/**
-	 * 同一目标在窗口内重复 merge 时，不应把窗口起点不断后推。
+	 * 同一目标存在多个未来 bucket 时，当前 tick 只应 flush 已到期 bucket。
 	 */
 	@Test
-	void openWindowIfNeededShouldKeepOriginalWindowStartTick() throws Exception {
+	void flushDueBucketsShouldOnlyFlushDueBucketsUpToCurrentTick() throws Exception {
 		Object accumulator = createAccumulator();
-		assertTrue(invokeMergeAll(accumulator, List.of(createSyncEntry(61L, 1L, 15))));
+		assertTrue(invokeMergeAll(accumulator, 301L, List.of(createSyncEntry(61L, 1L, 15))));
+		assertTrue(invokeMergeAll(accumulator, 302L, List.of(createSyncEntry(62L, 2L, 7))));
 
-		invokeOpenWindowIfNeeded(accumulator, 300L);
-		invokeOpenWindowIfNeeded(accumulator, 305L);
-
-		assertEquals(300L, getWindowStartTick(accumulator));
-		assertTrue(invokeIsFlushDue(accumulator, 301L, 1));
+		invokeFlushDueBuckets(accumulator, 301L, false);
+		assertFalse(getBucketsByDueTick(accumulator).containsKey(301L));
+		assertTrue(getBucketsByDueTick(accumulator).containsKey(302L));
 	}
 
 	/**
@@ -260,8 +265,7 @@ class CoreDispatchBatchSchedulerTest {
 		CoreDispatchBatchScheduler.resetForTesting();
 		Object schedulerState = createSchedulerState();
 		Object accumulator = createAccumulator();
-		assertTrue(invokeMergeAll(accumulator, List.of(createSyncEntry(71L, 1L, 15))));
-		invokeOpenWindowIfNeeded(accumulator, 0L);
+		assertTrue(invokeMergeAll(accumulator, 0L, List.of(createSyncEntry(71L, 1L, 15))));
 
 		Field stateByServerField = CoreDispatchBatchScheduler.class.getDeclaredField("STATE_BY_SERVER");
 		stateByServerField.setAccessible(true);
@@ -311,37 +315,37 @@ class CoreDispatchBatchSchedulerTest {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static Map<?, ?> getEntriesBySourceAndKind(Object accumulator) throws Exception {
-		Field field = accumulator.getClass().getDeclaredField("entriesBySourceAndKind");
+	private static Map<Long, ?> getBucketsByDueTick(Object accumulator) throws Exception {
+		Field field = accumulator.getClass().getDeclaredField("bucketsByDueTick");
 		field.setAccessible(true);
-		return (Map<?, ?>) field.get(accumulator);
+		return (Map<Long, ?>) field.get(accumulator);
 	}
 
-	private static long getWindowStartTick(Object accumulator) throws Exception {
-		Field field = accumulator.getClass().getDeclaredField("windowStartTick");
+	@SuppressWarnings("unchecked")
+	private static Map<?, ?> getEntriesBySourceAndKind(Object accumulator, long dueTick) throws Exception {
+		Object bucket = getBucketsByDueTick(accumulator).get(dueTick);
+		if (bucket == null) {
+			return Map.of();
+		}
+		Field field = bucket.getClass().getDeclaredField("entriesBySourceAndKind");
 		field.setAccessible(true);
-		return field.getLong(accumulator);
+		return (Map<?, ?>) field.get(bucket);
 	}
 
 	private static boolean invokeMergeAll(
 		Object accumulator,
+		long dueTick,
 		List<ActivatableTargetBlockEntity.DispatchBatchEntry> batchEntries
 	) throws Exception {
-		Method method = accumulator.getClass().getDeclaredMethod("mergeAll", List.class);
+		Method method = accumulator.getClass().getDeclaredMethod("mergeAll", long.class, List.class);
 		method.setAccessible(true);
-		return (Boolean) method.invoke(accumulator, batchEntries);
+		return (Boolean) method.invoke(accumulator, dueTick, batchEntries);
 	}
 
-	private static void invokeOpenWindowIfNeeded(Object accumulator, long currentTick) throws Exception {
-		Method method = accumulator.getClass().getDeclaredMethod("openWindowIfNeeded", long.class);
+	private static void invokeFlushDueBuckets(Object accumulator, long currentTick, boolean forceFlush) throws Exception {
+		Method method = accumulator.getClass().getDeclaredMethod("flushDueBuckets", long.class, boolean.class);
 		method.setAccessible(true);
-		method.invoke(accumulator, currentTick);
-	}
-
-	private static boolean invokeIsFlushDue(Object accumulator, long currentTick, int windowTicks) throws Exception {
-		Method method = accumulator.getClass().getDeclaredMethod("isFlushDue", long.class, int.class);
-		method.setAccessible(true);
-		return (Boolean) method.invoke(accumulator, currentTick, windowTicks);
+		method.invoke(accumulator, currentTick, forceFlush);
 	}
 
 	private static boolean invokeShouldFlushLateArrivals(long currentTick, int windowTicks, Long lastCompletedEndTick)

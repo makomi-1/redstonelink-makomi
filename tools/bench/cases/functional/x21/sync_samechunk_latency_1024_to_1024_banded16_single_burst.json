@@ -67,7 +67,7 @@
       "name": "start_sync_latency_single_burst",
       "serialRef": "sync_x21_main",
       "serialFormat": "range",
-      "sequence": "15/15/15/0/0/0/0/0",
+      "sequence": "15/14/13/12/11/10/9/0",
       "phaseTicks": 0,
       "totalTicks": 8
     },
