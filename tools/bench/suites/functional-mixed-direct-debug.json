@@ -13,21 +13,30 @@
   "entries": [
     {
       "entryId": "x22_mixed_direct_window0",
-      "caseId": "mixed_samechunk_direct_window0_tick_assert",
+      "caseId": "mixed_samechunk_direct_tick_assert",
+      "parameters": {
+        "dispatchBatchWindowTicks": 0
+      },
       "serverConfigOverrides": {
         "crosschunk.dispatch.batchWindowTicks": 0
       }
     },
     {
       "entryId": "x23_mixed_direct_window1",
-      "caseId": "mixed_samechunk_direct_window1_tick_assert",
+      "caseId": "mixed_samechunk_direct_tick_assert",
+      "parameters": {
+        "dispatchBatchWindowTicks": 1
+      },
       "serverConfigOverrides": {
         "crosschunk.dispatch.batchWindowTicks": 1
       }
     },
     {
       "entryId": "x24_mixed_direct_window2",
-      "caseId": "mixed_samechunk_direct_window2_tick_assert",
+      "caseId": "mixed_samechunk_direct_tick_assert",
+      "parameters": {
+        "dispatchBatchWindowTicks": 2
+      },
       "serverConfigOverrides": {
         "crosschunk.dispatch.batchWindowTicks": 2
       }

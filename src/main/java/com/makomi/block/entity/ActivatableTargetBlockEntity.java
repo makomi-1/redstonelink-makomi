@@ -418,7 +418,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		long now = level.getGameTime();
 		boolean bucketChanged = recomputePulseTruthFromConcurrentBuckets();
 		recomputeToggleTruthFromConcurrentBuckets();
-		recomputeAuthorityFromConcurrentBuckets(TimeKey.of(now, 0), arbitrationComponent.authoritySeq());
+		recomputeAuthorityFromConcurrentBuckets(resolvePulseExpireFallbackTimeKey(now), arbitrationComponent.authoritySeq());
 		applyDerivedStateFromTruth();
 		markStructuredTruthDirty(bucketChanged);
 	}
@@ -429,6 +429,22 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 
 	protected int getPulseDurationTicks() {
 		return RedstoneLinkConfig.general().pulseDurationTicks();
+	}
+
+	/**
+	 * 计算 pulse 回落后的 stale guard fallback 时间键。
+	 * <p>
+	 * loaded direct batching 会让合法事件相对其源侧 `eventMeta.timeKey` 固定晚到若干 tick。
+	 * pulse 回落时若直接把 authority 推进到“当前 tick”，窗口内仍在路上的 delayed event
+	 * 会被误判为旧事件。这里按目标级批窗口向前回退，既保留窗口外旧事件过滤，
+	 * 又允许窗口内合法迟到继续生效。
+	 * </p>
+	 */
+	private TimeKey resolvePulseExpireFallbackTimeKey(long nowTick) {
+		long normalizedNowTick = Math.max(0L, nowTick);
+		int batchWindowTicks = Math.max(0, RedstoneLinkConfig.crossChunk().dispatchBatchWindowTicks());
+		long fallbackTick = Math.max(0L, normalizedNowTick - batchWindowTicks);
+		return TimeKey.of(fallbackTick, 0);
 	}
 
 	protected abstract void onActiveChanged(boolean active);

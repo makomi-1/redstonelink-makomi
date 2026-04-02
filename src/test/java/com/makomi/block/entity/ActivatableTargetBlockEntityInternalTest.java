@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.config.RedstoneLinkConfigTestHelper;
 import com.makomi.data.LinkNodeType;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -11,6 +12,7 @@ import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
@@ -391,6 +393,46 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
+	 * pulse 回落后应给批窗口内 delayed pulse 留出生效余量，避免被 stale guard 误拒。
+	 */
+	@Test
+	void pulseExpireFallbackShouldAcceptDelayedPulseWithinDispatchBatchWindow() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.dispatch.batchWindowTicks", "2");
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, () -> {
+			TestTargetEntity target = createTarget();
+			target.triggerBySource(1L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+
+			ActivatableTargetBlockEntity.TimeKey fallbackTimeKey = invokeResolvePulseExpireFallbackTimeKey(target, 12L);
+			expirePulseWindow(target, fallbackTimeKey.tick(), 1L);
+			target.triggerBySource(1L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+
+			assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
+			assertFalse(getConcurrentBucketField(target, "pulseConcurrentBuckets").isEmpty());
+		});
+	}
+
+	/**
+	 * pulse 回落后对窗口外旧事件仍应保持拒绝，避免 stale event 复活目标。
+	 */
+	@Test
+	void pulseExpireFallbackShouldRejectPulseOutsideDispatchBatchWindow() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.dispatch.batchWindowTicks", "2");
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, () -> {
+			TestTargetEntity target = createTarget();
+			target.triggerBySource(1L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+
+			ActivatableTargetBlockEntity.TimeKey fallbackTimeKey = invokeResolvePulseExpireFallbackTimeKey(target, 12L);
+			expirePulseWindow(target, fallbackTimeKey.tick(), 1L);
+			target.triggerBySource(1L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(9L, 0, 2L));
+
+			assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+			assertTrue(getConcurrentBucketField(target, "pulseConcurrentBuckets").isEmpty());
+		});
+	}
+
+	/**
 	 * TOGGLE 基准应取当前 active：当外显为亮且 toggleState 为 false 时，首次 TOGGLE 应直接回落。
 	 */
 	@Test
@@ -655,6 +697,18 @@ class ActivatableTargetBlockEntityInternalTest {
 				long.class
 			},
 			new Object[] { ActivatableTargetBlockEntity.TimeKey.of(tick, slot), priority, mode, seq }
+		);
+	}
+
+	private static ActivatableTargetBlockEntity.TimeKey invokeResolvePulseExpireFallbackTimeKey(
+		TestTargetEntity target,
+		long nowTick
+	) {
+		return (ActivatableTargetBlockEntity.TimeKey) invoke(
+			target,
+			"resolvePulseExpireFallbackTimeKey",
+			new Class<?>[] { long.class },
+			new Object[] { nowTick }
 		);
 	}
 

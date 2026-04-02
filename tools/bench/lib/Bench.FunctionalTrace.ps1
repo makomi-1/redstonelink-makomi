@@ -983,7 +983,7 @@ function Resolve-TraceLatencyReferenceStartTick {
 	}
 	$summary = Get-OptionalProperty -Object $ReferencePhaseResult -Name "summary"
 	if ($null -eq $summary) {
-		throw "referencePhaseRef must point to a trace_sync_latency_collect phase."
+		throw "referencePhaseRef must point to a phase result with summary."
 	}
 	$matchedStartTickStats = Get-OptionalProperty -Object $summary -Name "matchedStartTickStats"
 	if ($null -eq $matchedStartTickStats) {
@@ -1429,6 +1429,140 @@ function Build-ToggleTraceExpectations {
 	return @($expectations.ToArray())
 }
 
+function Build-TraceExpectationsFromPowerSequence {
+	param(
+		[int[]]$PowerSequence,
+		[string]$Type,
+		[string]$Mode
+	)
+	$expectations = New-Object System.Collections.Generic.List[object]
+	foreach ($power in @($PowerSequence)) {
+		$expectations.Add((New-TraceExpectationSample -Type $Type -Mode $Mode -Power ([int]$power)))
+	}
+	return @($expectations.ToArray())
+}
+
+function Resolve-MixedDirectWindowTicks {
+	param($Template)
+	$windowTicks = [int](Get-OptionalProperty -Object $Template -Name "windowTicks" -DefaultValue 0)
+	if ($windowTicks -lt 0 -or $windowTicks -gt 2) {
+		throw "mixed direct template requires windowTicks in range 0..2."
+	}
+	return $windowTicks
+}
+
+function Build-MixedDirectSyncTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectSyncTraceExpectationsWithLeadingZeros -LeadingZeroTicks ($windowTicks + 1) -Type $Type)
+}
+
+function Build-MixedDirectSyncRelativeTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectSyncTraceExpectationsWithLeadingZeros -LeadingZeroTicks $windowTicks -Type $Type)
+}
+
+function Build-MixedDirectSyncTraceExpectationsWithLeadingZeros {
+	param(
+		[int]$LeadingZeroTicks,
+		[string]$Type
+	)
+	$powers = New-Object System.Collections.Generic.List[int]
+	for ($index = 0; $index -lt [Math]::Max(0, $LeadingZeroTicks); $index++) {
+		$powers.Add(0)
+	}
+	$powers.Add(15)
+	$powers.Add(0)
+	$powers.Add(15)
+	$powers.Add(0)
+	return @(Build-TraceExpectationsFromPowerSequence -PowerSequence @($powers.ToArray()) -Type $Type -Mode "sync")
+}
+
+function Build-MixedDirectPulseTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectPulseTraceExpectationsWithLeadingZeros -LeadingZeroTicks ($windowTicks + 1) -Type $Type)
+}
+
+function Build-MixedDirectPulseRelativeTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectPulseTraceExpectationsWithLeadingZeros -LeadingZeroTicks $windowTicks -Type $Type)
+}
+
+function Build-MixedDirectPulseTraceExpectationsWithLeadingZeros {
+	param(
+		[int]$LeadingZeroTicks,
+		[string]$Type
+	)
+	$powers = New-Object System.Collections.Generic.List[int]
+	for ($index = 0; $index -lt [Math]::Max(0, $LeadingZeroTicks); $index++) {
+		$powers.Add(0)
+	}
+	for ($index = 0; $index -lt 3; $index++) {
+		$powers.Add(15)
+	}
+	$powers.Add(0)
+	$powers.Add(0)
+	for ($index = 0; $index -lt 3; $index++) {
+		$powers.Add(15)
+	}
+	$powers.Add(0)
+	return @(Build-TraceExpectationsFromPowerSequence -PowerSequence @($powers.ToArray()) -Type $Type -Mode "pulse")
+}
+
+function Build-MixedDirectToggleTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectToggleTraceExpectationsWithLeadingZeros -LeadingZeroTicks ($windowTicks + 1) -Type $Type)
+}
+
+function Build-MixedDirectToggleRelativeTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectToggleTraceExpectationsWithLeadingZeros -LeadingZeroTicks $windowTicks -Type $Type)
+}
+
+function Build-MixedDirectToggleTraceExpectationsWithLeadingZeros {
+	param(
+		[int]$LeadingZeroTicks,
+		[string]$Type
+	)
+	$powers = New-Object System.Collections.Generic.List[int]
+	for ($index = 0; $index -lt [Math]::Max(0, $LeadingZeroTicks); $index++) {
+		$powers.Add(0)
+	}
+	for ($index = 0; $index -lt 3; $index++) {
+		$powers.Add(15)
+	}
+	for ($index = 0; $index -lt 3; $index++) {
+		$powers.Add(0)
+	}
+	for ($index = 0; $index -lt 4; $index++) {
+		$powers.Add(15)
+	}
+	return @(Build-TraceExpectationsFromPowerSequence -PowerSequence @($powers.ToArray()) -Type $Type -Mode "toggle")
+}
+
 function Resolve-TraceTickExpectations {
 	param(
 		$Phase,
@@ -1459,6 +1593,12 @@ function Resolve-TraceTickExpectations {
 		"sync_custom" { return @(Build-SyncCustomTraceExpectations -TemplatePhaseResult $templatePhaseResult -Type $Type -TickCount $tickCount) }
 		"pulse" { return @(Build-PulseTraceExpectations -Template $template -Type $Type -TickCount $tickCount) }
 		"toggle_hold" { return @(Build-ToggleTraceExpectations -Template $template -Type $Type -TickCount $tickCount) }
+		"mixed_direct_sync" { return @(Build-MixedDirectSyncTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_sync_relative" { return @(Build-MixedDirectSyncRelativeTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_pulse" { return @(Build-MixedDirectPulseTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_pulse_relative" { return @(Build-MixedDirectPulseRelativeTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_toggle" { return @(Build-MixedDirectToggleTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_toggle_relative" { return @(Build-MixedDirectToggleRelativeTraceExpectations -Template $template -Type $Type) }
 		default { throw "Unsupported trace tick template kind: $templateKind" }
 	}
 }
@@ -2398,6 +2538,8 @@ function Invoke-FunctionalPhases {
 				$serialText = Format-SerialInputText -Serials $serials -Style $serialFormat
 				$mountRef = [string](Get-OptionalProperty -Object $phase -Name "mountRef" -DefaultValue "")
 				$anchorRef = [string](Get-OptionalProperty -Object $phase -Name "anchorRef" -DefaultValue "")
+				$referencePhaseRef = [string](Get-OptionalProperty -Object $phase -Name "referencePhaseRef" -DefaultValue "")
+				$referenceStartStrategy = [string](Get-OptionalProperty -Object $phase -Name "referenceStartStrategy" -DefaultValue "min")
 				if ([string]::IsNullOrWhiteSpace($mountRef)) {
 					throw "trace_read_tick_assert phase requires mountRef."
 				}
@@ -2424,6 +2566,18 @@ function Invoke-FunctionalPhases {
 				if ($null -ne $anchorJobStartTick -and [long]$anchorJobStartTick -ge 0L) {
 					$resolvedAnchorStartTick = [long]$anchorJobStartTick
 				}
+				$referenceStartTick = $null
+				if (-not [string]::IsNullOrWhiteSpace($referencePhaseRef)) {
+					$referencePhaseResult = Resolve-FunctionalPhaseResult -PhaseContext $phaseContext -PhaseName $referencePhaseRef
+					$referenceStartTick = Resolve-TraceLatencyReferenceStartTick `
+						-ReferencePhaseResult $referencePhaseResult `
+						-Strategy $referenceStartStrategy
+				}
+				$resolvedSearchAnchorStartTick = if ($null -ne $referenceStartTick) {
+					[long]$referenceStartTick
+				} else {
+					[long]$resolvedAnchorStartTick
+				}
 				$expectedTicks = @(Resolve-TraceTickExpectations -Phase $phase -Type $type -PhaseContext $phaseContext)
 				if ($expectedTicks.Count -le 0) {
 					throw "trace_read_tick_assert phase resolved no expected ticks."
@@ -2447,9 +2601,25 @@ function Invoke-FunctionalPhases {
 						serialText = $serialText
 						mountRef = $mountRef
 						anchorRef = $anchorRef
+						referencePhaseRef = $referencePhaseRef
+						referenceStartStrategy = $referenceStartStrategy
 						limit = $limit
 						alignmentSlackTicks = $alignmentSlackTicks
 						expectedTicks = $expectedTicks
+						summary = [ordered]@{
+							type = $type
+							requested = $serials.Count
+							analyzed = 0
+							matched = 0
+							unmatched = $serials.Count
+							expectedTickCount = $expectedTicks.Count
+							anchorStartTick = $resolvedAnchorStartTick
+							searchAnchorStartTick = $resolvedSearchAnchorStartTick
+							referencePhaseRef = $referencePhaseRef
+							referenceStartStrategy = $referenceStartStrategy
+							referenceStartTick = $referenceStartTick
+							matchedStartTickStats = (New-TraceLatencyStats -Values @())
+						}
 						reads = @()
 						passed = $true
 						dryRun = $true
@@ -2459,15 +2629,16 @@ function Invoke-FunctionalPhases {
 				}
 				$phasePassed = $true
 				$readResults = New-Object System.Collections.Generic.List[object]
+				$matchedStartTicks = New-Object System.Collections.Generic.List[long]
 				foreach ($serial in $serials) {
 					$mountTick = Get-TraceMountTickForSerial -MountPhaseResult $mountPhaseResult -Serial $serial
 					$mountCapacity = [int](Get-OptionalProperty -Object $mountPhaseResult -Name "capacity" -DefaultValue $limit)
 					$searchTickMax = 0L
-					$startTickMin = $resolvedAnchorStartTick
+					$startTickMin = $resolvedSearchAnchorStartTick
 					if ($null -ne $mountTick) {
 						$startTickMin = [Math]::Max([long]$startTickMin, ([long]$mountTick + 1L))
 					}
-					$startTickMax = [long]$resolvedAnchorStartTick + [Math]::Max(0, $alignmentSlackTicks)
+					$startTickMax = [long]$resolvedSearchAnchorStartTick + [Math]::Max(0, $alignmentSlackTicks)
 					$searchTickMax = [long]$startTickMax
 					$currentLimit = [Math]::Min([Math]::Max(1, $limit), [Math]::Max(1, $mountCapacity))
 					$readResult = Invoke-NodeTraceRead -Connection $Connection -Type $type -Serial $serial -Limit $currentLimit
@@ -2572,6 +2743,9 @@ function Invoke-FunctionalPhases {
 						$failedChecks.Add($tickCheck)
 						$phasePassed = $false
 					}
+					if ($tickCheck.passed -and $null -ne $matchResult.startTick) {
+						$matchedStartTicks.Add([long]$matchResult.startTick)
+					}
 					$readResults.Add([ordered]@{
 						serial = $serial
 						command = $readResult.command
@@ -2593,6 +2767,11 @@ function Invoke-FunctionalPhases {
 						failures = $matchResult.failures
 					})
 				}
+				$matchedStartTickArray = @($matchedStartTicks.ToArray())
+				$matchedStartTickStats = New-TraceLatencyStats -Values $matchedStartTickArray
+				$matchedCount = $matchedStartTickArray.Count
+				$analyzedCount = $readResults.Count
+				$unmatchedCount = [Math]::Max(0, $serials.Count - $matchedCount)
 				$phaseResult = [ordered]@{
 					kind = $kind
 					name = $phaseName
@@ -2601,9 +2780,25 @@ function Invoke-FunctionalPhases {
 					serialText = $serialText
 					mountRef = $mountRef
 					anchorRef = $anchorRef
+					referencePhaseRef = $referencePhaseRef
+					referenceStartStrategy = $referenceStartStrategy
 					limit = $limit
 					alignmentSlackTicks = $alignmentSlackTicks
 					expectedTicks = $expectedTicks
+					summary = [ordered]@{
+						type = $type
+						requested = $serials.Count
+						analyzed = $analyzedCount
+						matched = $matchedCount
+						unmatched = $unmatchedCount
+						expectedTickCount = $expectedTicks.Count
+						anchorStartTick = $resolvedAnchorStartTick
+						searchAnchorStartTick = $resolvedSearchAnchorStartTick
+						referencePhaseRef = $referencePhaseRef
+						referenceStartStrategy = $referenceStartStrategy
+						referenceStartTick = $referenceStartTick
+						matchedStartTickStats = $matchedStartTickStats
+					}
 					reads = @($readResults.ToArray())
 					passed = $phasePassed
 				}

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "defaults": {
+    "tickMillis": 50,
+    "settleTicks": 2,
+    "prepareFunctions": [
+      "rl_bench:prepare/common",
+      "rl_bench:reset/common"
+    ],
+    "resultsDir": "run/profiles/bench-functional-results"
+  },
+  "templatePaths": [
+    "templates/functional/phases.json"
+  ],
+  "casePaths": [
+    "cases/functional/x26/pulse_samechunk_direct_window2_tick_assert.json"
+  ]
+}
