@@ -241,6 +241,7 @@ public final class CoreDispatchBatchScheduler {
 			return;
 		}
 		state.markActive();
+		List<TargetFlushPlan> flushPlans = new ArrayList<>();
 		Iterator<Map.Entry<TargetBatchKey, TargetBatchAccumulator>> iterator = state.pendingByTarget.entrySet().iterator();
 		while (iterator.hasNext()) {
 			Map.Entry<TargetBatchKey, TargetBatchAccumulator> pendingEntry = iterator.next();
@@ -250,12 +251,20 @@ public final class CoreDispatchBatchScheduler {
 				continue;
 			}
 			long currentTick = resolveCurrentTick(server, accumulator.targetBlockEntity);
-			accumulator.flushDueBuckets(currentTick, forceFlush);
+			TargetFlushPlan flushPlan = accumulator.detachDueBuckets(currentTick, forceFlush);
+			if (flushPlan != null) {
+				flushPlans.add(flushPlan);
+			}
 			if (!accumulator.isEmpty()) {
 				continue;
 			}
 			iterator.remove();
 			state.recycleAccumulator(accumulator);
+		}
+		for (TargetFlushPlan flushPlan : flushPlans) {
+			if (flushPlan != null) {
+				flushPlan.apply();
+			}
 		}
 		if (state.pendingByTarget.isEmpty() && state.accumulatorPool.isEmpty()) {
 			STATE_BY_SERVER.remove(server);
@@ -418,8 +427,22 @@ public final class CoreDispatchBatchScheduler {
 		 * flush 当前已到期的 bucket；`forceFlush` 时直接清空全部 bucket。
 		 */
 		private void flushDueBuckets(long currentTick, boolean forceFlush) {
+			TargetFlushPlan flushPlan = detachDueBuckets(currentTick, forceFlush);
+			if (flushPlan != null) {
+				flushPlan.apply();
+			}
+		}
+
+		/**
+		 * 将当前已到期的 bucket 从 accumulator 中摘出，交由外层统一 apply。
+		 * <p>
+		 * 这样可以把“遍历 scheduler map”和“触发目标实体下游逻辑”拆成两个相位，
+		 * 避免 apply 期间再次入队时修改正在迭代的 `pendingByTarget`。
+		 * </p>
+		 */
+		private TargetFlushPlan detachDueBuckets(long currentTick, boolean forceFlush) {
 			if (bucketsByDueTick.isEmpty()) {
-				return;
+				return null;
 			}
 			long normalizedCurrentTick = Math.max(0L, currentTick);
 			flushBucketsScratch.clear();
@@ -441,13 +464,12 @@ public final class CoreDispatchBatchScheduler {
 				}
 				flushBucketsScratch.add(bucket);
 			}
-			for (DueTickBucket bucket : flushBucketsScratch) {
-				if (bucket == null) {
-					continue;
-				}
-				bucket.flush(targetBlockEntity);
+			if (flushBucketsScratch.isEmpty()) {
+				return null;
 			}
+			List<DueTickBucket> detachedBuckets = new ArrayList<>(flushBucketsScratch);
 			flushBucketsScratch.clear();
+			return new TargetFlushPlan(targetBlockEntity, detachedBuckets);
 		}
 
 		/**
@@ -457,6 +479,22 @@ public final class CoreDispatchBatchScheduler {
 			targetBlockEntity = null;
 			bucketsByDueTick.clear();
 			flushBucketsScratch.clear();
+		}
+	}
+
+	/**
+	 * 单个 `core` 目标本轮已摘出的 flush 计划。
+	 */
+	private record TargetFlushPlan(ActivatableTargetBlockEntity targetBlockEntity, List<DueTickBucket> dueTickBuckets) {
+		private void apply() {
+			if (dueTickBuckets == null || dueTickBuckets.isEmpty()) {
+				return;
+			}
+			for (DueTickBucket bucket : dueTickBuckets) {
+				if (bucket != null) {
+					bucket.flush(targetBlockEntity);
+				}
+			}
 		}
 	}
 

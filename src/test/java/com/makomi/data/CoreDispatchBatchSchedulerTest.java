@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,6 +10,7 @@ import com.makomi.block.entity.ActivationMode;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -16,13 +18,16 @@ import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import sun.misc.Unsafe;
 
 /**
  * CoreDispatchBatchScheduler 内部聚合规约测试。
@@ -306,6 +311,49 @@ class CoreDispatchBatchSchedulerTest {
 	}
 
 	/**
+	 * 两阶段 flush 应先把 bucket 从 accumulator 脱离，再交给外层 apply。
+	 */
+	@Test
+	void detachDueBucketsShouldRemoveBucketsBeforeApply() throws Exception {
+		Object accumulator = createAccumulator();
+		assertTrue(invokeMergeAll(accumulator, 320L, List.of(createSyncEntry(66L, 1L, 15))));
+
+		Object flushPlan = invokeDetachDueBuckets(accumulator, 320L, false);
+		assertTrue(getBucketsByDueTick(accumulator).isEmpty());
+		assertTrue(flushPlan != null);
+	}
+
+	/**
+	 * flush 期间若下游逻辑重入修改 `pendingByTarget`，不应再触发 map 迭代并发修改异常。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void flushServerBatchesShouldTolerateReentrantPendingMutationDuringApplyPhase() throws Exception {
+		CoreDispatchBatchScheduler.resetForTesting();
+		Object schedulerState = createSchedulerState();
+
+		Field pendingByTargetField = schedulerState.getClass().getDeclaredField("pendingByTarget");
+		pendingByTargetField.setAccessible(true);
+		Map<Object, Object> pendingByTarget = (Map<Object, Object>) pendingByTargetField.get(schedulerState);
+
+		ReentrantMutationTargetEntity target = new ReentrantMutationTargetEntity(pendingByTarget);
+		attachDummyServerLevel(target, 0L);
+		Object accumulator = createAccumulator(target);
+		assertTrue(invokeMergeAll(accumulator, 0L, List.of(createSyncEntry(81L, 1L, 15))));
+		pendingByTarget.put(createTargetBatchKey(1L), accumulator);
+
+		Field stateByServerField = CoreDispatchBatchScheduler.class.getDeclaredField("STATE_BY_SERVER");
+		stateByServerField.setAccessible(true);
+		Map<MinecraftServer, Object> stateByServer = (Map<MinecraftServer, Object>) stateByServerField.get(null);
+		stateByServer.put(null, schedulerState);
+
+		assertDoesNotThrow(() -> invokeFlushServerBatches(null, false));
+		assertTrue(target.reentered());
+		assertEquals(1, pendingByTarget.size());
+		assertTrue(pendingByTarget.containsKey(createTargetBatchKey(2L)));
+	}
+
+	/**
 	 * late arrival 补 flush 只应在 `window=0` 且当前 tick 的 END 已完成时触发。
 	 */
 	@Test
@@ -349,10 +397,14 @@ class CoreDispatchBatchSchedulerTest {
 	}
 
 	private static Object createAccumulator() throws Exception {
+		return createAccumulator(createTarget());
+	}
+
+	private static Object createAccumulator(ActivatableTargetBlockEntity targetBlockEntity) throws Exception {
 		Class<?> accumulatorClass = Class.forName("com.makomi.data.CoreDispatchBatchScheduler$TargetBatchAccumulator");
 		Constructor<?> constructor = accumulatorClass.getDeclaredConstructor(ActivatableTargetBlockEntity.class);
 		constructor.setAccessible(true);
-		return constructor.newInstance(createTarget());
+		return constructor.newInstance(targetBlockEntity);
 	}
 
 	private static Object createSchedulerState() throws Exception {
@@ -408,6 +460,18 @@ class CoreDispatchBatchSchedulerTest {
 		method.invoke(accumulator, currentTick, forceFlush);
 	}
 
+	private static Object invokeDetachDueBuckets(Object accumulator, long currentTick, boolean forceFlush) throws Exception {
+		Method method = accumulator.getClass().getDeclaredMethod("detachDueBuckets", long.class, boolean.class);
+		method.setAccessible(true);
+		return method.invoke(accumulator, currentTick, forceFlush);
+	}
+
+	private static void invokeFlushServerBatches(MinecraftServer server, boolean forceFlush) throws Exception {
+		Method method = CoreDispatchBatchScheduler.class.getDeclaredMethod("flushServerBatches", MinecraftServer.class, boolean.class);
+		method.setAccessible(true);
+		method.invoke(null, server, forceFlush);
+	}
+
 	private static boolean invokeShouldFlushLateArrivals(long currentTick, int windowTicks, Long lastCompletedEndTick)
 		throws Exception {
 		Method method = CoreDispatchBatchScheduler.class.getDeclaredMethod(
@@ -460,10 +524,80 @@ class CoreDispatchBatchSchedulerTest {
 		return new TestTargetEntity(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
 	}
 
+	private static void attachDummyServerLevel(ActivatableTargetBlockEntity target, long gameTime) throws Exception {
+		Field levelField = BlockEntity.class.getDeclaredField("level");
+		levelField.setAccessible(true);
+		levelField.set(target, dummyServerLevel(gameTime));
+	}
+
+	private static ServerLevel dummyServerLevel(long gameTime) {
+		try {
+			Unsafe unsafe = unsafe();
+			ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);
+			Field clientSideField = Level.class.getDeclaredField("isClientSide");
+			clientSideField.setAccessible(true);
+			clientSideField.setBoolean(level, false);
+			Field levelDataField = Level.class.getDeclaredField("levelData");
+			levelDataField.setAccessible(true);
+			Class<?> levelDataType = levelDataField.getType();
+			Object levelDataProxy = Proxy.newProxyInstance(
+				CoreDispatchBatchSchedulerTest.class.getClassLoader(),
+				new Class<?>[] { levelDataType },
+				(proxy, method, args) -> switch (method.getName()) {
+					case "getGameTime", "getDayTime" -> gameTime;
+					case "isHardcore", "isFlatWorld" -> false;
+					case "getClearWeatherTime", "getRainTime", "getThunderTime", "getSpawnAngle" -> 0;
+					default -> defaultValue(method.getReturnType());
+				}
+			);
+			levelDataField.set(level, levelDataProxy);
+			return level;
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("failed to allocate dummy ServerLevel", ex);
+		}
+	}
+
+	private static Unsafe unsafe() throws ReflectiveOperationException {
+		Field field = Unsafe.class.getDeclaredField("theUnsafe");
+		field.setAccessible(true);
+		return (Unsafe) field.get(null);
+	}
+
+	private static Object defaultValue(Class<?> type) {
+		if (type == null || !type.isPrimitive()) {
+			return null;
+		}
+		if (type == boolean.class) {
+			return false;
+		}
+		if (type == byte.class) {
+			return (byte) 0;
+		}
+		if (type == short.class) {
+			return (short) 0;
+		}
+		if (type == int.class) {
+			return 0;
+		}
+		if (type == long.class) {
+			return 0L;
+		}
+		if (type == float.class) {
+			return 0F;
+		}
+		if (type == double.class) {
+			return 0D;
+		}
+		if (type == char.class) {
+			return '\0';
+		}
+		return null;
+	}
+
 	/**
 	 * scheduler 聚合测试使用的最小 `core` 实体。
 	 */
-	private static final class TestTargetEntity extends ActivatableTargetBlockEntity {
+	private static class TestTargetEntity extends ActivatableTargetBlockEntity {
 		private TestTargetEntity(BlockPos pos, BlockState state) {
 			super(castType(BlockEntityType.BEACON), pos, state);
 		}
@@ -473,6 +607,12 @@ class CoreDispatchBatchSchedulerTest {
 
 		@Override
 		protected void syncBlockStateFromDerivedState(boolean active) {}
+
+		@Override
+		public void setChanged() {}
+
+		@Override
+		protected void syncToClient() {}
 
 		@Override
 		protected boolean shouldQueueLoadBlockStateSync(boolean active) {
@@ -485,6 +625,38 @@ class CoreDispatchBatchSchedulerTest {
 		@Override
 		protected LinkNodeType getNodeType() {
 			return LinkNodeType.CORE;
+		}
+	}
+
+	/**
+	 * flush apply 阶段内模拟“下游又把新 dispatch 重新写回 scheduler”。
+	 */
+	private static final class ReentrantMutationTargetEntity extends TestTargetEntity {
+		private final Map<Object, Object> pendingByTarget;
+		private boolean reentered;
+
+		private ReentrantMutationTargetEntity(Map<Object, Object> pendingByTarget) {
+			super(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
+			this.pendingByTarget = pendingByTarget;
+		}
+
+		@Override
+		protected void onActiveChanged(boolean active) {
+			if (!active || reentered) {
+				return;
+			}
+			reentered = true;
+			try {
+				Object accumulator = createAccumulator();
+				invokeMergeAll(accumulator, 99L, List.of(createSyncEntry(82L, 2L, 9)));
+				pendingByTarget.put(createTargetBatchKey(2L), accumulator);
+			} catch (Exception ex) {
+				throw new IllegalStateException("failed to enqueue reentrant pending batch", ex);
+			}
+		}
+
+		private boolean reentered() {
+			return reentered;
 		}
 	}
 }
