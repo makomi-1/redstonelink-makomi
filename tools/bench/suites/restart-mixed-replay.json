@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "description": "mixed replay/restart 专项，使用红石块构造 sync/pulse/toggle 并发态并在重启后验证分层回放结果。",
+  "description": "mixed restart 专项，使用红石块构造 sync/pulse/toggle 并发态并在重启后验证 sync 恢复，以及历史 pulse 被 sync replay 清理后直接回落到 toggle 的结果。",
   "defaults": {
     "benchAction": "RunFunctionalCase",
     "matrixPath": "../functional-matrix.json",
     "serverConfigOverrides": {
       "server.command.rateLimit.enabled": "false",
       "server.emitterEdgeMode": "rising",
-      "server.pulseDurationTicks": 40,
+      "server.pulseDurationTicks": 240,
       "crosschunk.directBatching": "all_direct",
       "crosschunk.dispatch.batchWindowTicks": 0
     }

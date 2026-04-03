@@ -55,6 +55,27 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	}
 
 	/**
+	 * 脉冲持续时间应支持专项 suite 所需的较长窗口，并保持上界夹紧。
+	 */
+	@Test
+	void parseShouldClampPulseDurationTicksToExtendedRange() {
+		Properties lowProperties = new Properties();
+		lowProperties.setProperty("server.pulseDurationTicks", "-5");
+		RedstoneLinkServerConfigSnapshot lowSnapshot = RedstoneLinkConfigTestHelper.parseServer(lowProperties);
+		assertEquals(1, lowSnapshot.general().pulseDurationTicks());
+
+		Properties allowedProperties = new Properties();
+		allowedProperties.setProperty("server.pulseDurationTicks", "240");
+		RedstoneLinkServerConfigSnapshot allowedSnapshot = RedstoneLinkConfigTestHelper.parseServer(allowedProperties);
+		assertEquals(240, allowedSnapshot.general().pulseDurationTicks());
+
+		Properties highProperties = new Properties();
+		highProperties.setProperty("server.pulseDurationTicks", "999");
+		RedstoneLinkServerConfigSnapshot highSnapshot = RedstoneLinkConfigTestHelper.parseServer(highProperties);
+		assertEquals(240, highSnapshot.general().pulseDurationTicks());
+	}
+
+	/**
 	 * 非法的 bench 命令测试模式布尔值应回退默认 false。
 	 */
 	@Test

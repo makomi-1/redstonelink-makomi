@@ -1,9 +1,6 @@
 {
   "id": "restart_mixed_replay_redstone_verify",
-  "description": "复用 mixed 红石块并发场景，重启后先验证整体恢复，再通过移除 sync emitter 验证 pulse 与 toggle 的分层回放结果。",
-  "parameters": {
-    "pulseExpiryWaitTicks": 45
-  },
+  "description": "复用 mixed 红石块并发场景，重启后先验证 sync 恢复，再通过移除 sync emitter 验证历史 pulse 已被 sync replay 清理、目标会直接回落到 toggle。",
   "layer": "R",
   "scenarioId": "R05",
   "clearArena": false,
@@ -66,10 +63,12 @@
     },
     {
       "templateRef": "trace_latest_assert_core",
-      "name": "mixed_restart_verify_target_should_recover_active",
+      "name": "mixed_restart_verify_target_should_recover_sync",
       "serialFormat": "slash_list",
       "expect": {
-        "active": true
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
       }
     },
     {
@@ -81,42 +80,17 @@
     },
     {
       "templateRef": "wait_ticks",
-      "name": "wait_after_remove_sync_mixed_restart",
-      "ticks": 3
-    },
-    {
-      "kind": "trace_read_tick_assert",
-      "name": "mixed_restart_verify_target_should_fall_back_to_pulse",
-      "type": "core",
-      "serialRef": "targets",
-      "serialFormat": "slash_list",
-      "limit": 12,
-      "mountRef": "mount_mixed_restart_target_verify",
-      "anchorRef": "remove_sync_mixed_restart_emitter",
-      "expectTicks": [
-        {
-          "active": true,
-          "effectiveMode": "pulse",
-          "resolvedStrength": 15
-        },
-        {
-          "active": true,
-          "effectiveMode": "pulse",
-          "resolvedStrength": 15
-        }
-      ]
-    },
-    {
-      "templateRef": "wait_ticks",
-      "name": "wait_mixed_restart_pulse_expire",
-      "ticks": "{{param:pulseExpiryWaitTicks}}"
+      "name": "wait_after_remove_sync_mixed_restart_settle",
+      "ticks": 2
     },
     {
       "templateRef": "trace_latest_assert_core",
-      "name": "mixed_restart_verify_target_should_fall_back_to_toggle",
+      "name": "mixed_restart_verify_target_should_fall_back_to_toggle_after_sync_removed",
       "serialFormat": "slash_list",
       "expect": {
-        "active": true
+        "active": true,
+        "effectiveMode": "toggle",
+        "resolvedStrength": 15
       }
     },
     {
@@ -136,7 +110,9 @@
       "name": "mixed_restart_verify_target_should_turn_off",
       "serialFormat": "slash_list",
       "expect": {
-        "active": false
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
       }
     },
     {

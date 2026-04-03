@@ -33,7 +33,7 @@ final class RedstoneLinkConfigParser {
 	 */
 	private static RedstoneLinkGeneralConfig parseGeneral(Properties props) {
 		return new RedstoneLinkGeneralConfig(
-			RedstoneLinkConfigParseSupport.parseInt(props, "server.pulseDurationTicks", 4, 1, 40),
+			RedstoneLinkConfigParseSupport.parseInt(props, "server.pulseDurationTicks", 4, 1, 240),
 			RedstoneLinkConfig.EmitterEdgeMode.fromConfigValue(props.getProperty("server.emitterEdgeMode", "rising")),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.coreOutputPower", 15, 0, 15),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.maxTargetsPerSetLinks", 1024, 1, 4096),

@@ -369,6 +369,37 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
+	 * 目标加载期的同时间粒度 sync replay 会清掉历史 pulse，但应保留 toggle 作为后续回落候选。
+	 */
+	@Test
+	void sameTimeSyncReplayShouldClearPersistedPulseButKeepToggleFallback() {
+		TestTargetEntity target = createTarget();
+		target.triggerBySource(2L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		target.triggerBySource(3L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 2L));
+
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
+		assertFalse(getConcurrentBucketField(target, "pulseConcurrentBuckets").isEmpty());
+		assertFalse(getConcurrentBucketField(target, "toggleConcurrentBuckets").isEmpty());
+
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 3L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+		assertTrue(getConcurrentBucketField(target, "pulseConcurrentBuckets").isEmpty());
+		assertFalse(getConcurrentBucketField(target, "toggleConcurrentBuckets").isEmpty());
+
+		target.applyDispatchDelta(
+			ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION,
+			ActivatableTargetBlockEntity.DeltaAction.REMOVE,
+			LinkNodeType.TRIGGER_SOURCE,
+			1L,
+			ActivationMode.TOGGLE,
+			0,
+			ActivatableTargetBlockEntity.EventMeta.of(20L, 0, 4L)
+		);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
+		assertTrue(getBooleanField(target, "toggleState"));
+	}
+
+	/**
 	 * 重复两轮同时间粒度 pulse+toggle 后，pulse 回落结果仍应保持 toggle 交替。
 	 */
 	@Test
