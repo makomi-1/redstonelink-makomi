@@ -1,12 +1,11 @@
 package com.makomi;
 
+import com.makomi.datagen.RedstoneLinkRecipeProvider;
 import net.fabricmc.fabric.api.datagen.v1.DataGeneratorEntrypoint;
 import net.fabricmc.fabric.api.datagen.v1.FabricDataGenerator;
 
 /**
  * RedstoneLink 数据生成入口。
- * <p>
- * 当前版本暂未注册数据提供器，保留该入口用于后续资源自动生成扩展。
  */
 public class RedstoneLinkDataGenerator implements DataGeneratorEntrypoint {
 	/**
@@ -16,6 +15,7 @@ public class RedstoneLinkDataGenerator implements DataGeneratorEntrypoint {
 	 */
 	@Override
 	public void onInitializeDataGenerator(FabricDataGenerator fabricDataGenerator) {
-
+		FabricDataGenerator.Pack pack = fabricDataGenerator.createPack();
+		pack.addProvider(RedstoneLinkRecipeProvider::new);
 	}
 }

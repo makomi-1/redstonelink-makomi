@@ -62,6 +62,9 @@ loom {
 fabricApi {
 	configureDataGeneration {
 		client = true
+		// datagen 仅用于维护和校验，不直接并入运行时资源，避免与手工保留的配方产生重复条目。
+		addToResources = false
+		outputDirectory = file("build/generated/datagen")
 	}
 }
 
