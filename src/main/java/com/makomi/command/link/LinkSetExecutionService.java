@@ -1,5 +1,6 @@
 package com.makomi.command.link;
 
+import com.makomi.advancement.RedstoneLinkAdvancementService;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.CommandTreeSupport;
@@ -365,6 +366,11 @@ public final class LinkSetExecutionService {
 				OperationFeedback.success("message.redstonelink.offline_targets_saved", formatOfflineTargets(operation.offlineTargets()))
 			);
 		}
+		RedstoneLinkAdvancementService.awardConstellationIfThresholdReached(
+			operation.player(),
+			operation.previousTargets().size(),
+			replaceResult.currentCount()
+		);
 		return new ApplyResult(replaceResult.currentCount(), List.copyOf(feedbacks));
 	}
 

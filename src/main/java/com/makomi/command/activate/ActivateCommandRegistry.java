@@ -1,5 +1,6 @@
 package com.makomi.command.activate;
 
+import com.makomi.advancement.RedstoneLinkAdvancementService;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.command.CommandNodeTypeParseUtil;
 import com.makomi.command.CommandRateLimitService;
@@ -21,6 +22,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * 批量激活命令注册器。
@@ -172,6 +174,7 @@ public final class ActivateCommandRegistry {
 		int sourcesHandled = 0;
 		int handledTargets = 0;
 		int crossChunkHandled = 0;
+		ServerPlayer commandPlayer = source.getEntity() instanceof ServerPlayer serverPlayer ? serverPlayer : null;
 		for (long sourceSerial : sourceSerials) {
 			Set<Long> linkedTargets = savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
 			if (linkedTargets.isEmpty()) {
@@ -188,6 +191,13 @@ public final class ActivateCommandRegistry {
 			);
 			if (summary.handledCount() > 0) {
 				sourcesHandled++;
+			}
+			if (commandPlayer != null) {
+				RedstoneLinkAdvancementService.awardComeFindMeInTheEndIfMatched(
+					commandPlayer,
+					serverLevel.dimension(),
+					summary
+				);
 			}
 			handledTargets += summary.handledCount();
 			crossChunkHandled += summary.crossChunkHandledCount();

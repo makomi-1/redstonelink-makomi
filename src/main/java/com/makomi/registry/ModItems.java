@@ -5,6 +5,7 @@ import com.makomi.block.entity.ActivationMode;
 import com.makomi.item.LinkerItem;
 import com.makomi.item.PairableBlockItem;
 import com.makomi.item.QuickLinkToolItem;
+import com.makomi.item.RedstoneLinkComponentItem;
 import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.StatePanelToolItem;
 import com.makomi.data.LinkNodeType;
@@ -27,6 +28,38 @@ public final class ModItems {
 
 	public static final Item REDSTONE_LINK_COMPONENT = register(
 		"redstone_link_component",
+		new RedstoneLinkComponentItem(new Item.Properties())
+	);
+
+	/**
+	 * 成就图标专用物品，不在创造模式分组中输出。
+	 */
+	public static final Item ADV_WIRELESS_AGE_ICON = register(
+		"adv_wireless_age_icon",
+		new Item(new Item.Properties())
+	);
+
+	/**
+	 * 成就图标专用物品，不在创造模式分组中输出。
+	 */
+	public static final Item ADV_COME_FIND_ME_IN_THE_END_ICON = register(
+		"adv_come_find_me_in_the_end_icon",
+		new Item(new Item.Properties())
+	);
+
+	/**
+	 * 成就图标专用物品，不在创造模式分组中输出。
+	 */
+	public static final Item ADV_MASTER_STRATEGIST_ICON = register(
+		"adv_master_strategist_icon",
+		new Item(new Item.Properties())
+	);
+
+	/**
+	 * 成就图标专用物品，不在创造模式分组中输出。
+	 */
+	public static final Item ADV_CONSTELLATION_ICON = register(
+		"adv_constellation_icon",
 		new Item(new Item.Properties())
 	);
 

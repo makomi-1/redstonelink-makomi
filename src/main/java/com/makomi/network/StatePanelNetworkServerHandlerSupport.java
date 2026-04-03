@@ -1,5 +1,6 @@
 package com.makomi.network;
 
+import com.makomi.advancement.RedstoneLinkAdvancementService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkNodeSemantics;
@@ -154,6 +155,7 @@ final class StatePanelNetworkServerHandlerSupport {
 				Integer.toString(merged.size())
 			)
 		);
+		RedstoneLinkAdvancementService.awardMasterStrategist(player);
 		// 仅在本次确有新增订阅时回传一次快照，避免无效重复刷新。
 		sendSnapshot(player, merged);
 	}

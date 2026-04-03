@@ -1,0 +1,25 @@
+{
+  "display": {
+    "icon": {
+      "id": "redstonelink:adv_wireless_age_icon"
+    },
+    "title": {
+      "translate": "advancement.redstonelink.wireless_age.title"
+    },
+    "description": {
+      "translate": "advancement.redstonelink.wireless_age.description"
+    },
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
+    "x": 0.0,
+    "y": 0.0,
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "unlock": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

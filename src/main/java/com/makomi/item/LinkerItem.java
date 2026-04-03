@@ -1,5 +1,6 @@
 package com.makomi.item;
 
+import com.makomi.advancement.RedstoneLinkAdvancementService;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
@@ -363,6 +364,11 @@ public class LinkerItem extends Item implements PairableItem {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.no_reachable_targets"));
 			return;
 		}
+		RedstoneLinkAdvancementService.awardComeFindMeInTheEndIfMatched(
+			serverPlayer,
+			serverLevel.dimension(),
+			dispatchSummary
+		);
 		if (RedstoneLinkConfig.crossChunk().notifyEnabled() && dispatchSummary.hasCrossChunkHandled()) {
 			for (Component line : LinkedTargetDispatchService.buildCrossChunkNotifyMessages(dispatchSummary)) {
 				serverPlayer.sendSystemMessage(line);

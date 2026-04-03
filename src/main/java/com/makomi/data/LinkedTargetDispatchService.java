@@ -11,7 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
@@ -170,6 +172,7 @@ public final class LinkedTargetDispatchService {
 		int handledCount = 0;
 		List<Long> forceLoadTargetSerials = new ArrayList<>();
 		List<Long> relayTargetSerials = new ArrayList<>();
+		Set<ResourceKey<Level>> handledTargetDimensions = new java.util.HashSet<>();
 		List<Long> pendingTargetSerials = new ArrayList<>();
 		List<LinkSavedData.LinkNode> pendingTargetNodes = new ArrayList<>();
 		for (long targetSerial : targetSerials) {
@@ -226,6 +229,7 @@ public final class LinkedTargetDispatchService {
 				);
 			}
 			handledCount++;
+			handledTargetDimensions.add(targetLevel.dimension());
 		}
 
 		if (!pendingTargetNodes.isEmpty()) {
@@ -255,6 +259,7 @@ public final class LinkedTargetDispatchService {
 					continue;
 				}
 				handledCount++;
+				handledTargetDimensions.add(pendingTargetNodes.get(index).dimension());
 				if (queueResult.forceLoadPlanned()) {
 					forceLoadTargetSerials.add(pendingTargetSerials.get(index));
 				} else {
@@ -280,7 +285,8 @@ public final class LinkedTargetDispatchService {
 			targetSerials.size(),
 			handledCount,
 			immutableSortedSerials(forceLoadTargetSerials),
-			immutableSortedSerials(relayTargetSerials)
+			immutableSortedSerials(relayTargetSerials),
+			Set.copyOf(handledTargetDimensions)
 		);
 		logSyncFanoutIfSlow(
 			sourceLevel,
@@ -547,6 +553,7 @@ public final class LinkedTargetDispatchService {
 	 * @param handledCount 成功派发/入队数量
 	 * @param forceLoadTargetSerials 强加载链路接管目标
 	 * @param relayTargetSerials 中继缓冲链路接管目标
+	 * @param handledTargetDimensions 本次真正成功处理目标所处维度
 	 */
 	public record DispatchSummary(
 		LinkNodeType sourceType,
@@ -555,8 +562,15 @@ public final class LinkedTargetDispatchService {
 		int totalTargets,
 		int handledCount,
 		List<Long> forceLoadTargetSerials,
-		List<Long> relayTargetSerials
+		List<Long> relayTargetSerials,
+		Set<ResourceKey<Level>> handledTargetDimensions
 	) {
+		public DispatchSummary {
+			forceLoadTargetSerials = List.copyOf(forceLoadTargetSerials == null ? List.of() : forceLoadTargetSerials);
+			relayTargetSerials = List.copyOf(relayTargetSerials == null ? List.of() : relayTargetSerials);
+			handledTargetDimensions = Set.copyOf(handledTargetDimensions == null ? Set.of() : handledTargetDimensions);
+		}
+
 		/**
 		 * @return 强加载接管数量
 		 */
@@ -585,6 +599,13 @@ public final class LinkedTargetDispatchService {
 			return crossChunkHandledCount() > 0;
 		}
 
+		/**
+		 * 判断本次成功处理的目标中是否包含指定维度。
+		 */
+		public boolean hasHandledTargetInDimension(ResourceKey<Level> dimension) {
+			return dimension != null && handledTargetDimensions.contains(dimension);
+		}
+
 		private static DispatchSummary empty(
 			LinkNodeType sourceType,
 			long sourceSerial,
@@ -598,7 +619,8 @@ public final class LinkedTargetDispatchService {
 				targetSerials == null ? 0 : targetSerials.size(),
 				0,
 				List.of(),
-				List.of()
+				List.of(),
+				Set.of()
 			);
 		}
 	}

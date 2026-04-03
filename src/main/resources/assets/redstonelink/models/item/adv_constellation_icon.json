@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "redstonelink:item/adv_constellation_icon"
+  }
+}

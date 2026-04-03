@@ -77,7 +77,8 @@ class LinkedTargetDispatchServiceTest {
 			2,
 			0,
 			List.of(),
-			List.of()
+			List.of(),
+			Set.of()
 		);
 		assertTrue(LinkedTargetDispatchService.buildCrossChunkNotifyMessages(summary).isEmpty());
 	}
@@ -132,10 +133,31 @@ class LinkedTargetDispatchServiceTest {
 			3,
 			1,
 			List.of(11L, 12L),
-			List.of(21L)
+			List.of(21L),
+			Set.of()
 		);
 		assertEquals(3, summary.crossChunkHandledCount());
 		assertTrue(summary.hasCrossChunkHandled());
+	}
+
+	/**
+	 * DispatchSummary 应能报告“本次成功处理目标所在维度”。
+	 */
+	@Test
+	void dispatchSummaryShouldReportHandledTargetDimensions() {
+		LinkedTargetDispatchService.DispatchSummary summary = new LinkedTargetDispatchService.DispatchSummary(
+			LinkNodeType.TRIGGER_SOURCE,
+			1L,
+			LinkNodeType.CORE,
+			2,
+			1,
+			List.of(),
+			List.of(),
+			Set.of(net.minecraft.world.level.Level.END)
+		);
+
+		assertTrue(summary.hasHandledTargetInDimension(net.minecraft.world.level.Level.END));
+		assertFalse(summary.hasHandledTargetInDimension(net.minecraft.world.level.Level.NETHER));
 	}
 
 	/**
