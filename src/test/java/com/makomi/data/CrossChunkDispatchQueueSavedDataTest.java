@@ -7,8 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.config.RedstoneLinkConfigTestHelper;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Properties;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -383,6 +385,189 @@ class CrossChunkDispatchQueueSavedDataTest {
 		CrossChunkDispatchQueueSavedData.PendingDispatchEntry entry = data.pendingEntriesSnapshot().getFirst();
 		assertEquals(new BlockPos(9, 70, 9), entry.pos());
 		assertEquals(11, entry.syncSignalStrength());
+	}
+
+	/**
+	 * 队列达到容量上限后，应拒绝新增 key 的单条入队。
+	 */
+	@Test
+	void upsertPendingShouldRejectNewKeyWhenQueueCapacityReached() throws Exception {
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(queueCapacityProperties(1), () -> {
+			CrossChunkDispatchQueueSavedData data = new CrossChunkDispatchQueueSavedData();
+			CrossChunkDispatchQueueSavedData.UpsertResult first = data.upsertPending(
+				new CrossChunkDispatchQueueSavedData.DispatchKey(
+					LinkNodeType.TRIGGER_SOURCE,
+					31L,
+					LinkNodeType.CORE,
+					41L,
+					CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+				),
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+				Level.OVERWORLD,
+				BlockPos.ZERO,
+				ActivationMode.TOGGLE,
+				15,
+				0L,
+				0,
+				200L
+			);
+			CrossChunkDispatchQueueSavedData.UpsertResult second = data.upsertPending(
+				new CrossChunkDispatchQueueSavedData.DispatchKey(
+					LinkNodeType.TRIGGER_SOURCE,
+					32L,
+					LinkNodeType.CORE,
+					42L,
+					CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+				),
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+				Level.OVERWORLD,
+				new BlockPos(1, 64, 1),
+				ActivationMode.TOGGLE,
+				7,
+				1L,
+				0,
+				200L
+			);
+			assertTrue(first.accepted());
+			assertFalse(second.accepted());
+			assertEquals(1, data.pendingSize());
+		});
+	}
+
+	/**
+	 * 队列达到容量上限后，已存在 key 的覆盖更新仍应允许。
+	 */
+	@Test
+	void upsertPendingShouldAllowOverwriteWhenQueueCapacityReached() throws Exception {
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(queueCapacityProperties(1), () -> {
+			CrossChunkDispatchQueueSavedData data = new CrossChunkDispatchQueueSavedData();
+			CrossChunkDispatchQueueSavedData.DispatchKey key = new CrossChunkDispatchQueueSavedData.DispatchKey(
+				LinkNodeType.TRIGGER_SOURCE,
+				51L,
+				LinkNodeType.CORE,
+				61L,
+				CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+			);
+			CrossChunkDispatchQueueSavedData.UpsertResult first = data.upsertPending(
+				key,
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+				Level.OVERWORLD,
+				BlockPos.ZERO,
+				ActivationMode.TOGGLE,
+				3,
+				0L,
+				0,
+				200L
+			);
+			CrossChunkDispatchQueueSavedData.UpsertResult second = data.upsertPending(
+				key,
+				CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+				Level.OVERWORLD,
+				new BlockPos(2, 64, 2),
+				ActivationMode.TOGGLE,
+				9,
+				1L,
+				0,
+				220L
+			);
+			assertTrue(first.accepted());
+			assertTrue(second.accepted());
+			assertEquals(1, data.pendingSize());
+			assertEquals(2L, second.entry().version());
+			assertEquals(new BlockPos(2, 64, 2), data.pendingEntriesSnapshot().getFirst().pos());
+		});
+	}
+
+	/**
+	 * 批量 upsert 应只接受剩余容量内的新增 key，并允许已有 key 覆盖。
+	 */
+	@Test
+	void upsertPendingBatchShouldRejectNewKeysBeyondRemainingCapacity() throws Exception {
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(queueCapacityProperties(2), () -> {
+			CrossChunkDispatchQueueSavedData data = new CrossChunkDispatchQueueSavedData();
+			CrossChunkDispatchQueueSavedData.DispatchKey existingKey = new CrossChunkDispatchQueueSavedData.DispatchKey(
+				LinkNodeType.TRIGGER_SOURCE,
+				71L,
+				LinkNodeType.CORE,
+				81L,
+				CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+			);
+			assertTrue(
+				data.upsertPending(
+					existingKey,
+					CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+					Level.OVERWORLD,
+					BlockPos.ZERO,
+					ActivationMode.TOGGLE,
+					1,
+					0L,
+					0,
+					200L
+				).accepted()
+			);
+
+			List<CrossChunkDispatchQueueSavedData.UpsertResult> results = data.upsertPendingBatch(
+				List.of(
+					new CrossChunkDispatchQueueSavedData.PendingUpsertRequest(
+						existingKey,
+						CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+						Level.OVERWORLD,
+						new BlockPos(3, 64, 3),
+						ActivationMode.TOGGLE,
+						5,
+						2L,
+						0,
+						240L
+					),
+					new CrossChunkDispatchQueueSavedData.PendingUpsertRequest(
+						new CrossChunkDispatchQueueSavedData.DispatchKey(
+							LinkNodeType.TRIGGER_SOURCE,
+							72L,
+							LinkNodeType.CORE,
+							82L,
+							CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+						),
+						CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+						Level.OVERWORLD,
+						new BlockPos(4, 64, 4),
+						ActivationMode.TOGGLE,
+						6,
+						2L,
+						0,
+						240L
+					),
+					new CrossChunkDispatchQueueSavedData.PendingUpsertRequest(
+						new CrossChunkDispatchQueueSavedData.DispatchKey(
+							LinkNodeType.TRIGGER_SOURCE,
+							73L,
+							LinkNodeType.CORE,
+							83L,
+							CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+						),
+						CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+						Level.OVERWORLD,
+						new BlockPos(5, 64, 5),
+						ActivationMode.TOGGLE,
+						7,
+						2L,
+						0,
+						240L
+					)
+				)
+			);
+
+			assertEquals(3, results.size());
+			assertTrue(results.get(0).accepted());
+			assertTrue(results.get(1).accepted());
+			assertFalse(results.get(2).accepted());
+			assertEquals(2, data.pendingSize());
+		});
+	}
+
+	private static Properties queueCapacityProperties(int maxPendingEntries) {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.queue.maxPendingEntries", Integer.toString(maxPendingEntries));
+		return properties;
 	}
 
 	private static CrossChunkDispatchQueueSavedData invokeLoad(CompoundTag root) throws Exception {

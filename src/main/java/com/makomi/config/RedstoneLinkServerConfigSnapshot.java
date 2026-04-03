@@ -99,6 +99,7 @@ record RedstoneLinkServerConfigSnapshot(
 				true,
 				true,
 				200,
+				100_000,
 				500,
 				true,
 				RedstoneLinkConfig.CrossChunkForceLoadMode.WHITELIST,

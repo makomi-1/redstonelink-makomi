@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SignalStrengths;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,6 +35,25 @@ final class CrossChunkDispatchQueueStateSupport {
 		.thenComparingLong(ExpireIndex::version);
 
 	private CrossChunkDispatchQueueStateSupport() {
+	}
+
+	/**
+	 * 判断当前 key 是否允许继续入队。
+	 * <p>
+	 * 已存在 key 的覆盖更新始终允许；仅新增 key 会受总量硬上限约束。
+	 * </p>
+	 */
+	static boolean canAcceptPendingUpsert(
+		CrossChunkDispatchQueueSavedData data,
+		CrossChunkDispatchQueueSavedData.DispatchKey key
+	) {
+		if (data == null || key == null) {
+			return false;
+		}
+		if (data.pendingByKey.containsKey(key)) {
+			return true;
+		}
+		return data.pendingByKey.size() < resolveMaxPendingEntries();
 	}
 
 	/**
@@ -111,6 +131,9 @@ final class CrossChunkDispatchQueueStateSupport {
 			}
 			Integer lastIndex = lastValidIndexByKey.get(request.key());
 			if (lastIndex == null || lastIndex.intValue() != index) {
+				continue;
+			}
+			if (!canAcceptPendingUpsert(data, request.key())) {
 				continue;
 			}
 			Optional<CrossChunkDispatchQueueSavedData.PendingDispatchEntry> normalized = buildPendingEntry(
@@ -391,6 +414,13 @@ final class CrossChunkDispatchQueueStateSupport {
 	private static void markPendingSnapshotDirty(CrossChunkDispatchQueueSavedData data) {
 		data.pendingSnapshotDirty = true;
 		data.pendingSnapshotCache = List.of();
+	}
+
+	/**
+	 * 解析持久队列允许保留的最大 pending 数量。
+	 */
+	private static int resolveMaxPendingEntries() {
+		return Math.max(1, RedstoneLinkConfig.crossChunk().queueMaxPendingEntries());
 	}
 
 	/**

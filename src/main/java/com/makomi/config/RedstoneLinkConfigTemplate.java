@@ -341,6 +341,11 @@ final class RedstoneLinkConfigTemplate {
 			# en: Default TTL in ticks for the persisted cross-chunk dispatch queue.
 			crosschunk.queue.defaultTtlTicks=200
 
+			# crosschunk.queue.maxPendingEntries
+			# zh: 跨区块持久派发队列总量硬上限；达到上限后，新 key 直接拒绝入队，已有 key 仍允许覆盖更新。
+			# en: Hard limit of total persisted cross-chunk queue entries; new keys are rejected when full while existing keys may still be updated.
+			crosschunk.queue.maxPendingEntries=100000
+
 			# crosschunk.dispatch.maxPerTick
 			# zh: 每 tick 从跨区块持久队列最多处理的条目数，范围 1~20000。
 			# en: Maximum persisted cross-chunk queue entries processed per tick, range 1~20000.

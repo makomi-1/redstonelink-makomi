@@ -141,6 +141,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertFalse(snapshot.triggerSourceContextDetachInvalidationEnabled());
 		assertTrue(snapshot.queueEnabled());
 		assertEquals(200, snapshot.queueDefaultTtlTicks());
+		assertEquals(100_000, snapshot.queueMaxPendingEntries());
 		assertEquals(200, snapshot.retry().warnThreshold());
 		assertEquals(1000, snapshot.retry().errorThreshold());
 		assertEquals(2000, snapshot.retry().dropThreshold());
@@ -194,6 +195,22 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		highProperties.setProperty("crosschunk.dispatch.maxPerTick", "900000");
 		RedstoneLinkCrossChunkConfig highSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(highProperties);
 		assertEquals(20_000, highSnapshot.dispatchMaxPerTick());
+	}
+
+	/**
+	 * 持久派发队列总量上限应执行 1~2000000 的边界夹紧。
+	 */
+	@Test
+	void parseCrossChunkShouldClampQueueMaxPendingEntriesToRange() {
+		Properties lowProperties = new Properties();
+		lowProperties.setProperty("crosschunk.queue.maxPendingEntries", "-9");
+		RedstoneLinkCrossChunkConfig lowSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(lowProperties);
+		assertEquals(1, lowSnapshot.queueMaxPendingEntries());
+
+		Properties highProperties = new Properties();
+		highProperties.setProperty("crosschunk.queue.maxPendingEntries", "900000000");
+		RedstoneLinkCrossChunkConfig highSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(highProperties);
+		assertEquals(2_000_000, highSnapshot.queueMaxPendingEntries());
 	}
 
 	/**
@@ -291,10 +308,12 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		Properties properties = new Properties();
 		properties.setProperty("crosschunk.queue.enabled", "false");
 		properties.setProperty("crosschunk.queue.defaultTtlTicks", "345");
+		properties.setProperty("crosschunk.queue.maxPendingEntries", "6789");
 
 		RedstoneLinkCrossChunkConfig snapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(properties);
 		assertFalse(snapshot.queueEnabled());
 		assertEquals(345, snapshot.queueDefaultTtlTicks());
+		assertEquals(6789, snapshot.queueMaxPendingEntries());
 	}
 
 	/**

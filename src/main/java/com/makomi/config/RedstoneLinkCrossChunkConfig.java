@@ -27,6 +27,7 @@ public record RedstoneLinkCrossChunkConfig(
 	boolean triggerSourceContextDetachInvalidationEnabled,
 	boolean queueEnabled,
 	int queueDefaultTtlTicks,
+	int queueMaxPendingEntries,
 	int dispatchMaxPerTick,
 	boolean forceLoadEnabled,
 	RedstoneLinkConfig.CrossChunkForceLoadMode forceLoadMode,

@@ -64,6 +64,7 @@ final class RedstoneLinkCrossChunkConfigParser {
 			),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.queue.enabled", true),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.queue.defaultTtlTicks", 200, 1, 72_000),
+			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.queue.maxPendingEntries", 100_000, 1, 2_000_000),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.dispatch.maxPerTick", 500, 1, 20_000),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.forceLoad.enabled", true),
 			RedstoneLinkConfig.CrossChunkForceLoadMode.fromConfigValue(props.getProperty("crosschunk.forceLoad.mode", "whitelist")),

@@ -107,6 +107,9 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		int enqueueGameSlot,
 		long expireGameTick
 	) {
+		if (!CrossChunkDispatchQueueStateSupport.canAcceptPendingUpsert(this, key)) {
+			return UpsertResult.rejected();
+		}
 		Optional<PendingDispatchEntry> normalized = buildPendingEntry(
 			key,
 			dispatchAction,
