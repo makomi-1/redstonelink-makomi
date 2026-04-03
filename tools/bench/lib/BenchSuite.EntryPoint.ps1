@@ -303,6 +303,28 @@ try {
 			if (-not [string]::IsNullOrWhiteSpace($AsPlayer)) {
 				$benchArgs.AsPlayer = $AsPlayer
 			}
+			if (-not [string]::IsNullOrWhiteSpace($script:BenchClientPlayerName)) {
+				$benchArgs.BenchClientPlayerName = $script:BenchClientPlayerName
+			}
+			if (-not [string]::IsNullOrWhiteSpace($script:BenchClientCommandBridgeDispatchMode)) {
+				$benchArgs.BenchClientCommandBridgeDispatchMode = $script:BenchClientCommandBridgeDispatchMode
+			}
+			if ($null -ne $benchClientSession) {
+				$bridgeRequestFilePath = [string](Get-OptionalProperty -Object $benchClientSession -Name "commandBridgeRequestFilePath" -DefaultValue "")
+				$bridgeResponseFilePath = [string](Get-OptionalProperty -Object $benchClientSession -Name "commandBridgeResponseFilePath" -DefaultValue "")
+				if (-not [string]::IsNullOrWhiteSpace($bridgeRequestFilePath)) {
+					$benchArgs.BenchClientCommandBridgeRequestFilePath = $bridgeRequestFilePath
+				}
+				if (-not [string]::IsNullOrWhiteSpace($bridgeResponseFilePath)) {
+					$benchArgs.BenchClientCommandBridgeResponseFilePath = $bridgeResponseFilePath
+				}
+			}
+			if (
+				$benchArgs.ContainsKey("BenchClientCommandBridgeRequestFilePath") -or
+				$benchArgs.ContainsKey("BenchClientCommandBridgeResponseFilePath")
+			) {
+				Write-Host "[BenchSuite] Passing player bridge to bench mode=$($benchArgs.BenchClientCommandBridgeDispatchMode) request=$($benchArgs.BenchClientCommandBridgeRequestFilePath) response=$($benchArgs.BenchClientCommandBridgeResponseFilePath)"
+			}
 			if (@($PlayerSetupCommands).Count -gt 0) {
 				$benchArgs.PlayerSetupCommands = @($PlayerSetupCommands)
 			}
@@ -317,10 +339,31 @@ try {
 			}
 
 			$runException = $null
+			$previousBridgePlayerNameEnv = [string]$env:RL_BENCH_CLIENT_PLAYER_NAME
+			$previousBridgeRequestFileEnv = [string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_REQUEST_FILE_PATH
+			$previousBridgeResponseFileEnv = [string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_RESPONSE_FILE_PATH
+			$previousBridgeDispatchModeEnv = [string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_DISPATCH_MODE
+			if ($benchArgs.ContainsKey("BenchClientPlayerName")) {
+				$env:RL_BENCH_CLIENT_PLAYER_NAME = [string]$benchArgs.BenchClientPlayerName
+			}
+			if ($benchArgs.ContainsKey("BenchClientCommandBridgeRequestFilePath")) {
+				$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_REQUEST_FILE_PATH = [string]$benchArgs.BenchClientCommandBridgeRequestFilePath
+			}
+			if ($benchArgs.ContainsKey("BenchClientCommandBridgeResponseFilePath")) {
+				$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_RESPONSE_FILE_PATH = [string]$benchArgs.BenchClientCommandBridgeResponseFilePath
+			}
+			if ($benchArgs.ContainsKey("BenchClientCommandBridgeDispatchMode")) {
+				$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_DISPATCH_MODE = [string]$benchArgs.BenchClientCommandBridgeDispatchMode
+			}
 			try {
 				& $benchScriptPath @benchArgs
 			} catch {
 				$runException = $_.Exception
+			} finally {
+				$env:RL_BENCH_CLIENT_PLAYER_NAME = $previousBridgePlayerNameEnv
+				$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_REQUEST_FILE_PATH = $previousBridgeRequestFileEnv
+				$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_RESPONSE_FILE_PATH = $previousBridgeResponseFileEnv
+				$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_DISPATCH_MODE = $previousBridgeDispatchModeEnv
 			}
 
 			$resultPath = Find-NewBenchResultFile -ResultsDirPath $resultsDirPath -BeforeSnapshot $beforeSnapshot -CaseId $caseId -StartedAtUtc $startedAtUtc

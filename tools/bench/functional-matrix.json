@@ -19,6 +19,8 @@
     "cases/functional/c04/policy_runtime_basic.json",
     "cases/functional/c05/crosschunk_command_basic.json",
     "cases/functional/c06/command_boundary_matrix.json",
+    "cases/functional/c07/server_permission_read_write_basic.json",
+    "cases/functional/c08/server_permission_rate_limit_basic.json",
     "cases/functional/f02/link_lifecycle_add_remove_set_clear.json",
     "cases/functional/f03/sync_core_range_square_basic.json",
     "cases/functional/f03/sync_triggerSource_slash_square_basic.json",

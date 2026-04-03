@@ -32,6 +32,11 @@ final class PairingNetworkRegistrationSupport {
 		);
 		PayloadTypeRegistry.playS2C().register(PairingNetwork.OpenCorePairingPayload.TYPE, PairingNetwork.OpenCorePairingPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(
+			PairingNetwork.SubmitTriggerSourcePairingPayload.TYPE,
+			PairingNetwork.SubmitTriggerSourcePairingPayload.CODEC
+		);
+		PayloadTypeRegistry.playS2C().register(PairingNetwork.PairingFeedbackPayload.TYPE, PairingNetwork.PairingFeedbackPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(
 			PairingNetwork.RequestCurrentLinksPayload.TYPE,
 			PairingNetwork.RequestCurrentLinksPayload.CODEC
 		);
@@ -53,6 +58,13 @@ final class PairingNetworkRegistrationSupport {
 	 * 注册服务端全局接包器，并在切回主线程后委托给 server handler helper。
 	 */
 	private static void registerServerReceivers() {
+		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.SubmitTriggerSourcePairingPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> PairingNetworkServerHandlerSupport.handleSubmitTriggerSourcePairing(player, payload));
+		});
 		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.RequestCurrentLinksPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {

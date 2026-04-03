@@ -5,7 +5,25 @@ bench 模块：外部客户端实例自动启动、bench 配置写入与进程�
 
 $script:BenchClientWindowInteropInitialized = $false
 $script:BenchClientAppActivateShell = $null
-$script:BenchClientLauncherAutoJoinMinInitialDelayMs = 5000
+$script:BenchClientLauncherAutoJoinMinInitialDelayMs = 20000
+$script:BenchClientCommandBridgeRequestFileName = "redstonelink-bench-command-request.properties"
+$script:BenchClientCommandBridgeResponseFileName = "redstonelink-bench-command-response.properties"
+$script:BenchClientCommandBridgeDispatchMode = "server_network"
+$script:BenchClientCommandBridgeRequestFilePath = ""
+$script:BenchClientCommandBridgeResponseFilePath = ""
+$script:BenchClientLauncherDiscoveryTimeoutMs = 60000
+$script:BenchClientLogEvidenceTimeoutMs = 5000
+
+function Set-BenchClientCommandBridgeDispatchMode {
+	param(
+		[string]$DispatchMode
+	)
+	if ([string]::IsNullOrWhiteSpace($DispatchMode)) {
+		$script:BenchClientCommandBridgeDispatchMode = "server_network"
+		return
+	}
+	$script:BenchClientCommandBridgeDispatchMode = ([string]$DispatchMode).Trim().ToLowerInvariant()
+}
 
 function Assert-BenchClientIdentityCompatible {
 	param(
@@ -35,6 +53,43 @@ function Get-BenchClientConfigFilePath {
 	)
 	$configDirectoryPath = New-DirectoryIfMissing -Path (Join-Path $BenchClientInstanceRootPath "config")
 	return (Join-Path $configDirectoryPath "redstonelink-bench-client.properties")
+}
+
+function Get-BenchClientCommandBridgeRequestFilePath {
+	param(
+		[string]$BenchClientInstanceRootPath
+	)
+	$configDirectoryPath = New-DirectoryIfMissing -Path (Join-Path $BenchClientInstanceRootPath "config")
+	return (Join-Path $configDirectoryPath $script:BenchClientCommandBridgeRequestFileName)
+}
+
+function Get-BenchClientCommandBridgeResponseFilePath {
+	param(
+		[string]$BenchClientInstanceRootPath
+	)
+	$configDirectoryPath = New-DirectoryIfMissing -Path (Join-Path $BenchClientInstanceRootPath "config")
+	return (Join-Path $configDirectoryPath $script:BenchClientCommandBridgeResponseFileName)
+}
+
+function Remove-BenchClientCommandBridgeFile {
+	param(
+		[string]$Path
+	)
+	if ([string]::IsNullOrWhiteSpace($Path)) {
+		return
+	}
+	if (Test-Path -LiteralPath $Path -PathType Leaf) {
+		Remove-Item -LiteralPath $Path -Force
+	}
+}
+
+function Clear-BenchClientCommandBridgeFiles {
+	param(
+		[string]$RequestFilePath,
+		[string]$ResponseFilePath
+	)
+	Remove-BenchClientCommandBridgeFile -Path $RequestFilePath
+	Remove-BenchClientCommandBridgeFile -Path $ResponseFilePath
 }
 
 function Resolve-BenchClientInstanceRootPath {
@@ -112,6 +167,111 @@ function Remove-BenchClientAutomationConfigFile {
 	}
 	if (Test-Path -LiteralPath $ConfigFilePath -PathType Leaf) {
 		Remove-Item -LiteralPath $ConfigFilePath -Force
+	}
+}
+
+function Get-BenchClientAutomationLogFilePath {
+	param(
+		[string]$BenchClientInstanceRootPath
+	)
+	return (Join-Path (Join-Path $BenchClientInstanceRootPath 'logs') 'latest.log')
+}
+
+function Get-BenchClientFileSnapshot {
+	param(
+		[string]$Path
+	)
+	$snapshot = [pscustomobject]@{
+		exists = $false
+		path = $Path
+		length = 0L
+		lastWriteTimeUtc = [datetime]::MinValue
+	}
+	if ([string]::IsNullOrWhiteSpace($Path)) {
+		return $snapshot
+	}
+	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+		return $snapshot
+	}
+	$fileItem = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+	if ($null -eq $fileItem) {
+		return $snapshot
+	}
+	$snapshot.exists = $true
+	$snapshot.length = [long]$fileItem.Length
+	$snapshot.lastWriteTimeUtc = [datetime]$fileItem.LastWriteTimeUtc
+	return $snapshot
+}
+
+function Get-BenchClientLogStartupEvidence {
+	param(
+		[string]$LogFilePath,
+		$BaselineSnapshot,
+		[int]$TimeoutMs,
+		[int]$PollIntervalMs
+	)
+	if ([string]::IsNullOrWhiteSpace($LogFilePath)) {
+		return $null
+	}
+	$normalizedTimeoutMs = [Math]::Max(0, [int]$TimeoutMs)
+	$normalizedPollIntervalMs = [Math]::Max(250, [int]$PollIntervalMs)
+	$baselineExists = $false
+	$baselineLength = 0L
+	$baselineLastWriteTimeUtc = [datetime]::MinValue
+	if ($null -ne $BaselineSnapshot) {
+		if ($BaselineSnapshot.PSObject.Properties.Name -contains 'exists') {
+			$baselineExists = [bool]$BaselineSnapshot.exists
+		}
+		if ($BaselineSnapshot.PSObject.Properties.Name -contains 'length') {
+			$baselineLength = [long]$BaselineSnapshot.length
+		}
+		if ($BaselineSnapshot.PSObject.Properties.Name -contains 'lastWriteTimeUtc') {
+			$baselineLastWriteTimeUtc = [datetime]$BaselineSnapshot.lastWriteTimeUtc
+		}
+	}
+	$markers = @(
+		'Loading Minecraft '
+		'RedstoneLink client initialized'
+		'Bench client automation enabled'
+		'Connecting to '
+		'Environment: Environment['
+	)
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+	while ($true) {
+		$fileSnapshot = Get-BenchClientFileSnapshot -Path $LogFilePath
+		if ([bool]$fileSnapshot.exists) {
+			$logFileChanged = (-not $baselineExists) -or ([long]$fileSnapshot.length -gt $baselineLength) -or ([datetime]$fileSnapshot.lastWriteTimeUtc -gt $baselineLastWriteTimeUtc)
+			if ($logFileChanged) {
+				$logTailText = ''
+				try {
+					$logTailText = ((Get-Content -LiteralPath $LogFilePath -Encoding UTF8 -ErrorAction Stop | Select-Object -Last 120) -join "`n")
+				} catch {
+					$logTailText = ''
+				}
+				foreach ($marker in $markers) {
+					if ((-not [string]::IsNullOrWhiteSpace($logTailText)) -and $logTailText.Contains($marker)) {
+						return [pscustomobject]@{
+							source = 'clientLog'
+							marker = $marker
+							logFilePath = $LogFilePath
+							lastWriteTimeUtc = [datetime]$fileSnapshot.lastWriteTimeUtc
+							length = [long]$fileSnapshot.length
+						}
+					}
+				}
+				return [pscustomobject]@{
+					source = 'clientLog'
+					marker = 'log_file_updated'
+					logFilePath = $LogFilePath
+					lastWriteTimeUtc = [datetime]$fileSnapshot.lastWriteTimeUtc
+					length = [long]$fileSnapshot.length
+				}
+			}
+		}
+		if ($stopwatch.ElapsedMilliseconds -ge $normalizedTimeoutMs) {
+			return $null
+		}
+		Start-Sleep -Milliseconds $normalizedPollIntervalMs
 	}
 }
 
@@ -442,13 +602,16 @@ function Resolve-BenchClientTrackedProcess {
 		[System.Diagnostics.Process]$LauncherProcess,
 		[hashtable]$KnownJavaProcessIds,
 		[string]$InstanceRootPath,
-		[string]$WorkingDirectoryPath
+		[string]$WorkingDirectoryPath,
+		[string]$LogFilePath,
+		$LogFileSnapshot
 	)
 	$matchPaths = Get-BenchClientMatchPaths -InstanceRootPath $InstanceRootPath -WorkingDirectoryPath $WorkingDirectoryPath
 	$launcherProcessId = if ($null -eq $LauncherProcess) { 0 } else { ([int]$LauncherProcess.Id) }
 	$launcherExitProbeDelayMs = 1200
 	$quickChildDiscoveryTimeoutMs = 2500
-	$launcherChildDiscoveryTimeoutMs = 30000
+	$launcherChildDiscoveryTimeoutMs = [Math]::Max(30000, [int]$script:BenchClientLauncherDiscoveryTimeoutMs)
+	$logEvidenceTimeoutMs = [Math]::Max(0, [int]$script:BenchClientLogEvidenceTimeoutMs)
 	$pollIntervalMs = 250
 
 	Start-Sleep -Milliseconds $launcherExitProbeDelayMs
@@ -530,6 +693,48 @@ function Resolve-BenchClientTrackedProcess {
 			trackedProcessId = $launcherProcessId
 			trackedProcessKind = "launcherProcess"
 			matchPaths = $matchPaths
+		}
+	}
+
+	# 若启动窗口内没及时拿到 Java 句柄，但实例日志已经明确出现新的客户端输出，则继续放行，
+	# 后续等待玩家 ready / 收尾时再按 matchPaths 重新发现真实进程，避免“客户端已起但 suite 提前判死”。
+	$startupEvidence = Get-BenchClientLogStartupEvidence `
+		-LogFilePath $LogFilePath `
+		-BaselineSnapshot $LogFileSnapshot `
+		-TimeoutMs $logEvidenceTimeoutMs `
+		-PollIntervalMs 500
+	if ($null -ne $startupEvidence) {
+		$runningGameProcessInfo = Get-BenchClientRunningGameProcessInfo `
+			-CandidatePaths $matchPaths `
+			-LauncherProcessId $launcherProcessId `
+			-PreferredProcessId 0
+		if ($null -ne $runningGameProcessInfo) {
+			$gameProcessId = ([int]$runningGameProcessInfo.processId)
+			$gameProcess = Get-BenchClientManagedProcess -ProcessId $gameProcessId -RetryCount 5 -RetryDelayMs 100
+			if ($null -ne $gameProcess) {
+				return [pscustomobject]@{
+					launcherProcess = $LauncherProcess
+					launcherProcessId = $launcherProcessId
+					gameProcess = $gameProcess
+					gameProcessId = $gameProcessId
+					trackedProcess = $gameProcess
+					trackedProcessId = $gameProcessId
+					trackedProcessKind = "gameProcess"
+					matchPaths = $matchPaths
+					startupEvidence = $startupEvidence
+				}
+			}
+		}
+		return [pscustomobject]@{
+			launcherProcess = $LauncherProcess
+			launcherProcessId = $launcherProcessId
+			gameProcess = $null
+			gameProcessId = 0
+			trackedProcess = $null
+			trackedProcessId = 0
+			trackedProcessKind = "detachedLogObserved"
+			matchPaths = $matchPaths
+			startupEvidence = $startupEvidence
 		}
 	}
 
@@ -848,13 +1053,16 @@ function Get-BenchClientSessionSummary {
 		instanceRootPath = $Session.instanceRootPath
 		workingDirectoryPath = $Session.workingDirectoryPath
 		modsDirectoryPath = $Session.modsDirectoryPath
+		logFilePath = (Get-OptionalProperty -Object $Session -Name "logFilePath" -DefaultValue "")
 		processId = $Session.processId
 		launcherProcessId = $Session.launcherProcessId
 		gameProcessId = $Session.gameProcessId
 		trackedProcessId = $Session.trackedProcessId
 		trackedProcessKind = $Session.trackedProcessKind
+		startupEvidence = (Get-OptionalProperty -Object $Session -Name "startupEvidence" -DefaultValue $null)
 		serverHost = $Session.serverHost
 		serverPort = $Session.serverPort
+		commandBridgeDispatchMode = (Get-OptionalProperty -Object $Session -Name "commandBridgeDispatchMode" -DefaultValue "server_network")
 		reconnectIntervalMs = $Session.reconnectIntervalMs
 		initialConnectDelayMs = $Session.initialConnectDelayMs
 		configuredInitialConnectDelayMs = $Session.configuredInitialConnectDelayMs
@@ -914,6 +1122,10 @@ function Start-BenchClientAutomationSession {
 	$workingDirectoryPath = Resolve-BenchClientWorkingDirectoryPath -BenchClientInstanceRootPath $instanceRootPath
 	$modsDirectoryPath = Resolve-BenchClientModsDirectoryPath -BenchClientInstanceRootPath $instanceRootPath
 	$configFilePath = Get-BenchClientConfigFilePath -BenchClientInstanceRootPath $instanceRootPath
+	$requestFilePath = Get-BenchClientCommandBridgeRequestFilePath -BenchClientInstanceRootPath $instanceRootPath
+	$responseFilePath = Get-BenchClientCommandBridgeResponseFilePath -BenchClientInstanceRootPath $instanceRootPath
+	$logFilePath = Get-BenchClientAutomationLogFilePath -BenchClientInstanceRootPath $instanceRootPath
+	$logFileSnapshot = Get-BenchClientFileSnapshot -Path $logFilePath
 	$matchPaths = Get-BenchClientMatchPaths -InstanceRootPath $instanceRootPath -WorkingDirectoryPath $workingDirectoryPath
 	$launcherAutoJoinDetected = Test-BenchClientStartCommandUsesLauncherAutoJoin -Command $script:BenchClientStartCommand
 	$effectiveInitialConnectDelayMs = Get-BenchClientEffectiveInitialConnectDelayMs `
@@ -955,6 +1167,10 @@ function Start-BenchClientAutomationSession {
 			workingDirectoryPath = $workingDirectoryPath
 			modsDirectoryPath = $modsDirectoryPath
 			configFilePath = $configFilePath
+			commandBridgeRequestFilePath = $requestFilePath
+			commandBridgeResponseFilePath = $responseFilePath
+			commandBridgeDispatchMode = $script:BenchClientCommandBridgeDispatchMode
+			logFilePath = $logFilePath
 			playerName = $script:BenchClientPlayerName
 			serverHost = $script:BenchClientGameHost
 			serverPort = $script:BenchClientGamePort
@@ -976,6 +1192,9 @@ function Start-BenchClientAutomationSession {
 		Write-Host "[Bench] Detected launcher auto-join via --server; raised bench client initial connect delay to ${effectiveInitialConnectDelayMs}ms."
 	}
 
+	Clear-BenchClientCommandBridgeFiles -RequestFilePath $requestFilePath -ResponseFilePath $responseFilePath
+	$script:BenchClientCommandBridgeRequestFilePath = $requestFilePath
+	$script:BenchClientCommandBridgeResponseFilePath = $responseFilePath
 	Write-BenchClientAutomationConfigFile `
 		-ConfigFilePath $configFilePath `
 		-PlayerName $script:BenchClientPlayerName `
@@ -994,7 +1213,9 @@ function Start-BenchClientAutomationSession {
 			-LauncherProcess $launcherProcess `
 			-KnownJavaProcessIds $knownJavaProcessIds `
 			-InstanceRootPath $instanceRootPath `
-			-WorkingDirectoryPath $workingDirectoryPath
+			-WorkingDirectoryPath $workingDirectoryPath `
+			-LogFilePath $logFilePath `
+			-LogFileSnapshot $logFileSnapshot
 		$session = [pscustomobject]@{
 			process = $trackedSession.trackedProcess
 			processId = $trackedSession.trackedProcessId
@@ -1010,6 +1231,10 @@ function Start-BenchClientAutomationSession {
 			workingDirectoryPath = $workingDirectoryPath
 			modsDirectoryPath = $modsDirectoryPath
 			configFilePath = $configFilePath
+			commandBridgeRequestFilePath = $requestFilePath
+			commandBridgeResponseFilePath = $responseFilePath
+			commandBridgeDispatchMode = $script:BenchClientCommandBridgeDispatchMode
+			logFilePath = $logFilePath
 			playerName = $script:BenchClientPlayerName
 			serverHost = $script:BenchClientGameHost
 			serverPort = $script:BenchClientGamePort
@@ -1023,12 +1248,20 @@ function Start-BenchClientAutomationSession {
 			focusEvents = (New-BenchClientFocusEventList)
 			focusResult = $null
 			modSync = $modSyncSummary
+			startupEvidence = (Get-OptionalProperty -Object $trackedSession -Name "startupEvidence" -DefaultValue $null)
 		}
-		Write-Host "[Bench] Started bench client trackedPid=$($trackedSession.trackedProcessId) kind=$($trackedSession.trackedProcessKind) player=$($script:BenchClientPlayerName) initialConnectDelayMs=$effectiveInitialConnectDelayMs launcherAutoJoin=$([bool]$launcherAutoJoinDetected)"
+		$startupEvidence = Get-OptionalProperty -Object $trackedSession -Name "startupEvidence" -DefaultValue $null
+		if ($null -ne $startupEvidence) {
+			Write-Host "[Bench] Bench client startup evidence source=$($startupEvidence.source) marker=$($startupEvidence.marker) log=$($startupEvidence.logFilePath)"
+		}
+		Write-Host "[Bench] Started bench client trackedPid=$($trackedSession.trackedProcessId) kind=$($trackedSession.trackedProcessKind) player=$($script:BenchClientPlayerName) initialConnectDelayMs=$effectiveInitialConnectDelayMs launcherAutoJoin=$([bool]$launcherAutoJoinDetected) bridgeDispatchMode=$($script:BenchClientCommandBridgeDispatchMode)"
 		Invoke-BenchClientRefocus -Session $session -StageName "launch_start" | Out-Null
 		return $session
 	} catch {
 		Remove-BenchClientAutomationConfigFile -ConfigFilePath $configFilePath
+		Clear-BenchClientCommandBridgeFiles -RequestFilePath $requestFilePath -ResponseFilePath $responseFilePath
+		$script:BenchClientCommandBridgeRequestFilePath = ""
+		$script:BenchClientCommandBridgeResponseFilePath = ""
 		throw
 	}
 }
@@ -1078,9 +1311,20 @@ function Stop-BenchClientAutomationSession {
 		}
 	} finally {
 		$configFilePath = ""
+		$requestFilePath = ""
+		$responseFilePath = ""
 		if (($null -ne $Session) -and ($Session.PSObject.Properties.Name -contains "configFilePath")) {
 			$configFilePath = [string]$Session.configFilePath
 		}
+		if (($null -ne $Session) -and ($Session.PSObject.Properties.Name -contains "commandBridgeRequestFilePath")) {
+			$requestFilePath = [string]$Session.commandBridgeRequestFilePath
+		}
+		if (($null -ne $Session) -and ($Session.PSObject.Properties.Name -contains "commandBridgeResponseFilePath")) {
+			$responseFilePath = [string]$Session.commandBridgeResponseFilePath
+		}
 		Remove-BenchClientAutomationConfigFile -ConfigFilePath $configFilePath
+		Clear-BenchClientCommandBridgeFiles -RequestFilePath $requestFilePath -ResponseFilePath $responseFilePath
+		$script:BenchClientCommandBridgeRequestFilePath = ""
+		$script:BenchClientCommandBridgeResponseFilePath = ""
 	}
 }

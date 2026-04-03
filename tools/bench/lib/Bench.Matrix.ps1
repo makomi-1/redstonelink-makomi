@@ -33,13 +33,23 @@ function Resolve-PathFromBase {
 		[string]$BaseDirectory,
 		[string]$CandidatePath
 	)
-	if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
+	$normalizedCandidatePath = if ($null -eq $CandidatePath) {
+		""
+	} else {
+		([string]$CandidatePath).Trim().Trim('"')
+	}
+	if ([string]::IsNullOrWhiteSpace($normalizedCandidatePath)) {
 		return $null
 	}
-	if ([System.IO.Path]::IsPathRooted($CandidatePath)) {
-		return [System.IO.Path]::GetFullPath($CandidatePath)
+	$normalizedBaseDirectory = if ($null -eq $BaseDirectory) {
+		""
+	} else {
+		([string]$BaseDirectory).Trim().Trim('"')
 	}
-	return [System.IO.Path]::GetFullPath((Join-Path $BaseDirectory $CandidatePath))
+	if ([System.IO.Path]::IsPathRooted($normalizedCandidatePath)) {
+		return [System.IO.Path]::GetFullPath($normalizedCandidatePath)
+	}
+	return [System.IO.Path]::GetFullPath((Join-Path $normalizedBaseDirectory $normalizedCandidatePath))
 }
 
 function ConvertTo-NormalizedBenchValue {

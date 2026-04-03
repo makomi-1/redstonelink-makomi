@@ -206,6 +206,31 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected abstract LinkNodeType sourceType();
 
 	/**
+	 * 提交配对写入请求。
+	 * <p>
+	 * 默认仍走命令兼容链路，子类可覆写为结构化 payload。
+	 * </p>
+	 *
+	 * @param sourceSerial 来源节点序列号
+	 * @param rawTargetsInput 输入框中的原始目标文本
+	 */
+	protected void submitPairingRequest(long sourceSerial, String rawTargetsInput) {
+		sendSetLinksCommand(sourceSerial, rawTargetsInput);
+	}
+
+	/**
+	 * 提交清空请求。
+	 * <p>
+	 * 默认仍走命令兼容链路，子类可覆写为结构化 payload。
+	 * </p>
+	 *
+	 * @param sourceSerial 来源节点序列号
+	 */
+	protected void clearPairingRequest(long sourceSerial) {
+		sendClearLinksCommand(sourceSerial);
+	}
+
+	/**
 	 * 发送覆盖式 `link set` 命令。
 	 *
 	 * @param sourceSerial 来源节点序列号
@@ -461,7 +486,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
-		sendSetLinksCommand(sourceSerial, validation.normalizedExpression());
+		submitPairingRequest(sourceSerial, validation.normalizedExpression());
 		onClose();
 	}
 
@@ -474,7 +499,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
-		sendClearLinksCommand(sourceSerial);
+		clearPairingRequest(sourceSerial);
 		onClose();
 	}
 

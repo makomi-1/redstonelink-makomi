@@ -26,6 +26,9 @@ param(
 	[int]$BenchClientFocusTimeoutMs = 15000,
 	[switch]$BenchClientOpenTickCharts,
 	[int]$BenchClientPostJoinActionDelayMs = 1000,
+	[ValidateSet("server_network", "client_direct_command")][string]$BenchClientCommandBridgeDispatchMode = "server_network",
+	[string]$BenchClientCommandBridgeRequestFilePath,
+	[string]$BenchClientCommandBridgeResponseFilePath,
 	[switch]$SyncLatestClientModJar,
 	[switch]$BuildBeforeSyncLatestModJar,
 	[string]$BuildTask = "remapJar",
@@ -57,7 +60,15 @@ if ($AutoStartBenchClient) {
 }
 $script:BenchAsPlayer = $AsPlayer
 $script:BenchAutoStartClient = [bool]$AutoStartBenchClient
-$script:BenchClientPlayerName = if ([string]::IsNullOrWhiteSpace($BenchClientPlayerName)) { "" } else { $BenchClientPlayerName.Trim() }
+$benchClientPlayerNameRaw = if (
+	[string]::IsNullOrWhiteSpace($BenchClientPlayerName) -and
+	-not [string]::IsNullOrWhiteSpace([string]$env:RL_BENCH_CLIENT_PLAYER_NAME)
+) {
+	[string]$env:RL_BENCH_CLIENT_PLAYER_NAME
+} else {
+	[string]$BenchClientPlayerName
+}
+$script:BenchClientPlayerName = if ([string]::IsNullOrWhiteSpace($benchClientPlayerNameRaw)) { "" } else { $benchClientPlayerNameRaw.Trim() }
 $script:BenchClientInstanceRoot = if ([string]::IsNullOrWhiteSpace($BenchClientInstanceRoot)) { "" } else { $BenchClientInstanceRoot.Trim() }
 $script:BenchClientWorkingDirectory = if ([string]::IsNullOrWhiteSpace($BenchClientWorkingDirectory)) { "" } else { $BenchClientWorkingDirectory.Trim() }
 $script:BenchClientStartCommand = if ([string]::IsNullOrWhiteSpace($BenchClientStartCommand)) { "" } else { $BenchClientStartCommand.Trim() }
@@ -70,6 +81,43 @@ $script:BenchClientFocusWindow = [bool]$BenchClientFocusWindow
 $script:BenchClientFocusTimeoutMs = [Math]::Max(1000, [int]$BenchClientFocusTimeoutMs)
 $script:BenchClientOpenTickCharts = [bool]$BenchClientOpenTickCharts
 $script:BenchClientPostJoinActionDelayMs = [Math]::Max(0, [int]$BenchClientPostJoinActionDelayMs)
+$benchClientCommandBridgeDispatchModeRaw = if (
+	([string]::IsNullOrWhiteSpace($BenchClientCommandBridgeDispatchMode)) -or
+	([string]::Equals([string]$BenchClientCommandBridgeDispatchMode, "server_network", [System.StringComparison]::OrdinalIgnoreCase) -and
+		-not [string]::IsNullOrWhiteSpace([string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_DISPATCH_MODE))
+) {
+	[string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_DISPATCH_MODE
+} else {
+	[string]$BenchClientCommandBridgeDispatchMode
+}
+$script:BenchClientCommandBridgeDispatchMode = if ([string]::IsNullOrWhiteSpace($benchClientCommandBridgeDispatchModeRaw)) { "server_network" } else { $benchClientCommandBridgeDispatchModeRaw.Trim().ToLowerInvariant() }
+$benchClientCommandBridgeRequestFilePathRaw = if (
+	[string]::IsNullOrWhiteSpace($BenchClientCommandBridgeRequestFilePath) -and
+	-not [string]::IsNullOrWhiteSpace([string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_REQUEST_FILE_PATH)
+) {
+	[string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_REQUEST_FILE_PATH
+} else {
+	[string]$BenchClientCommandBridgeRequestFilePath
+}
+$script:BenchClientCommandBridgeRequestFilePath = if ([string]::IsNullOrWhiteSpace($benchClientCommandBridgeRequestFilePathRaw)) {
+	""
+} else {
+	$benchClientCommandBridgeRequestFilePathRaw.Trim()
+}
+$benchClientCommandBridgeResponseFilePathRaw = if (
+	[string]::IsNullOrWhiteSpace($BenchClientCommandBridgeResponseFilePath) -and
+	-not [string]::IsNullOrWhiteSpace([string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_RESPONSE_FILE_PATH)
+) {
+	[string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_RESPONSE_FILE_PATH
+} else {
+	[string]$BenchClientCommandBridgeResponseFilePath
+}
+$script:BenchClientCommandBridgeResponseFilePath = if ([string]::IsNullOrWhiteSpace($benchClientCommandBridgeResponseFilePathRaw)) {
+	""
+} else {
+	$benchClientCommandBridgeResponseFilePathRaw.Trim()
+}
+Set-BenchClientCommandBridgeDispatchMode -DispatchMode $script:BenchClientCommandBridgeDispatchMode
 $script:BenchSyncLatestClientModJar = [bool]$SyncLatestClientModJar
 $script:BenchBuildBeforeSyncLatestModJar = [bool]$BuildBeforeSyncLatestModJar
 $script:BenchBuildTask = if ([string]::IsNullOrWhiteSpace($BuildTask)) { "remapJar" } else { $BuildTask.Trim() }
@@ -97,6 +145,18 @@ $script:BenchAutoTeleportPlayerToObservationPoint = [bool]$AutoTeleportPlayerToO
 . (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.World.ps1"))
 . (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.PerfSpark.ps1"))
 . (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.Rcon.ps1"))
+Set-BenchPlayerCommandBridgeContext `
+	-AsPlayer $script:BenchAsPlayer `
+	-BenchClientPlayerName $script:BenchClientPlayerName `
+	-RequestFilePath $script:BenchClientCommandBridgeRequestFilePath `
+	-ResponseFilePath $script:BenchClientCommandBridgeResponseFilePath `
+	-DispatchMode $script:BenchClientCommandBridgeDispatchMode
+if (
+	(-not [string]::IsNullOrWhiteSpace($script:BenchClientCommandBridgeRequestFilePath)) -or
+	(-not [string]::IsNullOrWhiteSpace($script:BenchClientCommandBridgeResponseFilePath))
+) {
+	Write-Host "[Bench] Player command bridge context player=$($script:BenchClientPlayerName) mode=$($script:BenchClientCommandBridgeDispatchMode) request=$($script:BenchClientCommandBridgeRequestFilePath) response=$($script:BenchClientCommandBridgeResponseFilePath)"
+}
 . (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.PlaceAndLink.ps1"))
 . (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.FunctionalTrace.ps1"))
 . (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.Results.ps1"))

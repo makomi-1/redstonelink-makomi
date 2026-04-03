@@ -1,5 +1,6 @@
 package com.makomi.network;
 
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,8 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 final class PairingNetworkPayloadSupport {
 	static final int DIMENSION_KEY_MAX_LENGTH = 128;
 	static final int NODE_TYPE_MAX_LENGTH = 32;
+	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
+	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
 
 	private PairingNetworkPayloadSupport() {
 	}
@@ -59,6 +62,45 @@ final class PairingNetworkPayloadSupport {
 	static PairingNetwork.OpenCorePairingPayload decodeCorePairingPayload(FriendlyByteBuf buffer) {
 		DecodedPayload payload = decodePairingPayload(buffer);
 		return new PairingNetwork.OpenCorePairingPayload(payload.sourceSerial(), payload.targets());
+	}
+
+	/**
+	 * 编码 triggerSource 配对提交包。
+	 */
+	static void encodeSubmitTriggerSourcePairingPayload(FriendlyByteBuf buffer, long sourceSerial, String targetsExpression) {
+		buffer.writeVarLong(Math.max(0L, sourceSerial));
+		buffer.writeUtf(targetsExpression == null ? "" : targetsExpression, RedstoneLinkConfig.command().linkSetMaxInputLength());
+	}
+
+	/**
+	 * 解码 triggerSource 配对提交包。
+	 */
+	static PairingNetwork.SubmitTriggerSourcePairingPayload decodeSubmitTriggerSourcePairingPayload(FriendlyByteBuf buffer) {
+		return new PairingNetwork.SubmitTriggerSourcePairingPayload(
+			buffer.readVarLong(),
+			buffer.readUtf(RedstoneLinkConfig.command().linkSetMaxInputLength())
+		);
+	}
+
+	/**
+	 * 编码配对反馈回执。
+	 */
+	static void encodeFeedbackPayload(FriendlyByteBuf buffer, boolean success, String messageKey, List<String> messageArgs) {
+		buffer.writeBoolean(success);
+		buffer.writeUtf(messageKey == null ? "" : messageKey, FEEDBACK_MESSAGE_KEY_MAX_LENGTH);
+		List<String> args = messageArgs == null ? List.of() : List.copyOf(messageArgs);
+		buffer.writeVarInt(args.size());
+		for (String arg : args) {
+			buffer.writeUtf(arg == null ? "" : arg, FEEDBACK_MESSAGE_ARG_MAX_LENGTH);
+		}
+	}
+
+	/**
+	 * 解码配对反馈回执。
+	 */
+	static PairingNetwork.PairingFeedbackPayload decodePairingFeedbackPayload(FriendlyByteBuf buffer) {
+		DecodedFeedbackPayload payload = decodeFeedbackPayload(buffer);
+		return new PairingNetwork.PairingFeedbackPayload(payload.success(), payload.messageKey(), payload.messageArgs());
 	}
 
 	/**
@@ -230,6 +272,20 @@ final class PairingNetworkPayloadSupport {
 	}
 
 	/**
+	 * 解码配对反馈回执。
+	 */
+	private static DecodedFeedbackPayload decodeFeedbackPayload(FriendlyByteBuf buffer) {
+		boolean success = buffer.readBoolean();
+		String messageKey = buffer.readUtf(FEEDBACK_MESSAGE_KEY_MAX_LENGTH);
+		int size = buffer.readVarInt();
+		List<String> messageArgs = new ArrayList<>(Math.max(size, 0));
+		for (int index = 0; index < size; index++) {
+			messageArgs.add(buffer.readUtf(FEEDBACK_MESSAGE_ARG_MAX_LENGTH));
+		}
+		return new DecodedFeedbackPayload(success, messageKey, List.copyOf(messageArgs));
+	}
+
+	/**
 	 * 通用配对 payload 解码结果。
 	 */
 	private record DecodedPayload(long sourceSerial, List<Long> targets) {}
@@ -254,4 +310,9 @@ final class PairingNetworkPayloadSupport {
 		long sourceSerial,
 		List<Long> targets
 	) {}
+
+	/**
+	 * 配对反馈回执解码结果。
+	 */
+	private record DecodedFeedbackPayload(boolean success, String messageKey, List<String> messageArgs) {}
 }

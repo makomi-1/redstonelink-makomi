@@ -195,117 +195,29 @@ public final class LinkCommandRegistry {
 		ServerLevel level = source.getLevel();
 
 		long sourceSerial = LongArgumentType.getLong(context, "source_serial");
-		LinkSavedData savedData = LinkSavedData.get(level);
-		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
-			return 0;
-		}
-
-		Set<Long> targets;
 		String rawTargets = "";
-		int maxTargets = RedstoneLinkConfig.general().maxTargetsPerSetLinks();
 		if (!hasTargets) {
-			targets = Set.of();
 		} else {
 			rawTargets = SerialBatchArgumentType.getSerialBatch(context, "targets");
-			int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
-			if (rawTargets.length() > maxInputLength) {
-				source.sendFailure(Component.translatable("message.redstonelink.link.set.input_too_long", maxInputLength));
-				return 0;
-			}
-			LinkCommandSupport.TargetParseResult parseResult = LinkCommandSupport.parseTargetSerials(rawTargets, maxTargets);
-			if (!parseResult.invalidEntries().isEmpty()) {
-				source.sendFailure(
-					Component.translatable(
-						"message.redstonelink.invalid_target_tokens",
-						String.join(", ", parseResult.invalidEntries())
-					)
-				);
-				return 0;
-			}
-			if (parseResult.exceedLimit()) {
-				source.sendFailure(Component.translatable("message.redstonelink.too_many_targets", maxTargets));
-				return 0;
-			}
-			targets = parseResult.targets();
-			if (!parseResult.duplicateEntries().isEmpty()) {
-				source.sendSuccess(
-					() -> Component.translatable(
-						"message.redstonelink.duplicate_targets_deduped",
-						CommandTreeSupport.formatSerialCollection(parseResult.duplicateEntries())
-					),
-					false
-				);
-			}
 		}
-		if (targets.size() > maxTargets) {
-			source.sendFailure(Component.translatable("message.redstonelink.too_many_targets", maxTargets));
-			return 0;
-		}
-		int commandCost = CommandRateLimitService.computeBatchCost(2, targets.size(), 64);
-		if (
-			!CommandRateLimitService.tryAcquireOrSendFailure(
-				source,
-				CommandRateLimitService.CommandGroup.LINK_RW,
-				commandCost
-			)
-		) {
+
+		LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
+			level,
+			player,
+			sourceType,
+			sourceSerial,
+			rawTargets,
+			source.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			source.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+		);
+		if (!preparationResult.successful()) {
+			sendOperationFeedbacks(source, preparationResult.feedbacks());
 			return 0;
 		}
 
-		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
-		List<Long> unallocatedTargets = new ArrayList<>();
-		List<Long> retiredTargets = new ArrayList<>();
-		List<Long> offlineTargets = new ArrayList<>();
-		for (long targetSerial : targets) {
-			if (!savedData.isSerialAllocated(targetType, targetSerial)) {
-				unallocatedTargets.add(targetSerial);
-				continue;
-			}
-			if (savedData.isSerialRetired(targetType, targetSerial)) {
-				retiredTargets.add(targetSerial);
-				continue;
-			}
-			if (savedData.findNode(targetType, targetSerial).isEmpty()) {
-				offlineTargets.add(targetSerial);
-			}
-		}
-		if (!unallocatedTargets.isEmpty()) {
-			source.sendFailure(
-				Component.translatable(
-					"message.redstonelink.invalid_target_unallocated",
-					CommandTreeSupport.formatSerialList(unallocatedTargets)
-				)
-			);
-			return 0;
-		}
-		if (!retiredTargets.isEmpty()) {
-			source.sendFailure(
-				Component.translatable(
-					"message.redstonelink.invalid_target_retired",
-					CommandTreeSupport.formatSerialList(retiredTargets)
-				)
-			);
-			return 0;
-		}
-		boolean allowOfflineBinding = RedstoneLinkConfig.general().allowOfflineTargetBinding();
-		if (!allowOfflineBinding && !offlineTargets.isEmpty()) {
-			source.sendFailure(
-				Component.translatable(
-					"message.redstonelink.offline_targets_blocked",
-					CommandTreeSupport.formatSerialList(offlineTargets)
-				)
-			);
-			return 0;
-		}
-
-		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
-		Set<Long> affectedTargets = new HashSet<>(previousTargets);
-		affectedTargets.addAll(targets);
-		if (!LinkCommandSupport.checkLinkWriteAllowed(source, level, sourceType, sourceSerial, affectedTargets, targets.size())) {
-			return 0;
-		}
-
-		if (hasTargets && targets.size() > 1 && !confirmed) {
+		sendOperationFeedbacks(source, preparationResult.feedbacks());
+		LinkSetExecutionService.PreparedReplaceOperation operation = preparationResult.operation();
+		if (hasTargets && operation.targets().size() > 1 && !confirmed) {
 			String confirmCommand = "redstonelink link set "
 				+ CommandTreeSupport.typeCommandName(sourceType)
 				+ " "
@@ -316,52 +228,49 @@ public final class LinkCommandRegistry {
 			source.sendFailure(
 				Component.translatable(
 					"message.redstonelink.set_links.confirm_required",
-					targets.size(),
+					operation.targets().size(),
 					confirmCommand
 				)
 			);
 			return 0;
 		}
-		LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceLinksBySourceType(sourceType, sourceSerial, targets);
-		if (replaceResult.addedCount() > 0) {
-			Set<Long> addedTargets = new HashSet<>(targets);
-			addedTargets.removeAll(previousTargets);
-			if (!addedTargets.isEmpty()) {
-				InternalDispatchDeltaEvents.publishLinkAttached(
-					level,
-					sourceType,
-					sourceSerial,
-					addedTargets,
-					ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
-				);
-			}
-		}
-		if (replaceResult.removedCount() > 0) {
-			Set<Long> removedTargets = new HashSet<>(previousTargets);
-			removedTargets.removeAll(targets);
-			if (!removedTargets.isEmpty()) {
-				InternalDispatchDeltaEvents.publishLinkDetached(
-					level,
-					sourceType,
-					sourceSerial,
-					removedTargets,
-					ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
-				);
-			}
+
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.LINK_RW,
+				operation.commandCost()
+			)
+		) {
+			return 0;
 		}
 
-		LinkCommandSupport.syncAffectedNodeLinkSnapshots(level, targetType, previousTargets, targets);
-		LinkCommandSupport.syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
-		final int currentTargetCount = replaceResult.currentCount();
-		source.sendSuccess(() -> Component.translatable("message.redstonelink.set_links_done", currentTargetCount), false);
-		if (allowOfflineBinding && !offlineTargets.isEmpty()) {
-			String offline = offlineTargets.stream().map(String::valueOf).reduce((a, b) -> a + ", " + b).orElse("-");
-			source.sendSuccess(
-				() -> Component.translatable("message.redstonelink.offline_targets_saved", offline),
-				false
-			);
-		}
+		LinkSetExecutionService.ApplyResult applyResult = LinkSetExecutionService.applyPreparedReplace(operation);
+		sendOperationFeedbacks(source, applyResult.feedbacks());
 		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 按命令反馈语义发送结构化写入结果。
+	 */
+	private static void sendOperationFeedbacks(
+		CommandSourceStack source,
+		List<LinkSetExecutionService.OperationFeedback> feedbacks
+	) {
+		if (source == null || feedbacks == null || feedbacks.isEmpty()) {
+			return;
+		}
+		for (LinkSetExecutionService.OperationFeedback feedback : feedbacks) {
+			if (feedback == null || feedback.messageKey() == null || feedback.messageKey().isBlank()) {
+				continue;
+			}
+			Object[] args = feedback.messageArgs().toArray();
+			if (feedback.success()) {
+				source.sendSuccess(() -> Component.translatable(feedback.messageKey(), args), false);
+				continue;
+			}
+			source.sendFailure(Component.translatable(feedback.messageKey(), args));
+		}
 	}
 
 	/**

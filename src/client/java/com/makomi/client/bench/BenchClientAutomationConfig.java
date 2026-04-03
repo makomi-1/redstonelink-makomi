@@ -24,13 +24,16 @@ public record BenchClientAutomationConfig(
 	int initialConnectDelayMs,
 	int reconnectIntervalMs,
 	boolean openTickChart,
-	int postJoinActionDelayMs
+	int postJoinActionDelayMs,
+	boolean commandBridgeEnabled,
+	int commandBridgePollIntervalMs
 ) {
 	public static final String CONFIG_FILE_NAME = "redstonelink-bench-client.properties";
 	private static final int DEFAULT_SERVER_PORT = 25565;
 	private static final int DEFAULT_INITIAL_CONNECT_DELAY_MS = 0;
 	private static final int DEFAULT_RECONNECT_INTERVAL_MS = 1000;
 	private static final int DEFAULT_POST_JOIN_ACTION_DELAY_MS = 1000;
+	private static final int DEFAULT_COMMAND_BRIDGE_POLL_INTERVAL_MS = 50;
 
 	/**
 	 * 创建关闭状态的默认配置。
@@ -44,7 +47,9 @@ public record BenchClientAutomationConfig(
 			DEFAULT_INITIAL_CONNECT_DELAY_MS,
 			DEFAULT_RECONNECT_INTERVAL_MS,
 			false,
-			DEFAULT_POST_JOIN_ACTION_DELAY_MS
+			DEFAULT_POST_JOIN_ACTION_DELAY_MS,
+			false,
+			DEFAULT_COMMAND_BRIDGE_POLL_INTERVAL_MS
 		);
 	}
 
@@ -73,6 +78,11 @@ public record BenchClientAutomationConfig(
 		int reconnectIntervalMs = Math.max(250, parseInt(properties, "reconnect.interval.ms", DEFAULT_RECONNECT_INTERVAL_MS));
 		boolean openTickChart = Boolean.parseBoolean(readTrimmed(properties, "open.tick.chart", "false"));
 		int postJoinActionDelayMs = Math.max(0, parseInt(properties, "post.join.action.delay.ms", DEFAULT_POST_JOIN_ACTION_DELAY_MS));
+		boolean commandBridgeEnabled = Boolean.parseBoolean(readTrimmed(properties, "command.bridge.enabled", "true"));
+		int commandBridgePollIntervalMs = Math.max(
+			10,
+			parseInt(properties, "command.bridge.poll.interval.ms", DEFAULT_COMMAND_BRIDGE_POLL_INTERVAL_MS)
+		);
 
 		if (!enabled) {
 			return disabled();
@@ -90,7 +100,9 @@ public record BenchClientAutomationConfig(
 			initialConnectDelayMs,
 			reconnectIntervalMs,
 			openTickChart,
-			postJoinActionDelayMs
+			postJoinActionDelayMs,
+			commandBridgeEnabled,
+			commandBridgePollIntervalMs
 		);
 	}
 

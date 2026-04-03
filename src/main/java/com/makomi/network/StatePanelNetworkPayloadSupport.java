@@ -1,5 +1,6 @@
 package com.makomi.network;
 
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import java.util.ArrayList;
@@ -10,6 +11,10 @@ import net.minecraft.network.FriendlyByteBuf;
  * 状态面板工具网络载荷编解码支撑。
  */
 final class StatePanelNetworkPayloadSupport {
+	private static final int NODE_TYPE_TOKEN_MAX_LENGTH = PairingNetworkPayloadSupport.NODE_TYPE_MAX_LENGTH;
+	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
+	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
+
 	private StatePanelNetworkPayloadSupport() {
 	}
 
@@ -20,7 +25,7 @@ final class StatePanelNetworkPayloadSupport {
 		List<StatePanelNetwork.SubscriptionEntryPayload> values = subscriptions == null ? List.of() : List.copyOf(subscriptions);
 		buffer.writeVarInt(values.size());
 		for (StatePanelNetwork.SubscriptionEntryPayload entry : values) {
-			buffer.writeUtf(LinkNodeSemantics.toSemanticName(entry.nodeType()));
+			buffer.writeUtf(LinkNodeSemantics.toSemanticName(entry.nodeType()), NODE_TYPE_TOKEN_MAX_LENGTH);
 			buffer.writeLong(entry.serial());
 		}
 	}
@@ -32,7 +37,9 @@ final class StatePanelNetworkPayloadSupport {
 		int size = Math.max(0, buffer.readVarInt());
 		List<StatePanelNetwork.SubscriptionEntryPayload> values = new ArrayList<>(size);
 		for (int index = 0; index < size; index++) {
-			LinkNodeType nodeType = LinkNodeSemantics.tryParseCanonicalType(buffer.readUtf()).orElse(LinkNodeType.CORE);
+			LinkNodeType nodeType = LinkNodeSemantics
+				.tryParseCanonicalType(buffer.readUtf(NODE_TYPE_TOKEN_MAX_LENGTH))
+				.orElse(LinkNodeType.CORE);
 			long serial = buffer.readLong();
 			values.add(new StatePanelNetwork.SubscriptionEntryPayload(nodeType, serial));
 		}
@@ -43,22 +50,25 @@ final class StatePanelNetworkPayloadSupport {
 	 * 编码订阅请求。
 	 */
 	static void encodeSubscribePayload(FriendlyByteBuf buffer, String nodeTypeToken, String serialExpression) {
-		buffer.writeUtf(nodeTypeToken == null ? "" : nodeTypeToken);
-		buffer.writeUtf(serialExpression == null ? "" : serialExpression);
+		buffer.writeUtf(nodeTypeToken == null ? "" : nodeTypeToken, NODE_TYPE_TOKEN_MAX_LENGTH);
+		buffer.writeUtf(serialExpression == null ? "" : serialExpression, resolveMaxInputLength());
 	}
 
 	/**
 	 * 解码订阅请求。
 	 */
 	static DecodedSubscribePayload decodeSubscribePayload(FriendlyByteBuf buffer) {
-		return new DecodedSubscribePayload(buffer.readUtf(), buffer.readUtf());
+		return new DecodedSubscribePayload(
+			buffer.readUtf(NODE_TYPE_TOKEN_MAX_LENGTH),
+			buffer.readUtf(resolveMaxInputLength())
+		);
 	}
 
 	/**
 	 * 编码删除请求。
 	 */
 	static void encodeRemovePayload(FriendlyByteBuf buffer, String nodeTypeToken, long serial) {
-		buffer.writeUtf(nodeTypeToken == null ? "" : nodeTypeToken);
+		buffer.writeUtf(nodeTypeToken == null ? "" : nodeTypeToken, NODE_TYPE_TOKEN_MAX_LENGTH);
 		buffer.writeLong(serial);
 	}
 
@@ -66,7 +76,7 @@ final class StatePanelNetworkPayloadSupport {
 	 * 解码删除请求。
 	 */
 	static DecodedRemovePayload decodeRemovePayload(FriendlyByteBuf buffer) {
-		return new DecodedRemovePayload(buffer.readUtf(), buffer.readLong());
+		return new DecodedRemovePayload(buffer.readUtf(NODE_TYPE_TOKEN_MAX_LENGTH), buffer.readLong());
 	}
 
 	/**
@@ -76,7 +86,7 @@ final class StatePanelNetworkPayloadSupport {
 		List<StatePanelNetwork.StatePanelSnapshotEntry> values = entries == null ? List.of() : List.copyOf(entries);
 		buffer.writeVarInt(values.size());
 		for (StatePanelNetwork.StatePanelSnapshotEntry entry : values) {
-			buffer.writeUtf(LinkNodeSemantics.toSemanticName(entry.nodeType()));
+			buffer.writeUtf(LinkNodeSemantics.toSemanticName(entry.nodeType()), NODE_TYPE_TOKEN_MAX_LENGTH);
 			buffer.writeLong(entry.serial());
 			buffer.writeBoolean(entry.allocated());
 			buffer.writeBoolean(entry.retired());
@@ -95,7 +105,9 @@ final class StatePanelNetworkPayloadSupport {
 		int size = Math.max(0, buffer.readVarInt());
 		List<StatePanelNetwork.StatePanelSnapshotEntry> values = new ArrayList<>(size);
 		for (int index = 0; index < size; index++) {
-			LinkNodeType nodeType = LinkNodeSemantics.tryParseCanonicalType(buffer.readUtf()).orElse(LinkNodeType.CORE);
+			LinkNodeType nodeType = LinkNodeSemantics
+				.tryParseCanonicalType(buffer.readUtf(NODE_TYPE_TOKEN_MAX_LENGTH))
+				.orElse(LinkNodeType.CORE);
 			long serial = buffer.readLong();
 			boolean allocated = buffer.readBoolean();
 			boolean retired = buffer.readBoolean();
@@ -126,11 +138,11 @@ final class StatePanelNetworkPayloadSupport {
 	 */
 	static void encodeFeedbackPayload(FriendlyByteBuf buffer, boolean success, String messageKey, List<String> messageArgs) {
 		buffer.writeBoolean(success);
-		buffer.writeUtf(messageKey == null ? "" : messageKey);
+		buffer.writeUtf(messageKey == null ? "" : messageKey, FEEDBACK_MESSAGE_KEY_MAX_LENGTH);
 		List<String> args = messageArgs == null ? List.of() : List.copyOf(messageArgs);
 		buffer.writeVarInt(args.size());
 		for (String arg : args) {
-			buffer.writeUtf(arg == null ? "" : arg);
+			buffer.writeUtf(arg == null ? "" : arg, FEEDBACK_MESSAGE_ARG_MAX_LENGTH);
 		}
 	}
 
@@ -139,13 +151,20 @@ final class StatePanelNetworkPayloadSupport {
 	 */
 	static DecodedFeedbackPayload decodeFeedbackPayload(FriendlyByteBuf buffer) {
 		boolean success = buffer.readBoolean();
-		String messageKey = buffer.readUtf();
+		String messageKey = buffer.readUtf(FEEDBACK_MESSAGE_KEY_MAX_LENGTH);
 		int size = Math.max(0, buffer.readVarInt());
 		List<String> messageArgs = new ArrayList<>(size);
 		for (int index = 0; index < size; index++) {
-			messageArgs.add(buffer.readUtf());
+			messageArgs.add(buffer.readUtf(FEEDBACK_MESSAGE_ARG_MAX_LENGTH));
 		}
 		return new DecodedFeedbackPayload(success, messageKey, List.copyOf(messageArgs));
+	}
+
+	/**
+	 * 读取状态面板批量输入沿用的统一长度上限。
+	 */
+	private static int resolveMaxInputLength() {
+		return RedstoneLinkConfig.command().linkSetMaxInputLength();
 	}
 
 	/**

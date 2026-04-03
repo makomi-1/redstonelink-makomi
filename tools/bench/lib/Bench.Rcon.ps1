@@ -3,6 +3,41 @@
 bench 模块：RCON 连接、命令收发与 tick 观测。
 #>
 
+$script:BenchClientCommandBridgeRequestCounter = 1L
+$script:BenchPlayerCommandBridgeReady = $false
+
+function Set-BenchPlayerCommandBridgeContext {
+	param(
+		[string]$AsPlayer,
+		[string]$BenchClientPlayerName,
+		[string]$RequestFilePath,
+		[string]$ResponseFilePath,
+		[string]$DispatchMode
+	)
+	$script:BenchAsPlayer = if ([string]::IsNullOrWhiteSpace($AsPlayer)) { "" } else { ([string]$AsPlayer).Trim() }
+	$script:BenchClientPlayerName = if ([string]::IsNullOrWhiteSpace($BenchClientPlayerName)) {
+		""
+	} else {
+		([string]$BenchClientPlayerName).Trim()
+	}
+	$script:BenchClientCommandBridgeRequestFilePath = if ([string]::IsNullOrWhiteSpace($RequestFilePath)) {
+		""
+	} else {
+		([string]$RequestFilePath).Trim()
+	}
+	$script:BenchClientCommandBridgeResponseFilePath = if ([string]::IsNullOrWhiteSpace($ResponseFilePath)) {
+		""
+	} else {
+		([string]$ResponseFilePath).Trim()
+	}
+	$script:BenchClientCommandBridgeDispatchMode = if ([string]::IsNullOrWhiteSpace($DispatchMode)) {
+		"server_network"
+	} else {
+		([string]$DispatchMode).Trim().ToLowerInvariant()
+	}
+	$script:BenchPlayerCommandBridgeReady = $false
+}
+
 function New-RconPacketBytes {
 	param(
 		[int]$RequestId,
@@ -94,10 +129,15 @@ function Test-BenchResponseLooksLikeFailure {
 		"(?i)\bInvalid (?:serial|serials|source|sources|target|targets|role|type|scope|protected serial)\b",
 		"(?i)\b(?:Source|Target) serial \d+ is retired\b",
 		"(?i)\bRetired target serials\b",
+		"\u6e90\u5e8f\u53f7\\s*\\d+\\s*\u5df2\u9000\u5f79",
+		"\u76ee\u6807\u5e8f\u53f7\\s*\\d+\\s*\u5df2\u9000\u5f79",
+		"\u4ee5\u4e0b\u76ee\u6807\u5e8f\u53f7\u5df2\u9000\u5f79",
 		"(?i)\bOffline targets are blocked\b",
 		"(?i)\bThese targets are offline or in unloaded chunks\b",
 		"(?i)\bnot found\b",
 		"(?i)\bunsupported input endpoint\b",
+		"\u6ca1\u6709\u8db3\u591f\u6743\u9650",
+		"\u64cd\u4f5c\u8fc7\u4e8e\u9891\u7e41",
 		"\u914d\u7f6e\u5df2\u7981\u6b62\u79bb\u7ebf\u7ed1\u5b9a",
 		"\u4ee5\u4e0b\u76ee\u6807\u5f53\u524d\u4e0d\u5728\u7ebf\u6216\u533a\u5757\u672a\u52a0\u8f7d"
 	)
@@ -249,6 +289,176 @@ function Wrap-WithBenchContexts {
 	return (Wrap-WithDimensionContext -Command $wrappedCommand -Dimension $Dimension)
 }
 
+function Convert-BenchBridgeTextToBase64 {
+	param([string]$Text)
+	if ([string]::IsNullOrEmpty($Text)) {
+		return ""
+	}
+	return [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Text))
+}
+
+function Convert-BenchBridgeBase64ToText {
+	param([string]$EncodedText)
+	if ([string]::IsNullOrWhiteSpace($EncodedText)) {
+		return ""
+	}
+	try {
+		return [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($EncodedText.Trim()))
+	} catch {
+		return ""
+	}
+}
+
+function Write-BenchBridgeFileAtomically {
+	param(
+		[string]$Path,
+		[string]$Content
+	)
+	if ([string]::IsNullOrWhiteSpace($Path)) {
+		throw "Bench bridge path is required."
+	}
+	$tempPath = "$Path.tmp"
+	Write-Utf8NoBomFile -Path $tempPath -Content $Content
+	Move-Item -LiteralPath $tempPath -Destination $Path -Force
+}
+
+function Read-BenchBridgePropertiesFile {
+	param([string]$Path)
+	if ([string]::IsNullOrWhiteSpace($Path)) {
+		throw "Bench bridge path is required."
+	}
+	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+		return $null
+	}
+	$result = @{}
+	foreach ($rawLine in @([System.IO.File]::ReadAllLines($Path, [System.Text.Encoding]::UTF8))) {
+		$currentLine = [string]$rawLine
+		if ([string]::IsNullOrWhiteSpace($currentLine)) {
+			continue
+		}
+		$separatorIndex = $currentLine.IndexOf("=")
+		if ($separatorIndex -lt 0) {
+			continue
+		}
+		$key = $currentLine.Substring(0, $separatorIndex).Trim()
+		$value = $currentLine.Substring($separatorIndex + 1)
+		if (-not [string]::IsNullOrWhiteSpace($key)) {
+			$result[$key] = $value
+		}
+	}
+	return $result
+}
+
+function Test-BenchPlayerCommandBridgeEnabled {
+	if ($DryRun) {
+		return $false
+	}
+	if ([string]::IsNullOrWhiteSpace($script:BenchAsPlayer)) {
+		return $false
+	}
+	if ([string]::IsNullOrWhiteSpace($script:BenchClientPlayerName)) {
+		return $false
+	}
+	if (-not [string]::Equals($script:BenchAsPlayer, $script:BenchClientPlayerName, [System.StringComparison]::Ordinal)) {
+		return $false
+	}
+	if ([string]::IsNullOrWhiteSpace($script:BenchClientCommandBridgeRequestFilePath)) {
+		return $false
+	}
+	if ([string]::IsNullOrWhiteSpace($script:BenchClientCommandBridgeResponseFilePath)) {
+		return $false
+	}
+	return $true
+}
+
+function Get-BenchPlayerCommandBridgeDispatchMode {
+	$rawMode = [string]$script:BenchClientCommandBridgeDispatchMode
+	if ([string]::IsNullOrWhiteSpace($rawMode)) {
+		return "server_network"
+	}
+	$normalizedMode = $rawMode.Trim().ToLowerInvariant()
+	switch ($normalizedMode) {
+		"server_network" {
+			return $normalizedMode
+		}
+		"client_direct_command" {
+			return $normalizedMode
+		}
+		default {
+			Write-Host "[Bench] Unknown bench player command bridge dispatch mode '$rawMode'; fallback to server_network."
+			return "server_network"
+		}
+	}
+}
+
+function Resolve-BenchPlayerBridgeInnerCommand {
+	param([string]$Command)
+	if (-not (Test-BenchPlayerCommandBridgeEnabled)) {
+		return $null
+	}
+	if (-not [bool]$script:BenchPlayerCommandBridgeReady) {
+		return $null
+	}
+	$playerContextPrefix = "execute as $($script:BenchAsPlayer) at $($script:BenchAsPlayer) run "
+	$normalizedCommand = [string]$Command
+	if (-not $normalizedCommand.StartsWith($playerContextPrefix, [System.StringComparison]::Ordinal)) {
+		return $null
+	}
+	return $normalizedCommand.Substring($playerContextPrefix.Length)
+}
+
+function Invoke-BenchPlayerCommandBridge {
+	param(
+		[string]$Command,
+		[int]$WaitTimeoutMs = 5000
+	)
+	if (-not (Test-BenchPlayerCommandBridgeEnabled)) {
+		throw "Bench player command bridge is not available."
+	}
+	$normalizedCommand = if ($null -eq $Command) { "" } else { [string]$Command }
+	$requestFilePath = [string]$script:BenchClientCommandBridgeRequestFilePath
+	$responseFilePath = [string]$script:BenchClientCommandBridgeResponseFilePath
+	$requestId = [long]$script:BenchClientCommandBridgeRequestCounter
+	$script:BenchClientCommandBridgeRequestCounter++
+	$normalizedWaitTimeoutMs = [Math]::Max(1000, [int]$WaitTimeoutMs)
+
+	Clear-BenchClientCommandBridgeFiles -RequestFilePath $requestFilePath -ResponseFilePath $responseFilePath
+	$requestContent = @(
+		"request.id=$requestId"
+		"dispatch.mode=$(Get-BenchPlayerCommandBridgeDispatchMode)"
+		"capture.tick.window=false"
+		"command.base64=$(Convert-BenchBridgeTextToBase64 -Text $normalizedCommand)"
+		""
+	) -join "`r`n"
+	Write-BenchBridgeFileAtomically -Path $requestFilePath -Content $requestContent
+
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+	while ($stopwatch.ElapsedMilliseconds -lt $normalizedWaitTimeoutMs) {
+		if (Test-Path -LiteralPath $responseFilePath -PathType Leaf) {
+			$responseProperties = Read-BenchBridgePropertiesFile -Path $responseFilePath
+			if (($null -ne $responseProperties) -and ($responseProperties.ContainsKey("request.id"))) {
+				$responseRequestId = [long]$responseProperties["request.id"]
+				if ($responseRequestId -eq $requestId) {
+					return [pscustomobject]@{
+						requestId = $responseRequestId
+						callbackSuccess = [bool]::Parse([string]($responseProperties["callback.success"]))
+						resultCode = [int]$responseProperties["result.code"]
+						hasTickWindow = [bool]::Parse([string]($responseProperties["has.tick.window"]))
+						tickWindowStart = [long]$responseProperties["tick.window.start"]
+						tickWindowEnd = [long]$responseProperties["tick.window.end"]
+						output = Convert-BenchBridgeBase64ToText -EncodedText ([string]$responseProperties["output.base64"])
+						errorDetail = Convert-BenchBridgeBase64ToText -EncodedText ([string]$responseProperties["error.detail.base64"])
+					}
+				}
+			}
+		}
+		Start-Sleep -Milliseconds 20
+	}
+
+	Remove-BenchClientCommandBridgeFile -Path $requestFilePath
+	throw "Timed out waiting for bench player command bridge response within ${normalizedWaitTimeoutMs}ms."
+}
+
 # 统一返回玩家上下文就绪探针，默认探测当前玩家实体坐标。
 function Get-PlayerReadyProbeCommand {
 	param()
@@ -310,6 +520,7 @@ function Wait-PlayerContextReady {
 	do {
 		$lastProbe = Test-PlayerContextReady -Connection $Connection
 		if ([bool]$lastProbe.ready) {
+			$script:BenchPlayerCommandBridgeReady = $true
 			Write-Host "[Bench] Player context ready: $($script:BenchAsPlayer) ($($stopwatch.ElapsedMilliseconds)ms)"
 			return [pscustomobject]@{
 				selector = $script:BenchAsPlayer
@@ -467,6 +678,32 @@ function Invoke-RconCommand {
 	}
 	if ($null -eq $Connection) {
 		throw "RCON connection is not open."
+	}
+	$bridgeCommand = Resolve-BenchPlayerBridgeInnerCommand -Command $Command
+	if ($null -ne $bridgeCommand) {
+		try {
+			$bridgeResult = Invoke-BenchPlayerCommandBridge -Command $bridgeCommand -WaitTimeoutMs ([Math]::Max(5000, [int]$ReceiveTimeoutMs))
+		} catch {
+			if ($AllowReadTimeout) {
+				if (-not $Silent) {
+					Write-Host "[Bench/PLAYER] $Command"
+					Write-Host "[Bench/RESP] <bridge timeout tolerated>"
+				}
+				return ""
+			}
+			throw
+		}
+		$responseText = [string]$bridgeResult.output
+		if ([string]::IsNullOrWhiteSpace($responseText) -and -not [string]::IsNullOrWhiteSpace([string]$bridgeResult.errorDetail)) {
+			throw "Bench player command bridge returned empty response: $Command | detail=$([string]$bridgeResult.errorDetail)"
+		}
+		if (-not $Silent) {
+			Write-Host "[Bench/PLAYER] $Command"
+			if ($responseText) {
+				Write-Host "[Bench/RESP] $responseText"
+			}
+		}
+		return $responseText
 	}
 	$requestId = [int]$Connection.NextRequestId
 	$Connection.NextRequestId = $requestId + 1

@@ -97,7 +97,12 @@ public final class QuickLinkNetwork {
 	/**
 	 * 客户端左键采集缓存的 C2S 请求。
 	 */
-	public record CollectQuickLinkPayload(String dimensionKey, long blockPosLong) implements CustomPacketPayload {
+	public record CollectQuickLinkPayload(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial
+	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<CollectQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "collect_quick_link_payload")
 		);
@@ -105,18 +110,27 @@ public final class QuickLinkNetwork {
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
 				buffer,
 				payload.dimensionKey(),
-				payload.blockPosLong()
+				payload.blockPosLong(),
+				payload.expectedNodeTypeToken(),
+				payload.expectedNodeSerial()
 			),
 			buffer -> {
 				QuickLinkNetworkPayloadSupport.DecodedBlockTargetPayload decoded = QuickLinkNetworkPayloadSupport.decodeBlockTargetPayload(
 					buffer
 				);
-				return new CollectQuickLinkPayload(decoded.dimensionKey(), decoded.blockPosLong());
+				return new CollectQuickLinkPayload(
+					decoded.dimensionKey(),
+					decoded.blockPosLong(),
+					decoded.expectedNodeTypeToken(),
+					decoded.expectedNodeSerial()
+				);
 			}
 		);
 
 		public CollectQuickLinkPayload {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			expectedNodeTypeToken = expectedNodeTypeToken == null ? "" : expectedNodeTypeToken;
+			expectedNodeSerial = Math.max(0L, expectedNodeSerial);
 		}
 
 		@Override
@@ -128,7 +142,12 @@ public final class QuickLinkNetwork {
 	/**
 	 * 客户端左键应用缓存的 C2S 请求。
 	 */
-	public record ApplyQuickLinkPayload(String dimensionKey, long blockPosLong) implements CustomPacketPayload {
+	public record ApplyQuickLinkPayload(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial
+	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ApplyQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_payload")
 		);
@@ -136,18 +155,27 @@ public final class QuickLinkNetwork {
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
 				buffer,
 				payload.dimensionKey(),
-				payload.blockPosLong()
+				payload.blockPosLong(),
+				payload.expectedNodeTypeToken(),
+				payload.expectedNodeSerial()
 			),
 			buffer -> {
 				QuickLinkNetworkPayloadSupport.DecodedBlockTargetPayload decoded = QuickLinkNetworkPayloadSupport.decodeBlockTargetPayload(
 					buffer
 				);
-				return new ApplyQuickLinkPayload(decoded.dimensionKey(), decoded.blockPosLong());
+				return new ApplyQuickLinkPayload(
+					decoded.dimensionKey(),
+					decoded.blockPosLong(),
+					decoded.expectedNodeTypeToken(),
+					decoded.expectedNodeSerial()
+				);
 			}
 		);
 
 		public ApplyQuickLinkPayload {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			expectedNodeTypeToken = expectedNodeTypeToken == null ? "" : expectedNodeTypeToken;
+			expectedNodeSerial = Math.max(0L, expectedNodeSerial);
 		}
 
 		@Override

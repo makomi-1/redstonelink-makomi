@@ -39,6 +39,7 @@ param(
     [int]$BenchClientFocusTimeoutMs = 15000,
     [switch]$BenchClientOpenTickCharts,
     [int]$BenchClientPostJoinActionDelayMs = 1000,
+    [ValidateSet("server_network", "client_direct_command")][string]$BenchClientCommandBridgeDispatchMode = "server_network",
     [string]$BenchClientModsDir,
     [switch]$SyncLatestClientModJar,
     [int]$PlayerReadyTimeoutMs = 120000,
@@ -98,6 +99,18 @@ $script:BenchClientFocusWindow = [bool]$BenchClientFocusWindow
 $script:BenchClientFocusTimeoutMs = [Math]::Max(1000, [int]$BenchClientFocusTimeoutMs)
 $script:BenchClientOpenTickCharts = [bool]$BenchClientOpenTickCharts
 $script:BenchClientPostJoinActionDelayMs = [Math]::Max(0, [int]$BenchClientPostJoinActionDelayMs)
+$benchClientCommandBridgeDispatchModeRaw = if (
+	([string]::IsNullOrWhiteSpace($BenchClientCommandBridgeDispatchMode)) -or
+	([string]::Equals([string]$BenchClientCommandBridgeDispatchMode, "server_network", [System.StringComparison]::OrdinalIgnoreCase) -and
+		-not [string]::IsNullOrWhiteSpace([string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_DISPATCH_MODE))
+) {
+	[string]$env:RL_BENCH_CLIENT_COMMAND_BRIDGE_DISPATCH_MODE
+} else {
+	[string]$BenchClientCommandBridgeDispatchMode
+}
+$script:BenchClientCommandBridgeDispatchMode = if ([string]::IsNullOrWhiteSpace($benchClientCommandBridgeDispatchModeRaw)) { "server_network" } else { $benchClientCommandBridgeDispatchModeRaw.Trim().ToLowerInvariant() }
+Set-BenchClientCommandBridgeDispatchMode -DispatchMode $script:BenchClientCommandBridgeDispatchMode
+Write-Host "[BenchSuite] Bench client bridge dispatch mode requested: $script:BenchClientCommandBridgeDispatchMode"
 $script:BenchClientModsDir = [string]$BenchClientModsDir
 $script:BenchSyncLatestClientModJar = [bool]$SyncLatestClientModJar
 $script:BenchBuildBeforeSyncLatestModJar = [bool]$BuildBeforeSyncLatestModJar

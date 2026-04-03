@@ -122,6 +122,61 @@ public final class PairingNetwork {
 	}
 
 	/**
+	 * triggerSource 配对界面提交包：`sourceSerial` 为 triggerSource 序列号，`targetsExpression` 为目标 core 表达式。
+	 */
+	public record SubmitTriggerSourcePairingPayload(long sourceSerial, String targetsExpression) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<SubmitTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_triggersource_pairing")
+		);
+		public static final StreamCodec<FriendlyByteBuf, SubmitTriggerSourcePairingPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSubmitTriggerSourcePairingPayload(
+				buffer,
+				payload.sourceSerial(),
+				payload.targetsExpression()
+			),
+			PairingNetworkPayloadSupport::decodeSubmitTriggerSourcePairingPayload
+		);
+
+		public SubmitTriggerSourcePairingPayload {
+			targetsExpression = targetsExpression == null ? "" : targetsExpression.trim();
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端返回给配对界面的结构化反馈回执。
+	 */
+	public record PairingFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
+		implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<PairingFeedbackPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "pairing_feedback")
+		);
+		public static final StreamCodec<FriendlyByteBuf, PairingFeedbackPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> PairingNetworkPayloadSupport.encodeFeedbackPayload(
+				buffer,
+				payload.success(),
+				payload.messageKey(),
+				payload.messageArgs()
+			),
+			PairingNetworkPayloadSupport::decodePairingFeedbackPayload
+		);
+
+		public PairingFeedbackPayload {
+			messageKey = messageKey == null ? "" : messageKey;
+			messageArgs = List.copyOf(messageArgs == null ? List.of() : messageArgs);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 客户端近外显“当前连接”查询请求。
 	 *
 	 * @param dimensionKey 维度键

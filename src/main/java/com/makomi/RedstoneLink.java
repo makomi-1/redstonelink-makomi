@@ -11,6 +11,7 @@ import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.NodeStateTraceService;
 import com.makomi.data.PairableItemAggregateMenuNormalizationService;
 import com.makomi.data.input.InputPlaybackService;
+import com.makomi.network.BenchCommandNetwork;
 import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
 import com.makomi.network.StatePanelNetwork;
@@ -36,6 +37,7 @@ public class RedstoneLink implements ModInitializer {
 	public void onInitialize() {
 		// 初始化顺序：配置 -> 网络 -> 注册表 -> 命令 -> 事件。
 		RedstoneLinkConfig.load();
+		BenchCommandNetwork.register();
 		PairingNetwork.register();
 		QuickLinkNetwork.register();
 		StatePanelNetwork.register();

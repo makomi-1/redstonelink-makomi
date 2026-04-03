@@ -1,7 +1,9 @@
 package com.makomi.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.QuickLinkToolData;
 import io.netty.buffer.Unpooled;
@@ -43,7 +45,9 @@ class QuickLinkNetworkPayloadTest {
 	void collectPayloadCodecRoundTripShouldPreserveFields() {
 		QuickLinkNetwork.CollectQuickLinkPayload original = new QuickLinkNetwork.CollectQuickLinkPayload(
 			"minecraft:overworld",
-			42L
+			42L,
+			"triggerSource",
+			77L
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -52,6 +56,30 @@ class QuickLinkNetworkPayloadTest {
 
 		assertEquals(original.dimensionKey(), decoded.dimensionKey());
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
+		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
+	}
+
+	/**
+	 * 应用请求编解码往返应保留命中维度、方块坐标与期望节点身份。
+	 */
+	@Test
+	void applyPayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.ApplyQuickLinkPayload original = new QuickLinkNetwork.ApplyQuickLinkPayload(
+			"minecraft:the_nether",
+			84L,
+			"core",
+			105L
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.ApplyQuickLinkPayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.ApplyQuickLinkPayload decoded = QuickLinkNetwork.ApplyQuickLinkPayload.CODEC.decode(buffer);
+
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
+		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
 	}
 
 	/**
@@ -72,5 +100,35 @@ class QuickLinkNetworkPayloadTest {
 		assertEquals(original.success(), decoded.success());
 		assertEquals(original.messageKey(), decoded.messageKey());
 		assertEquals(original.messageArgs(), decoded.messageArgs());
+	}
+
+	/**
+	 * 保存请求在解包阶段应拒绝超过显式上限的表达式，避免把超长文本留给业务层后置处理。
+	 */
+	@Test
+	void savePayloadCodecShouldRejectTooLongSerialExpression() {
+		String tooLongExpression = "1".repeat(RedstoneLinkConfig.command().linkSetMaxInputLength() + 1);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeUtf(QuickLinkToolData.Mode.SERIAL.token());
+		buffer.writeUtf("core");
+		buffer.writeUtf(tooLongExpression);
+		buffer.writeUtf("");
+
+		assertThrows(RuntimeException.class, () -> QuickLinkNetwork.SaveQuickLinkPayload.CODEC.decode(buffer));
+	}
+
+	/**
+	 * 采集请求在解包阶段应拒绝超过维度键上限的输入。
+	 */
+	@Test
+	void collectPayloadCodecShouldRejectTooLongDimensionKey() {
+		String tooLongDimensionKey = "x".repeat(PairingNetworkPayloadSupport.DIMENSION_KEY_MAX_LENGTH + 1);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeUtf(tooLongDimensionKey);
+		buffer.writeLong(42L);
+		buffer.writeUtf("triggerSource");
+		buffer.writeVarLong(77L);
+
+		assertThrows(RuntimeException.class, () -> QuickLinkNetwork.CollectQuickLinkPayload.CODEC.decode(buffer));
 	}
 }

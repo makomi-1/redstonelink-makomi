@@ -1,6 +1,9 @@
 package com.makomi.network;
 
+import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkNodeType;
 import com.makomi.data.QuickLinkApplyService;
 import com.makomi.data.QuickLinkCollectService;
 import com.makomi.data.QuickLinkOperationFeedback;
@@ -15,6 +18,8 @@ import net.minecraft.world.item.ItemStack;
  * 快速连接工具服务端接包处理壳。
  */
 final class QuickLinkNetworkServerHandlerSupport {
+	private static final int QUICK_LINK_REQUEST_MAX_DISTANCE = PairableNodeRequestValidationSupport.DEFAULT_MAX_INTERACTION_DISTANCE;
+
 	private QuickLinkNetworkServerHandlerSupport() {
 	}
 
@@ -59,17 +64,19 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (!(mainHandItem.getItem() instanceof QuickLinkToolItem)) {
 			return;
 		}
-		if (!player.serverLevel().dimension().location().toString().equals(payload.dimensionKey())) {
-			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.collect.invalid_target"));
+		PairableNodeBlockEntity requestedNode = resolveRequestedNode(
+			player,
+			payload.dimensionKey(),
+			payload.blockPosLong(),
+			payload.expectedNodeTypeToken(),
+			payload.expectedNodeSerial(),
+			"message.redstonelink.quick_link.collect.invalid_target"
+		);
+		if (requestedNode == null) {
 			return;
 		}
 
-		BlockPos blockPos = BlockPos.of(payload.blockPosLong());
-		if (!player.serverLevel().isLoaded(blockPos)) {
-			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.collect.invalid_target"));
-			return;
-		}
-
+		BlockPos blockPos = requestedNode.getBlockPos();
 		QuickLinkOperationFeedback feedback = QuickLinkCollectService.collect(player, player.serverLevel(), blockPos, mainHandItem);
 		if (feedback.success()) {
 			player.containerMenu.broadcastChanges();
@@ -85,17 +92,19 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (!(mainHandItem.getItem() instanceof QuickLinkToolItem)) {
 			return;
 		}
-		if (!player.serverLevel().dimension().location().toString().equals(payload.dimensionKey())) {
-			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.invalid_target"));
+		PairableNodeBlockEntity requestedNode = resolveRequestedNode(
+			player,
+			payload.dimensionKey(),
+			payload.blockPosLong(),
+			payload.expectedNodeTypeToken(),
+			payload.expectedNodeSerial(),
+			"message.redstonelink.quick_link.apply.invalid_target"
+		);
+		if (requestedNode == null) {
 			return;
 		}
 
-		BlockPos blockPos = BlockPos.of(payload.blockPosLong());
-		if (!player.serverLevel().isLoaded(blockPos)) {
-			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.invalid_target"));
-			return;
-		}
-
+		BlockPos blockPos = requestedNode.getBlockPos();
 		sendFeedback(player, QuickLinkApplyService.apply(player, player.serverLevel(), blockPos, mainHandItem));
 	}
 
@@ -114,5 +123,31 @@ final class QuickLinkNetworkServerHandlerSupport {
 	 */
 	private static boolean isInputTooLong(String input, int maxInputLength) {
 		return input != null && input.length() > maxInputLength;
+	}
+
+	/**
+	 * 解析并校验 quick-link 请求指向的节点。
+	 */
+	private static PairableNodeBlockEntity resolveRequestedNode(
+		ServerPlayer player,
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		String invalidMessageKey
+	) {
+		LinkNodeType expectedNodeType = LinkNodeSemantics.tryParseCanonicalType(expectedNodeTypeToken).orElse(null);
+		PairableNodeBlockEntity requestedNode = PairableNodeRequestValidationSupport.resolveRequestedNode(
+			player,
+			dimensionKey,
+			blockPosLong,
+			expectedNodeType,
+			expectedNodeSerial,
+			QUICK_LINK_REQUEST_MAX_DISTANCE
+		);
+		if (requestedNode == null) {
+			sendFeedback(player, QuickLinkOperationFeedback.failure(invalidMessageKey));
+		}
+		return requestedNode;
 	}
 }

@@ -1,0 +1,101 @@
+{
+  "id": "server_permission_rate_limit_basic",
+  "description": "覆盖 OTHER 组在低权限命中限流、提权后进入更高权限分层桶的基本行为。",
+  "layer": "C",
+  "scenarioId": "C08",
+  "arena": {
+    "clearFrom": [-8, 63, 112],
+    "clearTo": [24, 66, 124]
+  },
+  "targets": {
+    "id": "core_permission_rate_limit",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 114],
+      "to": [12, 64, 114]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_permission_rate_limit",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 114],
+        "to": [0, 64, 114]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "tag_rate_limit_player",
+      "command": "tag @s add rl_perm_c08",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "deop_rate_limit_player",
+      "command": "deop @a[tag=rl_perm_c08,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_node_list_first",
+      "command": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_node_list_second",
+      "command": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_node_list_rate_limited",
+      "command": "redstonelink node list core active 10 0",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Too many requests|操作过于频繁)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "op_rate_limit_player",
+      "command": "op @a[tag=rl_perm_c08,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_node_list_after_op",
+      "command": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_node_list_second_after_op",
+      "command": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    }
+  ]
+}

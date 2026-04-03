@@ -1,7 +1,9 @@
 package com.makomi.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import io.netty.buffer.Unpooled;
 import java.util.List;
@@ -103,5 +105,32 @@ class StatePanelNetworkPayloadTest {
 		assertEquals(original.success(), decoded.success());
 		assertEquals(original.messageKey(), decoded.messageKey());
 		assertEquals(original.messageArgs(), decoded.messageArgs());
+	}
+
+	/**
+	 * 订阅请求在解包阶段应拒绝超过显式上限的序号表达式。
+	 */
+	@Test
+	void subscribePayloadCodecShouldRejectTooLongSerialExpression() {
+		String tooLongExpression = "1".repeat(RedstoneLinkConfig.command().linkSetMaxInputLength() + 1);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeUtf("triggerSource");
+		buffer.writeUtf(tooLongExpression);
+
+		assertThrows(RuntimeException.class, () -> StatePanelNetwork.SubscribeStatePanelPayload.CODEC.decode(buffer));
+	}
+
+	/**
+	 * 反馈回执在解包阶段应拒绝超过显式上限的翻译键。
+	 */
+	@Test
+	void feedbackPayloadCodecShouldRejectTooLongMessageKey() {
+		String tooLongMessageKey = "m".repeat(257);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeBoolean(true);
+		buffer.writeUtf(tooLongMessageKey);
+		buffer.writeVarInt(0);
+
+		assertThrows(RuntimeException.class, () -> StatePanelNetwork.StatePanelFeedbackPayload.CODEC.decode(buffer));
 	}
 }

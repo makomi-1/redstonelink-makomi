@@ -474,14 +474,17 @@ function Test-FunctionalCommandAssertHardFailure {
 		"(?i)\bToo many requests\b",
 		"(?i)\bToo many\b",
 		"(?i)\bempty\b",
-		"(?i)\bmax\b",
 		"(?i)\binsufficient permission\b",
 		"(?i)\bplayer[- ]only\b",
+		"\u6ca1\u6709\u8db3\u591f\u6743\u9650",
+		"\u64cd\u4f5c\u8fc7\u4e8e\u9891\u7e41",
 		"\u65e0\u6548\u5e8f\u53f7",
 		"\u975e\u6cd5\u5b57\u7b26",
 		"\u76ee\u6807\u4e3a\u7a7a",
 		"\u8f93\u5165\u4e3a\u7a7a",
-		"\u5df2\u9000\u5f79",
+		"\u6e90\u5e8f\u53f7\\s*\\d+\\s*\u5df2\u9000\u5f79",
+		"\u76ee\u6807\u5e8f\u53f7\\s*\\d+\\s*\u5df2\u9000\u5f79",
+		"\u4ee5\u4e0b\u76ee\u6807\u5e8f\u53f7\u5df2\u9000\u5f79",
 		"\u6570\u91cf\u8fc7\u591a",
 		"\u6700\u591a"
 	)
@@ -1222,7 +1225,7 @@ function Get-ExpandedTraceReadLimit {
 
 function Test-NodeTraceReadRateLimited {
 	param([string]$ResponseText)
-	return (-not [string]::IsNullOrWhiteSpace($ResponseText)) -and ($ResponseText -match "Too many requests")
+	return (-not [string]::IsNullOrWhiteSpace($ResponseText)) -and ($ResponseText -match "(?i)(Too many requests|\u64cd\u4f5c\u8fc7\u4e8e\u9891\u7e41)")
 }
 
 function Add-FunctionalPhaseResult {

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "description": "游戏内服务器基本权限专项：读控、写控与权限感知限流。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "c07_server_permission_read_write",
+      "caseId": "server_permission_read_write_basic",
+      "serverConfigOverrides": {
+        "server.command.permissionLevel": "0",
+        "server.command.otherPermissionLevel": "0",
+        "server.command.rateLimit.enabled": "false",
+        "server.currentLinksPrivacy.mode": "masked",
+        "server.currentLinksPrivacy.viewPermissionLevel": "2",
+        "server.currentLinksPrivacy.managePermissionLevel": "2",
+        "server.linkWriteControl.mode": "limited",
+        "server.linkWriteControl.limited.permissionLevel": "2",
+        "server.linkWriteControl.limited.maxSetSize": "1",
+        "server.linkWriteControl.protected.permissionLevel": "2",
+        "server.linkWriteControl.protected.managePermissionLevel": "2"
+      }
+    },
+    {
+      "entryId": "c08_server_permission_rate_limit",
+      "caseId": "server_permission_rate_limit_basic",
+      "serverConfigOverrides": {
+        "server.command.permissionLevel": "0",
+        "server.command.otherPermissionLevel": "0",
+        "server.command.rateLimit.enabled": "true",
+        "server.command.rateLimit.windowTicks": "200",
+        "server.command.rateLimit.global.capacity": "64",
+        "server.command.rateLimit.tier.baseCapacity": "64",
+        "server.command.rateLimit.tier.stepPerLevel": "16",
+        "server.command.rateLimit.actor.baseCapacity": "64",
+        "server.command.rateLimit.actor.stepPerLevel": "16",
+        "server.command.rateLimit.actorGroup.other.baseCapacity": "2",
+        "server.command.rateLimit.actorGroup.other.stepPerLevel": "2",
+        "server.currentLinksPrivacy.mode": "plain",
+        "server.linkWriteControl.mode": "full"
+      }
+    }
+  ]
+}

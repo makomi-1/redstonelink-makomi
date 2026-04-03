@@ -2,6 +2,8 @@ package com.makomi;
 
 import com.makomi.client.ClientHooks;
 import com.makomi.client.bench.BenchClientAutomationController;
+import com.makomi.client.bench.BenchClientCommandBridge;
+import com.makomi.client.network.BenchCommandNetworkClientHandlerSupport;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.client.network.PairingNetworkClientHandlerSupport;
 import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
@@ -59,6 +61,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerClientDisplayCommands();
 		registerPairingScreenOpeners();
 		registerPairingPacketReceivers();
+		registerBenchCommandClientHooks();
 		registerQuickLinkClientHooks();
 		registerStatePanelClientHooks();
 		BenchClientAutomationController.initialize();
@@ -288,6 +291,14 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerPairingPacketReceivers() {
 		PairingNetworkClientHandlerSupport.registerReceivers();
+	}
+
+	/**
+	 * 注册 bench 命令桥客户端接包器。
+	 */
+	private static void registerBenchCommandClientHooks() {
+		BenchCommandNetworkClientHandlerSupport.registerReceivers();
+		BenchClientCommandBridge.registerMessageHooks();
 	}
 
 	/**

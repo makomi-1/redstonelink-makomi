@@ -1,5 +1,7 @@
 package com.makomi.client.network;
 
+import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.data.LinkNodeSemantics;
 import com.makomi.client.render.QuickLinkFeedbackOverlayRenderer;
 import com.makomi.client.screen.QuickLinkToolScreen;
 import com.makomi.data.QuickLinkToolData;
@@ -62,12 +64,10 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				if (collectTriggeredForCurrentAttack) {
 					return InteractionResult.FAIL;
 				}
-				ClientPlayNetworking.send(
-					new QuickLinkNetwork.CollectQuickLinkPayload(
-						world.dimension().location().toString(),
-						pos.asLong()
-					)
-				);
+				QuickLinkNetwork.CollectQuickLinkPayload payload = buildCollectPayload(player == null ? null : Minecraft.getInstance(), hand, pos);
+				if (payload != null) {
+					ClientPlayNetworking.send(payload);
+				}
 				collectTriggeredForCurrentAttack = true;
 				return InteractionResult.FAIL;
 			}
@@ -79,12 +79,14 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				if (applyTriggeredForCurrentUse) {
 					return InteractionResult.FAIL;
 				}
-				ClientPlayNetworking.send(
-					new QuickLinkNetwork.ApplyQuickLinkPayload(
-						world.dimension().location().toString(),
-						hitResult.getBlockPos().asLong()
-					)
+				QuickLinkNetwork.ApplyQuickLinkPayload payload = buildApplyPayload(
+					player == null ? null : Minecraft.getInstance(),
+					hand,
+					hitResult.getBlockPos()
 				);
+				if (payload != null) {
+					ClientPlayNetworking.send(payload);
+				}
 				applyTriggeredForCurrentUse = true;
 				return InteractionResult.FAIL;
 			}
@@ -118,6 +120,38 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	}
 
 	/**
+	 * 构建“快速采集”请求，附带客户端当前命中的期望节点身份。
+	 */
+	private static QuickLinkNetwork.CollectQuickLinkPayload buildCollectPayload(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
+		ResolvedQuickLinkTarget target = resolveQuickLinkTarget(minecraft, hand, blockPos, false);
+		if (target == null) {
+			return null;
+		}
+		return new QuickLinkNetwork.CollectQuickLinkPayload(
+			target.dimensionKey(),
+			target.blockPosLong(),
+			target.expectedNodeTypeToken(),
+			target.expectedNodeSerial()
+		);
+	}
+
+	/**
+	 * 构建“快速应用”请求，附带客户端当前命中的期望节点身份。
+	 */
+	private static QuickLinkNetwork.ApplyQuickLinkPayload buildApplyPayload(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
+		ResolvedQuickLinkTarget target = resolveQuickLinkTarget(minecraft, hand, blockPos, true);
+		if (target == null) {
+			return null;
+		}
+		return new QuickLinkNetwork.ApplyQuickLinkPayload(
+			target.dimensionKey(),
+			target.blockPosLong(),
+			target.expectedNodeTypeToken(),
+			target.expectedNodeSerial()
+		);
+	}
+
+	/**
 	 * 判断当前命中对象是否应交给 quick-link 交互链路处理。
 	 */
 	private static boolean isQuickLinkTarget(
@@ -140,5 +174,43 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		}
 		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockPos);
 		return blockEntity instanceof com.makomi.block.entity.PairableNodeBlockEntity;
+	}
+
+	/**
+	 * 解析当前客户端命中的 quick-link 目标，并附带本地可见的节点身份。
+	 */
+	private static ResolvedQuickLinkTarget resolveQuickLinkTarget(
+		Minecraft minecraft,
+		InteractionHand hand,
+		BlockPos blockPos,
+		boolean requireStanding
+	) {
+		if (!isQuickLinkTarget(minecraft, hand, blockPos, requireStanding) || minecraft == null || minecraft.level == null) {
+			return null;
+		}
+		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockPos);
+		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
+			return null;
+		}
+		if (pairableNodeBlockEntity.getLinkNodeType() == null || pairableNodeBlockEntity.getSerial() <= 0L) {
+			return null;
+		}
+		return new ResolvedQuickLinkTarget(
+			minecraft.level.dimension().location().toString(),
+			blockPos.asLong(),
+			LinkNodeSemantics.toSemanticName(pairableNodeBlockEntity.getLinkNodeType()),
+			pairableNodeBlockEntity.getSerial()
+		);
+	}
+
+	/**
+	 * quick-link 目标请求的客户端本地快照。
+	 */
+	private record ResolvedQuickLinkTarget(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial
+	) {
 	}
 }

@@ -51,6 +51,7 @@ public final class BenchClientAutomationController {
 		if (!config.enabled()) {
 			return;
 		}
+		BenchClientCommandBridge.initialize(config);
 
 		nextConnectAttemptAtMs = System.currentTimeMillis() + config.initialConnectDelayMs();
 		lastConnectAttemptAtMs = Long.MIN_VALUE;
@@ -63,12 +64,14 @@ public final class BenchClientAutomationController {
 		lastObservedStartupScreenClassName = "";
 		ClientTickEvents.END_CLIENT_TICK.register(BenchClientAutomationController::onClientTick);
 		RedstoneLink.LOGGER.info(
-			"Bench client automation enabled. player={} server={} initialConnectDelayMs={} reconnectIntervalMs={} openTickChart={}",
+			"Bench client automation enabled. player={} server={} initialConnectDelayMs={} reconnectIntervalMs={} openTickChart={} commandBridgeEnabled={} commandBridgePollIntervalMs={}",
 			config.playerName(),
 			config.serverAddress(),
 			config.initialConnectDelayMs(),
 			config.reconnectIntervalMs(),
-			config.openTickChart()
+			config.openTickChart(),
+			config.commandBridgeEnabled(),
+			config.commandBridgePollIntervalMs()
 		);
 	}
 
@@ -79,6 +82,7 @@ public final class BenchClientAutomationController {
 		if (client == null) {
 			return;
 		}
+		BenchClientCommandBridge.onClientTick(client);
 		boolean inWorld = client.player != null && client.level != null;
 		if (inWorld) {
 			clearConnectAttemptState();

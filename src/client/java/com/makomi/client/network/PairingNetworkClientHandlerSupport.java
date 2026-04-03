@@ -8,6 +8,7 @@ import com.makomi.network.PairingNetwork;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 /**
  * `PairingNetwork` 的客户端接包与 UI 适配壳。
@@ -31,6 +32,10 @@ public final class PairingNetworkClientHandlerSupport {
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenCorePairingPayload.TYPE, (payload, context) -> {
 			// 网络线程切回客户端主线程后再操作 Screen。
 			context.client().execute(() -> openPairingScreenBySourceType(LinkNodeType.CORE, payload.sourceSerial(), payload.targets()));
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.PairingFeedbackPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> showPairingFeedback(payload.messageKey(), payload.messageArgs()));
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.CurrentLinksSnapshotPayload.TYPE, (payload, context) -> {
@@ -80,5 +85,20 @@ public final class PairingNetworkClientHandlerSupport {
 			return;
 		}
 		minecraft.setScreen(new TriggerSourcePairingScreen(sourceSerial, currentTargets));
+	}
+
+	/**
+	 * 将服务端配对反馈展示到客户端聊天栏。
+	 */
+	private static void showPairingFeedback(String messageKey, List<String> messageArgs) {
+		if (messageKey == null || messageKey.isBlank()) {
+			return;
+		}
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.player == null) {
+			return;
+		}
+		Object[] args = (messageArgs == null ? List.<String>of() : messageArgs).toArray();
+		minecraft.player.displayClientMessage(Component.translatable(messageKey, args), false);
 	}
 }

@@ -1,0 +1,176 @@
+{
+  "id": "server_permission_read_write_basic",
+  "description": "覆盖 masked 读控、limited/protected 写控，以及 op/deop 切换后的放行差异。",
+  "layer": "C",
+  "scenarioId": "C07",
+  "arena": {
+    "clearFrom": [-8, 63, 98],
+    "clearTo": [24, 66, 110]
+  },
+  "targets": {
+    "id": "core_permission_rw",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 100],
+      "to": [13, 64, 100]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_permission_rw",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 100],
+        "to": [0, 64, 100]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_permission_rw",
+      "mapping": "broadcast_all"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "tag_permission_player",
+      "command": "tag @s add rl_perm_c07",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "deop_permission_player",
+      "command": "deop @a[tag=rl_perm_c07,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "mask_trigger_source",
+      "commandTemplate": "redstonelink link privacy current_links mask add triggerSource {{source:sync_permission_rw[0]}}",
+      "skipPlayerContext": true,
+      "expectedPrefix": "[RedstoneLink/Privacy]",
+      "expectedRegex": "(?i)(Added mask entry|已加入加密名单)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_link_get_masked",
+      "commandTemplate": "redstonelink link get triggerSource {{source:sync_permission_rw[0]}}",
+      "expectedPrefix": "[RedstoneLink/Link]",
+      "expectedRegexes": [
+        "(?i)(source_type=triggerSource|源类型=triggerSource)",
+        "(?i)(target_count=0|目标数=0)",
+        "(?i)(target_list=-|目标列表=-)"
+      ],
+      "rejectRegexes": [
+        "(?i)(target_list=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?i)(target_list=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[1]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_node_get_masked",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_permission_rw[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(type=triggerSource|类型=triggerSource)",
+        "(?i)(linked=0|目标数=0)",
+        "(?i)(target_list=-|目标列表=-)"
+      ],
+      "rejectRegexes": [
+        "(?i)(target_list=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?i)(target_list=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[1]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "op_permission_player_for_read",
+      "command": "op @a[tag=rl_perm_c07,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_link_get_unmasked",
+      "commandTemplate": "redstonelink link get triggerSource {{source:sync_permission_rw[0]}}",
+      "expectedPrefix": "[RedstoneLink/Link]",
+      "expectedRegexes": [
+        "(?i)(source_type=triggerSource|源类型=triggerSource)",
+        "(?i)(target_count=2|目标数=2)",
+        "(?i)(target_list=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?i)(target_list=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[1]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_node_get_unmasked",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_permission_rw[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(type=triggerSource|类型=triggerSource)",
+        "(?i)(linked=2|目标数=2)",
+        "(?i)(target_list=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[0]}}(?!\\d)",
+        "(?i)(target_list=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[1]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "deop_permission_player_for_write",
+      "command": "deop @a[tag=rl_perm_c07,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "protect_first_core",
+      "commandTemplate": "redstonelink link write_control protected add core {{targets[0]}}",
+      "skipPlayerContext": true,
+      "expectedPrefix": "[RedstoneLink/WriteControl]",
+      "expectedRegex": "(?i)(Added protected entry|已加入受控名单)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_link_set_limited_denied",
+      "commandTemplate": "redstonelink link set triggerSource {{source:sync_permission_rw[0]}} {{targets[0,1]:mixed}} confirm",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Insufficient permission|没有足够权限)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_link_set_protected_denied",
+      "commandTemplate": "redstonelink link set triggerSource {{source:sync_permission_rw[0]}} {{targets[0]:mixed}} confirm",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Insufficient permission|没有足够权限)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "op_permission_player_for_write",
+      "command": "op @a[tag=rl_perm_c07,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_link_set_protected_allowed",
+      "commandTemplate": "redstonelink link set triggerSource {{source:sync_permission_rw[0]}} {{targets[0]:mixed}} confirm",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Links replaced|连接已替换)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_link_get_after_write_allow",
+      "commandTemplate": "redstonelink link get triggerSource {{source:sync_permission_rw[0]}}",
+      "expectedPrefix": "[RedstoneLink/Link]",
+      "expectedRegexes": [
+        "(?i)(target_count=1|目标数=1)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ],
+      "rejectRegex": "(?<!\\d){{targets[1]}}(?!\\d)"
+    }
+  ]
+}

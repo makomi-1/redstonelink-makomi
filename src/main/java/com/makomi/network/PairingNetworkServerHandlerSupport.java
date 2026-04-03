@@ -1,18 +1,22 @@
 package com.makomi.network;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.command.CommandRateLimitService;
+import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * `PairingNetwork` 的服务端请求处理壳。
@@ -22,8 +26,68 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  */
 final class PairingNetworkServerHandlerSupport {
 	private static final int CURRENT_LINKS_REQUEST_MAX_DISTANCE = 8;
+	private static final long CURRENT_LINKS_REQUEST_MIN_INTERVAL_TICKS = 5L;
+	private static final long RUNTIME_HUD_REQUEST_MIN_INTERVAL_TICKS = 5L;
+	private static final long REQUEST_THROTTLE_CLEANUP_INTERVAL_TICKS = 200L;
+	private static final long REQUEST_THROTTLE_STALE_TICKS = 400L;
+	private static final Map<UUID, Long> LAST_CURRENT_LINKS_REQUEST_TICK_BY_PLAYER = new HashMap<>();
+	private static final Map<UUID, Long> LAST_RUNTIME_HUD_REQUEST_TICK_BY_PLAYER = new HashMap<>();
+	private static long lastThrottleCleanupTick = Long.MIN_VALUE;
 
 	private PairingNetworkServerHandlerSupport() {
+	}
+
+	/**
+	 * 处理 triggerSource 配对界面的结构化提交请求。
+	 *
+	 * @param player 发起请求的服务端玩家
+	 * @param payload 客户端上传的 triggerSource 配对表达式
+	 */
+	static void handleSubmitTriggerSourcePairing(ServerPlayer player, PairingNetwork.SubmitTriggerSourcePairingPayload payload) {
+		if (player == null || payload == null) {
+			return;
+		}
+		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient")
+			);
+			return;
+		}
+
+		LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
+			player.serverLevel(),
+			player,
+			LinkNodeType.TRIGGER_SOURCE,
+			payload.sourceSerial(),
+			payload.targetsExpression(),
+			player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+		);
+		if (!preparationResult.successful()) {
+			sendPairingFeedbacks(player, preparationResult.feedbacks());
+			return;
+		}
+
+		LinkSetExecutionService.PreparedReplaceOperation operation = preparationResult.operation();
+		CommandSourceStack commandSource = player.createCommandSourceStack();
+		if (
+			!CommandRateLimitService.tryAcquire(
+				commandSource,
+				CommandRateLimitService.CommandGroup.LINK_RW,
+				operation.commandCost()
+			)
+		) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.command.rate_limit.exceeded")
+			);
+			return;
+		}
+
+		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>(preparationResult.feedbacks());
+		feedbacks.addAll(LinkSetExecutionService.applyPreparedReplace(operation).feedbacks());
+		sendPairingFeedbacks(player, feedbacks);
 	}
 
 	/**
@@ -34,6 +98,9 @@ final class PairingNetworkServerHandlerSupport {
 	 */
 	static void handleRequestCurrentLinks(ServerPlayer player, PairingNetwork.RequestCurrentLinksPayload payload) {
 		if (!canReceiveNearOverlayPackets(player)) {
+			return;
+		}
+		if (isCurrentLinksRequestThrottled(player)) {
 			return;
 		}
 		Optional<LinkNodeType> requestedType = LinkNodeSemantics.tryParseCanonicalType(payload.sourceType());
@@ -66,6 +133,9 @@ final class PairingNetworkServerHandlerSupport {
 	 */
 	static void handleRequestRuntimeHudSnapshot(ServerPlayer player, PairingNetwork.RequestRuntimeHudSnapshotPayload payload) {
 		if (!canReceiveNearOverlayPackets(player)) {
+			return;
+		}
+		if (isRuntimeHudRequestThrottled(player)) {
 			return;
 		}
 		Optional<LinkNodeType> requestedType = LinkNodeSemantics.tryParseCanonicalType(payload.sourceType());
@@ -113,35 +183,14 @@ final class PairingNetworkServerHandlerSupport {
 		LinkNodeType requestedType,
 		long requestedSerial
 	) {
-		ServerLevel serverLevel = player.serverLevel();
-		if (!serverLevel.dimension().location().toString().equals(dimensionKey)) {
-			return null;
-		}
-
-		BlockPos blockPos = BlockPos.of(blockPosLong);
-		if (!serverLevel.isLoaded(blockPos)) {
-			return null;
-		}
-
-		double centerX = blockPos.getX() + 0.5D;
-		double centerY = blockPos.getY() + 0.5D;
-		double centerZ = blockPos.getZ() + 0.5D;
-		double maxDistanceSqr = (double) CURRENT_LINKS_REQUEST_MAX_DISTANCE * CURRENT_LINKS_REQUEST_MAX_DISTANCE;
-		if (player.distanceToSqr(centerX, centerY, centerZ) > maxDistanceSqr) {
-			return null;
-		}
-
-		BlockEntity blockEntity = serverLevel.getBlockEntity(blockPos);
-		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
-			return null;
-		}
-		if (pairableNodeBlockEntity.getLinkNodeType() != requestedType) {
-			return null;
-		}
-		if (pairableNodeBlockEntity.getSerial() != requestedSerial) {
-			return null;
-		}
-		return pairableNodeBlockEntity;
+		return PairableNodeRequestValidationSupport.resolveRequestedNode(
+			player,
+			dimensionKey,
+			blockPosLong,
+			requestedType,
+			requestedSerial,
+			CURRENT_LINKS_REQUEST_MAX_DISTANCE
+		);
 	}
 
 	/**
@@ -149,6 +198,80 @@ final class PairingNetworkServerHandlerSupport {
 	 */
 	private static boolean canReceiveNearOverlayPackets(ServerPlayer player) {
 		return player != null && player.hasPermissions(RedstoneLinkConfig.privacy().overlayResponsePermissionLevel());
+	}
+
+	/**
+	 * 判断“当前连接”查询是否触发服务端节流。
+	 */
+	private static boolean isCurrentLinksRequestThrottled(ServerPlayer player) {
+		return isOverlayRequestThrottled(
+			player,
+			LAST_CURRENT_LINKS_REQUEST_TICK_BY_PLAYER,
+			CURRENT_LINKS_REQUEST_MIN_INTERVAL_TICKS
+		);
+	}
+
+	/**
+	 * 判断“最终 IO”查询是否触发服务端节流。
+	 */
+	private static boolean isRuntimeHudRequestThrottled(ServerPlayer player) {
+		return isOverlayRequestThrottled(
+			player,
+			LAST_RUNTIME_HUD_REQUEST_TICK_BY_PLAYER,
+			RUNTIME_HUD_REQUEST_MIN_INTERVAL_TICKS
+		);
+	}
+
+	/**
+	 * 通用近外显请求节流：按玩家限最小 tick 间隔，并定期清理陈旧记录。
+	 */
+	private static boolean isOverlayRequestThrottled(
+		ServerPlayer player,
+		Map<UUID, Long> lastRequestTickByPlayer,
+		long minIntervalTicks
+	) {
+		if (player == null || lastRequestTickByPlayer == null) {
+			return true;
+		}
+		long nowTick = player.serverLevel().getGameTime();
+		cleanupThrottleStateIfNeeded(nowTick);
+		UUID playerId = player.getUUID();
+		Long lastTick = lastRequestTickByPlayer.get(playerId);
+		if (lastTick != null && isRequestInsideThrottleWindow(lastTick, nowTick, minIntervalTicks)) {
+			return true;
+		}
+		lastRequestTickByPlayer.put(playerId, nowTick);
+		return false;
+	}
+
+	/**
+	 * 判断当前请求是否仍处于节流窗口内。
+	 */
+	static boolean isRequestInsideThrottleWindow(long lastTick, long nowTick, long minIntervalTicks) {
+		long safeInterval = Math.max(1L, minIntervalTicks);
+		return nowTick - lastTick < safeInterval;
+	}
+
+	/**
+	 * 定期清理长时间未再请求的玩家记录，避免 UUID 表无限增长。
+	 */
+	private static void cleanupThrottleStateIfNeeded(long nowTick) {
+		if (
+			lastThrottleCleanupTick != Long.MIN_VALUE
+				&& nowTick - lastThrottleCleanupTick < REQUEST_THROTTLE_CLEANUP_INTERVAL_TICKS
+		) {
+			return;
+		}
+		lastThrottleCleanupTick = nowTick;
+		cleanupThrottleMap(LAST_CURRENT_LINKS_REQUEST_TICK_BY_PLAYER, nowTick);
+		cleanupThrottleMap(LAST_RUNTIME_HUD_REQUEST_TICK_BY_PLAYER, nowTick);
+	}
+
+	/**
+	 * 清理单个近外显请求节流表中的陈旧项。
+	 */
+	private static void cleanupThrottleMap(Map<UUID, Long> lastRequestTickByPlayer, long nowTick) {
+		lastRequestTickByPlayer.entrySet().removeIf(entry -> nowTick - entry.getValue() > REQUEST_THROTTLE_STALE_TICKS);
 	}
 
 	/**
@@ -199,6 +322,31 @@ final class PairingNetworkServerHandlerSupport {
 				runtimeSnapshot.outputPower()
 			)
 		);
+	}
+
+	/**
+	 * 回传单条配对反馈。
+	 */
+	private static void sendPairingFeedback(ServerPlayer player, LinkSetExecutionService.OperationFeedback feedback) {
+		if (player == null || feedback == null || feedback.messageKey() == null || feedback.messageKey().isBlank()) {
+			return;
+		}
+		ServerPlayNetworking.send(
+			player,
+			new PairingNetwork.PairingFeedbackPayload(feedback.success(), feedback.messageKey(), feedback.messageArgs())
+		);
+	}
+
+	/**
+	 * 回传多条配对反馈，保持服务端执行顺序。
+	 */
+	private static void sendPairingFeedbacks(ServerPlayer player, List<LinkSetExecutionService.OperationFeedback> feedbacks) {
+		if (feedbacks == null || feedbacks.isEmpty()) {
+			return;
+		}
+		for (LinkSetExecutionService.OperationFeedback feedback : feedbacks) {
+			sendPairingFeedback(player, feedback);
+		}
 	}
 
 	/**

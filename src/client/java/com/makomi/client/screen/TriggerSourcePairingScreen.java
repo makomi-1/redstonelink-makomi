@@ -2,7 +2,9 @@ package com.makomi.client.screen;
 
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
+import com.makomi.network.PairingNetwork;
 import java.util.List;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -86,6 +88,28 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	@Override
 	protected LinkNodeType sourceType() {
 		return SOURCE_TYPE;
+	}
+
+	/**
+	 * triggerSource 配对改走结构化提交，避免再拼装命令字符串。
+	 */
+	@Override
+	protected void submitPairingRequest(long sourceSerial, String rawTargetsInput) {
+		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
+			return;
+		}
+		ClientPlayNetworking.send(new PairingNetwork.SubmitTriggerSourcePairingPayload(sourceSerial, rawTargetsInput));
+	}
+
+	/**
+	 * triggerSource 清空操作走空表达式结构化提交。
+	 */
+	@Override
+	protected void clearPairingRequest(long sourceSerial) {
+		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
+			return;
+		}
+		ClientPlayNetworking.send(new PairingNetwork.SubmitTriggerSourcePairingPayload(sourceSerial, ""));
 	}
 
 	/**
