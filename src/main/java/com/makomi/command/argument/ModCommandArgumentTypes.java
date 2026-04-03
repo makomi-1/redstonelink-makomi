@@ -40,6 +40,11 @@ public final class ModCommandArgumentTypes {
 			KeyValueTokenArgumentType.class,
 			SingletonArgumentInfo.contextFree(KeyValueTokenArgumentType::keyValueToken)
 		);
+		ArgumentTypeRegistry.registerArgumentType(
+			id("serial_sequence_batch"),
+			SerialSequenceBatchArgumentType.class,
+			SingletonArgumentInfo.contextFree(SerialSequenceBatchArgumentType::serialSequenceBatch)
+		);
 	}
 
 	/**

@@ -39,6 +39,11 @@
       "phaseTicks": 0,
       "totalTicks": 0
     },
+    "input_start_custom_batch_triggerSource": {
+      "kind": "input_start_custom_batch",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
     "activate_batch_pulse": {
       "kind": "activate_batch",
       "mode": "pulse"

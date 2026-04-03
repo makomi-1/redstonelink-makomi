@@ -5,8 +5,6 @@ import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.command.argument.SignalSequenceArgumentType;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.LinkNodeType;
-import com.makomi.data.LinkSavedData;
 import com.makomi.data.input.InputEndpointKind;
 import com.makomi.data.input.InputJobSpec;
 import com.makomi.data.input.InputPlaybackService;
@@ -16,7 +14,6 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -153,10 +150,11 @@ public final class InputCommandRegistry {
 	 */
 	private static int executeInputStartSquare(CommandContext<CommandSourceStack> context, InputEndpointKind endpointKind) {
 		CommandSourceStack source = context.getSource();
-		List<Long> targetSerials = parseInputTargetSerials(
+		List<Long> targetSerials = InputCommandSupport.parseAndValidateTargetSerials(
 			source,
 			SerialBatchArgumentType.getSerialBatch(context, "serials"),
-			endpointKind
+			endpointKind,
+			INPUT_MAX_TARGETS
 		);
 		if (targetSerials == null) {
 			return 0;
@@ -180,24 +178,22 @@ public final class InputCommandRegistry {
 	 */
 	private static int executeInputStartCustom(CommandContext<CommandSourceStack> context, InputEndpointKind endpointKind) {
 		CommandSourceStack source = context.getSource();
-		List<Long> targetSerials = parseInputTargetSerials(
+		List<Long> targetSerials = InputCommandSupport.parseAndValidateTargetSerials(
 			source,
 			SerialBatchArgumentType.getSerialBatch(context, "serials"),
-			endpointKind
+			endpointKind,
+			INPUT_MAX_TARGETS
 		);
 		if (targetSerials == null) {
 			return 0;
 		}
 		String rawSequence = SignalSequenceArgumentType.getSignalSequence(context, "sequence");
-		if (rawSequence != null && rawSequence.length() > INPUT_MAX_SEQUENCE_RAW_LENGTH) {
-			source.sendFailure(Component.translatable("message.redstonelink.input.invalid_sequence", rawSequence));
-			return 0;
-		}
-		List<Integer> sequence;
-		try {
-			sequence = InputWaveformSpec.parseCustomSequence(rawSequence);
-		} catch (IllegalArgumentException ex) {
-			source.sendFailure(Component.translatable("message.redstonelink.input.invalid_sequence", rawSequence));
+		List<Integer> sequence = InputCommandSupport.parseAndValidateCustomSequence(
+			source,
+			rawSequence,
+			INPUT_MAX_SEQUENCE_RAW_LENGTH
+		);
+		if (sequence == null) {
 			return 0;
 		}
 		int phaseTicks = CommandTreeSupport.getOptionalIntArg(context, "phase_ticks", INPUT_DEFAULT_PHASE_TICKS);
@@ -229,7 +225,7 @@ public final class InputCommandRegistry {
 				source.sendFailure(
 					Component.translatable(
 						"message.redstonelink.input.start.offline",
-						CommandTreeSupport.typeCommandName(resolveInputTargetNodeType(endpointKind)),
+						CommandTreeSupport.typeCommandName(InputCommandSupport.resolveInputTargetNodeType(endpointKind)),
 						CommandTreeSupport.formatSerialCollection(startResult.offlineSerials())
 					)
 				);
@@ -239,7 +235,7 @@ public final class InputCommandRegistry {
 				source.sendFailure(
 					Component.translatable(
 						"message.redstonelink.input.start.unsupported",
-						CommandTreeSupport.typeCommandName(resolveInputTargetNodeType(endpointKind)),
+						CommandTreeSupport.typeCommandName(InputCommandSupport.resolveInputTargetNodeType(endpointKind)),
 						CommandTreeSupport.formatSerialCollection(startResult.unsupportedSerials())
 					)
 				);
@@ -328,71 +324,4 @@ public final class InputCommandRegistry {
 		return Command.SINGLE_SUCCESS;
 	}
 
-	/**
-	 * 解析并校验输入 job 的目标序列号集合。
-	 */
-	private static List<Long> parseInputTargetSerials(
-		CommandSourceStack source,
-		String rawSerials,
-		InputEndpointKind endpointKind
-	) {
-		var parseResult = com.makomi.util.SerialParseUtil.parseTargets(rawSerials, INPUT_MAX_TARGETS);
-		if (!parseResult.invalidEntries().isEmpty()) {
-			source.sendFailure(
-				Component.translatable(
-					"message.redstonelink.invalid_target_tokens",
-					String.join(", ", parseResult.invalidEntries())
-				)
-			);
-			return null;
-		}
-		if (parseResult.exceedLimit()) {
-			source.sendFailure(Component.translatable("message.redstonelink.input.too_many_targets", INPUT_MAX_TARGETS));
-			return null;
-		}
-		if (parseResult.targets().isEmpty()) {
-			source.sendFailure(Component.translatable("message.redstonelink.input.empty_targets"));
-			return null;
-		}
-		if (!parseResult.duplicateEntries().isEmpty()) {
-			source.sendSuccess(
-				() -> Component.translatable(
-					"message.redstonelink.batch_serials_deduped",
-					CommandTreeSupport.formatSerialCollection(parseResult.duplicateEntries())
-				),
-				false
-			);
-		}
-		LinkNodeType targetType = resolveInputTargetNodeType(endpointKind);
-		LinkSavedData savedData = LinkSavedData.get(source.getLevel());
-		List<Long> invalidSerials = new ArrayList<>();
-		List<Long> sortedTargets = parseResult.targets().stream().sorted().toList();
-		for (Long serial : sortedTargets) {
-			if (serial == null || serial <= 0L) {
-				continue;
-			}
-			boolean active = savedData.isSerialAllocated(targetType, serial) && !savedData.isSerialRetired(targetType, serial);
-			if (!active) {
-				invalidSerials.add(serial);
-			}
-		}
-		if (!invalidSerials.isEmpty()) {
-			source.sendFailure(
-				Component.translatable(
-					"message.redstonelink.input.invalid_serials",
-					CommandTreeSupport.typeCommandName(targetType),
-					CommandTreeSupport.formatSerialCollection(invalidSerials)
-				)
-			);
-			return null;
-		}
-		return List.copyOf(sortedTargets);
-	}
-
-	/**
-	 * 解析输入命令所面向的节点类型。
-	 */
-	private static LinkNodeType resolveInputTargetNodeType(InputEndpointKind endpointKind) {
-		return endpointKind == InputEndpointKind.CORE_SYNC_DIRECT ? LinkNodeType.CORE : LinkNodeType.TRIGGER_SOURCE;
-	}
 }

@@ -439,6 +439,21 @@ function Extract-InputJobStartTickFromResponse {
 	return [long]$match.Groups[1].Value
 }
 
+function Extract-InputJobIdsFromResponse {
+	param([string]$ResponseText)
+	$match = [System.Text.RegularExpressions.Regex]::Match(
+		([string]$ResponseText),
+		"(?i)\bjob\s*=\s*([0-9/]+)"
+	)
+	if (-not $match.Success) {
+		return @()
+	}
+	return @(
+		$match.Groups[1].Value.Split('/', [System.StringSplitOptions]::RemoveEmptyEntries) |
+			ForEach-Object { [long]$_ }
+	)
+}
+
 function Test-FunctionalCommandAssertHardFailure {
 	param([string]$ResponseText)
 	$normalized = ([string]$ResponseText).Trim()
@@ -1451,6 +1466,41 @@ function Resolve-MixedDirectWindowTicks {
 	return $windowTicks
 }
 
+function Build-MixedDirectTraceExpectationsWithLeadingZeros {
+	param(
+		[int]$LeadingZeroTicks,
+		[int[]]$TailSequence,
+		[string]$Type,
+		[string]$Mode
+	)
+	$powers = New-Object System.Collections.Generic.List[int]
+	for ($index = 0; $index -lt [Math]::Max(0, $LeadingZeroTicks); $index++) {
+		$powers.Add(0)
+	}
+	foreach ($power in @($TailSequence)) {
+		$powers.Add([int]$power)
+	}
+	return @(Build-TraceExpectationsFromPowerSequence -PowerSequence @($powers.ToArray()) -Type $Type -Mode $Mode)
+}
+
+function Build-MixedDirectStructuredTraceExpectationsWithLeadingZeros {
+	param(
+		[int]$LeadingZeroTicks,
+		$TailSamples,
+		[string]$Type
+	)
+	$expectations = New-Object System.Collections.Generic.List[object]
+	for ($index = 0; $index -lt [Math]::Max(0, $LeadingZeroTicks); $index++) {
+		$expectations.Add((New-TraceExpectationSample -Type $Type -Power 0))
+	}
+	foreach ($sample in @($TailSamples)) {
+		$power = [int](Get-OptionalProperty -Object $sample -Name "power" -DefaultValue 0)
+		$mode = [string](Get-OptionalProperty -Object $sample -Name "mode" -DefaultValue "")
+		$expectations.Add((New-TraceExpectationSample -Type $Type -Mode $mode -Power $power))
+	}
+	return @($expectations.ToArray())
+}
+
 function Build-MixedDirectSyncTraceExpectations {
 	param(
 		$Template,
@@ -1474,15 +1524,11 @@ function Build-MixedDirectSyncTraceExpectationsWithLeadingZeros {
 		[int]$LeadingZeroTicks,
 		[string]$Type
 	)
-	$powers = New-Object System.Collections.Generic.List[int]
-	for ($index = 0; $index -lt [Math]::Max(0, $LeadingZeroTicks); $index++) {
-		$powers.Add(0)
-	}
-	$powers.Add(15)
-	$powers.Add(0)
-	$powers.Add(15)
-	$powers.Add(0)
-	return @(Build-TraceExpectationsFromPowerSequence -PowerSequence @($powers.ToArray()) -Type $Type -Mode "sync")
+	return @(Build-MixedDirectTraceExpectationsWithLeadingZeros `
+		-LeadingZeroTicks $LeadingZeroTicks `
+		-TailSequence @(15, 0, 15, 0) `
+		-Type $Type `
+		-Mode "sync")
 }
 
 function Build-MixedDirectPulseTraceExpectations {
@@ -1508,20 +1554,11 @@ function Build-MixedDirectPulseTraceExpectationsWithLeadingZeros {
 		[int]$LeadingZeroTicks,
 		[string]$Type
 	)
-	$powers = New-Object System.Collections.Generic.List[int]
-	for ($index = 0; $index -lt [Math]::Max(0, $LeadingZeroTicks); $index++) {
-		$powers.Add(0)
-	}
-	for ($index = 0; $index -lt 3; $index++) {
-		$powers.Add(15)
-	}
-	$powers.Add(0)
-	$powers.Add(0)
-	for ($index = 0; $index -lt 3; $index++) {
-		$powers.Add(15)
-	}
-	$powers.Add(0)
-	return @(Build-TraceExpectationsFromPowerSequence -PowerSequence @($powers.ToArray()) -Type $Type -Mode "pulse")
+	return @(Build-MixedDirectTraceExpectationsWithLeadingZeros `
+		-LeadingZeroTicks $LeadingZeroTicks `
+		-TailSequence @(15, 15, 15, 0, 0, 15, 15, 15, 0) `
+		-Type $Type `
+		-Mode "pulse")
 }
 
 function Build-MixedDirectToggleTraceExpectations {
@@ -1547,20 +1584,102 @@ function Build-MixedDirectToggleTraceExpectationsWithLeadingZeros {
 		[int]$LeadingZeroTicks,
 		[string]$Type
 	)
-	$powers = New-Object System.Collections.Generic.List[int]
-	for ($index = 0; $index -lt [Math]::Max(0, $LeadingZeroTicks); $index++) {
-		$powers.Add(0)
-	}
-	for ($index = 0; $index -lt 3; $index++) {
-		$powers.Add(15)
-	}
-	for ($index = 0; $index -lt 3; $index++) {
-		$powers.Add(0)
-	}
-	for ($index = 0; $index -lt 4; $index++) {
-		$powers.Add(15)
-	}
-	return @(Build-TraceExpectationsFromPowerSequence -PowerSequence @($powers.ToArray()) -Type $Type -Mode "toggle")
+	return @(Build-MixedDirectTraceExpectationsWithLeadingZeros `
+		-LeadingZeroTicks $LeadingZeroTicks `
+		-TailSequence @(15, 15, 15, 0, 0, 0, 15, 15, 15, 15) `
+		-Type $Type `
+		-Mode "toggle")
+}
+
+function Build-MixedDirectSyncPulseRelativeTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectStructuredTraceExpectationsWithLeadingZeros `
+		-LeadingZeroTicks $windowTicks `
+		-TailSamples @(
+			[ordered]@{ power = 15; mode = "sync" },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 15; mode = "sync" },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 0 }
+		) `
+		-Type $Type)
+}
+
+function Build-MixedDirectSyncToggleRelativeTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectStructuredTraceExpectationsWithLeadingZeros `
+		-LeadingZeroTicks $windowTicks `
+		-TailSamples @(
+			[ordered]@{ power = 15; mode = "sync" },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 15; mode = "sync" },
+			[ordered]@{ power = 15; mode = "toggle" },
+			[ordered]@{ power = 15; mode = "toggle" },
+			[ordered]@{ power = 15; mode = "toggle" },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 }
+		) `
+		-Type $Type)
+}
+
+function Build-MixedDirectPulseToggleRelativeTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectStructuredTraceExpectationsWithLeadingZeros `
+		-LeadingZeroTicks $windowTicks `
+		-TailSamples @(
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "toggle" },
+			[ordered]@{ power = 15; mode = "toggle" }
+		) `
+		-Type $Type)
+}
+
+function Build-MixedDirectSyncPulseToggleRelativeTraceExpectations {
+	param(
+		$Template,
+		[string]$Type
+	)
+	$windowTicks = Resolve-MixedDirectWindowTicks -Template $Template
+	return @(Build-MixedDirectStructuredTraceExpectationsWithLeadingZeros `
+		-LeadingZeroTicks $windowTicks `
+		-TailSamples @(
+			[ordered]@{ power = 15; mode = "sync" },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 15; mode = "sync" },
+			[ordered]@{ power = 15; mode = "toggle" },
+			[ordered]@{ power = 15; mode = "toggle" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "pulse" },
+			[ordered]@{ power = 15; mode = "toggle" },
+			[ordered]@{ power = 15; mode = "toggle" }
+		) `
+		-Type $Type)
 }
 
 function Resolve-TraceTickExpectations {
@@ -1599,6 +1718,10 @@ function Resolve-TraceTickExpectations {
 		"mixed_direct_pulse_relative" { return @(Build-MixedDirectPulseRelativeTraceExpectations -Template $template -Type $Type) }
 		"mixed_direct_toggle" { return @(Build-MixedDirectToggleTraceExpectations -Template $template -Type $Type) }
 		"mixed_direct_toggle_relative" { return @(Build-MixedDirectToggleRelativeTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_sync_pulse_relative" { return @(Build-MixedDirectSyncPulseRelativeTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_sync_toggle_relative" { return @(Build-MixedDirectSyncToggleRelativeTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_pulse_toggle_relative" { return @(Build-MixedDirectPulseToggleRelativeTraceExpectations -Template $template -Type $Type) }
+		"mixed_direct_sync_pulse_toggle_relative" { return @(Build-MixedDirectSyncPulseToggleRelativeTraceExpectations -Template $template -Type $Type) }
 		default { throw "Unsupported trace tick template kind: $templateKind" }
 	}
 }
@@ -1978,6 +2101,94 @@ function Invoke-FunctionalPhases {
 					jobId = $jobId
 					jobStartTick = $jobStartTick
 					sequence = $sequence
+					phaseTicks = $phaseTicks
+					totalTicks = $totalTicks
+					command = $command
+					response = $commandResult.response
+					tickWindow = $commandResult.tickWindow
+				}
+				Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+			}
+			"input_start_custom_batch" {
+				$entries = @($phase.entries)
+				if ($entries.Count -le 0) {
+					throw "input_start_custom_batch phase requires entries."
+				}
+				$phaseTicks = [int](Get-OptionalProperty -Object $phase -Name "phaseTicks" -DefaultValue 0)
+				$totalTicks = [int](Get-OptionalProperty -Object $phase -Name "totalTicks" -DefaultValue 0)
+				$entryTokens = New-Object System.Collections.Generic.List[string]
+				$resolvedEntries = New-Object System.Collections.Generic.List[object]
+				foreach ($entry in $entries) {
+					$entryPhase = [ordered]@{}
+					foreach ($property in $entry.PSObject.Properties) {
+						$entryPhase[$property.Name] = $property.Value
+					}
+					$entrySerials = @(Resolve-PhaseSerials -Phase $entryPhase -SourceSerialMaps $SourceSerialMaps -TargetSerialMap $TargetSerialMap)
+					$entrySerialFormat = [string](Get-OptionalProperty -Object $entry -Name "serialFormat" -DefaultValue "slash_list")
+					$entrySerialText = Format-SerialInputText -Serials $entrySerials -Style $entrySerialFormat
+					$entrySequence = [string](Get-OptionalProperty -Object $entry -Name "sequence" -DefaultValue "")
+					if ([string]::IsNullOrWhiteSpace($entrySequence)) {
+						throw "input_start_custom_batch entry requires sequence."
+					}
+					$entryTokens.Add(("{0}@{1}" -f $entrySerialText, $entrySequence))
+					$resolvedEntries.Add([ordered]@{
+						serials = $entrySerials
+						serialText = $entrySerialText
+						sequence = $entrySequence
+					})
+				}
+				$batchToken = [string]::Join(";", @($entryTokens.ToArray()))
+				$command = Wrap-WithPlayerContext (
+					"redstonelink bench input start triggerSource custom_batch {0} {1} {2}" -f
+					$batchToken,
+					$phaseTicks,
+					$totalTicks
+				)
+				if ($DryRun) {
+					$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+					$jobStartTick = Get-OptionalProperty -Object $commandResult.tickWindow -Name "startTick"
+					$dryRunJobIds = New-Object System.Collections.Generic.List[long]
+					for ($index = 0; $index -lt $resolvedEntries.Count; $index++) {
+						$dryRunJobIds.Add([long]$script:DryRunInputJobCounter)
+						$script:DryRunInputJobCounter++
+					}
+					$phaseResult = [ordered]@{
+						kind = $kind
+						name = $phaseName
+						jobId = if ($dryRunJobIds.Count -gt 0) { [long]$dryRunJobIds[0] } else { $null }
+						jobIds = @($dryRunJobIds.ToArray())
+						jobStartTick = $jobStartTick
+						entries = @($resolvedEntries.ToArray())
+						batchToken = $batchToken
+						phaseTicks = $phaseTicks
+						totalTicks = $totalTicks
+						command = $command
+						response = "[RedstoneLink/Input] Started job=$([string]::Join('/', @($dryRunJobIds.ToArray()))) [DryRun]"
+						tickWindow = $commandResult.tickWindow
+						dryRun = $true
+					}
+					Add-FunctionalPhaseResult -PhaseResults $phaseResults -PhaseContext $phaseContext -PhaseName $phaseName -PhaseResult $phaseResult
+					continue
+				}
+				$commandResult = Invoke-RconCommandWithTickWindow -Connection $Connection -Command $command -Silent
+				Assert-BenchCommandResponse `
+					-Command $command `
+					-ResponseText ([string]$commandResult.response) `
+					-ExpectedPrefix "[RedstoneLink/Input]" `
+					-ExpectedRegex "Started job="
+				$jobIds = @(Extract-InputJobIdsFromResponse -ResponseText ([string]$commandResult.response))
+				$jobStartTick = Extract-InputJobStartTickFromResponse -ResponseText ([string]$commandResult.response)
+				if ($null -eq $jobStartTick) {
+					$jobStartTick = Get-OptionalProperty -Object $commandResult.tickWindow -Name "startTick"
+				}
+				$phaseResult = [ordered]@{
+					kind = $kind
+					name = $phaseName
+					jobId = if ($jobIds.Count -gt 0) { [long]$jobIds[0] } else { $null }
+					jobIds = $jobIds
+					jobStartTick = $jobStartTick
+					entries = @($resolvedEntries.ToArray())
+					batchToken = $batchToken
 					phaseTicks = $phaseTicks
 					totalTicks = $totalTicks
 					command = $command

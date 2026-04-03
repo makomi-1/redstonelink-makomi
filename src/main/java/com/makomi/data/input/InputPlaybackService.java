@@ -60,17 +60,74 @@ public final class InputPlaybackService {
 			return StartJobResult.invalid();
 		}
 		InputState inputState = state(server);
-		ValidationResult validationResult = validateAndBuildLanes(server, inputState, jobSpec);
+		ValidationResult validationResult = validateAndBuildLanes(server, inputState.nextSimulatedSourceSerial, jobSpec);
 		if (!validationResult.valid()) {
 			return new StartJobResult(false, null, validationResult.offlineSerials(), validationResult.unsupportedSerials());
 		}
 
 		long jobId = inputState.nextJobId++;
+		inputState.nextSimulatedSourceSerial = validationResult.nextSimulatedSourceSerial();
 		long startTick = currentTick(server);
 		JobState jobState = new JobState(jobId, jobSpec, startTick, validationResult.lanes());
 		inputState.jobs.put(jobId, jobState);
 		process(server, inputState, startTick, true);
 		return new StartJobResult(true, jobState.toInfo(startTick), List.of(), List.of());
+	}
+
+	/**
+	 * 同 tick 原子启动多个输入 job。
+	 * <p>
+	 * 该入口先完整校验并保留同一 `startTick`，再一次性写入运行态并统一派发，
+	 * 避免多次单 job 启动在 bench/RCON 场景下天然跨 tick 错位。
+	 * </p>
+	 */
+	public static StartBatchResult startBatch(MinecraftServer server, List<InputJobSpec> jobSpecs) {
+		if (server == null || jobSpecs == null || jobSpecs.isEmpty()) {
+			return StartBatchResult.invalid();
+		}
+		List<InputJobSpec> normalizedJobSpecs = jobSpecs
+			.stream()
+			.filter(jobSpec -> jobSpec != null && !jobSpec.targetSerials().isEmpty())
+			.toList();
+		if (normalizedJobSpecs.isEmpty()) {
+			return StartBatchResult.invalid();
+		}
+
+		InputState inputState = state(server);
+		long nextSimulatedSourceSerial = inputState.nextSimulatedSourceSerial;
+		List<PreparedJobPlan> preparedPlans = new ArrayList<>(normalizedJobSpecs.size());
+		List<Long> offlineSerials = new ArrayList<>();
+		List<Long> unsupportedSerials = new ArrayList<>();
+		for (InputJobSpec jobSpec : normalizedJobSpecs) {
+			ValidationResult validationResult = validateAndBuildLanes(server, nextSimulatedSourceSerial, jobSpec);
+			if (!validationResult.valid()) {
+				offlineSerials.addAll(validationResult.offlineSerials());
+				unsupportedSerials.addAll(validationResult.unsupportedSerials());
+				continue;
+			}
+			preparedPlans.add(new PreparedJobPlan(jobSpec, validationResult.lanes()));
+			nextSimulatedSourceSerial = validationResult.nextSimulatedSourceSerial();
+		}
+		if (
+			preparedPlans.isEmpty()
+				|| !offlineSerials.isEmpty()
+				|| !unsupportedSerials.isEmpty()
+				|| preparedPlans.size() != normalizedJobSpecs.size()
+		) {
+			return new StartBatchResult(false, List.of(), List.copyOf(offlineSerials), List.copyOf(unsupportedSerials));
+		}
+
+		long startTick = currentTick(server);
+		List<JobInfo> jobInfos = new ArrayList<>(preparedPlans.size());
+		inputState.nextSimulatedSourceSerial = nextSimulatedSourceSerial;
+		for (PreparedJobPlan preparedPlan : preparedPlans) {
+			long jobId = inputState.nextJobId++;
+			JobState jobState = new JobState(jobId, preparedPlan.jobSpec(), startTick, preparedPlan.lanes());
+			inputState.jobs.put(jobId, jobState);
+			jobInfos.add(jobState.toInfo(startTick));
+		}
+		process(server, inputState, startTick, true);
+		return new StartBatchResult(true, List.copyOf(jobInfos), List.of(), List.of());
 	}
 
 	/**
@@ -295,12 +352,13 @@ public final class InputPlaybackService {
 
 	private static ValidationResult validateAndBuildLanes(
 		MinecraftServer server,
-		InputState inputState,
+		long nextSimulatedSourceSerial,
 		InputJobSpec jobSpec
 	) {
 		List<RuntimeLane> lanes = new ArrayList<>();
 		List<Long> offlineSerials = new ArrayList<>();
 		List<Long> unsupportedSerials = new ArrayList<>();
+		long simulatedSourceSerialCursor = nextSimulatedSourceSerial;
 		for (Long targetSerial : jobSpec.targetSerials()) {
 			if (targetSerial == null || targetSerial <= 0L) {
 				continue;
@@ -331,7 +389,7 @@ public final class InputPlaybackService {
 						unsupportedSerials.add(targetSerial);
 						continue;
 					}
-					long simulatedSourceSerial = inputState.nextSimulatedSourceSerial--;
+					long simulatedSourceSerial = simulatedSourceSerialCursor--;
 					if (simulatedSourceSerial <= 0L) {
 						unsupportedSerials.add(targetSerial);
 						continue;
@@ -341,7 +399,13 @@ public final class InputPlaybackService {
 			}
 		}
 		boolean valid = !lanes.isEmpty() && offlineSerials.isEmpty() && unsupportedSerials.isEmpty();
-		return new ValidationResult(valid, List.copyOf(lanes), List.copyOf(offlineSerials), List.copyOf(unsupportedSerials));
+		return new ValidationResult(
+			valid,
+			List.copyOf(lanes),
+			List.copyOf(offlineSerials),
+			List.copyOf(unsupportedSerials),
+			simulatedSourceSerialCursor
+		);
 	}
 
 	private static Optional<ResolvedTriggerSource> resolveTriggerSource(MinecraftServer server, long sourceSerial) {
@@ -420,6 +484,20 @@ public final class InputPlaybackService {
 	}
 
 	/**
+	 * 原子批量启动结果。
+	 */
+	public record StartBatchResult(
+		boolean started,
+		List<JobInfo> jobInfos,
+		List<Long> offlineSerials,
+		List<Long> unsupportedSerials
+	) {
+		private static StartBatchResult invalid() {
+			return new StartBatchResult(false, List.of(), List.of(), List.of());
+		}
+	}
+
+	/**
 	 * 对外展示的 job 摘要。
 	 */
 	public record JobInfo(
@@ -437,8 +515,15 @@ public final class InputPlaybackService {
 		boolean valid,
 		List<RuntimeLane> lanes,
 		List<Long> offlineSerials,
-		List<Long> unsupportedSerials
+		List<Long> unsupportedSerials,
+		long nextSimulatedSourceSerial
 	) {}
+
+	private record PreparedJobPlan(InputJobSpec jobSpec, List<RuntimeLane> lanes) {
+		private PreparedJobPlan {
+			lanes = List.copyOf(lanes == null ? List.of() : lanes);
+		}
+	}
 
 	private record ResolvedNode(ServerLevel level, BlockEntity blockEntity) {}
 
