@@ -1,7 +1,9 @@
 package com.makomi.client.screen;
 
 import com.makomi.data.LinkNodeType;
+import com.makomi.network.PairingNetwork;
 import java.util.List;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -69,10 +71,32 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	/**
-	 * @return core 语义对应的来源类型（CORE）
+	 * @return core 视角对应的节点类型（CORE）
 	 */
 	@Override
 	protected LinkNodeType sourceType() {
 		return SOURCE_TYPE;
+	}
+
+	/**
+	 * core 配对改走结构化提交，再由服务端拆成 `triggerSource -> core` 正向写入。
+	 */
+	@Override
+	protected void submitPairingRequest(long sourceSerial, String rawTargetsInput) {
+		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
+			return;
+		}
+		ClientPlayNetworking.send(new PairingNetwork.SubmitCorePairingPayload(sourceSerial, rawTargetsInput));
+	}
+
+	/**
+	 * core 清空操作走空表达式结构化提交。
+	 */
+	@Override
+	protected void clearPairingRequest(long sourceSerial) {
+		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
+			return;
+		}
+		ClientPlayNetworking.send(new PairingNetwork.SubmitCorePairingPayload(sourceSerial, ""));
 	}
 }

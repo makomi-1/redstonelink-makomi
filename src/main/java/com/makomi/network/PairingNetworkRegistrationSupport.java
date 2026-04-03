@@ -35,6 +35,7 @@ final class PairingNetworkRegistrationSupport {
 			PairingNetwork.SubmitTriggerSourcePairingPayload.TYPE,
 			PairingNetwork.SubmitTriggerSourcePairingPayload.CODEC
 		);
+		PayloadTypeRegistry.playC2S().register(PairingNetwork.SubmitCorePairingPayload.TYPE, PairingNetwork.SubmitCorePairingPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(PairingNetwork.PairingFeedbackPayload.TYPE, PairingNetwork.PairingFeedbackPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(
 			PairingNetwork.RequestCurrentLinksPayload.TYPE,
@@ -64,6 +65,13 @@ final class PairingNetworkRegistrationSupport {
 				return;
 			}
 			player.server.execute(() -> PairingNetworkServerHandlerSupport.handleSubmitTriggerSourcePairing(player, payload));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.SubmitCorePairingPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> PairingNetworkServerHandlerSupport.handleSubmitCorePairing(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.RequestCurrentLinksPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();

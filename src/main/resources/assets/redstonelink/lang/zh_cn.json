@@ -95,6 +95,8 @@
     "message.redstonelink.link_not_exists":  "[RedstoneLink] 连接不存在，无法移除。",
     "message.redstonelink.links_cleared":  "[RedstoneLink] 已清空全部连接（移除 %s 条）。",
     "message.redstonelink.set_links_done":  "[RedstoneLink] 连接已替换，当前目标数量：%s。",
+    "message.redstonelink.core_pairing.apply.done":  "[RedstoneLink] 核心配对已更新：核心序号=%s，当前 triggerSource 数量=%s，变更来源数量=%s。",
+    "message.redstonelink.core_pairing.apply.no_changes":  "[RedstoneLink] 核心配对无需变更：核心序号=%s，当前 triggerSource 数量=%s。",
     "message.redstonelink.set_links.confirm_required":  "[RedstoneLink] 检测到批量覆盖（%s 项），请再次确认：/%s",
     "message.redstonelink.link.set.input_too_long":  "[RedstoneLink] link set 输入过长，最大允许 %s 个字符。",
     "message.redstonelink.permission.insufficient":  "[RedstoneLink] 没有足够权限。",

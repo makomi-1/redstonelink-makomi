@@ -68,18 +68,30 @@ final class PairingNetworkPayloadSupport {
 	 * 编码 triggerSource 配对提交包。
 	 */
 	static void encodeSubmitTriggerSourcePairingPayload(FriendlyByteBuf buffer, long sourceSerial, String targetsExpression) {
-		buffer.writeVarLong(Math.max(0L, sourceSerial));
-		buffer.writeUtf(targetsExpression == null ? "" : targetsExpression, RedstoneLinkConfig.command().linkSetMaxInputLength());
+		encodeSubmitPairingExpressionPayload(buffer, sourceSerial, targetsExpression);
 	}
 
 	/**
 	 * 解码 triggerSource 配对提交包。
 	 */
 	static PairingNetwork.SubmitTriggerSourcePairingPayload decodeSubmitTriggerSourcePairingPayload(FriendlyByteBuf buffer) {
-		return new PairingNetwork.SubmitTriggerSourcePairingPayload(
-			buffer.readVarLong(),
-			buffer.readUtf(RedstoneLinkConfig.command().linkSetMaxInputLength())
-		);
+		DecodedSubmitPairingPayload payload = decodeSubmitPairingExpressionPayload(buffer);
+		return new PairingNetwork.SubmitTriggerSourcePairingPayload(payload.serial(), payload.expression());
+	}
+
+	/**
+	 * 编码 core 配对提交包。
+	 */
+	static void encodeSubmitCorePairingPayload(FriendlyByteBuf buffer, long coreSerial, String triggerSourceExpression) {
+		encodeSubmitPairingExpressionPayload(buffer, coreSerial, triggerSourceExpression);
+	}
+
+	/**
+	 * 解码 core 配对提交包。
+	 */
+	static PairingNetwork.SubmitCorePairingPayload decodeSubmitCorePairingPayload(FriendlyByteBuf buffer) {
+		DecodedSubmitPairingPayload payload = decodeSubmitPairingExpressionPayload(buffer);
+		return new PairingNetwork.SubmitCorePairingPayload(payload.serial(), payload.expression());
 	}
 
 	/**
@@ -272,6 +284,24 @@ final class PairingNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码“单序号 + 表达式”结构化提交包。
+	 */
+	private static void encodeSubmitPairingExpressionPayload(FriendlyByteBuf buffer, long serial, String expression) {
+		buffer.writeVarLong(Math.max(0L, serial));
+		buffer.writeUtf(expression == null ? "" : expression, RedstoneLinkConfig.command().linkSetMaxInputLength());
+	}
+
+	/**
+	 * 解码“单序号 + 表达式”结构化提交包。
+	 */
+	private static DecodedSubmitPairingPayload decodeSubmitPairingExpressionPayload(FriendlyByteBuf buffer) {
+		return new DecodedSubmitPairingPayload(
+			buffer.readVarLong(),
+			buffer.readUtf(RedstoneLinkConfig.command().linkSetMaxInputLength())
+		);
+	}
+
+	/**
 	 * 解码配对反馈回执。
 	 */
 	private static DecodedFeedbackPayload decodeFeedbackPayload(FriendlyByteBuf buffer) {
@@ -289,6 +319,11 @@ final class PairingNetworkPayloadSupport {
 	 * 通用配对 payload 解码结果。
 	 */
 	private record DecodedPayload(long sourceSerial, List<Long> targets) {}
+
+	/**
+	 * “单序号 + 表达式”提交包解码结果。
+	 */
+	private record DecodedSubmitPairingPayload(long serial, String expression) {}
 
 	/**
 	 * 只携带节点定位上下文的请求解码结果。

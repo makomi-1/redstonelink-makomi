@@ -1,8 +1,13 @@
 package com.makomi.network;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -35,5 +40,38 @@ class PairingNetworkServerHandlerSupportTest {
 	void isRequestInsideThrottleWindowShouldClampInvalidInterval() {
 		assertTrue(PairingNetworkServerHandlerSupport.isRequestInsideThrottleWindow(100L, 100L, 0L));
 		assertFalse(PairingNetworkServerHandlerSupport.isRequestInsideThrottleWindow(100L, 101L, 0L));
+	}
+
+	/**
+	 * core 视角编辑应只为真正发生变化的 triggerSource 生成新的 core 目标集合。
+	 */
+	@Test
+	void buildChangedCoreTargetsByTriggerSourceShouldOnlyReturnChangedSources() {
+		LinkedHashMap<Long, Set<Long>> changedTargets = PairingNetworkServerHandlerSupport.buildChangedCoreTargetsByTriggerSource(
+			9L,
+			Set.of(2L, 5L),
+			List.of(2L, 7L),
+			Map.of(2L, Set.of(9L, 11L), 5L, Set.of(9L), 7L, Set.of(12L))
+		);
+
+		assertEquals(2, changedTargets.size());
+		assertEquals(Set.of(), changedTargets.get(5L));
+		assertEquals(Set.of(9L, 12L), changedTargets.get(7L));
+		assertFalse(changedTargets.containsKey(2L));
+	}
+
+	/**
+	 * 当 core 成员关系已经对齐时，不应再生成任何正向写入计划。
+	 */
+	@Test
+	void buildChangedCoreTargetsByTriggerSourceShouldReturnEmptyWhenAlreadyAligned() {
+		LinkedHashMap<Long, Set<Long>> changedTargets = PairingNetworkServerHandlerSupport.buildChangedCoreTargetsByTriggerSource(
+			15L,
+			Set.of(3L, 4L),
+			List.of(3L, 4L),
+			Map.of(3L, Set.of(15L), 4L, Set.of(2L, 15L))
+		);
+
+		assertTrue(changedTargets.isEmpty());
 	}
 }

@@ -51,22 +51,6 @@ public final class LinkSetExecutionService {
 		boolean hasLimitedBypassPermission,
 		boolean hasProtectedBypassPermission
 	) {
-		if (level == null || sourceType == null) {
-			return PreparationResult.failure(OperationFeedback.failure("message.redstonelink.permission.insufficient"));
-		}
-
-		LinkSavedData savedData = LinkSavedData.get(level);
-		if (sourceSerial <= 0L || !savedData.isSerialAllocated(sourceType, sourceSerial)) {
-			return PreparationResult.failure(
-				OperationFeedback.failure("message.redstonelink.source_serial_unallocated", Long.toString(sourceSerial))
-			);
-		}
-		if (savedData.isSerialRetired(sourceType, sourceSerial)) {
-			return PreparationResult.failure(
-				OperationFeedback.failure("message.redstonelink.source_serial_retired", Long.toString(sourceSerial))
-			);
-		}
-
 		String rawTargets = rawTargetsExpression == null ? "" : rawTargetsExpression.trim();
 		int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
 		if (rawTargets.length() > maxInputLength) {
@@ -93,6 +77,86 @@ public final class LinkSetExecutionService {
 			targets = Set.copyOf(parseResult.targets());
 			duplicateEntries = List.copyOf(parseResult.duplicateEntries());
 		}
+		return prepareConfirmedReplaceResolvedTargets(
+			level,
+			player,
+			sourceType,
+			sourceSerial,
+			targets,
+			duplicateEntries,
+			hasLimitedBypassPermission,
+			hasProtectedBypassPermission
+		);
+	}
+
+	/**
+	 * 基于结构化目标集合准备一次已确认的覆盖写入操作。
+	 *
+	 * @param level 服务端世界
+	 * @param player 玩家上下文；仅用于后续物品快照同步，可为 {@code null}
+	 * @param sourceType 来源类型
+	 * @param sourceSerial 来源序号
+	 * @param targetSerials 结构化目标集合；空集合表示清空连接
+	 * @param hasLimitedBypassPermission 是否具备 limited 模式越权权限
+	 * @param hasProtectedBypassPermission 是否具备 protected 模式越权权限
+	 * @return 准备结果；失败时携带失败反馈
+	 */
+	public static PreparationResult prepareConfirmedReplace(
+		ServerLevel level,
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> targetSerials,
+		boolean hasLimitedBypassPermission,
+		boolean hasProtectedBypassPermission
+	) {
+		return prepareConfirmedReplaceResolvedTargets(
+			level,
+			player,
+			sourceType,
+			sourceSerial,
+			normalizePositiveTargets(targetSerials),
+			List.of(),
+			hasLimitedBypassPermission,
+			hasProtectedBypassPermission
+		);
+	}
+
+	/**
+	 * 共享的覆盖写入准备主流程。
+	 * <p>
+	 * 同时服务于命令字符串入口与结构化目标集合入口，统一收口：
+	 * 来源校验、目标校验、写控判定、命令成本计算与预备反馈。
+	 * </p>
+	 */
+	private static PreparationResult prepareConfirmedReplaceResolvedTargets(
+		ServerLevel level,
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> targetSerials,
+		List<Long> duplicateEntries,
+		boolean hasLimitedBypassPermission,
+		boolean hasProtectedBypassPermission
+	) {
+		if (level == null || sourceType == null) {
+			return PreparationResult.failure(OperationFeedback.failure("message.redstonelink.permission.insufficient"));
+		}
+
+		LinkSavedData savedData = LinkSavedData.get(level);
+		if (sourceSerial <= 0L || !savedData.isSerialAllocated(sourceType, sourceSerial)) {
+			return PreparationResult.failure(
+				OperationFeedback.failure("message.redstonelink.source_serial_unallocated", Long.toString(sourceSerial))
+			);
+		}
+		if (savedData.isSerialRetired(sourceType, sourceSerial)) {
+			return PreparationResult.failure(
+				OperationFeedback.failure("message.redstonelink.source_serial_retired", Long.toString(sourceSerial))
+			);
+		}
+
+		int maxTargets = RedstoneLinkConfig.general().maxTargetsPerSetLinks();
+		Set<Long> targets = normalizePositiveTargets(targetSerials);
 		if (targets.size() > maxTargets) {
 			return PreparationResult.failure(
 				OperationFeedback.failure("message.redstonelink.too_many_targets", Integer.toString(maxTargets))
@@ -185,6 +249,22 @@ public final class LinkSetExecutionService {
 			CommandRateLimitService.computeBatchCost(2, targets.size(), 64)
 		);
 		return PreparationResult.success(operation, preparationFeedbacks);
+	}
+
+	/**
+	 * 结构化入口的目标集合归一化：仅保留正整数序号并去重。
+	 */
+	private static Set<Long> normalizePositiveTargets(Set<Long> targetSerials) {
+		if (targetSerials == null || targetSerials.isEmpty()) {
+			return Set.of();
+		}
+		Set<Long> normalizedTargets = new HashSet<>();
+		for (Long serial : targetSerials) {
+			if (serial != null && serial > 0L) {
+				normalizedTargets.add(serial);
+			}
+		}
+		return normalizedTargets.isEmpty() ? Set.of() : Set.copyOf(normalizedTargets);
 	}
 
 	/**

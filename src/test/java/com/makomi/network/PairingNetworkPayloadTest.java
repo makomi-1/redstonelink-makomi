@@ -69,6 +69,19 @@ class PairingNetworkPayloadTest {
 	}
 
 	/**
+	 * core 结构化提交包应规范化空文本并保持字段稳定。
+	 */
+	@Test
+	void submitCorePairingPayloadShouldNormalizeExpression() {
+		PairingNetwork.SubmitCorePairingPayload payload = new PairingNetwork.SubmitCorePairingPayload(400L, " 2/4:6 ");
+		PairingNetwork.SubmitCorePairingPayload emptyPayload = new PairingNetwork.SubmitCorePairingPayload(401L, null);
+
+		assertEquals(400L, payload.coreSerial());
+		assertEquals("2/4:6", payload.triggerSourceExpression());
+		assertEquals("", emptyPayload.triggerSourceExpression());
+	}
+
+	/**
 	 * 配对反馈包参数列表应做不可变拷贝，避免外部修改污染消息体。
 	 */
 	@Test
@@ -144,6 +157,22 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targetsExpression(), decoded.targetsExpression());
 		assertEquals(PairingNetwork.SubmitTriggerSourcePairingPayload.TYPE, decoded.type());
+	}
+
+	/**
+	 * core 结构化提交包编解码往返应保持字段一致。
+	 */
+	@Test
+	void submitCorePairingPayloadCodecRoundTripShouldPreserveFields() {
+		PairingNetwork.SubmitCorePairingPayload original = new PairingNetwork.SubmitCorePairingPayload(654L, "3/8:9");
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		PairingNetwork.SubmitCorePairingPayload.CODEC.encode(buffer, original);
+		PairingNetwork.SubmitCorePairingPayload decoded = PairingNetwork.SubmitCorePairingPayload.CODEC.decode(buffer);
+
+		assertEquals(original.coreSerial(), decoded.coreSerial());
+		assertEquals(original.triggerSourceExpression(), decoded.triggerSourceExpression());
+		assertEquals(PairingNetwork.SubmitCorePairingPayload.TYPE, decoded.type());
 	}
 
 	/**

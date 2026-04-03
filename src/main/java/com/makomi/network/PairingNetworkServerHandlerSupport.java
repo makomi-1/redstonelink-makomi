@@ -2,17 +2,24 @@ package com.makomi.network;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.CommandRateLimitService;
+import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
+import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.commands.CommandSourceStack;
@@ -87,6 +94,146 @@ final class PairingNetworkServerHandlerSupport {
 
 		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>(preparationResult.feedbacks());
 		feedbacks.addAll(LinkSetExecutionService.applyPreparedReplace(operation).feedbacks());
+		sendPairingFeedbacks(player, feedbacks);
+	}
+
+	/**
+	 * 处理 core 配对界面的结构化提交请求。
+	 * <p>
+	 * 该入口只接收“以 core 为观察中心”的编辑请求；实际落地时仍统一拆成多个
+	 * `triggerSource -> core` 正向覆盖写入，避免把旧反向语义继续固化到协议层。
+	 * </p>
+	 *
+	 * @param player 发起请求的服务端玩家
+	 * @param payload 客户端上传的 core 配对表达式
+	 */
+	static void handleSubmitCorePairing(ServerPlayer player, PairingNetwork.SubmitCorePairingPayload payload) {
+		if (player == null || payload == null) {
+			return;
+		}
+		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient")
+			);
+			return;
+		}
+
+		CorePairingParseResult parseResult = parseCorePairingTriggerSources(payload.triggerSourceExpression());
+		if (!parseResult.invalidEntries().isEmpty()) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure(
+					"message.redstonelink.invalid_target_tokens",
+					String.join(", ", parseResult.invalidEntries())
+				)
+			);
+			return;
+		}
+		if (parseResult.exceedLimit()) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure(
+					"message.redstonelink.too_many_targets",
+					Integer.toString(RedstoneLinkConfig.general().maxTargetsPerSetLinks())
+				)
+			);
+			return;
+		}
+
+		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
+		long coreSerial = payload.coreSerial();
+		if (coreSerial <= 0L || !savedData.isSerialAllocated(LinkNodeType.CORE, coreSerial)) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.target_serial_unallocated", Long.toString(coreSerial))
+			);
+			return;
+		}
+		if (savedData.isSerialRetired(LinkNodeType.CORE, coreSerial)) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.target_serial_retired", Long.toString(coreSerial))
+			);
+			return;
+		}
+
+		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>();
+		if (!parseResult.duplicateEntries().isEmpty()) {
+			feedbacks.add(
+				LinkSetExecutionService.OperationFeedback.success(
+					"message.redstonelink.duplicate_targets_deduped",
+					CommandTreeSupport.formatSerialCollection(parseResult.duplicateEntries())
+				)
+			);
+		}
+
+		Set<Long> currentTriggerSources = savedData.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial);
+		Map<Long, Set<Long>> currentTargetsByTriggerSource = loadCurrentCoreTargetsByTriggerSource(
+			savedData,
+			currentTriggerSources,
+			parseResult.orderedTriggerSources()
+		);
+		LinkedHashMap<Long, Set<Long>> changedTargetsByTriggerSource = buildChangedCoreTargetsByTriggerSource(
+			coreSerial,
+			currentTriggerSources,
+			parseResult.orderedTriggerSources(),
+			currentTargetsByTriggerSource
+		);
+		if (changedTargetsByTriggerSource.isEmpty()) {
+			feedbacks.add(
+				LinkSetExecutionService.OperationFeedback.success(
+					"message.redstonelink.core_pairing.apply.no_changes",
+					Long.toString(coreSerial),
+					Integer.toString(parseResult.orderedTriggerSources().size())
+				)
+			);
+			sendPairingFeedbacks(player, feedbacks);
+			return;
+		}
+
+		boolean hasLimitedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
+		boolean hasProtectedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
+		List<LinkSetExecutionService.PreparedReplaceOperation> preparedOperations = new ArrayList<>(changedTargetsByTriggerSource.size());
+		int totalCommandCost = 0;
+		for (Map.Entry<Long, Set<Long>> entry : changedTargetsByTriggerSource.entrySet()) {
+			LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
+				player.serverLevel(),
+				player,
+				LinkNodeType.TRIGGER_SOURCE,
+				entry.getKey(),
+				entry.getValue(),
+				hasLimitedBypassPermission,
+				hasProtectedBypassPermission
+			);
+			if (!preparationResult.successful()) {
+				sendPairingFeedbacks(player, preparationResult.feedbacks());
+				return;
+			}
+			preparedOperations.add(preparationResult.operation());
+			totalCommandCost = saturatingAdd(totalCommandCost, preparationResult.operation().commandCost());
+		}
+
+		CommandSourceStack commandSource = player.createCommandSourceStack();
+		if (!CommandRateLimitService.tryAcquire(commandSource, CommandRateLimitService.CommandGroup.LINK_RW, totalCommandCost)) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.command.rate_limit.exceeded")
+			);
+			return;
+		}
+
+		for (LinkSetExecutionService.PreparedReplaceOperation preparedOperation : preparedOperations) {
+			LinkSetExecutionService.applyPreparedReplace(preparedOperation);
+		}
+		feedbacks.add(
+			LinkSetExecutionService.OperationFeedback.success(
+				"message.redstonelink.core_pairing.apply.done",
+				Long.toString(coreSerial),
+				Integer.toString(parseResult.orderedTriggerSources().size()),
+				Integer.toString(preparedOperations.size())
+			)
+		);
 		sendPairingFeedbacks(player, feedbacks);
 	}
 
@@ -350,7 +497,123 @@ final class PairingNetworkServerHandlerSupport {
 	}
 
 	/**
+	 * 按“core 视角编辑请求”解析 triggerSource 输入表达式。
+	 */
+	private static CorePairingParseResult parseCorePairingTriggerSources(String rawTriggerSourceExpression) {
+		String normalizedExpression = rawTriggerSourceExpression == null ? "" : rawTriggerSourceExpression.trim();
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
+			normalizedExpression,
+			RedstoneLinkConfig.general().maxTargetsPerSetLinks()
+		);
+		return new CorePairingParseResult(
+			List.copyOf(parseResult.orderedTargets()),
+			parseResult.invalidEntries(),
+			parseResult.duplicateEntries(),
+			parseResult.exceedLimit()
+		);
+	}
+
+	/**
+	 * 读取本次 core 编辑会涉及到的 triggerSource 当前目标集合。
+	 */
+	private static Map<Long, Set<Long>> loadCurrentCoreTargetsByTriggerSource(
+		LinkSavedData savedData,
+		Set<Long> currentTriggerSources,
+		List<Long> desiredTriggerSources
+	) {
+		LinkedHashMap<Long, Set<Long>> currentTargetsByTriggerSource = new LinkedHashMap<>();
+		LinkedHashSet<Long> affectedTriggerSources = new LinkedHashSet<>();
+		if (desiredTriggerSources != null) {
+			affectedTriggerSources.addAll(desiredTriggerSources);
+		}
+		List<Long> sortedCurrentTriggerSources = new ArrayList<>();
+		if (currentTriggerSources != null) {
+			sortedCurrentTriggerSources.addAll(currentTriggerSources);
+		}
+		Collections.sort(sortedCurrentTriggerSources);
+		affectedTriggerSources.addAll(sortedCurrentTriggerSources);
+		for (long triggerSourceSerial : affectedTriggerSources) {
+			currentTargetsByTriggerSource.put(
+				triggerSourceSerial,
+				savedData == null ? Set.of() : savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)
+			);
+		}
+		return currentTargetsByTriggerSource;
+	}
+
+	/**
+	 * 将“core 视角输入”转换为需要真正执行的 `triggerSource -> core` 正向覆盖目标集合。
+	 * <p>
+	 * 返回结果仅包含“目标集合发生变化”的 triggerSource，避免对未变化来源重复执行写入。
+	 * </p>
+	 */
+	static LinkedHashMap<Long, Set<Long>> buildChangedCoreTargetsByTriggerSource(
+		long coreSerial,
+		Set<Long> currentTriggerSources,
+		List<Long> desiredTriggerSources,
+		Map<Long, Set<Long>> currentTargetsByTriggerSource
+	) {
+		LinkedHashMap<Long, Set<Long>> changedTargetsByTriggerSource = new LinkedHashMap<>();
+		if (coreSerial <= 0L) {
+			return changedTargetsByTriggerSource;
+		}
+
+		LinkedHashSet<Long> desiredTriggerSourceSet = new LinkedHashSet<>();
+		if (desiredTriggerSources != null) {
+			desiredTriggerSourceSet.addAll(desiredTriggerSources);
+		}
+		LinkedHashSet<Long> orderedAffectedTriggerSources = new LinkedHashSet<>(desiredTriggerSourceSet);
+		List<Long> sortedCurrentTriggerSources = new ArrayList<>();
+		if (currentTriggerSources != null) {
+			sortedCurrentTriggerSources.addAll(currentTriggerSources);
+		}
+		Collections.sort(sortedCurrentTriggerSources);
+		orderedAffectedTriggerSources.addAll(sortedCurrentTriggerSources);
+
+		for (long triggerSourceSerial : orderedAffectedTriggerSources) {
+			Set<Long> currentTargets = currentTargetsByTriggerSource == null
+				? Set.of()
+				: Set.copyOf(currentTargetsByTriggerSource.getOrDefault(triggerSourceSerial, Set.of()));
+			LinkedHashSet<Long> nextTargets = new LinkedHashSet<>(currentTargets);
+			if (desiredTriggerSourceSet.contains(triggerSourceSerial)) {
+				nextTargets.add(coreSerial);
+			} else {
+				nextTargets.remove(coreSerial);
+			}
+			Set<Long> normalizedNextTargets = nextTargets.isEmpty() ? Set.of() : Set.copyOf(nextTargets);
+			if (!normalizedNextTargets.equals(currentTargets)) {
+				changedTargetsByTriggerSource.put(triggerSourceSerial, normalizedNextTargets);
+			}
+		}
+		return changedTargetsByTriggerSource;
+	}
+
+	/**
+	 * 饱和累加命令成本，避免极端批量下整数溢出。
+	 */
+	private static int saturatingAdd(int currentCost, int nextCost) {
+		long resolved = (long) Math.max(0, currentCost) + Math.max(0, nextCost);
+		return (int) Math.min(Integer.MAX_VALUE, resolved);
+	}
+
+	/**
 	 * 近外显最终 IO 的服务端读模型。
 	 */
 	private record ResolvedRuntimeHudSnapshot(boolean available, int inputPower, int outputPower) {}
+
+	/**
+	 * core 配对输入解析结果。
+	 */
+	private record CorePairingParseResult(
+		List<Long> orderedTriggerSources,
+		List<String> invalidEntries,
+		List<Long> duplicateEntries,
+		boolean exceedLimit
+	) {
+		private CorePairingParseResult {
+			orderedTriggerSources = List.copyOf(orderedTriggerSources == null ? List.of() : orderedTriggerSources);
+			invalidEntries = List.copyOf(invalidEntries == null ? List.of() : invalidEntries);
+			duplicateEntries = List.copyOf(duplicateEntries == null ? List.of() : duplicateEntries);
+		}
+	}
 }

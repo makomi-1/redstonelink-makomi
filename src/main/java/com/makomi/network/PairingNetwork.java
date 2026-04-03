@@ -148,6 +148,35 @@ public final class PairingNetwork {
 	}
 
 	/**
+	 * core 配对界面提交包：`coreSerial` 为编辑目标 core 序列号，`triggerSourceExpression` 为期望关联的 triggerSource 表达式。
+	 * <p>
+	 * 该 payload 只承载“core 视角编辑请求”；服务端落地时仍统一拆成 `triggerSource -> core` 正向写入。
+	 * </p>
+	 */
+	public record SubmitCorePairingPayload(long coreSerial, String triggerSourceExpression) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<SubmitCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_core_pairing")
+		);
+		public static final StreamCodec<FriendlyByteBuf, SubmitCorePairingPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSubmitCorePairingPayload(
+				buffer,
+				payload.coreSerial(),
+				payload.triggerSourceExpression()
+			),
+			PairingNetworkPayloadSupport::decodeSubmitCorePairingPayload
+		);
+
+		public SubmitCorePairingPayload {
+			triggerSourceExpression = triggerSourceExpression == null ? "" : triggerSourceExpression.trim();
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 服务端返回给配对界面的结构化反馈回执。
 	 */
 	public record PairingFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
