@@ -396,6 +396,39 @@ class CoreDispatchBatchSchedulerTest {
 		assertEquals(1, accumulatorPool.size());
 	}
 
+	/**
+	 * apply phase 内再次请求 late-arrival 补 flush 时，应转为外层循环 drain，而不是递归进入下一层 apply。
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void flushLateArrivalsDuringApplyPhaseShouldDrainDeferredRequestsWithoutRecursiveApplyDepth() throws Exception {
+		CoreDispatchBatchScheduler.resetForTesting();
+		Object schedulerState = createSchedulerState();
+
+		Field pendingByTargetField = schedulerState.getClass().getDeclaredField("pendingByTarget");
+		pendingByTargetField.setAccessible(true);
+		Map<Object, Object> pendingByTarget = (Map<Object, Object>) pendingByTargetField.get(schedulerState);
+
+		LateArrivalFlushChain chain = new LateArrivalFlushChain(pendingByTarget, null, 0L, 4L);
+		ChainedLateArrivalTargetEntity target = chain.createTarget(1L);
+		attachDummyServerLevel(target, 0L);
+		Object accumulator = createAccumulator(target);
+		assertTrue(invokeMergeAll(accumulator, 0L, List.of(createSyncEntry(91L, 1L, 15))));
+		pendingByTarget.put(createTargetBatchKey(1L), accumulator);
+
+		Field stateByServerField = CoreDispatchBatchScheduler.class.getDeclaredField("STATE_BY_SERVER");
+		stateByServerField.setAccessible(true);
+		Map<MinecraftServer, Object> stateByServer = (Map<MinecraftServer, Object>) stateByServerField.get(null);
+		stateByServer.put(null, schedulerState);
+		setLastCompletedEndTick(null, 0L);
+
+		assertDoesNotThrow(() -> invokeFlushServerBatches(null, false));
+		assertEquals(4, chain.appliedTargetCount());
+		assertEquals(3, chain.lateFlushRequestCount());
+		assertEquals(1, chain.maxCallbackDepth());
+		assertTrue(pendingByTarget.isEmpty());
+	}
+
 	private static Object createAccumulator() throws Exception {
 		return createAccumulator(createTarget());
 	}
@@ -657,6 +690,97 @@ class CoreDispatchBatchSchedulerTest {
 
 		private boolean reentered() {
 			return reentered;
+		}
+	}
+
+	/**
+	 * 通过链式 late-arrival 请求观察 apply 回调栈深度，验证补 flush 已转为外层循环 drain。
+	 */
+	private static final class LateArrivalFlushChain {
+		private final Map<Object, Object> pendingByTarget;
+		private final MinecraftServer server;
+		private final long currentTick;
+		private final long maxTargetSerial;
+		private int callbackDepth;
+		private int maxCallbackDepth;
+		private int appliedTargetCount;
+		private int lateFlushRequestCount;
+
+		private LateArrivalFlushChain(
+			Map<Object, Object> pendingByTarget,
+			MinecraftServer server,
+			long currentTick,
+			long maxTargetSerial
+		) {
+			this.pendingByTarget = pendingByTarget;
+			this.server = server;
+			this.currentTick = currentTick;
+			this.maxTargetSerial = maxTargetSerial;
+		}
+
+		private ChainedLateArrivalTargetEntity createTarget(long targetSerial) {
+			return new ChainedLateArrivalTargetEntity(targetSerial, this);
+		}
+
+		private void onActive(long targetSerial) {
+			callbackDepth++;
+			maxCallbackDepth = Math.max(maxCallbackDepth, callbackDepth);
+			appliedTargetCount++;
+			try {
+				long nextTargetSerial = targetSerial + 1L;
+				if (nextTargetSerial > maxTargetSerial) {
+					return;
+				}
+				lateFlushRequestCount++;
+				ChainedLateArrivalTargetEntity nextTarget = createTarget(nextTargetSerial);
+				attachDummyServerLevel(nextTarget, currentTick);
+				Object accumulator = createAccumulator(nextTarget);
+				invokeMergeAll(
+					accumulator,
+					currentTick,
+					List.of(createSyncEntry(90L + nextTargetSerial, nextTargetSerial, 9))
+				);
+				pendingByTarget.put(createTargetBatchKey(nextTargetSerial), accumulator);
+				invokeFlushLateArrivalsIfCurrentTickEndAlreadyPassed(server, currentTick);
+			} catch (Exception ex) {
+				throw new IllegalStateException("failed to enqueue late arrival chain", ex);
+			} finally {
+				callbackDepth--;
+			}
+		}
+
+		private int maxCallbackDepth() {
+			return maxCallbackDepth;
+		}
+
+		private int appliedTargetCount() {
+			return appliedTargetCount;
+		}
+
+		private int lateFlushRequestCount() {
+			return lateFlushRequestCount;
+		}
+	}
+
+	/**
+	 * 每次变为 active 时继续追加一个 late-arrival 目标，构造链式补 flush 场景。
+	 */
+	private static final class ChainedLateArrivalTargetEntity extends TestTargetEntity {
+		private final long targetSerial;
+		private final LateArrivalFlushChain chain;
+
+		private ChainedLateArrivalTargetEntity(long targetSerial, LateArrivalFlushChain chain) {
+			super(BlockPos.ZERO, Blocks.BEACON.defaultBlockState());
+			this.targetSerial = targetSerial;
+			this.chain = chain;
+		}
+
+		@Override
+		protected void onActiveChanged(boolean active) {
+			if (!active) {
+				return;
+			}
+			chain.onActive(targetSerial);
 		}
 	}
 }

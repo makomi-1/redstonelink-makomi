@@ -234,13 +234,44 @@ public final class CoreDispatchBatchScheduler {
 		if (state == null) {
 			return;
 		}
-		if (state.pendingByTarget.isEmpty()) {
-			if (state.onIdleTickAndShouldRelease()) {
-				STATE_BY_SERVER.remove(server);
-			}
+		if (state.deferFlushRequestIfApplying(forceFlush)) {
 			return;
 		}
-		state.markActive();
+		boolean drainForceFlush = forceFlush;
+		while (true) {
+			if (state.pendingByTarget.isEmpty()) {
+				if (state.onIdleTickAndShouldRelease()) {
+					STATE_BY_SERVER.remove(server);
+				}
+				return;
+			}
+			state.markActive();
+			List<TargetFlushPlan> flushPlans = collectFlushPlans(state, server, drainForceFlush);
+			state.beginFlushApplyPhase();
+			try {
+				for (TargetFlushPlan flushPlan : flushPlans) {
+					if (flushPlan != null) {
+						flushPlan.apply();
+					}
+				}
+			} finally {
+				state.finishFlushApplyPhase();
+			}
+			boolean deferredFlushRequested = state.consumeDeferredFlushRequested();
+			drainForceFlush = drainForceFlush || state.consumeDeferredForceFlushRequested();
+			if (!deferredFlushRequested) {
+				break;
+			}
+		}
+		if (state.pendingByTarget.isEmpty() && state.accumulatorPool.isEmpty()) {
+			STATE_BY_SERVER.remove(server);
+		}
+	}
+
+	/**
+	 * 提取本轮所有到期 bucket，避免 apply 阶段继续占用 `pendingByTarget` 的迭代器。
+	 */
+	private static List<TargetFlushPlan> collectFlushPlans(SchedulerState state, MinecraftServer server, boolean forceFlush) {
 		List<TargetFlushPlan> flushPlans = new ArrayList<>();
 		Iterator<Map.Entry<TargetBatchKey, TargetBatchAccumulator>> iterator = state.pendingByTarget.entrySet().iterator();
 		while (iterator.hasNext()) {
@@ -261,14 +292,7 @@ public final class CoreDispatchBatchScheduler {
 			iterator.remove();
 			state.recycleAccumulator(accumulator);
 		}
-		for (TargetFlushPlan flushPlan : flushPlans) {
-			if (flushPlan != null) {
-				flushPlan.apply();
-			}
-		}
-		if (state.pendingByTarget.isEmpty() && state.accumulatorPool.isEmpty()) {
-			STATE_BY_SERVER.remove(server);
-		}
+		return flushPlans;
 	}
 
 	private static int configuredBatchWindowTicks() {
@@ -597,6 +621,9 @@ public final class CoreDispatchBatchScheduler {
 	private static final class SchedulerState {
 		private final LinkedHashMap<TargetBatchKey, TargetBatchAccumulator> pendingByTarget = new LinkedHashMap<>();
 		private final List<TargetBatchAccumulator> accumulatorPool = new ArrayList<>();
+		private boolean flushApplyInProgress;
+		private boolean deferredFlushRequested;
+		private boolean deferredForceFlushRequested;
 		private int idleTicks;
 
 		/**
@@ -632,6 +659,50 @@ public final class CoreDispatchBatchScheduler {
 		}
 
 		/**
+		 * 若当前仍处于 apply phase，则只登记一次延后 flush 请求，交给外层 drain 循环继续处理。
+		 */
+		private boolean deferFlushRequestIfApplying(boolean forceFlush) {
+			if (!flushApplyInProgress) {
+				return false;
+			}
+			deferredFlushRequested = true;
+			deferredForceFlushRequested = deferredForceFlushRequested || forceFlush;
+			return true;
+		}
+
+		/**
+		 * 标记开始执行摘出 flush plan 的 apply 阶段。
+		 */
+		private void beginFlushApplyPhase() {
+			flushApplyInProgress = true;
+		}
+
+		/**
+		 * 标记 apply 阶段结束；若期间收到补 flush 请求，将由外层循环继续 drain。
+		 */
+		private void finishFlushApplyPhase() {
+			flushApplyInProgress = false;
+		}
+
+		/**
+		 * 读取并清空一次延后 flush 请求标记。
+		 */
+		private boolean consumeDeferredFlushRequested() {
+			boolean requested = deferredFlushRequested;
+			deferredFlushRequested = false;
+			return requested;
+		}
+
+		/**
+		 * 读取并清空一次延后 `forceFlush` 请求标记。
+		 */
+		private boolean consumeDeferredForceFlushRequested() {
+			boolean requested = deferredForceFlushRequested;
+			deferredForceFlushRequested = false;
+			return requested;
+		}
+
+		/**
 		 * 空闲 tick 内递增 idle 计数；达到阈值后释放 retained pool。
 		 */
 		private boolean onIdleTickAndShouldRelease() {
@@ -657,6 +728,9 @@ public final class CoreDispatchBatchScheduler {
 		private void clearRetainedState() {
 			pendingByTarget.clear();
 			accumulatorPool.clear();
+			flushApplyInProgress = false;
+			deferredFlushRequested = false;
+			deferredForceFlushRequested = false;
 			idleTicks = 0;
 		}
 	}
