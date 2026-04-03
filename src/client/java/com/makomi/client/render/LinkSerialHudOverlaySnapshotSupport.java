@@ -1,6 +1,7 @@
 package com.makomi.client.render;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
@@ -73,13 +74,15 @@ final class LinkSerialHudOverlaySnapshotSupport {
 	 * @param sourceType 语义类型（triggerSource/core）
 	 * @param sourceSerial 来源序号
 	 * @param linkedTargets 可见目标列表（已脱敏）
+	 * @param crossChunkIdentity 跨区块身份
 	 */
 	static void updateCurrentLinksSnapshot(
 		String dimensionKey,
 		long blockPosLong,
 		String sourceType,
 		long sourceSerial,
-		List<Long> linkedTargets
+		List<Long> linkedTargets,
+		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseCanonicalType(sourceType);
 		if (parsedType.isEmpty() || sourceSerial <= 0L || dimensionKey == null || dimensionKey.isBlank()) {
@@ -89,7 +92,11 @@ final class LinkSerialHudOverlaySnapshotSupport {
 		long now = System.currentTimeMillis();
 		currentLinksSnapshotCache.put(
 			targetKey,
-			new CachedCurrentLinksSnapshot(now + CURRENT_LINKS_CACHE_TTL_MILLIS, normalizeLinkedTargets(linkedTargets))
+			new CachedCurrentLinksSnapshot(
+				now + CURRENT_LINKS_CACHE_TTL_MILLIS,
+				normalizeLinkedTargets(linkedTargets),
+				normalizeCrossChunkIdentity(crossChunkIdentity)
+			)
 		);
 		currentLinksRequestDeadlines.remove(targetKey);
 		trimCurrentLinksCacheIfNeeded();
@@ -142,18 +149,18 @@ final class LinkSerialHudOverlaySnapshotSupport {
 	 * @param blockPosLong 当前命中方块坐标压缩值
 	 * @return 可直接显示的当前连接快照；缓存未命中时返回空列表
 	 */
-	static List<Long> resolveCurrentLinksSnapshotWithLazyRequest(
+	static CachedCurrentLinksSnapshot resolveCurrentLinksSnapshotWithLazyRequest(
 		PairableNodeBlockEntity pairableNodeBlockEntity,
 		String dimensionKey,
 		long blockPosLong
 	) {
 		if (pairableNodeBlockEntity == null || dimensionKey == null || dimensionKey.isBlank()) {
-			return List.of();
+			return CachedCurrentLinksSnapshot.empty();
 		}
 		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
 		long sourceSerial = pairableNodeBlockEntity.getSerial();
 		if (nodeType == null || sourceSerial <= 0L) {
-			return List.of();
+			return CachedCurrentLinksSnapshot.empty();
 		}
 
 		long now = System.currentTimeMillis();
@@ -161,11 +168,11 @@ final class LinkSerialHudOverlaySnapshotSupport {
 		OverlayTargetKey targetKey = new OverlayTargetKey(dimensionKey, blockPosLong, nodeType, sourceSerial);
 		CachedCurrentLinksSnapshot cachedSnapshot = currentLinksSnapshotCache.get(targetKey);
 		if (cachedSnapshot != null && cachedSnapshot.expireAtMillis() >= now) {
-			return cachedSnapshot.linkedTargets();
+			return cachedSnapshot;
 		}
 
 		requestCurrentLinksSnapshotIfAllowed(targetKey, now);
-		return cachedSnapshot == null ? List.of() : cachedSnapshot.linkedTargets();
+		return cachedSnapshot == null ? CachedCurrentLinksSnapshot.empty() : cachedSnapshot;
 	}
 
 	/**
@@ -307,6 +314,13 @@ final class LinkSerialHudOverlaySnapshotSupport {
 	}
 
 	/**
+	 * 归一化跨区块身份字段，避免客户端缓存出现空值。
+	 */
+	private static CrossChunkNodeIdentity normalizeCrossChunkIdentity(CrossChunkNodeIdentity crossChunkIdentity) {
+		return crossChunkIdentity == null ? CrossChunkNodeIdentity.NORMAL : crossChunkIdentity;
+	}
+
+	/**
 	 * 归一化 HUD 强度值，限制在红石强度范围内。
 	 */
 	private static int normalizeHudPower(int power) {
@@ -329,8 +343,22 @@ final class LinkSerialHudOverlaySnapshotSupport {
 	 *
 	 * @param expireAtMillis 过期时间戳
 	 * @param linkedTargets 可见连接快照
+	 * @param crossChunkIdentity 命中节点的跨区块身份
 	 */
-	record CachedCurrentLinksSnapshot(long expireAtMillis, List<Long> linkedTargets) {
+	record CachedCurrentLinksSnapshot(
+		long expireAtMillis,
+		List<Long> linkedTargets,
+		CrossChunkNodeIdentity crossChunkIdentity
+	) {
+		private static final CachedCurrentLinksSnapshot EMPTY = new CachedCurrentLinksSnapshot(
+			0L,
+			List.of(),
+			CrossChunkNodeIdentity.NORMAL
+		);
+
+		static CachedCurrentLinksSnapshot empty() {
+			return EMPTY;
+		}
 	}
 
 	/**

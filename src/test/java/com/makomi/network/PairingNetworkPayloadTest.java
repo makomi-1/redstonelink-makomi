@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.makomi.data.CrossChunkNodeIdentity;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
@@ -234,6 +235,32 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(77L, decoded.sourceSerial());
 		assertEquals(List.of(), decoded.targets());
+	}
+
+	/**
+	 * 当前连接快照包编解码往返应保留跨区块身份字段。
+	 */
+	@Test
+	void currentLinksSnapshotPayloadCodecRoundTripShouldPreserveCrossChunkIdentity() {
+		PairingNetwork.CurrentLinksSnapshotPayload original = new PairingNetwork.CurrentLinksSnapshotPayload(
+			"minecraft:overworld",
+			1234L,
+			"triggerSource",
+			88L,
+			List.of(3L, 7L),
+			CrossChunkNodeIdentity.FORCE_LOAD
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		PairingNetwork.CurrentLinksSnapshotPayload.CODEC.encode(buffer, original);
+		PairingNetwork.CurrentLinksSnapshotPayload decoded = PairingNetwork.CurrentLinksSnapshotPayload.CODEC.decode(buffer);
+
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPos(), decoded.blockPos());
+		assertEquals(original.sourceType(), decoded.sourceType());
+		assertEquals(original.sourceSerial(), decoded.sourceSerial());
+		assertEquals(original.targets(), decoded.targets());
+		assertEquals(original.crossChunkIdentity(), decoded.crossChunkIdentity());
 	}
 
 	/**

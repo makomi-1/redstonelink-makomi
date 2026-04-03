@@ -5,6 +5,7 @@ import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkNodeType;
@@ -282,6 +283,7 @@ final class PairingNetworkServerHandlerSupport {
 		}
 
 		List<Long> visibleTargets = List.of();
+		CrossChunkNodeIdentity crossChunkIdentity = CrossChunkNodeIdentity.NORMAL;
 		PairableNodeBlockEntity pairableNode = resolveRequestedNode(
 			player,
 			payload.dimensionKey(),
@@ -293,9 +295,16 @@ final class PairingNetworkServerHandlerSupport {
 			visibleTargets = NodeSnapshotQueryService
 				.queryLinks(player, pairableNode.getLinkNodeType(), pairableNode.getSerial())
 				.visibleTargets();
+			if (pairableNode.getLevel() instanceof net.minecraft.server.level.ServerLevel requestedLevel) {
+				crossChunkIdentity = NodeSnapshotQueryService.resolveCrossChunkNodeIdentity(
+					requestedLevel,
+					pairableNode.getLinkNodeType(),
+					pairableNode.getSerial()
+				);
+			}
 		}
 
-		sendCurrentLinksSnapshot(player, payload, visibleTargets);
+		sendCurrentLinksSnapshot(player, payload, visibleTargets, crossChunkIdentity);
 	}
 
 	/**
@@ -464,7 +473,8 @@ final class PairingNetworkServerHandlerSupport {
 	private static void sendCurrentLinksSnapshot(
 		ServerPlayer player,
 		PairingNetwork.RequestCurrentLinksPayload payload,
-		List<Long> visibleTargets
+		List<Long> visibleTargets,
+		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		ServerPlayNetworking.send(
 			player,
@@ -473,7 +483,8 @@ final class PairingNetworkServerHandlerSupport {
 				payload.blockPos(),
 				payload.sourceType(),
 				payload.sourceSerial(),
-				visibleTargets
+				visibleTargets,
+				crossChunkIdentity
 			)
 		);
 	}

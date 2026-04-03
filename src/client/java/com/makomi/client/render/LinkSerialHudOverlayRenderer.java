@@ -2,6 +2,7 @@ package com.makomi.client.render;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
+import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkNodeType;
 import java.util.List;
 import net.minecraft.client.DeltaTracker;
@@ -29,20 +30,23 @@ public final class LinkSerialHudOverlayRenderer {
 	 * @param sourceType 语义类型（triggerSource/core）
 	 * @param sourceSerial 来源序号
 	 * @param linkedTargets 可见目标列表（已脱敏）
+	 * @param crossChunkIdentity 命中节点的跨区块身份
 	 */
 	public static void updateCurrentLinksSnapshot(
 		String dimensionKey,
 		long blockPosLong,
 		String sourceType,
 		long sourceSerial,
-		List<Long> linkedTargets
+		List<Long> linkedTargets,
+		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		LinkSerialHudOverlaySnapshotSupport.updateCurrentLinksSnapshot(
 			dimensionKey,
 			blockPosLong,
 			sourceType,
 			sourceSerial,
-			linkedTargets
+			linkedTargets,
+			crossChunkIdentity
 		);
 	}
 
@@ -113,7 +117,8 @@ public final class LinkSerialHudOverlayRenderer {
 		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
 		String dimensionKey = minecraft.level.dimension().location().toString();
 		long blockPosLong = blockHitResult.getBlockPos().asLong();
-		List<Long> linkedTargetsSnapshot = LinkSerialHudOverlaySnapshotSupport.resolveCurrentLinksSnapshotWithLazyRequest(
+		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot currentLinksSnapshot =
+			LinkSerialHudOverlaySnapshotSupport.resolveCurrentLinksSnapshotWithLazyRequest(
 			pairableNodeBlockEntity,
 			dimensionKey,
 			blockPosLong
@@ -129,7 +134,7 @@ public final class LinkSerialHudOverlayRenderer {
 			minecraft.font,
 			dimensionKey,
 			blockPosLong,
-			linkedTargetsSnapshot,
+			currentLinksSnapshot,
 			runtimeHudSnapshot,
 			LinkSerialHudOverlayTextSupport.resolveLanguageSignature()
 		);

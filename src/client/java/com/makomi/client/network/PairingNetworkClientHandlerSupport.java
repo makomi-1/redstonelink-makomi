@@ -56,7 +56,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.blockPos(),
 				payload.sourceType(),
 				payload.sourceSerial(),
-				payload.targets()
+				payload.targets(),
+				payload.crossChunkIdentity()
 			));
 		});
 

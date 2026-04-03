@@ -1,6 +1,7 @@
 package com.makomi.network;
 
 import com.makomi.RedstoneLink;
+import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeLinksSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
@@ -348,13 +349,15 @@ public final class PairingNetwork {
 	 * @param sourceType 来源类型（triggerSource/core）
 	 * @param sourceSerial 来源序列号
 	 * @param targets 可见目标序号集合（不可见时为空）
+	 * @param crossChunkIdentity 命中节点的跨区块身份
 	 */
 	public record CurrentLinksSnapshotPayload(
 		String dimensionKey,
 		long blockPos,
 		String sourceType,
 		long sourceSerial,
-		List<Long> targets
+		List<Long> targets,
+		CrossChunkNodeIdentity crossChunkIdentity
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<CurrentLinksSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "current_links_snapshot")
@@ -366,7 +369,8 @@ public final class PairingNetwork {
 				payload.blockPos(),
 				payload.sourceType(),
 				payload.sourceSerial(),
-				payload.targets()
+				payload.targets(),
+				payload.crossChunkIdentity()
 			),
 			PairingNetworkPayloadSupport::decodeCurrentLinksSnapshotPayload
 		);
@@ -375,6 +379,7 @@ public final class PairingNetwork {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			sourceType = sourceType == null ? "" : sourceType;
 			targets = List.copyOf(targets);
+			crossChunkIdentity = crossChunkIdentity == null ? CrossChunkNodeIdentity.NORMAL : crossChunkIdentity;
 		}
 
 		@Override

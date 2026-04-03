@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.config.RedstoneLinkCrossChunkConfig;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.server.MinecraftServer;
@@ -97,6 +98,28 @@ public final class NodeSnapshotQueryService {
 		return NodeRuntimeProbe.resolveCurrent(server, nodeType, serial).map(NodeRuntimeProbe.ProbeResolution::snapshot);
 	}
 
+	/**
+	 * 解析节点在“持久化数据 + 配置”视角下的跨区块身份。
+	 * <p>
+	 * 该身份仅用于近外显展示，不读取实体运行态，也不要求当前票据已实际挂载。
+	 * </p>
+	 */
+	public static CrossChunkNodeIdentity resolveCrossChunkNodeIdentity(
+		ServerLevel level,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		if (level == null) {
+			return CrossChunkNodeIdentity.NORMAL;
+		}
+		return resolveCrossChunkNodeIdentity(
+			nodeType,
+			serial,
+			CrossChunkWhitelistSavedData.get(level),
+			RedstoneLinkConfig.crossChunk()
+		);
+	}
+
 	private static Set<Long> readRawTargets(LinkSavedData savedData, LinkNodeType nodeType, long serial) {
 		if (savedData == null || nodeType == null || serial <= 0L) {
 			return Set.of();
@@ -173,6 +196,64 @@ public final class NodeSnapshotQueryService {
 			return 0L;
 		}
 		return savedData.sourceRevision(nodeType, serial);
+	}
+
+	/**
+	 * 按给定白名单与配置快照解析跨区块身份。
+	 * <p>
+	 * 该 helper 暴露给同包测试复用，避免测试环境依赖真实 `ServerLevel`。
+	 * </p>
+	 */
+	static CrossChunkNodeIdentity resolveCrossChunkNodeIdentity(
+		LinkNodeType nodeType,
+		long serial,
+		CrossChunkWhitelistSavedData whitelistSavedData,
+		RedstoneLinkCrossChunkConfig crossChunkConfig
+	) {
+		LinkNodeSemantics.Role role = resolveCrossChunkRole(nodeType);
+		if (nodeType == null || serial <= 0L || role == null || whitelistSavedData == null || crossChunkConfig == null) {
+			return CrossChunkNodeIdentity.NORMAL;
+		}
+		if (whitelistSavedData.isResident(nodeType, serial, role)) {
+			return CrossChunkNodeIdentity.RESIDENT;
+		}
+		if (!crossChunkConfig.forceLoadEnabled() || !isConfigAllowedForRole(nodeType, role, crossChunkConfig)) {
+			return CrossChunkNodeIdentity.NORMAL;
+		}
+		if (crossChunkConfig.forceLoadMode() == RedstoneLinkConfig.CrossChunkForceLoadMode.ALL) {
+			return CrossChunkNodeIdentity.FORCE_LOAD;
+		}
+		if (whitelistSavedData.contains(nodeType, serial, role) || crossChunkConfig.presetContains(nodeType, serial, role)) {
+			return CrossChunkNodeIdentity.FORCE_LOAD;
+		}
+		return CrossChunkNodeIdentity.NORMAL;
+	}
+
+	/**
+	 * 将节点类型映射到“自身节点在跨区块语义中的角色”。
+	 */
+	private static LinkNodeSemantics.Role resolveCrossChunkRole(LinkNodeType nodeType) {
+		if (nodeType == LinkNodeType.TRIGGER_SOURCE) {
+			return LinkNodeSemantics.Role.SOURCE;
+		}
+		if (nodeType == LinkNodeType.CORE) {
+			return LinkNodeSemantics.Role.TARGET;
+		}
+		return null;
+	}
+
+	/**
+	 * 判断当前节点类型是否在对应角色的跨区块配置允许集中。
+	 */
+	private static boolean isConfigAllowedForRole(
+		LinkNodeType nodeType,
+		LinkNodeSemantics.Role role,
+		RedstoneLinkCrossChunkConfig crossChunkConfig
+	) {
+		Set<LinkNodeType> allowedTypes = role == LinkNodeSemantics.Role.SOURCE
+			? crossChunkConfig.allowedSourceTypes()
+			: crossChunkConfig.allowedTargetTypes();
+		return allowedTypes != null && allowedTypes.contains(nodeType);
 	}
 
 	/**

@@ -2,6 +2,7 @@ package com.makomi.client.render;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.util.SerialDisplayFormatUtil;
 import java.util.ArrayList;
@@ -18,7 +19,7 @@ import net.minecraft.world.level.block.state.properties.Property;
 /**
  * 近外显文案格式化支持。
  * <p>
- * 负责序号/状态/最终 IO/当前连接四行文案组装，以及命中文本缓存，不承担快照请求与实际绘制职责。
+ * 负责序号/状态/最终 IO/当前连接/跨区块身份五行文案组装，以及命中文本缓存，不承担快照请求与实际绘制职责。
  * </p>
  */
 final class LinkSerialHudOverlayTextSupport {
@@ -26,9 +27,13 @@ final class LinkSerialHudOverlayTextSupport {
 	private static final String KEY_NEAR_OVERLAY_STATUS_LINE = "hud.redstonelink.near_overlay.status_line";
 	private static final String KEY_NEAR_OVERLAY_FINAL_IO_LINE = "hud.redstonelink.near_overlay.final_io_line";
 	private static final String KEY_NEAR_OVERLAY_LINKS_LINE = "hud.redstonelink.near_overlay.links_line";
+	private static final String KEY_NEAR_OVERLAY_CROSSCHUNK_LINE = "hud.redstonelink.near_overlay.crosschunk_line";
 	private static final String KEY_NEAR_OVERLAY_STATUS_ON = "hud.redstonelink.near_overlay.status_on";
 	private static final String KEY_NEAR_OVERLAY_STATUS_OFF = "hud.redstonelink.near_overlay.status_off";
 	private static final String KEY_NEAR_OVERLAY_LINKS_EMPTY = "hud.redstonelink.near_overlay.links_empty";
+	private static final String KEY_NEAR_OVERLAY_CROSSCHUNK_NORMAL = "hud.redstonelink.near_overlay.crosschunk_normal";
+	private static final String KEY_NEAR_OVERLAY_CROSSCHUNK_FORCE_LOAD = "hud.redstonelink.near_overlay.crosschunk_force_load";
+	private static final String KEY_NEAR_OVERLAY_CROSSCHUNK_RESIDENT = "hud.redstonelink.near_overlay.crosschunk_resident";
 	private static final String KEY_NEAR_OVERLAY_TYPE_CORE = "hud.redstonelink.near_overlay.type_core";
 	private static final String KEY_NEAR_OVERLAY_TYPE_TRIGGER_SOURCE = "hud.redstonelink.near_overlay.type_trigger_source";
 	private static final String KEY_NEAR_OVERLAY_TYPE_NODE = "hud.redstonelink.near_overlay.type_node";
@@ -47,7 +52,15 @@ final class LinkSerialHudOverlayTextSupport {
 	 * @return 由关键翻译项拼出的语言签名
 	 */
 	static String resolveLanguageSignature() {
-		return translate(KEY_NEAR_OVERLAY_STATUS_LINE, "") + "|" + translate(KEY_NEAR_OVERLAY_FINAL_IO_LINE, "", "");
+		return String.join(
+			"|",
+			translate(KEY_NEAR_OVERLAY_STATUS_LINE, ""),
+			translate(KEY_NEAR_OVERLAY_FINAL_IO_LINE, "", ""),
+			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_LINE, ""),
+			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_NORMAL),
+			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_FORCE_LOAD),
+			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_RESIDENT)
+		);
 	}
 
 	/**
@@ -56,13 +69,14 @@ final class LinkSerialHudOverlayTextSupport {
 	 * 2. 激活状态（ON/OFF）
 	 * 3. 最终 IO
 	 * 4. 当前连接（结构化表达式）
+	 * 5. 跨区块身份
 	 *
 	 * @param pairableNodeBlockEntity 当前命中的可配对节点
 	 * @param serialText 序号文本
 	 * @param font 当前 HUD 字体
 	 * @param dimensionKey 当前维度键
 	 * @param blockPosLong 当前方块坐标压缩值
-	 * @param linkedTargetsSnapshot 当前连接快照
+	 * @param currentLinksSnapshot 当前连接与跨区块身份快照
 	 * @param runtimeHudSnapshot 最终 IO 快照
 	 * @param languageSignature 当前语言签名
 	 * @return 可直接绘制的多行文本
@@ -73,7 +87,7 @@ final class LinkSerialHudOverlayTextSupport {
 		Font font,
 		String dimensionKey,
 		long blockPosLong,
-		List<Long> linkedTargetsSnapshot,
+		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot currentLinksSnapshot,
 		LinkSerialHudOverlaySnapshotSupport.CachedRuntimeHudSnapshot runtimeHudSnapshot,
 		String languageSignature
 	) {
@@ -88,14 +102,14 @@ final class LinkSerialHudOverlayTextSupport {
 			serialText,
 			activationStatusToken,
 			block,
-			linkedTargetsSnapshot,
+			currentLinksSnapshot,
 			runtimeHudSnapshot,
 			fontIdentity
 		)) {
 			return cached.lines();
 		}
 
-		List<String> lines = new ArrayList<>(4);
+		List<String> lines = new ArrayList<>(5);
 		lines.add(translate(KEY_NEAR_OVERLAY_SERIAL_LINE, resolveItemPrefix(pairableNodeBlockEntity), serialText));
 		lines.add(translate(KEY_NEAR_OVERLAY_STATUS_LINE, resolveActivationStatusText(activationStatusToken)));
 		lines.add(translate(
@@ -103,7 +117,13 @@ final class LinkSerialHudOverlayTextSupport {
 			resolveRuntimeHudPowerText(runtimeHudSnapshot, true),
 			resolveRuntimeHudPowerText(runtimeHudSnapshot, false)
 		));
-		lines.add(translate(KEY_NEAR_OVERLAY_LINKS_LINE, buildCurrentLinksText(font, linkedTargetsSnapshot)));
+		lines.add(translate(KEY_NEAR_OVERLAY_LINKS_LINE, buildCurrentLinksText(font, currentLinksSnapshot.linkedTargets())));
+		lines.add(
+			translate(
+				KEY_NEAR_OVERLAY_CROSSCHUNK_LINE,
+				resolveCrossChunkIdentityText(currentLinksSnapshot.crossChunkIdentity())
+			)
+		);
 		List<String> immutableLines = List.copyOf(lines);
 		cachedNearOverlayLines = new CachedNearOverlayLines(
 			dimensionKey,
@@ -112,7 +132,7 @@ final class LinkSerialHudOverlayTextSupport {
 			serialText,
 			activationStatusToken,
 			block,
-			linkedTargetsSnapshot,
+			currentLinksSnapshot,
 			runtimeHudSnapshot,
 			fontIdentity,
 			immutableLines
@@ -190,6 +210,25 @@ final class LinkSerialHudOverlayTextSupport {
 	}
 
 	/**
+	 * 解析跨区块身份对应的本地化文本。
+	 */
+	static String resolveCrossChunkIdentityText(CrossChunkNodeIdentity crossChunkIdentity) {
+		return translate(resolveCrossChunkIdentityMessageKey(crossChunkIdentity));
+	}
+
+	/**
+	 * 解析跨区块身份对应的翻译键。
+	 */
+	static String resolveCrossChunkIdentityMessageKey(CrossChunkNodeIdentity crossChunkIdentity) {
+		CrossChunkNodeIdentity normalizedIdentity = crossChunkIdentity == null ? CrossChunkNodeIdentity.NORMAL : crossChunkIdentity;
+		return switch (normalizedIdentity) {
+			case FORCE_LOAD -> KEY_NEAR_OVERLAY_CROSSCHUNK_FORCE_LOAD;
+			case RESIDENT -> KEY_NEAR_OVERLAY_CROSSCHUNK_RESIDENT;
+			case NORMAL -> KEY_NEAR_OVERLAY_CROSSCHUNK_NORMAL;
+		};
+	}
+
+	/**
 	 * 构建第四行“当前连接”文本，复用 GUI 的结构化展示规则（N / A:B + / + (+n)）。
 	 */
 	private static String buildCurrentLinksText(Font font, List<Long> linkedTargets) {
@@ -259,7 +298,7 @@ final class LinkSerialHudOverlayTextSupport {
 	 * @param serialText 序号文本
 	 * @param activationStatusToken 激活状态令牌
 	 * @param block 命中方块
-	 * @param linkedTargetsRef 连接快照引用
+	 * @param currentLinksSnapshotRef 当前连接与跨区块身份快照引用
 	 * @param runtimeHudSnapshotRef 最终 IO 快照引用
 	 * @param fontIdentity 字体对象标识
 	 * @param lines 显示文本
@@ -271,7 +310,7 @@ final class LinkSerialHudOverlayTextSupport {
 		String serialText,
 		ActivationStatusToken activationStatusToken,
 		Block block,
-		List<Long> linkedTargetsRef,
+		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot currentLinksSnapshotRef,
 		LinkSerialHudOverlaySnapshotSupport.CachedRuntimeHudSnapshot runtimeHudSnapshotRef,
 		int fontIdentity,
 		List<String> lines
@@ -284,7 +323,7 @@ final class LinkSerialHudOverlayTextSupport {
 				"",
 				ActivationStatusToken.OFF,
 				null,
-				null,
+				LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot.empty(),
 				LinkSerialHudOverlaySnapshotSupport.CachedRuntimeHudSnapshot.empty(),
 				0,
 				List.of()
@@ -298,7 +337,7 @@ final class LinkSerialHudOverlayTextSupport {
 			String currentSerialText,
 			ActivationStatusToken currentActivationStatusToken,
 			Block currentBlock,
-			List<Long> currentLinkedTargetsRef,
+			LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot currentCurrentLinksSnapshotRef,
 			LinkSerialHudOverlaySnapshotSupport.CachedRuntimeHudSnapshot currentRuntimeHudSnapshotRef,
 			int currentFontIdentity
 		) {
@@ -306,7 +345,7 @@ final class LinkSerialHudOverlayTextSupport {
 				&& fontIdentity == currentFontIdentity
 				&& activationStatusToken == currentActivationStatusToken
 				&& block == currentBlock
-				&& linkedTargetsRef == currentLinkedTargetsRef
+				&& currentLinksSnapshotRef == currentCurrentLinksSnapshotRef
 				&& runtimeHudSnapshotRef == currentRuntimeHudSnapshotRef
 				&& dimensionKey.equals(currentDimensionKey)
 				&& languageSignature.equals(currentLanguageSignature)

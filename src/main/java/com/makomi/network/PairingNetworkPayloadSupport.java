@@ -1,6 +1,7 @@
 package com.makomi.network;
 
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeLinksSnapshot;
 import java.util.ArrayList;
@@ -17,6 +18,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 final class PairingNetworkPayloadSupport {
 	static final int DIMENSION_KEY_MAX_LENGTH = 128;
 	static final int NODE_TYPE_MAX_LENGTH = 32;
+	private static final int CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH = 32;
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
 	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
 
@@ -212,7 +214,8 @@ final class PairingNetworkPayloadSupport {
 		long blockPos,
 		String sourceType,
 		long sourceSerial,
-		List<Long> targets
+		List<Long> targets,
+		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		buffer.writeUtf(dimensionKey, DIMENSION_KEY_MAX_LENGTH);
 		buffer.writeLong(blockPos);
@@ -222,6 +225,7 @@ final class PairingNetworkPayloadSupport {
 		for (long target : targets) {
 			buffer.writeVarLong(target);
 		}
+		buffer.writeUtf(normalizeCrossChunkIdentity(crossChunkIdentity).payloadToken(), CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH);
 	}
 
 	/**
@@ -234,7 +238,8 @@ final class PairingNetworkPayloadSupport {
 			payload.blockPos(),
 			payload.sourceType(),
 			payload.sourceSerial(),
-			payload.targets()
+			payload.targets(),
+			payload.crossChunkIdentity()
 		);
 	}
 
@@ -320,13 +325,24 @@ final class PairingNetworkPayloadSupport {
 		for (int i = 0; i < size; i++) {
 			targets.add(buffer.readVarLong());
 		}
+		CrossChunkNodeIdentity crossChunkIdentity = CrossChunkNodeIdentity.fromPayloadToken(
+			buffer.readUtf(CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH)
+		);
 		return new DecodedCurrentLinksPayload(
 			payload.dimensionKey(),
 			payload.blockPos(),
 			payload.sourceType(),
 			payload.sourceSerial(),
-			targets
+			targets,
+			crossChunkIdentity
 		);
+	}
+
+	/**
+	 * 归一化跨区块身份字段，避免空值下发到客户端。
+	 */
+	private static CrossChunkNodeIdentity normalizeCrossChunkIdentity(CrossChunkNodeIdentity crossChunkIdentity) {
+		return crossChunkIdentity == null ? CrossChunkNodeIdentity.NORMAL : crossChunkIdentity;
 	}
 
 	/**
@@ -396,7 +412,8 @@ final class PairingNetworkPayloadSupport {
 		long blockPos,
 		String sourceType,
 		long sourceSerial,
-		List<Long> targets
+		List<Long> targets,
+		CrossChunkNodeIdentity crossChunkIdentity
 	) {}
 
 	/**
