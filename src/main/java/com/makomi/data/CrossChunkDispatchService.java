@@ -496,6 +496,7 @@ public final class CrossChunkDispatchService {
 	}
 
 	private static void onServerTick(MinecraftServer server) {
+		ServerThreadGuard.requireServerThread(server, "crosschunk dispatch tick");
 		if (server == null || server.overworld() == null) {
 			return;
 		}
@@ -520,6 +521,7 @@ public final class CrossChunkDispatchService {
 	 * 目标区块加载后，主动唤醒命中该区块的等待中 pending，避免继续卡在初始/退避窗口内。
 	 */
 	public static void notifyTargetChunkLoaded(MinecraftServer server, ResourceKey<Level> dimension, ChunkPos chunkPos) {
+		ServerThreadGuard.requireServerThread(server, "crosschunk target chunk load notification");
 		if (server == null || dimension == null || chunkPos == null || server.overworld() == null) {
 			return;
 		}
@@ -613,6 +615,7 @@ public final class CrossChunkDispatchService {
 	 * @param server 当前服务端
 	 */
 	private static void releaseAllForcedChunksAndClearState(MinecraftServer server) {
+		ServerThreadGuard.requireServerThread(server, "crosschunk forced chunk release");
 		DispatchState state = STATE_BY_SERVER.get(server);
 		CrossChunkDispatchTicketSupport.releaseAllForcedChunksAndClearState(server, state, STATE_BY_SERVER);
 	}
@@ -622,6 +625,7 @@ public final class CrossChunkDispatchService {
 	}
 
 	static DispatchState getOrCreateState(MinecraftServer server) {
+		ServerThreadGuard.requireServerThread(server, "crosschunk dispatch state access");
 		return STATE_BY_SERVER.computeIfAbsent(server, ignored -> new DispatchState());
 	}
 

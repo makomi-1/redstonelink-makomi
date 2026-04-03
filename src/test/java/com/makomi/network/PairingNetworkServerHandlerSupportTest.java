@@ -43,6 +43,24 @@ class PairingNetworkServerHandlerSupportTest {
 	}
 
 	/**
+	 * expected revision 与当前真值一致时，不应判定为冲突。
+	 */
+	@Test
+	void isRevisionMismatchShouldReturnFalseWhenExpectedMatchesCurrent() {
+		assertFalse(PairingNetworkServerHandlerSupport.isRevisionMismatch(5L, 5L));
+		assertFalse(PairingNetworkServerHandlerSupport.isRevisionMismatch(0L, 0L));
+	}
+
+	/**
+	 * expected revision 与当前真值不一致时，应判定为冲突。
+	 */
+	@Test
+	void isRevisionMismatchShouldReturnTrueWhenExpectedDiffers() {
+		assertTrue(PairingNetworkServerHandlerSupport.isRevisionMismatch(4L, 5L));
+		assertTrue(PairingNetworkServerHandlerSupport.isRevisionMismatch(0L, 3L));
+	}
+
+	/**
 	 * core 视角编辑应只为真正发生变化的 triggerSource 生成新的 core 目标集合。
 	 */
 	@Test

@@ -57,8 +57,9 @@ public final class NodeSnapshotQueryService {
 		boolean hasViewPermission
 	) {
 		NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(level, nodeType, serial);
-		Set<Long> rawTargets = readRawTargets(level, nodeType, serial);
-		return CurrentLinksPrivacyService.resolveVisibleLinksSnapshot(
+		LinkSavedData savedData = resolveSavedData(level);
+		Set<Long> rawTargets = readRawTargets(savedData, nodeType, serial);
+		NodeLinksSnapshot visibleSnapshot = CurrentLinksPrivacyService.resolveVisibleLinksSnapshot(
 			level,
 			identity,
 			nodeType,
@@ -66,6 +67,7 @@ public final class NodeSnapshotQueryService {
 			rawTargets,
 			hasViewPermission
 		);
+		return withRevisions(visibleSnapshot, savedData, nodeType, serial);
 	}
 
 	/**
@@ -80,7 +82,8 @@ public final class NodeSnapshotQueryService {
 		LinkNodeType nodeType,
 		long serial
 	) {
-		return buildItemSnapshotLinks(level, nodeType, serial, readRawTargets(level, nodeType, serial));
+		LinkSavedData savedData = resolveSavedData(level);
+		return buildItemSnapshotLinks(level, nodeType, serial, readRawTargets(savedData, nodeType, serial), savedData);
 	}
 
 	/**
@@ -94,11 +97,18 @@ public final class NodeSnapshotQueryService {
 		return NodeRuntimeProbe.resolveCurrent(server, nodeType, serial).map(NodeRuntimeProbe.ProbeResolution::snapshot);
 	}
 
-	private static Set<Long> readRawTargets(ServerLevel level, LinkNodeType nodeType, long serial) {
-		if (level == null || nodeType == null || serial <= 0L) {
+	private static Set<Long> readRawTargets(LinkSavedData savedData, LinkNodeType nodeType, long serial) {
+		if (savedData == null || nodeType == null || serial <= 0L) {
 			return Set.of();
 		}
-		return LinkSavedData.get(level).getLinkedTargetsBySourceType(nodeType, serial);
+		return savedData.getLinkedTargetsBySourceType(nodeType, serial);
+	}
+
+	private static LinkSavedData resolveSavedData(ServerLevel level) {
+		if (level == null) {
+			return null;
+		}
+		return LinkSavedData.get(level);
 	}
 
 	/**
@@ -113,8 +123,56 @@ public final class NodeSnapshotQueryService {
 		long serial,
 		Set<Long> rawTargets
 	) {
+		return buildItemSnapshotLinks(level, nodeType, serial, rawTargets, resolveSavedData(level));
+	}
+
+	/**
+	 * 按物品快照口径构建未过滤的当前连接视图，并附带 revision 基线。
+	 */
+	static NodeLinksSnapshot buildItemSnapshotLinks(
+		ServerLevel level,
+		LinkNodeType nodeType,
+		long serial,
+		Set<Long> rawTargets,
+		LinkSavedData savedData
+	) {
 		NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(level, nodeType, serial);
-		return new NodeLinksSnapshot(identity, rawTargets == null ? java.util.List.of() : java.util.List.copyOf(rawTargets), false);
+		return new NodeLinksSnapshot(
+			identity,
+			rawTargets == null ? java.util.List.of() : java.util.List.copyOf(rawTargets),
+			false,
+			resolveGraphRevision(savedData),
+			resolveSourceRevision(savedData, nodeType, serial)
+		);
+	}
+
+	private static NodeLinksSnapshot withRevisions(
+		NodeLinksSnapshot snapshot,
+		LinkSavedData savedData,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		NodeLinksSnapshot normalizedSnapshot = snapshot == null
+			? new NodeLinksSnapshot(null, java.util.List.of(), false)
+			: snapshot;
+		return new NodeLinksSnapshot(
+			normalizedSnapshot.sourceIdentity(),
+			normalizedSnapshot.visibleTargets(),
+			normalizedSnapshot.masked(),
+			resolveGraphRevision(savedData),
+			resolveSourceRevision(savedData, nodeType, serial)
+		);
+	}
+
+	private static long resolveGraphRevision(LinkSavedData savedData) {
+		return savedData == null ? 0L : savedData.graphRevision();
+	}
+
+	private static long resolveSourceRevision(LinkSavedData savedData, LinkNodeType nodeType, long serial) {
+		if (savedData == null) {
+			return 0L;
+		}
+		return savedData.sourceRevision(nodeType, serial);
 	}
 
 	/**

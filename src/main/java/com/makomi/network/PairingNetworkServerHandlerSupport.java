@@ -75,6 +75,21 @@ final class PairingNetworkServerHandlerSupport {
 			sendPairingFeedbacks(player, preparationResult.feedbacks());
 			return;
 		}
+		long currentSourceRevision = LinkSavedData
+			.get(player.serverLevel())
+			.sourceRevision(LinkNodeType.TRIGGER_SOURCE, payload.sourceSerial());
+		if (isRevisionMismatch(payload.expectedSourceRevision(), currentSourceRevision)) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure(
+					"message.redstonelink.pairing.conflict.source_revision",
+					Long.toString(payload.sourceSerial()),
+					Long.toString(payload.expectedSourceRevision()),
+					Long.toString(currentSourceRevision)
+				)
+			);
+			return;
+		}
 
 		LinkSetExecutionService.PreparedReplaceOperation operation = preparationResult.operation();
 		CommandSourceStack commandSource = player.createCommandSourceStack();
@@ -142,6 +157,17 @@ final class PairingNetworkServerHandlerSupport {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
+		if (isRevisionMismatch(payload.expectedGraphRevision(), savedData.graphRevision())) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure(
+					"message.redstonelink.pairing.conflict.graph_revision",
+					Long.toString(payload.expectedGraphRevision()),
+					Long.toString(savedData.graphRevision())
+				)
+			);
+			return;
+		}
 		long coreSerial = payload.coreSerial();
 		if (coreSerial <= 0L || !savedData.isSerialAllocated(LinkNodeType.CORE, coreSerial)) {
 			sendPairingFeedback(
@@ -367,6 +393,13 @@ final class PairingNetworkServerHandlerSupport {
 			LAST_RUNTIME_HUD_REQUEST_TICK_BY_PLAYER,
 			RUNTIME_HUD_REQUEST_MIN_INTERVAL_TICKS
 		);
+	}
+
+	/**
+	 * 判断 expected revision 是否已与当前真值不一致。
+	 */
+	static boolean isRevisionMismatch(long expectedRevision, long currentRevision) {
+		return Math.max(0L, expectedRevision) != Math.max(0L, currentRevision);
 	}
 
 	/**

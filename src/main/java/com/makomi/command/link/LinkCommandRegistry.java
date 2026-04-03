@@ -1,12 +1,10 @@
 package com.makomi.command.link;
 
-import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.command.privacy.CurrentLinksPrivacyCommandRegistry;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.InternalDispatchDeltaEvents;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -305,32 +303,35 @@ public final class LinkCommandRegistry {
 		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
 			return 0;
 		}
+		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
 
 		if (targetSerial <= 0L) {
 			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
 			if (!LinkCommandSupport.checkLinkWriteAllowed(source, level, sourceType, sourceSerial, previousTargets, 0)) {
 				return 0;
 			}
-			int removed = savedData.clearLinksForNode(sourceType, sourceSerial);
-			if (removed > 0 && !previousTargets.isEmpty()) {
-				InternalDispatchDeltaEvents.publishLinkDetached(
+			LinkSetExecutionService.applyPreparedReplace(
+				LinkSetExecutionService.createPreparedReplaceOperation(
 					level,
+					player,
 					sourceType,
 					sourceSerial,
+					targetType,
 					previousTargets,
-					ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
-				);
-			}
-			LinkCommandSupport.syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
+					Set.of(),
+					List.of(),
+					1
+				)
+			);
 			source.sendSuccess(
-				() -> Component.translatable("message.redstonelink.links_cleared", removed),
+				() -> Component.translatable("message.redstonelink.links_cleared", previousTargets.size()),
 				false
 			);
 			return Command.SINGLE_SUCCESS;
 		}
 
 		if (updateMode == LinkUpdateMode.REMOVE) {
-			Set<Long> previousTargets = savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
+			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
 			if (!previousTargets.contains(targetSerial)) {
 				source.sendFailure(Component.translatable("message.redstonelink.link_not_exists"));
 				return 0;
@@ -347,27 +348,28 @@ public final class LinkCommandRegistry {
 			)) {
 				return 0;
 			}
-			boolean removedNow = savedData.removeLinkBySourceType(sourceType, sourceSerial, targetSerial);
-			if (!removedNow) {
-				source.sendFailure(Component.translatable("message.redstonelink.link_not_exists"));
-				return 0;
-			}
-			InternalDispatchDeltaEvents.publishLinkDetached(
-				level,
-				sourceType,
-				sourceSerial,
-				Set.of(targetSerial),
-				ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
+			Set<Long> nextTargets = new HashSet<>(previousTargets);
+			nextTargets.remove(targetSerial);
+			LinkSetExecutionService.applyPreparedReplace(
+				LinkSetExecutionService.createPreparedReplaceOperation(
+					level,
+					player,
+					sourceType,
+					sourceSerial,
+					targetType,
+					previousTargets,
+					nextTargets,
+					List.of(),
+					1
+				)
 			);
 			source.sendSuccess(() -> Component.translatable("message.redstonelink.link_removed"), false);
-			LinkCommandSupport.syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
 			return Command.SINGLE_SUCCESS;
 		}
 		if (updateMode != LinkUpdateMode.ADD) {
 			throw new IllegalStateException("Unsupported link update mode: " + updateMode);
 		}
 
-		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
 		if (!ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
 			return 0;
 		}
@@ -376,30 +378,32 @@ public final class LinkCommandRegistry {
 			source.sendFailure(Component.translatable("message.redstonelink.offline_targets_blocked", Long.toString(targetSerial)));
 			return 0;
 		}
-		Set<Long> currentTargets = savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial);
-		if (currentTargets.contains(targetSerial)) {
+		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
+		if (previousTargets.contains(targetSerial)) {
 			source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
 			return 0;
 		}
-		int nextTargetCount = currentTargets.size() + 1;
+		int nextTargetCount = previousTargets.size() + 1;
 		if (!LinkCommandSupport.checkLinkWriteAllowed(source, level, sourceType, sourceSerial, Set.of(targetSerial), nextTargetCount)) {
 			return 0;
 		}
 
-		boolean addedNow = savedData.addLinkBySourceType(sourceType, sourceSerial, targetSerial);
-		if (!addedNow) {
-			source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
-			return 0;
-		}
-		InternalDispatchDeltaEvents.publishLinkAttached(
-			level,
-			sourceType,
-			sourceSerial,
-			Set.of(targetSerial),
-			ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L)
+		Set<Long> nextTargets = new HashSet<>(previousTargets);
+		nextTargets.add(targetSerial);
+		LinkSetExecutionService.applyPreparedReplace(
+			LinkSetExecutionService.createPreparedReplaceOperation(
+				level,
+				player,
+				sourceType,
+				sourceSerial,
+				targetType,
+				previousTargets,
+				nextTargets,
+				targetOffline ? List.of(targetSerial) : List.of(),
+				1
+			)
 		);
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
-		LinkCommandSupport.syncPlayerItemLinkSnapshot(player, sourceType, sourceSerial);
 		return Command.SINGLE_SUCCESS;
 	}
 

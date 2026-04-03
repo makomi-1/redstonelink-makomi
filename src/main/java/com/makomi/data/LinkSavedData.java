@@ -66,6 +66,8 @@ public final class LinkSavedData extends SavedData {
 	final Set<Long> retiredButtonSerials = new HashSet<>();
 	final Map<Long, ReplaySyncSnapshotRecord> triggerSourceReplaySyncSnapshots = new HashMap<>();
 	long runtimeNodeVersion;
+	long graphRevision;
+	final Map<Long, Long> triggerSourceRevisions = new HashMap<>();
 
 	/**
 	 * 获取当前服务器共享的联动存档数据实例。
@@ -157,6 +159,30 @@ public final class LinkSavedData extends SavedData {
 	 */
 	public long runtimeNodeVersion() {
 		return runtimeNodeVersion;
+	}
+
+	/**
+	 * 获取当前连接图的运行时版本号。
+	 * <p>
+	 * 仅在 `triggerSource -> core` 拓扑真实发生变化时递增，不参与存档持久化。
+	 * </p>
+	 */
+	public long graphRevision() {
+		return graphRevision;
+	}
+
+	/**
+	 * 获取指定来源节点当前的运行时版本号。
+	 * <p>
+	 * 当前只对 `triggerSource` 维护来源级 revision；`core` 视角返回 `0`，
+	 * 其批量覆盖冲突由全图级 `graphRevision` 负责兜底。
+	 * </p>
+	 */
+	public long sourceRevision(LinkNodeType sourceType, long sourceSerial) {
+		if (sourceType != LinkNodeType.TRIGGER_SOURCE || sourceSerial <= 0L) {
+			return 0L;
+		}
+		return triggerSourceRevisions.getOrDefault(sourceSerial, 0L);
 	}
 
 	/**
@@ -284,6 +310,9 @@ public final class LinkSavedData extends SavedData {
 
 	/**
 	 * 按“来源类型 + 来源序列号”查询目标集合。
+	 * <p>
+	 * 返回值始终为稳定快照，避免把内部可变集合继续外泄到事件链或外部调用方。
+	 * </p>
 	 */
 	public Set<Long> getLinkedTargetsBySourceType(LinkNodeType sourceType, long sourceSerial) {
 		return LinkSavedDataLinkIndexSupport.getLinkedTargetsBySourceType(this, sourceType, sourceSerial);
@@ -294,13 +323,6 @@ public final class LinkSavedData extends SavedData {
 	 */
 	public void forEachLinkedTargetBySourceType(LinkNodeType sourceType, long sourceSerial, LongConsumer consumer) {
 		LinkSavedDataLinkIndexSupport.forEachLinkedTargetBySourceType(this, sourceType, sourceSerial, consumer);
-	}
-
-	/**
-	 * 返回内部目标集合视图（无拷贝）。
-	 */
-	Set<Long> linkedTargetsViewBySourceType(LinkNodeType sourceType, long sourceSerial) {
-		return LinkSavedDataLinkIndexSupport.linkedTargetsViewBySourceType(this, sourceType, sourceSerial);
 	}
 
 	/**
@@ -348,6 +370,23 @@ public final class LinkSavedData extends SavedData {
 	 */
 	void bumpRuntimeNodeVersion() {
 		runtimeNodeVersion++;
+	}
+
+	/**
+	 * 图拓扑真实变更时推进全图 revision。
+	 */
+	void bumpGraphRevision() {
+		graphRevision++;
+	}
+
+	/**
+	 * 指定 triggerSource 拓扑真实变更时推进来源 revision。
+	 */
+	void bumpTriggerSourceRevision(long triggerSourceSerial) {
+		if (triggerSourceSerial <= 0L) {
+			return;
+		}
+		triggerSourceRevisions.put(triggerSourceSerial, triggerSourceRevisions.getOrDefault(triggerSourceSerial, 0L) + 1L);
 	}
 
 	/**

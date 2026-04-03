@@ -1,12 +1,11 @@
 package com.makomi.command.bench;
 
-import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.command.link.LinkCommandSupport;
+import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.InternalDispatchDeltaEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.util.SerialParseUtil;
@@ -28,13 +27,13 @@ import net.minecraft.server.level.ServerPlayer;
  * bench/internal 结构化批量建链执行支撑。
  * <p>
  * 该支撑仅服务于 bench 自动化流程，固定使用 `triggerSource -> core` 方向，
- * 并复用现有 `replaceLinksBySourceType + delta + snapshot` 写入闭环。
+ * 并复用现有共享覆盖写入闭环完成批量映射落地。
  * </p>
  */
-final class BenchStructuredLinkApplySupport {
+final class BenchLinkMappingApplySupport {
 	static final int MAX_BATCH_SERIALS = 4096;
 
-	private BenchStructuredLinkApplySupport() {
+	private BenchLinkMappingApplySupport() {
 	}
 
 	/**
@@ -128,55 +127,30 @@ final class BenchStructuredLinkApplySupport {
 		int addedLinks = 0;
 		int removedLinks = 0;
 		int changedLinks = 0;
-		ActivatableTargetBlockEntity.EventMeta eventMeta = ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L);
 		for (SourceApplyPlan applyPlan : applyPlans.values()) {
-			LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceLinksBySourceType(
-				LinkNodeType.TRIGGER_SOURCE,
-				applyPlan.sourceSerial(),
-				applyPlan.nextTargets()
-			);
-			if (replaceResult.changedCount() <= 0) {
+			int addedCount = countSetDifference(applyPlan.nextTargets(), applyPlan.previousTargets());
+			int removedCount = countSetDifference(applyPlan.previousTargets(), applyPlan.nextTargets());
+			int changedCount = addedCount + removedCount;
+			if (changedCount <= 0) {
 				continue;
 			}
-			changedSourceCount++;
-			addedLinks += replaceResult.addedCount();
-			removedLinks += replaceResult.removedCount();
-			changedLinks += replaceResult.changedCount();
-
-			if (replaceResult.addedCount() > 0) {
-				Set<Long> addedTargets = new HashSet<>(applyPlan.nextTargets());
-				addedTargets.removeAll(applyPlan.previousTargets());
-				if (!addedTargets.isEmpty()) {
-					InternalDispatchDeltaEvents.publishLinkAttached(
-						level,
-						LinkNodeType.TRIGGER_SOURCE,
-						applyPlan.sourceSerial(),
-						addedTargets,
-						eventMeta
-					);
-				}
-			}
-			if (replaceResult.removedCount() > 0) {
-				Set<Long> removedTargets = new HashSet<>(applyPlan.previousTargets());
-				removedTargets.removeAll(applyPlan.nextTargets());
-				if (!removedTargets.isEmpty()) {
-					InternalDispatchDeltaEvents.publishLinkDetached(
-						level,
-						LinkNodeType.TRIGGER_SOURCE,
-						applyPlan.sourceSerial(),
-						removedTargets,
-						eventMeta
-					);
-				}
-			}
-
-			LinkCommandSupport.syncAffectedNodeLinkSnapshots(
-				level,
-				LinkNodeType.CORE,
-				applyPlan.previousTargets(),
-				applyPlan.nextTargets()
+			LinkSetExecutionService.applyPreparedReplace(
+				LinkSetExecutionService.createPreparedReplaceOperation(
+					level,
+					player,
+					LinkNodeType.TRIGGER_SOURCE,
+					applyPlan.sourceSerial(),
+					LinkNodeType.CORE,
+					applyPlan.previousTargets(),
+					applyPlan.nextTargets(),
+					List.of(),
+					1
+				)
 			);
-			LinkCommandSupport.syncPlayerItemLinkSnapshot(player, LinkNodeType.TRIGGER_SOURCE, applyPlan.sourceSerial());
+			changedSourceCount++;
+			addedLinks += addedCount;
+			removedLinks += removedCount;
+			changedLinks += changedCount;
 		}
 
 		String summary = String.format(
@@ -330,6 +304,22 @@ final class BenchStructuredLinkApplySupport {
 			return null;
 		}
 		return new TargetValidationResult(allowOfflineBinding, List.copyOf(offlineTargets));
+	}
+
+	/**
+	 * 统计 `left - right` 的差集元素个数。
+	 */
+	private static int countSetDifference(Set<Long> left, Set<Long> right) {
+		if (left == null || left.isEmpty()) {
+			return 0;
+		}
+		int count = 0;
+		for (Long serial : left) {
+			if (serial != null && (right == null || !right.contains(serial))) {
+				count++;
+			}
+		}
+		return count;
 	}
 
 	/**

@@ -239,7 +239,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 			return ConsumeResult.COMPLETED;
 		}
 		LinkSavedData savedData = LinkSavedData.get(level);
-		Set<Long> linkedPeers = savedData.linkedTargetsViewBySourceType(task.nodeType(), task.serial());
+		Set<Long> linkedPeers = savedData.getLinkedTargetsBySourceType(task.nodeType(), task.serial());
 		if (linkedPeers.isEmpty()) {
 			return ConsumeResult.COMPLETED;
 		}
@@ -258,7 +258,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 	 */
 	private static ConsumeResult tryReplayTargetChunkLoad(ServerLevel level, LinkNodeType nodeType, long serial) {
 		LinkSavedData savedData = LinkSavedData.get(level);
-		Set<Long> linkedPeers = savedData.linkedTargetsViewBySourceType(nodeType, serial);
+		Set<Long> linkedPeers = savedData.getLinkedTargetsBySourceType(nodeType, serial);
 		if (linkedPeers.isEmpty()) {
 			return ConsumeResult.COMPLETED;
 		}
@@ -296,7 +296,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (!RedstoneLinkConfig.crossChunk().syncSourceAttachReplayEnabled()) {
 			return;
 		}
-		Set<Long> linkedPeers = savedData.linkedTargetsViewBySourceType(nodeType, serial);
+		Set<Long> linkedPeers = savedData.getLinkedTargetsBySourceType(nodeType, serial);
 		if (linkedPeers.isEmpty()) {
 			return;
 		}

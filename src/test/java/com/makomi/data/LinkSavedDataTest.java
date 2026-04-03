@@ -138,6 +138,94 @@ class LinkSavedDataTest {
 	}
 
 	/**
+	 * 目标集合查询应返回稳定快照，避免后续链路变更回写到旧视图。
+	 */
+	@Test
+	void getLinkedTargetsBySourceTypeShouldReturnStableSnapshot() {
+		LinkSavedData data = new LinkSavedData();
+		long triggerSourceSerial = 321L;
+		long firstCoreSerial = 421L;
+		long secondCoreSerial = 422L;
+
+		data.toggleLink(triggerSourceSerial, firstCoreSerial);
+		Set<Long> snapshot = data.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial);
+
+		data.toggleLink(triggerSourceSerial, secondCoreSerial);
+		data.toggleLink(triggerSourceSerial, firstCoreSerial);
+
+		assertEquals(Set.of(firstCoreSerial), snapshot);
+		assertEquals(Set.of(secondCoreSerial), data.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertThrows(UnsupportedOperationException.class, () -> snapshot.add(999L));
+	}
+
+	/**
+	 * 真实图拓扑变更应推进 graph/source revision；无变化写入不应误递增。
+	 */
+	@Test
+	void linkMutationsShouldAdvanceGraphAndSourceRevisionOnlyWhenChanged() {
+		LinkSavedData data = new LinkSavedData();
+		long triggerSourceSerial = 330L;
+		long coreSerial = 430L;
+
+		assertEquals(0L, data.graphRevision());
+		assertEquals(0L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+
+		assertTrue(data.addLinkBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, coreSerial));
+		assertEquals(1L, data.graphRevision());
+		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+
+		assertFalse(data.addLinkBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, coreSerial));
+		assertEquals(1L, data.graphRevision());
+		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+
+		LinkSavedData.ReplaceLinksResult unchanged = data.replaceLinksBySourceType(
+			LinkNodeType.TRIGGER_SOURCE,
+			triggerSourceSerial,
+			Set.of(coreSerial)
+		);
+		assertEquals(0, unchanged.changedCount());
+		assertEquals(1L, data.graphRevision());
+		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+
+		assertTrue(data.removeLinkBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, coreSerial));
+		assertEquals(2L, data.graphRevision());
+		assertEquals(2L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+	}
+
+	/**
+	 * core 视角覆盖写入涉及多个 triggerSource 时，应只推进一次 graph revision，
+	 * 并分别推进发生变化的来源 revision。
+	 */
+	@Test
+	void replaceLinksByCoreViewShouldAdvanceAffectedSourceRevisions() {
+		LinkSavedData data = new LinkSavedData();
+		long coreSerial = 500L;
+		long triggerSourceA = 601L;
+		long triggerSourceB = 602L;
+		long triggerSourceC = 603L;
+
+		data.toggleLink(triggerSourceA, coreSerial);
+		data.toggleLink(triggerSourceB, coreSerial);
+		assertEquals(2L, data.graphRevision());
+		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceA));
+		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceB));
+		assertEquals(0L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceC));
+
+		LinkSavedData.ReplaceLinksResult result = data.replaceLinksBySourceType(
+			LinkNodeType.CORE,
+			coreSerial,
+			Set.of(triggerSourceB, triggerSourceC)
+		);
+
+		assertEquals(2, result.changedCount());
+		assertEquals(3L, data.graphRevision());
+		assertEquals(2L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceA));
+		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceB));
+		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceC));
+		assertEquals(Set.of(triggerSourceB, triggerSourceC), data.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial));
+	}
+
+	/**
 	 * 审计快照应正确统计缺失端点链接数量。
 	 */
 	@Test

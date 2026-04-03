@@ -25,7 +25,9 @@ class PairingNetworkPayloadTest {
 		List<Long> source = new ArrayList<>(List.of(7L, 3L, 9L));
 		PairingNetwork.OpenTriggerSourcePairingPayload payload = new PairingNetwork.OpenTriggerSourcePairingPayload(
 			100L,
-			source
+			source,
+			8L,
+			5L
 		);
 
 		assertNotSame(source, payload.targets());
@@ -42,7 +44,7 @@ class PairingNetworkPayloadTest {
 	@Test
 	void corePayloadShouldCopyAndFreezeTargets() {
 		List<Long> source = new ArrayList<>(List.of(2L, 5L));
-		PairingNetwork.OpenCorePairingPayload payload = new PairingNetwork.OpenCorePairingPayload(200L, source);
+		PairingNetwork.OpenCorePairingPayload payload = new PairingNetwork.OpenCorePairingPayload(200L, source, 9L, 0L);
 
 		assertNotSame(source, payload.targets());
 		assertEquals(List.of(2L, 5L), payload.targets());
@@ -59,12 +61,18 @@ class PairingNetworkPayloadTest {
 	void submitTriggerSourcePairingPayloadShouldNormalizeExpression() {
 		PairingNetwork.SubmitTriggerSourcePairingPayload payload = new PairingNetwork.SubmitTriggerSourcePairingPayload(
 			300L,
-			" 1/3:5 "
+			" 1/3:5 ",
+			12L
 		);
-		PairingNetwork.SubmitTriggerSourcePairingPayload emptyPayload = new PairingNetwork.SubmitTriggerSourcePairingPayload(301L, null);
+		PairingNetwork.SubmitTriggerSourcePairingPayload emptyPayload = new PairingNetwork.SubmitTriggerSourcePairingPayload(
+			301L,
+			null,
+			0L
+		);
 
 		assertEquals(300L, payload.sourceSerial());
 		assertEquals("1/3:5", payload.targetsExpression());
+		assertEquals(12L, payload.expectedSourceRevision());
 		assertEquals("", emptyPayload.targetsExpression());
 	}
 
@@ -73,11 +81,12 @@ class PairingNetworkPayloadTest {
 	 */
 	@Test
 	void submitCorePairingPayloadShouldNormalizeExpression() {
-		PairingNetwork.SubmitCorePairingPayload payload = new PairingNetwork.SubmitCorePairingPayload(400L, " 2/4:6 ");
-		PairingNetwork.SubmitCorePairingPayload emptyPayload = new PairingNetwork.SubmitCorePairingPayload(401L, null);
+		PairingNetwork.SubmitCorePairingPayload payload = new PairingNetwork.SubmitCorePairingPayload(400L, " 2/4:6 ", 17L);
+		PairingNetwork.SubmitCorePairingPayload emptyPayload = new PairingNetwork.SubmitCorePairingPayload(401L, null, 0L);
 
 		assertEquals(400L, payload.coreSerial());
 		assertEquals("2/4:6", payload.triggerSourceExpression());
+		assertEquals(17L, payload.expectedGraphRevision());
 		assertEquals("", emptyPayload.triggerSourceExpression());
 	}
 
@@ -108,7 +117,9 @@ class PairingNetworkPayloadTest {
 	void triggerSourcePayloadCodecRoundTripShouldPreserveFields() {
 		PairingNetwork.OpenTriggerSourcePairingPayload original = new PairingNetwork.OpenTriggerSourcePairingPayload(
 			123L,
-			List.of(1L, 4L, 9L)
+			List.of(1L, 4L, 9L),
+			21L,
+			13L
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -119,6 +130,8 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targets(), decoded.targets());
+		assertEquals(original.graphRevision(), decoded.graphRevision());
+		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, decoded.type());
 	}
 
@@ -127,7 +140,7 @@ class PairingNetworkPayloadTest {
 	 */
 	@Test
 	void corePayloadCodecRoundTripShouldPreserveFields() {
-		PairingNetwork.OpenCorePairingPayload original = new PairingNetwork.OpenCorePairingPayload(321L, List.of(8L, 6L));
+		PairingNetwork.OpenCorePairingPayload original = new PairingNetwork.OpenCorePairingPayload(321L, List.of(8L, 6L), 34L, 0L);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
 		PairingNetwork.OpenCorePairingPayload.CODEC.encode(buffer, original);
@@ -135,6 +148,8 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targets(), decoded.targets());
+		assertEquals(original.graphRevision(), decoded.graphRevision());
+		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(PairingNetwork.OpenCorePairingPayload.TYPE, decoded.type());
 	}
 
@@ -145,7 +160,8 @@ class PairingNetworkPayloadTest {
 	void submitTriggerSourcePairingPayloadCodecRoundTripShouldPreserveFields() {
 		PairingNetwork.SubmitTriggerSourcePairingPayload original = new PairingNetwork.SubmitTriggerSourcePairingPayload(
 			456L,
-			"1/7:9"
+			"1/7:9",
+			44L
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -156,6 +172,7 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targetsExpression(), decoded.targetsExpression());
+		assertEquals(original.expectedSourceRevision(), decoded.expectedSourceRevision());
 		assertEquals(PairingNetwork.SubmitTriggerSourcePairingPayload.TYPE, decoded.type());
 	}
 
@@ -164,7 +181,7 @@ class PairingNetworkPayloadTest {
 	 */
 	@Test
 	void submitCorePairingPayloadCodecRoundTripShouldPreserveFields() {
-		PairingNetwork.SubmitCorePairingPayload original = new PairingNetwork.SubmitCorePairingPayload(654L, "3/8:9");
+		PairingNetwork.SubmitCorePairingPayload original = new PairingNetwork.SubmitCorePairingPayload(654L, "3/8:9", 55L);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
 		PairingNetwork.SubmitCorePairingPayload.CODEC.encode(buffer, original);
@@ -172,6 +189,7 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(original.coreSerial(), decoded.coreSerial());
 		assertEquals(original.triggerSourceExpression(), decoded.triggerSourceExpression());
+		assertEquals(original.expectedGraphRevision(), decoded.expectedGraphRevision());
 		assertEquals(PairingNetwork.SubmitCorePairingPayload.TYPE, decoded.type());
 	}
 
@@ -203,7 +221,9 @@ class PairingNetworkPayloadTest {
 	void payloadCodecShouldAllowEmptyTargets() {
 		PairingNetwork.OpenTriggerSourcePairingPayload original = new PairingNetwork.OpenTriggerSourcePairingPayload(
 			77L,
-			List.of()
+			List.of(),
+			0L,
+			0L
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 

@@ -38,18 +38,18 @@ public final class BenchLinkCommandRegistry {
 												.then(
 													Commands.literal("broadcast_all")
 														.executes(
-															context -> BenchStructuredLinkApplySupport.executeApply(
+															context -> BenchLinkMappingApplySupport.executeApply(
 																context,
-																BenchStructuredLinkApplySupport.MappingSpec.broadcastAll()
+																BenchLinkMappingApplySupport.MappingSpec.broadcastAll()
 															)
 														)
 												)
 												.then(
 													Commands.literal("fan_in_first")
 														.executes(
-															context -> BenchStructuredLinkApplySupport.executeApply(
+															context -> BenchLinkMappingApplySupport.executeApply(
 																context,
-																BenchStructuredLinkApplySupport.MappingSpec.fanInFirst()
+																BenchLinkMappingApplySupport.MappingSpec.fanInFirst()
 															)
 														)
 												)
@@ -89,9 +89,9 @@ public final class BenchLinkCommandRegistry {
 		if (fanout == null || stride == null || offset == null || wrap == null) {
 			return 0;
 		}
-		return BenchStructuredLinkApplySupport.executeApply(
+		return BenchLinkMappingApplySupport.executeApply(
 			context,
-			BenchStructuredLinkApplySupport.MappingSpec.banded(fanout, stride, offset, wrap)
+			BenchLinkMappingApplySupport.MappingSpec.banded(fanout, stride, offset, wrap)
 		);
 	}
 

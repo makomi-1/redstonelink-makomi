@@ -29,5 +29,27 @@ class NodeSnapshotQueryServiceTest {
 		assertEquals(12L, snapshot.sourceIdentity().serial());
 		assertEquals(java.util.List.of(3L, 7L), snapshot.visibleTargets());
 		assertFalse(snapshot.masked());
+		assertEquals(0L, snapshot.graphRevision());
+		assertEquals(0L, snapshot.sourceRevision());
+	}
+
+	/**
+	 * 物品快照在提供运行时存档上下文时，应透出当前 revision 基线。
+	 */
+	@Test
+	void buildItemSnapshotLinksShouldExposeRevisionBaselineWhenSavedDataProvided() {
+		LinkSavedData savedData = new LinkSavedData();
+		savedData.toggleLink(15L, 31L);
+
+		NodeLinksSnapshot snapshot = NodeSnapshotQueryService.buildItemSnapshotLinks(
+			null,
+			LinkNodeType.TRIGGER_SOURCE,
+			15L,
+			new LinkedHashSet<>(List.of(31L)),
+			savedData
+		);
+
+		assertEquals(1L, snapshot.graphRevision());
+		assertEquals(1L, snapshot.sourceRevision());
 	}
 }

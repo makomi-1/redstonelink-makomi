@@ -27,8 +27,12 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	 * @param sourceSerial 来源节点序列号
 	 * @param currentTargets 当前已连接目标序列号列表
 	 */
+	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
+		super(TITLE, sourceSerial, currentTargets, graphRevision, sourceRevision);
+	}
+
 	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets) {
-		super(TITLE, sourceSerial, currentTargets);
+		this(sourceSerial, currentTargets, 0L, 0L);
 	}
 
 	/**
@@ -98,7 +102,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
 			return;
 		}
-		ClientPlayNetworking.send(new PairingNetwork.SubmitTriggerSourcePairingPayload(sourceSerial, rawTargetsInput));
+		ClientPlayNetworking.send(new PairingNetwork.SubmitTriggerSourcePairingPayload(sourceSerial, rawTargetsInput, sourceRevision));
 	}
 
 	/**
@@ -109,7 +113,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
 			return;
 		}
-		ClientPlayNetworking.send(new PairingNetwork.SubmitTriggerSourcePairingPayload(sourceSerial, ""));
+		ClientPlayNetworking.send(new PairingNetwork.SubmitTriggerSourcePairingPayload(sourceSerial, "", sourceRevision));
 	}
 
 	/**

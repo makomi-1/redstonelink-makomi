@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
  * bench 结构化批量建链规则展开测试。
  */
 @Tag("stable-core")
-class BenchStructuredLinkApplySupportTest {
+class BenchLinkMappingApplySupportTest {
 	/**
 	 * broadcast_all 应把全部目标分发给每个 source。
 	 */
@@ -21,10 +21,10 @@ class BenchStructuredLinkApplySupportTest {
 	void resolveTargetsForSourceIndexShouldBroadcastAll() {
 		List<Long> targets = List.of(10L, 11L, 12L);
 
-		List<Long> resolved = BenchStructuredLinkApplySupport.resolveTargetsForSourceIndex(
+		List<Long> resolved = BenchLinkMappingApplySupport.resolveTargetsForSourceIndex(
 			targets,
 			2,
-			BenchStructuredLinkApplySupport.MappingSpec.broadcastAll()
+			BenchLinkMappingApplySupport.MappingSpec.broadcastAll()
 		);
 
 		assertEquals(List.of(10L, 11L, 12L), resolved);
@@ -37,10 +37,10 @@ class BenchStructuredLinkApplySupportTest {
 	void resolveTargetsForSourceIndexShouldFanInToFirstTarget() {
 		List<Long> targets = List.of(21L, 22L, 23L);
 
-		List<Long> resolved = BenchStructuredLinkApplySupport.resolveTargetsForSourceIndex(
+		List<Long> resolved = BenchLinkMappingApplySupport.resolveTargetsForSourceIndex(
 			targets,
 			5,
-			BenchStructuredLinkApplySupport.MappingSpec.fanInFirst()
+			BenchLinkMappingApplySupport.MappingSpec.fanInFirst()
 		);
 
 		assertEquals(List.of(21L), resolved);
@@ -53,10 +53,10 @@ class BenchStructuredLinkApplySupportTest {
 	void resolveTargetsForSourceIndexShouldApplyBandedWindowWithWrap() {
 		List<Long> targets = List.of(100L, 101L, 102L, 103L, 104L);
 
-		List<Long> resolved = BenchStructuredLinkApplySupport.resolveTargetsForSourceIndex(
+		List<Long> resolved = BenchLinkMappingApplySupport.resolveTargetsForSourceIndex(
 			targets,
 			1,
-			BenchStructuredLinkApplySupport.MappingSpec.banded(3, 2, 1, true)
+			BenchLinkMappingApplySupport.MappingSpec.banded(3, 2, 1, true)
 		);
 
 		assertEquals(List.of(103L, 104L, 100L), resolved);
@@ -67,10 +67,10 @@ class BenchStructuredLinkApplySupportTest {
 	 */
 	@Test
 	void buildTargetsBySourceShouldBuildAssignments() {
-		Map<Long, Set<Long>> targetsBySource = BenchStructuredLinkApplySupport.buildTargetsBySource(
+		Map<Long, Set<Long>> targetsBySource = BenchLinkMappingApplySupport.buildTargetsBySource(
 			List.of(1L, 2L),
 			List.of(10L, 11L, 12L, 13L),
-			BenchStructuredLinkApplySupport.MappingSpec.banded(2, 2, 0, true),
+			BenchLinkMappingApplySupport.MappingSpec.banded(2, 2, 0, true),
 			8
 		);
 
@@ -85,10 +85,10 @@ class BenchStructuredLinkApplySupportTest {
 	void buildTargetsBySourceShouldRejectWhenResolvedTargetsExceedLimit() {
 		assertThrows(
 			IllegalArgumentException.class,
-			() -> BenchStructuredLinkApplySupport.buildTargetsBySource(
+			() -> BenchLinkMappingApplySupport.buildTargetsBySource(
 				List.of(1L),
 				List.of(10L, 11L, 12L),
-				BenchStructuredLinkApplySupport.MappingSpec.broadcastAll(),
+				BenchLinkMappingApplySupport.MappingSpec.broadcastAll(),
 				2
 			)
 		);

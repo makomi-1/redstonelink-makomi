@@ -268,6 +268,37 @@ public final class LinkSetExecutionService {
 	}
 
 	/**
+	 * 基于已完成校验的目标集合构造共享覆盖写入操作。
+	 * <p>
+	 * 供 `link add/remove/clear`、quick-link、bench 等入口在保留各自校验口径的前提下，
+	 * 统一复用同一条 replace/delta/snapshot 执行闭环。
+	 * </p>
+	 */
+	public static PreparedReplaceOperation createPreparedReplaceOperation(
+		ServerLevel level,
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		Set<Long> previousTargets,
+		Set<Long> nextTargets,
+		List<Long> offlineTargets,
+		int commandCost
+	) {
+		return new PreparedReplaceOperation(
+			level,
+			player,
+			sourceType,
+			sourceSerial,
+			targetType,
+			normalizePositiveTargets(nextTargets),
+			normalizePositiveTargets(previousTargets),
+			offlineTargets,
+			commandCost
+		);
+	}
+
+	/**
 	 * 执行一次已准备好的覆盖写入。
 	 *
 	 * @param operation 已准备好的写入操作

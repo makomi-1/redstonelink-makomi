@@ -3,6 +3,7 @@ package com.makomi.data;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivationMode;
@@ -26,6 +27,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,11 @@ class CrossChunkDispatchServiceTest {
 		Bootstrap.bootStrap();
 	}
 
+	@AfterEach
+	void resetThreadGuardAfterEach() {
+		ServerThreadGuard.resetForTesting();
+	}
+
 	/**
 	 * register 入口应可重复调用（仅注册回调，不抛异常）。
 	 */
@@ -48,6 +55,24 @@ class CrossChunkDispatchServiceTest {
 	void registerShouldBeCallable() {
 		CrossChunkDispatchService.register();
 		CrossChunkDispatchService.register();
+	}
+
+	/**
+	 * 非主线程访问全局 dispatch 状态时应直接失败，避免静默污染服务端状态缓存。
+	 */
+	@Test
+	void getOrCreateStateShouldRejectOffThreadAccess() {
+		ServerThreadGuard.setSameThreadProbeForTesting(server -> false);
+		MinecraftServer server = TestMinecraftServerFactory.newDummyServer();
+
+		IllegalStateException exception = assertThrows(
+			IllegalStateException.class,
+			() -> CrossChunkDispatchService.getOrCreateState(server)
+		);
+		assertEquals(
+			"Operation must run on the server thread: crosschunk dispatch state access",
+			exception.getMessage()
+		);
 	}
 
 	/**

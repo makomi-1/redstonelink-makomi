@@ -26,12 +26,24 @@ public final class PairingNetworkClientHandlerSupport {
 	public static void registerReceivers() {
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, (payload, context) -> {
 			// 网络线程切回客户端主线程后再操作 Screen。
-			context.client().execute(() -> openPairingScreenBySourceType(LinkNodeType.TRIGGER_SOURCE, payload.sourceSerial(), payload.targets()));
+			context.client().execute(() -> openPairingScreenBySourceType(
+				LinkNodeType.TRIGGER_SOURCE,
+				payload.sourceSerial(),
+				payload.targets(),
+				payload.graphRevision(),
+				payload.sourceRevision()
+			));
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.OpenCorePairingPayload.TYPE, (payload, context) -> {
 			// 网络线程切回客户端主线程后再操作 Screen。
-			context.client().execute(() -> openPairingScreenBySourceType(LinkNodeType.CORE, payload.sourceSerial(), payload.targets()));
+			context.client().execute(() -> openPairingScreenBySourceType(
+				LinkNodeType.CORE,
+				payload.sourceSerial(),
+				payload.targets(),
+				payload.graphRevision(),
+				payload.sourceRevision()
+			));
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.PairingFeedbackPayload.TYPE, (payload, context) -> {
@@ -74,17 +86,27 @@ public final class PairingNetworkClientHandlerSupport {
 	public static void openPairingScreenBySourceType(
 		LinkNodeType sourceType,
 		long sourceSerial,
-		List<Long> currentTargets
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision
 	) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null) {
 			return;
 		}
 		if (sourceType == LinkNodeType.CORE) {
-			minecraft.setScreen(new CorePairingScreen(sourceSerial, currentTargets));
+			minecraft.setScreen(new CorePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision));
 			return;
 		}
-		minecraft.setScreen(new TriggerSourcePairingScreen(sourceSerial, currentTargets));
+		minecraft.setScreen(new TriggerSourcePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision));
+	}
+
+	public static void openPairingScreenBySourceType(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		List<Long> currentTargets
+	) {
+		openPairingScreenBySourceType(sourceType, sourceSerial, currentTargets, 0L, 0L);
 	}
 
 	/**

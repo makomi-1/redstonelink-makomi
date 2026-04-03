@@ -10,15 +10,30 @@ import java.util.Set;
  * 节点当前连接可见视图快照。
  * <p>
  * 该 DTO 表示“在当前读取上下文下，节点可见的当前连接集合”，
- * 不承载原始未脱敏结果，避免外层误用。
+ * 同时携带读取时的 revision 基线，供 GUI/编辑器做乐观并发校验。
  * </p>
  */
-public record NodeLinksSnapshot(NodeIdentitySnapshot sourceIdentity, List<Long> visibleTargets, boolean masked) {
+public record NodeLinksSnapshot(
+	NodeIdentitySnapshot sourceIdentity,
+	List<Long> visibleTargets,
+	boolean masked,
+	long graphRevision,
+	long sourceRevision
+) {
 	public NodeLinksSnapshot {
 		sourceIdentity = sourceIdentity == null
 			? new NodeIdentitySnapshot(LinkNodeType.CORE, 0L, false, false, false, null, null)
 			: sourceIdentity;
 		visibleTargets = normalizeTargets(visibleTargets);
+		graphRevision = Math.max(0L, graphRevision);
+		sourceRevision = Math.max(0L, sourceRevision);
+	}
+
+	/**
+	 * 兼容仅关心可见目标列表的旧调用方。
+	 */
+	public NodeLinksSnapshot(NodeIdentitySnapshot sourceIdentity, List<Long> visibleTargets, boolean masked) {
+		this(sourceIdentity, visibleTargets, masked, 0L, 0L);
 	}
 
 	/**

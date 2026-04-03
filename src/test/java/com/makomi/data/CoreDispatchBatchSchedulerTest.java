@@ -3,6 +3,7 @@ package com.makomi.data;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
@@ -24,6 +25,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,12 @@ class CoreDispatchBatchSchedulerTest {
 	static void bootstrapRegistries() {
 		SharedConstants.tryDetectVersion();
 		Bootstrap.bootStrap();
+	}
+
+	@AfterEach
+	void resetTestStateAfterEach() {
+		ServerThreadGuard.resetForTesting();
+		CoreDispatchBatchScheduler.resetForTesting();
 	}
 
 	/**
@@ -79,6 +87,21 @@ class CoreDispatchBatchSchedulerTest {
 			(ActivatableTargetBlockEntity.DispatchBatchEntry) entries.values().iterator().next();
 		assertEquals(12, mergedEntry.syncSignalStrength());
 		assertEquals(2L, mergedEntry.eventMeta().seq());
+	}
+
+	/**
+	 * 非主线程写入 scheduler 时应直接失败，避免跨线程篡改全局批次缓存。
+	 */
+	@Test
+	void enqueueLoadedTargetDispatchShouldRejectOffThreadAccess() {
+		ServerThreadGuard.setSameThreadProbeForTesting(server -> false);
+		MinecraftServer server = TestMinecraftServerFactory.newDummyServer();
+
+		IllegalStateException exception = assertThrows(
+			IllegalStateException.class,
+			() -> CoreDispatchBatchScheduler.enqueueLoadedTargetDispatch(server, null, null, 0L, null, null, null, 0L, null, 0, null)
+		);
+		assertEquals("Operation must run on the server thread: core dispatch scheduler enqueue", exception.getMessage());
 	}
 
 	/**

@@ -1,11 +1,11 @@
 package com.makomi.data;
 
-import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
-import com.makomi.command.link.LinkCommandSupport;
+import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SerialParseUtil;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -119,16 +119,23 @@ public final class QuickLinkApplyService {
 			return failureFromWriteDecision(writeDecision);
 		}
 
-		LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceLinksBySourceType(
-			LinkNodeType.TRIGGER_SOURCE,
-			triggerSourceSerial,
-			nextTargets
+		LinkSetExecutionService.ApplyResult applyResult = LinkSetExecutionService.applyPreparedReplace(
+			LinkSetExecutionService.createPreparedReplaceOperation(
+				level,
+				player,
+				LinkNodeType.TRIGGER_SOURCE,
+				triggerSourceSerial,
+				LinkNodeType.CORE,
+				previousTargets,
+				nextTargets,
+				List.of(),
+				1
+			)
 		);
-		publishAndSync(level, player, triggerSourceSerial, previousTargets, nextTargets);
 		return QuickLinkOperationFeedback.success(
 			"message.redstonelink.quick_link.apply.done.trigger_source",
 			Long.toString(triggerSourceSerial),
-			Integer.toString(replaceResult.currentCount())
+			Integer.toString(applyResult.currentTargetCount())
 		);
 	}
 
@@ -191,8 +198,19 @@ public final class QuickLinkApplyService {
 		for (long triggerSourceSerial : parseResult.orderedTargets()) {
 			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
 			Set<Long> nextTargets = Set.of(coreSerial);
-			savedData.replaceLinksBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, nextTargets);
-			publishAndSync(level, player, triggerSourceSerial, previousTargets, nextTargets);
+			LinkSetExecutionService.applyPreparedReplace(
+				LinkSetExecutionService.createPreparedReplaceOperation(
+					level,
+					player,
+					LinkNodeType.TRIGGER_SOURCE,
+					triggerSourceSerial,
+					LinkNodeType.CORE,
+					previousTargets,
+					nextTargets,
+					List.of(),
+					1
+				)
+			);
 			appliedSourceCount++;
 		}
 
@@ -222,46 +240,6 @@ public final class QuickLinkApplyService {
 	 */
 	static int writeControlSetSizeForCachedTriggerSourcesToCore(int cachedTriggerSourceCount) {
 		return Math.max(0, cachedTriggerSourceCount);
-	}
-
-	/**
-	 * 复用现有 delta 发布与节点/物品快照同步闭环。
-	 */
-	private static void publishAndSync(
-		ServerLevel level,
-		ServerPlayer player,
-		long triggerSourceSerial,
-		Set<Long> previousTargets,
-		Set<Long> nextTargets
-	) {
-		ActivatableTargetBlockEntity.EventMeta eventMeta = ActivatableTargetBlockEntity.EventMeta.of(level.getGameTime(), 0, 0L);
-
-		Set<Long> addedTargets = new HashSet<>(nextTargets);
-		addedTargets.removeAll(previousTargets);
-		if (!addedTargets.isEmpty()) {
-			InternalDispatchDeltaEvents.publishLinkAttached(
-				level,
-				LinkNodeType.TRIGGER_SOURCE,
-				triggerSourceSerial,
-				addedTargets,
-				eventMeta
-			);
-		}
-
-		Set<Long> removedTargets = new HashSet<>(previousTargets);
-		removedTargets.removeAll(nextTargets);
-		if (!removedTargets.isEmpty()) {
-			InternalDispatchDeltaEvents.publishLinkDetached(
-				level,
-				LinkNodeType.TRIGGER_SOURCE,
-				triggerSourceSerial,
-				removedTargets,
-				eventMeta
-			);
-		}
-
-		LinkCommandSupport.syncAffectedNodeLinkSnapshots(level, LinkNodeType.CORE, previousTargets, nextTargets);
-		LinkCommandSupport.syncPlayerItemLinkSnapshot(player, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial);
 	}
 
 	/**

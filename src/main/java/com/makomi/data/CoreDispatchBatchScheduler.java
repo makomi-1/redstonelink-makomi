@@ -122,6 +122,7 @@ public final class CoreDispatchBatchScheduler {
 		int syncSignalStrength,
 		EventMeta eventMeta
 	) {
+		ServerThreadGuard.requireServerThread(server, "core dispatch scheduler enqueue");
 		if (server == null || targetBlockEntity == null || targetType == null || targetSerial <= 0L) {
 			return;
 		}
@@ -158,6 +159,7 @@ public final class CoreDispatchBatchScheduler {
 		long targetSerial,
 		List<DispatchBatchEntry> batchEntries
 	) {
+		ServerThreadGuard.requireServerThread(server, "core dispatch scheduler batch enqueue");
 		if (batchEntries == null || batchEntries.isEmpty()) {
 			return false;
 		}
@@ -186,11 +188,13 @@ public final class CoreDispatchBatchScheduler {
 	}
 
 	private static void onEndServerTick(MinecraftServer server) {
+		ServerThreadGuard.requireServerThread(server, "core dispatch scheduler tick");
 		flushServerBatches(server);
 		recordCompletedEndTick(server, resolveCurrentTick(server, null));
 	}
 
 	private static void onServerStopping(MinecraftServer server) {
+		ServerThreadGuard.requireServerThread(server, "core dispatch scheduler stop");
 		flushServerBatches(server, true);
 		STATE_BY_SERVER.remove(server);
 		LAST_COMPLETED_END_TICK_BY_SERVER.remove(server);
@@ -204,6 +208,7 @@ public final class CoreDispatchBatchScheduler {
 	 * </p>
 	 */
 	static void flushLateArrivalsIfCurrentTickEndAlreadyPassed(MinecraftServer server, long currentTick) {
+		ServerThreadGuard.requireServerThread(server, "core dispatch scheduler late-arrival flush");
 		long normalizedCurrentTick = Math.max(0L, currentTick);
 		Long lastCompletedEndTick = LAST_COMPLETED_END_TICK_BY_SERVER.get(server);
 		if (!shouldFlushLateArrivals(normalizedCurrentTick, configuredBatchWindowTicks(), lastCompletedEndTick)) {
@@ -230,6 +235,7 @@ public final class CoreDispatchBatchScheduler {
 	}
 
 	private static void flushServerBatches(MinecraftServer server, boolean forceFlush) {
+		ServerThreadGuard.requireServerThread(server, "core dispatch scheduler flush");
 		SchedulerState state = STATE_BY_SERVER.get(server);
 		if (state == null) {
 			return;
