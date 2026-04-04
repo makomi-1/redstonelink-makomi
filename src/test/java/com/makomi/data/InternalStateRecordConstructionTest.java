@@ -51,9 +51,9 @@ class InternalStateRecordConstructionTest {
 	@Test
 	void crossChunkInternalRecordsShouldConstructWithExpectedValues() throws Exception {
 		Class<?> dispatchKindClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchKind");
-		Object activationKind = java.util.Arrays
+		Object toggleEventKind = java.util.Arrays
 			.stream(dispatchKindClass.getEnumConstants())
-			.filter(constant -> ((Enum<?>) constant).name().equals("ACTIVATION"))
+			.filter(constant -> ((Enum<?>) constant).name().equals("TOGGLE_EVENT"))
 			.findFirst()
 			.orElseThrow();
 		Class<?> dispatchActionClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$DispatchAction");
@@ -72,7 +72,7 @@ class InternalStateRecordConstructionTest {
 			dispatchKindClass
 		);
 		dispatchKeyConstructor.setAccessible(true);
-		Object dispatchKey = dispatchKeyConstructor.newInstance(LinkNodeType.TRIGGER_SOURCE, 1L, LinkNodeType.CORE, 2L, activationKind);
+		Object dispatchKey = dispatchKeyConstructor.newInstance(LinkNodeType.TRIGGER_SOURCE, 1L, LinkNodeType.CORE, 2L, toggleEventKind);
 		assertNotNull(dispatchKey);
 
 		Class<?> pendingDispatchClass = Class.forName("com.makomi.data.CrossChunkDispatchQueueSavedData$PendingDispatchEntry");

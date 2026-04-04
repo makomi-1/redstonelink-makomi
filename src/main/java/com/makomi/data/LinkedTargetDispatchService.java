@@ -104,14 +104,14 @@ public final class LinkedTargetDispatchService {
 	 * @return 需发送给玩家的多行提示
 	 */
 	public static List<Component> buildCrossChunkNotifyMessages(DispatchSummary summary) {
-		if (summary == null || !summary.hasForceLoadHandled()) {
+		if (summary == null || !summary.hasCrossChunkHandled()) {
 			return List.of();
 		}
 		int displayLimit = RedstoneLinkConfig.crossChunk().notifyMode() == RedstoneLinkConfig.CrossChunkNotifyMode.DETAILED
 			? 50
 			: 3;
 		List<Component> lines = new ArrayList<>();
-		lines.add(Component.translatable("message.redstonelink.crosschunk.notify.header", summary.forceLoadHandledCount()));
+		lines.add(Component.translatable("message.redstonelink.crosschunk.notify.header", summary.crossChunkHandledCount()));
 		lines.add(
 			Component.translatable(
 				"message.redstonelink.crosschunk.notify.source",
@@ -124,6 +124,14 @@ public final class LinkedTargetDispatchService {
 				Component.translatable(
 					"message.redstonelink.crosschunk.notify.force_load_targets",
 					formatNotifyTargets(summary.targetType(), summary.forceLoadTargetSerials(), displayLimit)
+				)
+			);
+		}
+		if (!summary.relayTargetSerials().isEmpty()) {
+			lines.add(
+				Component.translatable(
+					"message.redstonelink.crosschunk.notify.relay_targets",
+					formatNotifyTargets(summary.targetType(), summary.relayTargetSerials(), displayLimit)
 				)
 			);
 		}

@@ -9,7 +9,6 @@ import org.slf4j.Logger;
  * 客户端显示配置解析器。
  */
 final class RedstoneLinkClientDisplayParser {
-	static final String KEY_SERIAL_OVERLAY_ENABLED = "client.serialOverlayEnabled";
 	static final String KEY_SERIAL_OVERLAY_MODE = "client.serialOverlayMode";
 	static final String KEY_SERIAL_OVERLAY_MAX_DISTANCE = "client.serialOverlayMaxDistance";
 	static final String KEY_SERIAL_OVERLAY_FONT_SCALE = "client.serialOverlayFontScale";
@@ -107,9 +106,6 @@ final class RedstoneLinkClientDisplayParser {
 
 	/**
 	 * 解析外显模式。
-	 * <p>
-	 * 优先读取新字段 `client.serialOverlayMode`；若缺失则兼容旧字段 `client.serialOverlayEnabled`。
-	 * </p>
 	 */
 	private static RedstoneLinkClientDisplayConfig.SerialOverlayMode parseOverlayMode(Properties properties, Logger logger) {
 		String rawMode = properties.getProperty(KEY_SERIAL_OVERLAY_MODE);
@@ -127,11 +123,7 @@ final class RedstoneLinkClientDisplayParser {
 			);
 			return RedstoneLinkClientDisplayConfig.SerialOverlayMode.FAR_ONLY;
 		}
-
-		boolean legacyEnabled = parseBoolean(properties, KEY_SERIAL_OVERLAY_ENABLED, true, logger);
-		return legacyEnabled
-			? RedstoneLinkClientDisplayConfig.SerialOverlayMode.FAR_ONLY
-			: RedstoneLinkClientDisplayConfig.SerialOverlayMode.OFF;
+		return RedstoneLinkClientDisplayConfig.SerialOverlayMode.FAR_ONLY;
 	}
 
 	/**

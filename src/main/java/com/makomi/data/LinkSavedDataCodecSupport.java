@@ -22,7 +22,7 @@ import net.minecraft.world.level.Level;
 /**
  * LinkSavedData 存档编解码 helper。
  * <p>
- * 负责 NBT 读写、旧格式兼容、非法条目过滤与类型统计日志。
+ * 负责 NBT 读写、非法条目过滤与类型统计日志。
  * </p>
  */
 final class LinkSavedDataCodecSupport {
@@ -39,10 +39,6 @@ final class LinkSavedDataCodecSupport {
 
 		if (tag.contains(LinkSavedData.KEY_NEXT_CORE_SERIAL, Tag.TAG_LONG)) {
 			data.nextCoreSerial = Math.max(1L, tag.getLong(LinkSavedData.KEY_NEXT_CORE_SERIAL));
-		} else if (tag.contains(LinkSavedData.KEY_NEXT_SERIAL, Tag.TAG_LONG)) {
-			long legacyNext = Math.max(1L, tag.getLong(LinkSavedData.KEY_NEXT_SERIAL));
-			data.nextCoreSerial = legacyNext;
-			data.nextButtonSerial = legacyNext;
 		}
 
 		if (tag.contains(LinkSavedData.KEY_NEXT_BUTTON_SERIAL, Tag.TAG_LONG)) {
@@ -125,12 +121,6 @@ final class LinkSavedDataCodecSupport {
 		}
 		if (hasAllocatedButton) {
 			SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_ALLOCATED_BUTTON_SERIALS, data.allocatedButtonSerials);
-		}
-		if (!hasAllocatedCore) {
-			populateLegacyAllocated(data.allocatedCoreSerials, data.nextCoreSerial);
-		}
-		if (!hasAllocatedButton) {
-			populateLegacyAllocated(data.allocatedButtonSerials, data.nextButtonSerial);
 		}
 		SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_RETIRED_CORE_SERIALS, data.retiredCoreSerials);
 		SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_RETIRED_BUTTON_SERIALS, data.retiredButtonSerials);
@@ -279,13 +269,4 @@ final class LinkSavedDataCodecSupport {
 		return builder.toString();
 	}
 
-	/**
-	 * 兼容旧版：根据 nextSerial 推导历史已分配范围。
-	 */
-	static void populateLegacyAllocated(Set<Long> output, long nextSerial) {
-		long upperExclusive = Math.max(1L, nextSerial);
-		for (long serial = 1L; serial < upperExclusive; serial++) {
-			output.add(serial);
-		}
-	}
 }

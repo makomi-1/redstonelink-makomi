@@ -123,7 +123,7 @@ public final class RedstoneLinkConfig {
 			}
 			return switch (raw.trim().toLowerCase(Locale.ROOT)) {
 				case "off" -> OFF;
-				case "all_direct", "all_sync" -> ALL_DIRECT;
+				case "all_direct" -> ALL_DIRECT;
 				case "queued_only" -> QUEUED_ONLY;
 				default -> ALL_DIRECT;
 			};

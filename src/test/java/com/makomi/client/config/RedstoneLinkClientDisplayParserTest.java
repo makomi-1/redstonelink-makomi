@@ -13,6 +13,51 @@ import org.slf4j.LoggerFactory;
 @Tag("stable-core")
 class RedstoneLinkClientDisplayParserTest {
 	/**
+	 * 序号外显模式缺失时应回退默认 `far`。
+	 */
+	@Test
+	void parserShouldUseDefaultSerialOverlayModeWhenMissing() {
+		RedstoneLinkClientDisplaySnapshot snapshot = RedstoneLinkClientDisplayParser.parse(
+			new Properties(),
+			LoggerFactory.getLogger("test-client-config")
+		);
+
+		assertEquals(RedstoneLinkClientDisplayConfig.SerialOverlayMode.FAR_ONLY, snapshot.overlay().mode());
+	}
+
+	/**
+	 * 序号外显模式应按当前配置键解析。
+	 */
+	@Test
+	void parserShouldApplySerialOverlayModeFromCurrentKey() {
+		Properties properties = new Properties();
+		properties.setProperty(RedstoneLinkClientDisplayParser.KEY_SERIAL_OVERLAY_MODE, "off");
+
+		RedstoneLinkClientDisplaySnapshot snapshot = RedstoneLinkClientDisplayParser.parse(
+			properties,
+			LoggerFactory.getLogger("test-client-config")
+		);
+
+		assertEquals(RedstoneLinkClientDisplayConfig.SerialOverlayMode.OFF, snapshot.overlay().mode());
+	}
+
+	/**
+	 * 已移除的旧键不再生效，缺失当前键时保持默认 `far`。
+	 */
+	@Test
+	void parserShouldIgnoreRemovedLegacySerialOverlayKey() {
+		Properties properties = new Properties();
+		properties.setProperty("client.serialOverlayEnabled", "false");
+
+		RedstoneLinkClientDisplaySnapshot snapshot = RedstoneLinkClientDisplayParser.parse(
+			properties,
+			LoggerFactory.getLogger("test-client-config")
+		);
+
+		assertEquals(RedstoneLinkClientDisplayConfig.SerialOverlayMode.FAR_ONLY, snapshot.overlay().mode());
+	}
+
+	/**
 	 * quick-link 序号缓存长度缺失时应回退默认值 1024。
 	 */
 	@Test

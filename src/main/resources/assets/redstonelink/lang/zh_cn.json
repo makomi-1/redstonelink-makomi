@@ -246,7 +246,7 @@
     "message.redstonelink.crosschunk.notify.header":  "[RedstoneLink/CrossChunk] 跨区块接管已生效：%s 个目标。",
     "message.redstonelink.crosschunk.notify.source":  "[RedstoneLink/CrossChunk] 来源：%s:%s。",
     "message.redstonelink.crosschunk.notify.force_load_targets":  "[RedstoneLink/CrossChunk] 强加载目标：%s。",
-    "message.redstonelink.crosschunk.notify.relay_targets":  "[RedstoneLink/CrossChunk] 中继缓冲目标：%s。",
+    "message.redstonelink.crosschunk.notify.relay_targets":  "[RedstoneLink/CrossChunk] 目标所在区块已卸载，当前缓冲等待恢复：%s。",
     "message.redstonelink.node.invalid_type":  "[RedstoneLink] 节点类型无效: %s（仅支持 triggerSource/core）。",
     "message.redstonelink.node.invalid_scope":  "[RedstoneLink] 节点列表范围无效: %s（仅支持 active/retired/online）。",
     "message.redstonelink.audit.invalid_format":  "[RedstoneLink] 审计格式无效: %s（仅支持 text/csv）。",

@@ -292,7 +292,6 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 * 派发语义类型。
 	 */
 	public enum DispatchKind {
-		ACTIVATION,
 		PULSE_EVENT,
 		TOGGLE_EVENT,
 		SYNC_SIGNAL,

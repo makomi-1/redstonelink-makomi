@@ -16,7 +16,7 @@ import net.minecraft.world.level.Level;
 /**
  * 跨区块持久队列编解码 helper。
  * <p>
- * 负责 DispatchKey / PendingDispatchEntry / 版本图 的 NBT 读写与旧格式兼容归一化。
+ * 负责 DispatchKey / PendingDispatchEntry / 版本图 的 NBT 读写。
  * </p>
  */
 final class CrossChunkDispatchQueueCodecSupport {
@@ -140,14 +140,9 @@ final class CrossChunkDispatchQueueCodecSupport {
 		int enqueueSlot = Math.max(0, tag.getInt(CrossChunkDispatchQueueSavedData.KEY_ENQUEUE_SLOT));
 		BlockPos pos = BlockPos.of(tag.getLong(CrossChunkDispatchQueueSavedData.KEY_POS));
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
-		Optional<CrossChunkDispatchQueueSavedData.DispatchKey> normalizedKey =
-			normalizeLegacyActivationKey(key.get(), dispatchAction, activationMode);
-		if (normalizedKey.isEmpty()) {
-			return Optional.empty();
-		}
 		return Optional.of(
 			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
-				normalizedKey.get(),
+				key.get(),
 				dispatchAction,
 				dimension,
 				pos,
@@ -157,37 +152,6 @@ final class CrossChunkDispatchQueueCodecSupport {
 				enqueueSlot,
 				expireTick,
 				version
-			)
-		);
-	}
-
-	/**
-	 * 将旧版 ACTIVATION key 归一到新的事件语义。
-	 */
-	static Optional<CrossChunkDispatchQueueSavedData.DispatchKey> normalizeLegacyActivationKey(
-		CrossChunkDispatchQueueSavedData.DispatchKey key,
-		CrossChunkDispatchQueueSavedData.DispatchAction dispatchAction,
-		ActivationMode activationMode
-	) {
-		if (key == null) {
-			return Optional.empty();
-		}
-		if (key.dispatchKind() != CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION) {
-			return Optional.of(key);
-		}
-		if (dispatchAction == CrossChunkDispatchQueueSavedData.DispatchAction.REMOVE) {
-			return Optional.empty();
-		}
-		CrossChunkDispatchQueueSavedData.DispatchKind normalizedKind = activationMode == ActivationMode.PULSE
-			? CrossChunkDispatchQueueSavedData.DispatchKind.PULSE_EVENT
-			: CrossChunkDispatchQueueSavedData.DispatchKind.TOGGLE_EVENT;
-		return Optional.of(
-			new CrossChunkDispatchQueueSavedData.DispatchKey(
-				key.sourceType(),
-				key.sourceSerial(),
-				key.targetType(),
-				key.targetSerial(),
-				normalizedKind
 			)
 		);
 	}

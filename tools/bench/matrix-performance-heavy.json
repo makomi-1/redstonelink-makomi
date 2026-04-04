@@ -20,8 +20,8 @@
     }
   },
   "templatePaths": [
-    "templates/performance/drive.json",
-    "templates/functional/phases.json"
+    "templates/functional/phases.json",
+    "templates/performance/drive.json"
   ],
   "casePaths": [
     "cases/performance/p12/sync_1_to_2048_core_dense.json",

@@ -184,7 +184,7 @@ final class CrossChunkDispatchRuntimeSupport {
 			return null;
 		}
 		ActivatableTargetBlockEntity.DeltaKind deltaKind = switch (pending.key().dispatchKind()) {
-			case ACTIVATION, PULSE_EVENT, TOGGLE_EVENT -> ActivatableTargetBlockEntity.DeltaKind.ACTIVATION;
+			case PULSE_EVENT, TOGGLE_EVENT -> ActivatableTargetBlockEntity.DeltaKind.ACTIVATION;
 			case SYNC_SIGNAL -> ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL;
 			case SOURCE_INVALIDATION, TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION ->
 				ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION;

@@ -10,6 +10,8 @@ import com.makomi.config.RedstoneLinkConfig;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Set;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -81,6 +83,43 @@ class LinkedTargetDispatchServiceTest {
 			Set.of()
 		);
 		assertTrue(LinkedTargetDispatchService.buildCrossChunkNotifyMessages(summary).isEmpty());
+	}
+
+	/**
+	 * 跨区块提示应同时覆盖强加载与“目标区块已卸载”的 relay 场景，并按总接管数统计 header。
+	 */
+	@Test
+	void buildCrossChunkNotifyMessagesShouldIncludeRelayTargetsAndTotalHandledCount() {
+		LinkedTargetDispatchService.DispatchSummary summary = new LinkedTargetDispatchService.DispatchSummary(
+			LinkNodeType.TRIGGER_SOURCE,
+			1L,
+			LinkNodeType.CORE,
+			3,
+			3,
+			List.of(11L),
+			List.of(21L, 22L),
+			Set.of()
+		);
+
+		List<Component> lines = LinkedTargetDispatchService.buildCrossChunkNotifyMessages(summary);
+		assertEquals(4, lines.size());
+
+		TranslatableContents header = requireTranslatable(lines.get(0));
+		assertEquals("message.redstonelink.crosschunk.notify.header", header.getKey());
+		assertEquals(3, header.getArgs()[0]);
+
+		TranslatableContents source = requireTranslatable(lines.get(1));
+		assertEquals("message.redstonelink.crosschunk.notify.source", source.getKey());
+		assertEquals("triggerSource", source.getArgs()[0]);
+		assertEquals(1L, source.getArgs()[1]);
+
+		TranslatableContents forceLoadTargets = requireTranslatable(lines.get(2));
+		assertEquals("message.redstonelink.crosschunk.notify.force_load_targets", forceLoadTargets.getKey());
+		assertEquals("core:11", forceLoadTargets.getArgs()[0]);
+
+		TranslatableContents relayTargets = requireTranslatable(lines.get(3));
+		assertEquals("message.redstonelink.crosschunk.notify.relay_targets", relayTargets.getKey());
+		assertEquals("core:21, core:22", relayTargets.getArgs()[0]);
 	}
 
 	/**
@@ -219,5 +258,10 @@ class LinkedTargetDispatchServiceTest {
 				RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
 			)
 		);
+	}
+
+	private static TranslatableContents requireTranslatable(Component component) {
+		assertTrue(component.getContents() instanceof TranslatableContents);
+		return (TranslatableContents) component.getContents();
 	}
 }

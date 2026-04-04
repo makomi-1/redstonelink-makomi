@@ -27,7 +27,6 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public final class LinkSavedData extends SavedData {
 	static final String DATA_NAME = "redstonelink_serial_data";
-	static final String KEY_NEXT_SERIAL = "nextSerial";
 	static final String KEY_NEXT_CORE_SERIAL = "nextCoreSerial";
 	static final String KEY_NEXT_BUTTON_SERIAL = "nextButtonSerial";
 	static final String KEY_NODES = "nodes";

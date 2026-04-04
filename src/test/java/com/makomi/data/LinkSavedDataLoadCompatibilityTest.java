@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
- * LinkSavedData 反序列化兼容性与健壮性测试。
+ * LinkSavedData 反序列化契约与健壮性测试。
  */
 @Tag("stable-core")
 class LinkSavedDataLoadCompatibilityTest {
@@ -65,37 +65,6 @@ class LinkSavedDataLoadCompatibilityTest {
 			.orElseThrow();
 		assertEquals(0, snapshot.signalStrength());
 		assertEquals(EventMeta.of(321L, 0, 12L), snapshot.eventMeta());
-	}
-
-	/**
-	 * 兼容旧版本 nextSerial 字段：CORE/TRIGGER_SOURCE 都应从旧计数器继续分配。
-	 */
-	@Test
-	void loadShouldSupportLegacyNextSerialKey() {
-		CompoundTag legacy = new CompoundTag();
-		legacy.putLong("nextSerial", 5L);
-
-		LinkSavedData restored = invokeLoad(legacy);
-		long coreSerial = restored.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = restored.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-
-		assertEquals(5L, coreSerial);
-		assertEquals(5L, buttonSerial);
-	}
-
-	/**
-	 * 读取版本化 SNBT 样例应保持 legacy nextSerial 兼容。
-	 */
-	@Test
-	void loadShouldSupportLegacyNextSerialFromFixture() throws Exception {
-		CompoundTag legacy = readFixture("src/test/resources/fixtures/nbt/link_saved_data_legacy.snbt");
-
-		LinkSavedData restored = invokeLoad(legacy);
-		long coreSerial = restored.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = restored.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-
-		assertEquals(5L, coreSerial);
-		assertEquals(5L, buttonSerial);
 	}
 
 	/**

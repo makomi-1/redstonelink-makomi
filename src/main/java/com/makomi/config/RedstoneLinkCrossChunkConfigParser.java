@@ -21,9 +21,6 @@ final class RedstoneLinkCrossChunkConfigParser {
 	 */
 	static RedstoneLinkCrossChunkConfig parse(Properties props) {
 		String directBatchingRaw = props == null ? null : props.getProperty("crosschunk.directBatching");
-		if (directBatchingRaw == null && props != null) {
-			directBatchingRaw = props.getProperty("crosschunk.directSyncBatching");
-		}
 		Set<LinkNodeType> allowedSourceTypes = RedstoneLinkCrossChunkPresetParser.parseTypeSet(
 			props,
 			"crosschunk.whitelist.sourceTypes",
@@ -56,12 +53,7 @@ final class RedstoneLinkCrossChunkConfigParser {
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.toggle.relay.enabled", false),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.activation.toggle.ttlTicks", 200, 1, 72_000),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.activation.toggle.persistentExperimental", false),
-			RedstoneLinkConfigParseSupport.parseBooleanWithFallback(
-				props,
-				"crosschunk.triggerSourceContextDetachInvalidation.enabled",
-				"crosschunk.triggerSourceChunkUnloadInvalidation.enabled",
-				false
-			),
+			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.triggerSourceContextDetachInvalidation.enabled", false),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.queue.enabled", true),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.queue.defaultTtlTicks", 200, 1, 72_000),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.queue.maxPendingEntries", 100_000, 1, 2_000_000),

@@ -81,7 +81,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 			3L,
 			LinkNodeType.CORE,
 			11L,
-			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
+			CrossChunkDispatchQueueSavedData.DispatchKind.TOGGLE_EVENT
 		);
 
 		assertFalse(data.isStaleByAcceptedVersion(key, 1L));
@@ -130,45 +130,10 @@ class CrossChunkDispatchQueueSavedDataTest {
 	}
 
 	/**
-	 * 旧版 ACTIVATION 持久项读档时应按 activationMode 迁移到新的事件 kind。
+	 * 已移除的旧版 ACTIVATION 持久项读档时应直接丢弃。
 	 */
 	@Test
-	void loadShouldMigrateLegacyActivationKindByMode() throws Exception {
-		CompoundTag root = new CompoundTag();
-		ListTag pendingEntries = new ListTag();
-		CompoundTag legacyEntry = new CompoundTag();
-		legacyEntry.putString("sourceType", "triggerSource");
-		legacyEntry.putLong("sourceSerial", 7L);
-		legacyEntry.putString("targetType", "core");
-		legacyEntry.putLong("targetSerial", 17L);
-		legacyEntry.putString("dispatchKind", "ACTIVATION");
-		legacyEntry.putString("dispatchAction", "UPSERT");
-		legacyEntry.putString("dimension", Level.OVERWORLD.location().toString());
-		legacyEntry.putLong("pos", BlockPos.ZERO.asLong());
-		legacyEntry.putString("activationMode", "PULSE");
-		legacyEntry.putInt("syncSignalStrength", 0);
-		legacyEntry.putLong("enqueueTick", 10L);
-		legacyEntry.putInt("enqueueSlot", 0);
-		legacyEntry.putLong("expireTick", 40L);
-		legacyEntry.putLong("version", 3L);
-		pendingEntries.add(legacyEntry);
-		root.put("pendingEntries", pendingEntries);
-		root.put("acceptedVersions", new ListTag());
-		root.put("issuedVersions", new ListTag());
-
-		CrossChunkDispatchQueueSavedData restored = invokeLoad(root);
-		assertEquals(1, restored.pendingSize());
-		assertEquals(
-			CrossChunkDispatchQueueSavedData.DispatchKind.PULSE_EVENT,
-			restored.pendingEntriesSnapshot().getFirst().key().dispatchKind()
-		);
-	}
-
-	/**
-	 * 旧版 ACTIVATION remove 持久项与新事件语义不兼容，读档时应直接丢弃。
-	 */
-	@Test
-	void loadShouldDropLegacyActivationRemoveEntry() throws Exception {
+	void loadShouldDropRemovedLegacyActivationEntry() throws Exception {
 		CompoundTag root = new CompoundTag();
 		ListTag pendingEntries = new ListTag();
 		CompoundTag legacyEntry = new CompoundTag();
@@ -247,7 +212,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 			1L,
 			LinkNodeType.CORE,
 			2L,
-			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
+			CrossChunkDispatchQueueSavedData.DispatchKind.TOGGLE_EVENT
 		);
 		data.upsertPending(
 			key,
@@ -270,7 +235,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 				3L,
 				LinkNodeType.CORE,
 				4L,
-				CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
+				CrossChunkDispatchQueueSavedData.DispatchKind.TOGGLE_EVENT
 			),
 			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 			Level.OVERWORLD,
@@ -296,7 +261,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 			8L,
 			LinkNodeType.CORE,
 			9L,
-			CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
+			CrossChunkDispatchQueueSavedData.DispatchKind.TOGGLE_EVENT
 		);
 		List<CrossChunkDispatchQueueSavedData.UpsertResult> results = data.upsertPendingBatch(
 			List.of(
@@ -317,7 +282,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 						0L,
 						LinkNodeType.CORE,
 						11L,
-						CrossChunkDispatchQueueSavedData.DispatchKind.ACTIVATION
+						CrossChunkDispatchQueueSavedData.DispatchKind.TOGGLE_EVENT
 					),
 					CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
 					Level.OVERWORLD,

@@ -262,20 +262,30 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	}
 
 	/**
-	 * direct batching 应优先读取新键，并兼容旧键与旧值。
+	 * direct batching 应只读取当前配置键。
 	 */
 	@Test
-	void parseCrossChunkShouldPreferNewDirectBatchingKeyAndKeepLegacyFallback() {
-		Properties preferred = new Properties();
-		preferred.setProperty("crosschunk.directBatching", "queued_only");
-		preferred.setProperty("crosschunk.directSyncBatching", "all_sync");
-		RedstoneLinkCrossChunkConfig preferredSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(preferred);
-		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.QUEUED_ONLY, preferredSnapshot.directBatchingMode());
+	void parseCrossChunkShouldUseCurrentDirectBatchingKeyOnly() {
+		Properties current = new Properties();
+		current.setProperty("crosschunk.directBatching", "queued_only");
+		RedstoneLinkCrossChunkConfig currentSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(current);
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.QUEUED_ONLY, currentSnapshot.directBatchingMode());
+	}
 
-		Properties legacy = new Properties();
-		legacy.setProperty("crosschunk.directSyncBatching", "all_sync");
-		RedstoneLinkCrossChunkConfig legacySnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(legacy);
-		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, legacySnapshot.directBatchingMode());
+	/**
+	 * 已移除的 direct batching 旧键与旧值应按无效输入处理，不再参与兼容回退。
+	 */
+	@Test
+	void parseCrossChunkShouldIgnoreRemovedLegacyDirectBatchingInputs() {
+		Properties legacyKey = new Properties();
+		legacyKey.setProperty("crosschunk.directSyncBatching", "off");
+		RedstoneLinkCrossChunkConfig legacyKeySnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(legacyKey);
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, legacyKeySnapshot.directBatchingMode());
+
+		Properties legacyValue = new Properties();
+		legacyValue.setProperty("crosschunk.directBatching", "all_sync");
+		RedstoneLinkCrossChunkConfig legacyValueSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(legacyValue);
+		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, legacyValueSnapshot.directBatchingMode());
 	}
 
 	/**
@@ -354,14 +364,14 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	}
 
 	/**
-	 * 旧的 context-detach 配置键仍应可读，保持“读旧写新”的兼容边界。
+	 * 已移除的 context-detach 旧键应被忽略，不再参与兼容回退。
 	 */
 	@Test
-	void parseCrossChunkShouldFallbackToLegacyContextDetachInvalidationKey() {
+	void parseCrossChunkShouldIgnoreRemovedLegacyContextDetachInvalidationKey() {
 		Properties properties = new Properties();
 		properties.setProperty("crosschunk.triggerSourceChunkUnloadInvalidation.enabled", "true");
 
 		RedstoneLinkCrossChunkConfig snapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(properties);
-		assertTrue(snapshot.triggerSourceContextDetachInvalidationEnabled());
+		assertFalse(snapshot.triggerSourceContextDetachInvalidationEnabled());
 	}
 }
