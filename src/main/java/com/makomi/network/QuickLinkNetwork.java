@@ -140,18 +140,18 @@ public final class QuickLinkNetwork {
 	}
 
 	/**
-	 * 客户端左键应用缓存的 C2S 请求。
+	 * 客户端右键应用前请求 revision 基线的 C2S 请求。
 	 */
-	public record ApplyQuickLinkPayload(
+	public record RequestApplyQuickLinkBaselinePayload(
 		String dimensionKey,
 		long blockPosLong,
 		String expectedNodeTypeToken,
 		long expectedNodeSerial
 	) implements CustomPacketPayload {
-		public static final CustomPacketPayload.Type<ApplyQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_payload")
+		public static final CustomPacketPayload.Type<RequestApplyQuickLinkBaselinePayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_apply_quick_link_baseline")
 		);
-		public static final StreamCodec<FriendlyByteBuf, ApplyQuickLinkPayload> CODEC = CustomPacketPayload.codec(
+		public static final StreamCodec<FriendlyByteBuf, RequestApplyQuickLinkBaselinePayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
 				buffer,
 				payload.dimensionKey(),
@@ -163,7 +163,7 @@ public final class QuickLinkNetwork {
 				QuickLinkNetworkPayloadSupport.DecodedBlockTargetPayload decoded = QuickLinkNetworkPayloadSupport.decodeBlockTargetPayload(
 					buffer
 				);
-				return new ApplyQuickLinkPayload(
+				return new RequestApplyQuickLinkBaselinePayload(
 					decoded.dimensionKey(),
 					decoded.blockPosLong(),
 					decoded.expectedNodeTypeToken(),
@@ -172,10 +172,116 @@ public final class QuickLinkNetwork {
 			}
 		);
 
+		public RequestApplyQuickLinkBaselinePayload {
+			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			expectedNodeTypeToken = expectedNodeTypeToken == null ? "" : expectedNodeTypeToken;
+			expectedNodeSerial = Math.max(0L, expectedNodeSerial);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端返回给客户端的 quick-link apply revision 基线。
+	 */
+	public record ApplyQuickLinkBaselinePayload(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		long graphRevision,
+		long sourceRevision
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<ApplyQuickLinkBaselinePayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_baseline")
+		);
+		public static final StreamCodec<FriendlyByteBuf, ApplyQuickLinkBaselinePayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeApplyBaselinePayload(
+				buffer,
+				payload.dimensionKey(),
+				payload.blockPosLong(),
+				payload.expectedNodeTypeToken(),
+				payload.expectedNodeSerial(),
+				payload.graphRevision(),
+				payload.sourceRevision()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedApplyBaselinePayload decoded = QuickLinkNetworkPayloadSupport.decodeApplyBaselinePayload(
+					buffer
+				);
+				return new ApplyQuickLinkBaselinePayload(
+					decoded.dimensionKey(),
+					decoded.blockPosLong(),
+					decoded.expectedNodeTypeToken(),
+					decoded.expectedNodeSerial(),
+					decoded.graphRevision(),
+					decoded.sourceRevision()
+				);
+			}
+		);
+
+		public ApplyQuickLinkBaselinePayload {
+			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			expectedNodeTypeToken = expectedNodeTypeToken == null ? "" : expectedNodeTypeToken;
+			expectedNodeSerial = Math.max(0L, expectedNodeSerial);
+			graphRevision = Math.max(0L, graphRevision);
+			sourceRevision = Math.max(0L, sourceRevision);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 客户端右键应用缓存的 C2S 请求。
+	 */
+	public record ApplyQuickLinkPayload(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		long expectedGraphRevision,
+		long expectedSourceRevision
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<ApplyQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_payload")
+		);
+		public static final StreamCodec<FriendlyByteBuf, ApplyQuickLinkPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeApplyPayload(
+				buffer,
+				payload.dimensionKey(),
+				payload.blockPosLong(),
+				payload.expectedNodeTypeToken(),
+				payload.expectedNodeSerial(),
+				payload.expectedGraphRevision(),
+				payload.expectedSourceRevision()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedApplyPayload decoded = QuickLinkNetworkPayloadSupport.decodeApplyPayload(
+					buffer
+				);
+				return new ApplyQuickLinkPayload(
+					decoded.dimensionKey(),
+					decoded.blockPosLong(),
+					decoded.expectedNodeTypeToken(),
+					decoded.expectedNodeSerial(),
+					decoded.expectedGraphRevision(),
+					decoded.expectedSourceRevision()
+				);
+			}
+		);
+
 		public ApplyQuickLinkPayload {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			expectedNodeTypeToken = expectedNodeTypeToken == null ? "" : expectedNodeTypeToken;
 			expectedNodeSerial = Math.max(0L, expectedNodeSerial);
+			expectedGraphRevision = Math.max(0L, expectedGraphRevision);
+			expectedSourceRevision = Math.max(0L, expectedSourceRevision);
 		}
 
 		@Override

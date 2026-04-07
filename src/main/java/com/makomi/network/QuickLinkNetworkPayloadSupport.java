@@ -102,6 +102,70 @@ final class QuickLinkNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码正式 apply 请求。
+	 */
+	static void encodeApplyPayload(
+		FriendlyByteBuf buffer,
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		long expectedGraphRevision,
+		long expectedSourceRevision
+	) {
+		encodeBlockTargetPayload(buffer, dimensionKey, blockPosLong, expectedNodeTypeToken, expectedNodeSerial);
+		buffer.writeVarLong(Math.max(0L, expectedGraphRevision));
+		buffer.writeVarLong(Math.max(0L, expectedSourceRevision));
+	}
+
+	/**
+	 * 解码正式 apply 请求。
+	 */
+	static DecodedApplyPayload decodeApplyPayload(FriendlyByteBuf buffer) {
+		DecodedBlockTargetPayload decodedTarget = decodeBlockTargetPayload(buffer);
+		return new DecodedApplyPayload(
+			decodedTarget.dimensionKey(),
+			decodedTarget.blockPosLong(),
+			decodedTarget.expectedNodeTypeToken(),
+			decodedTarget.expectedNodeSerial(),
+			buffer.readVarLong(),
+			buffer.readVarLong()
+		);
+	}
+
+	/**
+	 * 编码 apply revision 基线回包。
+	 */
+	static void encodeApplyBaselinePayload(
+		FriendlyByteBuf buffer,
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		long graphRevision,
+		long sourceRevision
+	) {
+		encodeBlockTargetPayload(buffer, dimensionKey, blockPosLong, expectedNodeTypeToken, expectedNodeSerial);
+		buffer.writeVarLong(Math.max(0L, graphRevision));
+		buffer.writeVarLong(Math.max(0L, sourceRevision));
+	}
+
+	/**
+	 * 解码 apply revision 基线回包。
+	 */
+	static DecodedApplyBaselinePayload decodeApplyBaselinePayload(FriendlyByteBuf buffer) {
+		DecodedBlockTargetPayload decodedTarget = decodeBlockTargetPayload(buffer);
+		return new DecodedApplyBaselinePayload(
+			decodedTarget.dimensionKey(),
+			decodedTarget.blockPosLong(),
+			decodedTarget.expectedNodeTypeToken(),
+			decodedTarget.expectedNodeSerial(),
+			buffer.readVarLong(),
+			buffer.readVarLong()
+		);
+	}
+
+	/**
 	 * 编码应用结果回执。
 	 */
 	static void encodeFeedbackPayload(FriendlyByteBuf buffer, boolean success, String messageKey, List<String> messageArgs) {
@@ -154,6 +218,32 @@ final class QuickLinkNetworkPayloadSupport {
 		long blockPosLong,
 		String expectedNodeTypeToken,
 		long expectedNodeSerial
+	) {
+	}
+
+	/**
+	 * 正式 apply 请求解码结果。
+	 */
+	record DecodedApplyPayload(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		long expectedGraphRevision,
+		long expectedSourceRevision
+	) {
+	}
+
+	/**
+	 * apply revision 基线回包解码结果。
+	 */
+	record DecodedApplyBaselinePayload(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		long graphRevision,
+		long sourceRevision
 	) {
 	}
 

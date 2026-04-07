@@ -69,7 +69,9 @@ class QuickLinkNetworkPayloadTest {
 			"minecraft:the_nether",
 			84L,
 			"core",
-			105L
+			105L,
+			17L,
+			3L
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -80,6 +82,57 @@ class QuickLinkNetworkPayloadTest {
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
 		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
 		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
+		assertEquals(original.expectedGraphRevision(), decoded.expectedGraphRevision());
+		assertEquals(original.expectedSourceRevision(), decoded.expectedSourceRevision());
+	}
+
+	/**
+	 * apply 预检请求编解码往返应保留命中节点身份。
+	 */
+	@Test
+	void requestApplyBaselinePayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload original = new QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload(
+			"minecraft:overworld",
+			128L,
+			"triggerSource",
+			9L
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload decoded =
+			QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload.CODEC.decode(buffer);
+
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
+		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
+	}
+
+	/**
+	 * apply revision 基线回包编解码往返应保留目标上下文与 revision 字段。
+	 */
+	@Test
+	void applyBaselinePayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.ApplyQuickLinkBaselinePayload original = new QuickLinkNetwork.ApplyQuickLinkBaselinePayload(
+			"minecraft:the_end",
+			256L,
+			"core",
+			42L,
+			18L,
+			0L
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.ApplyQuickLinkBaselinePayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.ApplyQuickLinkBaselinePayload decoded = QuickLinkNetwork.ApplyQuickLinkBaselinePayload.CODEC.decode(buffer);
+
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
+		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
+		assertEquals(original.graphRevision(), decoded.graphRevision());
+		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 	}
 
 	/**

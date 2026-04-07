@@ -23,6 +23,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 public final class QuickLinkNetworkClientHandlerSupport {
 	private static boolean collectTriggeredForCurrentAttack;
 	private static boolean applyTriggeredForCurrentUse;
+	private static PendingApplyBaselineRequest pendingApplyBaselineRequest;
 
 	private QuickLinkNetworkClientHandlerSupport() {
 	}
@@ -33,6 +34,9 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	public static void registerReceivers() {
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.OpenQuickLinkEditorPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> openEditor(payload.snapshot()));
+		});
+		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.ApplyQuickLinkBaselinePayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> continuePendingApply(payload));
 		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkFeedbackPayload.TYPE, (payload, context) -> {
 			context.client().execute(() ->
@@ -79,12 +83,18 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				if (applyTriggeredForCurrentUse) {
 					return InteractionResult.FAIL;
 				}
-				QuickLinkNetwork.ApplyQuickLinkPayload payload = buildApplyPayload(
+				QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload payload = buildApplyBaselineRequest(
 					player == null ? null : Minecraft.getInstance(),
 					hand,
 					hitResult.getBlockPos()
 				);
 				if (payload != null) {
+					pendingApplyBaselineRequest = new PendingApplyBaselineRequest(
+						payload.dimensionKey(),
+						payload.blockPosLong(),
+						payload.expectedNodeTypeToken(),
+						payload.expectedNodeSerial()
+					);
 					ClientPlayNetworking.send(payload);
 				}
 				applyTriggeredForCurrentUse = true;
@@ -136,14 +146,18 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	}
 
 	/**
-	 * 构建“快速应用”请求，附带客户端当前命中的期望节点身份。
+	 * 构建“快速应用 revision 预检”请求，附带客户端当前命中的期望节点身份。
 	 */
-	private static QuickLinkNetwork.ApplyQuickLinkPayload buildApplyPayload(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
+	private static QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload buildApplyBaselineRequest(
+		Minecraft minecraft,
+		InteractionHand hand,
+		BlockPos blockPos
+	) {
 		ResolvedQuickLinkTarget target = resolveQuickLinkTarget(minecraft, hand, blockPos, true);
 		if (target == null) {
 			return null;
 		}
-		return new QuickLinkNetwork.ApplyQuickLinkPayload(
+		return new QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload(
 			target.dimensionKey(),
 			target.blockPosLong(),
 			target.expectedNodeTypeToken(),
@@ -204,9 +218,59 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	}
 
 	/**
+	 * 收到服务端 apply revision 基线后，若仍匹配待处理目标，则自动继续发送正式 apply 请求。
+	 */
+	private static void continuePendingApply(QuickLinkNetwork.ApplyQuickLinkBaselinePayload payload) {
+		if (!matchesPendingApplyRequest(payload, pendingApplyBaselineRequest)) {
+			return;
+		}
+		pendingApplyBaselineRequest = null;
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.player == null || !(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+			return;
+		}
+		ClientPlayNetworking.send(
+			new QuickLinkNetwork.ApplyQuickLinkPayload(
+				payload.dimensionKey(),
+				payload.blockPosLong(),
+				payload.expectedNodeTypeToken(),
+				payload.expectedNodeSerial(),
+				payload.graphRevision(),
+				payload.sourceRevision()
+			)
+		);
+	}
+
+	/**
+	 * 判断服务端返回的 apply 基线是否仍对应当前待处理目标。
+	 */
+	private static boolean matchesPendingApplyRequest(
+		QuickLinkNetwork.ApplyQuickLinkBaselinePayload payload,
+		PendingApplyBaselineRequest pendingRequest
+	) {
+		return payload != null
+			&& pendingRequest != null
+			&& pendingRequest.blockPosLong() == payload.blockPosLong()
+			&& pendingRequest.expectedNodeSerial() == payload.expectedNodeSerial()
+			&& pendingRequest.dimensionKey().equals(payload.dimensionKey())
+			&& pendingRequest.expectedNodeTypeToken().equals(payload.expectedNodeTypeToken());
+	}
+
+	/**
 	 * quick-link 目标请求的客户端本地快照。
 	 */
 	private record ResolvedQuickLinkTarget(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial
+	) {
+	}
+
+	/**
+	 * 待续发正式 apply 的 quick-link 目标快照。
+	 */
+	private record PendingApplyBaselineRequest(
 		String dimensionKey,
 		long blockPosLong,
 		String expectedNodeTypeToken,

@@ -982,6 +982,153 @@
 		});
 	}
 
+	function classifyRecipeByOutput(outputId) {
+		if (outputId === 'redstonelink:redstone_link_component') {
+			return 'base';
+		}
+
+		if (
+			outputId === 'redstonelink:link_pulse_emitter' ||
+			outputId === 'redstonelink:link_sync_emitter' ||
+			outputId === 'redstonelink:link_toggle_emitter' ||
+			outputId === 'redstonelink:link_push_button' ||
+			outputId === 'redstonelink:link_sync_lever' ||
+			outputId === 'redstonelink:link_toggle_button'
+		) {
+			return 'triggerSource';
+		}
+
+		if (
+			outputId === 'redstonelink:link_redstone_core' ||
+			outputId === 'redstonelink:link_redstone_core_transparent' ||
+			outputId === 'redstonelink:link_redstone_dust_core' ||
+			outputId === 'redstonelink:link_redstone_dust_core_transparent'
+		) {
+			return 'core';
+		}
+
+		if (
+			outputId === 'redstonelink:quick_link_tool' ||
+			outputId === 'redstonelink:redstonelink_pulse_linker' ||
+			outputId === 'redstonelink:redstonelink_sync_linker' ||
+			outputId === 'redstonelink:redstonelink_toggle_linker' ||
+			outputId === 'redstonelink:redstonelink_status_panel'
+		) {
+			return 'tools';
+		}
+
+		return 'others';
+	}
+
+	function createCategoryContainer(title, note) {
+		var section = document.createElement('section');
+		section.className = 'category';
+		section.style.margin = '20px 0 26px';
+
+		var heading = document.createElement('h2');
+		heading.textContent = title;
+		heading.style.margin = '0 0 8px 0';
+		heading.style.fontSize = '20px';
+		heading.style.borderLeft = '4px solid #3b82f6';
+		heading.style.paddingLeft = '10px';
+		section.appendChild(heading);
+
+		if (note) {
+			var description = document.createElement('div');
+			description.textContent = note;
+			description.style.margin = '0 0 10px 0';
+			description.style.color = '#64748b';
+			description.style.fontSize = '13px';
+			section.appendChild(description);
+		}
+
+		var list = document.createElement('div');
+		list.className = 'category-list';
+		list.style.display = 'grid';
+		list.style.gap = '12px';
+		list.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+
+		section.appendChild(list);
+		return { section: section, list: list };
+	}
+
+	function organizeRecipeCardsByCategory() {
+		var wrap = document.querySelector('.wrap');
+		if (!wrap) {
+			return;
+		}
+
+		var cards = [];
+		wrap.querySelectorAll('section.card').forEach(function (card) {
+			if (card.parentElement === wrap) {
+				cards.push(card);
+			}
+		});
+
+		if (cards.length === 0) {
+			return;
+		}
+
+		var categories = [
+			{
+				key: 'base',
+				title: '基础材料 / Base Components',
+				note: '先合成连接原件，供其余配方使用。'
+			},
+			{
+				key: 'triggerSource',
+				title: '触发源节点（triggerSource） / TriggerSource Nodes',
+				note: '这些配方产出 triggerSource 侧节点，用于产生触发信号。'
+			},
+			{
+				key: 'core',
+				title: '核心节点（core） / Core Nodes',
+				note: '这些配方产出 core 侧节点，用于接收 triggerSource 信号。'
+			},
+			{
+				key: 'tools',
+				title: '工具与终端 / Tools & Devices',
+				note: '用于快捷连线、遥控和状态查看。'
+			},
+			{
+				key: 'others',
+				title: '其他配方 / Misc',
+				note: ''
+			}
+		];
+
+		var buckets = {};
+		cards.forEach(function (card) {
+			var out = card.querySelector('.out');
+			var outputId = out ? (out.textContent || '').trim() : '';
+			var key = classifyRecipeByOutput(outputId);
+			if (!buckets[key]) {
+				buckets[key] = [];
+			}
+			buckets[key].push(card);
+		});
+
+		cards.forEach(function (card) {
+			card.remove();
+		});
+
+		categories.forEach(function (category) {
+			var groupedCards = buckets[category.key];
+			if (!groupedCards || groupedCards.length === 0) {
+				return;
+			}
+
+			var container = createCategoryContainer(category.title, category.note);
+			groupedCards.forEach(function (card) {
+				card.style.margin = '0';
+				container.list.appendChild(card);
+			});
+			wrap.appendChild(container.section);
+		});
+	}
+
+	organizeRecipeCardsByCategory();
+
 	document.querySelectorAll('.grid td:not(.empty)').forEach(function (td) {
 		renderCell(td, false);
 	});
