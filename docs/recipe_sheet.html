@@ -788,13 +788,12 @@
 		return withCacheBuster(modDocsBlockAssetBase + topTextureRef + '.png');
 	}
 
-	function resolveDualLayerInnerTextureUrl(resolvedId) {
+	function resolveDualLayerInnerTextureCandidates(resolvedId) {
 		var innerTextureRef = modDualLayerInnerTextureOverrides[resolvedId];
 		if (!innerTextureRef) {
-			return '';
+			return [];
 		}
-		var innerTextureCandidates = textureRefToCandidates(innerTextureRef);
-		return innerTextureCandidates.length > 0 ? innerTextureCandidates[0] : '';
+		return textureRefToCandidates(innerTextureRef);
 	}
 
 	function appendUniqueCandidates(target, candidates) {
@@ -1361,6 +1360,26 @@
 		probe.src = candidates[idx];
 	}
 
+	function renderBlockVisual(visual, textureUrl, resolvedId) {
+		var renderToken = String(Date.now()) + Math.random();
+		visual.setAttribute('data-block-render-token', renderToken);
+		visual.textContent = '';
+		visual.appendChild(createCube(textureUrl, '', ''));
+
+		var innerTextureCandidates = resolveDualLayerInnerTextureCandidates(resolvedId);
+		if (innerTextureCandidates.length === 0) {
+			return;
+		}
+
+		loadFirstValid(innerTextureCandidates, function (innerHit) {
+			if (!innerHit || visual.getAttribute('data-block-render-token') !== renderToken) {
+				return;
+			}
+			visual.textContent = '';
+			visual.appendChild(createCube(textureUrl, '', innerHit));
+		});
+	}
+
 	function renderResolvedVisual(visual, resolvedId, hit) {
 		var itemLike = shouldRenderAsItem(resolvedId);
 		var buttonLike = itemLike && isButtonLike(resolvedId);
@@ -1368,7 +1387,7 @@
 		visual.textContent = '';
 
 		if (blockLike) {
-			visual.appendChild(createCube(hit, '', resolveDualLayerInnerTextureUrl(resolvedId)));
+			renderBlockVisual(visual, hit, resolvedId);
 			return;
 		}
 
@@ -1506,7 +1525,7 @@
 			}
 
 			if (blockLike) {
-				visual.appendChild(createCube(hit, '', resolveDualLayerInnerTextureUrl(resolved)));
+				renderBlockVisual(visual, hit, resolved);
 				return;
 			}
 

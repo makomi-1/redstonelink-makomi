@@ -425,6 +425,10 @@
       var ASSET_CACHE_BUSTER = String(Date.now());
       var modBlockAssetBase = '../src/main/resources/assets/redstonelink/textures/block/';
       var modItemAssetBase = '../src/main/resources/assets/redstonelink/textures/item/';
+      var modTextureRepoOwner = 'makomi-1';
+      var modTextureRepoName = 'redstonelink-makomi';
+      // 远程兜底顺序与配方页保持一致，先当前发布分支，再回退到 master。
+      var modTextureRepoRefs = ['rl-release-no-mixin', 'master'];
       var modDocsBlockAssetBase = './recipe/redstonelink/textures/block/';
 
       var currentLang = 'zh';
@@ -901,17 +905,64 @@
         return url + (url.indexOf('?') === -1 ? '?' : '&') + 'rlcb=' + ASSET_CACHE_BUSTER;
       }
 
-      function textureRefToUrl(textureRef) {
+      function modTextureCandidates(type, path) {
+        if (!type || !path) {
+          return [];
+        }
+        var localBase = type === 'item' ? modItemAssetBase : modBlockAssetBase;
+        var candidates = [withCacheBuster(localBase + path + '.png')];
+        for (var i = 0; i < modTextureRepoRefs.length; i += 1) {
+          var ref = modTextureRepoRefs[i];
+          candidates.push(
+            withCacheBuster(
+              'https://cdn.jsdelivr.net/gh/'
+                + modTextureRepoOwner
+                + '/'
+                + modTextureRepoName
+                + '@'
+                + ref
+                + '/src/main/resources/assets/redstonelink/textures/'
+                + type
+                + '/'
+                + path
+                + '.png'
+            )
+          );
+          candidates.push(
+            withCacheBuster(
+              'https://raw.githubusercontent.com/'
+                + modTextureRepoOwner
+                + '/'
+                + modTextureRepoName
+                + '/'
+                + ref
+                + '/src/main/resources/assets/redstonelink/textures/'
+                + type
+                + '/'
+                + path
+                + '.png'
+            )
+          );
+        }
+        return candidates;
+      }
+
+      function textureRefToCandidates(textureRef) {
         if (!textureRef) {
-          return '';
+          return [];
         }
         if (textureRef.indexOf('redstonelink:item/') === 0) {
-          return withCacheBuster(modItemAssetBase + textureRef.slice('redstonelink:item/'.length) + '.png');
+          return modTextureCandidates('item', textureRef.slice('redstonelink:item/'.length));
         }
         if (textureRef.indexOf('redstonelink:block/') === 0) {
-          return withCacheBuster(modBlockAssetBase + textureRef.slice('redstonelink:block/'.length) + '.png');
+          return modTextureCandidates('block', textureRef.slice('redstonelink:block/'.length));
         }
-        return '';
+        return [];
+      }
+
+      function textureRefToUrl(textureRef) {
+        var candidates = textureRefToCandidates(textureRef);
+        return candidates.length > 0 ? candidates[0] : '';
       }
 
       function resolveModButtonSideTextureUrl(path) {
@@ -930,15 +981,27 @@
         return withCacheBuster(modDocsBlockAssetBase + topTextureRef + '.png');
       }
 
-      function resolveDualLayerInnerTextureUrl(path) {
+      function resolveDualLayerInnerTextureCandidates(path) {
         var innerTextureRef = modDualLayerInnerTextureOverrides[path];
         if (!innerTextureRef) {
-          return '';
+          return [];
         }
-        return textureRefToUrl(innerTextureRef);
+        return textureRefToCandidates(innerTextureRef);
       }
 
-      // 按“覆盖贴图 -> 约定命名 -> 兜底命名”构造候选链，保证和配方页一致的容错策略。
+      function appendUniqueCandidates(target, candidates) {
+        if (!target || !candidates || candidates.length === 0) {
+          return;
+        }
+        for (var i = 0; i < candidates.length; i += 1) {
+          var candidate = candidates[i];
+          if (candidate && target.indexOf(candidate) === -1) {
+            target.push(candidate);
+          }
+        }
+      }
+
+      // 按“覆盖贴图 -> 约定命名 -> 远程兜底”构造候选链，和配方页保持一致。
       function iconCandidates(item) {
         var path = item.path;
         var preferBlock = item.render === 'block';
@@ -946,50 +1009,34 @@
 
         var override = textureOverridesByPath[path];
         if (override) {
-          var overrideUrl = textureRefToUrl(override);
-          if (overrideUrl) {
-            candidates.push(overrideUrl);
-          }
+          appendUniqueCandidates(candidates, textureRefToCandidates(override));
         }
 
         if (path === 'redstonelink_sync_linker') {
-          candidates.push(withCacheBuster(modItemAssetBase + 'redstonelink_sync_linker_0.png'));
-          candidates.push(withCacheBuster(modItemAssetBase + 'redstonelink_sync_linker_1.png'));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', 'redstonelink_sync_linker_0'));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', 'redstonelink_sync_linker_1'));
         }
 
         if (path === 'quick_link_tool') {
-          candidates.push(withCacheBuster(modItemAssetBase + 'fast_link_tool_sd.png'));
-          candidates.push(withCacheBuster(modItemAssetBase + 'fast_link_tool_cp.png'));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', 'fast_link_tool_sd'));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', 'fast_link_tool_cp'));
         }
 
         if (preferBlock) {
-          candidates.push(withCacheBuster(modBlockAssetBase + path + '.png'));
-          candidates.push(withCacheBuster(modBlockAssetBase + path + '_blue.png'));
-          candidates.push(withCacheBuster(modBlockAssetBase + path + '_blue_overlay.png'));
-          candidates.push(withCacheBuster(modItemAssetBase + path + '.png'));
+          appendUniqueCandidates(candidates, modTextureCandidates('block', path));
+          appendUniqueCandidates(candidates, modTextureCandidates('block', path + '_blue'));
+          appendUniqueCandidates(candidates, modTextureCandidates('block', path + '_blue_overlay'));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', path));
         } else {
-          candidates.push(withCacheBuster(modItemAssetBase + path + '.png'));
-          candidates.push(withCacheBuster(modItemAssetBase + path + '_blue_overlay.png'));
-          candidates.push(withCacheBuster(modItemAssetBase + path + '_blue.png'));
-          candidates.push(withCacheBuster(modBlockAssetBase + path + '.png'));
-          candidates.push(withCacheBuster(modBlockAssetBase + path + '_blue.png'));
-          candidates.push(withCacheBuster(modBlockAssetBase + path + '_blue_overlay.png'));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', path));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', path + '_blue_overlay'));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', path + '_blue'));
+          appendUniqueCandidates(candidates, modTextureCandidates('block', path));
+          appendUniqueCandidates(candidates, modTextureCandidates('block', path + '_blue'));
+          appendUniqueCandidates(candidates, modTextureCandidates('block', path + '_blue_overlay'));
         }
 
-        return unique(candidates);
-      }
-
-      function unique(list) {
-        var map = {};
-        var result = [];
-        list.forEach(function (entry) {
-          if (!entry || map[entry]) {
-            return;
-          }
-          map[entry] = true;
-          result.push(entry);
-        });
-        return result;
+        return candidates;
       }
 
       function createCubeFace(faceClass, texture, transform, size, offset) {
@@ -1062,6 +1109,26 @@
         probe.src = candidates[idx];
       }
 
+      function renderBlockVisual(visualEl, textureUrl, path) {
+        var renderToken = String(Date.now()) + Math.random();
+        visualEl.setAttribute('data-block-render-token', renderToken);
+        visualEl.textContent = '';
+        visualEl.appendChild(createCube(textureUrl, '', ''));
+
+        var innerTextureCandidates = resolveDualLayerInnerTextureCandidates(path);
+        if (innerTextureCandidates.length === 0) {
+          return;
+        }
+
+        loadFirstValid(innerTextureCandidates, function (innerHit) {
+          if (!innerHit || visualEl.getAttribute('data-block-render-token') !== renderToken) {
+            return;
+          }
+          visualEl.textContent = '';
+          visualEl.appendChild(createCube(textureUrl, '', innerHit));
+        });
+      }
+
       function renderVisual(visualEl, item) {
         var candidates = iconCandidates(item);
         loadFirstValid(candidates, function (hit) {
@@ -1075,7 +1142,7 @@
           }
 
           if (item.render === 'block') {
-            visualEl.appendChild(createCube(hit, '', resolveDualLayerInnerTextureUrl(item.path)));
+            renderBlockVisual(visualEl, hit, item.path);
             return;
           }
 
