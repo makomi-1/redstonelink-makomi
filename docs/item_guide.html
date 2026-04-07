@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>RedstoneLink 全物品图鉴 / Item Guide</title>
+  <title>红石远联 全物品图鉴 / Item Guide</title>
   <style>
     :root {
       --page-bg: #f5f7fb;
@@ -101,12 +101,95 @@
       font-weight: 600;
     }
 
+    .content-layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .catalog-main {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .toc {
+      position: sticky;
+      top: 18px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      max-height: calc(100vh - 36px);
+      overflow: auto;
+    }
+
+    .toc-title {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      color: #0f172a;
+    }
+
+    .toc-list,
+    .toc-sublist {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+    }
+
+    .toc-item-group {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f8fbff;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .toc-sublist {
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .toc-link {
+      display: block;
+      color: #1e293b;
+      text-decoration: none;
+      font-size: 13px;
+      line-height: 1.3;
+      border-radius: 6px;
+      padding: 3px 6px;
+    }
+
+    .toc-link:hover {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .toc-link.section {
+      font-weight: 600;
+      font-size: 13px;
+      color: #0f172a;
+      background: #eef4ff;
+    }
+
+    .toc-link.item {
+      color: #334155;
+      padding-left: 10px;
+    }
+
     .category {
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
       border-radius: 14px;
       box-shadow: var(--shadow);
       padding: 14px;
+      scroll-margin-top: 14px;
     }
 
     .category-header {
@@ -139,6 +222,7 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      scroll-margin-top: 14px;
     }
 
     .item-head {
@@ -180,12 +264,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(45deg, #f1f5f9 25%, transparent 25%),
-                  linear-gradient(-45deg, #f1f5f9 25%, transparent 25%),
-                  linear-gradient(45deg, transparent 75%, #f1f5f9 75%),
-                  linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
-      background-size: 8px 8px;
-      background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+      background: transparent;
       border: 1px solid #d3dee9;
       border-radius: 8px;
       overflow: hidden;
@@ -299,6 +378,15 @@
     }
 
     @media (max-width: 980px) {
+      .content-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .toc {
+        position: static;
+        max-height: none;
+      }
+
       .category-list {
         grid-template-columns: 1fr;
       }
@@ -324,7 +412,12 @@
       </div>
     </section>
 
-    <div id="catalog"></div>
+    <div class="content-layout">
+      <aside id="toc" class="toc"></aside>
+      <main class="catalog-main">
+        <div id="catalog"></div>
+      </main>
+    </div>
   </div>
 
   <script>
@@ -338,10 +431,11 @@
 
       var uiText = {
         zh: {
-          pageTitle: 'RedstoneLink 全物品图鉴',
+          pageTitle: '红石远联 全物品图鉴',
           pageSubtitle: '包含全物品作用、使用方式与贴图展示，支持整页中英文切换。',
           sourceNote: '贴图路径与配方页一致：优先读取源码贴图；按钮 top/side 读取 docs/recipe。',
           langLabel: '语言',
+          tocTitle: '目录导航',
           labels: {
             id: '物品 ID',
             role: '定位',
@@ -384,6 +478,7 @@
           pageSubtitle: 'Covers full item roles, usage flow, and textures with whole-page language switch.',
           sourceNote: 'Texture path policy follows recipe page: source textures first, button top/side from docs/recipe.',
           langLabel: 'Language',
+          tocTitle: 'Contents',
           labels: {
             id: 'Item ID',
             role: 'Role',
@@ -1008,10 +1103,81 @@
         return content && content[currentLang] ? content[currentLang] : '';
       }
 
+      function categorySectionId(categoryKey) {
+        return 'category-' + categoryKey;
+      }
+
+      function itemAnchorId(itemPath) {
+        return 'item-' + itemPath;
+      }
+
+      function createTocLink(targetId, text, linkClass) {
+        var link = document.createElement('a');
+        link.className = 'toc-link ' + linkClass;
+        link.href = '#' + targetId;
+        link.textContent = text;
+        return link;
+      }
+
+      function renderToc() {
+        var ui = uiText[currentLang];
+        var toc = document.getElementById('toc');
+        if (!toc) {
+          return;
+        }
+        toc.textContent = '';
+
+        var title = document.createElement('h2');
+        title.className = 'toc-title';
+        title.textContent = ui.tocTitle;
+        toc.appendChild(title);
+
+        var categoryList = document.createElement('ul');
+        categoryList.className = 'toc-list';
+
+        categoryOrder.forEach(function (categoryKey) {
+          var categoryDef = ui.categories[categoryKey];
+          var grouped = items.filter(function (item) {
+            return item.category === categoryKey;
+          });
+
+          if (grouped.length === 0) {
+            return;
+          }
+
+          var groupItem = document.createElement('li');
+          groupItem.className = 'toc-item-group';
+
+          groupItem.appendChild(
+            createTocLink(
+              categorySectionId(categoryKey),
+              categoryDef.title + ' (' + grouped.length + ')',
+              'section'
+            )
+          );
+
+          var subList = document.createElement('ul');
+          subList.className = 'toc-sublist';
+          grouped.forEach(function (item) {
+            var subItem = document.createElement('li');
+            subItem.appendChild(
+              createTocLink(itemAnchorId(item.path), localizedText(item.name), 'item')
+            );
+            subList.appendChild(subItem);
+          });
+
+          groupItem.appendChild(subList);
+          categoryList.appendChild(groupItem);
+        });
+
+        toc.appendChild(categoryList);
+      }
+
       function createItemCard(item) {
         var ui = uiText[currentLang];
         var article = document.createElement('article');
         article.className = 'item-card';
+        article.id = itemAnchorId(item.path);
 
         var head = document.createElement('div');
         head.className = 'item-head';
@@ -1090,6 +1256,7 @@
 
           var section = document.createElement('section');
           section.className = 'category';
+          section.id = categorySectionId(categoryKey);
 
           var header = document.createElement('div');
           header.className = 'category-header';
@@ -1135,6 +1302,7 @@
         currentLang = lang === 'en' ? 'en' : 'zh';
         updatePageText();
         renderCatalog();
+        renderToc();
       }
 
       document.getElementById('lang-zh').addEventListener('click', function () {
