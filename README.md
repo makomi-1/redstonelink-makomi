@@ -1,10 +1,11 @@
 ![title.png](/docs_dev/background_icon.png)
-[连接索引](发布平台、许可证等)
 
-中文  |  [English](docs_dev/readme_en.md)
+[![CurseForge](https://img.shields.io/badge/CurseForge-Not%20Published-f16436?logo=curseforge&logoColor=white)](https://www.curseforge.com/minecraft/mc-mods) [![Modrinth](https://img.shields.io/badge/Modrinth-Not%20Published-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/) [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg?logo=gnu)](LICENSE)
+
+中文  |  [English](docs/readme_en.md)
 
 # 声明
-- 该项目使用AI进行加速实现，并通过审查与测试以保证质量
+- 该项目`使用AI`进行加速实现，并通过审查与测试以保证质量
 - 目前仅支持`fabric-1.21.1`
 
 # 简介
@@ -29,14 +30,14 @@
 - 通过`红石信号输入`或`命令`激活触发器，从而`传输红石信号`到其所连接的接收核心
 
 ## 文档
-- 全物品图鉴: https://makomi-1.github.io/redstonelink-makomi/item_guide.html
-- 配方：https://makomi-1.github.io/redstonelink-makomi/recipe_sheet.html
+- [全物品图鉴](https://makomi-1.github.io/redstonelink-makomi/item_guide.html)
+- [配方](https://makomi-1.github.io/redstonelink-makomi/recipe_sheet.html)
 - [详细使用说明](docs/使用说明.md)
 
 ## 冲突
 潜在冲突风险的为修改原版`区块加载机制`和`物品交互`的模组
 - [冲突模组名单](docs_dev/冲突模组名单.md)（待补充）
-- 反馈链接：https://www.wjx.top/vm/wTsJKow.aspx
+- [反馈链接](https://www.wjx.top/vm/wTsJKow.aspx)
 
 # 未来计划
 - [ ] 添加I/O过滤器
