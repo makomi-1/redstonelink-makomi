@@ -1,0 +1,84 @@
+{
+  "id": "occ_quick_link_core_conflict",
+  "description": "读取 core baseline 后插入一次真实改动，再用 stale graphRevision 触发 quick-link apply，确认冲突不会覆盖最新拓扑。",
+  "layer": "O",
+  "scenarioId": "O04",
+  "arena": {
+    "clearFrom": [-8, 63, 178],
+    "clearTo": [24, 66, 186]
+  },
+  "targets": {
+    "id": "core_occ_quick_link_core_conflict",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 180],
+      "to": [12, 64, 180]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_occ_quick_link_core_conflict",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 180],
+        "to": [1, 64, 180]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_quick_link_core_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=core"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "mutate_core_membership_for_quick_link",
+      "commandTemplate": "redstonelink link set triggerSource {{source:sync_occ_quick_link_core_conflict[0]}} {{targets[0]:mixed}} confirm",
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Links replaced|连接已替换)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_stale_core_quick_link",
+      "commandTemplate": "redstonelink bench occ quick_link apply core {{targets[0]}} triggerSource {{source:sync_occ_quick_link_core_conflict[1]:mixed}} expectedGraphRevision={{phase:snapshot_quick_link_core_baseline.captures.graphRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_quick_link_apply",
+        "(?i)outcome=conflict",
+        "(?i)messageKey=message\\.redstonelink\\.pairing\\.conflict\\.graph_revision",
+        "(?i)currentTargetCount=1"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_source_a_kept_latest_quick_link",
+      "commandTemplate": "redstonelink link get triggerSource {{source:sync_occ_quick_link_core_conflict[0]}}",
+      "expectedPrefix": "[RedstoneLink/Link]",
+      "expectedRegexes": [
+        "(?i)(target_count=1|目标数=1)",
+        "(?i)(targets=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_source_b_not_overwritten_by_quick_link",
+      "commandTemplate": "redstonelink link get triggerSource {{source:sync_occ_quick_link_core_conflict[1]}}",
+      "expectedPrefix": "[RedstoneLink/Link]",
+      "expectedRegexes": [
+        "(?i)(target_count=0|目标数=0)",
+        "(?i)(targets=-|目标列表=-)"
+      ],
+      "rejectRegex": "(?i)(targets=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[0]}}(?!\\d)"
+    }
+  ]
+}

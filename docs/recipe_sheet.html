@@ -309,8 +309,10 @@
 (function () {
 	var VANILLA_VERSION = '1.21.1';
 	var ASSET_CACHE_BUSTER = String(Date.now());
-	var modAssetBase = './recipe/redstonelink/textures/';
+	var modBlockAssetBase = '../src/main/resources/assets/redstonelink/textures/block/';
 	var modItemAssetBase = '../src/main/resources/assets/redstonelink/textures/item/';
+	// 按钮 top/side 贴图已迁移到 docs/recipe/redstonelink/textures/block。
+	var modDocsBlockAssetBase = './recipe/redstonelink/textures/block/';
 	var localVanillaBase = './recipe/minecraft/';
 	var redstoneLinkTextureOverrides = {
 		'link_pulse_emitter': 'redstonelink:block/link_pulse_emitter',
@@ -462,13 +464,13 @@
 	};
 
 	var modButtonSideTextureOverrides = {
-		'redstonelink:link_push_button': 'redstonelink:item/link_push_button_blue_overlay_side',
-		'redstonelink:link_toggle_button': 'redstonelink:item/link_toggle_button_blue_overlay_side'
+		'redstonelink:link_push_button': 'link_push_button_blue_overlay_side',
+		'redstonelink:link_toggle_button': 'link_toggle_button_blue_overlay_side'
 	};
 
 	var modButtonTopTextureOverrides = {
-		'redstonelink:link_push_button': 'redstonelink:item/link_push_button_blue_overlay_top',
-		'redstonelink:link_toggle_button': 'redstonelink:item/link_toggle_button_blue_overlay_top'
+		'redstonelink:link_push_button': 'link_push_button_blue_overlay_top',
+		'redstonelink:link_toggle_button': 'link_toggle_button_blue_overlay_top'
 	};
 
 	var modDualLayerInnerTextureOverrides = {
@@ -563,7 +565,7 @@
 			return withCacheBuster(modItemAssetBase + textureRef.slice('redstonelink:item/'.length) + '.png');
 		}
 		if (textureRef.indexOf('redstonelink:block/') === 0) {
-			return withCacheBuster(modAssetBase + 'block/' + textureRef.slice('redstonelink:block/'.length) + '.png');
+			return withCacheBuster(modBlockAssetBase + textureRef.slice('redstonelink:block/'.length) + '.png');
 		}
 		return '';
 	}
@@ -643,7 +645,7 @@
 		if (!sideTextureRef) {
 			return '';
 		}
-		return textureRefToUrl(sideTextureRef);
+		return withCacheBuster(modDocsBlockAssetBase + sideTextureRef + '.png');
 	}
 
 	function resolveModButtonTopTextureUrl(resolvedId) {
@@ -651,7 +653,7 @@
 		if (!topTextureRef) {
 			return '';
 		}
-		return textureRefToUrl(topTextureRef);
+		return withCacheBuster(modDocsBlockAssetBase + topTextureRef + '.png');
 	}
 
 	function resolveDualLayerInnerTextureUrl(resolvedId) {
@@ -683,15 +685,15 @@
 				}
 			}
 			if (preferBlock) {
-				c.push(withCacheBuster(modAssetBase + 'block/' + path + '.png'));
-				c.push(withCacheBuster(modAssetBase + 'block/' + path + '_blue.png'));
-				c.push(withCacheBuster(modAssetBase + 'block/' + path + '_blue_overlay.png'));
+				c.push(withCacheBuster(modBlockAssetBase + path + '.png'));
+				c.push(withCacheBuster(modBlockAssetBase + path + '_blue.png'));
+				c.push(withCacheBuster(modBlockAssetBase + path + '_blue_overlay.png'));
 				c.push(withCacheBuster(modItemAssetBase + path + '.png'));
 			} else {
 				c.push(withCacheBuster(modItemAssetBase + path + '.png'));
 				c.push(withCacheBuster(modItemAssetBase + path + '_blue_overlay.png'));
 				c.push(withCacheBuster(modItemAssetBase + path + '_blue.png'));
-				c.push(withCacheBuster(modAssetBase + 'block/' + path + '.png'));
+				c.push(withCacheBuster(modBlockAssetBase + path + '.png'));
 			}
 			return c;
 		}
@@ -1046,7 +1048,7 @@
 		list.className = 'category-list';
 		list.style.display = 'grid';
 		list.style.gap = '12px';
-		list.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+		list.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
 
 		section.appendChild(list);
 		return { section: section, list: list };

@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -64,15 +65,62 @@ public final class QuickLinkApplyService {
 			);
 		}
 
+		return applyFromCache(
+			player.createCommandSourceStack(),
+			player,
+			level,
+			targetNodeType,
+			pairableNodeBlockEntity.getSerial(),
+			cacheType,
+			snapshot.serialCacheExpression()
+		)
+			.feedback();
+	}
+
+	/**
+	 * 按显式缓存参数执行一次 quick-link 应用。
+	 */
+	static ApplyFromCacheResult applyFromCache(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		LinkNodeType targetNodeType,
+		long targetNodeSerial,
+		LinkNodeType cacheType,
+		String serialCacheExpression
+	) {
+		if (level == null || targetNodeType == null || targetNodeSerial <= 0L) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+		if (cacheType == null) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+		String normalizedExpression = serialCacheExpression == null ? "" : serialCacheExpression.trim();
+		if (normalizedExpression.isBlank()) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
+		}
+		int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
+		if (normalizedExpression.length() > maxInputLength) {
+			return ApplyFromCacheResult.failure("message.redstonelink.link.set.input_too_long", Integer.toString(maxInputLength));
+		}
+		if (cacheType == targetNodeType) {
+			return ApplyFromCacheResult.failure(
+				"message.redstonelink.quick_link.apply.invalid_target_type",
+				LinkNodeSemantics.toSemanticName(cacheType),
+				LinkNodeSemantics.toSemanticName(targetNodeType)
+			);
+		}
+
 		return cacheType == LinkNodeType.CORE
-			? applyCachedCoresToTriggerSource(player, level, pairableNodeBlockEntity.getSerial(), snapshot.serialCacheExpression())
-			: applyCachedTriggerSourcesToCore(player, level, pairableNodeBlockEntity.getSerial(), snapshot.serialCacheExpression());
+			? applyCachedCoresToTriggerSource(commandSource, player, level, targetNodeSerial, normalizedExpression)
+			: applyCachedTriggerSourcesToCore(commandSource, player, level, targetNodeSerial, normalizedExpression);
 	}
 
 	/**
 	 * 将缓存的 core 集合覆盖写入当前 triggerSource。
 	 */
-	private static QuickLinkOperationFeedback applyCachedCoresToTriggerSource(
+	private static ApplyFromCacheResult applyCachedCoresToTriggerSource(
+		CommandSourceStack commandSource,
 		ServerPlayer player,
 		ServerLevel level,
 		long triggerSourceSerial,
@@ -81,25 +129,25 @@ public final class QuickLinkApplyService {
 		int maxTargets = RedstoneLinkConfig.general().maxTargetsPerSetLinks();
 		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(rawExpression, maxTargets);
 		if (!parseResult.invalidEntries().isEmpty()) {
-			return QuickLinkOperationFeedback.failure(
+			return ApplyFromCacheResult.failure(
 				"message.redstonelink.invalid_target_tokens",
 				String.join(", ", parseResult.invalidEntries())
 			);
 		}
 		if (parseResult.exceedLimit()) {
-			return QuickLinkOperationFeedback.failure("message.redstonelink.too_many_targets", Integer.toString(maxTargets));
+			return ApplyFromCacheResult.failure("message.redstonelink.too_many_targets", Integer.toString(maxTargets));
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
 		for (long coreSerial : parseResult.orderedTargets()) {
 			if (!savedData.isSerialAllocated(LinkNodeType.CORE, coreSerial)) {
-				return QuickLinkOperationFeedback.failure("message.redstonelink.target_serial_unallocated", Long.toString(coreSerial));
+				return ApplyFromCacheResult.failure("message.redstonelink.target_serial_unallocated", Long.toString(coreSerial));
 			}
 			if (savedData.isSerialRetired(LinkNodeType.CORE, coreSerial)) {
-				return QuickLinkOperationFeedback.failure("message.redstonelink.target_serial_retired", Long.toString(coreSerial));
+				return ApplyFromCacheResult.failure("message.redstonelink.target_serial_retired", Long.toString(coreSerial));
 			}
 			if (!RedstoneLinkConfig.general().allowOfflineTargetBinding() && savedData.findNode(LinkNodeType.CORE, coreSerial).isEmpty()) {
-				return QuickLinkOperationFeedback.failure("message.redstonelink.offline_targets_blocked", Long.toString(coreSerial));
+				return ApplyFromCacheResult.failure("message.redstonelink.offline_targets_blocked", Long.toString(coreSerial));
 			}
 		}
 
@@ -108,15 +156,16 @@ public final class QuickLinkApplyService {
 		Set<Long> affectedTargets = new HashSet<>(previousTargets);
 		affectedTargets.addAll(nextTargets);
 
-		LinkWriteControlService.WriteDecision writeDecision = LinkWriteControlService.evaluateForPlayer(
-			player,
+		LinkWriteControlService.WriteDecision writeDecision = resolveWriteDecision(
+			commandSource,
+			level,
 			LinkNodeType.TRIGGER_SOURCE,
 			triggerSourceSerial,
 			affectedTargets,
 			nextTargets.size()
 		);
 		if (!writeDecision.allowed()) {
-			return failureFromWriteDecision(writeDecision);
+			return new ApplyFromCacheResult(failureFromWriteDecision(writeDecision), 0, previousTargets.size());
 		}
 
 		LinkSetExecutionService.ApplyResult applyResult = LinkSetExecutionService.applyPreparedReplace(
@@ -132,17 +181,22 @@ public final class QuickLinkApplyService {
 				1
 			)
 		);
-		return QuickLinkOperationFeedback.success(
-			"message.redstonelink.quick_link.apply.done.trigger_source",
-			Long.toString(triggerSourceSerial),
-			Integer.toString(applyResult.currentTargetCount())
+		return new ApplyFromCacheResult(
+			QuickLinkOperationFeedback.success(
+				"message.redstonelink.quick_link.apply.done.trigger_source",
+				Long.toString(triggerSourceSerial),
+				Integer.toString(applyResult.currentTargetCount())
+			),
+			1,
+			applyResult.currentTargetCount()
 		);
 	}
 
 	/**
 	 * 将缓存的 triggerSource 集合逐个覆盖为“仅连接当前 core”。
 	 */
-	private static QuickLinkOperationFeedback applyCachedTriggerSourcesToCore(
+	private static ApplyFromCacheResult applyCachedTriggerSourcesToCore(
+		CommandSourceStack commandSource,
 		ServerPlayer player,
 		ServerLevel level,
 		long coreSerial,
@@ -152,28 +206,28 @@ public final class QuickLinkApplyService {
 		SerialParseUtil.OrderedTargetParseResult parseResult = parseCachedTriggerSources(rawExpression);
 		int writeControlSetSize = writeControlSetSizeForCachedTriggerSourcesToCore(parseResult.orderedTargets().size());
 		if (!parseResult.invalidEntries().isEmpty()) {
-			return QuickLinkOperationFeedback.failure(
+			return ApplyFromCacheResult.failure(
 				"message.redstonelink.invalid_target_tokens",
 				String.join(", ", parseResult.invalidEntries())
 			);
 		}
 		if (parseResult.exceedLimit()) {
-			return QuickLinkOperationFeedback.failure(
+			return ApplyFromCacheResult.failure(
 				"message.redstonelink.quick_link.apply.too_many_sources",
 				Integer.toString(maxTargets)
 			);
 		}
 		if (parseResult.orderedTargets().isEmpty()) {
-			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
 		for (long triggerSourceSerial : parseResult.orderedTargets()) {
 			if (!savedData.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)) {
-				return QuickLinkOperationFeedback.failure("message.redstonelink.source_serial_unallocated", Long.toString(triggerSourceSerial));
+				return ApplyFromCacheResult.failure("message.redstonelink.source_serial_unallocated", Long.toString(triggerSourceSerial));
 			}
 			if (savedData.isSerialRetired(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)) {
-				return QuickLinkOperationFeedback.failure("message.redstonelink.source_serial_retired", Long.toString(triggerSourceSerial));
+				return ApplyFromCacheResult.failure("message.redstonelink.source_serial_retired", Long.toString(triggerSourceSerial));
 			}
 		}
 
@@ -182,15 +236,16 @@ public final class QuickLinkApplyService {
 			Set<Long> nextTargets = Set.of(coreSerial);
 			Set<Long> affectedTargets = new HashSet<>(previousTargets);
 			affectedTargets.add(coreSerial);
-			LinkWriteControlService.WriteDecision writeDecision = LinkWriteControlService.evaluateForPlayer(
-				player,
+			LinkWriteControlService.WriteDecision writeDecision = resolveWriteDecision(
+				commandSource,
+				level,
 				LinkNodeType.TRIGGER_SOURCE,
 				triggerSourceSerial,
 				affectedTargets,
 				writeControlSetSize
 			);
 			if (!writeDecision.allowed()) {
-				return failureFromWriteDecision(writeDecision);
+				return new ApplyFromCacheResult(failureFromWriteDecision(writeDecision), 0, 0);
 			}
 		}
 
@@ -214,10 +269,14 @@ public final class QuickLinkApplyService {
 			appliedSourceCount++;
 		}
 
-		return QuickLinkOperationFeedback.success(
-			"message.redstonelink.quick_link.apply.done.core",
-			Integer.toString(appliedSourceCount),
-			Long.toString(coreSerial)
+		return new ApplyFromCacheResult(
+			QuickLinkOperationFeedback.success(
+				"message.redstonelink.quick_link.apply.done.core",
+				Integer.toString(appliedSourceCount),
+				Long.toString(coreSerial)
+			),
+			appliedSourceCount,
+			appliedSourceCount > 0 ? 1 : 0
 		);
 	}
 
@@ -243,9 +302,53 @@ public final class QuickLinkApplyService {
 	}
 
 	/**
+	 * 基于命令源权限解析写控判定。
+	 */
+	private static LinkWriteControlService.WriteDecision resolveWriteDecision(
+		CommandSourceStack commandSource,
+		ServerLevel level,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> affectedTargets,
+		int setSize
+	) {
+		boolean hasLimitedBypassPermission = commandSource != null
+			&& commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
+		boolean hasProtectedBypassPermission = commandSource != null
+			&& commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
+		return LinkWriteControlService.evaluate(
+			level,
+			sourceType,
+			sourceSerial,
+			affectedTargets,
+			setSize,
+			hasLimitedBypassPermission,
+			hasProtectedBypassPermission
+		);
+	}
+
+	/**
 	 * 将写控判定映射为统一前端提示。
 	 */
 	static QuickLinkOperationFeedback failureFromWriteDecision(LinkWriteControlService.WriteDecision writeDecision) {
 		return QuickLinkOperationFeedback.failure("message.redstonelink.permission.insufficient");
+	}
+
+	/**
+	 * quick-link 显式缓存应用结果。
+	 */
+	public record ApplyFromCacheResult(
+		QuickLinkOperationFeedback feedback,
+		int affectedSourceCount,
+		int currentTargetCount
+	) {
+		public ApplyFromCacheResult {
+			affectedSourceCount = Math.max(0, affectedSourceCount);
+			currentTargetCount = Math.max(0, currentTargetCount);
+		}
+
+		static ApplyFromCacheResult failure(String messageKey, String... messageArgs) {
+			return new ApplyFromCacheResult(QuickLinkOperationFeedback.failure(messageKey, messageArgs), 0, 0);
+		}
 	}
 }

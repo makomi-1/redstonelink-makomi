@@ -25,6 +25,7 @@ public final class BenchCommandRegistry {
 			.requires(source -> RedstoneLinkConfig.command().benchmarkModeEnabled() && CommandTreeSupport.hasOtherCommandPermission(source))
 			.then(BenchInputCommandRegistry.createRoot())
 			.then(BenchLinkCommandRegistry.createRoot())
+			.then(BenchOccCommandRegistry.createRoot())
 			.then(BenchTraceCommandRegistry.createRoot());
 	}
 }

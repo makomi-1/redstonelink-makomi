@@ -2,11 +2,12 @@ package com.makomi.network;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
-import com.makomi.data.QuickLinkApplyService;
 import com.makomi.data.QuickLinkCollectService;
+import com.makomi.data.QuickLinkOccSubmissionSupport;
 import com.makomi.data.QuickLinkOperationFeedback;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
@@ -118,6 +119,11 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (!(mainHandItem.getItem() instanceof QuickLinkToolItem)) {
 			return;
 		}
+		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(mainHandItem);
+		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
+			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.mode.channel_future"));
+			return;
+		}
 		PairableNodeBlockEntity requestedNode = resolveRequestedNode(
 			player,
 			payload.dimensionKey(),
@@ -129,20 +135,22 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (requestedNode == null) {
 			return;
 		}
-		QuickLinkOperationFeedback conflictFeedback = resolveApplyRevisionConflictFeedback(
-			LinkSavedData.get(player.serverLevel()),
-			requestedNode.getLinkNodeType(),
-			requestedNode.getSerial(),
-			payload.expectedGraphRevision(),
-			payload.expectedSourceRevision()
+		sendFeedback(
+			player,
+			QuickLinkOccSubmissionSupport
+				.submit(
+					player.createCommandSourceStack(),
+					player,
+					player.serverLevel(),
+					requestedNode.getLinkNodeType(),
+					requestedNode.getSerial(),
+					snapshot.serialCacheType(),
+					snapshot.serialCacheExpression(),
+					payload.expectedGraphRevision(),
+					payload.expectedSourceRevision()
+				)
+				.feedback()
 		);
-		if (conflictFeedback != null) {
-			sendFeedback(player, conflictFeedback);
-			return;
-		}
-
-		BlockPos blockPos = requestedNode.getBlockPos();
-		sendFeedback(player, QuickLinkApplyService.apply(player, player.serverLevel(), blockPos, mainHandItem));
 	}
 
 	/**
@@ -152,7 +160,11 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (player == null || requestedNode == null || requestedNode.getLinkNodeType() == null || requestedNode.getSerial() <= 0L) {
 			return;
 		}
-		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
+		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(
+			LinkSavedData.get(player.serverLevel()),
+			requestedNode.getLinkNodeType(),
+			requestedNode.getSerial()
+		);
 		ServerPlayNetworking.send(
 			player,
 			new QuickLinkNetwork.ApplyQuickLinkBaselinePayload(
@@ -160,8 +172,8 @@ final class QuickLinkNetworkServerHandlerSupport {
 				requestedNode.getBlockPos().asLong(),
 				LinkNodeSemantics.toSemanticName(requestedNode.getLinkNodeType()),
 				requestedNode.getSerial(),
-				savedData.graphRevision(),
-				savedData.sourceRevision(requestedNode.getLinkNodeType(), requestedNode.getSerial())
+				baseline.graphRevision(),
+				baseline.sourceRevision()
 			)
 		);
 	}
@@ -219,17 +231,14 @@ final class QuickLinkNetworkServerHandlerSupport {
 		long expectedGraphRevision,
 		long expectedSourceRevision
 	) {
-		if (savedData == null) {
-			return null;
-		}
-		return buildApplyRevisionConflictFeedback(
+		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveTargetConflict(
+			savedData,
 			targetNodeType,
 			targetNodeSerial,
 			expectedGraphRevision,
-			expectedSourceRevision,
-			savedData.graphRevision(),
-			savedData.sourceRevision(targetNodeType, targetNodeSerial)
+			expectedSourceRevision
 		);
+		return conflict == null ? null : LinkOccSupport.toQuickLinkFeedback(conflict);
 	}
 
 	/**
@@ -246,27 +255,13 @@ final class QuickLinkNetworkServerHandlerSupport {
 		long currentGraphRevision,
 		long currentSourceRevision
 	) {
-		if (targetNodeType == LinkNodeType.TRIGGER_SOURCE) {
-			if (!PairingNetworkServerHandlerSupport.isRevisionMismatch(expectedSourceRevision, currentSourceRevision)) {
-				return null;
-			}
-			return QuickLinkOperationFeedback.failure(
-				"message.redstonelink.pairing.conflict.source_revision",
-				Long.toString(targetNodeSerial),
-				Long.toString(Math.max(0L, expectedSourceRevision)),
-				Long.toString(Math.max(0L, currentSourceRevision))
-			);
-		}
-		if (targetNodeType == LinkNodeType.CORE) {
-			if (!PairingNetworkServerHandlerSupport.isRevisionMismatch(expectedGraphRevision, currentGraphRevision)) {
-				return null;
-			}
-			return QuickLinkOperationFeedback.failure(
-				"message.redstonelink.pairing.conflict.graph_revision",
-				Long.toString(Math.max(0L, expectedGraphRevision)),
-				Long.toString(Math.max(0L, currentGraphRevision))
-			);
-		}
-		return null;
+		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveTargetConflictWithCurrentBaseline(
+			targetNodeType,
+			targetNodeSerial,
+			expectedSourceRevision,
+			expectedGraphRevision,
+			new LinkOccSupport.RevisionBaseline(currentGraphRevision, currentSourceRevision)
+		);
+		return conflict == null ? null : LinkOccSupport.toQuickLinkFeedback(conflict);
 	}
 }

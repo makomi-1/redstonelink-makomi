@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "description": "OCC 冲突专项回归：覆盖 pairing/quick-link 的 triggerSource sourceRevision 与 core graphRevision stale baseline 场景。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "o01_pairing_trigger_source_conflict",
+      "caseId": "occ_pairing_trigger_source_conflict"
+    },
+    {
+      "entryId": "o02_pairing_core_conflict",
+      "caseId": "occ_pairing_core_conflict"
+    },
+    {
+      "entryId": "o03_quick_link_trigger_source_conflict",
+      "caseId": "occ_quick_link_trigger_source_conflict"
+    },
+    {
+      "entryId": "o04_quick_link_core_conflict",
+      "caseId": "occ_quick_link_core_conflict"
+    }
+  ]
+}

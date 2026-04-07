@@ -7,6 +7,7 @@ import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeRuntimeSnapshot;
@@ -63,54 +64,19 @@ final class PairingNetworkServerHandlerSupport {
 			return;
 		}
 
-		LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
-			player.serverLevel(),
+		sendPairingFeedbacks(
 			player,
-			LinkNodeType.TRIGGER_SOURCE,
-			payload.sourceSerial(),
-			payload.targetsExpression(),
-			player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
-		);
-		if (!preparationResult.successful()) {
-			sendPairingFeedbacks(player, preparationResult.feedbacks());
-			return;
-		}
-		long currentSourceRevision = LinkSavedData
-			.get(player.serverLevel())
-			.sourceRevision(LinkNodeType.TRIGGER_SOURCE, payload.sourceSerial());
-		if (isRevisionMismatch(payload.expectedSourceRevision(), currentSourceRevision)) {
-			sendPairingFeedback(
-				player,
-				LinkSetExecutionService.OperationFeedback.failure(
-					"message.redstonelink.pairing.conflict.source_revision",
-					Long.toString(payload.sourceSerial()),
-					Long.toString(payload.expectedSourceRevision()),
-					Long.toString(currentSourceRevision)
+			PairingOccSubmissionSupport
+				.submitTriggerSource(
+					player.createCommandSourceStack(),
+					player,
+					player.serverLevel(),
+					payload.sourceSerial(),
+					payload.targetsExpression(),
+					payload.expectedSourceRevision()
 				)
-			);
-			return;
-		}
-
-		LinkSetExecutionService.PreparedReplaceOperation operation = preparationResult.operation();
-		CommandSourceStack commandSource = player.createCommandSourceStack();
-		if (
-			!CommandRateLimitService.tryAcquire(
-				commandSource,
-				CommandRateLimitService.CommandGroup.LINK_RW,
-				operation.commandCost()
-			)
-		) {
-			sendPairingFeedback(
-				player,
-				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.command.rate_limit.exceeded")
-			);
-			return;
-		}
-
-		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>(preparationResult.feedbacks());
-		feedbacks.addAll(LinkSetExecutionService.applyPreparedReplace(operation).feedbacks());
-		sendPairingFeedbacks(player, feedbacks);
+				.feedbacks()
+		);
 	}
 
 	/**
@@ -135,133 +101,19 @@ final class PairingNetworkServerHandlerSupport {
 			return;
 		}
 
-		CorePairingParseResult parseResult = parseCorePairingTriggerSources(payload.triggerSourceExpression());
-		if (!parseResult.invalidEntries().isEmpty()) {
-			sendPairingFeedback(
-				player,
-				LinkSetExecutionService.OperationFeedback.failure(
-					"message.redstonelink.invalid_target_tokens",
-					String.join(", ", parseResult.invalidEntries())
+		sendPairingFeedbacks(
+			player,
+			PairingOccSubmissionSupport
+				.submitCore(
+					player.createCommandSourceStack(),
+					player,
+					player.serverLevel(),
+					payload.coreSerial(),
+					payload.triggerSourceExpression(),
+					payload.expectedGraphRevision()
 				)
-			);
-			return;
-		}
-		if (parseResult.exceedLimit()) {
-			sendPairingFeedback(
-				player,
-				LinkSetExecutionService.OperationFeedback.failure(
-					"message.redstonelink.too_many_targets",
-					Integer.toString(RedstoneLinkConfig.general().maxTargetsPerSetLinks())
-				)
-			);
-			return;
-		}
-
-		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
-		if (isRevisionMismatch(payload.expectedGraphRevision(), savedData.graphRevision())) {
-			sendPairingFeedback(
-				player,
-				LinkSetExecutionService.OperationFeedback.failure(
-					"message.redstonelink.pairing.conflict.graph_revision",
-					Long.toString(payload.expectedGraphRevision()),
-					Long.toString(savedData.graphRevision())
-				)
-			);
-			return;
-		}
-		long coreSerial = payload.coreSerial();
-		if (coreSerial <= 0L || !savedData.isSerialAllocated(LinkNodeType.CORE, coreSerial)) {
-			sendPairingFeedback(
-				player,
-				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.target_serial_unallocated", Long.toString(coreSerial))
-			);
-			return;
-		}
-		if (savedData.isSerialRetired(LinkNodeType.CORE, coreSerial)) {
-			sendPairingFeedback(
-				player,
-				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.target_serial_retired", Long.toString(coreSerial))
-			);
-			return;
-		}
-
-		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>();
-		if (!parseResult.duplicateEntries().isEmpty()) {
-			feedbacks.add(
-				LinkSetExecutionService.OperationFeedback.success(
-					"message.redstonelink.duplicate_targets_deduped",
-					CommandTreeSupport.formatSerialCollection(parseResult.duplicateEntries())
-				)
-			);
-		}
-
-		Set<Long> currentTriggerSources = savedData.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial);
-		Map<Long, Set<Long>> currentTargetsByTriggerSource = loadCurrentCoreTargetsByTriggerSource(
-			savedData,
-			currentTriggerSources,
-			parseResult.orderedTriggerSources()
+				.feedbacks()
 		);
-		LinkedHashMap<Long, Set<Long>> changedTargetsByTriggerSource = buildChangedCoreTargetsByTriggerSource(
-			coreSerial,
-			currentTriggerSources,
-			parseResult.orderedTriggerSources(),
-			currentTargetsByTriggerSource
-		);
-		if (changedTargetsByTriggerSource.isEmpty()) {
-			feedbacks.add(
-				LinkSetExecutionService.OperationFeedback.success(
-					"message.redstonelink.core_pairing.apply.no_changes",
-					Long.toString(coreSerial),
-					Integer.toString(parseResult.orderedTriggerSources().size())
-				)
-			);
-			sendPairingFeedbacks(player, feedbacks);
-			return;
-		}
-
-		boolean hasLimitedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
-		boolean hasProtectedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
-		List<LinkSetExecutionService.PreparedReplaceOperation> preparedOperations = new ArrayList<>(changedTargetsByTriggerSource.size());
-		int totalCommandCost = 0;
-		for (Map.Entry<Long, Set<Long>> entry : changedTargetsByTriggerSource.entrySet()) {
-			LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
-				player.serverLevel(),
-				player,
-				LinkNodeType.TRIGGER_SOURCE,
-				entry.getKey(),
-				entry.getValue(),
-				hasLimitedBypassPermission,
-				hasProtectedBypassPermission
-			);
-			if (!preparationResult.successful()) {
-				sendPairingFeedbacks(player, preparationResult.feedbacks());
-				return;
-			}
-			preparedOperations.add(preparationResult.operation());
-			totalCommandCost = saturatingAdd(totalCommandCost, preparationResult.operation().commandCost());
-		}
-
-		CommandSourceStack commandSource = player.createCommandSourceStack();
-		if (!CommandRateLimitService.tryAcquire(commandSource, CommandRateLimitService.CommandGroup.LINK_RW, totalCommandCost)) {
-			sendPairingFeedback(
-				player,
-				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.command.rate_limit.exceeded")
-			);
-			return;
-		}
-
-		for (LinkSetExecutionService.PreparedReplaceOperation preparedOperation : preparedOperations) {
-			LinkSetExecutionService.applyPreparedReplace(preparedOperation);
-		}
-		feedbacks.add(
-			LinkSetExecutionService.OperationFeedback.success(
-				"message.redstonelink.core_pairing.apply.done",
-				Long.toString(coreSerial),
-				Integer.toString(parseResult.orderedTriggerSources().size()),
-				Integer.toString(preparedOperations.size())
-			)
-		);
-		sendPairingFeedbacks(player, feedbacks);
 	}
 
 	/**
@@ -408,7 +260,7 @@ final class PairingNetworkServerHandlerSupport {
 	 * 判断 expected revision 是否已与当前真值不一致。
 	 */
 	static boolean isRevisionMismatch(long expectedRevision, long currentRevision) {
-		return Math.max(0L, expectedRevision) != Math.max(0L, currentRevision);
+		return LinkOccSupport.isRevisionMismatch(expectedRevision, currentRevision);
 	}
 
 	/**
@@ -543,7 +395,7 @@ final class PairingNetworkServerHandlerSupport {
 	/**
 	 * 按“core 视角编辑请求”解析 triggerSource 输入表达式。
 	 */
-	private static CorePairingParseResult parseCorePairingTriggerSources(String rawTriggerSourceExpression) {
+	static CorePairingParseResult parseCorePairingTriggerSources(String rawTriggerSourceExpression) {
 		String normalizedExpression = rawTriggerSourceExpression == null ? "" : rawTriggerSourceExpression.trim();
 		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
 			normalizedExpression,
@@ -560,7 +412,7 @@ final class PairingNetworkServerHandlerSupport {
 	/**
 	 * 读取本次 core 编辑会涉及到的 triggerSource 当前目标集合。
 	 */
-	private static Map<Long, Set<Long>> loadCurrentCoreTargetsByTriggerSource(
+	static Map<Long, Set<Long>> loadCurrentCoreTargetsByTriggerSource(
 		LinkSavedData savedData,
 		Set<Long> currentTriggerSources,
 		List<Long> desiredTriggerSources
@@ -635,7 +487,7 @@ final class PairingNetworkServerHandlerSupport {
 	/**
 	 * 饱和累加命令成本，避免极端批量下整数溢出。
 	 */
-	private static int saturatingAdd(int currentCost, int nextCost) {
+	static int saturatingAdd(int currentCost, int nextCost) {
 		long resolved = (long) Math.max(0, currentCost) + Math.max(0, nextCost);
 		return (int) Math.min(Integer.MAX_VALUE, resolved);
 	}
@@ -648,13 +500,13 @@ final class PairingNetworkServerHandlerSupport {
 	/**
 	 * core 配对输入解析结果。
 	 */
-	private record CorePairingParseResult(
+	static record CorePairingParseResult(
 		List<Long> orderedTriggerSources,
 		List<String> invalidEntries,
 		List<Long> duplicateEntries,
 		boolean exceedLimit
 	) {
-		private CorePairingParseResult {
+		CorePairingParseResult {
 			orderedTriggerSources = List.copyOf(orderedTriggerSources == null ? List.of() : orderedTriggerSources);
 			invalidEntries = List.copyOf(invalidEntries == null ? List.of() : invalidEntries);
 			duplicateEntries = List.copyOf(duplicateEntries == null ? List.of() : duplicateEntries);

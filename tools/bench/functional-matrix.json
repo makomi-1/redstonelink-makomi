@@ -55,6 +55,10 @@
     "cases/functional/r02/restart_persist_toggle_verify.json",
     "cases/functional/r03/restart_input_job_prepare.json",
     "cases/functional/r04/restart_input_job_verify.json",
-    "cases/functional/r05/restart_mixed_replay_redstone_verify.json"
+    "cases/functional/r05/restart_mixed_replay_redstone_verify.json",
+    "cases/functional/o01/occ_pairing_trigger_source_conflict.json",
+    "cases/functional/o02/occ_pairing_core_conflict.json",
+    "cases/functional/o03/occ_quick_link_trigger_source_conflict.json",
+    "cases/functional/o04/occ_quick_link_core_conflict.json"
   ]
 }

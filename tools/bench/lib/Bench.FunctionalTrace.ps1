@@ -2355,6 +2355,11 @@ function Invoke-FunctionalPhases {
 					-SourceSerialMaps $SourceSerialMaps `
 					-TargetSerialMap $TargetSerialMap `
 					-PhaseContext $phaseContext)
+				$captureRegex = Resolve-FunctionalCommandTemplate `
+					-Template ([string](Get-OptionalProperty -Object $phase -Name "captureRegex" -DefaultValue "")) `
+					-SourceSerialMaps $SourceSerialMaps `
+					-TargetSerialMap $TargetSerialMap `
+					-PhaseContext $phaseContext
 				$captureTickWindow = [bool](Get-OptionalProperty -Object $phase -Name "captureTickWindow" -DefaultValue $false)
 				$allowReadTimeout = [bool](Get-OptionalProperty -Object $phase -Name "allowReadTimeout" -DefaultValue $false)
 				$allowEmptyResponse = [bool](Get-OptionalProperty -Object $phase -Name "allowEmptyResponse" -DefaultValue $false)
@@ -2366,6 +2371,16 @@ function Invoke-FunctionalPhases {
 						"$expectedPrefix [DryRun] skipped"
 					} else {
 						"[DryRun] skipped"
+					}
+					$dryRunCaptures = [ordered]@{}
+					if (-not [string]::IsNullOrWhiteSpace($captureRegex)) {
+						$dryRunCapturePattern = [System.Text.RegularExpressions.Regex]::new($captureRegex)
+						foreach ($groupName in @($dryRunCapturePattern.GetGroupNames())) {
+							if ($groupName -match "^\d+$") {
+								continue
+							}
+							$dryRunCaptures[$groupName] = "0"
+						}
 					}
 					$check = [ordered]@{
 						phase = $phaseName
@@ -2380,6 +2395,8 @@ function Invoke-FunctionalPhases {
 						expectedPrefix = $expectedPrefix
 						expectedRegexes = $expectedRegexes
 						rejectRegexes = $rejectRegexes
+						captureRegex = $captureRegex
+						captures = $dryRunCaptures
 					}
 					$checks.Add($check)
 					$phaseResult = [ordered]@{
@@ -2393,6 +2410,8 @@ function Invoke-FunctionalPhases {
 						expectedPrefix = $expectedPrefix
 						expectedRegexes = $expectedRegexes
 						rejectRegexes = $rejectRegexes
+						captureRegex = $captureRegex
+						captures = $dryRunCaptures
 						passed = $true
 						dryRun = $true
 					}
@@ -2430,6 +2449,7 @@ function Invoke-FunctionalPhases {
 				$normalizedResponse = ([string]$response).Trim()
 				$passed = $true
 				$responseLooksLikeFailure = $false
+				$captures = [ordered]@{}
 				if ([string]::IsNullOrWhiteSpace($failureReason)) {
 					if ([string]::IsNullOrWhiteSpace($normalizedResponse)) {
 						if (-not $allowEmptyResponse) {
@@ -2470,6 +2490,22 @@ function Invoke-FunctionalPhases {
 							}
 						}
 					}
+					if ($passed -and -not [string]::IsNullOrWhiteSpace($captureRegex)) {
+						$capturePattern = [System.Text.RegularExpressions.Regex]::new($captureRegex)
+						$captureMatch = $capturePattern.Match($normalizedResponse)
+						if (-not $captureMatch.Success) {
+							$passed = $false
+							$failureReason = "capture_regex_missing"
+							$errorDetail = $captureRegex
+						} else {
+							foreach ($groupName in @($capturePattern.GetGroupNames())) {
+								if ($groupName -match "^\d+$") {
+									continue
+								}
+								$captures[$groupName] = [string]$captureMatch.Groups[$groupName].Value
+							}
+						}
+					}
 				} else {
 					$passed = $false
 				}
@@ -2487,6 +2523,8 @@ function Invoke-FunctionalPhases {
 					expectedPrefix = $expectedPrefix
 					expectedRegexes = $expectedRegexes
 					rejectRegexes = $rejectRegexes
+					captureRegex = $captureRegex
+					captures = $captures
 					failureReason = $failureReason
 					errorDetail = $errorDetail
 				}
@@ -2507,6 +2545,8 @@ function Invoke-FunctionalPhases {
 					expectedPrefix = $expectedPrefix
 					expectedRegexes = $expectedRegexes
 					rejectRegexes = $rejectRegexes
+					captureRegex = $captureRegex
+					captures = $captures
 					passed = $passed
 					failureReason = $failureReason
 					errorDetail = $errorDetail
