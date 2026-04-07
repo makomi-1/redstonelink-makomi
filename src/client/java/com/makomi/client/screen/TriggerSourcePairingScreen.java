@@ -17,9 +17,9 @@ import net.minecraft.world.item.ItemStack;
  */
 public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	private static final LinkNodeType SOURCE_TYPE = LinkNodeType.TRIGGER_SOURCE;
-	private static final Component TITLE = Component.translatable("screen.redstonelink.button_pairing.title");
-	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.button_pairing.input");
-	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.button_pairing.invalid");
+	private static final Component TITLE = Component.translatable("screen.redstonelink.trigger_source_pairing.title");
+	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.trigger_source_pairing.input");
+	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.trigger_source_pairing.invalid");
 
 	/**
 	 * 基于明确来源序列号与当前连接初始化界面。
@@ -69,7 +69,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	@Override
 	protected Component serialLine(long sourceSerial) {
 		return Component.translatable(
-			"screen.redstonelink.button_pairing.serial",
+			"screen.redstonelink.trigger_source_pairing.serial",
 			sourceSerial > 0L ? Long.toString(sourceSerial) : "-"
 		);
 	}
@@ -83,7 +83,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	@Override
 	protected Component currentLinksLine(List<Long> currentTargets) {
 		String linkedText = currentTargets.isEmpty() ? "-" : buildCurrentLinksText(currentTargets);
-		return Component.translatable("screen.redstonelink.button_pairing.current_links", linkedText);
+		return Component.translatable("screen.redstonelink.trigger_source_pairing.current_links", linkedText);
 	}
 
 	/**

@@ -23,7 +23,7 @@ class LinkSavedDataSlowTest {
 	void saveAndLoadShouldPreserveLargeTopology() {
 		LinkSavedData data = new LinkSavedData();
 		List<Long> coreSerials = new ArrayList<>();
-		List<Long> buttonSerials = new ArrayList<>();
+		List<Long> triggerSourceSerials = new ArrayList<>();
 
 		for (int i = 0; i < 50; i++) {
 			long coreSerial = data.allocateSerial(LinkNodeType.CORE);
@@ -32,12 +32,12 @@ class LinkSavedDataSlowTest {
 		}
 
 		for (int i = 0; i < 80; i++) {
-			long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-			buttonSerials.add(buttonSerial);
-			data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(60 + i, 64, 60), LinkNodeType.TRIGGER_SOURCE);
+			long triggerSourceSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+			triggerSourceSerials.add(triggerSourceSerial);
+			data.registerNode(triggerSourceSerial, Level.OVERWORLD, new BlockPos(60 + i, 64, 60), LinkNodeType.TRIGGER_SOURCE);
 			for (int j = 0; j < 3; j++) {
 				long coreSerial = coreSerials.get((i + j) % coreSerials.size());
-				data.toggleLink(buttonSerial, coreSerial);
+				data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 			}
 		}
 
@@ -45,9 +45,9 @@ class LinkSavedDataSlowTest {
 		LinkSavedData restored = invokeLoad(saved);
 
 		assertEquals(coreSerials.size(), restored.getOnlineSerials(LinkNodeType.CORE).size());
-		assertEquals(buttonSerials.size(), restored.getOnlineSerials(LinkNodeType.TRIGGER_SOURCE).size());
-		for (long buttonSerial : buttonSerials) {
-			assertEquals(3, restored.getLinkedCores(buttonSerial).size());
+		assertEquals(triggerSourceSerials.size(), restored.getOnlineSerials(LinkNodeType.TRIGGER_SOURCE).size());
+		for (long triggerSourceSerial : triggerSourceSerials) {
+			assertEquals(3, restored.getLinkedCoresByTriggerSource(triggerSourceSerial).size());
 		}
 	}
 

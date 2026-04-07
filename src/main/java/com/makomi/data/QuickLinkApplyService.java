@@ -152,7 +152,7 @@ public final class QuickLinkApplyService {
 		}
 
 		Set<Long> nextTargets = new HashSet<>(parseResult.orderedTargets());
-		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(triggerSourceSerial));
 		Set<Long> affectedTargets = new HashSet<>(previousTargets);
 		affectedTargets.addAll(nextTargets);
 
@@ -232,7 +232,7 @@ public final class QuickLinkApplyService {
 		}
 
 		for (long triggerSourceSerial : parseResult.orderedTargets()) {
-			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(triggerSourceSerial));
 			Set<Long> nextTargets = Set.of(coreSerial);
 			Set<Long> affectedTargets = new HashSet<>(previousTargets);
 			affectedTargets.add(coreSerial);
@@ -251,7 +251,7 @@ public final class QuickLinkApplyService {
 
 		int appliedSourceCount = 0;
 		for (long triggerSourceSerial : parseResult.orderedTargets()) {
-			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(triggerSourceSerial));
 			Set<Long> nextTargets = Set.of(coreSerial);
 			LinkSetExecutionService.applyPreparedReplace(
 				LinkSetExecutionService.createPreparedReplaceOperation(

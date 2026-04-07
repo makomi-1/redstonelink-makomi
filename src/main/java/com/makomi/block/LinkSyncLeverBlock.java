@@ -192,7 +192,7 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 	}
 
 	/**
-	 * 打开按钮配对界面；若尚未分配序列号则先分配。
+	 * 打开 triggerSource 配对界面；若尚未分配序列号则先分配。
 	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {

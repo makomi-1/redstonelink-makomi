@@ -80,7 +80,7 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(serverLevel);
-		Set<Long> linkedTargets = savedData.getLinkedCores(sourceSerial);
+		Set<Long> linkedTargets = savedData.getLinkedCoresByTriggerSource(sourceSerial);
 		if (linkedTargets.isEmpty()) {
 			sendPlayerMessage(player, Component.translatable("message.redstonelink.target_not_set"));
 			return;

@@ -34,18 +34,18 @@ class LinkSavedDataLoadCompatibilityTest {
 	void saveAndLoadRoundTripShouldPreserveTopology() {
 		LinkSavedData source = new LinkSavedData();
 		long coreSerial = source.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = source.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+		long triggerSourceSerial = source.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		source.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(20, 64, 20), LinkNodeType.CORE);
-		source.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(21, 64, 20), LinkNodeType.TRIGGER_SOURCE);
-		source.toggleLink(buttonSerial, coreSerial);
+		source.registerNode(triggerSourceSerial, Level.OVERWORLD, new BlockPos(21, 64, 20), LinkNodeType.TRIGGER_SOURCE);
+		source.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 
 		CompoundTag saved = source.save(new CompoundTag(), null);
 		LinkSavedData restored = invokeLoad(saved);
 
 		assertTrue(restored.findNode(LinkNodeType.CORE, coreSerial).isPresent());
-		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, buttonSerial).isPresent());
-		assertTrue(restored.getLinkedCores(buttonSerial).contains(coreSerial));
-		assertTrue(restored.getLinkedButtons(coreSerial).contains(buttonSerial));
+		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial).isPresent());
+		assertTrue(restored.getLinkedCoresByTriggerSource(triggerSourceSerial).contains(coreSerial));
+		assertTrue(restored.getLinkedTriggerSourcesByCore(coreSerial).contains(triggerSourceSerial));
 	}
 
 	/**
@@ -77,8 +77,8 @@ class LinkSavedDataLoadCompatibilityTest {
 		LinkSavedData restored = invokeLoad(legacy);
 		assertTrue(restored.findNode(LinkNodeType.CORE, 9L).isPresent());
 		assertFalse(restored.findNode(LinkNodeType.TRIGGER_SOURCE, 10L).isPresent());
-		assertEquals(Set.of(11L, 12L), restored.getLinkedCores(77L));
-		assertTrue(restored.getLinkedCores(0L).isEmpty());
+		assertEquals(Set.of(11L, 12L), restored.getLinkedCoresByTriggerSource(77L));
+		assertTrue(restored.getLinkedCoresByTriggerSource(0L).isEmpty());
 	}
 
 	/**
@@ -91,7 +91,7 @@ class LinkSavedDataLoadCompatibilityTest {
 		LinkSavedData restored = invokeLoad(legacy);
 		assertFalse(restored.findNode(LinkNodeType.TRIGGER_SOURCE, 15L).isPresent());
 		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, 16L).isPresent());
-		assertEquals(Set.of(20L), restored.getLinkedCores(16L));
+		assertEquals(Set.of(20L), restored.getLinkedCoresByTriggerSource(16L));
 	}
 
 	/**
@@ -155,7 +155,7 @@ class LinkSavedDataLoadCompatibilityTest {
 		dataTag.put("links", links);
 
 		LinkSavedData restored = invokeLoad(dataTag);
-		assertEquals(Set.of(11L, 12L), restored.getLinkedCores(77L));
+		assertEquals(Set.of(11L, 12L), restored.getLinkedCoresByTriggerSource(77L));
 	}
 
 	/**

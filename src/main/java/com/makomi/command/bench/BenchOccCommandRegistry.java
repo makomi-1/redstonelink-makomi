@@ -360,7 +360,7 @@ public final class BenchOccCommandRegistry {
 		}
 		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(savedData, nodeType, serial);
 		source.sendSuccess(
-			() -> Component.literal(buildSnapshotSummary(nodeType, serial, baseline, savedData.getLinkedTargetsBySourceType(nodeType, serial).size())),
+			() -> Component.literal(buildSnapshotSummary(nodeType, serial, baseline, savedData.getLinkedPeersByNodeType(nodeType, serial).size())),
 			false
 		);
 		return Command.SINGLE_SUCCESS;

@@ -89,7 +89,7 @@ public class SyncLinkerItem extends LinkerItem {
 		LinkItemData.setSyncLinkerSignalStrength(stack, nextSignalStrength);
 		savedData.putTriggerSourceReplaySyncSnapshot(serial, EventMeta.now(level), nextSignalStrength);
 
-		Set<Long> linkedTargets = savedData.getLinkedCores(serial);
+		Set<Long> linkedTargets = savedData.getLinkedCoresByTriggerSource(serial);
 		LinkItemData.setLinkedSerials(
 			stack,
 			NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial).visibleTargetSet()

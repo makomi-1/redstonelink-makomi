@@ -32,7 +32,7 @@ import net.minecraft.world.phys.BlockHitResult;
 /**
  * 联动按钮基类。
  * <p>
- * 负责按钮节点序列号维护、掉落继承与“按下即触发目标”流程，
+ * 负责 triggerSource 序列号维护、掉落继承与“按下即触发目标”流程，
  * 子类仅决定具体方块外观与对应方块实体类型。
  * </p>
  */
@@ -151,7 +151,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	}
 
 	/**
-	 * 打开按钮配对界面；若尚未分配序列号则先分配。
+	 * 打开 triggerSource 配对界面；若尚未分配序列号则先分配。
 	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {

@@ -19,64 +19,48 @@ final class LinkSavedDataLinkIndexSupport {
 	/**
 	 * 切换 triggerSource 与 core 之间的关联关系。
 	 */
-	static boolean toggleLink(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+	static boolean toggleTriggerSourceCoreLink(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
 		if (triggerSourceSerial <= 0L || coreSerial <= 0L) {
 			return false;
 		}
 
-		Set<Long> linkedCores = data.buttonToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
+		Set<Long> linkedCores = data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
 		if (linkedCores.contains(coreSerial)) {
-			if (unlinkInternal(data, triggerSourceSerial, coreSerial)) {
+			if (removeTriggerSourceCoreLinkInternal(data, triggerSourceSerial, coreSerial)) {
 				markTopologyChanged(data, Set.of(triggerSourceSerial));
 			}
 			return false;
 		}
 
-		linkInternal(data, triggerSourceSerial, coreSerial);
+		linkTriggerSourceCoreInternal(data, triggerSourceSerial, coreSerial);
 		markTopologyChanged(data, Set.of(triggerSourceSerial));
 		return true;
 	}
 
 	/**
-	 * 以“来源/目标”语义切换关联关系。
+	 * 新增一条 triggerSource -> core 关联关系。
 	 */
-	static boolean toggleLinkBySourceType(LinkSavedData data, LinkNodeType sourceType, long sourceSerial, long targetSerial) {
-		if (sourceType == null) {
+	static boolean addTriggerSourceCoreLink(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+		if (triggerSourceSerial <= 0L || coreSerial <= 0L) {
 			return false;
 		}
-		return sourceType == LinkNodeType.TRIGGER_SOURCE
-			? toggleLink(data, sourceSerial, targetSerial)
-			: toggleLink(data, targetSerial, sourceSerial);
-	}
-
-	/**
-	 * 以“来源/目标”语义新增单条关联关系。
-	 */
-	static boolean addLinkBySourceType(LinkSavedData data, LinkNodeType sourceType, long sourceSerial, long targetSerial) {
-		if (sourceType == null || sourceSerial <= 0L || targetSerial <= 0L) {
-			return false;
-		}
-		long triggerSourceSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
-		long coreSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? targetSerial : sourceSerial;
-		Set<Long> linkedCores = data.buttonToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
+		Set<Long> linkedCores = data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
 		if (linkedCores.contains(coreSerial)) {
 			return false;
 		}
-		linkInternal(data, triggerSourceSerial, coreSerial);
+		linkTriggerSourceCoreInternal(data, triggerSourceSerial, coreSerial);
 		markTopologyChanged(data, Set.of(triggerSourceSerial));
 		return true;
 	}
 
 	/**
-	 * 以“来源/目标”语义移除单条关联关系。
+	 * 移除一条 triggerSource -> core 关联关系。
 	 */
-	static boolean removeLinkBySourceType(LinkSavedData data, LinkNodeType sourceType, long sourceSerial, long targetSerial) {
-		if (sourceType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+	static boolean removeTriggerSourceCoreLink(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+		if (triggerSourceSerial <= 0L || coreSerial <= 0L) {
 			return false;
 		}
-		long triggerSourceSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
-		long coreSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? targetSerial : sourceSerial;
-		boolean removed = unlinkInternal(data, triggerSourceSerial, coreSerial);
+		boolean removed = removeTriggerSourceCoreLinkInternal(data, triggerSourceSerial, coreSerial);
 		if (removed) {
 			markTopologyChanged(data, Set.of(triggerSourceSerial));
 		}
@@ -84,19 +68,18 @@ final class LinkSavedDataLinkIndexSupport {
 	}
 
 	/**
-	 * 以“覆盖集合”语义增量替换来源节点的目标集合。
+	 * 以“覆盖集合”语义增量替换 triggerSource 的 core 目标集合。
 	 */
-	static LinkSavedData.ReplaceLinksResult replaceLinksBySourceType(
+	static LinkSavedData.ReplaceLinksResult replaceTriggerSourceTargets(
 		LinkSavedData data,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		Set<Long> targetSerials
+		long triggerSourceSerial,
+		Set<Long> coreSerials
 	) {
-		if (sourceType == null || sourceSerial <= 0L) {
+		if (triggerSourceSerial <= 0L) {
 			return new LinkSavedData.ReplaceLinksResult(0, 0, 0, 0);
 		}
-		Set<Long> currentTargets = new HashSet<>(getLinkedTargetsBySourceType(data, sourceType, sourceSerial));
-		Set<Long> normalizedTargets = normalizePositiveSerials(targetSerials);
+		Set<Long> currentTargets = new HashSet<>(getLinkedCoresByTriggerSource(data, triggerSourceSerial));
+		Set<Long> normalizedTargets = normalizePositiveSerials(coreSerials);
 		IncrementalReplacePlanUtil.SetReplacePlan<Long> plan = IncrementalReplacePlanUtil.buildSetReplacePlan(
 			currentTargets,
 			normalizedTargets
@@ -106,57 +89,43 @@ final class LinkSavedDataLinkIndexSupport {
 		}
 
 		int removed = 0;
-		Set<Long> changedTriggerSources = new HashSet<>();
-		for (long targetSerial : plan.toRemove()) {
-			if (removeLinkWithoutDirtyBySourceType(data, sourceType, sourceSerial, targetSerial)) {
+		for (long coreSerial : plan.toRemove()) {
+			if (removeTriggerSourceCoreLinkWithoutDirty(data, triggerSourceSerial, coreSerial)) {
 				removed++;
-				changedTriggerSources.add(resolveTriggerSourceSerial(sourceType, sourceSerial, targetSerial));
 			}
 		}
 		int added = 0;
-		for (long targetSerial : plan.toAdd()) {
-			if (addLinkWithoutDirtyBySourceType(data, sourceType, sourceSerial, targetSerial)) {
+		for (long coreSerial : plan.toAdd()) {
+			if (addTriggerSourceCoreLinkWithoutDirty(data, triggerSourceSerial, coreSerial)) {
 				added++;
-				changedTriggerSources.add(resolveTriggerSourceSerial(sourceType, sourceSerial, targetSerial));
 			}
 		}
 
-		if (!changedTriggerSources.isEmpty()) {
-			markTopologyChanged(data, changedTriggerSources);
+		if (removed > 0 || added > 0) {
+			markTopologyChanged(data, Set.of(triggerSourceSerial));
 		}
 		int currentCount = currentTargets.size() - removed + added;
 		return new LinkSavedData.ReplaceLinksResult(currentCount, added, removed, added + removed);
 	}
 
 	/**
-	 * 解除 triggerSource 与 core 的单条关联关系。
-	 */
-	static boolean unlink(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
-		boolean removed = unlinkInternal(data, triggerSourceSerial, coreSerial);
-		if (removed) {
-			markTopologyChanged(data, Set.of(triggerSourceSerial));
-		}
-		return removed;
-	}
-
-	/**
 	 * 解除 triggerSource 与 core 的单条关联关系（不推进 revision / dirty）。
 	 */
-	private static boolean unlinkInternal(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
-		Set<Long> linkedCores = data.buttonToCores.get(triggerSourceSerial);
+	private static boolean removeTriggerSourceCoreLinkInternal(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+		Set<Long> linkedCores = data.triggerSourceToCores.get(triggerSourceSerial);
 		if (linkedCores == null || !linkedCores.remove(coreSerial)) {
 			return false;
 		}
 
 		if (linkedCores.isEmpty()) {
-			data.buttonToCores.remove(triggerSourceSerial);
+			data.triggerSourceToCores.remove(triggerSourceSerial);
 		}
 
-		Set<Long> linkedTriggerSources = data.coreToButtons.get(coreSerial);
+		Set<Long> linkedTriggerSources = data.coreToTriggerSources.get(coreSerial);
 		if (linkedTriggerSources != null) {
 			linkedTriggerSources.remove(triggerSourceSerial);
 			if (linkedTriggerSources.isEmpty()) {
-				data.coreToButtons.remove(coreSerial);
+				data.coreToTriggerSources.remove(coreSerial);
 			}
 		}
 		return true;
@@ -165,8 +134,8 @@ final class LinkSavedDataLinkIndexSupport {
 	/**
 	 * 查询 triggerSource 关联的 core 序列号集合。
 	 */
-	static Set<Long> getLinkedCores(LinkSavedData data, long triggerSourceSerial) {
-		Set<Long> linked = data.buttonToCores.get(triggerSourceSerial);
+	static Set<Long> getLinkedCoresByTriggerSource(LinkSavedData data, long triggerSourceSerial) {
+		Set<Long> linked = data.triggerSourceToCores.get(triggerSourceSerial);
 		if (linked == null || linked.isEmpty()) {
 			return Collections.emptySet();
 		}
@@ -176,8 +145,8 @@ final class LinkSavedDataLinkIndexSupport {
 	/**
 	 * 查询 core 被哪些 triggerSource 关联。
 	 */
-	static Set<Long> getLinkedTriggerSources(LinkSavedData data, long coreSerial) {
-		Set<Long> linked = data.coreToButtons.get(coreSerial);
+	static Set<Long> getLinkedTriggerSourcesByCore(LinkSavedData data, long coreSerial) {
+		Set<Long> linked = data.coreToTriggerSources.get(coreSerial);
 		if (linked == null || linked.isEmpty()) {
 			return Collections.emptySet();
 		}
@@ -185,54 +154,54 @@ final class LinkSavedDataLinkIndexSupport {
 	}
 
 	/**
-	 * 按“来源类型 + 来源序列号”查询目标集合。
+	 * 按节点类型查询其关联的对侧节点集合。
 	 */
-	static Set<Long> getLinkedTargetsBySourceType(LinkSavedData data, LinkNodeType sourceType, long sourceSerial) {
-		if (sourceType == null) {
+	static Set<Long> getLinkedPeersByNodeType(LinkSavedData data, LinkNodeType nodeType, long serial) {
+		if (nodeType == null) {
 			return Collections.emptySet();
 		}
-		return sourceType == LinkNodeType.TRIGGER_SOURCE
-			? getLinkedCores(data, sourceSerial)
-			: getLinkedTriggerSources(data, sourceSerial);
+		return nodeType == LinkNodeType.TRIGGER_SOURCE
+			? getLinkedCoresByTriggerSource(data, serial)
+			: getLinkedTriggerSourcesByCore(data, serial);
 	}
 
 	/**
-	 * 按“来源类型 + 来源序列号”无拷贝遍历目标集合。
+	 * 按节点类型无拷贝遍历其关联的对侧节点集合。
 	 */
-	static void forEachLinkedTargetBySourceType(
+	static void forEachLinkedPeerByNodeType(
 		LinkSavedData data,
-		LinkNodeType sourceType,
-		long sourceSerial,
+		LinkNodeType nodeType,
+		long serial,
 		LongConsumer consumer
 	) {
-		if (sourceType == null || sourceSerial <= 0L || consumer == null) {
+		if (nodeType == null || serial <= 0L || consumer == null) {
 			return;
 		}
-		Set<Long> linkedTargets = linkedTargetsViewBySourceType(data, sourceType, sourceSerial);
-		if (linkedTargets == null || linkedTargets.isEmpty()) {
+		Set<Long> linkedPeers = linkedPeersViewByNodeType(data, nodeType, serial);
+		if (linkedPeers == null || linkedPeers.isEmpty()) {
 			return;
 		}
-		for (Long targetSerial : linkedTargets) {
-			if (targetSerial != null && targetSerial > 0L) {
-				consumer.accept(targetSerial);
+		for (Long peerSerial : linkedPeers) {
+			if (peerSerial != null && peerSerial > 0L) {
+				consumer.accept(peerSerial);
 			}
 		}
 	}
 
 	/**
-	 * 返回内部目标集合视图（无拷贝）。
+	 * 返回内部关联节点集合视图（无拷贝）。
 	 */
-	private static Set<Long> linkedTargetsViewBySourceType(LinkSavedData data, LinkNodeType sourceType, long sourceSerial) {
-		if (sourceType == null || sourceSerial <= 0L) {
+	private static Set<Long> linkedPeersViewByNodeType(LinkSavedData data, LinkNodeType nodeType, long serial) {
+		if (nodeType == null || serial <= 0L) {
 			return Collections.emptySet();
 		}
-		Set<Long> linkedTargets = sourceType == LinkNodeType.TRIGGER_SOURCE
-			? data.buttonToCores.get(sourceSerial)
-			: data.coreToButtons.get(sourceSerial);
-		if (linkedTargets == null || linkedTargets.isEmpty()) {
+		Set<Long> linkedPeers = nodeType == LinkNodeType.TRIGGER_SOURCE
+			? data.triggerSourceToCores.get(serial)
+			: data.coreToTriggerSources.get(serial);
+		if (linkedPeers == null || linkedPeers.isEmpty()) {
 			return Collections.emptySet();
 		}
-		return linkedTargets;
+		return linkedPeers;
 	}
 
 	/**
@@ -246,34 +215,34 @@ final class LinkSavedDataLinkIndexSupport {
 		int removed = 0;
 		Set<Long> changedTriggerSources = new HashSet<>();
 		if (type == LinkNodeType.TRIGGER_SOURCE) {
-			Set<Long> cores = data.buttonToCores.remove(serial);
+			Set<Long> cores = data.triggerSourceToCores.remove(serial);
 			if (cores == null || cores.isEmpty()) {
 				return 0;
 			}
 
 			for (long coreSerial : cores) {
-				Set<Long> linkedTriggerSources = data.coreToButtons.get(coreSerial);
+				Set<Long> linkedTriggerSources = data.coreToTriggerSources.get(coreSerial);
 				if (linkedTriggerSources != null) {
 					linkedTriggerSources.remove(serial);
 					if (linkedTriggerSources.isEmpty()) {
-						data.coreToButtons.remove(coreSerial);
+						data.coreToTriggerSources.remove(coreSerial);
 					}
 				}
 				removed++;
 			}
 			changedTriggerSources.add(serial);
 		} else {
-			Set<Long> triggerSources = data.coreToButtons.remove(serial);
+			Set<Long> triggerSources = data.coreToTriggerSources.remove(serial);
 			if (triggerSources == null || triggerSources.isEmpty()) {
 				return 0;
 			}
 
 			for (long triggerSourceSerial : triggerSources) {
-				Set<Long> cores = data.buttonToCores.get(triggerSourceSerial);
+				Set<Long> cores = data.triggerSourceToCores.get(triggerSourceSerial);
 				if (cores != null) {
 					cores.remove(serial);
 					if (cores.isEmpty()) {
-						data.buttonToCores.remove(triggerSourceSerial);
+						data.triggerSourceToCores.remove(triggerSourceSerial);
 					}
 				}
 				removed++;
@@ -288,58 +257,52 @@ final class LinkSavedDataLinkIndexSupport {
 	}
 
 	/**
-	 * 以“来源/目标”语义新增关联（不触发 setDirty）。
+	 * 新增 triggerSource -> core 关联（不触发 setDirty）。
 	 */
-	static boolean addLinkWithoutDirtyBySourceType(
+	static boolean addTriggerSourceCoreLinkWithoutDirty(
 		LinkSavedData data,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		long targetSerial
+		long triggerSourceSerial,
+		long coreSerial
 	) {
-		if (sourceType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+		if (triggerSourceSerial <= 0L || coreSerial <= 0L) {
 			return false;
 		}
-		long triggerSourceSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
-		long coreSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? targetSerial : sourceSerial;
-		Set<Long> linkedCores = data.buttonToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
+		Set<Long> linkedCores = data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
 		if (linkedCores.contains(coreSerial)) {
 			return false;
 		}
-		linkInternal(data, triggerSourceSerial, coreSerial);
+		linkTriggerSourceCoreInternal(data, triggerSourceSerial, coreSerial);
 		return true;
 	}
 
 	/**
-	 * 以“来源/目标”语义移除关联（不触发 setDirty）。
+	 * 移除 triggerSource -> core 关联（不触发 setDirty）。
 	 */
-	static boolean removeLinkWithoutDirtyBySourceType(
+	static boolean removeTriggerSourceCoreLinkWithoutDirty(
 		LinkSavedData data,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		long targetSerial
+		long triggerSourceSerial,
+		long coreSerial
 	) {
-		if (sourceType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+		if (triggerSourceSerial <= 0L || coreSerial <= 0L) {
 			return false;
 		}
-		long triggerSourceSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
-		long coreSerial = sourceType == LinkNodeType.TRIGGER_SOURCE ? targetSerial : sourceSerial;
-		return unlinkInternal(data, triggerSourceSerial, coreSerial);
+		return removeTriggerSourceCoreLinkInternal(data, triggerSourceSerial, coreSerial);
 	}
 
 	/**
 	 * 建立 triggerSource 与 core 的双向索引关系。
 	 */
-	static void link(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
-		linkInternal(data, triggerSourceSerial, coreSerial);
+	static void linkTriggerSourceCore(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+		linkTriggerSourceCoreInternal(data, triggerSourceSerial, coreSerial);
 		markTopologyChanged(data, Set.of(triggerSourceSerial));
 	}
 
 	/**
 	 * 建立 triggerSource 与 core 的双向索引关系（不推进 revision / dirty）。
 	 */
-	private static void linkInternal(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
-		data.buttonToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>()).add(coreSerial);
-		data.coreToButtons.computeIfAbsent(coreSerial, unused -> new HashSet<>()).add(triggerSourceSerial);
+	private static void linkTriggerSourceCoreInternal(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+		data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>()).add(coreSerial);
+		data.coreToTriggerSources.computeIfAbsent(coreSerial, unused -> new HashSet<>()).add(triggerSourceSerial);
 	}
 
 	/**
@@ -356,13 +319,6 @@ final class LinkSavedDataLinkIndexSupport {
 			}
 		}
 		data.setDirty();
-	}
-
-	/**
-	 * 统一把“来源/目标”语义解析回真实的 triggerSource 序号。
-	 */
-	private static long resolveTriggerSourceSerial(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
-		return sourceType == LinkNodeType.TRIGGER_SOURCE ? sourceSerial : targetSerial;
 	}
 
 	/**

@@ -32,15 +32,15 @@ class LinkSavedDataTest {
 
 		long core1 = data.allocateSerial(LinkNodeType.CORE);
 		long core2 = data.allocateSerial(LinkNodeType.CORE);
-		long button1 = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-		long button2 = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+		long triggerSource1 = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+		long triggerSource2 = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 
 		assertEquals(1L, core1);
 		assertEquals(2L, core2);
-		assertEquals(1L, button1);
-		assertEquals(2L, button2);
+		assertEquals(1L, triggerSource1);
+		assertEquals(2L, triggerSource2);
 		assertTrue(data.isSerialAllocated(LinkNodeType.CORE, core1));
-		assertTrue(data.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, button1));
+		assertTrue(data.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, triggerSource1));
 	}
 
 	/**
@@ -81,41 +81,35 @@ class LinkSavedDataTest {
 	}
 
 	/**
-	 * 链路切换应保持按钮->核心、核心->按钮双向索引一致。
+	 * 链路切换应保持 triggerSource->core、core->triggerSource 双向索引一致。
 	 */
 	@Test
-	void toggleLinkShouldMaintainBidirectionalIndex() {
+	void toggleTriggerSourceCoreLinkShouldMaintainBidirectionalIndex() {
 		LinkSavedData data = new LinkSavedData();
-		long buttonSerial = 101L;
+		long triggerSourceSerial = 101L;
 		long coreSerial = 202L;
 
-		boolean enabled = data.toggleLink(buttonSerial, coreSerial);
-		boolean disabled = data.toggleLink(buttonSerial, coreSerial);
+		boolean enabled = data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
+		boolean disabled = data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 
 		assertTrue(enabled);
 		assertFalse(disabled);
-		assertEquals(0, data.getLinkedCores(buttonSerial).size());
-		assertEquals(0, data.getLinkedButtons(coreSerial).size());
+		assertEquals(0, data.getLinkedCoresByTriggerSource(triggerSourceSerial).size());
+		assertEquals(0, data.getLinkedTriggerSourcesByCore(coreSerial).size());
 	}
 
 	/**
-	 * 来源语义别名方法应与历史命名方法保持一致行为。
+	 * 按节点类型读取对侧集合时，应保持与定向访问器一致。
 	 */
 	@Test
-	void sourceSemanticAliasesShouldMatchLegacyAccessors() {
+	void getLinkedPeersByNodeTypeShouldMatchDirectionalAccessors() {
 		LinkSavedData data = new LinkSavedData();
-		long buttonSerial = 1001L;
+		long triggerSourceSerial = 1001L;
 		long coreSerial = 2001L;
 
-		boolean linkedBySource = data.toggleLinkBySourceType(LinkNodeType.TRIGGER_SOURCE, buttonSerial, coreSerial);
-		assertTrue(linkedBySource);
-		assertEquals(Set.of(coreSerial), data.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, buttonSerial));
-		assertEquals(Set.of(buttonSerial), data.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial));
-
-		boolean toggledBackByCoreView = data.toggleLinkBySourceType(LinkNodeType.CORE, coreSerial, buttonSerial);
-		assertFalse(toggledBackByCoreView);
-		assertTrue(data.getLinkedCores(buttonSerial).isEmpty());
-		assertTrue(data.getLinkedButtons(coreSerial).isEmpty());
+		assertTrue(data.addTriggerSourceCoreLink(triggerSourceSerial, coreSerial));
+		assertEquals(Set.of(coreSerial), data.getLinkedPeersByNodeType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertEquals(Set.of(triggerSourceSerial), data.getLinkedPeersByNodeType(LinkNodeType.CORE, coreSerial));
 	}
 
 	/**
@@ -124,37 +118,37 @@ class LinkSavedDataTest {
 	@Test
 	void retireNodeShouldClearLinksAndMarkRetired() {
 		LinkSavedData data = new LinkSavedData();
-		long buttonSerial = 301L;
+		long triggerSourceSerial = 301L;
 		long coreSerial = 401L;
 
-		data.toggleLink(buttonSerial, coreSerial);
+		data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 		LinkSavedData.RetireResult result = data.retireNode(LinkNodeType.CORE, coreSerial);
 
 		assertEquals(1, result.linksRemoved());
 		assertTrue(result.retiredMarked());
 		assertTrue(data.isSerialRetired(LinkNodeType.CORE, coreSerial));
-		assertEquals(0, data.getLinkedCores(buttonSerial).size());
-		assertEquals(0, data.getLinkedButtons(coreSerial).size());
+		assertEquals(0, data.getLinkedCoresByTriggerSource(triggerSourceSerial).size());
+		assertEquals(0, data.getLinkedTriggerSourcesByCore(coreSerial).size());
 	}
 
 	/**
-	 * 目标集合查询应返回稳定快照，避免后续链路变更回写到旧视图。
+	 * 按节点类型读取对侧集合时应返回稳定快照，避免后续链路变更回写到旧视图。
 	 */
 	@Test
-	void getLinkedTargetsBySourceTypeShouldReturnStableSnapshot() {
+	void getLinkedPeersByNodeTypeShouldReturnStableSnapshot() {
 		LinkSavedData data = new LinkSavedData();
 		long triggerSourceSerial = 321L;
 		long firstCoreSerial = 421L;
 		long secondCoreSerial = 422L;
 
-		data.toggleLink(triggerSourceSerial, firstCoreSerial);
-		Set<Long> snapshot = data.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial);
+		data.toggleTriggerSourceCoreLink(triggerSourceSerial, firstCoreSerial);
+		Set<Long> snapshot = data.getLinkedPeersByNodeType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial);
 
-		data.toggleLink(triggerSourceSerial, secondCoreSerial);
-		data.toggleLink(triggerSourceSerial, firstCoreSerial);
+		data.toggleTriggerSourceCoreLink(triggerSourceSerial, secondCoreSerial);
+		data.toggleTriggerSourceCoreLink(triggerSourceSerial, firstCoreSerial);
 
 		assertEquals(Set.of(firstCoreSerial), snapshot);
-		assertEquals(Set.of(secondCoreSerial), data.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertEquals(Set.of(secondCoreSerial), data.getLinkedPeersByNodeType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
 		assertThrows(UnsupportedOperationException.class, () -> snapshot.add(999L));
 	}
 
@@ -170,59 +164,48 @@ class LinkSavedDataTest {
 		assertEquals(0L, data.graphRevision());
 		assertEquals(0L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
 
-		assertTrue(data.addLinkBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, coreSerial));
+		assertTrue(data.addTriggerSourceCoreLink(triggerSourceSerial, coreSerial));
 		assertEquals(1L, data.graphRevision());
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
 
-		assertFalse(data.addLinkBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, coreSerial));
+		assertFalse(data.addTriggerSourceCoreLink(triggerSourceSerial, coreSerial));
 		assertEquals(1L, data.graphRevision());
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
 
-		LinkSavedData.ReplaceLinksResult unchanged = data.replaceLinksBySourceType(
-			LinkNodeType.TRIGGER_SOURCE,
-			triggerSourceSerial,
-			Set.of(coreSerial)
-		);
+		LinkSavedData.ReplaceLinksResult unchanged = data.replaceTriggerSourceTargets(triggerSourceSerial, Set.of(coreSerial));
 		assertEquals(0, unchanged.changedCount());
 		assertEquals(1L, data.graphRevision());
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
 
-		assertTrue(data.removeLinkBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, coreSerial));
+		assertTrue(data.removeTriggerSourceCoreLink(triggerSourceSerial, coreSerial));
 		assertEquals(2L, data.graphRevision());
 		assertEquals(2L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
 	}
 
 	/**
-	 * core 视角覆盖写入涉及多个 triggerSource 时，应只推进一次 graph revision，
-	 * 并分别推进发生变化的来源 revision。
+	 * 从 core 侧清理全部连接时，应只推进一次 graph revision，
+	 * 并分别推进发生变化的 triggerSource revision。
 	 */
 	@Test
-	void replaceLinksByCoreViewShouldAdvanceAffectedSourceRevisions() {
+	void clearLinksForCoreShouldAdvanceAffectedSourceRevisions() {
 		LinkSavedData data = new LinkSavedData();
 		long coreSerial = 500L;
 		long triggerSourceA = 601L;
 		long triggerSourceB = 602L;
-		long triggerSourceC = 603L;
 
-		data.toggleLink(triggerSourceA, coreSerial);
-		data.toggleLink(triggerSourceB, coreSerial);
+		data.toggleTriggerSourceCoreLink(triggerSourceA, coreSerial);
+		data.toggleTriggerSourceCoreLink(triggerSourceB, coreSerial);
 		assertEquals(2L, data.graphRevision());
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceA));
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceB));
-		assertEquals(0L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceC));
 
-		LinkSavedData.ReplaceLinksResult result = data.replaceLinksBySourceType(
-			LinkNodeType.CORE,
-			coreSerial,
-			Set.of(triggerSourceB, triggerSourceC)
-		);
+		int removed = data.clearLinksForNode(LinkNodeType.CORE, coreSerial);
 
-		assertEquals(2, result.changedCount());
+		assertEquals(2, removed);
 		assertEquals(3L, data.graphRevision());
 		assertEquals(2L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceA));
-		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceB));
-		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceC));
-		assertEquals(Set.of(triggerSourceB, triggerSourceC), data.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial));
+		assertEquals(2L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceB));
+		assertTrue(data.getLinkedTriggerSourcesByCore(coreSerial).isEmpty());
 	}
 
 	/**
@@ -231,23 +214,23 @@ class LinkSavedDataTest {
 	@Test
 	void createAuditSnapshotShouldCountMissingEndpoints() {
 		LinkSavedData data = new LinkSavedData();
-		long onlineButton = 1L;
-		long offlineButton = 2L;
+		long onlineTriggerSource = 1L;
+		long offlineTriggerSource = 2L;
 		long onlineCore = 11L;
 		long offlineCore = 12L;
 
-		data.registerNode(onlineButton, DIMENSION, new BlockPos(0, 64, 0), LinkNodeType.TRIGGER_SOURCE);
+		data.registerNode(onlineTriggerSource, DIMENSION, new BlockPos(0, 64, 0), LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(onlineCore, DIMENSION, new BlockPos(1, 64, 0), LinkNodeType.CORE);
-		data.toggleLink(onlineButton, onlineCore);
-		data.toggleLink(onlineButton, offlineCore);
-		data.toggleLink(offlineButton, onlineCore);
+		data.toggleTriggerSourceCoreLink(onlineTriggerSource, onlineCore);
+		data.toggleTriggerSourceCoreLink(onlineTriggerSource, offlineCore);
+		data.toggleTriggerSourceCoreLink(offlineTriggerSource, onlineCore);
 
 		LinkSavedData.AuditSnapshot snapshot = data.createAuditSnapshot();
-		assertEquals(1, snapshot.onlineButtonNodes());
+		assertEquals(1, snapshot.onlineTriggerSourceNodes());
 		assertEquals(1, snapshot.onlineCoreNodes());
 		assertEquals(3, snapshot.totalLinks());
 		assertEquals(2, snapshot.linksWithMissingEndpoint());
-		assertEquals(2, snapshot.linkedButtonSerialCount());
+		assertEquals(2, snapshot.linkedTriggerSourceSerialCount());
 		assertEquals(2, snapshot.linkedCoreSerialCount());
 	}
 
@@ -286,45 +269,45 @@ class LinkSavedDataTest {
 	}
 
 	/**
-	 * 退役按钮节点时应移除按钮侧全部链路并保持核心侧索引一致。
+	 * 退役 triggerSource 节点时应移除其全部链路并保持 core 侧索引一致。
 	 */
 	@Test
-	void retireButtonShouldClearAllButtonSideLinks() {
+	void retireTriggerSourceShouldClearAllTriggerSourceSideLinks() {
 		LinkSavedData data = new LinkSavedData();
-		long button = 501L;
+		long triggerSource = 501L;
 		long coreA = 601L;
 		long coreB = 602L;
 
-		data.toggleLink(button, coreA);
-		data.toggleLink(button, coreB);
-		LinkSavedData.RetireResult result = data.retireNode(LinkNodeType.TRIGGER_SOURCE, button);
+		data.toggleTriggerSourceCoreLink(triggerSource, coreA);
+		data.toggleTriggerSourceCoreLink(triggerSource, coreB);
+		LinkSavedData.RetireResult result = data.retireNode(LinkNodeType.TRIGGER_SOURCE, triggerSource);
 
 		assertEquals(2, result.linksRemoved());
 		assertTrue(result.retiredMarked());
-		assertTrue(data.isSerialRetired(LinkNodeType.TRIGGER_SOURCE, button));
-		assertEquals(0, data.getLinkedCores(button).size());
-		assertEquals(0, data.getLinkedButtons(coreA).size());
-		assertEquals(0, data.getLinkedButtons(coreB).size());
+		assertTrue(data.isSerialRetired(LinkNodeType.TRIGGER_SOURCE, triggerSource));
+		assertEquals(0, data.getLinkedCoresByTriggerSource(triggerSource).size());
+		assertEquals(0, data.getLinkedTriggerSourcesByCore(coreA).size());
+		assertEquals(0, data.getLinkedTriggerSourcesByCore(coreB).size());
 	}
 
 	/**
-	 * clearLinksForNode 返回值应反映真实移除链路数量（按钮/核心两侧）。
+	 * clearLinksForNode 返回值应反映真实移除链路数量（triggerSource/core 两侧）。
 	 */
 	@Test
 	void clearLinksForNodeShouldReturnRemovedCount() {
 		LinkSavedData data = new LinkSavedData();
-		long buttonA = 701L;
-		long buttonB = 702L;
+		long triggerSourceA = 701L;
+		long triggerSourceB = 702L;
 		long core = 801L;
 
-		data.toggleLink(buttonA, core);
-		data.toggleLink(buttonB, core);
+		data.toggleTriggerSourceCoreLink(triggerSourceA, core);
+		data.toggleTriggerSourceCoreLink(triggerSourceB, core);
 
 		int removedForCore = data.clearLinksForNode(LinkNodeType.CORE, core);
 		assertEquals(2, removedForCore);
-		assertEquals(0, data.getLinkedButtons(core).size());
-		assertEquals(0, data.getLinkedCores(buttonA).size());
-		assertEquals(0, data.getLinkedCores(buttonB).size());
+		assertEquals(0, data.getLinkedTriggerSourcesByCore(core).size());
+		assertEquals(0, data.getLinkedCoresByTriggerSource(triggerSourceA).size());
+		assertEquals(0, data.getLinkedCoresByTriggerSource(triggerSourceB).size());
 
 		int removedAgain = data.clearLinksForNode(LinkNodeType.CORE, core);
 		assertEquals(0, removedAgain);

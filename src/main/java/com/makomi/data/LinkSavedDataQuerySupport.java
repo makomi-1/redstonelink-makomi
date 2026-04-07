@@ -156,8 +156,8 @@ final class LinkSavedDataQuerySupport {
 		int linkCount = 0;
 		int linksWithMissingEndpoint = 0;
 
-		for (Map.Entry<Long, Set<Long>> entry : data.buttonToCores.entrySet()) {
-			boolean triggerSourceOnline = data.buttonNodes.containsKey(entry.getKey());
+		for (Map.Entry<Long, Set<Long>> entry : data.triggerSourceToCores.entrySet()) {
+			boolean triggerSourceOnline = data.triggerSourceNodes.containsKey(entry.getKey());
 			for (long coreSerial : entry.getValue()) {
 				linkCount++;
 				boolean coreOnline = data.coreNodes.containsKey(coreSerial);
@@ -169,11 +169,11 @@ final class LinkSavedDataQuerySupport {
 
 		return new LinkSavedData.AuditSnapshot(
 			data.coreNodes.size(),
-			data.buttonNodes.size(),
+			data.triggerSourceNodes.size(),
 			linkCount,
 			linksWithMissingEndpoint,
-			data.buttonToCores.size(),
-			data.coreToButtons.size()
+			data.triggerSourceToCores.size(),
+			data.coreToTriggerSources.size()
 		);
 	}
 }

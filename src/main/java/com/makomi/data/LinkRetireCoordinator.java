@@ -39,7 +39,7 @@ public final class LinkRetireCoordinator {
 		LinkSavedData savedData = LinkSavedData.get(level);
 		// 退役前仅抓取退役源节点在线快照，避免向受影响目标集合逐个强同步。
 		LinkSavedData.LinkNode sourceNodeSnapshot = savedData.findNode(type, serial).orElse(null);
-		Set<Long> detachedSerials = new HashSet<>(savedData.getLinkedTargetsBySourceType(type, serial));
+		Set<Long> detachedSerials = new HashSet<>(savedData.getLinkedPeersByNodeType(type, serial));
 		LinkSavedData.RetireResult retireResult = savedData.retireNode(type, serial);
 		CrossChunkWhitelistSavedData.get(level).removeFromAllRoles(type, serial);
 		CurrentLinksPrivacySavedData.get(level).remove(type, serial);

@@ -116,7 +116,7 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		}
 		LinkSavedData savedData = LinkSavedData.get(serverLevel);
 		if (LinkNodeSemantics.isAllowedForRole(getNodeType(), LinkNodeSemantics.Role.SOURCE)) {
-			Set<Long> linkedPeers = new HashSet<>(savedData.getLinkedTargetsBySourceType(getNodeType(), serial));
+			Set<Long> linkedPeers = new HashSet<>(savedData.getLinkedPeersByNodeType(getNodeType(), serial));
 			if (!linkedPeers.isEmpty()) {
 				InternalDispatchDeltaEvents.publishTriggerSourceInvalidation(
 					serverLevel,

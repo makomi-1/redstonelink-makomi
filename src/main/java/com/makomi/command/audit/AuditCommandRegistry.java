@@ -92,10 +92,10 @@ public final class AuditCommandRegistry {
 						+ String.join(
 							",",
 							Integer.toString(snapshot.onlineCoreNodes()),
-							Integer.toString(snapshot.onlineButtonNodes()),
+							Integer.toString(snapshot.onlineTriggerSourceNodes()),
 							Integer.toString(snapshot.totalLinks()),
 							Integer.toString(snapshot.linksWithMissingEndpoint()),
-							Integer.toString(snapshot.linkedButtonSerialCount()),
+							Integer.toString(snapshot.linkedTriggerSourceSerialCount()),
 							Integer.toString(snapshot.linkedCoreSerialCount()),
 							formatSerialSetCsv(savedData.getActiveSerials(LinkNodeType.CORE)),
 							formatSerialSetCsv(savedData.getRetiredSerials(LinkNodeType.CORE)),
@@ -112,7 +112,7 @@ public final class AuditCommandRegistry {
 			() -> Component.translatable(
 				"message.redstonelink.audit.summary",
 				snapshot.onlineCoreNodes(),
-				snapshot.onlineButtonNodes(),
+				snapshot.onlineTriggerSourceNodes(),
 				snapshot.totalLinks(),
 				snapshot.linksWithMissingEndpoint()
 			),
@@ -121,7 +121,7 @@ public final class AuditCommandRegistry {
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.audit.linked_serials",
-				snapshot.linkedButtonSerialCount(),
+				snapshot.linkedTriggerSourceSerialCount(),
 				snapshot.linkedCoreSerialCount()
 			),
 			false
@@ -142,14 +142,14 @@ public final class AuditCommandRegistry {
 		);
 		source.sendSuccess(
 			() -> Component.translatable(
-				"message.redstonelink.audit.button_active_serials",
+				"message.redstonelink.audit.trigger_source_active_serials",
 				CommandTreeSupport.formatSerialSet(savedData.getActiveSerials(LinkNodeType.TRIGGER_SOURCE))
 			),
 			false
 		);
 		source.sendSuccess(
 			() -> Component.translatable(
-				"message.redstonelink.audit.button_retired_serials",
+				"message.redstonelink.audit.trigger_source_retired_serials",
 				CommandTreeSupport.formatSerialSet(savedData.getRetiredSerials(LinkNodeType.TRIGGER_SOURCE))
 			),
 			false

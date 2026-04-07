@@ -143,6 +143,9 @@ public final class LinkSetExecutionService {
 		if (level == null || sourceType == null) {
 			return PreparationResult.failure(OperationFeedback.failure("message.redstonelink.permission.insufficient"));
 		}
+		if (sourceType != LinkNodeType.TRIGGER_SOURCE) {
+			return PreparationResult.failure(OperationFeedback.failure("message.redstonelink.permission.insufficient"));
+		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
 		if (sourceSerial <= 0L || !savedData.isSerialAllocated(sourceType, sourceSerial)) {
@@ -212,7 +215,7 @@ public final class LinkSetExecutionService {
 			);
 		}
 
-		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
+		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(sourceSerial));
 		Set<Long> affectedTargets = new HashSet<>(previousTargets);
 		affectedTargets.addAll(targets);
 		LinkWriteControlService.WriteDecision writeDecision = LinkWriteControlService.evaluate(
@@ -311,8 +314,11 @@ public final class LinkSetExecutionService {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(operation.level());
-		LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceLinksBySourceType(
-			operation.sourceType(),
+		if (operation.sourceType() != LinkNodeType.TRIGGER_SOURCE || operation.targetType() != LinkNodeType.CORE) {
+			return new ApplyResult(0, List.of(OperationFeedback.failure("message.redstonelink.permission.insufficient")));
+		}
+
+		LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceTriggerSourceTargets(
 			operation.sourceSerial(),
 			operation.targets()
 		);

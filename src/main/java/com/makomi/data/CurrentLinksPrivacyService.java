@@ -196,7 +196,7 @@ public final class CurrentLinksPrivacyService {
 			return normalizedTargets;
 		}
 
-		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
+		LinkNodeType targetType = LinkNodeSemantics.resolveLinkedPeerType(sourceType);
 		if (targetType == null) {
 			return List.of();
 		}

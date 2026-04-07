@@ -5,7 +5,6 @@ import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.command.privacy.CurrentLinksPrivacyCommandRegistry;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.NodeSnapshotQueryService;
@@ -185,6 +184,10 @@ public final class LinkCommandRegistry {
 		boolean hasTargets,
 		boolean confirmed
 	) {
+		if (sourceType == LinkNodeType.CORE) {
+			return executeCoreLinkSet(context, hasTargets, confirmed);
+		}
+
 		CommandSourceStack source = context.getSource();
 		if (!CommandTreeSupport.allowPlayerSourceOrBenchmarkMode(source)) {
 			return 0;
@@ -249,6 +252,116 @@ public final class LinkCommandRegistry {
 	}
 
 	/**
+	 * `link set core` 的高层编辑入口。
+	 * <p>
+	 * 该入口仅接受“以 core 为观察中心”的写法，真正落库时仍统一拆成
+	 * 多条 `triggerSource -> core` 正向覆盖写入。
+	 * </p>
+	 */
+	private static int executeCoreLinkSet(
+		CommandContext<CommandSourceStack> context,
+		boolean hasTargets,
+		boolean confirmed
+	) {
+		CommandSourceStack source = context.getSource();
+		if (!CommandTreeSupport.allowPlayerSourceOrBenchmarkMode(source)) {
+			return 0;
+		}
+		ServerPlayer player = source.getPlayer();
+		ServerLevel level = source.getLevel();
+		long coreSerial = LongArgumentType.getLong(context, "source_serial");
+		String rawTargets = hasTargets ? SerialBatchArgumentType.getSerialBatch(context, "targets") : "";
+
+		int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
+		if (rawTargets.length() > maxInputLength) {
+			source.sendFailure(
+				Component.translatable("message.redstonelink.link.set.input_too_long", Integer.toString(maxInputLength))
+			);
+			return 0;
+		}
+
+		CoreLinkEditingService.ParseResult parseResult = CoreLinkEditingService.parseTriggerSourcesExpression(rawTargets);
+		if (!parseResult.invalidEntries().isEmpty()) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.invalid_target_tokens",
+					String.join(", ", parseResult.invalidEntries())
+				)
+			);
+			return 0;
+		}
+		if (parseResult.exceedLimit()) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.too_many_targets",
+					Integer.toString(RedstoneLinkConfig.general().maxTargetsPerSetLinks())
+				)
+			);
+			return 0;
+		}
+
+		CoreLinkEditingService.PreparationResult preparationResult = CoreLinkEditingService.prepareConfirmedReplace(
+			level,
+			player,
+			coreSerial,
+			parseResult.orderedTriggerSources(),
+			parseResult.duplicateEntries(),
+			source.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			source.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+		);
+		sendOperationFeedbacks(source, preparationResult.feedbacks());
+		if (!preparationResult.successful()) {
+			return 0;
+		}
+
+		CoreLinkEditingService.PreparedReplacePlan plan = preparationResult.plan();
+		if (hasTargets && plan.desiredTriggerSourceCount() > 1 && !confirmed) {
+			String confirmCommand = "redstonelink link set core " + coreSerial + " " + rawTargets + " confirm";
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.set_links.confirm_required",
+					plan.desiredTriggerSourceCount(),
+					confirmCommand
+				)
+			);
+			return 0;
+		}
+
+		if (!plan.hasChanges()) {
+			source.sendSuccess(
+				() -> Component.translatable(
+					"message.redstonelink.core_pairing.apply.no_changes",
+					Long.toString(coreSerial),
+					Integer.toString(plan.currentTriggerSourceCount())
+				),
+				false
+			);
+			return Command.SINGLE_SUCCESS;
+		}
+		if (
+			!CommandRateLimitService.tryAcquireOrSendFailure(
+				source,
+				CommandRateLimitService.CommandGroup.LINK_RW,
+				plan.totalCommandCost()
+			)
+		) {
+			return 0;
+		}
+
+		CoreLinkEditingService.ApplyResult applyResult = CoreLinkEditingService.applyPreparedReplace(plan);
+		source.sendSuccess(
+			() -> Component.translatable(
+				"message.redstonelink.core_pairing.apply.done",
+				Long.toString(coreSerial),
+				Integer.toString(applyResult.currentTriggerSourceCount()),
+				Integer.toString(applyResult.appliedOperationCount())
+			),
+			false
+		);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
 	 * 按命令反馈语义发送结构化写入结果。
 	 */
 	private static void sendOperationFeedbacks(
@@ -298,15 +411,19 @@ public final class LinkCommandRegistry {
 		long targetSerial,
 		LinkUpdateMode updateMode
 	) {
+		if (sourceType == LinkNodeType.CORE) {
+			return executeCoreLinkUpdate(source, player, sourceSerial, targetSerial, updateMode);
+		}
+
 		ServerLevel level = source.getLevel();
 		LinkSavedData savedData = LinkSavedData.get(level);
 		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, sourceType, sourceSerial)) {
 			return 0;
 		}
-		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
+		LinkNodeType targetType = LinkNodeType.CORE;
 
 		if (targetSerial <= 0L) {
-			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
+			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(sourceSerial));
 			if (!LinkCommandSupport.checkLinkWriteAllowed(source, level, sourceType, sourceSerial, previousTargets, 0)) {
 				return 0;
 			}
@@ -331,7 +448,7 @@ public final class LinkCommandRegistry {
 		}
 
 		if (updateMode == LinkUpdateMode.REMOVE) {
-			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
+			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(sourceSerial));
 			if (!previousTargets.contains(targetSerial)) {
 				source.sendFailure(Component.translatable("message.redstonelink.link_not_exists"));
 				return 0;
@@ -378,7 +495,7 @@ public final class LinkCommandRegistry {
 			source.sendFailure(Component.translatable("message.redstonelink.offline_targets_blocked", Long.toString(targetSerial)));
 			return 0;
 		}
-		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(sourceType, sourceSerial));
+		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(sourceSerial));
 		if (previousTargets.contains(targetSerial)) {
 			source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
 			return 0;
@@ -404,6 +521,68 @@ public final class LinkCommandRegistry {
 			)
 		);
 		source.sendSuccess(() -> Component.translatable("message.redstonelink.link_added"), false);
+		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 处理 `link add/remove core ...` 的高层编辑请求。
+	 */
+	private static int executeCoreLinkUpdate(
+		CommandSourceStack source,
+		ServerPlayer player,
+		long coreSerial,
+		long triggerSourceSerial,
+		LinkUpdateMode updateMode
+	) {
+		ServerLevel level = source.getLevel();
+		LinkSavedData savedData = LinkSavedData.get(level);
+		if (!ServerSerialValidationUtil.validateSourceSerialActive(source, savedData, LinkNodeType.CORE, coreSerial)) {
+			return 0;
+		}
+		if (!ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)) {
+			return 0;
+		}
+
+		Set<Long> currentTriggerSources = new HashSet<>(savedData.getLinkedTriggerSourcesByCore(coreSerial));
+		if (updateMode == LinkUpdateMode.REMOVE && !currentTriggerSources.contains(triggerSourceSerial)) {
+			source.sendFailure(Component.translatable("message.redstonelink.link_not_exists"));
+			return 0;
+		}
+		if (updateMode == LinkUpdateMode.ADD && currentTriggerSources.contains(triggerSourceSerial)) {
+			source.sendFailure(Component.translatable("message.redstonelink.link_already_exists"));
+			return 0;
+		}
+
+		Set<Long> nextTriggerSources = new HashSet<>(currentTriggerSources);
+		if (updateMode == LinkUpdateMode.REMOVE) {
+			nextTriggerSources.remove(triggerSourceSerial);
+		} else if (updateMode == LinkUpdateMode.ADD) {
+			nextTriggerSources.add(triggerSourceSerial);
+		} else {
+			throw new IllegalStateException("Unsupported link update mode: " + updateMode);
+		}
+
+		CoreLinkEditingService.PreparationResult preparationResult = CoreLinkEditingService.prepareConfirmedReplace(
+			level,
+			player,
+			coreSerial,
+			new ArrayList<>(nextTriggerSources),
+			List.of(),
+			source.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			source.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+		);
+		sendOperationFeedbacks(source, preparationResult.feedbacks());
+		if (!preparationResult.successful()) {
+			return 0;
+		}
+
+		CoreLinkEditingService.applyPreparedReplace(preparationResult.plan());
+		source.sendSuccess(
+			() -> Component.translatable(
+				updateMode == LinkUpdateMode.ADD ? "message.redstonelink.link_added" : "message.redstonelink.link_removed"
+			),
+			false
+		);
 		return Command.SINGLE_SUCCESS;
 	}
 

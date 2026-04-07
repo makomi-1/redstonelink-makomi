@@ -2,16 +2,14 @@ package com.makomi.network;
 
 import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.CommandTreeSupport;
+import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -62,7 +60,7 @@ public final class PairingOccSubmissionSupport {
 		if (conflict != null) {
 			return SubmissionResult.conflict(
 				conflict,
-				savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, sourceSerial).size()
+				savedData.getLinkedCoresByTriggerSource(sourceSerial).size()
 			);
 		}
 
@@ -135,109 +133,53 @@ public final class PairingOccSubmissionSupport {
 		if (conflict != null) {
 			return SubmissionResult.conflict(
 				conflict,
-				savedData.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial).size()
-			);
-		}
-		if (coreSerial <= 0L || !savedData.isSerialAllocated(LinkNodeType.CORE, coreSerial)) {
-			return SubmissionResult.rejected(
-				List.of(
-					LinkSetExecutionService.OperationFeedback.failure(
-						"message.redstonelink.target_serial_unallocated",
-						Long.toString(coreSerial)
-					)
-				),
-				0
-			);
-		}
-		if (savedData.isSerialRetired(LinkNodeType.CORE, coreSerial)) {
-			return SubmissionResult.rejected(
-				List.of(
-					LinkSetExecutionService.OperationFeedback.failure(
-						"message.redstonelink.target_serial_retired",
-						Long.toString(coreSerial)
-					)
-				),
-				0
+				savedData.getLinkedTriggerSourcesByCore(coreSerial).size()
 			);
 		}
 
-		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>();
-		if (!parseResult.duplicateEntries().isEmpty()) {
-			feedbacks.add(
-				LinkSetExecutionService.OperationFeedback.success(
-					"message.redstonelink.duplicate_targets_deduped",
-					CommandTreeSupport.formatSerialCollection(parseResult.duplicateEntries())
-				)
-			);
-		}
-
-		Set<Long> currentTriggerSources = savedData.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial);
-		Map<Long, Set<Long>> currentTargetsByTriggerSource = PairingNetworkServerHandlerSupport.loadCurrentCoreTargetsByTriggerSource(
-			savedData,
-			currentTriggerSources,
-			parseResult.orderedTriggerSources()
-		);
-		LinkedHashMap<Long, Set<Long>> changedTargetsByTriggerSource = PairingNetworkServerHandlerSupport.buildChangedCoreTargetsByTriggerSource(
+		CoreLinkEditingService.PreparationResult preparationResult = CoreLinkEditingService.prepareConfirmedReplace(
+			level,
+			player,
 			coreSerial,
-			currentTriggerSources,
 			parseResult.orderedTriggerSources(),
-			currentTargetsByTriggerSource
+			parseResult.duplicateEntries(),
+			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
-		if (changedTargetsByTriggerSource.isEmpty()) {
+		if (!preparationResult.successful()) {
+			return SubmissionResult.rejected(preparationResult.feedbacks(), 0);
+		}
+
+		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>(preparationResult.feedbacks());
+		CoreLinkEditingService.PreparedReplacePlan plan = preparationResult.plan();
+		if (!plan.hasChanges()) {
 			feedbacks.add(
 				LinkSetExecutionService.OperationFeedback.success(
 					"message.redstonelink.core_pairing.apply.no_changes",
 					Long.toString(coreSerial),
-					Integer.toString(parseResult.orderedTriggerSources().size())
+					Integer.toString(plan.currentTriggerSourceCount())
 				)
 			);
-			return SubmissionResult.applied(feedbacks, 0, currentTriggerSources.size());
+			return SubmissionResult.applied(feedbacks, 0, plan.currentTriggerSourceCount());
 		}
 
-		List<LinkSetExecutionService.PreparedReplaceOperation> preparedOperations = new ArrayList<>(changedTargetsByTriggerSource.size());
-		int totalCommandCost = 0;
-		boolean hasLimitedBypassPermission = commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
-		boolean hasProtectedBypassPermission = commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
-		for (Map.Entry<Long, Set<Long>> entry : changedTargetsByTriggerSource.entrySet()) {
-			LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
-				level,
-				player,
-				LinkNodeType.TRIGGER_SOURCE,
-				entry.getKey(),
-				entry.getValue(),
-				hasLimitedBypassPermission,
-				hasProtectedBypassPermission
-			);
-			if (!preparationResult.successful()) {
-				return SubmissionResult.rejected(preparationResult.feedbacks(), 0);
-			}
-			preparedOperations.add(preparationResult.operation());
-			totalCommandCost = PairingNetworkServerHandlerSupport.saturatingAdd(totalCommandCost, preparationResult.operation().commandCost());
-		}
-
-		if (!CommandRateLimitService.tryAcquire(commandSource, CommandRateLimitService.CommandGroup.LINK_RW, totalCommandCost)) {
+		if (!CommandRateLimitService.tryAcquire(commandSource, CommandRateLimitService.CommandGroup.LINK_RW, plan.totalCommandCost())) {
 			return SubmissionResult.rejected(
 				List.of(LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.command.rate_limit.exceeded")),
 				0
 			);
 		}
 
-		for (LinkSetExecutionService.PreparedReplaceOperation preparedOperation : preparedOperations) {
-			LinkSetExecutionService.applyPreparedReplace(preparedOperation);
-		}
+		CoreLinkEditingService.ApplyResult applyResult = CoreLinkEditingService.applyPreparedReplace(plan);
 		feedbacks.add(
 			LinkSetExecutionService.OperationFeedback.success(
 				"message.redstonelink.core_pairing.apply.done",
 				Long.toString(coreSerial),
-				Integer.toString(parseResult.orderedTriggerSources().size()),
-				Integer.toString(preparedOperations.size())
+				Integer.toString(applyResult.currentTriggerSourceCount()),
+				Integer.toString(applyResult.appliedOperationCount())
 			)
 		);
-		return SubmissionResult.applied(
-			feedbacks,
-			preparedOperations.size(),
-			savedData.getLinkedTargetsBySourceType(LinkNodeType.CORE, coreSerial).size()
-		);
+		return SubmissionResult.applied(feedbacks, applyResult.appliedOperationCount(), applyResult.currentTriggerSourceCount());
 	}
 
 	/**

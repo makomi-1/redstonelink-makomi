@@ -31,7 +31,7 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 
 /**
- * 手持遥控器物品：支持按钮节点配对与远程触发。
+ * 手持遥控器物品：支持 triggerSource 配对与远程触发。
  * <p>
  * 交互约束：
  * 1. 默认潜行 + 主手右键：打开配对界面（潜行门槛可由专用配置控制）；
@@ -57,7 +57,7 @@ public class LinkerItem extends Item implements PairableItem {
 	/**
 	 * 获取该可配对物品在链路系统中的节点类型。
 	 *
-	 * @return 固定返回按钮节点类型
+	 * @return 固定返回 triggerSource 节点类型
 	 */
 	@Override
 	public LinkNodeType getNodeType() {
@@ -341,7 +341,7 @@ public class LinkerItem extends Item implements PairableItem {
 			return;
 		}
 
-		Set<Long> linkedTargets = savedData.getLinkedCores(serial);
+		Set<Long> linkedTargets = savedData.getLinkedCoresByTriggerSource(serial);
 		// 每次触发后都回写最新连接列表，确保物品提示信息与存档状态一致。
 		LinkItemData.setLinkedSerials(
 			stack,

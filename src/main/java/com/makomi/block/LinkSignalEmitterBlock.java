@@ -33,9 +33,9 @@ import net.minecraft.world.phys.BlockHitResult;
 
 /**
  * 红石信号触发基类：
- * 1. 维持按钮节点序号与掉落继承；
+ * 1. 维持 triggerSource 序号与掉落继承；
  * 2. 监听邻居红石输入，按配置的边沿策略触发联动；
- * 3. 支持按配置策略打开按钮配对界面。
+ * 3. 支持按配置策略打开 triggerSource 配对界面。
  */
 public abstract class LinkSignalEmitterBlock extends Block implements EntityBlock {
 	// 发射器属于触发器类，实现上复用 triggerSource 公共实体层。

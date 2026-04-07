@@ -190,25 +190,25 @@ final class LinkSavedDataSerialSupport {
 		long maxTriggerSourceSerial = 0L;
 		long maxCoreSerial = 0L;
 
-		for (long serial : data.buttonNodes.keySet()) {
+		for (long serial : data.triggerSourceNodes.keySet()) {
 			maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, serial);
 		}
 		for (long serial : data.coreNodes.keySet()) {
 			maxCoreSerial = Math.max(maxCoreSerial, serial);
 		}
-		for (Map.Entry<Long, Set<Long>> entry : data.buttonToCores.entrySet()) {
+		for (Map.Entry<Long, Set<Long>> entry : data.triggerSourceToCores.entrySet()) {
 			maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, entry.getKey());
 			for (long coreSerial : entry.getValue()) {
 				maxCoreSerial = Math.max(maxCoreSerial, coreSerial);
 			}
 		}
-		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.allocatedButtonSerials));
-		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.retiredButtonSerials));
+		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.allocatedTriggerSourceSerials));
+		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.retiredTriggerSourceSerials));
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.triggerSourceReplaySyncSnapshots.keySet()));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.allocatedCoreSerials));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.retiredCoreSerials));
 
-		data.nextButtonSerial = Math.max(data.nextButtonSerial, maxTriggerSourceSerial + 1L);
+		data.nextTriggerSourceSerial = Math.max(data.nextTriggerSourceSerial, maxTriggerSourceSerial + 1L);
 		data.nextCoreSerial = Math.max(data.nextCoreSerial, maxCoreSerial + 1L);
 	}
 
@@ -221,14 +221,14 @@ final class LinkSavedDataSerialSupport {
 		Set<Long> retiredSerials = data.retiredSerialSet(type);
 		if (type == LinkNodeType.TRIGGER_SOURCE) {
 			while (
-				onlineNodes.containsKey(data.nextButtonSerial)
-					|| allocatedSerials.contains(data.nextButtonSerial)
-					|| retiredSerials.contains(data.nextButtonSerial)
+				onlineNodes.containsKey(data.nextTriggerSourceSerial)
+					|| allocatedSerials.contains(data.nextTriggerSourceSerial)
+					|| retiredSerials.contains(data.nextTriggerSourceSerial)
 			) {
-				data.nextButtonSerial++;
+				data.nextTriggerSourceSerial++;
 			}
-			long serial = data.nextButtonSerial;
-			data.nextButtonSerial++;
+			long serial = data.nextTriggerSourceSerial;
+			data.nextTriggerSourceSerial++;
 			return serial;
 		}
 
@@ -265,16 +265,16 @@ final class LinkSavedDataSerialSupport {
 		for (long serial : data.coreNodes.keySet()) {
 			data.allocatedCoreSerials.add(serial);
 		}
-		for (long serial : data.buttonNodes.keySet()) {
-			data.allocatedButtonSerials.add(serial);
+		for (long serial : data.triggerSourceNodes.keySet()) {
+			data.allocatedTriggerSourceSerials.add(serial);
 		}
-		for (Map.Entry<Long, Set<Long>> entry : data.buttonToCores.entrySet()) {
-			data.allocatedButtonSerials.add(entry.getKey());
+		for (Map.Entry<Long, Set<Long>> entry : data.triggerSourceToCores.entrySet()) {
+			data.allocatedTriggerSourceSerials.add(entry.getKey());
 			for (long coreSerial : entry.getValue()) {
 				data.allocatedCoreSerials.add(coreSerial);
 			}
 		}
-		data.allocatedButtonSerials.addAll(data.triggerSourceReplaySyncSnapshots.keySet());
+		data.allocatedTriggerSourceSerials.addAll(data.triggerSourceReplaySyncSnapshots.keySet());
 	}
 
 	/**

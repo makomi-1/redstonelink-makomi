@@ -106,7 +106,7 @@ public final class LinkWriteControlService {
 
 		LinkNodeType targetType = LinkNodeSemantics.resolveTargetTypeForSource(sourceType);
 		if (targetType == null) {
-			return WriteDecision.allow();
+			return WriteDecision.denyReadonly(RedstoneLinkConfig.command().permissionLevel());
 		}
 
 		List<Long> normalizedTargets = SerialCollectionFormatUtil.normalizePositiveDistinctSorted(affectedTargets);

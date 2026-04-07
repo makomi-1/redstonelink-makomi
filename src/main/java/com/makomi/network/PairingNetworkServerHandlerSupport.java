@@ -3,6 +3,7 @@ package com.makomi.network;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.CommandTreeSupport;
+import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
@@ -12,12 +13,8 @@ import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
-import com.makomi.util.SerialParseUtil;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -396,13 +393,11 @@ final class PairingNetworkServerHandlerSupport {
 	 * 按“core 视角编辑请求”解析 triggerSource 输入表达式。
 	 */
 	static CorePairingParseResult parseCorePairingTriggerSources(String rawTriggerSourceExpression) {
-		String normalizedExpression = rawTriggerSourceExpression == null ? "" : rawTriggerSourceExpression.trim();
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
-			normalizedExpression,
-			RedstoneLinkConfig.general().maxTargetsPerSetLinks()
+		CoreLinkEditingService.ParseResult parseResult = CoreLinkEditingService.parseTriggerSourcesExpression(
+			rawTriggerSourceExpression
 		);
 		return new CorePairingParseResult(
-			List.copyOf(parseResult.orderedTargets()),
+			parseResult.orderedTriggerSources(),
 			parseResult.invalidEntries(),
 			parseResult.duplicateEntries(),
 			parseResult.exceedLimit()
@@ -417,24 +412,7 @@ final class PairingNetworkServerHandlerSupport {
 		Set<Long> currentTriggerSources,
 		List<Long> desiredTriggerSources
 	) {
-		LinkedHashMap<Long, Set<Long>> currentTargetsByTriggerSource = new LinkedHashMap<>();
-		LinkedHashSet<Long> affectedTriggerSources = new LinkedHashSet<>();
-		if (desiredTriggerSources != null) {
-			affectedTriggerSources.addAll(desiredTriggerSources);
-		}
-		List<Long> sortedCurrentTriggerSources = new ArrayList<>();
-		if (currentTriggerSources != null) {
-			sortedCurrentTriggerSources.addAll(currentTriggerSources);
-		}
-		Collections.sort(sortedCurrentTriggerSources);
-		affectedTriggerSources.addAll(sortedCurrentTriggerSources);
-		for (long triggerSourceSerial : affectedTriggerSources) {
-			currentTargetsByTriggerSource.put(
-				triggerSourceSerial,
-				savedData == null ? Set.of() : savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)
-			);
-		}
-		return currentTargetsByTriggerSource;
+		return CoreLinkEditingService.loadCurrentTargetsByTriggerSource(savedData, currentTriggerSources, desiredTriggerSources);
 	}
 
 	/**
@@ -449,47 +427,19 @@ final class PairingNetworkServerHandlerSupport {
 		List<Long> desiredTriggerSources,
 		Map<Long, Set<Long>> currentTargetsByTriggerSource
 	) {
-		LinkedHashMap<Long, Set<Long>> changedTargetsByTriggerSource = new LinkedHashMap<>();
-		if (coreSerial <= 0L) {
-			return changedTargetsByTriggerSource;
-		}
-
-		LinkedHashSet<Long> desiredTriggerSourceSet = new LinkedHashSet<>();
-		if (desiredTriggerSources != null) {
-			desiredTriggerSourceSet.addAll(desiredTriggerSources);
-		}
-		LinkedHashSet<Long> orderedAffectedTriggerSources = new LinkedHashSet<>(desiredTriggerSourceSet);
-		List<Long> sortedCurrentTriggerSources = new ArrayList<>();
-		if (currentTriggerSources != null) {
-			sortedCurrentTriggerSources.addAll(currentTriggerSources);
-		}
-		Collections.sort(sortedCurrentTriggerSources);
-		orderedAffectedTriggerSources.addAll(sortedCurrentTriggerSources);
-
-		for (long triggerSourceSerial : orderedAffectedTriggerSources) {
-			Set<Long> currentTargets = currentTargetsByTriggerSource == null
-				? Set.of()
-				: Set.copyOf(currentTargetsByTriggerSource.getOrDefault(triggerSourceSerial, Set.of()));
-			LinkedHashSet<Long> nextTargets = new LinkedHashSet<>(currentTargets);
-			if (desiredTriggerSourceSet.contains(triggerSourceSerial)) {
-				nextTargets.add(coreSerial);
-			} else {
-				nextTargets.remove(coreSerial);
-			}
-			Set<Long> normalizedNextTargets = nextTargets.isEmpty() ? Set.of() : Set.copyOf(nextTargets);
-			if (!normalizedNextTargets.equals(currentTargets)) {
-				changedTargetsByTriggerSource.put(triggerSourceSerial, normalizedNextTargets);
-			}
-		}
-		return changedTargetsByTriggerSource;
+		return CoreLinkEditingService.buildChangedTargetsByTriggerSource(
+			coreSerial,
+			currentTriggerSources,
+			desiredTriggerSources,
+			currentTargetsByTriggerSource
+		);
 	}
 
 	/**
 	 * 饱和累加命令成本，避免极端批量下整数溢出。
 	 */
 	static int saturatingAdd(int currentCost, int nextCost) {
-		long resolved = (long) Math.max(0, currentCost) + Math.max(0, nextCost);
-		return (int) Math.min(Integer.MAX_VALUE, resolved);
+		return CoreLinkEditingService.saturatingAdd(currentCost, nextCost);
 	}
 
 	/**

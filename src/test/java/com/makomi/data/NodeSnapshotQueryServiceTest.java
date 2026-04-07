@@ -44,7 +44,7 @@ class NodeSnapshotQueryServiceTest {
 	@Test
 	void buildItemSnapshotLinksShouldExposeRevisionBaselineWhenSavedDataProvided() {
 		LinkSavedData savedData = new LinkSavedData();
-		savedData.toggleLink(15L, 31L);
+		savedData.toggleTriggerSourceCoreLink(15L, 31L);
 
 		NodeLinksSnapshot snapshot = NodeSnapshotQueryService.buildItemSnapshotLinks(
 			null,

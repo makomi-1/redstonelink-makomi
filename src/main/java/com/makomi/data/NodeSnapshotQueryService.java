@@ -124,7 +124,7 @@ public final class NodeSnapshotQueryService {
 		if (savedData == null || nodeType == null || serial <= 0L) {
 			return Set.of();
 		}
-		return savedData.getLinkedTargetsBySourceType(nodeType, serial);
+		return savedData.getLinkedPeersByNodeType(nodeType, serial);
 	}
 
 	private static LinkSavedData resolveSavedData(ServerLevel level) {

@@ -42,7 +42,7 @@ public final class QuickLinkOccSubmissionSupport {
 		if (conflict != null) {
 			return SubmissionResult.conflict(
 				conflict,
-				LinkSavedData.get(level).getLinkedTargetsBySourceType(targetNodeType, targetNodeSerial).size()
+				LinkSavedData.get(level).getLinkedPeersByNodeType(targetNodeType, targetNodeSerial).size()
 			);
 		}
 

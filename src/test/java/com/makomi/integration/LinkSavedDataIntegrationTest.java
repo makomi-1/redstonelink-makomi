@@ -22,18 +22,18 @@ class LinkSavedDataIntegrationTest {
 	void saveAndLoadShouldPreserveLinkTopology() {
 		LinkSavedData data = new LinkSavedData();
 		long coreSerial = data.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+		long triggerSourceSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(10, 64, 10), LinkNodeType.CORE);
-		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(11, 64, 10), LinkNodeType.TRIGGER_SOURCE);
-		data.toggleLink(buttonSerial, coreSerial);
+		data.registerNode(triggerSourceSerial, Level.OVERWORLD, new BlockPos(11, 64, 10), LinkNodeType.TRIGGER_SOURCE);
+		data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 
 		CompoundTag saved = data.save(new CompoundTag(), null);
 		LinkSavedData restored = invokeLoad(saved);
 
 		assertTrue(restored.findNode(LinkNodeType.CORE, coreSerial).isPresent());
-		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, buttonSerial).isPresent());
-		assertTrue(restored.getLinkedCores(buttonSerial).contains(coreSerial));
-		assertTrue(restored.getLinkedButtons(coreSerial).contains(buttonSerial));
+		assertTrue(restored.findNode(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial).isPresent());
+		assertTrue(restored.getLinkedCoresByTriggerSource(triggerSourceSerial).contains(coreSerial));
+		assertTrue(restored.getLinkedTriggerSourcesByCore(coreSerial).contains(triggerSourceSerial));
 	}
 
 	/**
@@ -43,22 +43,22 @@ class LinkSavedDataIntegrationTest {
 	void toggleLinkFlowShouldRemainConsistent() {
 		LinkSavedData data = new LinkSavedData();
 		long coreSerial = data.allocateSerial(LinkNodeType.CORE);
-		long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+		long triggerSourceSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(30, 64, 30), LinkNodeType.CORE);
-		data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(31, 64, 30), LinkNodeType.TRIGGER_SOURCE);
+		data.registerNode(triggerSourceSerial, Level.OVERWORLD, new BlockPos(31, 64, 30), LinkNodeType.TRIGGER_SOURCE);
 
-		boolean linked = data.toggleLink(buttonSerial, coreSerial);
+		boolean linked = data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 		assertTrue(linked);
-		assertTrue(data.getLinkedCores(buttonSerial).contains(coreSerial));
+		assertTrue(data.getLinkedCoresByTriggerSource(triggerSourceSerial).contains(coreSerial));
 
-		boolean unlinked = data.toggleLink(buttonSerial, coreSerial);
+		boolean unlinked = data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 		assertTrue(!unlinked);
-		assertTrue(data.getLinkedCores(buttonSerial).isEmpty());
-		assertTrue(data.getLinkedButtons(coreSerial).isEmpty());
+		assertTrue(data.getLinkedCoresByTriggerSource(triggerSourceSerial).isEmpty());
+		assertTrue(data.getLinkedTriggerSourcesByCore(coreSerial).isEmpty());
 
-		boolean linkedAgain = data.toggleLink(buttonSerial, coreSerial);
+		boolean linkedAgain = data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 		assertTrue(linkedAgain);
-		assertTrue(data.getLinkedCores(buttonSerial).contains(coreSerial));
+		assertTrue(data.getLinkedCoresByTriggerSource(triggerSourceSerial).contains(coreSerial));
 	}
 
 	/**

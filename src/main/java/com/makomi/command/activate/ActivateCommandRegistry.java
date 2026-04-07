@@ -176,7 +176,7 @@ public final class ActivateCommandRegistry {
 		int crossChunkHandled = 0;
 		ServerPlayer commandPlayer = source.getEntity() instanceof ServerPlayer serverPlayer ? serverPlayer : null;
 		for (long sourceSerial : sourceSerials) {
-			Set<Long> linkedTargets = savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
+			Set<Long> linkedTargets = savedData.getLinkedCoresByTriggerSource(sourceSerial);
 			if (linkedTargets.isEmpty()) {
 				continue;
 			}
@@ -244,7 +244,7 @@ public final class ActivateCommandRegistry {
 			return null;
 		}
 		if (parsedType != LinkNodeType.TRIGGER_SOURCE) {
-			source.sendFailure(Component.translatable("message.redstonelink.button_source_only"));
+			source.sendFailure(Component.translatable("message.redstonelink.trigger_source_only"));
 			return null;
 		}
 		return parsedType;

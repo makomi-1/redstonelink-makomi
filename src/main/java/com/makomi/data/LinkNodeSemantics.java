@@ -114,13 +114,29 @@ public final class LinkNodeSemantics {
 	 * 根据来源类型推导目标类型，统一 triggerSource/core 方向映射。
 	 *
 	 * @param sourceType 来源节点类型
-	 * @return 目标节点类型；未知类型时返回 null
+	 * @return 目标节点类型；仅 `triggerSource -> core` 合法，其他类型返回 null
 	 */
 	public static LinkNodeType resolveTargetTypeForSource(LinkNodeType sourceType) {
 		if (sourceType == LinkNodeType.TRIGGER_SOURCE) {
 			return LinkNodeType.CORE;
 		}
-		if (sourceType == LinkNodeType.CORE) {
+		return null;
+	}
+
+	/**
+	 * 按节点类型解析其关联对侧节点类型。
+	 * <p>
+	 * 该入口仅用于读视图或高层编辑视角，不代表底层真实写入方向。
+	 * </p>
+	 *
+	 * @param nodeType 当前节点类型
+	 * @return 对侧节点类型；未知类型时返回 null
+	 */
+	public static LinkNodeType resolveLinkedPeerType(LinkNodeType nodeType) {
+		if (nodeType == LinkNodeType.TRIGGER_SOURCE) {
+			return LinkNodeType.CORE;
+		}
+		if (nodeType == LinkNodeType.CORE) {
 			return LinkNodeType.TRIGGER_SOURCE;
 		}
 		return null;

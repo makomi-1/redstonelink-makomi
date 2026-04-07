@@ -1,0 +1,1152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>RedstoneLink 全物品图鉴 / Item Guide</title>
+  <style>
+    :root {
+      --page-bg: #f5f7fb;
+      --panel-bg: #ffffff;
+      --panel-border: #d9e0ea;
+      --title-color: #1f2937;
+      --muted-color: #64748b;
+      --text-color: #1e293b;
+      --badge-bg: #e0ecff;
+      --badge-text: #1d4ed8;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--page-bg);
+      color: var(--text-color);
+    }
+
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .hero {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .hero-title {
+      margin: 0;
+      color: var(--title-color);
+      font-size: 26px;
+      line-height: 1.2;
+    }
+
+    .hero-subtitle {
+      margin: 8px 0 0 0;
+      color: var(--muted-color);
+      font-size: 14px;
+    }
+
+    .hero-note {
+      margin: 8px 0 0 0;
+      color: #4b5563;
+      font-size: 13px;
+    }
+
+    .lang-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .lang-label {
+      font-size: 13px;
+      color: #475569;
+      white-space: nowrap;
+    }
+
+    .lang-btn {
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #0f172a;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .lang-btn.active {
+      border-color: #2563eb;
+      background: #dbeafe;
+      color: #1e40af;
+      font-weight: 600;
+    }
+
+    .category {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .category-header {
+      margin-bottom: 12px;
+    }
+
+    .category-title {
+      margin: 0;
+      font-size: 19px;
+      color: #0f172a;
+    }
+
+    .category-note {
+      margin: 6px 0 0 0;
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    .category-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .item-card {
+      border: 1px solid #dbe5f0;
+      border-radius: 12px;
+      background: #fcfdff;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .item-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .item-name {
+      margin: 0;
+      font-size: 16px;
+      color: #0f172a;
+      line-height: 1.25;
+    }
+
+    .item-role {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      font-size: 12px;
+      padding: 3px 8px;
+      white-space: nowrap;
+    }
+
+    .item-body {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .item-visual {
+      width: 64px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(45deg, #f1f5f9 25%, transparent 25%),
+                  linear-gradient(-45deg, #f1f5f9 25%, transparent 25%),
+                  linear-gradient(45deg, transparent 75%, #f1f5f9 75%),
+                  linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
+      background-size: 8px 8px;
+      background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+      border: 1px solid #d3dee9;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .item-icon {
+      width: 52px;
+      height: 52px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      border: none;
+      background: transparent;
+    }
+
+    .item-fallback {
+      font-size: 10px;
+      color: #64748b;
+      text-align: center;
+      line-height: 1.3;
+      padding: 0 4px;
+      word-break: break-word;
+    }
+
+    .meta-line {
+      margin: 0;
+      font-size: 12px;
+      color: #475569;
+      word-break: break-all;
+    }
+
+    .meta-label {
+      color: #64748b;
+      margin-right: 6px;
+    }
+
+    .item-section-title {
+      margin: 8px 0 4px 0;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .item-text {
+      margin: 0;
+      color: #1f2937;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .item-usage {
+      margin: 0;
+      padding-left: 18px;
+      color: #1f2937;
+      font-size: 13px;
+      line-height: 1.45;
+      display: grid;
+      gap: 3px;
+    }
+
+    .item-note {
+      margin: 8px 0 0 0;
+      color: #475569;
+      font-size: 12px;
+      line-height: 1.45;
+      background: #eff6ff;
+      border: 1px solid #dbeafe;
+      border-radius: 8px;
+      padding: 6px 8px;
+    }
+
+    .block-cube {
+      position: relative;
+      width: 42px;
+      height: 42px;
+      transform-style: preserve-3d;
+      transform: rotateX(58deg) rotateZ(45deg);
+    }
+
+    .block-face {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 42px;
+      height: 42px;
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      background-color: transparent;
+      image-rendering: pixelated;
+      border: none;
+      backface-visibility: hidden;
+    }
+
+    .block-top {
+      transform: translateZ(21px);
+      filter: brightness(1.1);
+    }
+
+    .block-left {
+      transform: rotateX(-90deg) translateZ(21px);
+      filter: brightness(0.9);
+    }
+
+    .block-right {
+      transform: rotateY(90deg) translateZ(21px);
+      filter: brightness(0.78);
+    }
+
+    .button-vanilla {
+      transform: rotateX(58deg) rotateZ(45deg) scale3d(0.38, 0.26, 0.26);
+      transform-origin: center center;
+    }
+
+    @media (max-width: 980px) {
+      .category-list {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <h1 id="page-title" class="hero-title"></h1>
+        <p id="page-subtitle" class="hero-subtitle"></p>
+        <p id="source-note" class="hero-note"></p>
+      </div>
+      <div class="lang-box">
+        <span id="lang-label" class="lang-label"></span>
+        <button id="lang-zh" class="lang-btn" type="button">中文</button>
+        <button id="lang-en" class="lang-btn" type="button">English</button>
+      </div>
+    </section>
+
+    <div id="catalog"></div>
+  </div>
+
+  <script>
+    (function () {
+      var ASSET_CACHE_BUSTER = String(Date.now());
+      var modBlockAssetBase = '../src/main/resources/assets/redstonelink/textures/block/';
+      var modItemAssetBase = '../src/main/resources/assets/redstonelink/textures/item/';
+      var modDocsBlockAssetBase = './recipe/redstonelink/textures/block/';
+
+      var currentLang = 'zh';
+
+      var uiText = {
+        zh: {
+          pageTitle: 'RedstoneLink 全物品图鉴',
+          pageSubtitle: '包含全物品作用、使用方式与贴图展示，支持整页中英文切换。',
+          sourceNote: '贴图路径与配方页一致：优先读取源码贴图；按钮 top/side 读取 docs/recipe。',
+          langLabel: '语言',
+          labels: {
+            id: '物品 ID',
+            role: '定位',
+            effect: '作用',
+            usage: '使用方式',
+            note: '补充说明'
+          },
+          roles: {
+            material: '合成材料',
+            triggerSource: 'triggerSource（来源）',
+            core: 'core（目标）',
+            utility: '工具',
+            internal: '内部资源'
+          },
+          categories: {
+            component: {
+              title: '基础材料',
+              note: '制作链路节点和工具的基础物品。'
+            },
+            triggerSource: {
+              title: 'triggerSource 节点',
+              note: '只能作为来源节点，负责触发并向 core 发送激活事件。'
+            },
+            core: {
+              title: 'core 节点',
+              note: '只能作为目标节点，接收 triggerSource 的激活与同步信号。'
+            },
+            tools: {
+              title: '工具与遥控器',
+              note: '用于配对、批量编辑、远程触发和状态观察。'
+            },
+            internal: {
+              title: '内部展示物品',
+              note: '用于创造标签图标与成就图标，默认不作为常规玩法物品。'
+            }
+          }
+        },
+        en: {
+          pageTitle: 'RedstoneLink Full Item Guide',
+          pageSubtitle: 'Covers full item roles, usage flow, and textures with whole-page language switch.',
+          sourceNote: 'Texture path policy follows recipe page: source textures first, button top/side from docs/recipe.',
+          langLabel: 'Language',
+          labels: {
+            id: 'Item ID',
+            role: 'Role',
+            effect: 'What It Does',
+            usage: 'How To Use',
+            note: 'Notes'
+          },
+          roles: {
+            material: 'Crafting Material',
+            triggerSource: 'triggerSource (Source)',
+            core: 'core (Target)',
+            utility: 'Utility Tool',
+            internal: 'Internal Asset'
+          },
+          categories: {
+            component: {
+              title: 'Base Component',
+              note: 'Crafting foundation for link nodes and utility tools.'
+            },
+            triggerSource: {
+              title: 'triggerSource Nodes',
+              note: 'Source-only nodes that emit activation toward core targets.'
+            },
+            core: {
+              title: 'core Nodes',
+              note: 'Target-only nodes that consume activation/sync signals from triggerSource nodes.'
+            },
+            tools: {
+              title: 'Tools & Linkers',
+              note: 'Used for pairing, batch editing, remote trigger, and state observation.'
+            },
+            internal: {
+              title: 'Internal Display Items',
+              note: 'Used for creative tab icon and advancement icons, not normal gameplay items.'
+            }
+          }
+        }
+      };
+
+      var textureOverridesByPath = {
+        'link_pulse_emitter': 'redstonelink:block/link_pulse_emitter',
+        'link_push_button': 'redstonelink:item/link_push_button_blue_overlay',
+        'link_redstone_core': 'redstonelink:block/link_redstone_core_blue',
+        'link_redstone_core_transparent': 'redstonelink:item/link_redstone_core_transparent_blue',
+        'link_redstone_dust_core': 'redstonelink:item/link_redstone_dust_core_blue',
+        'link_redstone_dust_core_transparent': 'redstonelink:item/link_redstone_dust_core_transparent_blue',
+        'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
+        'link_sync_lever': 'redstonelink:item/link_sync_lever_blue_overlay',
+        'link_toggle_button': 'redstonelink:item/link_toggle_button_blue_overlay',
+        'link_toggle_emitter': 'redstonelink:block/link_toggle_emitter',
+        'quick_link_tool': 'redstonelink:item/fast_link_tool_sd',
+        'redstone_link_component': 'redstonelink:item/redstone_link_component',
+        'redstonelink_pulse_linker': 'redstonelink:item/redstonelink_pulse_linker',
+        'redstonelink_status_panel': 'redstonelink:item/redstonelink_status_panel',
+        'redstonelink_sync_linker': 'redstonelink:item/redstonelink_sync_linker_0',
+        'redstonelink_toggle_linker': 'redstonelink:item/redstonelink_toggle_linker'
+      };
+
+      var modButtonSideTextureOverrides = {
+        'link_push_button': 'link_push_button_blue_overlay_side',
+        'link_toggle_button': 'link_toggle_button_blue_overlay_side'
+      };
+
+      var modButtonTopTextureOverrides = {
+        'link_push_button': 'link_push_button_blue_overlay_top',
+        'link_toggle_button': 'link_toggle_button_blue_overlay_top'
+      };
+
+      var modDualLayerInnerTextureOverrides = {
+        'link_redstone_core': 'redstonelink:block/component_core_block',
+        'link_redstone_core_transparent': 'redstonelink:block/component_core_block',
+        'link_pulse_emitter': 'redstonelink:block/component_core_block',
+        'link_sync_emitter': 'redstonelink:block/component_core_block',
+        'link_toggle_emitter': 'redstonelink:block/component_core_block'
+      };
+
+      var categoryOrder = ['component', 'triggerSource', 'core', 'tools', 'internal'];
+
+      var items = [
+        {
+          path: 'redstone_link_component',
+          category: 'component',
+          role: 'material',
+          render: 'item',
+          name: { zh: '连接原件', en: 'Redstone Link Component' },
+          effect: {
+            zh: '全模组最核心的合成材料；首次合成会触发“无线时代”成就。',
+            en: 'The foundational crafting material of the mod; first craft awards the "Wireless Age" advancement.'
+          },
+          usage: {
+            zh: ['通过铜锭 + 铁锭 + 红石合成获取。', '用于合成节点方块、遥控器和工具类物品。'],
+            en: ['Craft from copper ingots, iron ingots, and redstone.', 'Used in node blocks, linkers, and utility tools.']
+          }
+        },
+        {
+          path: 'link_toggle_button',
+          category: 'triggerSource',
+          role: 'triggerSource',
+          render: 'button',
+          name: { zh: '切换按钮', en: 'Linked Toggle Button' },
+          effect: {
+            zh: '作为 triggerSource 节点，每次触发都会发送 toggle 事件到已连接 core。',
+            en: 'Acts as a triggerSource node; each trigger sends a toggle event to linked cores.'
+          },
+          usage: {
+            zh: ['放置后作为来源节点使用。', '潜行右键可打开配对界面配置目标 core。', '按下按钮可远程切换目标 core 状态。'],
+            en: ['Place it as a source node.', 'Sneak right-click to open pairing UI and configure core targets.', 'Press to remotely toggle linked core states.']
+          }
+        },
+        {
+          path: 'link_push_button',
+          category: 'triggerSource',
+          role: 'triggerSource',
+          render: 'button',
+          name: { zh: '脉冲按钮', en: 'Linked Pulse Button' },
+          effect: {
+            zh: '作为 triggerSource 节点，发送一次 pulse 脉冲事件到已连接 core。',
+            en: 'Acts as a triggerSource node and emits a pulse event to linked cores.'
+          },
+          usage: {
+            zh: ['放置后作为来源节点。', '潜行右键打开配对界面。', '按下按钮后触发一次短脉冲，适合瞬时触发场景。'],
+            en: ['Place as a source node.', 'Sneak right-click to open pairing UI.', 'Press to send a one-shot pulse, ideal for momentary triggers.']
+          }
+        },
+        {
+          path: 'link_sync_lever',
+          category: 'triggerSource',
+          role: 'triggerSource',
+          render: 'item',
+          name: { zh: '同步拉杆', en: 'Linked Sync Lever' },
+          effect: {
+            zh: '作为 triggerSource 节点，按 ON=15 / OFF=0 同步已连接 core。',
+            en: 'Acts as a triggerSource node and synchronizes linked cores using ON=15 / OFF=0.'
+          },
+          usage: {
+            zh: ['放置后作为来源节点。', '潜行右键打开配对界面。', '拨动拉杆后，目标 core 同步到当前状态。'],
+            en: ['Place as a source node.', 'Sneak right-click to open pairing UI.', 'Flip lever to sync core targets to current state.']
+          }
+        },
+        {
+          path: 'link_toggle_emitter',
+          category: 'triggerSource',
+          role: 'triggerSource',
+          render: 'block',
+          name: { zh: '切换发射器', en: 'Linked Toggle Emitter' },
+          effect: {
+            zh: '接收本地红石输入后，按 toggle 语义向远端 core 分发。',
+            en: 'Receives local redstone input and dispatches toggle-style activation to remote cores.'
+          },
+          usage: {
+            zh: ['接入本地红石线路作为输入。', '潜行右键打开配对界面配置目标。', '适合把本地红石变化映射到远端开关。'],
+            en: ['Wire it into local redstone as input.', 'Sneak right-click to pair target cores.', 'Use it to map local transitions to remote toggle control.']
+          }
+        },
+        {
+          path: 'link_pulse_emitter',
+          category: 'triggerSource',
+          role: 'triggerSource',
+          render: 'block',
+          name: { zh: '脉冲发射器', en: 'Linked Pulse Emitter' },
+          effect: {
+            zh: '接收输入后向已连接 core 发送 pulse 脉冲。',
+            en: 'On input, sends pulse activation to linked cores.'
+          },
+          usage: {
+            zh: ['接入红石输入。', '潜行右键打开配对界面。', '触发时发出一次脉冲，适合脉冲门与计数逻辑。'],
+            en: ['Connect to redstone input.', 'Sneak right-click to open pairing UI.', 'Emits one pulse per trigger, useful for pulse/counter logic.']
+          }
+        },
+        {
+          path: 'link_sync_emitter',
+          category: 'triggerSource',
+          role: 'triggerSource',
+          render: 'block',
+          name: { zh: '同步发射器', en: 'Linked Sync Emitter' },
+          effect: {
+            zh: '继承本地输入强度（0~15），并把最高强度同步给已连接 core。',
+            en: 'Mirrors local input strength (0~15) and synchronizes highest strength to linked cores.'
+          },
+          usage: {
+            zh: ['接入红石输入，支持强度同步。', '潜行右键打开配对界面。', '强度变化时才重新分发，避免无效重复触发。'],
+            en: ['Wire to redstone input for strength sync.', 'Sneak right-click to open pairing UI.', 'Redispatches only when state/strength changes.']
+          }
+        },
+        {
+          path: 'link_redstone_core',
+          category: 'core',
+          role: 'core',
+          render: 'block',
+          name: { zh: '连接核心块', en: 'Linked Redstone Core' },
+          effect: {
+            zh: '作为 core 目标节点，接收 triggerSource 事件并输出远程控制结果。',
+            en: 'Acts as a core target node, receiving triggerSource events for remote control output.'
+          },
+          usage: {
+            zh: ['放置为目标节点。', '潜行右键打开配对界面查看或编辑来源列表。', '通过 triggerSource / 遥控器触发后驱动本地红石行为。'],
+            en: ['Place as a target node.', 'Sneak right-click to open pairing UI and manage source links.', 'Responds to triggerSource/linker events with local redstone output.']
+          },
+          note: {
+            zh: '当前版本不再支持玩家右键直接激活，右键入口用于配对。',
+            en: 'Direct player right-click activation is disabled; right-click is reserved for pairing.'
+          }
+        },
+        {
+          path: 'link_redstone_core_transparent',
+          category: 'core',
+          role: 'core',
+          render: 'block',
+          name: { zh: '连接核心块（透明）', en: 'Linked Redstone Core (Transparent)' },
+          effect: {
+            zh: '功能与连接核心块一致，但视觉上更便于融入玻璃或展示结构。',
+            en: 'Same behavior as Linked Redstone Core with transparent visual style for builds/display.'
+          },
+          usage: {
+            zh: ['与普通核心块相同地参与配对与接收触发。', '适合需要低遮挡或展示内部结构的场景。'],
+            en: ['Use exactly like the normal core in pairing and triggering.', 'Good for low-occlusion or showcase-friendly builds.']
+          }
+        },
+        {
+          path: 'link_redstone_dust_core',
+          category: 'core',
+          role: 'core',
+          render: 'item',
+          name: { zh: '连接核心片', en: 'Linked Redstone Dust Core' },
+          effect: {
+            zh: '作为 core 目标节点，接收触发后作用于附着方块，不参与原版红石粉连线网络。',
+            en: 'A core target node that affects its attached block and does not join vanilla redstone dust networks.'
+          },
+          usage: {
+            zh: ['贴附放置在方块表面。', '潜行右键打开配对界面。', '适合紧凑布线和表面控制场景。'],
+            en: ['Place attached to block surfaces.', 'Sneak right-click to open pairing UI.', 'Ideal for compact surface-based control layouts.']
+          }
+        },
+        {
+          path: 'link_redstone_dust_core_transparent',
+          category: 'core',
+          role: 'core',
+          render: 'item',
+          name: { zh: '连接核心片（透明）', en: 'Linked Redstone Dust Core (Transparent)' },
+          effect: {
+            zh: '与连接核心片行为一致，提供透明化视觉方案。',
+            en: 'Same behavior as Linked Redstone Dust Core with a transparent visual variant.'
+          },
+          usage: {
+            zh: ['与普通核心片相同地进行配对与接收触发。', '适合需要减少视觉遮挡的装饰化布置。'],
+            en: ['Use like normal dust core for pairing and target triggering.', 'Useful when you need lower visual obstruction.']
+          }
+        },
+        {
+          path: 'redstonelink_toggle_linker',
+          category: 'tools',
+          role: 'utility',
+          render: 'item',
+          name: { zh: '切换遥控器', en: 'Linked Toggle Linker' },
+          effect: {
+            zh: '手持 triggerSource 工具，远程对已连接 core 执行 toggle 触发。',
+            en: 'Handheld triggerSource-style tool that remotely toggles linked cores.'
+          },
+          usage: {
+            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：触发已连接 core。'],
+            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: trigger linked cores.']
+          }
+        },
+        {
+          path: 'redstonelink_pulse_linker',
+          category: 'tools',
+          role: 'utility',
+          render: 'item',
+          name: { zh: '脉冲遥控器', en: 'Linked Pulse Linker' },
+          effect: {
+            zh: '手持 triggerSource 工具，向已连接 core 发送 pulse 脉冲。',
+            en: 'Handheld triggerSource-style tool that sends pulse activation to linked cores.'
+          },
+          usage: {
+            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：触发一次脉冲。'],
+            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: send one pulse.']
+          }
+        },
+        {
+          path: 'redstonelink_sync_linker',
+          category: 'tools',
+          role: 'utility',
+          render: 'item',
+          name: { zh: '同步遥控器', en: 'Linked Sync Linker' },
+          effect: {
+            zh: '手持工具版同步 triggerSource，在 15/0 两态间切换并同步到已连接 core。',
+            en: 'Handheld sync triggerSource tool that flips between 15/0 and synchronizes linked cores.'
+          },
+          usage: {
+            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：切换 15/0 并同步派发。'],
+            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: flip 15/0 and dispatch sync signal.']
+          },
+          note: {
+            zh: '物品贴图会随当前状态切换（关闭/开启）。',
+            en: 'Item texture changes with current state (off/on).'
+          }
+        },
+        {
+          path: 'quick_link_tool',
+          category: 'tools',
+          role: 'utility',
+          render: 'item',
+          name: { zh: '快速连接工具', en: 'Quick Link Tool' },
+          effect: {
+            zh: '通过序号缓存实现批量采集与批量应用，提升节点配对效率。',
+            en: 'Uses serial cache for batch collect/apply workflows and faster pairing operations.'
+          },
+          usage: {
+            zh: ['潜行且左手为空右键：打开缓存编辑器。', '左键命中节点：采集到缓存。', '站立右键命中节点：把缓存应用到命中节点。'],
+            en: ['Sneak + empty offhand + right-click: open cache editor.', 'Left-click node: collect into cache.', 'Stand + right-click node: apply cache to target node.']
+          },
+          note: {
+            zh: '当前版本 channel 模式仅预留接口，主流程使用序号缓存模式。',
+            en: 'Channel mode is reserved in current version; serial-cache mode is the active workflow.'
+          }
+        },
+        {
+          path: 'redstonelink_status_panel',
+          category: 'tools',
+          role: 'utility',
+          render: 'item',
+          name: { zh: '状态面板工具', en: 'State Panel Tool' },
+          effect: {
+            zh: '用于订阅并查看 core/triggerSource 节点运行状态。',
+            en: 'Used to subscribe and inspect runtime state of core/triggerSource nodes.'
+          },
+          usage: {
+            zh: ['主手右键打开状态面板。', '在面板中进行订阅、刷新和清空订阅。', '用于运行期观察与维护。'],
+            en: ['Main-hand right-click to open state panel.', 'Manage subscriptions, refresh, and clear entries.', 'Use for runtime observation and maintenance.']
+          }
+        },
+        {
+          path: 'rl-icon',
+          category: 'internal',
+          role: 'internal',
+          render: 'item',
+          name: { zh: 'RL 图标', en: 'RL Icon' },
+          effect: {
+            zh: '创造模式分组图标专用物品。',
+            en: 'Dedicated item used as creative-tab icon.'
+          },
+          usage: {
+            zh: ['用于 UI 展示，不参与常规玩法流程。'],
+            en: ['Used for UI display and not part of normal gameplay flow.']
+          },
+          note: {
+            zh: '默认不在常规物品列表输出。',
+            en: 'Not listed as a normal gameplay item by default.'
+          }
+        },
+        {
+          path: 'adv_wireless_age_icon',
+          category: 'internal',
+          role: 'internal',
+          render: 'item',
+          name: { zh: '成就图标：无线时代', en: 'Advancement Icon: Wireless Age' },
+          effect: {
+            zh: '用于“无线时代”成就展示。',
+            en: 'Used by the "Wireless Age" advancement display.'
+          },
+          usage: {
+            zh: ['仅作为成就图标资源使用。'],
+            en: ['Serves as an advancement icon asset only.']
+          }
+        },
+        {
+          path: 'adv_come_find_me_in_the_end_icon',
+          category: 'internal',
+          role: 'internal',
+          render: 'item',
+          name: { zh: '成就图标：喂，来末地找我', en: 'Advancement Icon: Come Find Me in the End' },
+          effect: {
+            zh: '用于“喂，来末地找我”成就展示。',
+            en: 'Used by the "Come Find Me in the End" advancement display.'
+          },
+          usage: {
+            zh: ['仅作为成就图标资源使用。'],
+            en: ['Serves as an advancement icon asset only.']
+          }
+        },
+        {
+          path: 'adv_master_strategist_icon',
+          category: 'internal',
+          role: 'internal',
+          render: 'item',
+          name: { zh: '成就图标：运筹帷幄', en: 'Advancement Icon: Master Strategist' },
+          effect: {
+            zh: '用于“运筹帷幄”成就展示。',
+            en: 'Used by the "Master Strategist" advancement display.'
+          },
+          usage: {
+            zh: ['仅作为成就图标资源使用。'],
+            en: ['Serves as an advancement icon asset only.']
+          }
+        },
+        {
+          path: 'adv_constellation_icon',
+          category: 'internal',
+          role: 'internal',
+          render: 'item',
+          name: { zh: '成就图标：星罗棋布', en: 'Advancement Icon: Constellation' },
+          effect: {
+            zh: '用于“星罗棋布”成就展示。',
+            en: 'Used by the "Constellation" advancement display.'
+          },
+          usage: {
+            zh: ['仅作为成就图标资源使用。'],
+            en: ['Serves as an advancement icon asset only.']
+          }
+        }
+      ];
+
+      function withCacheBuster(url) {
+        if (!url) {
+          return '';
+        }
+        if (url.indexOf('data:') === 0) {
+          return url;
+        }
+        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'rlcb=' + ASSET_CACHE_BUSTER;
+      }
+
+      function textureRefToUrl(textureRef) {
+        if (!textureRef) {
+          return '';
+        }
+        if (textureRef.indexOf('redstonelink:item/') === 0) {
+          return withCacheBuster(modItemAssetBase + textureRef.slice('redstonelink:item/'.length) + '.png');
+        }
+        if (textureRef.indexOf('redstonelink:block/') === 0) {
+          return withCacheBuster(modBlockAssetBase + textureRef.slice('redstonelink:block/'.length) + '.png');
+        }
+        return '';
+      }
+
+      function resolveModButtonSideTextureUrl(path) {
+        var sideTextureRef = modButtonSideTextureOverrides[path];
+        if (!sideTextureRef) {
+          return '';
+        }
+        return withCacheBuster(modDocsBlockAssetBase + sideTextureRef + '.png');
+      }
+
+      function resolveModButtonTopTextureUrl(path) {
+        var topTextureRef = modButtonTopTextureOverrides[path];
+        if (!topTextureRef) {
+          return '';
+        }
+        return withCacheBuster(modDocsBlockAssetBase + topTextureRef + '.png');
+      }
+
+      function resolveDualLayerInnerTextureUrl(path) {
+        var innerTextureRef = modDualLayerInnerTextureOverrides[path];
+        if (!innerTextureRef) {
+          return '';
+        }
+        return textureRefToUrl(innerTextureRef);
+      }
+
+      // 按“覆盖贴图 -> 约定命名 -> 兜底命名”构造候选链，保证和配方页一致的容错策略。
+      function iconCandidates(item) {
+        var path = item.path;
+        var preferBlock = item.render === 'block';
+        var candidates = [];
+
+        var override = textureOverridesByPath[path];
+        if (override) {
+          var overrideUrl = textureRefToUrl(override);
+          if (overrideUrl) {
+            candidates.push(overrideUrl);
+          }
+        }
+
+        if (path === 'redstonelink_sync_linker') {
+          candidates.push(withCacheBuster(modItemAssetBase + 'redstonelink_sync_linker_0.png'));
+          candidates.push(withCacheBuster(modItemAssetBase + 'redstonelink_sync_linker_1.png'));
+        }
+
+        if (path === 'quick_link_tool') {
+          candidates.push(withCacheBuster(modItemAssetBase + 'fast_link_tool_sd.png'));
+          candidates.push(withCacheBuster(modItemAssetBase + 'fast_link_tool_cp.png'));
+        }
+
+        if (preferBlock) {
+          candidates.push(withCacheBuster(modBlockAssetBase + path + '.png'));
+          candidates.push(withCacheBuster(modBlockAssetBase + path + '_blue.png'));
+          candidates.push(withCacheBuster(modBlockAssetBase + path + '_blue_overlay.png'));
+          candidates.push(withCacheBuster(modItemAssetBase + path + '.png'));
+        } else {
+          candidates.push(withCacheBuster(modItemAssetBase + path + '.png'));
+          candidates.push(withCacheBuster(modItemAssetBase + path + '_blue_overlay.png'));
+          candidates.push(withCacheBuster(modItemAssetBase + path + '_blue.png'));
+          candidates.push(withCacheBuster(modBlockAssetBase + path + '.png'));
+          candidates.push(withCacheBuster(modBlockAssetBase + path + '_blue.png'));
+          candidates.push(withCacheBuster(modBlockAssetBase + path + '_blue_overlay.png'));
+        }
+
+        return unique(candidates);
+      }
+
+      function unique(list) {
+        var map = {};
+        var result = [];
+        list.forEach(function (entry) {
+          if (!entry || map[entry]) {
+            return;
+          }
+          map[entry] = true;
+          result.push(entry);
+        });
+        return result;
+      }
+
+      function createCubeFace(faceClass, texture, transform, size, offset) {
+        var face = document.createElement('div');
+        face.className = 'block-face ' + faceClass;
+        face.style.backgroundImage = texture;
+        if (typeof transform === 'string' && transform) {
+          face.style.transform = transform;
+        }
+        if (typeof size === 'number') {
+          face.style.width = size + 'px';
+          face.style.height = size + 'px';
+        }
+        if (typeof offset === 'number') {
+          face.style.left = offset + 'px';
+          face.style.top = offset + 'px';
+        }
+        return face;
+      }
+
+      function createCube(textureUrl, sideTextureUrl, innerTextureUrl) {
+        var cube = document.createElement('div');
+        cube.className = 'block-cube';
+
+        var topTexture = 'url("' + textureUrl + '")';
+        var sideTexture = sideTextureUrl ? 'url("' + sideTextureUrl + '"), ' + topTexture : topTexture;
+
+        cube.appendChild(createCubeFace('block-top', topTexture));
+        cube.appendChild(createCubeFace('block-left', sideTexture));
+        cube.appendChild(createCubeFace('block-right', sideTexture));
+
+        if (innerTextureUrl) {
+          var innerTexture = 'url("' + innerTextureUrl + '")';
+          var innerSize = 30;
+          var innerOffset = 6;
+          var innerDepth = 15;
+          cube.appendChild(createCubeFace('block-top', innerTexture, 'translateZ(' + innerDepth + 'px)', innerSize, innerOffset));
+          cube.appendChild(createCubeFace('block-left', innerTexture, 'rotateX(-90deg) translateZ(' + innerDepth + 'px)', innerSize, innerOffset));
+          cube.appendChild(createCubeFace('block-right', innerTexture, 'rotateY(90deg) translateZ(' + innerDepth + 'px)', innerSize, innerOffset));
+        }
+
+        return cube;
+      }
+
+      function createButtonModel(textureUrl, path) {
+        var topTextureUrl = resolveModButtonTopTextureUrl(path) || textureUrl;
+        var button = createCube(topTextureUrl, resolveModButtonSideTextureUrl(path));
+        button.classList.add('button-vanilla');
+        return button;
+      }
+
+      function loadFirstValid(candidates, done) {
+        if (!candidates || candidates.length === 0) {
+          done(null);
+          return;
+        }
+        var idx = 0;
+        var probe = new Image();
+        probe.onload = function () {
+          done(candidates[idx]);
+        };
+        probe.onerror = function () {
+          idx += 1;
+          if (idx < candidates.length) {
+            probe.src = candidates[idx];
+            return;
+          }
+          done(null);
+        };
+        probe.src = candidates[idx];
+      }
+
+      function renderVisual(visualEl, item) {
+        var candidates = iconCandidates(item);
+        loadFirstValid(candidates, function (hit) {
+          visualEl.textContent = '';
+          if (!hit) {
+            var fallback = document.createElement('div');
+            fallback.className = 'item-fallback';
+            fallback.textContent = item.path;
+            visualEl.appendChild(fallback);
+            return;
+          }
+
+          if (item.render === 'block') {
+            visualEl.appendChild(createCube(hit, '', resolveDualLayerInnerTextureUrl(item.path)));
+            return;
+          }
+
+          if (item.render === 'button') {
+            visualEl.appendChild(createButtonModel(hit, item.path));
+            return;
+          }
+
+          var icon = document.createElement('img');
+          icon.className = 'item-icon';
+          icon.src = hit;
+          icon.alt = item.path;
+          visualEl.appendChild(icon);
+        });
+      }
+
+      function createFieldTitle(text) {
+        var title = document.createElement('div');
+        title.className = 'item-section-title';
+        title.textContent = text;
+        return title;
+      }
+
+      function localizedText(content) {
+        return content && content[currentLang] ? content[currentLang] : '';
+      }
+
+      function createItemCard(item) {
+        var ui = uiText[currentLang];
+        var article = document.createElement('article');
+        article.className = 'item-card';
+
+        var head = document.createElement('div');
+        head.className = 'item-head';
+
+        var name = document.createElement('h3');
+        name.className = 'item-name';
+        name.textContent = localizedText(item.name);
+
+        var role = document.createElement('span');
+        role.className = 'item-role';
+        role.textContent = ui.roles[item.role] || item.role;
+
+        head.appendChild(name);
+        head.appendChild(role);
+
+        var body = document.createElement('div');
+        body.className = 'item-body';
+
+        var visual = document.createElement('div');
+        visual.className = 'item-visual';
+        renderVisual(visual, item);
+
+        var info = document.createElement('div');
+
+        var idLine = document.createElement('p');
+        idLine.className = 'meta-line';
+        idLine.innerHTML = '<span class="meta-label">' + ui.labels.id + ':</span>redstonelink:' + item.path;
+        info.appendChild(idLine);
+
+        info.appendChild(createFieldTitle(ui.labels.effect));
+        var effect = document.createElement('p');
+        effect.className = 'item-text';
+        effect.textContent = localizedText(item.effect);
+        info.appendChild(effect);
+
+        info.appendChild(createFieldTitle(ui.labels.usage));
+        var usageList = document.createElement('ol');
+        usageList.className = 'item-usage';
+        var usageItems = localizedText(item.usage);
+        usageItems.forEach(function (entry) {
+          var li = document.createElement('li');
+          li.textContent = entry;
+          usageList.appendChild(li);
+        });
+        info.appendChild(usageList);
+
+        if (item.note) {
+          var note = document.createElement('p');
+          note.className = 'item-note';
+          note.textContent = ui.labels.note + ': ' + localizedText(item.note);
+          info.appendChild(note);
+        }
+
+        body.appendChild(visual);
+        body.appendChild(info);
+
+        article.appendChild(head);
+        article.appendChild(body);
+        return article;
+      }
+
+      function renderCatalog() {
+        var ui = uiText[currentLang];
+        var host = document.getElementById('catalog');
+        host.textContent = '';
+
+        categoryOrder.forEach(function (categoryKey) {
+          var categoryDef = ui.categories[categoryKey];
+          var grouped = items.filter(function (item) {
+            return item.category === categoryKey;
+          });
+
+          if (grouped.length === 0) {
+            return;
+          }
+
+          var section = document.createElement('section');
+          section.className = 'category';
+
+          var header = document.createElement('div');
+          header.className = 'category-header';
+
+          var title = document.createElement('h2');
+          title.className = 'category-title';
+          title.textContent = categoryDef.title + ' (' + grouped.length + ')';
+
+          var note = document.createElement('p');
+          note.className = 'category-note';
+          note.textContent = categoryDef.note;
+
+          header.appendChild(title);
+          header.appendChild(note);
+
+          var list = document.createElement('div');
+          list.className = 'category-list';
+
+          grouped.forEach(function (item) {
+            list.appendChild(createItemCard(item));
+          });
+
+          section.appendChild(header);
+          section.appendChild(list);
+          host.appendChild(section);
+        });
+      }
+
+      // 语言切换采用“整页重渲染”方式，确保标题、分组、字段与内容一次性切换。
+      function updatePageText() {
+        var ui = uiText[currentLang];
+        document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+        document.getElementById('page-title').textContent = ui.pageTitle;
+        document.getElementById('page-subtitle').textContent = ui.pageSubtitle;
+        document.getElementById('source-note').textContent = ui.sourceNote;
+        document.getElementById('lang-label').textContent = ui.langLabel;
+
+        document.getElementById('lang-zh').classList.toggle('active', currentLang === 'zh');
+        document.getElementById('lang-en').classList.toggle('active', currentLang === 'en');
+      }
+
+      function switchLanguage(lang) {
+        currentLang = lang === 'en' ? 'en' : 'zh';
+        updatePageText();
+        renderCatalog();
+      }
+
+      document.getElementById('lang-zh').addEventListener('click', function () {
+        switchLanguage('zh');
+      });
+
+      document.getElementById('lang-en').addEventListener('click', function () {
+        switchLanguage('en');
+      });
+
+      switchLanguage('zh');
+    })();
+  </script>
+</body>
+</html>

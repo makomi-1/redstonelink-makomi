@@ -104,7 +104,7 @@ final class BenchLinkMappingApplySupport {
 
 		LinkedHashMap<Long, SourceApplyPlan> applyPlans = new LinkedHashMap<>();
 		for (long sourceSerial : sourceBatch.serials()) {
-			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedTargetsBySourceType(LinkNodeType.TRIGGER_SOURCE, sourceSerial));
+			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(sourceSerial));
 			Set<Long> nextTargets = targetsBySource.getOrDefault(sourceSerial, Set.of());
 			Set<Long> affectedTargets = new HashSet<>(previousTargets);
 			affectedTargets.addAll(nextTargets);

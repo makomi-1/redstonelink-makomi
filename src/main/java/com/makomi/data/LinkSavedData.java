@@ -28,7 +28,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 public final class LinkSavedData extends SavedData {
 	static final String DATA_NAME = "redstonelink_serial_data";
 	static final String KEY_NEXT_CORE_SERIAL = "nextCoreSerial";
-	static final String KEY_NEXT_BUTTON_SERIAL = "nextButtonSerial";
+	static final String KEY_NEXT_TRIGGER_SOURCE_SERIAL = "nextTriggerSourceSerial";
 	static final String KEY_NODES = "nodes";
 	static final String KEY_SERIAL = "serial";
 	static final String KEY_DIMENSION = "dimension";
@@ -38,9 +38,9 @@ public final class LinkSavedData extends SavedData {
 	static final String KEY_SOURCE_SERIAL = "sourceSerial";
 	static final String KEY_TARGET_SERIALS = "targetSerials";
 	static final String KEY_ALLOCATED_CORE_SERIALS = "allocatedCoreSerials";
-	static final String KEY_ALLOCATED_BUTTON_SERIALS = "allocatedButtonSerials";
+	static final String KEY_ALLOCATED_TRIGGER_SOURCE_SERIALS = "allocatedTriggerSourceSerials";
 	static final String KEY_RETIRED_CORE_SERIALS = "retiredCoreSerials";
-	static final String KEY_RETIRED_BUTTON_SERIALS = "retiredButtonSerials";
+	static final String KEY_RETIRED_TRIGGER_SOURCE_SERIALS = "retiredTriggerSourceSerials";
 	static final String KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS = "triggerSourceReplaySyncSnapshots";
 	static final String KEY_SIGNAL_STRENGTH = "signalStrength";
 	static final String KEY_TICK = "tick";
@@ -54,15 +54,15 @@ public final class LinkSavedData extends SavedData {
 	);
 
 	long nextCoreSerial = 1L;
-	long nextButtonSerial = 1L;
+	long nextTriggerSourceSerial = 1L;
 	final Map<Long, LinkNode> coreNodes = new HashMap<>();
-	final Map<Long, LinkNode> buttonNodes = new HashMap<>();
-	final Map<Long, Set<Long>> buttonToCores = new HashMap<>();
-	final Map<Long, Set<Long>> coreToButtons = new HashMap<>();
+	final Map<Long, LinkNode> triggerSourceNodes = new HashMap<>();
+	final Map<Long, Set<Long>> triggerSourceToCores = new HashMap<>();
+	final Map<Long, Set<Long>> coreToTriggerSources = new HashMap<>();
 	final Set<Long> allocatedCoreSerials = new HashSet<>();
-	final Set<Long> allocatedButtonSerials = new HashSet<>();
+	final Set<Long> allocatedTriggerSourceSerials = new HashSet<>();
 	final Set<Long> retiredCoreSerials = new HashSet<>();
-	final Set<Long> retiredButtonSerials = new HashSet<>();
+	final Set<Long> retiredTriggerSourceSerials = new HashSet<>();
 	final Map<Long, ReplaySyncSnapshotRecord> triggerSourceReplaySyncSnapshots = new HashMap<>();
 	long runtimeNodeVersion;
 	long graphRevision;
@@ -254,74 +254,60 @@ public final class LinkSavedData extends SavedData {
 	/**
 	 * 切换 triggerSource 与 core 之间的关联关系。
 	 */
-	public boolean toggleLink(long buttonSerial, long coreSerial) {
-		return LinkSavedDataLinkIndexSupport.toggleLink(this, buttonSerial, coreSerial);
+	public boolean toggleTriggerSourceCoreLink(long triggerSourceSerial, long coreSerial) {
+		return LinkSavedDataLinkIndexSupport.toggleTriggerSourceCoreLink(this, triggerSourceSerial, coreSerial);
 	}
 
 	/**
-	 * 以“来源/目标”语义切换关联关系。
+	 * 新增一条 triggerSource -> core 关联关系。
 	 */
-	public boolean toggleLinkBySourceType(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
-		return LinkSavedDataLinkIndexSupport.toggleLinkBySourceType(this, sourceType, sourceSerial, targetSerial);
+	public boolean addTriggerSourceCoreLink(long triggerSourceSerial, long coreSerial) {
+		return LinkSavedDataLinkIndexSupport.addTriggerSourceCoreLink(this, triggerSourceSerial, coreSerial);
 	}
 
 	/**
-	 * 以“来源/目标”语义新增单条关联关系。
+	 * 移除一条 triggerSource -> core 关联关系。
 	 */
-	public boolean addLinkBySourceType(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
-		return LinkSavedDataLinkIndexSupport.addLinkBySourceType(this, sourceType, sourceSerial, targetSerial);
+	public boolean removeTriggerSourceCoreLink(long triggerSourceSerial, long coreSerial) {
+		return LinkSavedDataLinkIndexSupport.removeTriggerSourceCoreLink(this, triggerSourceSerial, coreSerial);
 	}
 
 	/**
-	 * 以“来源/目标”语义移除单条关联关系。
+	 * 以“覆盖集合”语义增量替换 triggerSource 的 core 目标集合。
 	 */
-	public boolean removeLinkBySourceType(LinkNodeType sourceType, long sourceSerial, long targetSerial) {
-		return LinkSavedDataLinkIndexSupport.removeLinkBySourceType(this, sourceType, sourceSerial, targetSerial);
-	}
-
-	/**
-	 * 以“覆盖集合”语义增量替换来源节点的目标集合。
-	 */
-	public ReplaceLinksResult replaceLinksBySourceType(LinkNodeType sourceType, long sourceSerial, Set<Long> targetSerials) {
-		return LinkSavedDataLinkIndexSupport.replaceLinksBySourceType(this, sourceType, sourceSerial, targetSerials);
-	}
-
-	/**
-	 * 解除 triggerSource 与 core 的单条关联关系。
-	 */
-	public boolean unlink(long buttonSerial, long coreSerial) {
-		return LinkSavedDataLinkIndexSupport.unlink(this, buttonSerial, coreSerial);
+	public ReplaceLinksResult replaceTriggerSourceTargets(long triggerSourceSerial, Set<Long> coreSerials) {
+		return LinkSavedDataLinkIndexSupport.replaceTriggerSourceTargets(this, triggerSourceSerial, coreSerials);
 	}
 
 	/**
 	 * 查询 triggerSource 关联的 core 序列号集合。
 	 */
-	public Set<Long> getLinkedCores(long buttonSerial) {
-		return LinkSavedDataLinkIndexSupport.getLinkedCores(this, buttonSerial);
+	public Set<Long> getLinkedCoresByTriggerSource(long triggerSourceSerial) {
+		return LinkSavedDataLinkIndexSupport.getLinkedCoresByTriggerSource(this, triggerSourceSerial);
 	}
 
 	/**
 	 * 查询 core 被哪些 triggerSource 关联。
 	 */
-	public Set<Long> getLinkedButtons(long coreSerial) {
-		return LinkSavedDataLinkIndexSupport.getLinkedTriggerSources(this, coreSerial);
+	public Set<Long> getLinkedTriggerSourcesByCore(long coreSerial) {
+		return LinkSavedDataLinkIndexSupport.getLinkedTriggerSourcesByCore(this, coreSerial);
 	}
 
 	/**
-	 * 按“来源类型 + 来源序列号”查询目标集合。
+	 * 按节点类型查询其关联的对侧节点集合。
 	 * <p>
 	 * 返回值始终为稳定快照，避免把内部可变集合继续外泄到事件链或外部调用方。
 	 * </p>
 	 */
-	public Set<Long> getLinkedTargetsBySourceType(LinkNodeType sourceType, long sourceSerial) {
-		return LinkSavedDataLinkIndexSupport.getLinkedTargetsBySourceType(this, sourceType, sourceSerial);
+	public Set<Long> getLinkedPeersByNodeType(LinkNodeType nodeType, long serial) {
+		return LinkSavedDataLinkIndexSupport.getLinkedPeersByNodeType(this, nodeType, serial);
 	}
 
 	/**
-	 * 按“来源类型 + 来源序列号”无拷贝遍历目标集合。
+	 * 按节点类型无拷贝遍历其关联的对侧节点集合。
 	 */
-	public void forEachLinkedTargetBySourceType(LinkNodeType sourceType, long sourceSerial, LongConsumer consumer) {
-		LinkSavedDataLinkIndexSupport.forEachLinkedTargetBySourceType(this, sourceType, sourceSerial, consumer);
+	public void forEachLinkedPeerByNodeType(LinkNodeType nodeType, long serial, LongConsumer consumer) {
+		LinkSavedDataLinkIndexSupport.forEachLinkedPeerByNodeType(this, nodeType, serial, consumer);
 	}
 
 	/**
@@ -347,21 +333,21 @@ public final class LinkSavedData extends SavedData {
 	 * 按类型获取在线节点表。
 	 */
 	Map<Long, LinkNode> nodeMap(LinkNodeType type) {
-		return type == LinkNodeType.TRIGGER_SOURCE ? buttonNodes : coreNodes;
+		return type == LinkNodeType.TRIGGER_SOURCE ? triggerSourceNodes : coreNodes;
 	}
 
 	/**
 	 * 按类型获取已分配序列号集合。
 	 */
 	Set<Long> allocatedSerialSet(LinkNodeType type) {
-		return type == LinkNodeType.TRIGGER_SOURCE ? allocatedButtonSerials : allocatedCoreSerials;
+		return type == LinkNodeType.TRIGGER_SOURCE ? allocatedTriggerSourceSerials : allocatedCoreSerials;
 	}
 
 	/**
 	 * 按类型获取退役序列号集合。
 	 */
 	Set<Long> retiredSerialSet(LinkNodeType type) {
-		return type == LinkNodeType.TRIGGER_SOURCE ? retiredButtonSerials : retiredCoreSerials;
+		return type == LinkNodeType.TRIGGER_SOURCE ? retiredTriggerSourceSerials : retiredCoreSerials;
 	}
 
 	/**
@@ -403,10 +389,10 @@ public final class LinkSavedData extends SavedData {
 	 */
 	public record AuditSnapshot(
 		int onlineCoreNodes,
-		int onlineButtonNodes,
+		int onlineTriggerSourceNodes,
 		int totalLinks,
 		int linksWithMissingEndpoint,
-		int linkedButtonSerialCount,
+		int linkedTriggerSourceSerialCount,
 		int linkedCoreSerialCount
 	) {}
 

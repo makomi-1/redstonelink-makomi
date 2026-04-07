@@ -41,8 +41,8 @@ final class LinkSavedDataCodecSupport {
 			data.nextCoreSerial = Math.max(1L, tag.getLong(LinkSavedData.KEY_NEXT_CORE_SERIAL));
 		}
 
-		if (tag.contains(LinkSavedData.KEY_NEXT_BUTTON_SERIAL, Tag.TAG_LONG)) {
-			data.nextButtonSerial = Math.max(1L, tag.getLong(LinkSavedData.KEY_NEXT_BUTTON_SERIAL));
+		if (tag.contains(LinkSavedData.KEY_NEXT_TRIGGER_SOURCE_SERIAL, Tag.TAG_LONG)) {
+			data.nextTriggerSourceSerial = Math.max(1L, tag.getLong(LinkSavedData.KEY_NEXT_TRIGGER_SOURCE_SERIAL));
 		}
 
 		ListTag nodesTag = tag.getList(LinkSavedData.KEY_NODES, Tag.TAG_COMPOUND);
@@ -94,7 +94,7 @@ final class LinkSavedDataCodecSupport {
 				if (targetSerial <= 0L) {
 					continue;
 				}
-				LinkSavedDataLinkIndexSupport.link(data, sourceSerial, targetSerial);
+				LinkSavedDataLinkIndexSupport.linkTriggerSourceCore(data, sourceSerial, targetSerial);
 			}
 		}
 
@@ -115,15 +115,23 @@ final class LinkSavedDataCodecSupport {
 		}
 
 		boolean hasAllocatedCore = tag.contains(LinkSavedData.KEY_ALLOCATED_CORE_SERIALS, Tag.TAG_LONG_ARRAY);
-		boolean hasAllocatedButton = tag.contains(LinkSavedData.KEY_ALLOCATED_BUTTON_SERIALS, Tag.TAG_LONG_ARRAY);
+		boolean hasAllocatedTriggerSource = tag.contains(LinkSavedData.KEY_ALLOCATED_TRIGGER_SOURCE_SERIALS, Tag.TAG_LONG_ARRAY);
 		if (hasAllocatedCore) {
 			SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_ALLOCATED_CORE_SERIALS, data.allocatedCoreSerials);
 		}
-		if (hasAllocatedButton) {
-			SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_ALLOCATED_BUTTON_SERIALS, data.allocatedButtonSerials);
+		if (hasAllocatedTriggerSource) {
+			SerialNbtCodecUtil.readSerialSet(
+				tag,
+				LinkSavedData.KEY_ALLOCATED_TRIGGER_SOURCE_SERIALS,
+				data.allocatedTriggerSourceSerials
+			);
 		}
 		SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_RETIRED_CORE_SERIALS, data.retiredCoreSerials);
-		SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_RETIRED_BUTTON_SERIALS, data.retiredButtonSerials);
+		SerialNbtCodecUtil.readSerialSet(
+			tag,
+			LinkSavedData.KEY_RETIRED_TRIGGER_SOURCE_SERIALS,
+			data.retiredTriggerSourceSerials
+		);
 		LinkSavedDataSerialSupport.ensureKnownSerialsAllocated(data);
 		LinkSavedDataSerialSupport.correctNextSerials(data);
 		return data;
@@ -134,19 +142,25 @@ final class LinkSavedDataCodecSupport {
 	 */
 	static CompoundTag save(LinkSavedData data, CompoundTag tag) {
 		tag.putLong(LinkSavedData.KEY_NEXT_CORE_SERIAL, data.nextCoreSerial);
-		tag.putLong(LinkSavedData.KEY_NEXT_BUTTON_SERIAL, data.nextButtonSerial);
+		tag.putLong(LinkSavedData.KEY_NEXT_TRIGGER_SOURCE_SERIAL, data.nextTriggerSourceSerial);
 		tag.putLongArray(LinkSavedData.KEY_ALLOCATED_CORE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(data.allocatedCoreSerials));
-		tag.putLongArray(LinkSavedData.KEY_ALLOCATED_BUTTON_SERIALS, SerialNbtCodecUtil.toSortedLongArray(data.allocatedButtonSerials));
+		tag.putLongArray(
+			LinkSavedData.KEY_ALLOCATED_TRIGGER_SOURCE_SERIALS,
+			SerialNbtCodecUtil.toSortedLongArray(data.allocatedTriggerSourceSerials)
+		);
 		tag.putLongArray(LinkSavedData.KEY_RETIRED_CORE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(data.retiredCoreSerials));
-		tag.putLongArray(LinkSavedData.KEY_RETIRED_BUTTON_SERIALS, SerialNbtCodecUtil.toSortedLongArray(data.retiredButtonSerials));
+		tag.putLongArray(
+			LinkSavedData.KEY_RETIRED_TRIGGER_SOURCE_SERIALS,
+			SerialNbtCodecUtil.toSortedLongArray(data.retiredTriggerSourceSerials)
+		);
 
 		ListTag nodesTag = new ListTag();
 		saveNodeMap(nodesTag, data.coreNodes);
-		saveNodeMap(nodesTag, data.buttonNodes);
+		saveNodeMap(nodesTag, data.triggerSourceNodes);
 		tag.put(LinkSavedData.KEY_NODES, nodesTag);
 
 		ListTag linksTag = new ListTag();
-		for (Map.Entry<Long, Set<Long>> entry : data.buttonToCores.entrySet()) {
+		for (Map.Entry<Long, Set<Long>> entry : data.triggerSourceToCores.entrySet()) {
 			if (entry.getValue().isEmpty()) {
 				continue;
 			}

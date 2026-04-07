@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
 @Tag("slow")
 class LinkSavedDataPerformanceSlowTest {
 	private static final int CORE_COUNT = 1000;
-	private static final int BUTTON_COUNT = 2000;
-	private static final int LINKS_PER_BUTTON = 3;
+	private static final int TRIGGER_SOURCE_COUNT = 2000;
+	private static final int LINKS_PER_TRIGGER_SOURCE = 3;
 	private static final long DEFAULT_SAVE_LIMIT_MS = 50L;
 	private static final long DEFAULT_LOAD_LIMIT_MS = 40L;
 	private static final long DEFAULT_QUERY_LIMIT_MS = 5L;
@@ -33,7 +33,7 @@ class LinkSavedDataPerformanceSlowTest {
 
 		LinkSavedData data = new LinkSavedData();
 		List<Long> coreSerials = new ArrayList<>(CORE_COUNT);
-		List<Long> buttonSerials = new ArrayList<>(BUTTON_COUNT);
+		List<Long> triggerSourceSerials = new ArrayList<>(TRIGGER_SOURCE_COUNT);
 
 		for (int i = 0; i < CORE_COUNT; i++) {
 			long coreSerial = data.allocateSerial(LinkNodeType.CORE);
@@ -41,13 +41,13 @@ class LinkSavedDataPerformanceSlowTest {
 			data.registerNode(coreSerial, Level.OVERWORLD, new BlockPos(0, 64, i), LinkNodeType.CORE);
 		}
 
-		for (int i = 0; i < BUTTON_COUNT; i++) {
-			long buttonSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-			buttonSerials.add(buttonSerial);
-			data.registerNode(buttonSerial, Level.OVERWORLD, new BlockPos(1, 64, i), LinkNodeType.TRIGGER_SOURCE);
-			for (int j = 0; j < LINKS_PER_BUTTON; j++) {
+		for (int i = 0; i < TRIGGER_SOURCE_COUNT; i++) {
+			long triggerSourceSerial = data.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
+			triggerSourceSerials.add(triggerSourceSerial);
+			data.registerNode(triggerSourceSerial, Level.OVERWORLD, new BlockPos(1, 64, i), LinkNodeType.TRIGGER_SOURCE);
+			for (int j = 0; j < LINKS_PER_TRIGGER_SOURCE; j++) {
 				long coreSerial = coreSerials.get((i + j) % coreSerials.size());
-				data.toggleLink(buttonSerial, coreSerial);
+				data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 			}
 		}
 
@@ -61,8 +61,8 @@ class LinkSavedDataPerformanceSlowTest {
 
 		long queryStart = System.nanoTime();
 		int totalLinks = 0;
-		for (long buttonSerial : buttonSerials) {
-			totalLinks += restored.getLinkedCores(buttonSerial).size();
+		for (long triggerSourceSerial : triggerSourceSerials) {
+			totalLinks += restored.getLinkedCoresByTriggerSource(triggerSourceSerial).size();
 		}
 		long queryCostMs = toMillis(queryStart);
 
