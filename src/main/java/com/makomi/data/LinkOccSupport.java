@@ -61,8 +61,8 @@ public final class LinkOccSupport {
 		return resolveTargetConflictWithCurrentBaseline(
 			LinkNodeType.CORE,
 			coreSerial,
-			0L,
 			expectedCoreRevision,
+			0L,
 			currentBaseline
 		);
 	}
