@@ -1,12 +1,14 @@
 ![title.png](/docs_dev/background_icon.png)
 
-[![CurseForge](https://img.shields.io/badge/CurseForge-Not%20Published-f16436?logo=curseforge&logoColor=white)](https://www.curseforge.com/minecraft/mc-mods) [![Modrinth](https://img.shields.io/badge/Modrinth-Not%20Published-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/) [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg?logo=gnu)](../LICENSE)
+[![CurseForge](https://img.shields.io/badge/CurseForge-Not%20Published-f16436?logo=curseforge&logoColor=white)](https://www.curseforge.com/minecraft/mc-mods) [![Modrinth](https://img.shields.io/badge/Modrinth-Not%20Published-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/) [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg?logo=gnu)](../LICENSE) [![GitHub](https://img.shields.io/badge/GitHub-release%2Fno--mixin-181717?logo=github&logoColor=white)](https://github.com/makomi-1/redstonelink-makomi/tree/release/no-mixin)
 
 [中文](../README.md)  |  English
 
 # Disclaimer
 - This project uses `AI` to accelerate implementation, and quality is guarded by review and testing.
 - Currently supports `fabric-1.21.1` only.
+- [Bug Report](https://www.wjx.top/vm/PpvzYjl.aspx)
+- The `no-mixin` branch means the link/core slice feature is not implemented through mixins, not that the branch contains no mixins at all.
 
 # Overview
 
@@ -21,7 +23,7 @@ A wireless redstone mod built around a `time-priority + fixed priority within th
 
 ## Gameplay
 Items are split into two families: `triggerSource` and `core`.
-- `triggerSource` items: `toggle/pulse/sync` blocks and linkers, `pulse/toggle` buttons, and the `sync` lever
+- `triggerSource` items: `toggle/pulse/sync` blocks and remotes, `pulse/toggle` buttons, and the `sync` lever
 - `core` items: core blocks and core dust
 
 Interaction flow:
@@ -31,12 +33,13 @@ Interaction flow:
 ## Docs
 - [Full Item Guide](https://makomi-1.github.io/redstonelink-makomi/item_guide.html)
 - [Recipe Sheet](https://makomi-1.github.io/redstonelink-makomi/recipe_sheet.html)
-- [Detailed Usage Guide](使用说明.md)
+- [Mechanism Design](mechanism_design_en.md)
+- [Usage Guide](usage_guide_en.md)
 
 ## Conflicts
 Mods that modify vanilla `chunk loading` or `item interaction` may introduce conflict risk.
 - [Conflict Mod List](../docs_dev/冲突模组名单.md) (TBD)
-- [Feedback Link](https://www.wjx.top/vm/wTsJKow.aspx)
+- [Conflict Feedback](https://www.wjx.top/vm/wTsJKow.aspx)
 
 # Future Plans
 - [ ] Add Send/receive filters

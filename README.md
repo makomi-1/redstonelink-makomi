@@ -1,12 +1,14 @@
 ![title.png](/docs_dev/background_icon.png)
 
-[![CurseForge](https://img.shields.io/badge/CurseForge-Not%20Published-f16436?logo=curseforge&logoColor=white)](https://www.curseforge.com/minecraft/mc-mods) [![Modrinth](https://img.shields.io/badge/Modrinth-Not%20Published-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/) [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg?logo=gnu)](LICENSE)
+[![CurseForge](https://img.shields.io/badge/CurseForge-Not%20Published-f16436?logo=curseforge&logoColor=white)](https://www.curseforge.com/minecraft/mc-mods) [![Modrinth](https://img.shields.io/badge/Modrinth-Not%20Published-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/) [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg?logo=gnu)](LICENSE) [![GitHub](https://img.shields.io/badge/GitHub-release%2Fno--mixin-181717?logo=github&logoColor=white)](https://github.com/makomi-1/redstonelink-makomi/tree/release/no-mixin)
 
 中文  |  [English](docs/readme_en.md)
 
 # 声明
 - 该项目`使用AI`进行加速实现，并通过审查与测试以保证质量
 - 目前仅支持`fabric-1.21.1`
+- [bug反馈](https://www.wjx.top/vm/PpvzYjl.aspx)
+- no-mxin分支指的是连接（接收）核心片的功能没有通过mixin实现，而不是没有mixin
 
 # 简介
 
@@ -32,12 +34,13 @@
 ## 文档
 - [全物品图鉴](https://makomi-1.github.io/redstonelink-makomi/item_guide.html)
 - [配方](https://makomi-1.github.io/redstonelink-makomi/recipe_sheet.html)
-- [详细使用说明](docs/使用说明.md)
+- [机制设计](docs\机制设计.md)
+- [使用说明](docs/使用说明.md)
 
 ## 冲突
 潜在冲突风险的为修改原版`区块加载机制`和`物品交互`的模组
 - [冲突模组名单](docs_dev/冲突模组名单.md)（待补充）
-- [反馈链接](https://www.wjx.top/vm/wTsJKow.aspx)
+- [冲突反馈](https://www.wjx.top/vm/wTsJKow.aspx)
 
 # 未来计划
 - [ ] 添加发送/接收过滤器
