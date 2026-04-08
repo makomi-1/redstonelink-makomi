@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "OCC 冲突专项回归：覆盖 pairing/quick-link 的 triggerSource sourceRevision 与 core graphRevision stale baseline 场景。",
+  "description": "OCC 冲突专项回归：覆盖 pairing/quick-link 的 triggerSource sourceRevision 与 core coreRevision stale baseline 场景。",
   "defaults": {
     "benchAction": "RunFunctionalCase",
     "matrixPath": "../functional-matrix.json"

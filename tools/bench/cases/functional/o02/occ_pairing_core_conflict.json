@@ -1,6 +1,6 @@
 {
   "id": "occ_pairing_core_conflict",
-  "description": "读取 core baseline 后插入一次真实改动，再用 stale graphRevision 提交 core pairing，确认冲突不会回滚最新拓扑。",
+  "description": "读取 core baseline 后插入一次真实改动，再用 stale coreRevision 提交 core pairing，确认冲突不会回滚最新拓扑。",
   "layer": "O",
   "scenarioId": "O02",
   "arena": {
@@ -38,7 +38,7 @@
         "(?i)occ_snapshot",
         "(?i)type=core"
       ],
-      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)"
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)\\s+coreRevision=(?<coreRevision>\\d+)"
     },
     {
       "templateRef": "command_assert",
@@ -50,12 +50,12 @@
     {
       "templateRef": "command_assert",
       "name": "submit_stale_core_pairing",
-      "commandTemplate": "redstonelink bench occ pairing submit core {{targets[0]}} triggerSource {{source:sync_occ_pairing_core_conflict[1]:mixed}} expectedGraphRevision={{phase:snapshot_core_baseline.captures.graphRevision}}",
+      "commandTemplate": "redstonelink bench occ pairing submit core {{targets[0]}} triggerSource {{source:sync_occ_pairing_core_conflict[1]:mixed}} expectedCoreRevision={{phase:snapshot_core_baseline.captures.coreRevision}}",
       "expectedPrefix": "[RedstoneLink/Bench]",
       "expectedRegexes": [
         "(?i)occ_pairing_submit",
         "(?i)outcome=conflict",
-        "(?i)messageKey=message\\.redstonelink\\.pairing\\.conflict\\.graph_revision",
+        "(?i)messageKey=message\\.redstonelink\\.pairing\\.conflict\\.core_revision",
         "(?i)currentTargetCount=1"
       ]
     },
