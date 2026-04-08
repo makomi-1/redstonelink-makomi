@@ -50,6 +50,9 @@ public final class RedstoneLinkAdvancementService {
 		ResourceKey<Level> sourceDimension,
 		LinkedTargetDispatchService.DispatchSummary dispatchSummary
 	) {
+		if (!isEligibleGameMode(player)) {
+			return;
+		}
 		if (shouldAwardComeFindMeInTheEnd(sourceDimension, dispatchSummary)) {
 			awardComeFindMeInTheEnd(player);
 		}
@@ -77,6 +80,9 @@ public final class RedstoneLinkAdvancementService {
 		int previousTargetCount,
 		int currentTargetCount
 	) {
+		if (!isEligibleGameMode(player)) {
+			return;
+		}
 		if (reachesConstellationThreshold(previousTargetCount, currentTargetCount)) {
 			awardConstellation(player);
 		}
@@ -90,10 +96,13 @@ public final class RedstoneLinkAdvancementService {
 	 * </p>
 	 */
 	static boolean isEligibleGameMode(ServerPlayer player) {
-		if (player == null || player.gameMode == null) {
-			return false;
-		}
-		GameType gameType = player.gameMode.getGameModeForPlayer();
+		return isEligibleGameMode(resolveGameType(player));
+	}
+
+	/**
+	 * 判断给定模式是否允许进入成就发放流程。
+	 */
+	static boolean isEligibleGameMode(GameType gameType) {
 		return gameType != null && gameType.isSurvival();
 	}
 
@@ -119,17 +128,70 @@ public final class RedstoneLinkAdvancementService {
 	}
 
 	/**
-	 * 在资格满足时发放指定成就。
+	 * 判断当前是否仍需要继续处理指定成就。
 	 */
-	static boolean awardIfEligible(ServerPlayer player, ResourceLocation advancementId) {
-		if (!isEligibleGameMode(player) || advancementId == null) {
+	static boolean shouldProcessAward(GameType gameType, boolean alreadyAwarded) {
+		return isEligibleGameMode(gameType) && !alreadyAwarded;
+	}
+
+	/**
+	 * 解析玩家当前模式。
+	 */
+	static GameType resolveGameType(ServerPlayer player) {
+		if (player == null || player.gameMode == null) {
+			return null;
+		}
+		return player.gameMode.getGameModeForPlayer();
+	}
+
+	/**
+	 * 解析指定成就定义；解析失败时返回 `null`。
+	 */
+	static AdvancementHolder resolveAdvancement(ServerPlayer player, ResourceLocation advancementId) {
+		if (player == null || player.server == null || advancementId == null) {
+			return null;
+		}
+		return player.server.getAdvancements().get(advancementId);
+	}
+
+	/**
+	 * 判断玩家是否已经完成指定成就。
+	 */
+	static boolean isAdvancementAlreadyAwarded(ServerPlayer player, AdvancementHolder advancement) {
+		if (player == null || advancement == null) {
 			return false;
 		}
-		AdvancementHolder advancement = player.server.getAdvancements().get(advancementId);
+		return player.getAdvancements().getOrStartProgress(advancement).isDone();
+	}
+
+	/**
+	 * 解析“本次仍可发放”的成就定义；若模式不合法、成就不存在或已完成，则返回 `null`。
+	 */
+	static AdvancementHolder resolveAwardableAdvancement(ServerPlayer player, ResourceLocation advancementId) {
+		AdvancementHolder advancement = resolveAdvancement(player, advancementId);
 		if (advancement == null) {
+			return null;
+		}
+		return shouldProcessAward(resolveGameType(player), isAdvancementAlreadyAwarded(player, advancement))
+			? advancement
+			: null;
+	}
+
+	/**
+	 * 发放已解析且确认仍待处理的成就。
+	 */
+	static boolean award(ServerPlayer player, AdvancementHolder advancement) {
+		if (player == null || advancement == null) {
 			return false;
 		}
 		return player.getAdvancements().award(advancement, DEFAULT_CRITERION);
+	}
+
+	/**
+	 * 在资格满足且尚未发放时发放指定成就。
+	 */
+	static boolean awardIfEligible(ServerPlayer player, ResourceLocation advancementId) {
+		return award(player, resolveAwardableAdvancement(player, advancementId));
 	}
 
 	private static ResourceLocation id(String path) {

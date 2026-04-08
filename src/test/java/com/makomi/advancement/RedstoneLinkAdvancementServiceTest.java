@@ -7,6 +7,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkedTargetDispatchService;
 import java.util.List;
 import java.util.Set;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -57,5 +58,27 @@ class RedstoneLinkAdvancementServiceTest {
 		assertFalse(RedstoneLinkAdvancementService.reachesConstellationThreshold(5, 5));
 		assertFalse(RedstoneLinkAdvancementService.reachesConstellationThreshold(6, 8));
 		assertFalse(RedstoneLinkAdvancementService.reachesConstellationThreshold(1, 4));
+	}
+
+	/**
+	 * 只有生存类模式才允许进入成就处理。
+	 */
+	@Test
+	void isEligibleGameModeShouldRejectCreativeAndNull() {
+		assertTrue(RedstoneLinkAdvancementService.isEligibleGameMode(GameType.SURVIVAL));
+		assertFalse(RedstoneLinkAdvancementService.isEligibleGameMode(GameType.CREATIVE));
+		assertFalse(RedstoneLinkAdvancementService.isEligibleGameMode(GameType.SPECTATOR));
+		assertFalse(RedstoneLinkAdvancementService.isEligibleGameMode((GameType) null));
+	}
+
+	/**
+	 * 创造模式或已达成成就时，都不应继续进入后续成就判定。
+	 */
+	@Test
+	void shouldProcessAwardShouldShortCircuitCreativeAndAlreadyAwarded() {
+		assertTrue(RedstoneLinkAdvancementService.shouldProcessAward(GameType.SURVIVAL, false));
+		assertFalse(RedstoneLinkAdvancementService.shouldProcessAward(GameType.CREATIVE, false));
+		assertFalse(RedstoneLinkAdvancementService.shouldProcessAward(GameType.SURVIVAL, true));
+		assertFalse(RedstoneLinkAdvancementService.shouldProcessAward((GameType) null, false));
 	}
 }

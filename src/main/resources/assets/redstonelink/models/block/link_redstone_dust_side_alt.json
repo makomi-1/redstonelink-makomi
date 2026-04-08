@@ -1,8 +1,8 @@
 {
   "ambientocclusion": false,
   "textures": {
-    "particle": "redstonelink:block/link_redstone_dust_dot_blue",
-    "overlay": "redstonelink:block/link_redstone_dust_overlay_blue"
+    "particle": "redstonelink:block/link_redstone_dust_dot",
+    "overlay": "redstonelink:block/link_redstone_dust_overlay"
   },
   "elements": [
     {
