@@ -43,6 +43,24 @@ class PairingNetworkServerHandlerSupportTest {
 	}
 
 	/**
+	 * 新世界 tick 回绕时不应继续沿用旧世界残留节流窗口。
+	 */
+	@Test
+	void isRequestInsideThrottleWindowShouldAllowWhenTickRewinds() {
+		assertFalse(PairingNetworkServerHandlerSupport.isRequestInsideThrottleWindow(36_000L, 20L, 5L));
+	}
+
+	/**
+	 * 当当前 tick 小于历史基线时，应识别为世界时钟已回绕。
+	 */
+	@Test
+	void hasTickRewoundShouldDetectIntegratedServerWorldReset() {
+		assertTrue(PairingNetworkServerHandlerSupport.hasTickRewound(36_000L, 0L));
+		assertFalse(PairingNetworkServerHandlerSupport.hasTickRewound(100L, 100L));
+		assertFalse(PairingNetworkServerHandlerSupport.hasTickRewound(100L, 105L));
+	}
+
+	/**
 	 * expected revision 与当前真值一致时，不应判定为冲突。
 	 */
 	@Test

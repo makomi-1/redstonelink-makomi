@@ -39,7 +39,7 @@ Mods that modify vanilla `chunk loading` or `item interaction` may introduce con
 - [Feedback Link](https://www.wjx.top/vm/wTsJKow.aspx)
 
 # Future Plans
-- [ ] Add I/O filters
+- [ ] Add Send/receive filters
 - [ ] Add recording and playback support to the status panel
 - [ ] Support custom node aliases
 - [ ] Expand channel matching

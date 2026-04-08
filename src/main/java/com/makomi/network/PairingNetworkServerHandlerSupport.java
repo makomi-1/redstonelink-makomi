@@ -275,6 +275,10 @@ final class PairingNetworkServerHandlerSupport {
 		cleanupThrottleStateIfNeeded(nowTick);
 		UUID playerId = player.getUUID();
 		Long lastTick = lastRequestTickByPlayer.get(playerId);
+		if (lastTick != null && hasTickRewound(lastTick, nowTick)) {
+			lastRequestTickByPlayer.remove(playerId);
+			lastTick = null;
+		}
 		if (lastTick != null && isRequestInsideThrottleWindow(lastTick, nowTick, minIntervalTicks)) {
 			return true;
 		}
@@ -286,14 +290,33 @@ final class PairingNetworkServerHandlerSupport {
 	 * 判断当前请求是否仍处于节流窗口内。
 	 */
 	static boolean isRequestInsideThrottleWindow(long lastTick, long nowTick, long minIntervalTicks) {
+		if (hasTickRewound(lastTick, nowTick)) {
+			return false;
+		}
 		long safeInterval = Math.max(1L, minIntervalTicks);
 		return nowTick - lastTick < safeInterval;
+	}
+
+	/**
+	 * 判断当前世界 tick 是否相对历史基线发生回绕。
+	 * <p>
+	 * 单端切换新存档后，集成服 `gameTime` 会重新从 0 开始；若继续沿用旧世界残留 tick，
+	 * 近外显请求会被误判为仍处于节流窗口内。
+	 * </p>
+	 */
+	static boolean hasTickRewound(long baselineTick, long nowTick) {
+		return nowTick < baselineTick;
 	}
 
 	/**
 	 * 定期清理长时间未再请求的玩家记录，避免 UUID 表无限增长。
 	 */
 	private static void cleanupThrottleStateIfNeeded(long nowTick) {
+		if (lastThrottleCleanupTick != Long.MIN_VALUE && hasTickRewound(lastThrottleCleanupTick, nowTick)) {
+			LAST_CURRENT_LINKS_REQUEST_TICK_BY_PLAYER.clear();
+			LAST_RUNTIME_HUD_REQUEST_TICK_BY_PLAYER.clear();
+			lastThrottleCleanupTick = Long.MIN_VALUE;
+		}
 		if (
 			lastThrottleCleanupTick != Long.MIN_VALUE
 				&& nowTick - lastThrottleCleanupTick < REQUEST_THROTTLE_CLEANUP_INTERVAL_TICKS
@@ -309,7 +332,21 @@ final class PairingNetworkServerHandlerSupport {
 	 * 清理单个近外显请求节流表中的陈旧项。
 	 */
 	private static void cleanupThrottleMap(Map<UUID, Long> lastRequestTickByPlayer, long nowTick) {
-		lastRequestTickByPlayer.entrySet().removeIf(entry -> nowTick - entry.getValue() > REQUEST_THROTTLE_STALE_TICKS);
+		lastRequestTickByPlayer.entrySet().removeIf(entry -> isThrottleEntryExpired(entry.getValue(), nowTick));
+	}
+
+	/**
+	 * 判断节流记录是否已失效。
+	 * <p>
+	 * 这里同时覆盖两类情况：
+	 * </p>
+	 * <ul>
+	 * <li>正常世界中超过陈旧阈值；</li>
+	 * <li>切换新世界后 `nowTick` 小于旧世界记录，说明该条目已不可再复用。</li>
+	 * </ul>
+	 */
+	private static boolean isThrottleEntryExpired(long recordedTick, long nowTick) {
+		return hasTickRewound(recordedTick, nowTick) || nowTick - recordedTick > REQUEST_THROTTLE_STALE_TICKS;
 	}
 
 	/**
