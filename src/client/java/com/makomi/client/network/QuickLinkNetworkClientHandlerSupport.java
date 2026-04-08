@@ -235,7 +235,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				payload.blockPosLong(),
 				payload.expectedNodeTypeToken(),
 				payload.expectedNodeSerial(),
-				payload.graphRevision(),
+				payload.coreRevision(),
 				payload.sourceRevision()
 			)
 		);

@@ -66,7 +66,7 @@ class NodeSnapshotReadModelTest {
 	@Test
 	void linksSnapshotShouldNormalizeVisibleTargets() {
 		NodeIdentitySnapshot identity = new NodeIdentitySnapshot(LinkNodeType.TRIGGER_SOURCE, 9L, true, false, true, null, null);
-		NodeLinksSnapshot snapshot = new NodeLinksSnapshot(identity, List.of(5L, 3L, 5L, -1L), true, 7L, 3L);
+		NodeLinksSnapshot snapshot = new NodeLinksSnapshot(identity, List.of(5L, 3L, 5L, -1L), true, 7L, 3L, 4L);
 
 		assertNotNull(snapshot.sourceIdentity());
 		assertEquals(List.of(3L, 5L), snapshot.visibleTargets());
@@ -75,5 +75,6 @@ class NodeSnapshotReadModelTest {
 		assertTrue(snapshot.masked());
 		assertEquals(7L, snapshot.graphRevision());
 		assertEquals(3L, snapshot.sourceRevision());
+		assertEquals(4L, snapshot.coreRevision());
 	}
 }

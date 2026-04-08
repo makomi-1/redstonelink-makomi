@@ -87,7 +87,7 @@ public final class BenchOccCommandRegistry {
 												.then(
 													Commands.argument("source_serials", SerialBatchArgumentType.serialBatch()).then(
 														Commands
-															.argument("expected_graph_revision_spec", KeyValueTokenArgumentType.keyValueToken())
+															.argument("expected_core_revision_spec", KeyValueTokenArgumentType.keyValueToken())
 															.executes(BenchOccCommandRegistry::executeCorePairingSubmit)
 													)
 												)
@@ -129,7 +129,7 @@ public final class BenchOccCommandRegistry {
 												.then(
 													Commands.argument("source_serials", SerialBatchArgumentType.serialBatch()).then(
 														Commands
-															.argument("expected_graph_revision_spec", KeyValueTokenArgumentType.keyValueToken())
+															.argument("expected_core_revision_spec", KeyValueTokenArgumentType.keyValueToken())
 															.executes(BenchOccCommandRegistry::executeCoreQuickLinkApply)
 													)
 												)
@@ -208,12 +208,13 @@ public final class BenchOccCommandRegistry {
 		ServerLevel level = source.getLevel();
 		ServerPlayer player = source.getPlayer();
 		long coreSerial = LongArgumentType.getLong(context, "serial");
-		long expectedGraphRevision = parseNamedLongSpec(
+		long expectedCoreRevision = parseNamedLongSpec(
 			source,
-			StringArgumentType.getString(context, "expected_graph_revision_spec"),
+			StringArgumentType.getString(context, "expected_core_revision_spec"),
+			"expectedCoreRevision",
 			"expectedGraphRevision"
 		);
-		if (expectedGraphRevision < 0L) {
+		if (expectedCoreRevision < 0L) {
 			return 0;
 		}
 		String triggerSourceExpression = SerialBatchArgumentType.getSerialBatch(context, "source_serials");
@@ -223,14 +224,14 @@ public final class BenchOccCommandRegistry {
 			level,
 			coreSerial,
 			triggerSourceExpression,
-			expectedGraphRevision
+			expectedCoreRevision
 		);
 		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(LinkSavedData.get(level), LinkNodeType.CORE, coreSerial);
 		String summary = buildPairingSummary(
 			"occ_pairing_submit",
 			LinkNodeType.CORE,
 			coreSerial,
-			expectedGraphRevision,
+			expectedCoreRevision,
 			0L,
 			baseline,
 			result.conflict(),
@@ -298,12 +299,13 @@ public final class BenchOccCommandRegistry {
 		ServerLevel level = source.getLevel();
 		ServerPlayer player = source.getPlayer();
 		long coreSerial = LongArgumentType.getLong(context, "serial");
-		long expectedGraphRevision = parseNamedLongSpec(
+		long expectedCoreRevision = parseNamedLongSpec(
 			source,
-			StringArgumentType.getString(context, "expected_graph_revision_spec"),
+			StringArgumentType.getString(context, "expected_core_revision_spec"),
+			"expectedCoreRevision",
 			"expectedGraphRevision"
 		);
-		if (expectedGraphRevision < 0L) {
+		if (expectedCoreRevision < 0L) {
 			return 0;
 		}
 		String triggerSourceExpression = SerialBatchArgumentType.getSerialBatch(context, "source_serials");
@@ -315,14 +317,14 @@ public final class BenchOccCommandRegistry {
 			coreSerial,
 			LinkNodeType.TRIGGER_SOURCE,
 			triggerSourceExpression,
-			expectedGraphRevision,
+			expectedCoreRevision,
 			0L
 		);
 		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(LinkSavedData.get(level), LinkNodeType.CORE, coreSerial);
 		String summary = buildQuickLinkSummary(
 			LinkNodeType.CORE,
 			coreSerial,
-			expectedGraphRevision,
+			expectedCoreRevision,
 			0L,
 			baseline,
 			result.conflict(),
@@ -369,17 +371,29 @@ public final class BenchOccCommandRegistry {
 	/**
 	 * 解析 `key=value` 形式的 revision 参数。
 	 */
-	static long parseNamedLongSpec(CommandSourceStack source, String rawSpec, String expectedKey) {
-		String prefix = expectedKey + "=";
-		if (rawSpec == null || !rawSpec.regionMatches(true, 0, prefix, 0, prefix.length())) {
+	static long parseNamedLongSpec(CommandSourceStack source, String rawSpec, String expectedKey, String... aliasKeys) {
+		String matchedPrefix = null;
+		String primaryPrefix = expectedKey + "=";
+		if (rawSpec != null && rawSpec.regionMatches(true, 0, primaryPrefix, 0, primaryPrefix.length())) {
+			matchedPrefix = primaryPrefix;
+		} else if (rawSpec != null && aliasKeys != null) {
+			for (String aliasKey : aliasKeys) {
+				String aliasPrefix = aliasKey + "=";
+				if (rawSpec.regionMatches(true, 0, aliasPrefix, 0, aliasPrefix.length())) {
+					matchedPrefix = aliasPrefix;
+					break;
+				}
+			}
+		}
+		if (matchedPrefix == null) {
 			source.sendFailure(
 				Component.literal(
-					"[RedstoneLink/Bench] Invalid occ spec order: expected " + prefix + "..., got " + rawSpec
+					"[RedstoneLink/Bench] Invalid occ spec order: expected " + primaryPrefix + "..., got " + rawSpec
 				)
 			);
 			return -1L;
 		}
-		String valueText = rawSpec.substring(prefix.length());
+		String valueText = rawSpec.substring(matchedPrefix.length());
 		try {
 			return Long.parseLong(valueText);
 		} catch (NumberFormatException exception) {
@@ -423,11 +437,12 @@ public final class BenchOccCommandRegistry {
 	) {
 		return String.format(
 			Locale.ROOT,
-			"[RedstoneLink/Bench] occ_snapshot type=%s serial=%d graphRevision=%d sourceRevision=%d currentTargetCount=%d",
+			"[RedstoneLink/Bench] occ_snapshot type=%s serial=%d graphRevision=%d sourceRevision=%d coreRevision=%d currentTargetCount=%d",
 			CommandTreeSupport.typeCommandName(nodeType),
 			serial,
 			baseline.graphRevision(),
 			baseline.sourceRevision(),
+			baseline.coreRevision(),
 			Math.max(0, currentTargetCount)
 		);
 	}
@@ -452,7 +467,7 @@ public final class BenchOccCommandRegistry {
 		String action,
 		LinkNodeType nodeType,
 		long serial,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision,
 		LinkOccSupport.RevisionBaseline baseline,
 		LinkOccSupport.OccConflict conflict,
@@ -463,15 +478,16 @@ public final class BenchOccCommandRegistry {
 	) {
 		return String.format(
 			Locale.ROOT,
-			"[RedstoneLink/Bench] %s outcome=%s type=%s serial=%d expectedGraphRevision=%d expectedSourceRevision=%d currentGraphRevision=%d currentSourceRevision=%d appliedOperationCount=%d currentTargetCount=%d messageKey=%s",
+			"[RedstoneLink/Bench] %s outcome=%s type=%s serial=%d expectedCoreRevision=%d expectedSourceRevision=%d currentGraphRevision=%d currentSourceRevision=%d currentCoreRevision=%d appliedOperationCount=%d currentTargetCount=%d messageKey=%s",
 			action,
 			outcome,
 			CommandTreeSupport.typeCommandName(nodeType),
 			serial,
-			conflict == null ? Math.max(0L, expectedGraphRevision) : conflict.expectedGraphRevision(),
+			conflict == null ? Math.max(0L, expectedCoreRevision) : conflict.expectedCoreRevision(),
 			conflict == null ? Math.max(0L, expectedSourceRevision) : conflict.expectedSourceRevision(),
 			conflict == null ? baseline.graphRevision() : conflict.currentGraphRevision(),
 			conflict == null ? baseline.sourceRevision() : conflict.currentSourceRevision(),
+			conflict == null ? baseline.coreRevision() : conflict.currentCoreRevision(),
 			Math.max(0, appliedOperationCount),
 			Math.max(0, currentTargetCount),
 			formatMessageKey(conflict == null ? messageKey : conflict.messageKey())
@@ -484,7 +500,7 @@ public final class BenchOccCommandRegistry {
 	static String buildQuickLinkSummary(
 		LinkNodeType nodeType,
 		long serial,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision,
 		LinkOccSupport.RevisionBaseline baseline,
 		LinkOccSupport.OccConflict conflict,
@@ -495,14 +511,15 @@ public final class BenchOccCommandRegistry {
 	) {
 		return String.format(
 			Locale.ROOT,
-			"[RedstoneLink/Bench] occ_quick_link_apply outcome=%s type=%s serial=%d expectedGraphRevision=%d expectedSourceRevision=%d currentGraphRevision=%d currentSourceRevision=%d affectedSourceCount=%d currentTargetCount=%d messageKey=%s",
+			"[RedstoneLink/Bench] occ_quick_link_apply outcome=%s type=%s serial=%d expectedCoreRevision=%d expectedSourceRevision=%d currentGraphRevision=%d currentSourceRevision=%d currentCoreRevision=%d affectedSourceCount=%d currentTargetCount=%d messageKey=%s",
 			outcome,
 			CommandTreeSupport.typeCommandName(nodeType),
 			serial,
-			conflict == null ? Math.max(0L, expectedGraphRevision) : conflict.expectedGraphRevision(),
+			conflict == null ? Math.max(0L, expectedCoreRevision) : conflict.expectedCoreRevision(),
 			conflict == null ? Math.max(0L, expectedSourceRevision) : conflict.expectedSourceRevision(),
 			conflict == null ? baseline.graphRevision() : conflict.currentGraphRevision(),
 			conflict == null ? baseline.sourceRevision() : conflict.currentSourceRevision(),
+			conflict == null ? baseline.coreRevision() : conflict.currentCoreRevision(),
 			Math.max(0, affectedSourceCount),
 			Math.max(0, currentTargetCount),
 			formatMessageKey(conflict == null ? resolveQuickLinkMessageKey(feedback) : conflict.messageKey())

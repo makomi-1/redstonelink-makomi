@@ -165,7 +165,8 @@ public final class NodeSnapshotQueryService {
 			rawTargets == null ? java.util.List.of() : java.util.List.copyOf(rawTargets),
 			false,
 			resolveGraphRevision(savedData),
-			resolveSourceRevision(savedData, nodeType, serial)
+			resolveSourceRevision(savedData, nodeType, serial),
+			resolveCoreRevision(savedData, nodeType, serial)
 		);
 	}
 
@@ -183,7 +184,8 @@ public final class NodeSnapshotQueryService {
 			normalizedSnapshot.visibleTargets(),
 			normalizedSnapshot.masked(),
 			resolveGraphRevision(savedData),
-			resolveSourceRevision(savedData, nodeType, serial)
+			resolveSourceRevision(savedData, nodeType, serial),
+			resolveCoreRevision(savedData, nodeType, serial)
 		);
 	}
 
@@ -196,6 +198,13 @@ public final class NodeSnapshotQueryService {
 			return 0L;
 		}
 		return savedData.sourceRevision(nodeType, serial);
+	}
+
+	private static long resolveCoreRevision(LinkSavedData savedData, LinkNodeType nodeType, long serial) {
+		if (savedData == null || nodeType != LinkNodeType.CORE) {
+			return 0L;
+		}
+		return savedData.coreRevision(serial);
 	}
 
 	/**

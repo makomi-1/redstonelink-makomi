@@ -110,11 +110,11 @@ final class QuickLinkNetworkPayloadSupport {
 		long blockPosLong,
 		String expectedNodeTypeToken,
 		long expectedNodeSerial,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision
 	) {
 		encodeBlockTargetPayload(buffer, dimensionKey, blockPosLong, expectedNodeTypeToken, expectedNodeSerial);
-		buffer.writeVarLong(Math.max(0L, expectedGraphRevision));
+		buffer.writeVarLong(Math.max(0L, expectedCoreRevision));
 		buffer.writeVarLong(Math.max(0L, expectedSourceRevision));
 	}
 
@@ -143,11 +143,13 @@ final class QuickLinkNetworkPayloadSupport {
 		String expectedNodeTypeToken,
 		long expectedNodeSerial,
 		long graphRevision,
-		long sourceRevision
+		long sourceRevision,
+		long coreRevision
 	) {
 		encodeBlockTargetPayload(buffer, dimensionKey, blockPosLong, expectedNodeTypeToken, expectedNodeSerial);
 		buffer.writeVarLong(Math.max(0L, graphRevision));
 		buffer.writeVarLong(Math.max(0L, sourceRevision));
+		buffer.writeVarLong(Math.max(0L, coreRevision));
 	}
 
 	/**
@@ -160,6 +162,7 @@ final class QuickLinkNetworkPayloadSupport {
 			decodedTarget.blockPosLong(),
 			decodedTarget.expectedNodeTypeToken(),
 			decodedTarget.expectedNodeSerial(),
+			buffer.readVarLong(),
 			buffer.readVarLong(),
 			buffer.readVarLong()
 		);
@@ -229,7 +232,7 @@ final class QuickLinkNetworkPayloadSupport {
 		long blockPosLong,
 		String expectedNodeTypeToken,
 		long expectedNodeSerial,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision
 	) {
 	}
@@ -243,7 +246,8 @@ final class QuickLinkNetworkPayloadSupport {
 		String expectedNodeTypeToken,
 		long expectedNodeSerial,
 		long graphRevision,
-		long sourceRevision
+		long sourceRevision,
+		long coreRevision
 	) {
 	}
 

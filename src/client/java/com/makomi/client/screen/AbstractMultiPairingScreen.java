@@ -95,6 +95,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected final List<Long> currentTargets;
 	protected final long graphRevision;
 	protected final long sourceRevision;
+	protected final long coreRevision;
 
 	private MultiLineEditBox serialInput;
 	private Component statusMessage = Component.empty();
@@ -104,13 +105,25 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		long sourceSerial,
 		List<Long> currentTargets,
 		long graphRevision,
-		long sourceRevision
+		long sourceRevision,
+		long coreRevision
 	) {
 		super(title);
 		this.sourceSerial = sourceSerial;
 		this.currentTargets = new ArrayList<>(currentTargets);
 		this.graphRevision = Math.max(0L, graphRevision);
 		this.sourceRevision = Math.max(0L, sourceRevision);
+		this.coreRevision = Math.max(0L, coreRevision);
+	}
+
+	protected AbstractMultiPairingScreen(
+		Component title,
+		long sourceSerial,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision
+	) {
+		this(title, sourceSerial, currentTargets, graphRevision, sourceRevision, 0L);
 	}
 
 	protected AbstractMultiPairingScreen(Component title, long sourceSerial, List<Long> currentTargets) {

@@ -25,7 +25,8 @@ class QuickLinkNetworkServerHandlerSupportTest {
 				99L,
 				5L,
 				101L,
-				5L
+				5L,
+				0L
 			)
 		);
 	}
@@ -41,7 +42,8 @@ class QuickLinkNetworkServerHandlerSupportTest {
 			99L,
 			4L,
 			101L,
-			6L
+			6L,
+			0L
 		);
 
 		assertEquals("message.redstonelink.pairing.conflict.source_revision", feedback.messageKey());
@@ -51,26 +53,27 @@ class QuickLinkNetworkServerHandlerSupportTest {
 	}
 
 	/**
-	 * `core` 目标应只比较 `expectedGraphRevision`。
+	 * `core` 目标应只比较 `expectedCoreRevision`。
 	 */
 	@Test
-	void buildApplyRevisionConflictFeedbackShouldUseGraphRevisionForCore() {
+	void buildApplyRevisionConflictFeedbackShouldUseCoreRevisionForCore() {
 		QuickLinkOperationFeedback feedback = QuickLinkNetworkServerHandlerSupport.buildApplyRevisionConflictFeedback(
 			LinkNodeType.CORE,
 			13L,
 			8L,
 			99L,
 			11L,
-			3L
+			3L,
+			5L
 		);
 
-		assertEquals("message.redstonelink.pairing.conflict.graph_revision", feedback.messageKey());
+		assertEquals("message.redstonelink.pairing.conflict.core_revision", feedback.messageKey());
 		assertEquals("8", feedback.messageArgs().get(0));
-		assertEquals("11", feedback.messageArgs().get(1));
+		assertEquals("5", feedback.messageArgs().get(1));
 	}
 
 	/**
-	 * `core` 目标在 graph revision 一致时，不应受 `sourceRevision` 差异影响。
+	 * `core` 目标在 core revision 一致时，不应受 `sourceRevision` 差异影响。
 	 */
 	@Test
 	void buildApplyRevisionConflictFeedbackShouldIgnoreSourceRevisionForCore() {
@@ -80,8 +83,9 @@ class QuickLinkNetworkServerHandlerSupportTest {
 				13L,
 				8L,
 				99L,
-				8L,
-				3L
+				11L,
+				3L,
+				8L
 			)
 		);
 	}

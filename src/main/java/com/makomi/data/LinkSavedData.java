@@ -67,6 +67,7 @@ public final class LinkSavedData extends SavedData {
 	long runtimeNodeVersion;
 	long graphRevision;
 	final Map<Long, Long> triggerSourceRevisions = new HashMap<>();
+	final Map<Long, Long> coreRevisions = new HashMap<>();
 
 	/**
 	 * 获取当前服务器共享的联动存档数据实例。
@@ -173,8 +174,8 @@ public final class LinkSavedData extends SavedData {
 	/**
 	 * 获取指定来源节点当前的运行时版本号。
 	 * <p>
-	 * 当前只对 `triggerSource` 维护来源级 revision；`core` 视角返回 `0`，
-	 * 其批量覆盖冲突由全图级 `graphRevision` 负责兜底。
+	 * 当前只对 `triggerSource` 维护来源级 revision；`core` 视角固定返回 `0`，
+	 * `core` 侧的 OCC 基线由独立的 `coreRevision` 提供。
 	 * </p>
 	 */
 	public long sourceRevision(LinkNodeType sourceType, long sourceSerial) {
@@ -182,6 +183,19 @@ public final class LinkSavedData extends SavedData {
 			return 0L;
 		}
 		return triggerSourceRevisions.getOrDefault(sourceSerial, 0L);
+	}
+
+	/**
+	 * 获取指定 core 当前的运行时版本号。
+	 * <p>
+	 * 仅在该 core 的成员集合真实发生变化时递增，用于 `core` 视角 OCC 精细化校验。
+	 * </p>
+	 */
+	public long coreRevision(long coreSerial) {
+		if (coreSerial <= 0L) {
+			return 0L;
+		}
+		return coreRevisions.getOrDefault(coreSerial, 0L);
 	}
 
 	/**
@@ -372,6 +386,16 @@ public final class LinkSavedData extends SavedData {
 			return;
 		}
 		triggerSourceRevisions.put(triggerSourceSerial, triggerSourceRevisions.getOrDefault(triggerSourceSerial, 0L) + 1L);
+	}
+
+	/**
+	 * 指定 core 成员集合真实变更时推进 core revision。
+	 */
+	void bumpCoreRevision(long coreSerial) {
+		if (coreSerial <= 0L) {
+			return;
+		}
+		coreRevisions.put(coreSerial, coreRevisions.getOrDefault(coreSerial, 0L) + 1L);
 	}
 
 	/**

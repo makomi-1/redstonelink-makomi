@@ -82,7 +82,7 @@ class QuickLinkNetworkPayloadTest {
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
 		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
 		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
-		assertEquals(original.expectedGraphRevision(), decoded.expectedGraphRevision());
+		assertEquals(original.expectedCoreRevision(), decoded.expectedCoreRevision());
 		assertEquals(original.expectedSourceRevision(), decoded.expectedSourceRevision());
 	}
 
@@ -120,7 +120,8 @@ class QuickLinkNetworkPayloadTest {
 			"core",
 			42L,
 			18L,
-			0L
+			0L,
+			6L
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -133,6 +134,7 @@ class QuickLinkNetworkPayloadTest {
 		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
 		assertEquals(original.graphRevision(), decoded.graphRevision());
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
+		assertEquals(original.coreRevision(), decoded.coreRevision());
 	}
 
 	/**

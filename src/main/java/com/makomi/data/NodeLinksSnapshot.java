@@ -18,7 +18,8 @@ public record NodeLinksSnapshot(
 	List<Long> visibleTargets,
 	boolean masked,
 	long graphRevision,
-	long sourceRevision
+	long sourceRevision,
+	long coreRevision
 ) {
 	public NodeLinksSnapshot {
 		sourceIdentity = sourceIdentity == null
@@ -27,13 +28,27 @@ public record NodeLinksSnapshot(
 		visibleTargets = normalizeTargets(visibleTargets);
 		graphRevision = Math.max(0L, graphRevision);
 		sourceRevision = Math.max(0L, sourceRevision);
+		coreRevision = Math.max(0L, coreRevision);
+	}
+
+	/**
+	 * 兼容旧调用方仅传入 `graphRevision/sourceRevision` 的场景。
+	 */
+	public NodeLinksSnapshot(
+		NodeIdentitySnapshot sourceIdentity,
+		List<Long> visibleTargets,
+		boolean masked,
+		long graphRevision,
+		long sourceRevision
+	) {
+		this(sourceIdentity, visibleTargets, masked, graphRevision, sourceRevision, 0L);
 	}
 
 	/**
 	 * 兼容仅关心可见目标列表的旧调用方。
 	 */
 	public NodeLinksSnapshot(NodeIdentitySnapshot sourceIdentity, List<Long> visibleTargets, boolean masked) {
-		this(sourceIdentity, visibleTargets, masked, 0L, 0L);
+		this(sourceIdentity, visibleTargets, masked, 0L, 0L, 0L);
 	}
 
 	/**

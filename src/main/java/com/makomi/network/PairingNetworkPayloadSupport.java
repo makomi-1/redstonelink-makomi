@@ -42,14 +42,16 @@ final class PairingNetworkPayloadSupport {
 				sourceSerial,
 				normalizedSnapshot.visibleTargets(),
 				normalizedSnapshot.graphRevision(),
-				normalizedSnapshot.sourceRevision()
+				normalizedSnapshot.sourceRevision(),
+				normalizedSnapshot.coreRevision()
 			);
 		}
 		return new PairingNetwork.OpenCorePairingPayload(
 			sourceSerial,
 			normalizedSnapshot.visibleTargets(),
 			normalizedSnapshot.graphRevision(),
-			normalizedSnapshot.sourceRevision()
+			normalizedSnapshot.sourceRevision(),
+			normalizedSnapshot.coreRevision()
 		);
 	}
 
@@ -61,7 +63,8 @@ final class PairingNetworkPayloadSupport {
 		long sourceSerial,
 		List<Long> targets,
 		long graphRevision,
-		long sourceRevision
+		long sourceRevision,
+		long coreRevision
 	) {
 		buffer.writeVarLong(sourceSerial);
 		buffer.writeVarInt(targets.size());
@@ -70,6 +73,7 @@ final class PairingNetworkPayloadSupport {
 		}
 		buffer.writeVarLong(Math.max(0L, graphRevision));
 		buffer.writeVarLong(Math.max(0L, sourceRevision));
+		buffer.writeVarLong(Math.max(0L, coreRevision));
 	}
 
 	/**
@@ -81,7 +85,8 @@ final class PairingNetworkPayloadSupport {
 			payload.sourceSerial(),
 			payload.targets(),
 			payload.graphRevision(),
-			payload.sourceRevision()
+			payload.sourceRevision(),
+			payload.coreRevision()
 		);
 	}
 
@@ -94,7 +99,8 @@ final class PairingNetworkPayloadSupport {
 			payload.sourceSerial(),
 			payload.targets(),
 			payload.graphRevision(),
-			payload.sourceRevision()
+			payload.sourceRevision(),
+			payload.coreRevision()
 		);
 	}
 
@@ -129,9 +135,9 @@ final class PairingNetworkPayloadSupport {
 		FriendlyByteBuf buffer,
 		long coreSerial,
 		String triggerSourceExpression,
-		long expectedGraphRevision
+		long expectedCoreRevision
 	) {
-		encodeSubmitPairingExpressionPayload(buffer, coreSerial, triggerSourceExpression, expectedGraphRevision);
+		encodeSubmitPairingExpressionPayload(buffer, coreSerial, triggerSourceExpression, expectedCoreRevision);
 	}
 
 	/**
@@ -301,7 +307,7 @@ final class PairingNetworkPayloadSupport {
 		for (int i = 0; i < size; i++) {
 			targets.add(buffer.readVarLong());
 		}
-		return new DecodedPayload(sourceSerial, targets, buffer.readVarLong(), buffer.readVarLong());
+		return new DecodedPayload(sourceSerial, targets, buffer.readVarLong(), buffer.readVarLong(), buffer.readVarLong());
 	}
 
 	/**
@@ -387,7 +393,13 @@ final class PairingNetworkPayloadSupport {
 	/**
 	 * 通用配对 payload 解码结果。
 	 */
-	private record DecodedPayload(long sourceSerial, List<Long> targets, long graphRevision, long sourceRevision) {}
+	private record DecodedPayload(
+		long sourceSerial,
+		List<Long> targets,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision
+	) {}
 
 	/**
 	 * “单序号 + 表达式”提交包解码结果。

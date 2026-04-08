@@ -27,8 +27,18 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	 * @param sourceSerial 来源节点序列号
 	 * @param currentTargets 当前已连接目标序列号列表
 	 */
+	public TriggerSourcePairingScreen(
+		long sourceSerial,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision
+	) {
+		super(TITLE, sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision);
+	}
+
 	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
-		super(TITLE, sourceSerial, currentTargets, graphRevision, sourceRevision);
+		this(sourceSerial, currentTargets, graphRevision, sourceRevision, 0L);
 	}
 
 	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets) {

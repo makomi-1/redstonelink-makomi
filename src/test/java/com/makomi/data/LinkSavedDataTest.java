@@ -153,33 +153,62 @@ class LinkSavedDataTest {
 	}
 
 	/**
-	 * 真实图拓扑变更应推进 graph/source revision；无变化写入不应误递增。
+	 * 真实图拓扑变更应推进 graph/source/core revision；无变化写入不应误递增。
 	 */
 	@Test
-	void linkMutationsShouldAdvanceGraphAndSourceRevisionOnlyWhenChanged() {
+	void linkMutationsShouldAdvanceGraphSourceAndCoreRevisionOnlyWhenChanged() {
 		LinkSavedData data = new LinkSavedData();
 		long triggerSourceSerial = 330L;
 		long coreSerial = 430L;
 
 		assertEquals(0L, data.graphRevision());
 		assertEquals(0L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertEquals(0L, data.coreRevision(coreSerial));
 
 		assertTrue(data.addTriggerSourceCoreLink(triggerSourceSerial, coreSerial));
 		assertEquals(1L, data.graphRevision());
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertEquals(1L, data.coreRevision(coreSerial));
 
 		assertFalse(data.addTriggerSourceCoreLink(triggerSourceSerial, coreSerial));
 		assertEquals(1L, data.graphRevision());
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertEquals(1L, data.coreRevision(coreSerial));
 
 		LinkSavedData.ReplaceLinksResult unchanged = data.replaceTriggerSourceTargets(triggerSourceSerial, Set.of(coreSerial));
 		assertEquals(0, unchanged.changedCount());
 		assertEquals(1L, data.graphRevision());
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertEquals(1L, data.coreRevision(coreSerial));
 
 		assertTrue(data.removeTriggerSourceCoreLink(triggerSourceSerial, coreSerial));
 		assertEquals(2L, data.graphRevision());
 		assertEquals(2L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertEquals(2L, data.coreRevision(coreSerial));
+	}
+
+	/**
+	 * 覆盖式替换应只推进受影响 core 的 revision，未变化 core 不应误递增。
+	 */
+	@Test
+	void replaceTriggerSourceTargetsShouldOnlyAdvanceAffectedCoreRevisions() {
+		LinkSavedData data = new LinkSavedData();
+		long triggerSourceSerial = 331L;
+		long coreA = 431L;
+		long coreB = 432L;
+		long coreC = 433L;
+
+		data.addTriggerSourceCoreLink(triggerSourceSerial, coreA);
+		data.addTriggerSourceCoreLink(triggerSourceSerial, coreB);
+
+		LinkSavedData.ReplaceLinksResult result = data.replaceTriggerSourceTargets(triggerSourceSerial, Set.of(coreB, coreC));
+
+		assertEquals(2, result.changedCount());
+		assertEquals(3L, data.graphRevision());
+		assertEquals(3L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
+		assertEquals(2L, data.coreRevision(coreA));
+		assertEquals(1L, data.coreRevision(coreB));
+		assertEquals(1L, data.coreRevision(coreC));
 	}
 
 	/**
@@ -198,6 +227,7 @@ class LinkSavedDataTest {
 		assertEquals(2L, data.graphRevision());
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceA));
 		assertEquals(1L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceB));
+		assertEquals(2L, data.coreRevision(coreSerial));
 
 		int removed = data.clearLinksForNode(LinkNodeType.CORE, coreSerial);
 
@@ -205,6 +235,7 @@ class LinkSavedDataTest {
 		assertEquals(3L, data.graphRevision());
 		assertEquals(2L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceA));
 		assertEquals(2L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, triggerSourceB));
+		assertEquals(3L, data.coreRevision(coreSerial));
 		assertTrue(data.getLinkedTriggerSourcesByCore(coreSerial).isEmpty());
 	}
 

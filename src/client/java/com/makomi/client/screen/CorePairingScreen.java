@@ -24,8 +24,12 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	 * @param sourceSerial 来源节点序列号
 	 * @param currentTargets 当前已连接目标序列号列表
 	 */
+	public CorePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision, long coreRevision) {
+		super(TITLE, sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision);
+	}
+
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
-		super(TITLE, sourceSerial, currentTargets, graphRevision, sourceRevision);
+		this(sourceSerial, currentTargets, graphRevision, sourceRevision, 0L);
 	}
 
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets) {
@@ -90,7 +94,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
 			return;
 		}
-		ClientPlayNetworking.send(new PairingNetwork.SubmitCorePairingPayload(sourceSerial, rawTargetsInput, graphRevision));
+		ClientPlayNetworking.send(new PairingNetwork.SubmitCorePairingPayload(sourceSerial, rawTargetsInput, coreRevision));
 	}
 
 	/**
@@ -101,6 +105,6 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
 			return;
 		}
-		ClientPlayNetworking.send(new PairingNetwork.SubmitCorePairingPayload(sourceSerial, "", graphRevision));
+		ClientPlayNetworking.send(new PairingNetwork.SubmitCorePairingPayload(sourceSerial, "", coreRevision));
 	}
 }

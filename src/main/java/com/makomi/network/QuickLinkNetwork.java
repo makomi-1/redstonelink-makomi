@@ -193,7 +193,8 @@ public final class QuickLinkNetwork {
 		String expectedNodeTypeToken,
 		long expectedNodeSerial,
 		long graphRevision,
-		long sourceRevision
+		long sourceRevision,
+		long coreRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ApplyQuickLinkBaselinePayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_baseline")
@@ -206,7 +207,8 @@ public final class QuickLinkNetwork {
 				payload.expectedNodeTypeToken(),
 				payload.expectedNodeSerial(),
 				payload.graphRevision(),
-				payload.sourceRevision()
+				payload.sourceRevision(),
+				payload.coreRevision()
 			),
 			buffer -> {
 				QuickLinkNetworkPayloadSupport.DecodedApplyBaselinePayload decoded = QuickLinkNetworkPayloadSupport.decodeApplyBaselinePayload(
@@ -218,7 +220,8 @@ public final class QuickLinkNetwork {
 					decoded.expectedNodeTypeToken(),
 					decoded.expectedNodeSerial(),
 					decoded.graphRevision(),
-					decoded.sourceRevision()
+					decoded.sourceRevision(),
+					decoded.coreRevision()
 				);
 			}
 		);
@@ -229,6 +232,7 @@ public final class QuickLinkNetwork {
 			expectedNodeSerial = Math.max(0L, expectedNodeSerial);
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
+			coreRevision = Math.max(0L, coreRevision);
 		}
 
 		@Override
@@ -245,7 +249,7 @@ public final class QuickLinkNetwork {
 		long blockPosLong,
 		String expectedNodeTypeToken,
 		long expectedNodeSerial,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ApplyQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -258,7 +262,7 @@ public final class QuickLinkNetwork {
 				payload.blockPosLong(),
 				payload.expectedNodeTypeToken(),
 				payload.expectedNodeSerial(),
-				payload.expectedGraphRevision(),
+				payload.expectedCoreRevision(),
 				payload.expectedSourceRevision()
 			),
 			buffer -> {
@@ -270,7 +274,7 @@ public final class QuickLinkNetwork {
 					decoded.blockPosLong(),
 					decoded.expectedNodeTypeToken(),
 					decoded.expectedNodeSerial(),
-					decoded.expectedGraphRevision(),
+					decoded.expectedCoreRevision(),
 					decoded.expectedSourceRevision()
 				);
 			}
@@ -280,7 +284,7 @@ public final class QuickLinkNetwork {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			expectedNodeTypeToken = expectedNodeTypeToken == null ? "" : expectedNodeTypeToken;
 			expectedNodeSerial = Math.max(0L, expectedNodeSerial);
-			expectedGraphRevision = Math.max(0L, expectedGraphRevision);
+			expectedCoreRevision = Math.max(0L, expectedCoreRevision);
 			expectedSourceRevision = Math.max(0L, expectedSourceRevision);
 		}
 

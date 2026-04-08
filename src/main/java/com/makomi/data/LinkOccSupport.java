@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * 链接编辑 OCC 基线与冲突判定支撑。
  * <p>
- * 统一复用 `LinkSavedData` 中的 `graphRevision/sourceRevision` 真值，
+ * 统一复用 `LinkSavedData` 中的 `graphRevision/sourceRevision/coreRevision` 真值，
  * 供 pairing、quick-link 与 bench/internal 提交路径共用。
  * </p>
  */
@@ -19,9 +19,13 @@ public final class LinkOccSupport {
 	 */
 	public static RevisionBaseline readBaseline(LinkSavedData savedData, LinkNodeType nodeType, long nodeSerial) {
 		if (savedData == null) {
-			return new RevisionBaseline(0L, 0L);
+			return new RevisionBaseline(0L, 0L, 0L);
 		}
-		return new RevisionBaseline(savedData.graphRevision(), savedData.sourceRevision(nodeType, nodeSerial));
+		return new RevisionBaseline(
+			savedData.graphRevision(),
+			savedData.sourceRevision(nodeType, nodeSerial),
+			nodeType == LinkNodeType.CORE ? savedData.coreRevision(nodeSerial) : 0L
+		);
 	}
 
 	/**
@@ -43,8 +47,8 @@ public final class LinkOccSupport {
 		return resolveTargetConflictWithCurrentBaseline(
 			LinkNodeType.TRIGGER_SOURCE,
 			triggerSourceSerial,
-			expectedSourceRevision,
 			0L,
+			expectedSourceRevision,
 			currentBaseline
 		);
 	}
@@ -52,13 +56,13 @@ public final class LinkOccSupport {
 	/**
 	 * 按 `core` 提交语义解析 revision 冲突。
 	 */
-	public static OccConflict resolveCoreConflict(LinkSavedData savedData, long coreSerial, long expectedGraphRevision) {
+	public static OccConflict resolveCoreConflict(LinkSavedData savedData, long coreSerial, long expectedCoreRevision) {
 		RevisionBaseline currentBaseline = readBaseline(savedData, LinkNodeType.CORE, coreSerial);
 		return resolveTargetConflictWithCurrentBaseline(
 			LinkNodeType.CORE,
 			coreSerial,
 			0L,
-			expectedGraphRevision,
+			expectedCoreRevision,
 			currentBaseline
 		);
 	}
@@ -70,15 +74,15 @@ public final class LinkOccSupport {
 		LinkSavedData savedData,
 		LinkNodeType targetNodeType,
 		long targetNodeSerial,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision
 	) {
 		RevisionBaseline currentBaseline = readBaseline(savedData, targetNodeType, targetNodeSerial);
 		return resolveTargetConflictWithCurrentBaseline(
 			targetNodeType,
 			targetNodeSerial,
+			expectedCoreRevision,
 			expectedSourceRevision,
-			expectedGraphRevision,
 			currentBaseline
 		);
 	}
@@ -89,8 +93,8 @@ public final class LinkOccSupport {
 	public static OccConflict resolveTargetConflictWithCurrentBaseline(
 		LinkNodeType targetNodeType,
 		long targetNodeSerial,
+		long expectedCoreRevision,
 		long expectedSourceRevision,
-		long expectedGraphRevision,
 		RevisionBaseline currentBaseline
 	) {
 		if (targetNodeType == null || currentBaseline == null) {
@@ -112,25 +116,27 @@ public final class LinkOccSupport {
 				0L,
 				Math.max(0L, expectedSourceRevision),
 				currentBaseline.graphRevision(),
-				currentBaseline.sourceRevision()
+				currentBaseline.sourceRevision(),
+				currentBaseline.coreRevision()
 			);
 		}
 		if (targetNodeType == LinkNodeType.CORE) {
-			if (!isRevisionMismatch(expectedGraphRevision, currentBaseline.graphRevision())) {
+			if (!isRevisionMismatch(expectedCoreRevision, currentBaseline.coreRevision())) {
 				return null;
 			}
 			return new OccConflict(
 				targetNodeType,
 				targetNodeSerial,
-				"message.redstonelink.pairing.conflict.graph_revision",
+				"message.redstonelink.pairing.conflict.core_revision",
 				List.of(
-					Long.toString(Math.max(0L, expectedGraphRevision)),
-					Long.toString(Math.max(0L, currentBaseline.graphRevision()))
+					Long.toString(Math.max(0L, expectedCoreRevision)),
+					Long.toString(Math.max(0L, currentBaseline.coreRevision()))
 				),
-				Math.max(0L, expectedGraphRevision),
+				Math.max(0L, expectedCoreRevision),
 				0L,
 				currentBaseline.graphRevision(),
-				currentBaseline.sourceRevision()
+				currentBaseline.sourceRevision(),
+				currentBaseline.coreRevision()
 			);
 		}
 		return null;
@@ -159,10 +165,15 @@ public final class LinkOccSupport {
 	/**
 	 * OCC 基线快照。
 	 */
-	public record RevisionBaseline(long graphRevision, long sourceRevision) {
+	public record RevisionBaseline(long graphRevision, long sourceRevision, long coreRevision) {
 		public RevisionBaseline {
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
+			coreRevision = Math.max(0L, coreRevision);
+		}
+
+		public RevisionBaseline(long graphRevision, long sourceRevision) {
+			this(graphRevision, sourceRevision, 0L);
 		}
 	}
 
@@ -174,19 +185,21 @@ public final class LinkOccSupport {
 		long targetNodeSerial,
 		String messageKey,
 		List<String> messageArgs,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision,
 		long currentGraphRevision,
-		long currentSourceRevision
+		long currentSourceRevision,
+		long currentCoreRevision
 	) {
 		public OccConflict {
 			targetNodeSerial = Math.max(0L, targetNodeSerial);
 			messageKey = messageKey == null ? "" : messageKey;
 			messageArgs = List.copyOf(messageArgs == null ? List.of() : messageArgs);
-			expectedGraphRevision = Math.max(0L, expectedGraphRevision);
+			expectedCoreRevision = Math.max(0L, expectedCoreRevision);
 			expectedSourceRevision = Math.max(0L, expectedSourceRevision);
 			currentGraphRevision = Math.max(0L, currentGraphRevision);
 			currentSourceRevision = Math.max(0L, currentSourceRevision);
+			currentCoreRevision = Math.max(0L, currentCoreRevision);
 		}
 	}
 }

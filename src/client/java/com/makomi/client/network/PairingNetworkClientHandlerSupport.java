@@ -31,7 +31,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.sourceSerial(),
 				payload.targets(),
 				payload.graphRevision(),
-				payload.sourceRevision()
+				payload.sourceRevision(),
+				payload.coreRevision()
 			));
 		});
 
@@ -42,7 +43,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.sourceSerial(),
 				payload.targets(),
 				payload.graphRevision(),
-				payload.sourceRevision()
+				payload.sourceRevision(),
+				payload.coreRevision()
 			));
 		});
 
@@ -89,17 +91,18 @@ public final class PairingNetworkClientHandlerSupport {
 		long sourceSerial,
 		List<Long> currentTargets,
 		long graphRevision,
-		long sourceRevision
+		long sourceRevision,
+		long coreRevision
 	) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null) {
 			return;
 		}
 		if (sourceType == LinkNodeType.CORE) {
-			minecraft.setScreen(new CorePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision));
+			minecraft.setScreen(new CorePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision));
 			return;
 		}
-		minecraft.setScreen(new TriggerSourcePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision));
+		minecraft.setScreen(new TriggerSourcePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision));
 	}
 
 	public static void openPairingScreenBySourceType(
@@ -107,7 +110,7 @@ public final class PairingNetworkClientHandlerSupport {
 		long sourceSerial,
 		List<Long> currentTargets
 	) {
-		openPairingScreenBySourceType(sourceType, sourceSerial, currentTargets, 0L, 0L);
+		openPairingScreenBySourceType(sourceType, sourceSerial, currentTargets, 0L, 0L, 0L);
 	}
 
 	/**

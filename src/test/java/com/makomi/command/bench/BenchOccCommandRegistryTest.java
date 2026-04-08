@@ -20,11 +20,11 @@ class BenchOccCommandRegistryTest {
 	@Test
 	void buildSnapshotSummaryShouldExposeStableBaselineFields() {
 		assertEquals(
-			"[RedstoneLink/Bench] occ_snapshot type=triggerSource serial=7 graphRevision=11 sourceRevision=3 currentTargetCount=2",
+			"[RedstoneLink/Bench] occ_snapshot type=triggerSource serial=7 graphRevision=11 sourceRevision=3 coreRevision=0 currentTargetCount=2",
 			BenchOccCommandRegistry.buildSnapshotSummary(
 				LinkNodeType.TRIGGER_SOURCE,
 				7L,
-				new LinkOccSupport.RevisionBaseline(11L, 3L),
+				new LinkOccSupport.RevisionBaseline(11L, 3L, 0L),
 				2
 			)
 		);
@@ -38,12 +38,13 @@ class BenchOccCommandRegistryTest {
 		LinkOccSupport.OccConflict conflict = new LinkOccSupport.OccConflict(
 			LinkNodeType.CORE,
 			15L,
-			"message.redstonelink.pairing.conflict.graph_revision",
+			"message.redstonelink.pairing.conflict.core_revision",
 			java.util.List.of("4", "5"),
 			4L,
 			0L,
-			5L,
-			1L
+			9L,
+			1L,
+			5L
 		);
 
 		String summary = BenchOccCommandRegistry.buildPairingSummary(
@@ -52,7 +53,7 @@ class BenchOccCommandRegistryTest {
 			15L,
 			0L,
 			0L,
-			new LinkOccSupport.RevisionBaseline(99L, 99L),
+			new LinkOccSupport.RevisionBaseline(99L, 99L, 99L),
 			conflict,
 			1,
 			0,
@@ -61,10 +62,11 @@ class BenchOccCommandRegistryTest {
 		);
 
 		assertTrue(summary.contains("outcome=conflict"));
-		assertTrue(summary.contains("expectedGraphRevision=4"));
-		assertTrue(summary.contains("currentGraphRevision=5"));
+		assertTrue(summary.contains("expectedCoreRevision=4"));
+		assertTrue(summary.contains("currentGraphRevision=9"));
+		assertTrue(summary.contains("currentCoreRevision=5"));
 		assertTrue(summary.contains("currentSourceRevision=1"));
-		assertTrue(summary.contains("messageKey=message.redstonelink.pairing.conflict.graph_revision"));
+		assertTrue(summary.contains("messageKey=message.redstonelink.pairing.conflict.core_revision"));
 	}
 
 	/**
@@ -73,13 +75,13 @@ class BenchOccCommandRegistryTest {
 	@Test
 	void buildQuickLinkSummaryShouldUseAppliedFeedbackMessageKey() {
 		assertEquals(
-			"[RedstoneLink/Bench] occ_quick_link_apply outcome=applied type=core serial=13 expectedGraphRevision=8 expectedSourceRevision=0 currentGraphRevision=9 currentSourceRevision=2 affectedSourceCount=3 currentTargetCount=1 messageKey=message.redstonelink.quick_link.apply.done.core",
+			"[RedstoneLink/Bench] occ_quick_link_apply outcome=applied type=core serial=13 expectedCoreRevision=8 expectedSourceRevision=0 currentGraphRevision=9 currentSourceRevision=2 currentCoreRevision=4 affectedSourceCount=3 currentTargetCount=1 messageKey=message.redstonelink.quick_link.apply.done.core",
 			BenchOccCommandRegistry.buildQuickLinkSummary(
 				LinkNodeType.CORE,
 				13L,
 				8L,
 				0L,
-				new LinkOccSupport.RevisionBaseline(9L, 2L),
+				new LinkOccSupport.RevisionBaseline(9L, 2L, 4L),
 				null,
 				1,
 				3,

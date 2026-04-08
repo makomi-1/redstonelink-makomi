@@ -27,13 +27,13 @@ final class LinkSavedDataLinkIndexSupport {
 		Set<Long> linkedCores = data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
 		if (linkedCores.contains(coreSerial)) {
 			if (removeTriggerSourceCoreLinkInternal(data, triggerSourceSerial, coreSerial)) {
-				markTopologyChanged(data, Set.of(triggerSourceSerial));
+				markTopologyChanged(data, Set.of(triggerSourceSerial), Set.of(coreSerial));
 			}
 			return false;
 		}
 
 		linkTriggerSourceCoreInternal(data, triggerSourceSerial, coreSerial);
-		markTopologyChanged(data, Set.of(triggerSourceSerial));
+		markTopologyChanged(data, Set.of(triggerSourceSerial), Set.of(coreSerial));
 		return true;
 	}
 
@@ -49,7 +49,7 @@ final class LinkSavedDataLinkIndexSupport {
 			return false;
 		}
 		linkTriggerSourceCoreInternal(data, triggerSourceSerial, coreSerial);
-		markTopologyChanged(data, Set.of(triggerSourceSerial));
+		markTopologyChanged(data, Set.of(triggerSourceSerial), Set.of(coreSerial));
 		return true;
 	}
 
@@ -62,7 +62,7 @@ final class LinkSavedDataLinkIndexSupport {
 		}
 		boolean removed = removeTriggerSourceCoreLinkInternal(data, triggerSourceSerial, coreSerial);
 		if (removed) {
-			markTopologyChanged(data, Set.of(triggerSourceSerial));
+			markTopologyChanged(data, Set.of(triggerSourceSerial), Set.of(coreSerial));
 		}
 		return removed;
 	}
@@ -88,6 +88,8 @@ final class LinkSavedDataLinkIndexSupport {
 			return new LinkSavedData.ReplaceLinksResult(currentTargets.size(), 0, 0, 0);
 		}
 
+		Set<Long> changedCores = new HashSet<>(plan.toRemove());
+		changedCores.addAll(plan.toAdd());
 		int removed = 0;
 		for (long coreSerial : plan.toRemove()) {
 			if (removeTriggerSourceCoreLinkWithoutDirty(data, triggerSourceSerial, coreSerial)) {
@@ -102,7 +104,7 @@ final class LinkSavedDataLinkIndexSupport {
 		}
 
 		if (removed > 0 || added > 0) {
-			markTopologyChanged(data, Set.of(triggerSourceSerial));
+			markTopologyChanged(data, Set.of(triggerSourceSerial), changedCores);
 		}
 		int currentCount = currentTargets.size() - removed + added;
 		return new LinkSavedData.ReplaceLinksResult(currentCount, added, removed, added + removed);
@@ -214,6 +216,7 @@ final class LinkSavedDataLinkIndexSupport {
 
 		int removed = 0;
 		Set<Long> changedTriggerSources = new HashSet<>();
+		Set<Long> changedCores = new HashSet<>();
 		if (type == LinkNodeType.TRIGGER_SOURCE) {
 			Set<Long> cores = data.triggerSourceToCores.remove(serial);
 			if (cores == null || cores.isEmpty()) {
@@ -221,6 +224,7 @@ final class LinkSavedDataLinkIndexSupport {
 			}
 
 			for (long coreSerial : cores) {
+				changedCores.add(coreSerial);
 				Set<Long> linkedTriggerSources = data.coreToTriggerSources.get(coreSerial);
 				if (linkedTriggerSources != null) {
 					linkedTriggerSources.remove(serial);
@@ -237,6 +241,7 @@ final class LinkSavedDataLinkIndexSupport {
 				return 0;
 			}
 
+			changedCores.add(serial);
 			for (long triggerSourceSerial : triggerSources) {
 				Set<Long> cores = data.triggerSourceToCores.get(triggerSourceSerial);
 				if (cores != null) {
@@ -250,8 +255,8 @@ final class LinkSavedDataLinkIndexSupport {
 			}
 		}
 
-		if (!changedTriggerSources.isEmpty()) {
-			markTopologyChanged(data, changedTriggerSources);
+		if (!changedTriggerSources.isEmpty() || !changedCores.isEmpty()) {
+			markTopologyChanged(data, changedTriggerSources, changedCores);
 		}
 		return removed;
 	}
@@ -294,7 +299,7 @@ final class LinkSavedDataLinkIndexSupport {
 	 */
 	static void linkTriggerSourceCore(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
 		linkTriggerSourceCoreInternal(data, triggerSourceSerial, coreSerial);
-		markTopologyChanged(data, Set.of(triggerSourceSerial));
+		markTopologyChanged(data, Set.of(triggerSourceSerial), Set.of(coreSerial));
 	}
 
 	/**
@@ -308,14 +313,28 @@ final class LinkSavedDataLinkIndexSupport {
 	/**
 	 * 将一次真实图拓扑变更统一落到 dirty 与 revision。
 	 */
-	private static void markTopologyChanged(LinkSavedData data, Set<Long> changedTriggerSources) {
-		if (data == null || changedTriggerSources == null || changedTriggerSources.isEmpty()) {
+	private static void markTopologyChanged(LinkSavedData data, Set<Long> changedTriggerSources, Set<Long> changedCores) {
+		if (data == null) {
+			return;
+		}
+		boolean hasChangedTriggerSources = changedTriggerSources != null && !changedTriggerSources.isEmpty();
+		boolean hasChangedCores = changedCores != null && !changedCores.isEmpty();
+		if (!hasChangedTriggerSources && !hasChangedCores) {
 			return;
 		}
 		data.bumpGraphRevision();
-		for (Long triggerSourceSerial : changedTriggerSources) {
-			if (triggerSourceSerial != null && triggerSourceSerial > 0L) {
-				data.bumpTriggerSourceRevision(triggerSourceSerial);
+		if (hasChangedTriggerSources) {
+			for (Long triggerSourceSerial : changedTriggerSources) {
+				if (triggerSourceSerial != null && triggerSourceSerial > 0L) {
+					data.bumpTriggerSourceRevision(triggerSourceSerial);
+				}
+			}
+		}
+		if (hasChangedCores) {
+			for (Long coreSerial : changedCores) {
+				if (coreSerial != null && coreSerial > 0L) {
+					data.bumpCoreRevision(coreSerial);
+				}
 			}
 		}
 		data.setDirty();

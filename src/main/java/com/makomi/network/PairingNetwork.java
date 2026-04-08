@@ -95,13 +95,14 @@ public final class PairingNetwork {
 
 	/**
 	 * 触发源配对界面打开包：`sourceSerial` 为触发源序列号，`targets` 为当前关联 core 序列号列表，
-	 * `graphRevision/sourceRevision` 为打开界面时的乐观并发版本基线。
+	 * `graphRevision/sourceRevision/coreRevision` 为打开界面时的乐观并发版本基线。
 	 */
 	public record OpenTriggerSourcePairingPayload(
 		long sourceSerial,
 		List<Long> targets,
 		long graphRevision,
-		long sourceRevision
+		long sourceRevision,
+		long coreRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_triggersource_pairing")
@@ -112,7 +113,8 @@ public final class PairingNetwork {
 				payload.sourceSerial(),
 				payload.targets(),
 				payload.graphRevision(),
-				payload.sourceRevision()
+				payload.sourceRevision(),
+				payload.coreRevision()
 			),
 			PairingNetworkPayloadSupport::decodeTriggerSourcePairingPayload
 		);
@@ -121,6 +123,7 @@ public final class PairingNetwork {
 			targets = List.copyOf(targets);
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
+			coreRevision = Math.max(0L, coreRevision);
 		}
 
 		@Override
@@ -131,13 +134,15 @@ public final class PairingNetwork {
 
 	/**
 	 * core 配对界面打开包：`sourceSerial` 为 core 序列号，`targets` 为当前关联 triggerSource 序列号列表，
-	 * `graphRevision` 为打开界面时的全图版本基线。
+	 * `graphRevision/sourceRevision/coreRevision` 为打开界面时的 revision 基线，其中 `coreRevision`
+	 * 才是 core 视角 OCC 的主比较值。
 	 */
 	public record OpenCorePairingPayload(
 		long sourceSerial,
 		List<Long> targets,
 		long graphRevision,
-		long sourceRevision
+		long sourceRevision,
+		long coreRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_core_pairing")
@@ -148,7 +153,8 @@ public final class PairingNetwork {
 				payload.sourceSerial(),
 				payload.targets(),
 				payload.graphRevision(),
-				payload.sourceRevision()
+				payload.sourceRevision(),
+				payload.coreRevision()
 			),
 			PairingNetworkPayloadSupport::decodeCorePairingPayload
 		);
@@ -157,6 +163,7 @@ public final class PairingNetwork {
 			targets = List.copyOf(targets);
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
+			coreRevision = Math.max(0L, coreRevision);
 		}
 
 		@Override
@@ -202,13 +209,13 @@ public final class PairingNetwork {
 	 * core 配对界面提交包：`coreSerial` 为编辑目标 core 序列号，`triggerSourceExpression` 为期望关联的 triggerSource 表达式。
 	 * <p>
 	 * 该 payload 只承载“core 视角编辑请求”；服务端落地时仍统一拆成 `triggerSource -> core` 正向写入。
-	 * `expectedGraphRevision` 用于拦截界面打开后 core 成员集合已变化的隐藏覆盖。
+	 * `expectedCoreRevision` 用于拦截界面打开后当前 core 成员集合已变化的隐藏覆盖。
 	 * </p>
 	 */
 	public record SubmitCorePairingPayload(
 		long coreSerial,
 		String triggerSourceExpression,
-		long expectedGraphRevision
+		long expectedCoreRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SubmitCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_core_pairing")
@@ -218,14 +225,14 @@ public final class PairingNetwork {
 				buffer,
 				payload.coreSerial(),
 				payload.triggerSourceExpression(),
-				payload.expectedGraphRevision()
+				payload.expectedCoreRevision()
 			),
 			PairingNetworkPayloadSupport::decodeSubmitCorePairingPayload
 		);
 
 		public SubmitCorePairingPayload {
 			triggerSourceExpression = triggerSourceExpression == null ? "" : triggerSourceExpression.trim();
-			expectedGraphRevision = Math.max(0L, expectedGraphRevision);
+			expectedCoreRevision = Math.max(0L, expectedCoreRevision);
 		}
 
 		@Override

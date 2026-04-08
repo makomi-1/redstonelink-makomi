@@ -25,7 +25,7 @@ public final class QuickLinkOccSubmissionSupport {
 		long targetNodeSerial,
 		LinkNodeType cacheType,
 		String serialCacheExpression,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision
 	) {
 		if (level == null || targetNodeType == null || targetNodeSerial <= 0L) {
@@ -36,7 +36,7 @@ public final class QuickLinkOccSubmissionSupport {
 			LinkSavedData.get(level),
 			targetNodeType,
 			targetNodeSerial,
-			expectedGraphRevision,
+			expectedCoreRevision,
 			expectedSourceRevision
 		);
 		if (conflict != null) {

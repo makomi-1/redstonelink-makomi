@@ -93,7 +93,7 @@ public final class PairingOccSubmissionSupport {
 		ServerLevel level,
 		long coreSerial,
 		String triggerSourceExpression,
-		long expectedGraphRevision
+		long expectedCoreRevision
 	) {
 		if (commandSource == null || level == null) {
 			return SubmissionResult.rejected(
@@ -129,7 +129,7 @@ public final class PairingOccSubmissionSupport {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
-		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveCoreConflict(savedData, coreSerial, expectedGraphRevision);
+		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveCoreConflict(savedData, coreSerial, expectedCoreRevision);
 		if (conflict != null) {
 			return SubmissionResult.conflict(
 				conflict,

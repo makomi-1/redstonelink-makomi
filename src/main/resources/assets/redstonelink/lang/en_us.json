@@ -103,6 +103,7 @@
   "message.redstonelink.core_pairing.apply.no_changes": "[RedstoneLink] Core pairing already up to date: core=%s, current triggerSource count=%s.",
   "message.redstonelink.pairing.conflict.source_revision": "[RedstoneLink] triggerSource %s was updated by another operation (expected revision=%s, current revision=%s). Reopen the pairing screen and try again.",
   "message.redstonelink.pairing.conflict.graph_revision": "[RedstoneLink] The current link graph changed meanwhile (expected revision=%s, current revision=%s). Reopen the pairing screen and try again.",
+  "message.redstonelink.pairing.conflict.core_revision": "[RedstoneLink] The current core links changed meanwhile (expected revision=%s, current revision=%s). Reopen the pairing screen and try again.",
   "message.redstonelink.set_links.confirm_required": "[RedstoneLink] Batch overwrite detected (%s entries). Run again to confirm: /%s",
   "message.redstonelink.link.set.input_too_long": "[RedstoneLink] link set input is too long; max allowed length is %s characters.",
   "message.redstonelink.permission.insufficient": "[RedstoneLink] Insufficient permission.",

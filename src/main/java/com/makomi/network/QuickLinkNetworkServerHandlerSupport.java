@@ -146,7 +146,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 					requestedNode.getSerial(),
 					snapshot.serialCacheType(),
 					snapshot.serialCacheExpression(),
-					payload.expectedGraphRevision(),
+					payload.expectedCoreRevision(),
 					payload.expectedSourceRevision()
 				)
 				.feedback()
@@ -173,7 +173,8 @@ final class QuickLinkNetworkServerHandlerSupport {
 				LinkNodeSemantics.toSemanticName(requestedNode.getLinkNodeType()),
 				requestedNode.getSerial(),
 				baseline.graphRevision(),
-				baseline.sourceRevision()
+				baseline.sourceRevision(),
+				baseline.coreRevision()
 			)
 		);
 	}
@@ -228,14 +229,14 @@ final class QuickLinkNetworkServerHandlerSupport {
 		LinkSavedData savedData,
 		LinkNodeType targetNodeType,
 		long targetNodeSerial,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision
 	) {
 		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveTargetConflict(
 			savedData,
 			targetNodeType,
 			targetNodeSerial,
-			expectedGraphRevision,
+			expectedCoreRevision,
 			expectedSourceRevision
 		);
 		return conflict == null ? null : LinkOccSupport.toQuickLinkFeedback(conflict);
@@ -250,17 +251,18 @@ final class QuickLinkNetworkServerHandlerSupport {
 	static QuickLinkOperationFeedback buildApplyRevisionConflictFeedback(
 		LinkNodeType targetNodeType,
 		long targetNodeSerial,
-		long expectedGraphRevision,
+		long expectedCoreRevision,
 		long expectedSourceRevision,
 		long currentGraphRevision,
-		long currentSourceRevision
+		long currentSourceRevision,
+		long currentCoreRevision
 	) {
 		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveTargetConflictWithCurrentBaseline(
 			targetNodeType,
 			targetNodeSerial,
+			expectedCoreRevision,
 			expectedSourceRevision,
-			expectedGraphRevision,
-			new LinkOccSupport.RevisionBaseline(currentGraphRevision, currentSourceRevision)
+			new LinkOccSupport.RevisionBaseline(currentGraphRevision, currentSourceRevision, currentCoreRevision)
 		);
 		return conflict == null ? null : LinkOccSupport.toQuickLinkFeedback(conflict);
 	}

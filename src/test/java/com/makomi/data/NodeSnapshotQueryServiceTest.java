@@ -36,6 +36,7 @@ class NodeSnapshotQueryServiceTest {
 		assertFalse(snapshot.masked());
 		assertEquals(0L, snapshot.graphRevision());
 		assertEquals(0L, snapshot.sourceRevision());
+		assertEquals(0L, snapshot.coreRevision());
 	}
 
 	/**
@@ -56,6 +57,28 @@ class NodeSnapshotQueryServiceTest {
 
 		assertEquals(1L, snapshot.graphRevision());
 		assertEquals(1L, snapshot.sourceRevision());
+		assertEquals(0L, snapshot.coreRevision());
+	}
+
+	/**
+	 * core 物品快照在提供运行时存档上下文时，应同时透出当前 core revision。
+	 */
+	@Test
+	void buildItemSnapshotLinksShouldExposeCoreRevisionForCoreTarget() {
+		LinkSavedData savedData = new LinkSavedData();
+		savedData.toggleTriggerSourceCoreLink(15L, 31L);
+
+		NodeLinksSnapshot snapshot = NodeSnapshotQueryService.buildItemSnapshotLinks(
+			null,
+			LinkNodeType.CORE,
+			31L,
+			new LinkedHashSet<>(List.of(15L)),
+			savedData
+		);
+
+		assertEquals(1L, snapshot.graphRevision());
+		assertEquals(0L, snapshot.sourceRevision());
+		assertEquals(1L, snapshot.coreRevision());
 	}
 
 	/**
