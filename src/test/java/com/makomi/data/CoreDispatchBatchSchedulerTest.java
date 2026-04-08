@@ -218,7 +218,6 @@ class CoreDispatchBatchSchedulerTest {
 	 * scheduler 的 accumulator 对象池应限制 retained 数量，避免历史峰值长期驻留。
 	 */
 	@Test
-	@SuppressWarnings("unchecked")
 	void recycleAccumulatorShouldCapRetainedPoolSize() throws Exception {
 		CoreDispatchBatchScheduler.resetForTesting();
 		Object schedulerState = createSchedulerState();
@@ -313,10 +312,12 @@ class CoreDispatchBatchSchedulerTest {
 		Object accumulator = createAccumulator();
 		assertTrue(invokeMergeAll(accumulator, 210L, List.of(createSyncEntry(51L, 1L, 12))));
 
-		invokeFlushDueBuckets(accumulator, 209L, false);
+		assertTrue(invokeDetachDueBuckets(accumulator, 209L, false) == null);
 		assertEquals(1, getBucketsByDueTick(accumulator).size());
-		invokeFlushDueBuckets(accumulator, 210L, false);
+		Object flushPlan = invokeDetachDueBuckets(accumulator, 210L, false);
+		assertTrue(flushPlan != null);
 		assertTrue(getBucketsByDueTick(accumulator).isEmpty());
+		invokeTargetFlushPlanApply(flushPlan);
 	}
 
 	/**
@@ -328,9 +329,11 @@ class CoreDispatchBatchSchedulerTest {
 		assertTrue(invokeMergeAll(accumulator, 301L, List.of(createSyncEntry(61L, 1L, 15))));
 		assertTrue(invokeMergeAll(accumulator, 302L, List.of(createSyncEntry(62L, 2L, 7))));
 
-		invokeFlushDueBuckets(accumulator, 301L, false);
+		Object flushPlan = invokeDetachDueBuckets(accumulator, 301L, false);
+		assertTrue(flushPlan != null);
 		assertFalse(getBucketsByDueTick(accumulator).containsKey(301L));
 		assertTrue(getBucketsByDueTick(accumulator).containsKey(302L));
+		invokeTargetFlushPlanApply(flushPlan);
 	}
 
 	/**
@@ -482,14 +485,12 @@ class CoreDispatchBatchSchedulerTest {
 		);
 	}
 
-	@SuppressWarnings("unchecked")
-	private static Map<Long, ?> getBucketsByDueTick(Object accumulator) throws Exception {
+	private static Map<?, ?> getBucketsByDueTick(Object accumulator) throws Exception {
 		Field field = accumulator.getClass().getDeclaredField("bucketsByDueTick");
 		field.setAccessible(true);
-		return (Map<Long, ?>) field.get(accumulator);
+		return (Map<?, ?>) field.get(accumulator);
 	}
 
-	@SuppressWarnings("unchecked")
 	private static Map<?, ?> getEntriesBySourceAndKind(Object accumulator, long dueTick) throws Exception {
 		Object bucket = getBucketsByDueTick(accumulator).get(dueTick);
 		if (bucket == null) {
@@ -510,16 +511,19 @@ class CoreDispatchBatchSchedulerTest {
 		return (Boolean) method.invoke(accumulator, dueTick, batchEntries);
 	}
 
-	private static void invokeFlushDueBuckets(Object accumulator, long currentTick, boolean forceFlush) throws Exception {
-		Method method = accumulator.getClass().getDeclaredMethod("flushDueBuckets", long.class, boolean.class);
-		method.setAccessible(true);
-		method.invoke(accumulator, currentTick, forceFlush);
-	}
-
 	private static Object invokeDetachDueBuckets(Object accumulator, long currentTick, boolean forceFlush) throws Exception {
 		Method method = accumulator.getClass().getDeclaredMethod("detachDueBuckets", long.class, boolean.class);
 		method.setAccessible(true);
 		return method.invoke(accumulator, currentTick, forceFlush);
+	}
+
+	private static void invokeTargetFlushPlanApply(Object flushPlan) throws Exception {
+		if (flushPlan == null) {
+			return;
+		}
+		Method method = flushPlan.getClass().getDeclaredMethod("apply");
+		method.setAccessible(true);
+		method.invoke(flushPlan);
 	}
 
 	private static void invokeFlushServerBatches(MinecraftServer server, boolean forceFlush) throws Exception {

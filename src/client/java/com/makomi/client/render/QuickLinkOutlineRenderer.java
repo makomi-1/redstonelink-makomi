@@ -3,10 +3,12 @@ package com.makomi.client.render;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.item.QuickLinkToolItem;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -50,11 +52,15 @@ public final class QuickLinkOutlineRenderer {
 		if (worldRenderContext.matrixStack() == null) {
 			return true;
 		}
+		if (worldRenderContext.consumers() == null) {
+			return true;
+		}
 
 		VoxelShape voxelShape = blockOutlineContext.blockState().getShape(minecraft.level, blockOutlineContext.blockPos());
+		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderType.lines());
 		LevelRenderer.renderVoxelShape(
 			worldRenderContext.matrixStack(),
-			blockOutlineContext.vertexConsumer(),
+			lineVertexConsumer,
 			voxelShape,
 			(double) blockOutlineContext.blockPos().getX() - blockOutlineContext.cameraX(),
 			(double) blockOutlineContext.blockPos().getY() - blockOutlineContext.cameraY(),

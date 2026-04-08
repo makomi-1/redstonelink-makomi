@@ -1,7 +1,6 @@
 package com.makomi.network;
 
 import com.makomi.command.CommandRateLimitService;
-import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;

@@ -223,26 +223,6 @@ final class QuickLinkNetworkServerHandlerSupport {
 	}
 
 	/**
-	 * 解析正式 apply 请求对应的 revision 冲突反馈；无冲突时返回 `null`。
-	 */
-	private static QuickLinkOperationFeedback resolveApplyRevisionConflictFeedback(
-		LinkSavedData savedData,
-		LinkNodeType targetNodeType,
-		long targetNodeSerial,
-		long expectedCoreRevision,
-		long expectedSourceRevision
-	) {
-		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveTargetConflict(
-			savedData,
-			targetNodeType,
-			targetNodeSerial,
-			expectedCoreRevision,
-			expectedSourceRevision
-		);
-		return conflict == null ? null : LinkOccSupport.toQuickLinkFeedback(conflict);
-	}
-
-	/**
 	 * 按目标节点语义构造 quick-link apply 的 revision 冲突反馈。
 	 * <p>
 	 * `triggerSource` 目标只比较 `sourceRevision`；`core` 目标只比较 `graphRevision`。

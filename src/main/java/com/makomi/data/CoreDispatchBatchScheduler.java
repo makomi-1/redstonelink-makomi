@@ -454,16 +454,6 @@ public final class CoreDispatchBatchScheduler {
 		}
 
 		/**
-		 * flush 当前已到期的 bucket；`forceFlush` 时直接清空全部 bucket。
-		 */
-		private void flushDueBuckets(long currentTick, boolean forceFlush) {
-			TargetFlushPlan flushPlan = detachDueBuckets(currentTick, forceFlush);
-			if (flushPlan != null) {
-				flushPlan.apply();
-			}
-		}
-
-		/**
 		 * 将当前已到期的 bucket 从 accumulator 中摘出，交由外层统一 apply。
 		 * <p>
 		 * 这样可以把“遍历 scheduler map”和“触发目标实体下游逻辑”拆成两个相位，

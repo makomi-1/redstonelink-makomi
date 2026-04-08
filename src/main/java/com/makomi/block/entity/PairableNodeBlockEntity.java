@@ -242,7 +242,7 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		if (!lifecycleState.tryMarkAttachPublished(isLifecycleEventPublishReady())) {
 			return;
 		}
-		if (!(level instanceof ServerLevel serverLevel)) {
+		if (!(level instanceof ServerLevel)) {
 			return;
 		}
 		LinkNodeLifecycleDispatchEvents.publishNodeContextAttached(this);

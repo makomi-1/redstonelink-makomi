@@ -900,7 +900,6 @@ class CrossChunkDispatchServiceTest {
 	 * ChunkReadyDrainCache 的 retained pool 应限制在常态复用上限内。
 	 */
 	@Test
-	@SuppressWarnings("unchecked")
 	void chunkReadyDrainCacheShouldCapRetainedPools() throws Exception {
 		CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache drainCache = new CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache();
 		Field mapCapField = CrossChunkDispatchRuntimeSupport.class.getDeclaredField("MAX_RETAINED_READY_GROUP_MAPS");

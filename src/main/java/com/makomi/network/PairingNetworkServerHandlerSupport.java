@@ -1,8 +1,6 @@
 package com.makomi.network;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
-import com.makomi.command.CommandRateLimitService;
-import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
@@ -21,7 +19,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerPlayer;
 
 /**

@@ -233,7 +233,6 @@ public final class QuickLinkApplyService {
 
 		for (long triggerSourceSerial : parseResult.orderedTargets()) {
 			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(triggerSourceSerial));
-			Set<Long> nextTargets = Set.of(coreSerial);
 			Set<Long> affectedTargets = new HashSet<>(previousTargets);
 			affectedTargets.add(coreSerial);
 			LinkWriteControlService.WriteDecision writeDecision = resolveWriteDecision(
