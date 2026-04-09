@@ -1,11 +1,8 @@
 package com.makomi.block.entity;
 
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.util.SignalStrengths;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;
@@ -28,6 +25,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	private final ActivatableTargetConcurrentBucketComponent concurrentComponent = new ActivatableTargetConcurrentBucketComponent();
 	private final ActivatableTargetArbitrationComponent arbitrationComponent = new ActivatableTargetArbitrationComponent();
 	private final ActivatableTargetObservationComponent observationComponent = new ActivatableTargetObservationComponent();
+	private final ActivatableTargetDispatchSupport dispatchSupport = new ActivatableTargetDispatchSupport(this);
 
 	/**
 	 * 运行态生效模式（用于可观测，不参与额外仲裁）。
@@ -152,12 +150,6 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			eventMeta = eventMeta == null ? EventMeta.of(0L, 0, 0L) : eventMeta;
 		}
 	}
-
-	private static final Comparator<DispatchBatchEntry> DISPATCH_BATCH_ENTRY_COMPARATOR =
-		Comparator
-			.comparing((DispatchBatchEntry entry) -> entry.eventMeta().timeKey())
-			.thenComparingLong(entry -> entry.eventMeta().seq())
-			.thenComparingInt(entry -> dispatchBatchDeltaPriority(entry.deltaKind()));
 
 	protected ActivatableTargetBlockEntity(
 		BlockEntityType<? extends PairableNodeBlockEntity> blockEntityType,
@@ -299,29 +291,15 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		int signalStrength,
 		EventMeta eventMeta
 	) {
-		if (deltaKind == null || deltaAction == null) {
-			return;
-		}
-		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
-		SourceKey sourceKey = new SourceKey(sourceType, sourceSerial);
-		if (sourceSerial <= 0L) {
-			applyLegacyDeltaForNonSourceSerial(deltaKind, deltaAction, activationMode, signalStrength, normalizedMeta);
-			return;
-		}
-		if (!canBeTriggeredBy(sourceSerial)) {
-			return;
-		}
-		if (!LinkNodeSemantics.isAllowedForRole(sourceKey.sourceType(), LinkNodeSemantics.Role.SOURCE)) {
-			return;
-		}
-
-		switch (deltaKind) {
-			case SYNC_SIGNAL -> applySyncDelta(sourceKey, deltaAction, signalStrength, normalizedMeta);
-			case ACTIVATION -> applyActivationDelta(sourceKey, deltaAction, activationMode, normalizedMeta);
-			case SOURCE_INVALIDATION, TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION ->
-				applyTriggerSourceChunkUnloadInvalidationDelta(sourceKey, deltaAction, normalizedMeta);
-			case TRIGGER_SOURCE_INVALIDATION -> applyTriggerSourceInvalidationDelta(sourceKey, deltaAction, normalizedMeta);
-		}
+		dispatchSupport.applyDispatchDelta(
+			deltaKind,
+			deltaAction,
+			sourceType,
+			sourceSerial,
+			activationMode,
+			signalStrength,
+			eventMeta
+		);
 	}
 
 	/**
@@ -331,25 +309,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * </p>
 	 */
 	public final void applyDispatchBatch(List<DispatchBatchEntry> batchEntries) {
-		if (batchEntries == null || batchEntries.isEmpty()) {
-			return;
-		}
-		List<DispatchBatchEntry> sortedEntries = new ArrayList<>(batchEntries.size());
-		for (DispatchBatchEntry batchEntry : batchEntries) {
-			if (batchEntry != null) {
-				sortedEntries.add(batchEntry);
-			}
-		}
-		if (sortedEntries.isEmpty()) {
-			return;
-		}
-		sortedEntries.sort(DISPATCH_BATCH_ENTRY_COMPARATOR);
-
-		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
-		for (DispatchBatchEntry batchEntry : sortedEntries) {
-			applyStructuredBatchEntry(batchEntry, accumulator);
-		}
-		finalizeStructuredBatchMutation(accumulator);
+		dispatchSupport.applyDispatchBatch(batchEntries);
 	}
 
 	/**
@@ -398,29 +358,18 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * </p>
 	 */
 	public final void applyRuntimeSimulatedSyncSource(long sourceSerial, int signalStrength, EventMeta eventMeta) {
-		applyRuntimeSimulatedSyncDelta(sourceSerial, signalStrength, eventMeta, false);
+		dispatchSupport.applyRuntimeSimulatedSyncSource(sourceSerial, signalStrength, eventMeta);
 	}
 
 	/**
 	 * 移除运行态模拟 SYNC 输入。
 	 */
 	public final void removeRuntimeSimulatedSyncSource(long sourceSerial, EventMeta eventMeta) {
-		applyRuntimeSimulatedSyncDelta(sourceSerial, 0, eventMeta, true);
+		dispatchSupport.removeRuntimeSimulatedSyncSource(sourceSerial, eventMeta);
 	}
 
 	public final void onPulseTick() {
-		if (level == null || level.isClientSide) {
-			return;
-		}
-		if (!concurrentComponent.pulseResetArmed() && concurrentComponent.pulseConcurrentBuckets().isEmpty()) {
-			return;
-		}
-		long now = level.getGameTime();
-		boolean bucketChanged = recomputePulseTruthFromConcurrentBuckets();
-		recomputeToggleTruthFromConcurrentBuckets();
-		recomputeAuthorityFromConcurrentBuckets(resolvePulseExpireFallbackTimeKey(now), arbitrationComponent.authoritySeq());
-		applyDerivedStateFromTruth();
-		markStructuredTruthDirty(bucketChanged);
+		dispatchSupport.onPulseTick();
 	}
 
 	protected boolean canBeTriggeredBy(long sourceSerial) {
@@ -440,7 +389,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 又允许窗口内合法迟到继续生效。
 	 * </p>
 	 */
-	private TimeKey resolvePulseExpireFallbackTimeKey(long nowTick) {
+	TimeKey resolvePulseExpireFallbackTimeKey(long nowTick) {
 		long normalizedNowTick = Math.max(0L, nowTick);
 		int batchWindowTicks = Math.max(0, RedstoneLinkConfig.crossChunk().dispatchBatchWindowTicks());
 		long fallbackTick = Math.max(0L, normalizedNowTick - batchWindowTicks);
@@ -496,7 +445,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * PULSE 模式会立即激活并调度自动回落，TOGGLE 模式按同 tick 奇偶合并后结算。
 	 * </p>
 	 */
-	private void applyActivation(long sourceSerial, ActivationMode mode, EventMeta eventMeta) {
+	void applyActivation(long sourceSerial, ActivationMode mode, EventMeta eventMeta) {
 		if (!canBeTriggeredBy(sourceSerial)) {
 			return;
 		}
@@ -517,155 +466,9 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
-	 * 序号无效（例如玩家手动触发）时，走现有轻量语义兜底，不进入来源桶。
-	 */
-	private void applyLegacyDeltaForNonSourceSerial(
-		DeltaKind deltaKind,
-		DeltaAction deltaAction,
-		ActivationMode activationMode,
-		int signalStrength,
-		EventMeta eventMeta
-	) {
-		if (deltaAction == DeltaAction.REMOVE) {
-			return;
-		}
-		if (deltaKind == DeltaKind.SYNC_SIGNAL) {
-			int normalizedStrength = normalizeSignalStrength(signalStrength);
-			if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-				return;
-			}
-			boolean bucketChanged = updateSyncSignalStrength(0L, normalizedStrength);
-			bucketChanged |= concurrentComponent.clearPulseTruth();
-			applyDerivedStateFromTruth();
-			markStructuredTruthDirty(bucketChanged);
-			return;
-		}
-		applyActivation(0L, activationMode == null ? configuredMode : activationMode, eventMeta);
-	}
-
-	/**
-	 * 统一处理 SYNC delta（UPSERT/REMOVE）。
-	 */
-	private void applySyncDelta(SourceKey sourceKey, DeltaAction deltaAction, int signalStrength, EventMeta eventMeta) {
-		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
-		applySyncDeltaMutation(sourceKey, deltaAction, signalStrength, eventMeta, accumulator);
-		finalizeStructuredBatchMutation(accumulator);
-	}
-
-	/**
-	 * 统一处理运行态模拟 SYNC delta。
-	 * <p>
-	 * 该路径与真实 SYNC 共享裁决逻辑，但来源桶仅存于内存，不参与持久化。
-	 * </p>
-	 */
-	private void applyRuntimeSimulatedSyncDelta(long sourceSerial, int signalStrength, EventMeta eventMeta, boolean removeOnly) {
-		if (sourceSerial <= 0L || level == null || level.isClientSide) {
-			return;
-		}
-		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
-		if (!acceptByPriority(normalizedMeta.timeKey(), 3, EffectiveMode.SYNC, normalizedMeta.seq())) {
-			return;
-		}
-		SourceKey sourceKey = new SourceKey(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
-		boolean bucketChanged = concurrentComponent.pruneOlderFramesForIncoming(normalizedMeta.timeKey(), EffectiveMode.SYNC);
-		int normalizedStrength = normalizeSignalStrength(signalStrength);
-		if (removeOnly || normalizedStrength <= 0) {
-			bucketChanged |= concurrentComponent.removeRuntimeSimulatedSyncConcurrentSource(sourceKey);
-		} else {
-			bucketChanged |= concurrentComponent.upsertRuntimeSimulatedSyncConcurrentSource(
-				sourceKey,
-				normalizedMeta.timeKey(),
-				normalizedStrength,
-				normalizedMeta.seq()
-			);
-			concurrentComponent.setPulseUntilGameTime(0L);
-			concurrentComponent.setPulseResetArmed(false);
-		}
-		recomputeSyncTruthFromConcurrentBuckets();
-		recomputeToggleTruthFromConcurrentBuckets();
-		recomputeAuthorityFromConcurrentBuckets(normalizedMeta.timeKey(), normalizedMeta.seq());
-		applyDerivedStateFromTruth();
-		markStructuredTruthDirty(bucketChanged);
-	}
-
-	/**
-	 * 统一处理 ACTIVATION delta（TOGGLE/PULSE 的 UPSERT/REMOVE）。
-	 */
-	private void applyActivationDelta(
-		SourceKey sourceKey,
-		DeltaAction deltaAction,
-		ActivationMode activationMode,
-		EventMeta eventMeta
-	) {
-		ActivationMode normalizedMode = activationMode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
-		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
-		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
-		TimeKey normalizedTimeKey = eventMeta.timeKey() == null ? TimeKey.of(0L, 0) : eventMeta.timeKey();
-		boolean priorityAccepted = acceptByPriority(normalizedTimeKey, priority, incomingMode, eventMeta.seq());
-		if (!priorityAccepted && normalizedTimeKey.compareTo(arbitrationComponent.authorityTimeKey()) < 0) {
-			return;
-		}
-		boolean sameSourceHadToggleContribution = normalizedMode == ActivationMode.TOGGLE
-			&& deltaAction != DeltaAction.REMOVE
-			&& concurrentComponent.resolveToggleContributionBeforePrune(sourceKey);
-		boolean bucketChanged = concurrentComponent.pruneOlderFramesForIncoming(normalizedTimeKey, incomingMode);
-		recomputeSyncTruthFromConcurrentBuckets();
-		if (normalizedMode == ActivationMode.PULSE) {
-			if (deltaAction == DeltaAction.REMOVE) {
-				bucketChanged |= concurrentComponent.removePulseConcurrentSource(sourceKey);
-			} else {
-				bucketChanged |= concurrentComponent.upsertPulseConcurrentSource(this, sourceKey, normalizedTimeKey, eventMeta.seq());
-			}
-			bucketChanged |= recomputePulseTruthFromConcurrentBuckets();
-			recomputeToggleTruthFromConcurrentBuckets();
-		} else {
-			concurrentComponent.markToggleSourceTouchedInCurrentFrame(sourceKey);
-			if (deltaAction == DeltaAction.REMOVE) {
-				bucketChanged |= concurrentComponent.removeToggleConcurrentSource(sourceKey);
-			} else {
-				bucketChanged |= concurrentComponent.upsertToggleConcurrentSource(
-					sourceKey,
-					normalizedTimeKey,
-					eventMeta.seq(),
-					sameSourceHadToggleContribution
-				);
-			}
-			recomputeToggleTruthFromConcurrentBuckets();
-		}
-		recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
-		applyDerivedStateFromTruth();
-		markStructuredTruthDirty(bucketChanged);
-	}
-
-	/**
-	 * 统一处理“triggerSource 区块卸载失效”delta：仅剔除该来源的 sync 贡献。
-	 * <p>
-	 * pulse/toggle 已按事件语义处理，不再因 triggerSource 所在区块卸载被回滚。
-	 * </p>
-	 */
-	private void applyTriggerSourceChunkUnloadInvalidationDelta(
-		SourceKey sourceKey,
-		DeltaAction deltaAction,
-		EventMeta eventMeta
-	) {
-		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
-		applyTriggerSourceChunkUnloadInvalidationMutation(sourceKey, deltaAction, eventMeta, accumulator);
-		finalizeStructuredBatchMutation(accumulator);
-	}
-
-	/**
-	 * 统一处理“triggerSource 其它失效”delta：剔除该来源的 toggle/pulse/sync 贡献并重算。
-	 */
-	private void applyTriggerSourceInvalidationDelta(SourceKey sourceKey, DeltaAction deltaAction, EventMeta eventMeta) {
-		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
-		applyTriggerSourceInvalidationMutation(sourceKey, deltaAction, eventMeta, accumulator);
-		finalizeStructuredBatchMutation(accumulator);
-	}
-
-	/**
 	 * 轻量版 L2：同 tick TOGGLE 按“基准态 + 奇偶”合并。
 	 */
-	private void applyToggleMerged() {
+	void applyToggleMerged() {
 		arbitrationComponent.applyToggleMerged(concurrentComponent, active);
 		applyDerivedStateFromTruth();
 	}
@@ -673,7 +476,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 轻量版 L2：同 tick PULSE 只在到期时间被延长时重新调度。
 	 */
-	private void applyPulseMerged() {
+	void applyPulseMerged() {
 		int pulseTicks = Math.max(1, getPulseDurationTicks());
 		concurrentComponent.setPulseEpoch(concurrentComponent.pulseEpoch() + 1L);
 		concurrentComponent.setPulseResetArmed(true);
@@ -695,7 +498,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 类间优先级固定：SYNC > PULSE > TOGGLE。
 	 * </p>
 	 */
-	private void applyDerivedStateFromTruth() {
+	void applyDerivedStateFromTruth() {
 		normalizeAuthorityByTruth();
 		int resolvedPower = resolveDerivedOutputPowerFromTruth();
 		observationComponent.applyResolvedState(this, arbitrationComponent.authorityTimeKey(), resolvedPower > 0, resolvedPower);
@@ -704,7 +507,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 计算结构真值对应的输出功率。
 	 */
-	private int resolveDerivedOutputPowerFromTruth() {
+	int resolveDerivedOutputPowerFromTruth() {
 		return switch (resolveAuthorityEffectiveMode()) {
 			case SYNC -> normalizeSignalStrength(concurrentComponent.syncSignalMaxStrength());
 			case PULSE -> getDefaultActiveOutputPower();
@@ -716,7 +519,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 判断脉冲结构真值是否处于生效窗口。
 	 */
-	private boolean isPulseTruthActive() {
+	boolean isPulseTruthActive() {
 		return concurrentComponent.isPulseTruthActive(this);
 	}
 
@@ -776,7 +579,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 * 仅在同一个 gameTime 内按优先级裁决：SYNC > PULSE > TOGGLE。
 	 * </p>
 	 */
-	private boolean acceptByPriority(TimeKey eventTimeKey, int incomingPriority, EffectiveMode incomingMode, long incomingSeq) {
+	boolean acceptByPriority(TimeKey eventTimeKey, int incomingPriority, EffectiveMode incomingMode, long incomingSeq) {
 		TimeKey previousAuthorityTimeKey = arbitrationComponent.authorityTimeKey();
 		EffectiveMode previousAuthorityMode = arbitrationComponent.authorityMode();
 		int previousArbitrationPriority = arbitrationComponent.arbitrationPriority();
@@ -804,7 +607,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 维护同步触发源强度缓存，并重算 max 聚合结果。
 	 */
-	private boolean updateSyncSignalStrength(long sourceSerial, int signalStrength) {
+	boolean updateSyncSignalStrength(long sourceSerial, int signalStrength) {
 		return concurrentComponent.updateSyncSignalStrength(
 			sourceSerial,
 			signalStrength,
@@ -816,21 +619,21 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 从同步并发桶重建 SYNC 真值（来源表 + max + maxSources）。
 	 */
-	private void recomputeSyncTruthFromConcurrentBuckets() {
+	void recomputeSyncTruthFromConcurrentBuckets() {
 		concurrentComponent.recomputeSyncTruthFromConcurrentBuckets();
 	}
 
 	/**
 	 * 从脉冲并发桶重建 PULSE 真值（有效下落窗口）。
 	 */
-	private boolean recomputePulseTruthFromConcurrentBuckets() {
+	boolean recomputePulseTruthFromConcurrentBuckets() {
 		return concurrentComponent.recomputePulseTruthFromConcurrentBuckets(this);
 	}
 
 	/**
 	 * 结构化真值已变化时，独立标记区块实体脏态，避免仅靠输出态变化触发落盘。
 	 */
-	private void markStructuredTruthDirty(boolean truthChanged) {
+	void markStructuredTruthDirty(boolean truthChanged) {
 		if (truthChanged) {
 			setChanged();
 		}
@@ -839,7 +642,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 从切换并发桶重建 TOGGLE 真值（并发计数 + 最终锁存态）。
 	 */
-	private void recomputeToggleTruthFromConcurrentBuckets() {
+	void recomputeToggleTruthFromConcurrentBuckets() {
 		concurrentComponent.recomputeToggleTruthFromConcurrentBuckets();
 		boolean baseActive = concurrentComponent.syncSignalMaxStrength() > 0 || isPulseTruthActive();
 		boolean oddParity = (concurrentComponent.toggleConcurrentCount() & 1) == 1;
@@ -849,292 +652,35 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 按并发桶候选重算 authority，确保 REMOVE 后可回退到仍有效的下层真值。
 	 */
-	private void recomputeAuthorityFromConcurrentBuckets(TimeKey fallbackTimeKey, long fallbackSeq) {
+	void recomputeAuthorityFromConcurrentBuckets(TimeKey fallbackTimeKey, long fallbackSeq) {
 		arbitrationComponent.recomputeAuthorityFromConcurrentBuckets(concurrentComponent, fallbackTimeKey, fallbackSeq, this);
 	}
 
 	/**
 	 * 按 authority 与当前结构真值计算运行态生效模式。
 	 */
-	private EffectiveMode resolveAuthorityEffectiveMode() {
+	EffectiveMode resolveAuthorityEffectiveMode() {
 		return arbitrationComponent.resolveAuthorityEffectiveMode(concurrentComponent, this);
 	}
 
 	/**
 	 * 结构真值变化后，校正 authority 的有效性。
 	 */
-	private void normalizeAuthorityByTruth() {
+	void normalizeAuthorityByTruth() {
 		arbitrationComponent.normalizeAuthorityByTruth(concurrentComponent, this);
 	}
 
 	/**
 	 * 兜底归一化事件元数据，避免空入参污染仲裁。
 	 */
-	private EventMeta normalizeEventMeta(EventMeta eventMeta) {
+	EventMeta normalizeEventMeta(EventMeta eventMeta) {
 		return eventMeta == null ? EventMeta.now(level) : eventMeta;
-	}
-
-	/**
-	 * 批次内按时间顺序应用一条结构化变更，但不立即提交重算结果。
-	 */
-	private void applyStructuredBatchEntry(DispatchBatchEntry batchEntry, StructuredBatchMutationAccumulator accumulator) {
-		if (batchEntry == null || accumulator == null || batchEntry.deltaKind() == null || batchEntry.deltaAction() == null) {
-			return;
-		}
-		if (batchEntry.sourceSerial() <= 0L) {
-			return;
-		}
-		if (!canBeTriggeredBy(batchEntry.sourceSerial())) {
-			return;
-		}
-		SourceKey sourceKey = new SourceKey(batchEntry.sourceType(), batchEntry.sourceSerial());
-		if (!LinkNodeSemantics.isAllowedForRole(sourceKey.sourceType(), LinkNodeSemantics.Role.SOURCE)) {
-			return;
-		}
-		EventMeta normalizedMeta = normalizeEventMeta(batchEntry.eventMeta());
-		switch (batchEntry.deltaKind()) {
-			case SYNC_SIGNAL -> applySyncDeltaMutation(
-				sourceKey,
-				batchEntry.deltaAction(),
-				batchEntry.syncSignalStrength(),
-				normalizedMeta,
-				accumulator
-			);
-			case SOURCE_INVALIDATION, TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION -> applyTriggerSourceChunkUnloadInvalidationMutation(
-				sourceKey,
-				batchEntry.deltaAction(),
-				normalizedMeta,
-				accumulator
-			);
-			case TRIGGER_SOURCE_INVALIDATION -> applyTriggerSourceInvalidationMutation(
-				sourceKey,
-				batchEntry.deltaAction(),
-				normalizedMeta,
-				accumulator
-			);
-			case ACTIVATION -> applyActivationDeltaMutation(
-				sourceKey,
-				batchEntry.deltaAction(),
-				batchEntry.activationMode(),
-				normalizedMeta,
-				accumulator
-			);
-		}
-	}
-
-	/**
-	 * 批次内应用 SYNC 变更，只更新来源桶与仲裁时间，不立即提交结果。
-	 */
-	private void applySyncDeltaMutation(
-		SourceKey sourceKey,
-		DeltaAction deltaAction,
-		int signalStrength,
-		EventMeta eventMeta,
-		StructuredBatchMutationAccumulator accumulator
-	) {
-		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
-		boolean bucketChanged = concurrentComponent.pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
-		int normalizedStrength = normalizeSignalStrength(signalStrength);
-		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
-			bucketChanged |= concurrentComponent.removeSyncConcurrentSource(sourceKey);
-		} else {
-			bucketChanged |= concurrentComponent.upsertSyncConcurrentSource(
-				sourceKey,
-				eventMeta.timeKey(),
-				normalizedStrength,
-				eventMeta.seq()
-			);
-			concurrentComponent.setPulseUntilGameTime(0L);
-			concurrentComponent.setPulseResetArmed(false);
-		}
-		accumulator.record(eventMeta, bucketChanged, false);
-	}
-
-	/**
-	 * 批次内应用 ACTIVATION 变更，只更新并发桶，批末再统一计算派生态。
-	 */
-	private void applyActivationDeltaMutation(
-		SourceKey sourceKey,
-		DeltaAction deltaAction,
-		ActivationMode activationMode,
-		EventMeta eventMeta,
-		StructuredBatchMutationAccumulator accumulator
-	) {
-		ActivationMode normalizedMode = activationMode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
-		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
-		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
-		TimeKey normalizedTimeKey = eventMeta.timeKey() == null ? TimeKey.of(0L, 0) : eventMeta.timeKey();
-		boolean priorityAccepted = acceptByPriority(normalizedTimeKey, priority, incomingMode, eventMeta.seq());
-		if (!priorityAccepted && normalizedTimeKey.compareTo(arbitrationComponent.authorityTimeKey()) < 0) {
-			return;
-		}
-
-		boolean sameSourceHadToggleContribution = normalizedMode == ActivationMode.TOGGLE
-			&& deltaAction != DeltaAction.REMOVE
-			&& concurrentComponent.resolveToggleContributionBeforePrune(sourceKey);
-		boolean bucketChanged = concurrentComponent.pruneOlderFramesForIncoming(normalizedTimeKey, incomingMode);
-		if (normalizedMode == ActivationMode.PULSE) {
-			if (deltaAction == DeltaAction.REMOVE) {
-				bucketChanged |= concurrentComponent.removePulseConcurrentSource(sourceKey);
-			} else {
-				bucketChanged |= concurrentComponent.upsertPulseConcurrentSource(this, sourceKey, normalizedTimeKey, eventMeta.seq());
-			}
-			accumulator.record(eventMeta, bucketChanged, true);
-			return;
-		}
-
-		concurrentComponent.markToggleSourceTouchedInCurrentFrame(sourceKey);
-		if (deltaAction == DeltaAction.REMOVE) {
-			bucketChanged |= concurrentComponent.removeToggleConcurrentSource(sourceKey);
-		} else {
-			bucketChanged |= concurrentComponent.upsertToggleConcurrentSource(
-				sourceKey,
-				normalizedTimeKey,
-				eventMeta.seq(),
-				sameSourceHadToggleContribution
-			);
-		}
-		accumulator.record(eventMeta, bucketChanged, false);
-	}
-
-	/**
-	 * 批次内应用“triggerSource 区块卸载失效”，仅剔除 sync 贡献。
-	 */
-	private void applyTriggerSourceChunkUnloadInvalidationMutation(
-		SourceKey sourceKey,
-		DeltaAction deltaAction,
-		EventMeta eventMeta,
-		StructuredBatchMutationAccumulator accumulator
-	) {
-		if (deltaAction != DeltaAction.REMOVE) {
-			return;
-		}
-		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
-		boolean bucketChanged = concurrentComponent.removeSyncConcurrentSource(sourceKey);
-		accumulator.record(eventMeta, bucketChanged, false);
-	}
-
-	/**
-	 * 批次内应用“triggerSource 其它失效”，剔除该来源的全部结构化贡献。
-	 */
-	private void applyTriggerSourceInvalidationMutation(
-		SourceKey sourceKey,
-		DeltaAction deltaAction,
-		EventMeta eventMeta,
-		StructuredBatchMutationAccumulator accumulator
-	) {
-		if (deltaAction != DeltaAction.REMOVE) {
-			return;
-		}
-		if (!acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
-		boolean bucketChanged = concurrentComponent.removeSyncConcurrentSource(sourceKey);
-		bucketChanged |= concurrentComponent.removePulseConcurrentSource(sourceKey);
-		bucketChanged |= concurrentComponent.removeToggleConcurrentSource(sourceKey);
-		accumulator.record(eventMeta, bucketChanged, true);
-	}
-
-	/**
-	 * 批末统一提交结构化变更，避免逐条 delta 重复重算。
-	 */
-	private void finalizeStructuredBatchMutation(StructuredBatchMutationAccumulator accumulator) {
-		if (accumulator == null || !accumulator.acceptedAny()) {
-			return;
-		}
-		recomputeSyncTruthFromConcurrentBuckets();
-		if (accumulator.requiresPulseTruthRecompute()) {
-			accumulator.mergeBucketChanged(recomputePulseTruthFromConcurrentBuckets());
-		}
-		recomputeToggleTruthFromConcurrentBuckets();
-		recomputeAuthorityFromConcurrentBuckets(accumulator.fallbackTimeKey(), accumulator.fallbackSeq());
-		applyDerivedStateFromTruth();
-		markStructuredTruthDirty(accumulator.bucketChanged());
-	}
-
-	/**
-	 * 同时间粒度内的批条目固定排序：先按时间键/序列，再按失效覆盖优先级。
-	 */
-	private static int dispatchBatchDeltaPriority(DeltaKind deltaKind) {
-		if (deltaKind == null) {
-			return Integer.MAX_VALUE;
-		}
-		return switch (deltaKind) {
-			case SYNC_SIGNAL -> 0;
-			case SOURCE_INVALIDATION, TRIGGER_SOURCE_CHUNK_UNLOAD_INVALIDATION -> 1;
-			case TRIGGER_SOURCE_INVALIDATION -> 2;
-			case ACTIVATION -> 3;
-		};
-	}
-
-	private static int compareEventMeta(EventMeta left, EventMeta right) {
-		if (left == null && right == null) {
-			return 0;
-		}
-		if (left == null) {
-			return -1;
-		}
-		if (right == null) {
-			return 1;
-		}
-		int timeKeyCompare = left.timeKey().compareTo(right.timeKey());
-		if (timeKeyCompare != 0) {
-			return timeKeyCompare;
-		}
-		return Long.compare(left.seq(), right.seq());
-	}
-
-	/**
-	 * 批次内结构化变更累计器。
-	 */
-	private static final class StructuredBatchMutationAccumulator {
-		private boolean acceptedAny;
-		private boolean bucketChanged;
-		private boolean requiresPulseTruthRecompute;
-		private EventMeta fallbackEventMeta = EventMeta.of(0L, 0, 0L);
-
-		void record(EventMeta eventMeta, boolean mutationChanged, boolean pulseTruthChangedPossible) {
-			acceptedAny = true;
-			bucketChanged |= mutationChanged;
-			requiresPulseTruthRecompute |= pulseTruthChangedPossible;
-			if (compareEventMeta(eventMeta, fallbackEventMeta) >= 0) {
-				fallbackEventMeta = eventMeta == null ? EventMeta.of(0L, 0, 0L) : eventMeta;
-			}
-		}
-
-		boolean acceptedAny() {
-			return acceptedAny;
-		}
-
-		boolean bucketChanged() {
-			return bucketChanged;
-		}
-
-		void mergeBucketChanged(boolean mutationChanged) {
-			bucketChanged |= mutationChanged;
-		}
-
-		boolean requiresPulseTruthRecompute() {
-			return requiresPulseTruthRecompute;
-		}
-
-		TimeKey fallbackTimeKey() {
-			return fallbackEventMeta.timeKey();
-		}
-
-		long fallbackSeq() {
-			return fallbackEventMeta.seq();
-		}
 	}
 
 	/**
 	 * 归一化输入强度，避免异常值污染聚合。
 	 */
-	private static int normalizeSignalStrength(int signalStrength) {
+	static int normalizeSignalStrength(int signalStrength) {
 		return SignalStrengths.clamp(signalStrength);
 	}
 
