@@ -309,6 +309,20 @@ public final class LinkSetExecutionService {
 	 * @return 执行结果与后置反馈
 	 */
 	public static ApplyResult applyPreparedReplace(PreparedReplaceOperation operation) {
+		return applyPreparedReplace(operation, null);
+	}
+
+	/**
+	 * 执行一次已准备好的覆盖写入，并可选登记批量后置同步。
+	 *
+	 * @param operation 已准备好的写入操作
+	 * @param batchSyncCollector 批量同步收集器；传 `null` 时保持原有即时同步
+	 * @return 执行结果与后置反馈
+	 */
+	public static ApplyResult applyPreparedReplace(
+		PreparedReplaceOperation operation,
+		LinkCommandSupport.BatchLinkSnapshotSyncCollector batchSyncCollector
+	) {
 		if (operation == null) {
 			return new ApplyResult(0, List.of(OperationFeedback.failure("message.redstonelink.permission.insufficient")));
 		}
@@ -355,13 +369,7 @@ public final class LinkSetExecutionService {
 			}
 		}
 
-		LinkCommandSupport.syncAffectedNodeLinkSnapshots(
-			operation.level(),
-			operation.targetType(),
-			operation.previousTargets(),
-			operation.targets()
-		);
-		LinkCommandSupport.syncPlayerItemLinkSnapshot(operation.player(), operation.sourceType(), operation.sourceSerial());
+		registerPostWriteSync(operation, batchSyncCollector);
 
 		List<OperationFeedback> feedbacks = new ArrayList<>();
 		feedbacks.add(
@@ -378,6 +386,29 @@ public final class LinkSetExecutionService {
 			replaceResult.currentCount()
 		);
 		return new ApplyResult(replaceResult.currentCount(), List.copyOf(feedbacks));
+	}
+
+	/**
+	 * 统一处理写入后的节点与物品快照同步。
+	 */
+	private static void registerPostWriteSync(
+		PreparedReplaceOperation operation,
+		LinkCommandSupport.BatchLinkSnapshotSyncCollector batchSyncCollector
+	) {
+		if (operation == null) {
+			return;
+		}
+		if (batchSyncCollector != null) {
+			batchSyncCollector.collectPreparedReplace(operation);
+			return;
+		}
+		LinkCommandSupport.syncAffectedNodeLinkSnapshots(
+			operation.level(),
+			operation.targetType(),
+			operation.previousTargets(),
+			operation.targets()
+		);
+		LinkCommandSupport.syncPlayerItemLinkSnapshot(operation.player(), operation.sourceType(), operation.sourceSerial());
 	}
 
 	/**

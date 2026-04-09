@@ -182,6 +182,97 @@ public final class LinkCommandSupport {
 	}
 
 	/**
+	 * 批量写入后置同步收集器。
+	 * <p>
+	 * 用于把“逐条写入后的即时客户端同步”收敛成批后按唯一节点/唯一来源一次性 flush，
+	 * 避免热点批量场景下对同一节点重复 `forceSyncToClient()`。
+	 * </p>
+	 */
+	public static final class BatchLinkSnapshotSyncCollector {
+		private final ServerLevel sourceLevel;
+		private final Set<NodeSnapshotSyncRequest> nodeSnapshotSyncRequests = new HashSet<>();
+		private final Set<PlayerItemSnapshotSyncRequest> playerItemSnapshotSyncRequests = new HashSet<>();
+
+		public BatchLinkSnapshotSyncCollector(ServerLevel sourceLevel) {
+			this.sourceLevel = sourceLevel;
+		}
+
+		/**
+		 * 收集一次 prepared replace 产生的后置同步需求。
+		 */
+		public void collectPreparedReplace(LinkSetExecutionService.PreparedReplaceOperation operation) {
+			if (operation == null) {
+				return;
+			}
+			collectAffectedNodeLinkSnapshots(operation.targetType(), operation.previousTargets(), operation.targets());
+			collectPlayerItemLinkSnapshot(operation.player(), operation.sourceType(), operation.sourceSerial());
+		}
+
+		/**
+		 * 收集一次来源物品快照刷新需求。
+		 */
+		public void collectPlayerItemLinkSnapshot(
+			ServerPlayer player,
+			LinkNodeType sourceType,
+			long sourceSerial
+		) {
+			if (player == null || sourceType == null || sourceSerial <= 0L) {
+				return;
+			}
+			playerItemSnapshotSyncRequests.add(new PlayerItemSnapshotSyncRequest(player, sourceType, sourceSerial));
+		}
+
+		/**
+		 * 收集一次受影响目标节点同步需求。
+		 */
+		public void collectAffectedNodeLinkSnapshots(
+			LinkNodeType targetType,
+			Set<Long> previousTargets,
+			Set<Long> currentTargets
+		) {
+			if (targetType == null) {
+				return;
+			}
+			collectTargetSerials(targetType, previousTargets);
+			collectTargetSerials(targetType, currentTargets);
+		}
+
+		private void collectTargetSerials(LinkNodeType targetType, Set<Long> targetSerials) {
+			if (targetSerials == null || targetSerials.isEmpty()) {
+				return;
+			}
+			for (Long targetSerial : targetSerials) {
+				if (targetSerial != null && targetSerial > 0L) {
+					nodeSnapshotSyncRequests.add(new NodeSnapshotSyncRequest(targetType, targetSerial));
+				}
+			}
+		}
+
+		/**
+		 * 执行一次批量 flush，并在结束后自动清空收集器。
+		 */
+		public void flush() {
+			if (sourceLevel != null) {
+				for (NodeSnapshotSyncRequest request : nodeSnapshotSyncRequests) {
+					syncNodeLinkSnapshot(sourceLevel, request.nodeType(), request.serial());
+				}
+			}
+			for (PlayerItemSnapshotSyncRequest request : playerItemSnapshotSyncRequests) {
+				syncPlayerItemLinkSnapshot(request.player(), request.sourceType(), request.sourceSerial());
+			}
+			clear();
+		}
+
+		/**
+		 * 清空当前已登记的同步请求。
+		 */
+		public void clear() {
+			nodeSnapshotSyncRequests.clear();
+			playerItemSnapshotSyncRequests.clear();
+		}
+	}
+
+	/**
 	 * 按类型+序号定位在线节点，并触发一次方块实体客户端同步。
 	 */
 	private static void syncNodeLinkSnapshot(ServerLevel sourceLevel, LinkNodeType nodeType, long serial) {
@@ -199,6 +290,18 @@ public final class LinkCommandSupport {
 				pairableNodeBlockEntity.forceSyncToClient();
 			}
 		});
+	}
+
+	/**
+	 * 唯一化后的节点同步请求。
+	 */
+	private record NodeSnapshotSyncRequest(LinkNodeType nodeType, long serial) {
+	}
+
+	/**
+	 * 唯一化后的玩家物品快照刷新请求。
+	 */
+	private record PlayerItemSnapshotSyncRequest(ServerPlayer player, LinkNodeType sourceType, long sourceSerial) {
 	}
 
 	/**

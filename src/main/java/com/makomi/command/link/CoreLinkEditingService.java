@@ -225,10 +225,12 @@ public final class CoreLinkEditingService {
 			return new ApplyResult(0, 0);
 		}
 		int appliedOperationCount = 0;
+		LinkCommandSupport.BatchLinkSnapshotSyncCollector batchSyncCollector = new LinkCommandSupport.BatchLinkSnapshotSyncCollector(plan.level());
 		for (LinkSetExecutionService.PreparedReplaceOperation preparedOperation : plan.preparedOperations()) {
-			LinkSetExecutionService.applyPreparedReplace(preparedOperation);
+			LinkSetExecutionService.applyPreparedReplace(preparedOperation, batchSyncCollector);
 			appliedOperationCount++;
 		}
+		batchSyncCollector.flush();
 		return new ApplyResult(
 			appliedOperationCount,
 			LinkSavedData.get(plan.level()).getLinkedTriggerSourcesByCore(plan.coreSerial()).size()

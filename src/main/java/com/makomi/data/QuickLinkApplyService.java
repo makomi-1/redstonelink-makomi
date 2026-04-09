@@ -2,6 +2,7 @@ package com.makomi.data;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.link.LinkSetExecutionService;
+import com.makomi.command.link.LinkCommandSupport;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SerialParseUtil;
 import java.util.HashSet;
@@ -249,6 +250,7 @@ public final class QuickLinkApplyService {
 		}
 
 		int appliedSourceCount = 0;
+		LinkCommandSupport.BatchLinkSnapshotSyncCollector batchSyncCollector = new LinkCommandSupport.BatchLinkSnapshotSyncCollector(level);
 		for (long triggerSourceSerial : parseResult.orderedTargets()) {
 			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(triggerSourceSerial));
 			Set<Long> nextTargets = Set.of(coreSerial);
@@ -263,10 +265,12 @@ public final class QuickLinkApplyService {
 					nextTargets,
 					List.of(),
 					1
-				)
+				),
+				batchSyncCollector
 			);
 			appliedSourceCount++;
 		}
+		batchSyncCollector.flush();
 
 		return new ApplyFromCacheResult(
 			QuickLinkOperationFeedback.success(
