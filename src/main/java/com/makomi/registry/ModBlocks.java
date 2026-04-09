@@ -4,7 +4,9 @@ import com.makomi.RedstoneLink;
 import com.makomi.block.LinkCoreBlock;
 import com.makomi.block.LinkPulseEmitterBlock;
 import com.makomi.block.LinkPulseButtonBlock;
+import com.makomi.block.LinkReceiveFilterBlock;
 import com.makomi.block.LinkRedstoneDustCoreBlock;
+import com.makomi.block.LinkSendFilterBlock;
 import com.makomi.block.LinkSyncEmitterBlock;
 import com.makomi.block.LinkTransparentCoreBlock;
 import com.makomi.block.LinkTransparentRedstoneDustCoreBlock;
@@ -71,6 +73,16 @@ public final class ModBlocks {
 	public static final LinkSyncEmitterBlock LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
 		new LinkSyncEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+	);
+
+	public static final LinkSendFilterBlock LINK_SEND_FILTER = register(
+		"link_send_filter",
+		new LinkSendFilterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+	);
+
+	public static final LinkReceiveFilterBlock LINK_RECEIVE_FILTER = register(
+		"link_receive_filter",
+		new LinkReceiveFilterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).noOcclusion())
 	);
 
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(

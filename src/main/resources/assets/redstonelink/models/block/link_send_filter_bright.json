@@ -1,0 +1,7 @@
+{
+  "parent": "redstonelink:block/dual_layer_cube",
+  "textures": {
+    "outer": "redstonelink:block/link_send_filter_bright",
+    "inner": "redstonelink:block/component_core_block"
+  }
+}

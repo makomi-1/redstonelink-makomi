@@ -1,0 +1,237 @@
+package com.makomi.block.entity;
+
+import com.makomi.data.LinkDispatchFilterService;
+import com.makomi.data.LinkFilterConfigSnapshot;
+import com.makomi.data.LinkFilterKind;
+import com.makomi.data.LinkFilterNodeSetMode;
+import com.makomi.data.LinkFilterRuleEvaluator;
+import com.makomi.data.LinkFilterSignalMode;
+import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.util.SerialParseUtil;
+import com.makomi.util.SignalStrengths;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+
+/**
+ * 发送/接收过滤器公共方块实体基类。
+ * <p>
+ * 只负责配置持久化、客户端同步与运行时索引挂接；
+ * 过滤规则求值由 `LinkDispatchFilterService` 与 `LinkFilterRuleEvaluator` 统一处理。
+ * </p>
+ */
+public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
+	private static final String KEY_SERIAL_EXPRESSION = "serialExpression";
+	private static final String KEY_NODE_SET_MODE = "nodeSetMode";
+	private static final String KEY_SIGNAL_THRESHOLD_SOURCE = "signalThresholdSource";
+	private static final String KEY_FIXED_SIGNAL_THRESHOLD = "fixedSignalThreshold";
+	private static final String KEY_SIGNAL_MODE = "signalMode";
+
+	private String serialExpression = "";
+	private Set<Long> serials = Set.of();
+	private LinkFilterNodeSetMode nodeSetMode = LinkFilterNodeSetMode.DISABLED;
+	private LinkFilterSignalThresholdSource signalThresholdSource = LinkFilterSignalThresholdSource.FIXED_INPUT;
+	private int fixedSignalThreshold = 15;
+	private LinkFilterSignalMode signalMode = LinkFilterSignalMode.DISABLED;
+
+	protected AbstractLinkFilterBlockEntity(
+		BlockEntityType<? extends AbstractLinkFilterBlockEntity> blockEntityType,
+		BlockPos blockPos,
+		BlockState blockState
+	) {
+		super(blockEntityType, blockPos, blockState);
+	}
+
+	/**
+	 * @return 当前过滤器种类
+	 */
+	public abstract LinkFilterKind filterKind();
+
+	/**
+	 * 返回当前配置快照。
+	 */
+	public final LinkFilterConfigSnapshot snapshot() {
+		return new LinkFilterConfigSnapshot(
+			serialExpression,
+			nodeSetMode,
+			signalThresholdSource,
+			fixedSignalThreshold,
+			signalMode
+		);
+	}
+
+	/**
+	 * 应用一份新的配置快照，并同步客户端与运行时索引。
+	 *
+	 * @param configSnapshot 新配置快照
+	 */
+	public final void applySnapshot(LinkFilterConfigSnapshot configSnapshot) {
+		LinkFilterConfigSnapshot normalized = configSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : configSnapshot;
+		serialExpression = normalized.serialExpression().trim();
+		nodeSetMode = normalized.nodeSetMode();
+		signalThresholdSource = normalized.signalThresholdSource();
+		fixedSignalThreshold = SignalStrengths.clamp(normalized.fixedSignalThreshold());
+		signalMode = normalized.signalMode();
+		serials = parseSerialExpression(serialExpression);
+		syncToClient();
+		LinkDispatchFilterService.upsertFilter(this);
+	}
+
+	/**
+	 * 判断当前过滤器立方域是否覆盖目标节点位置。
+	 *
+	 * @param targetPos 目标节点坐标
+	 * @return 是否命中立方域
+	 */
+	public final boolean covers(BlockPos targetPos) {
+		if (targetPos == null) {
+			return false;
+		}
+		return Math.abs(targetPos.getX() - worldPosition.getX()) <= LinkDispatchFilterService.FILTER_RADIUS
+			&& Math.abs(targetPos.getY() - worldPosition.getY()) <= LinkDispatchFilterService.FILTER_RADIUS
+			&& Math.abs(targetPos.getZ() - worldPosition.getZ()) <= LinkDispatchFilterService.FILTER_RADIUS;
+	}
+
+	/**
+	 * 构造当前过滤器的运行时求值视图；未激活时返回 `null`。
+	 */
+	public final LinkFilterRuleEvaluator.FilterRuntimeView buildRuntimeViewIfEnabled() {
+		int neighborSignalStrength = sampleNeighborSignalStrength();
+		if (neighborSignalStrength <= 0) {
+			return null;
+		}
+		return new LinkFilterRuleEvaluator.FilterRuntimeView(
+			nodeSetMode,
+			serials,
+			signalThresholdSource,
+			fixedSignalThreshold,
+			signalMode,
+			neighborSignalStrength
+		);
+	}
+
+	/**
+	 * @return 当前缓存的序号表达式
+	 */
+	public final String serialExpression() {
+		return serialExpression;
+	}
+
+	/**
+	 * @return 当前节点集合过滤模式
+	 */
+	public final LinkFilterNodeSetMode nodeSetMode() {
+		return nodeSetMode;
+	}
+
+	/**
+	 * @return 当前信号阈值来源
+	 */
+	public final LinkFilterSignalThresholdSource signalThresholdSource() {
+		return signalThresholdSource;
+	}
+
+	/**
+	 * @return 当前固定阈值
+	 */
+	public final int fixedSignalThreshold() {
+		return fixedSignalThreshold;
+	}
+
+	/**
+	 * @return 当前信号判定模式
+	 */
+	public final LinkFilterSignalMode signalMode() {
+		return signalMode;
+	}
+
+	/**
+	 * 采样过滤器自身邻居最大输入。
+	 */
+	public final int sampleNeighborSignalStrength() {
+		return level == null ? 0 : Math.max(0, level.getBestNeighborSignal(worldPosition));
+	}
+
+	@Override
+	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
+		super.loadAdditional(tag, provider);
+		serialExpression = tag.contains(KEY_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_SERIAL_EXPRESSION) : "";
+		nodeSetMode = LinkFilterNodeSetMode
+			.tryParseToken(tag.getString(KEY_NODE_SET_MODE))
+			.orElse(LinkFilterNodeSetMode.DISABLED);
+		signalThresholdSource = LinkFilterSignalThresholdSource
+			.tryParseToken(tag.getString(KEY_SIGNAL_THRESHOLD_SOURCE))
+			.orElse(LinkFilterSignalThresholdSource.FIXED_INPUT);
+		fixedSignalThreshold = SignalStrengths.clamp(tag.getInt(KEY_FIXED_SIGNAL_THRESHOLD));
+		signalMode = LinkFilterSignalMode
+			.tryParseToken(tag.getString(KEY_SIGNAL_MODE))
+			.orElse(LinkFilterSignalMode.DISABLED);
+		serials = parseSerialExpression(serialExpression);
+	}
+
+	@Override
+	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
+		super.saveAdditional(tag, provider);
+		if (!serialExpression.isBlank()) {
+			tag.putString(KEY_SERIAL_EXPRESSION, serialExpression);
+		}
+		tag.putString(KEY_NODE_SET_MODE, nodeSetMode.token());
+		tag.putString(KEY_SIGNAL_THRESHOLD_SOURCE, signalThresholdSource.token());
+		tag.putInt(KEY_FIXED_SIGNAL_THRESHOLD, SignalStrengths.clamp(fixedSignalThreshold));
+		tag.putString(KEY_SIGNAL_MODE, signalMode.token());
+	}
+
+	@Override
+	public void clearRemoved() {
+		super.clearRemoved();
+		LinkDispatchFilterService.upsertFilter(this);
+	}
+
+	@Override
+	public void setRemoved() {
+		LinkDispatchFilterService.removeFilter(this);
+		super.setRemoved();
+	}
+
+	@Override
+	public Packet<ClientGamePacketListener> getUpdatePacket() {
+		return ClientboundBlockEntityDataPacket.create(this);
+	}
+
+	@Override
+	public CompoundTag getUpdateTag(HolderLookup.Provider provider) {
+		return saveWithoutMetadata(provider);
+	}
+
+	/**
+	 * 通知客户端刷新方块实体与方块状态。
+	 */
+	protected final void syncToClient() {
+		setChanged();
+		if (level != null && !level.isClientSide) {
+			BlockState state = getBlockState();
+			level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
+		}
+	}
+
+	/**
+	 * 解析序号表达式，统一过滤非法与重复项。
+	 */
+	private static Set<Long> parseSerialExpression(String rawExpression) {
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(rawExpression, 0);
+		if (parseResult.orderedTargets().isEmpty()) {
+			return Set.of();
+		}
+		return Set.copyOf(new LinkedHashSet<>(parseResult.orderedTargets()));
+	}
+}

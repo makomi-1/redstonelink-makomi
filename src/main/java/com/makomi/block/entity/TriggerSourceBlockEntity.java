@@ -1,6 +1,7 @@
 package com.makomi.block.entity;
 
 import com.makomi.advancement.RedstoneLinkAdvancementService;
+import com.makomi.data.LinkDispatchFilterService;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
@@ -76,6 +77,10 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 		long sourceSerial = getSerial();
 		if (sourceSerial <= 0L) {
 			sendPlayerMessage(player, Component.translatable("message.redstonelink.target_not_set"));
+			return;
+		}
+		int effectiveSignalStrength = dispatchMode == DispatchMode.ACTIVATION ? 15 : SignalStrengths.clamp(signalStrength);
+		if (!LinkDispatchFilterService.allowsSend(serverLevel, worldPosition, sourceSerial, effectiveSignalStrength)) {
 			return;
 		}
 

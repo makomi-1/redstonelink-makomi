@@ -4,10 +4,12 @@ import com.makomi.client.ClientHooks;
 import com.makomi.client.bench.BenchClientAutomationController;
 import com.makomi.client.bench.BenchClientCommandBridge;
 import com.makomi.client.network.BenchCommandNetworkClientHandlerSupport;
+import com.makomi.client.network.LinkFilterNetworkClientHandlerSupport;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.client.network.PairingNetworkClientHandlerSupport;
 import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
 import com.makomi.client.network.StatePanelNetworkClientHandlerSupport;
+import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.render.QuickLinkOutlineRenderer;
@@ -64,6 +66,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerBenchCommandClientHooks();
 		registerQuickLinkClientHooks();
 		registerStatePanelClientHooks();
+		registerLinkFilterClientHooks();
 		BenchClientAutomationController.initialize();
 		RedstoneLink.LOGGER.info("RedstoneLink client initialized");
 	}
@@ -81,6 +84,8 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_TOGGLE_EMITTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_PULSE_EMITTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SYNC_EMITTER, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SEND_FILTER, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_RECEIVE_FILTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.translucent());
 	}
 
@@ -99,6 +104,8 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_SEND_FILTER, LinkFilterAreaRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_RECEIVE_FILTER, LinkFilterAreaRenderer::new);
 	}
 
 	/**
@@ -315,5 +322,12 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerStatePanelClientHooks() {
 		StatePanelNetworkClientHandlerSupport.registerReceivers();
+	}
+
+	/**
+	 * 注册过滤器编辑器客户端接包。
+	 */
+	private static void registerLinkFilterClientHooks() {
+		LinkFilterNetworkClientHandlerSupport.registerReceivers();
 	}
 }

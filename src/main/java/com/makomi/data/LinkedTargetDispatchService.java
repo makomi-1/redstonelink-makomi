@@ -191,6 +191,10 @@ public final class LinkedTargetDispatchService {
 			if (node == null) {
 				continue;
 			}
+			int effectiveSignalStrength = dispatchKind == DispatchKind.ACTIVATION ? 15 : syncSignalStrength;
+			if (!LinkDispatchFilterService.allowsReceive(sourceLevel.getServer(), node.dimension(), node.pos(), targetSerial, effectiveSignalStrength)) {
+				continue;
+			}
 
 			ServerLevel targetLevel = sourceLevel.getServer().getLevel(node.dimension());
 			if (targetLevel == null || !targetLevel.isLoaded(node.pos())) {

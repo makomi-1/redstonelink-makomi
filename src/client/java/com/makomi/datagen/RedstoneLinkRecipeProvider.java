@@ -21,7 +21,7 @@ import net.minecraft.world.level.ItemLike;
 /**
  * RedstoneLink 配方数据生成器。
  * <p>
- * 统一维护运行时使用的 18 个配方，避免资源目录路径或配方内容再次漂移。
+ * 统一维护运行时使用的 20 个配方，避免资源目录路径或配方内容再次漂移。
  */
 public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 	private static final TagKey<Item> TRIGGER_P_MATERIALS = modItemTag("trigger_p_materials");
@@ -55,6 +55,8 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 		buildLinkBaseRecipe(recipeOutput, "link_pulse_emitter", ModItems.LINK_PULSE_EMITTER, TRIGGER_P_MATERIALS);
 		buildLinkBaseRecipe(recipeOutput, "link_sync_emitter", ModItems.LINK_SYNC_EMITTER, TRIGGER_S_MATERIALS);
 		buildLinkBaseRecipe(recipeOutput, "link_toggle_emitter", ModItems.LINK_TOGGLE_EMITTER, TRIGGER_T_MATERIALS);
+		buildLinkBaseRecipe(recipeOutput, "link_send_filter", ModItems.LINK_SEND_FILTER, ModItems.LINK_SYNC_EMITTER);
+		buildLinkBaseRecipe(recipeOutput, "link_receive_filter", ModItems.LINK_RECEIVE_FILTER, ModItems.LINK_REDSTONE_CORE);
 		buildLinkBaseRecipe(recipeOutput, "link_redstone_core", ModItems.LINK_REDSTONE_CORE, Items.REDSTONE_BLOCK);
 		buildLinkBaseRecipe(recipeOutput, "link_redstone_dust_core", ModItems.LINK_REDSTONE_DUST_CORE, Items.REDSTONE);
 		buildLinkerRecipe(recipeOutput, "redstonelink_toggle_linker", ModItems.REDSTONELINK_TOGGLE_LINKER, ModItems.LINK_TOGGLE_BUTTON);

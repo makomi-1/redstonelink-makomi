@@ -26,12 +26,14 @@ class RecipeResourceLayoutTest {
 	private static final Set<String> EXPECTED_RECIPE_FILES = Set.of(
 		"link_pulse_emitter.json",
 		"link_push_button.json",
+		"link_receive_filter.json",
 		"link_redstone_core_from_transparent.json",
 		"link_redstone_core_transparent.json",
 		"link_redstone_core.json",
 		"link_redstone_dust_core_from_transparent.json",
 		"link_redstone_dust_core_transparent.json",
 		"link_redstone_dust_core.json",
+		"link_send_filter.json",
 		"link_sync_emitter.json",
 		"link_sync_lever.json",
 		"link_toggle_button.json",
@@ -53,7 +55,7 @@ class RecipeResourceLayoutTest {
 
 		Set<String> actualFiles = listJsonFileNames(RECIPE_DIR);
 
-		assertEquals(EXPECTED_RECIPE_FILES, actualFiles, "运行时配方文件清单必须与约定的 18 个文件一致");
+		assertEquals(EXPECTED_RECIPE_FILES, actualFiles, "运行时配方文件清单必须与约定的 20 个文件一致");
 	}
 
 	/**

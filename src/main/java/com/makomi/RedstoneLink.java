@@ -6,12 +6,14 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CoreDispatchBatchScheduler;
 import com.makomi.data.CrossChunkDispatchService;
 import com.makomi.data.InternalDispatchDeltaProjector;
+import com.makomi.data.LinkDispatchFilterService;
 import com.makomi.data.LinkNodeLifecycleDispatchEvents;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.NodeStateTraceService;
 import com.makomi.data.PairableItemAggregateMenuNormalizationService;
 import com.makomi.data.input.InputPlaybackService;
 import com.makomi.network.BenchCommandNetwork;
+import com.makomi.network.LinkFilterNetwork;
 import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
 import com.makomi.network.StatePanelNetwork;
@@ -41,6 +43,7 @@ public class RedstoneLink implements ModInitializer {
 		PairingNetwork.register();
 		QuickLinkNetwork.register();
 		StatePanelNetwork.register();
+		LinkFilterNetwork.register();
 		ModBlocks.register();
 		ModBlockEntities.register();
 		ModItems.register();
@@ -51,6 +54,7 @@ public class RedstoneLink implements ModInitializer {
 		LinkNodeLifecycleDispatchEvents.register();
 		LinkNodeRetireEvents.register();
 		PairableItemAggregateMenuNormalizationService.register();
+		LinkDispatchFilterService.register();
 		if (RedstoneLinkConfig.command().nodeTraceEnabled()) {
 			NodeStateTraceService.register();
 		}

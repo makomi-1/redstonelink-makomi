@@ -4,7 +4,9 @@ import com.makomi.RedstoneLink;
 import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
 import com.makomi.block.entity.LinkPulseEmitterBlockEntity;
+import com.makomi.block.entity.LinkReceiveFilterBlockEntity;
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
+import com.makomi.block.entity.LinkSendFilterBlockEntity;
 import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
 import com.makomi.block.entity.LinkTransparentCoreBlockEntity;
 import com.makomi.block.entity.LinkTransparentRedstoneDustCoreBlockEntity;
@@ -58,6 +60,16 @@ public final class ModBlockEntities {
 	public static final BlockEntityType<LinkSyncEmitterBlockEntity> LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
 		BlockEntityType.Builder.of(LinkSyncEmitterBlockEntity::new, ModBlocks.LINK_SYNC_EMITTER).build(null)
+	);
+
+	public static final BlockEntityType<LinkSendFilterBlockEntity> LINK_SEND_FILTER = register(
+		"link_send_filter",
+		BlockEntityType.Builder.of(LinkSendFilterBlockEntity::new, ModBlocks.LINK_SEND_FILTER).build(null)
+	);
+
+	public static final BlockEntityType<LinkReceiveFilterBlockEntity> LINK_RECEIVE_FILTER = register(
+		"link_receive_filter",
+		BlockEntityType.Builder.of(LinkReceiveFilterBlockEntity::new, ModBlocks.LINK_RECEIVE_FILTER).build(null)
 	);
 
 	public static final BlockEntityType<LinkRedstoneDustCoreBlockEntity> LINK_REDSTONE_DUST_CORE = register(

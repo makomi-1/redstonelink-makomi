@@ -12,6 +12,7 @@ import com.makomi.data.LinkNodeType;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 
 /**
@@ -111,6 +112,16 @@ public final class ModItems {
 	public static final Item LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
 		new PairableBlockItem(ModBlocks.LINK_SYNC_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item LINK_SEND_FILTER = register(
+		"link_send_filter",
+		new BlockItem(ModBlocks.LINK_SEND_FILTER, new Item.Properties().stacksTo(1))
+	);
+
+	public static final Item LINK_RECEIVE_FILTER = register(
+		"link_receive_filter",
+		new BlockItem(ModBlocks.LINK_RECEIVE_FILTER, new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item REDSTONELINK_TOGGLE_LINKER = register(
