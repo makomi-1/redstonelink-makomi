@@ -3,7 +3,7 @@
 运行轻量性能 suite，并先构建同步 server/client 两端最新模组。
 #>
 param(
-	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
+	[string]$ServerRoot,
 	[string]$ServerStartCommand = ".\start.bat",
 	[ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
 	[string]$ServerPriorityClass = "High",
@@ -18,8 +18,8 @@ param(
 	[string]$BenchClientLaunchTarget = "1.21.1",
 	[string]$BenchClientGameHost = "127.0.0.1",
 	[int]$BenchClientGamePort = 25565,
-	[string]$PrismLauncherPath = "D:\Prism Launcher\prismlauncher.exe",
-	[string]$PrismRootDir = "C:\Users\15166\AppData\Roaming\PrismLauncher",
+	[string]$PrismLauncherPath,
+	[string]$PrismRootDir,
 	[string]$BenchClientInstanceRoot,
 	[string]$BenchClientWorkingDirectory,
 	[string]$BenchClientModsDir,

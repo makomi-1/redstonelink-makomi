@@ -899,18 +899,17 @@ powershell -ExecutionPolicy Bypass -File .\tools\bench\run-bench.ps1 -Action Run
    - `RunCase`: performance / sampling case
    - `RunFunctionalCase`: functional verification case
 - Recommended preparation:
-1. Prepare a clean template world first, for example `D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template`.
-2. Example dedicated-server root: `D:\OpenProjects\RedstoneLink\mcserver`.
-3. Suite runs create case worlds under `D:\OpenProjects\RedstoneLink\mcserver\rl-cases\`.
-4. Keep RCON enabled in `server.properties`; for full unattended runs, also enable `server.command.benchmarkMode.enabled=true`.
-5. In Windows PowerShell 5.x, do not use outer `powershell -File` for multi-case commands using `-CaseIds @(...)`; call `& .\tools\bench\run-bench-suite.ps1 ...` inside the current session instead.
-6. If local script execution is blocked in the current session, run `Set-ExecutionPolicy -Scope Process Bypass -Force` first.
+1. Configure bench local paths in `tools/bench/bench.path-config.json`; the current keys are `serverRoot`, `templateWorld`, `reloadTemplateWorld`, `prismLauncher`, and `prismRootDir`.
+2. `serverRoot` is the dedicated-server root; `templateWorld` and `reloadTemplateWorld` may be absolute paths or names relative to `serverRoot`.
+3. Suite entries such as `reload_template_world_boot` resolve the reload template through `{{param:reloadTemplateWorld}}` instead of a hard-coded absolute path.
+4. Suite runs create case worlds under `<serverRoot>\rl-cases\`.
+5. Keep RCON enabled in `server.properties`; for full unattended runs, also enable `server.command.benchmarkMode.enabled=true`.
+6. In Windows PowerShell 5.x, do not use outer `powershell -File` for multi-case commands using `-CaseIds @(...)`; call `& .\tools\bench\run-bench-suite.ps1 ...` inside the current session instead.
+7. If local script execution is blocked in the current session, run `Set-ExecutionPolicy -Scope Process Bypass -Force` first.
 - Common commands:
 1. Run a fresh-world single case:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\bench\run-bench-suite.ps1 `
-  -ServerRoot 'D:\OpenProjects\RedstoneLink\mcserver' `
-  -TemplateWorldPath 'D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template' `
   -ServerStartCommand '.\start.bat' `
   -CaseIds sync_1_to_64_core_dense `
   -RconHost 127.0.0.1 `
@@ -918,6 +917,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\bench\run-bench-suite.ps1 `
   -RconPassword redstonelink-bench
 ```
 2. Shortest command for one functional case on the current workstation:
+These commands now read `serverRoot` and `templateWorld` from `tools/bench/bench.path-config.json`; if your workstation is already configured, you may omit `-ServerRoot` / `-TemplateWorldPath`.
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\bench\run-bench-suite.ps1 `
   -ServerStartCommand '.\start.bat' `
@@ -949,8 +949,6 @@ powershell -ExecutionPolicy Bypass -File .\tools\bench\run-bench-suite.ps1 `
 5. Run several performance cases in sequence:
 ```powershell
 & 'D:\OpenProjects\RedstoneLink\rl-release-no-mixin\tools\bench\run-bench-suite.ps1' `
-  -ServerRoot 'D:\OpenProjects\RedstoneLink\mcserver' `
-  -TemplateWorldPath 'D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template' `
   -ServerStartCommand '.\start.bat' `
   -CaseIds @(
     'sync_1_to_64_core_dense'
@@ -965,8 +963,6 @@ powershell -ExecutionPolicy Bypass -File .\tools\bench\run-bench-suite.ps1 `
 6. Run a fresh-world suite with automatic player waiting and setup commands:
 ```powershell
 & 'D:\OpenProjects\RedstoneLink\rl-release-no-mixin\tools\bench\run-bench-suite.ps1' `
-  -ServerRoot 'D:\OpenProjects\RedstoneLink\mcserver' `
-  -TemplateWorldPath 'D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template' `
   -ServerStartCommand '.\start.bat' `
   -MatrixPath '.\tools\bench\matrix-baseline-256.json' `
   -CaseIds @(
@@ -986,8 +982,6 @@ powershell -ExecutionPolicy Bypass -File .\tools\bench\run-bench-suite.ps1 `
 7. Run a fresh-world suite with an external auto-start bench client and sync the same locally built jar to both server and client:
 ```powershell
 & 'D:\OpenProjects\RedstoneLink\rl-release-no-mixin\tools\bench\run-bench-suite.ps1' `
-  -ServerRoot 'D:\OpenProjects\RedstoneLink\mcserver' `
-  -TemplateWorldPath 'D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template' `
   -ServerStartCommand '.\start.bat' `
   -MatrixPath '.\tools\bench\matrix-baseline-256.json' `
   -CaseIds @(
@@ -1026,8 +1020,6 @@ powershell -ExecutionPolicy Bypass -File .\tools\bench\run-first-mandatory-suite
 10. Or keep using `run-bench-suite.ps1` directly and explicitly build before syncing the latest jar:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\bench\run-bench-suite.ps1 `
-  -ServerRoot 'D:\OpenProjects\RedstoneLink\mcserver' `
-  -TemplateWorldPath 'D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template' `
   -ServerStartCommand '.\start.bat' `
   -SuitePath '.\tools\bench\suites\first-mandatory.json' `
   -RconHost 127.0.0.1 `

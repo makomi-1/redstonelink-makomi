@@ -10,12 +10,12 @@ RedstoneLink bench suite 编排脚本入口壳。
 5. 收集 bench 结果并发送 stop
 #>
 param(
-    [string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
+    [string]$ServerRoot,
     [string]$ServerPropertiesPath,
     [string]$ServerStartCommand,
     [ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Normal",
     [string]$ServerPriorityClass,
-    [string]$TemplateWorldPath = "D:\OpenProjects\RedstoneLink\mcserver\rl-bench-template",
+    [string]$TemplateWorldPath,
     [string[]]$CaseIds,
     [string]$SuitePath,
     [ValidateSet("RunCase", "RunFunctionalCase")][string]$BenchAction = "RunCase",
@@ -66,6 +66,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+. (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.PathConfig.ps1"))
+
+if ([string]::IsNullOrWhiteSpace($ServerRoot)) {
+    $ServerRoot = Get-BenchConfiguredServerRootPath
+}
+if ([string]::IsNullOrWhiteSpace($TemplateWorldPath)) {
+    $TemplateWorldPath = Get-BenchConfiguredTemplateWorldPath -ServerRootPath $ServerRoot
+}
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $script:DryRun = $false

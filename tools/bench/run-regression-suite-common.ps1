@@ -10,7 +10,8 @@
 param(
 	[ValidateSet("smoke", "core", "lifecycle", "full")][string]$Mode,
 	[switch]$BuildSync,
-	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
+	[string]$ServerRoot,
+	[string]$TemplateWorldPath,
 	[string]$ServerStartCommand = ".\start.bat",
 	[ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
 	[string]$ServerPriorityClass = "High",
@@ -35,6 +36,17 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+if (-not (Get-Command Get-BenchConfiguredServerRootPath -ErrorAction SilentlyContinue)) {
+	. (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.PathConfig.ps1"))
+}
+
+if ([string]::IsNullOrWhiteSpace($ServerRoot)) {
+	$ServerRoot = Get-BenchConfiguredServerRootPath
+}
+if ([string]::IsNullOrWhiteSpace($TemplateWorldPath)) {
+	$TemplateWorldPath = Get-BenchConfiguredTemplateWorldPath -ServerRootPath $ServerRoot
+}
+
 function Get-RegressionSuitePath {
 	param([string]$ModeName)
 	switch ([string]$ModeName) {
@@ -48,7 +60,7 @@ function Get-RegressionSuitePath {
 
 $invokeArgs = @{
 	ServerRoot = $ServerRoot
-	TemplateWorldPath = (Join-Path $ServerRoot "rl-bench-template")
+	TemplateWorldPath = $TemplateWorldPath
 	ServerStartCommand = $ServerStartCommand
 	ServerWindowMode = $ServerWindowMode
 	ServerPriorityClass = $ServerPriorityClass

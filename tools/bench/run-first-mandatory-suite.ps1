@@ -5,7 +5,7 @@
 使用现有服务器模组目录直接运行首批必跑，不执行 remapJar，也不复制本地 jar 到服务器。
 #>
 param(
-	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
+	[string]$ServerRoot,
 	[string]$ServerStartCommand = ".\start.bat",
 	[ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
 	[string]$ServerPriorityClass = "High",
@@ -24,7 +24,6 @@ Set-StrictMode -Version Latest
 
 $invokeArgs = @{
 	ServerRoot = $ServerRoot
-	TemplateWorldPath = (Join-Path $ServerRoot "rl-bench-template")
 	ServerStartCommand = $ServerStartCommand
 	ServerWindowMode = $ServerWindowMode
 	ServerPriorityClass = $ServerPriorityClass

@@ -26,11 +26,16 @@ if ([string]::IsNullOrWhiteSpace($ServerPropertiesPath)) {
 	throw "ServerPropertiesPath is required."
 }
 
+$serverRootFullPath = [System.IO.Path]::GetFullPath($ServerRoot)
+$templateWorldFullPath = [System.IO.Path]::GetFullPath($TemplateWorldPath)
+$serverPropertiesFullPath = [System.IO.Path]::GetFullPath($ServerPropertiesPath)
+
 $resolvedSuite = Resolve-SuiteEntries `
 	-SuiteConfigPath $SuitePath `
 	-RequestedCaseIds $CaseIds `
 	-DefaultBenchAction $BenchAction `
-	-DefaultMatrixPath $MatrixPath
+	-DefaultMatrixPath $MatrixPath `
+	-DefaultParameters (Get-BenchPathParameters -ServerRootPath $serverRootFullPath)
 $suiteEntries = @($resolvedSuite.entries)
 $entryIds = @($suiteEntries | ForEach-Object { [string]$_.entryId })
 $resolvedCaseIds = @(
@@ -48,9 +53,6 @@ $suiteTimestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $suiteOutputDirectory = New-DirectoryIfMissing -Path (Join-Path $SuiteResultsDir $suiteTimestamp)
 $benchScriptPath = Join-Path $PSScriptRoot "..\run-bench.ps1"
 $matrixCache = @{}
-$serverRootFullPath = [System.IO.Path]::GetFullPath($ServerRoot)
-$templateWorldFullPath = [System.IO.Path]::GetFullPath($TemplateWorldPath)
-$serverPropertiesFullPath = [System.IO.Path]::GetFullPath($ServerPropertiesPath)
 $serverConfigFullPath = Join-Path $serverRootFullPath "config\redstonelink-server.properties"
 $gradleWrapperFullPath = Resolve-PathFromBase -BaseDirectory $repoRoot -CandidatePath $GradleWrapperPath
 $serverModsDirectoryPath = if ([string]::IsNullOrWhiteSpace($ServerModsDir)) {

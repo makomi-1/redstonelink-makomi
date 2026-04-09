@@ -3,6 +3,10 @@
 bench suite 模块：suite 配置、密码输入与路径默认值解析。
 #>
 
+if (-not (Get-Command Get-BenchPathParameters -ErrorAction SilentlyContinue)) {
+	. (Resolve-Path (Join-Path $PSScriptRoot "Bench.PathConfig.ps1"))
+}
+
 function New-Utf8NoBomEncoding {
 	return (New-Object System.Text.UTF8Encoding($false))
 }
@@ -208,7 +212,8 @@ function Resolve-SuiteEntries {
 		[string]$SuiteConfigPath,
 		[string[]]$RequestedCaseIds,
 		[string]$DefaultBenchAction,
-		[string]$DefaultMatrixPath
+		[string]$DefaultMatrixPath,
+		$DefaultParameters
 	)
 	if ([string]::IsNullOrWhiteSpace($SuiteConfigPath)) {
 		$matrix = Get-MatrixConfig -Path $DefaultMatrixPath
@@ -241,6 +246,9 @@ function Resolve-SuiteEntries {
 	$suiteConfig = Get-SuiteConfig -Path $fullSuitePath
 	$suiteBaseDirectory = Split-Path -Path $fullSuitePath -Parent
 	$suiteDefaults = Get-OptionalPsObjectPropertyValue -Object $suiteConfig -PropertyName "defaults"
+	$benchPathParameters = Merge-BenchParameterMaps `
+		-BaseParameters (Get-BenchPathParameters) `
+		-OverrideParameters $DefaultParameters
 	$defaultBenchAction = [string](Get-OptionalPsObjectPropertyValue -Object $suiteDefaults -PropertyName "benchAction")
 	if ([string]::IsNullOrWhiteSpace($defaultBenchAction)) {
 		$defaultBenchAction = $DefaultBenchAction
@@ -275,17 +283,20 @@ function Resolve-SuiteEntries {
 		$entryParameters = Merge-BenchParameterMaps `
 			-BaseParameters $defaultParameters `
 			-OverrideParameters (Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "parameters")
-		$entryId = Resolve-BenchParameterizedString -Text $rawEntryId -Parameters $entryParameters
+		$entryTemplateParameters = Merge-BenchParameterMaps `
+			-BaseParameters $benchPathParameters `
+			-OverrideParameters $entryParameters
+		$entryId = Resolve-BenchParameterizedString -Text $rawEntryId -Parameters $entryTemplateParameters
 		$rawSummaryCaseId = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "summaryCaseId")
 		if ([string]::IsNullOrWhiteSpace($rawSummaryCaseId)) {
 			$rawSummaryCaseId = $entryId
 		}
-		$summaryCaseId = Resolve-BenchParameterizedString -Text $rawSummaryCaseId -Parameters $entryParameters
+		$summaryCaseId = Resolve-BenchParameterizedString -Text $rawSummaryCaseId -Parameters $entryTemplateParameters
 		$rawTitle = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "title")
 		$entryTitle = if ([string]::IsNullOrWhiteSpace($rawTitle)) {
 			$null
 		} else {
-			Resolve-BenchParameterizedString -Text $rawTitle -Parameters $entryParameters
+			Resolve-BenchParameterizedString -Text $rawTitle -Parameters $entryTemplateParameters
 		}
 
 		$entryBenchAction = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "benchAction")
@@ -307,7 +318,7 @@ function Resolve-SuiteEntries {
 		$entryServerConfigOverrides = Convert-OptionalObjectToOrderedMap -Object (
 			Expand-BenchParameterizedValue `
 				-Value (ConvertTo-NormalizedBenchValue -Value $entryServerConfigOverrides) `
-				-Parameters $entryParameters
+				-Parameters $entryTemplateParameters
 		)
 
 		$matrix = Get-MatrixConfig -Path $entryMatrixPath
@@ -320,7 +331,15 @@ function Resolve-SuiteEntries {
 			title = $entryTitle
 			benchAction = $entryBenchAction
 			matrixPath = $entryMatrixPath
-			templateWorldPath = Resolve-PathFromBase -BaseDirectory $suiteBaseDirectory -CandidatePath ([string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "templateWorldPath"))
+			templateWorldPath = if ([string]::IsNullOrWhiteSpace([string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "templateWorldPath"))) {
+				$null
+			} else {
+				Resolve-PathFromBase `
+					-BaseDirectory $suiteBaseDirectory `
+					-CandidatePath (Resolve-BenchParameterizedString `
+						-Text ([string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "templateWorldPath")) `
+						-Parameters $entryTemplateParameters)
+			}
 			reuseWorldFrom = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "reuseWorldFrom")
 			compareSerialsTo = [string](Get-OptionalPsObjectPropertyValue -Object $entry -PropertyName "compareSerialsTo")
 			parameters = $entryParameters

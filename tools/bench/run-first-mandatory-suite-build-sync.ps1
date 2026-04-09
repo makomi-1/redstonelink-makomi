@@ -5,7 +5,7 @@
 在运行首批必跑前先执行 remapJar，并把最新 RedstoneLink 运行 jar 复制到 dedicated server 的 mods 目录。
 #>
 param(
-	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
+	[string]$ServerRoot,
 	[string]$ServerStartCommand = ".\start.bat",
 	[ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
 	[string]$ServerPriorityClass = "High",
@@ -27,7 +27,6 @@ Set-StrictMode -Version Latest
 
 $invokeArgs = @{
 	ServerRoot = $ServerRoot
-	TemplateWorldPath = (Join-Path $ServerRoot "rl-bench-template")
 	ServerStartCommand = $ServerStartCommand
 	ServerWindowMode = $ServerWindowMode
 	ServerPriorityClass = $ServerPriorityClass

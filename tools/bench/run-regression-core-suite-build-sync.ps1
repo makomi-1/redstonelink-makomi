@@ -3,7 +3,7 @@
 运行 regression-core suite（remapJar + 同步服务器模组版）。
 #>
 param(
-	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
+	[string]$ServerRoot,
 	[string]$ServerStartCommand = ".\start.bat",
 	[ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
 	[string]$ServerPriorityClass = "High",

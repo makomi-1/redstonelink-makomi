@@ -75,7 +75,7 @@
     {
       "entryId": "x11_reload_template_world_boot",
       "caseId": "reload_template_world_boot_basic",
-      "templateWorldPath": "D:/OpenProjects/RedstoneLink/mcserver/rl-bench-reload"
+      "templateWorldPath": "{{param:reloadTemplateWorld}}"
     },
     {
       "entryId": "x17_direct_sync_batching_all_sync",

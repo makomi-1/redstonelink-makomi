@@ -12,7 +12,8 @@
 param(
 	[ValidateSet("lite", "heavy")][string]$Mode,
 	[switch]$BuildSync,
-	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
+	[string]$ServerRoot,
+	[string]$TemplateWorldPath,
 	[string]$ServerStartCommand = ".\start.bat",
 	[ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
 	[string]$ServerPriorityClass = "High",
@@ -27,8 +28,8 @@ param(
 	[string]$BenchClientLaunchTarget = "1.21.1",
 	[string]$BenchClientGameHost = "127.0.0.1",
 	[int]$BenchClientGamePort = 25565,
-	[string]$PrismLauncherPath = "D:\Prism Launcher\prismlauncher.exe",
-	[string]$PrismRootDir = "C:\Users\15166\AppData\Roaming\PrismLauncher",
+	[string]$PrismLauncherPath,
+	[string]$PrismRootDir,
 	[string]$BenchClientInstanceRoot,
 	[string]$BenchClientWorkingDirectory,
 	[string]$BenchClientModsDir,
@@ -52,6 +53,23 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if (-not (Get-Command Get-BenchConfiguredServerRootPath -ErrorAction SilentlyContinue)) {
+	. (Resolve-Path (Join-Path $PSScriptRoot "lib\Bench.PathConfig.ps1"))
+}
+
+if ([string]::IsNullOrWhiteSpace($ServerRoot)) {
+	$ServerRoot = Get-BenchConfiguredServerRootPath
+}
+if ([string]::IsNullOrWhiteSpace($TemplateWorldPath)) {
+	$TemplateWorldPath = Get-BenchConfiguredTemplateWorldPath -ServerRootPath $ServerRoot
+}
+if ([string]::IsNullOrWhiteSpace($PrismLauncherPath)) {
+	$PrismLauncherPath = Get-BenchConfiguredPrismLauncherPath
+}
+if ([string]::IsNullOrWhiteSpace($PrismRootDir)) {
+	$PrismRootDir = Get-BenchConfiguredPrismRootDirPath
+}
 
 function Format-PerformanceSuiteArgument {
 	param(
@@ -115,7 +133,7 @@ if ([string]::IsNullOrWhiteSpace($AsPlayer)) {
 
 $invokeArgs = @{
 	ServerRoot = $ServerRoot
-	TemplateWorldPath = (Join-Path $ServerRoot "rl-bench-template")
+	TemplateWorldPath = $TemplateWorldPath
 	ServerStartCommand = $ServerStartCommand
 	ServerWindowMode = $ServerWindowMode
 	ServerPriorityClass = $ServerPriorityClass

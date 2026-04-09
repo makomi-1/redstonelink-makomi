@@ -5,7 +5,7 @@
 默认启用外部客户端自动进服、自动传送观察位、聚焦窗口与 F3+2 tick 曲线。
 #>
 param(
-	[string]$ServerRoot = "D:\OpenProjects\RedstoneLink\mcserver",
+	[string]$ServerRoot,
 	[string]$ServerStartCommand = ".\start.bat",
 	[ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
 	[string]$ServerPriorityClass = "High",
@@ -20,8 +20,8 @@ param(
 	[string]$BenchClientLaunchTarget = "1.21.1",
 	[string]$BenchClientGameHost = "127.0.0.1",
 	[int]$BenchClientGamePort = 25565,
-	[string]$PrismLauncherPath = "D:\Prism Launcher\prismlauncher.exe",
-	[string]$PrismRootDir = "C:\Users\15166\AppData\Roaming\PrismLauncher",
+	[string]$PrismLauncherPath,
+	[string]$PrismRootDir,
 	[string]$BenchClientInstanceRoot,
 	[string]$BenchClientWorkingDirectory,
 	[string]$BenchClientModsDir,
