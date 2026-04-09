@@ -4,7 +4,6 @@ import com.makomi.data.LinkDispatchFilterService;
 import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
-import com.makomi.data.LinkFilterRuleEvaluator;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
 import com.makomi.util.SerialParseUtil;
@@ -26,8 +25,8 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * 发送/接收过滤器公共方块实体基类。
  * <p>
- * 只负责配置持久化、客户端同步与运行时索引挂接；
- * 过滤规则求值由 `LinkDispatchFilterService` 与 `LinkFilterRuleEvaluator` 统一处理。
+ * 只负责配置持久化、客户端同步与已放置过滤器真值更新；
+ * 过滤规则求值由 `LinkDispatchFilterService` 与 `PlacedLinkFilterSavedData` 统一处理。
  * </p>
  */
 public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
@@ -43,6 +42,7 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	private LinkFilterSignalThresholdSource signalThresholdSource = LinkFilterSignalThresholdSource.FIXED_INPUT;
 	private int fixedSignalThreshold = 15;
 	private LinkFilterSignalMode signalMode = LinkFilterSignalMode.DISABLED;
+	private final LinkFilterLifecycleState lifecycleState = new LinkFilterLifecycleState();
 
 	protected AbstractLinkFilterBlockEntity(
 		BlockEntityType<? extends AbstractLinkFilterBlockEntity> blockEntityType,
@@ -88,36 +88,17 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	}
 
 	/**
-	 * 判断当前过滤器立方域是否覆盖目标节点位置。
-	 *
-	 * @param targetPos 目标节点坐标
-	 * @return 是否命中立方域
+	 * 标记当前过滤器正进入真实物理移除路径。
 	 */
-	public final boolean covers(BlockPos targetPos) {
-		if (targetPos == null) {
-			return false;
-		}
-		return Math.abs(targetPos.getX() - worldPosition.getX()) <= LinkDispatchFilterService.FILTER_RADIUS
-			&& Math.abs(targetPos.getY() - worldPosition.getY()) <= LinkDispatchFilterService.FILTER_RADIUS
-			&& Math.abs(targetPos.getZ() - worldPosition.getZ()) <= LinkDispatchFilterService.FILTER_RADIUS;
+	public final void markPhysicalRemovalInProgress() {
+		lifecycleState.onPhysicalRemovalStarted();
 	}
 
 	/**
-	 * 构造当前过滤器的运行时求值视图；未激活时返回 `null`。
+	 * 以当前世界输入重采样结果刷新已放置过滤器真值。
 	 */
-	public final LinkFilterRuleEvaluator.FilterRuntimeView buildRuntimeViewIfEnabled() {
-		int neighborSignalStrength = sampleNeighborSignalStrength();
-		if (neighborSignalStrength <= 0) {
-			return null;
-		}
-		return new LinkFilterRuleEvaluator.FilterRuntimeView(
-			nodeSetMode,
-			serials,
-			signalThresholdSource,
-			fixedSignalThreshold,
-			signalMode,
-			neighborSignalStrength
-		);
+	public final void refreshPlacedFilterState() {
+		LinkDispatchFilterService.upsertFilter(this);
 	}
 
 	/**
@@ -194,12 +175,15 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	@Override
 	public void clearRemoved() {
 		super.clearRemoved();
+		lifecycleState.onContextAttached();
 		LinkDispatchFilterService.upsertFilter(this);
 	}
 
 	@Override
 	public void setRemoved() {
-		LinkDispatchFilterService.removeFilter(this);
+		if (lifecycleState.onContextDetachedShouldRemovePersistedFilter()) {
+			LinkDispatchFilterService.removeFilter(this);
+		}
 		super.setRemoved();
 	}
 

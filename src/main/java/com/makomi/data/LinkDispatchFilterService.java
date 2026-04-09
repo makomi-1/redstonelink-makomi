@@ -1,27 +1,18 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
-import java.util.ArrayList;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.ChunkPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
- * 派发过滤器运行时索引服务。
+ * 派发过滤器查询门面。
  * <p>
- * 仅维护内存态“维度 -> 过滤种类 -> chunkKey -> filterRefs”索引；
- * 真值配置仍只保存在过滤器方块实体 NBT 中，不写入 `SavedData`。
+ * 当前过滤器真值由 `PlacedLinkFilterSavedData` 持久化保存，过滤查询不再依赖区块是否已加载；
+ * 该服务仅保留统一的 upsert/remove/query 入口，供派发主链和过滤器方块实体复用。
  * </p>
  */
 public final class LinkDispatchFilterService {
@@ -30,56 +21,38 @@ public final class LinkDispatchFilterService {
 	 */
 	public static final int FILTER_RADIUS = 8;
 
-	private static final Map<MinecraftServer, RuntimeState> STATE_BY_SERVER = new IdentityHashMap<>();
-
 	private LinkDispatchFilterService() {
 	}
 
 	/**
-	 * 注册服务端生命周期清理钩子。
+	 * 注册服务端钩子。
+	 * <p>
+	 * 过滤器真值已转为 `SavedData` 持久化，此处保留空实现以兼容既有初始化调用顺序。
+	 * </p>
 	 */
 	public static void register() {
-		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-			synchronized (STATE_BY_SERVER) {
-				STATE_BY_SERVER.remove(server);
-			}
-		});
 	}
 
 	/**
-	 * 上线或刷新一个过滤器的运行时索引。
-	 *
-	 * @param filterBlockEntity 过滤器方块实体
+	 * 写入或刷新一个已放置过滤器的持久化真值。
 	 */
 	public static void upsertFilter(AbstractLinkFilterBlockEntity filterBlockEntity) {
 		if (filterBlockEntity == null || !(filterBlockEntity.getLevel() instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		RuntimeState runtimeState = getOrCreateState(serverLevel.getServer());
-		FilterRegistrationKey registrationKey = new FilterRegistrationKey(
-			serverLevel.dimension(),
-			filterBlockEntity.filterKind(),
-			filterBlockEntity.getBlockPos().immutable()
-		);
-		removeRegistration(runtimeState, registrationKey);
-		FilterRegistration registration = new FilterRegistration(
-			registrationKey,
-			computeCoveredChunkKeys(filterBlockEntity.getBlockPos())
-		);
-		runtimeState.registrations.put(registrationKey, registration);
-		for (long coveredChunkKey : registration.coveredChunkKeys()) {
-			runtimeState.chunkIndex
-				.computeIfAbsent(serverLevel.dimension(), ignored -> new LinkedHashMap<>())
-				.computeIfAbsent(filterBlockEntity.filterKind(), ignored -> new LinkedHashMap<>())
-				.computeIfAbsent(coveredChunkKey, ignored -> new LinkedHashSet<>())
-				.add(registrationKey);
-		}
+		PlacedLinkFilterSavedData
+			.get(serverLevel)
+			.upsert(
+				filterBlockEntity.filterKind(),
+				serverLevel.dimension(),
+				filterBlockEntity.getBlockPos(),
+				filterBlockEntity.snapshot(),
+				filterBlockEntity.sampleNeighborSignalStrength()
+			);
 	}
 
 	/**
-	 * 从运行时索引中移除一个过滤器。
-	 *
-	 * @param filterBlockEntity 过滤器方块实体
+	 * 从持久化真值中移除一个过滤器。
 	 */
 	public static void removeFilter(AbstractLinkFilterBlockEntity filterBlockEntity) {
 		if (filterBlockEntity == null || !(filterBlockEntity.getLevel() instanceof ServerLevel serverLevel)) {
@@ -89,7 +62,7 @@ public final class LinkDispatchFilterService {
 	}
 
 	/**
-	 * 从运行时索引中移除一个过滤器引用。
+	 * 从持久化真值中移除一个过滤器引用。
 	 */
 	public static void removeFilter(
 		MinecraftServer server,
@@ -100,8 +73,11 @@ public final class LinkDispatchFilterService {
 		if (server == null || dimension == null || filterKind == null || filterPos == null) {
 			return;
 		}
-		RuntimeState runtimeState = getOrCreateState(server);
-		removeRegistration(runtimeState, new FilterRegistrationKey(dimension, filterKind, filterPos.immutable()));
+		ServerLevel contextLevel = server.overworld();
+		if (contextLevel == null) {
+			return;
+		}
+		PlacedLinkFilterSavedData.get(contextLevel).remove(dimension, filterKind, filterPos);
 	}
 
 	/**
@@ -146,126 +122,9 @@ public final class LinkDispatchFilterService {
 		if (level == null || nodePos == null || serial <= 0L || filterKind == null) {
 			return true;
 		}
-		List<LinkFilterRuleEvaluator.FilterRuntimeView> activeFilters = collectActiveFilters(level, nodePos, filterKind);
+		List<LinkFilterRuleEvaluator.FilterRuntimeView> activeFilters = PlacedLinkFilterSavedData
+			.get(level)
+			.collectFilters(level.dimension(), nodePos, filterKind);
 		return LinkFilterRuleEvaluator.allows(activeFilters, serial, signalStrength);
-	}
-
-	/**
-	 * 收集当前节点命中的所有已激活过滤器视图。
-	 */
-	private static List<LinkFilterRuleEvaluator.FilterRuntimeView> collectActiveFilters(
-		ServerLevel level,
-		BlockPos nodePos,
-		LinkFilterKind filterKind
-	) {
-		RuntimeState runtimeState = getOrCreateState(level.getServer());
-		Map<LinkFilterKind, Map<Long, LinkedHashSet<FilterRegistrationKey>>> kindIndex = runtimeState.chunkIndex.get(level.dimension());
-		if (kindIndex == null) {
-			return List.of();
-		}
-		Map<Long, LinkedHashSet<FilterRegistrationKey>> chunkIndex = kindIndex.get(filterKind);
-		if (chunkIndex == null) {
-			return List.of();
-		}
-		LinkedHashSet<FilterRegistrationKey> candidates = chunkIndex.get(new ChunkPos(nodePos).toLong());
-		if (candidates == null || candidates.isEmpty()) {
-			return List.of();
-		}
-		List<LinkFilterRuleEvaluator.FilterRuntimeView> activeFilters = new ArrayList<>(candidates.size());
-		for (FilterRegistrationKey registrationKey : candidates) {
-			BlockEntity blockEntity = level.getBlockEntity(registrationKey.filterPos());
-			if (!(blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity)) {
-				continue;
-			}
-			if (filterBlockEntity.filterKind() != filterKind) {
-				continue;
-			}
-			if (!filterBlockEntity.covers(nodePos)) {
-				continue;
-			}
-			LinkFilterRuleEvaluator.FilterRuntimeView runtimeView = filterBlockEntity.buildRuntimeViewIfEnabled();
-			if (runtimeView != null) {
-				activeFilters.add(runtimeView);
-			}
-		}
-		return activeFilters.isEmpty() ? List.of() : List.copyOf(activeFilters);
-	}
-
-	/**
-	 * 计算过滤器立方域会覆盖到的全部区块键。
-	 */
-	private static List<Long> computeCoveredChunkKeys(BlockPos filterPos) {
-		int minChunkX = SectionPos.blockToSectionCoord(filterPos.getX() - FILTER_RADIUS);
-		int maxChunkX = SectionPos.blockToSectionCoord(filterPos.getX() + FILTER_RADIUS);
-		int minChunkZ = SectionPos.blockToSectionCoord(filterPos.getZ() - FILTER_RADIUS);
-		int maxChunkZ = SectionPos.blockToSectionCoord(filterPos.getZ() + FILTER_RADIUS);
-		List<Long> coveredChunkKeys = new ArrayList<>((maxChunkX - minChunkX + 1) * (maxChunkZ - minChunkZ + 1));
-		for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-			for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-				coveredChunkKeys.add(new ChunkPos(chunkX, chunkZ).toLong());
-			}
-		}
-		return List.copyOf(coveredChunkKeys);
-	}
-
-	/**
-	 * 从索引与注册表中移除旧注册。
-	 */
-	private static void removeRegistration(RuntimeState runtimeState, FilterRegistrationKey registrationKey) {
-		FilterRegistration previousRegistration = runtimeState.registrations.remove(registrationKey);
-		if (previousRegistration == null) {
-			return;
-		}
-		Map<LinkFilterKind, Map<Long, LinkedHashSet<FilterRegistrationKey>>> kindIndex = runtimeState.chunkIndex.get(
-			registrationKey.dimension()
-		);
-		if (kindIndex == null) {
-			return;
-		}
-		Map<Long, LinkedHashSet<FilterRegistrationKey>> chunkIndex = kindIndex.get(registrationKey.filterKind());
-		if (chunkIndex == null) {
-			return;
-		}
-		for (long coveredChunkKey : previousRegistration.coveredChunkKeys()) {
-			LinkedHashSet<FilterRegistrationKey> registrations = chunkIndex.get(coveredChunkKey);
-			if (registrations == null) {
-				continue;
-			}
-			registrations.remove(registrationKey);
-			if (registrations.isEmpty()) {
-				chunkIndex.remove(coveredChunkKey);
-			}
-		}
-		if (chunkIndex.isEmpty()) {
-			kindIndex.remove(registrationKey.filterKind());
-		}
-		if (kindIndex.isEmpty()) {
-			runtimeState.chunkIndex.remove(registrationKey.dimension());
-		}
-	}
-
-	private static RuntimeState getOrCreateState(MinecraftServer server) {
-		synchronized (STATE_BY_SERVER) {
-			return STATE_BY_SERVER.computeIfAbsent(server, ignored -> new RuntimeState());
-		}
-	}
-
-	/**
-	 * 单个过滤器注册键。
-	 */
-	private record FilterRegistrationKey(ResourceKey<Level> dimension, LinkFilterKind filterKind, BlockPos filterPos) {}
-
-	/**
-	 * 单个过滤器的运行时注册记录。
-	 */
-	private record FilterRegistration(FilterRegistrationKey key, List<Long> coveredChunkKeys) {}
-
-	/**
-	 * 服务端运行时索引状态。
-	 */
-	private static final class RuntimeState {
-		private final Map<FilterRegistrationKey, FilterRegistration> registrations = new LinkedHashMap<>();
-		private final Map<ResourceKey<Level>, Map<LinkFilterKind, Map<Long, LinkedHashSet<FilterRegistrationKey>>>> chunkIndex =
-			new LinkedHashMap<>();
 	}
 }

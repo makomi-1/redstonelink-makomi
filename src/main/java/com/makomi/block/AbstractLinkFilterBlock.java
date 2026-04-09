@@ -25,7 +25,7 @@ import net.minecraft.world.phys.BlockHitResult;
 /**
  * 发送/接收过滤器公共方块基类。
  * <p>
- * 统一承接红石激活态更新与 GUI 打开逻辑。
+ * 统一承接 `POWERED` 外显、已放置过滤器真值刷新与 GUI 打开逻辑。
  * </p>
  */
 public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
@@ -52,6 +52,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 		super.onPlace(state, level, pos, oldState, movedByPiston);
 		if (!oldState.is(state.getBlock())) {
 			refreshPoweredState(level, pos, state);
+			refreshPlacedFilterState(level, pos);
 		}
 	}
 
@@ -66,12 +67,13 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 	) {
 		super.neighborChanged(state, level, pos, block, fromPos, movedByPiston);
 		refreshPoweredState(level, pos, state);
+		refreshPlacedFilterState(level, pos);
 	}
 
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock()) && level.getBlockEntity(pos) instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
-			LinkDispatchFilterService.removeFilter(filterBlockEntity);
+			filterBlockEntity.markPhysicalRemovalInProgress();
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);
 	}
@@ -120,5 +122,17 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 			return;
 		}
 		level.setBlock(pos, state.setValue(POWERED, powered), Block.UPDATE_CLIENTS);
+	}
+
+	/**
+	 * 将当前已放置过滤器的世界态同步到持久化真值。
+	 */
+	private static void refreshPlacedFilterState(Level level, BlockPos pos) {
+		if (level.isClientSide) {
+			return;
+		}
+		if (level.getBlockEntity(pos) instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
+			filterBlockEntity.refreshPlacedFilterState();
+		}
 	}
 }
