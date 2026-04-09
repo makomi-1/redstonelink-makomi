@@ -559,6 +559,37 @@
         'link_toggle_emitter': 'redstonelink:block/component_core_block'
       };
 
+      // 仅对白名单物品启用轮播，避免把其它多状态/多候选物品一并转成轮播展示。
+      var rotatingTextureRefsByPath = {
+        'link_toggle_emitter': [
+          'redstonelink:block/link_toggle_emitter',
+          'redstonelink:block/link_toggle_emitter_bright'
+        ],
+        'link_pulse_emitter': [
+          'redstonelink:block/link_pulse_emitter',
+          'redstonelink:block/link_pulse_emitter_bright'
+        ],
+        'link_sync_emitter': [
+          'redstonelink:block/link_sync_emitter',
+          'redstonelink:block/link_sync_emitter_bright'
+        ],
+        'link_redstone_core': [
+          'redstonelink:block/link_redstone_core',
+          'redstonelink:block/link_redstone_core_bright'
+        ],
+        'link_redstone_dust_core': [
+          'redstonelink:item/link_redstone_dust_core',
+          'redstonelink:block/link_redstone_dust_dot_bright'
+        ],
+        'quick_link_tool': [
+          'redstonelink:item/fast_link_tool_sd',
+          'redstonelink:item/fast_link_tool_cp'
+        ]
+      };
+
+      var iconRotationIntervalMs = 1400;
+      var activeVisualIntervals = [];
+
       var categoryOrder = ['component', 'triggerSource', 'core', 'tools', 'internal'];
 
       var items = [
@@ -1109,6 +1140,120 @@
         probe.src = candidates[idx];
       }
 
+      // 图鉴整页重渲染时先清理旧轮播，避免语言切换后残留定时器继续操作旧 DOM。
+      function clearActiveVisualIntervals() {
+        while (activeVisualIntervals.length > 0) {
+          window.clearInterval(activeVisualIntervals.pop());
+        }
+      }
+
+      function isAttachedToDocument(node) {
+        return !!node && !!document.body && document.body.contains(node);
+      }
+
+      function resolveTextureFrames(textureRefs, done) {
+        if (!textureRefs || textureRefs.length === 0) {
+          done([]);
+          return;
+        }
+
+        var resolvedFrames = [];
+
+        function resolveAt(index) {
+          if (index >= textureRefs.length) {
+            done(resolvedFrames);
+            return;
+          }
+
+          loadFirstValid(textureRefToCandidates(textureRefs[index]), function (hit) {
+            if (hit && resolvedFrames.indexOf(hit) === -1) {
+              resolvedFrames.push(hit);
+            }
+            resolveAt(index + 1);
+          });
+        }
+
+        resolveAt(0);
+      }
+
+      function resolveVisualFrames(item, done) {
+        var rotatingTextureRefs = rotatingTextureRefsByPath[item.path];
+        if (rotatingTextureRefs && rotatingTextureRefs.length > 0) {
+          resolveTextureFrames(rotatingTextureRefs, function (frames) {
+            if (frames.length > 0) {
+              done(frames);
+              return;
+            }
+
+            loadFirstValid(iconCandidates(item), function (hit) {
+              done(hit ? [hit] : []);
+            });
+          });
+          return;
+        }
+
+        loadFirstValid(iconCandidates(item), function (hit) {
+          done(hit ? [hit] : []);
+        });
+      }
+
+      function renderFallbackVisual(visualEl, item) {
+        visualEl.textContent = '';
+        var fallback = document.createElement('div');
+        fallback.className = 'item-fallback';
+        fallback.textContent = item.path;
+        visualEl.appendChild(fallback);
+      }
+
+      function renderResolvedVisual(visualEl, item, textureUrl) {
+        visualEl.textContent = '';
+
+        if (item.render === 'block') {
+          renderBlockVisual(visualEl, textureUrl, item.path);
+          return;
+        }
+
+        if (item.render === 'button') {
+          visualEl.appendChild(createButtonModel(textureUrl, item.path));
+          return;
+        }
+
+        var icon = document.createElement('img');
+        icon.className = 'item-icon';
+        icon.src = textureUrl;
+        icon.alt = item.path;
+        visualEl.appendChild(icon);
+      }
+
+      function renderVisualFrames(visualEl, item, frames) {
+        var renderToken = String(Date.now()) + Math.random();
+        visualEl.setAttribute('data-visual-sequence-token', renderToken);
+
+        if (!frames || frames.length === 0) {
+          renderFallbackVisual(visualEl, item);
+          return;
+        }
+
+        var currentIndex = 0;
+        renderResolvedVisual(visualEl, item, frames[currentIndex]);
+
+        if (frames.length < 2) {
+          return;
+        }
+
+        var intervalId = window.setInterval(function () {
+          if (!isAttachedToDocument(visualEl) || visualEl.getAttribute('data-visual-sequence-token') !== renderToken) {
+            window.clearInterval(intervalId);
+            return;
+          }
+
+          currentIndex = (currentIndex + 1) % frames.length;
+          renderResolvedVisual(visualEl, item, frames[currentIndex]);
+        }, iconRotationIntervalMs);
+
+        activeVisualIntervals.push(intervalId);
+      }
+
       function renderBlockVisual(visualEl, textureUrl, path) {
         var renderToken = String(Date.now()) + Math.random();
         visualEl.setAttribute('data-block-render-token', renderToken);
@@ -1130,32 +1275,15 @@
       }
 
       function renderVisual(visualEl, item) {
-        var candidates = iconCandidates(item);
-        loadFirstValid(candidates, function (hit) {
-          visualEl.textContent = '';
-          if (!hit) {
-            var fallback = document.createElement('div');
-            fallback.className = 'item-fallback';
-            fallback.textContent = item.path;
-            visualEl.appendChild(fallback);
+        var requestToken = String(Date.now()) + Math.random();
+        visualEl.setAttribute('data-visual-request-token', requestToken);
+
+        resolveVisualFrames(item, function (frames) {
+          if (visualEl.getAttribute('data-visual-request-token') !== requestToken) {
             return;
           }
 
-          if (item.render === 'block') {
-            renderBlockVisual(visualEl, hit, item.path);
-            return;
-          }
-
-          if (item.render === 'button') {
-            visualEl.appendChild(createButtonModel(hit, item.path));
-            return;
-          }
-
-          var icon = document.createElement('img');
-          icon.className = 'item-icon';
-          icon.src = hit;
-          icon.alt = item.path;
-          visualEl.appendChild(icon);
+          renderVisualFrames(visualEl, item, frames);
         });
       }
 
@@ -1309,6 +1437,7 @@
       function renderCatalog() {
         var ui = uiText[currentLang];
         var host = document.getElementById('catalog');
+        clearActiveVisualIntervals();
         host.textContent = '';
 
         categoryOrder.forEach(function (categoryKey) {
