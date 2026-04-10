@@ -1,6 +1,6 @@
 {
   "id": "receive_filter_runtime_sync_reconcile",
-  "description": "验证 receive 过滤器在运行期既能对固定阈值下被拦截的新 sync 清旧贡献，也能在 neighbor_max_input 变化时对持续高态 sync 执行失效与补发。",
+  "description": "验证 receive 过滤器在运行期既能对固定阈值下被拦截的新 sync 清旧贡献，也能在 neighbor_max_input 与零邻居总开关切换时对持续高态 sync 执行失效与补发。",
   "layer": "X",
   "scenarioId": "X26",
   "arena": {
@@ -146,12 +146,12 @@
     },
     {
       "templateRef": "trace_latest_assert_core",
-      "name": "receive_filter_target_should_stay_low_when_neighbor_threshold_is_zero",
+      "name": "receive_filter_target_should_stay_high_when_neighbor_zero_disables_filter",
       "serialFormat": "slash_list",
       "expect": {
-        "active": false,
-        "effectiveMode": "none",
-        "resolvedStrength": 0
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
       }
     },
     {
@@ -167,7 +167,7 @@
     },
     {
       "templateRef": "trace_latest_assert_core",
-      "name": "receive_filter_target_should_replay_sync_after_neighbor_restore",
+      "name": "receive_filter_target_should_stay_high_after_neighbor_restore",
       "serialFormat": "slash_list",
       "expect": {
         "active": true,
@@ -188,12 +188,12 @@
     },
     {
       "templateRef": "trace_latest_assert_core",
-      "name": "receive_filter_target_should_invalidate_sync_after_neighbor_drop",
+      "name": "receive_filter_target_should_stay_high_after_second_neighbor_drop",
       "serialFormat": "slash_list",
       "expect": {
-        "active": false,
-        "effectiveMode": "none",
-        "resolvedStrength": 0
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
       }
     },
     {

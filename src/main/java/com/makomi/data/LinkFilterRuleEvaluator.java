@@ -31,7 +31,7 @@ public final class LinkFilterRuleEvaluator {
 		boolean hasWhitelist = false;
 		boolean whitelistMatched = false;
 		for (FilterRuntimeView filter : activeFilters) {
-			if (filter == null) {
+			if (!isEnabled(filter)) {
 				continue;
 			}
 			if (!passesNodeSet(filter, serial)) {
@@ -48,6 +48,16 @@ public final class LinkFilterRuleEvaluator {
 			}
 		}
 		return !hasWhitelist || whitelistMatched;
+	}
+
+	/**
+	 * 判断过滤器当前是否处于启用态。
+	 * <p>
+	 * 邻居输入为 0 时，过滤器整体视为关闭，不再参与任何节点集或信号规则求值。
+	 * </p>
+	 */
+	private static boolean isEnabled(FilterRuntimeView filter) {
+		return filter != null && filter.neighborSignalStrength() > 0;
 	}
 
 	/**

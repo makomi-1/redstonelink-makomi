@@ -96,6 +96,14 @@
     {
       "entryId": "x33_receive_filter_nodeset_runtime",
       "caseId": "receive_filter_runtime_nodeset_reconcile"
+    },
+    {
+      "entryId": "x34_send_filter_nodeset_zero_switch",
+      "caseId": "send_filter_runtime_nodeset_zero_master_switch"
+    },
+    {
+      "entryId": "x35_receive_filter_nodeset_zero_switch",
+      "caseId": "receive_filter_runtime_nodeset_zero_master_switch"
     }
   ]
 }

@@ -1,0 +1,169 @@
+{
+  "id": "receive_filter_runtime_nodeset_zero_master_switch",
+  "description": "验证 receive 节点集过滤器在邻居输入为 0 时作为总开关关闭，并在恢复非零后重新生效。",
+  "layer": "X",
+  "scenarioId": "X35",
+  "arena": {
+    "clearFrom": [-8, 63, 720],
+    "clearTo": [20, 66, 730]
+  },
+  "targets": {
+    "id": "core_receive_filter_nodeset_zero_switch",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 724],
+      "to": [12, 64, 724]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_receive_filter_nodeset_zero_switch",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 724],
+        "to": [0, 64, 724]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_receive_filter_nodeset_zero_switch",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "link_command",
+      "name": "link_receive_filter_nodeset_zero_switch_target",
+      "action": "set",
+      "sourceRef": "sync_receive_filter_nodeset_zero_switch",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_receive_filter_nodeset_zero_switch_target"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_receive_filter_nodeset_zero_switch_block",
+      "command": "setblock 10 64 724 redstonelink:link_receive_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_receive_filter_nodeset_zero_switch_neighbor_high",
+      "command": "setblock 10 64 725 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_nodeset_zero_switch_attach",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_receive_filter_nodeset_zero_switch_blocklist_target",
+      "commandTemplate": "data merge block 10 64 724 {serialExpression:\"{{targets[0]}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_nodeset_zero_switch_config",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_nodeset_zero_switch_drop_neighbor_for_config",
+      "command": "setblock 10 64 725 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_nodeset_zero_switch_restore_neighbor_after_config",
+      "command": "setblock 10 64 725 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_nodeset_zero_switch_config_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_receive_filter_nodeset_zero_switch_source_high",
+      "serialRef": "sync_receive_filter_nodeset_zero_switch",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_nodeset_zero_switch_source_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_nodeset_zero_switch_target_should_stay_low_while_blocklist_is_enabled",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "drop_receive_filter_nodeset_zero_switch_neighbor_to_zero",
+      "command": "setblock 10 64 725 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_nodeset_zero_switch_neighbor_zero",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_nodeset_zero_switch_target_should_replay_when_zero_disables_filter",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "restore_receive_filter_nodeset_zero_switch_neighbor_high",
+      "command": "setblock 10 64 725 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_nodeset_zero_switch_neighbor_restore",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_nodeset_zero_switch_target_should_invalidate_again_when_neighbor_restores",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_receive_filter_nodeset_zero_switch_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_receive_filter_nodeset_zero_switch_target"
+    }
+  ]
+}

@@ -23,10 +23,10 @@ import org.junit.jupiter.api.Test;
 @Tag("stable-core")
 class PlacedLinkFilterSavedDataTest {
 	/**
-	 * 已放置过滤器应按放置态参与查询，不再因为邻居输入为 0 而整体失效。
+	 * 已放置过滤器在邻居输入为 0 时仍应可被收集，但规则求值必须整体关闭。
 	 */
 	@Test
-	void collectFiltersShouldStillReturnPlacedFilterWhenNeighborSignalIsZero() {
+	void collectFiltersShouldReturnPlacedFilterButDisableRulesWhenNeighborSignalIsZero() {
 		PlacedLinkFilterSavedData data = new PlacedLinkFilterSavedData();
 		BlockPos filterPos = new BlockPos(0, 64, 0);
 		LinkFilterConfigSnapshot configSnapshot = new LinkFilterConfigSnapshot(
@@ -51,7 +51,7 @@ class PlacedLinkFilterSavedDataTest {
 
 		assertEquals(1, filters.size());
 		assertEquals(0, filters.getFirst().neighborSignalStrength());
-		assertFalse(LinkFilterRuleEvaluator.allows(filters, 1L, 1));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, 1L, 1));
 		assertTrue(LinkFilterRuleEvaluator.allows(filters, 1L, 0));
 
 		assertTrue(data.remove(Level.OVERWORLD, LinkFilterKind.SEND, filterPos));

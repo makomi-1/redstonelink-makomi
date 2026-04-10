@@ -71,4 +71,45 @@ class LinkFilterRuleEvaluatorTest {
 		assertTrue(LinkFilterRuleEvaluator.allows(filters, 1L, 12));
 		assertFalse(LinkFilterRuleEvaluator.allows(filters, 1L, 8));
 	}
+
+	/**
+	 * 邻居输入为 0 时，过滤器应作为总开关关闭，不再参与节点集与信号规则。
+	 */
+	@Test
+	void allowsShouldSkipNodeSetAndSignalRulesWhenNeighborSignalIsZero() {
+		List<LinkFilterRuleEvaluator.FilterRuntimeView> filters = List.of(
+			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterNodeSetMode.BLOCKLIST,
+				Set.of(11L),
+				LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
+				15,
+				LinkFilterSignalMode.UPPER_BOUND,
+				0
+			)
+		);
+
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, 11L, 15));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, 99L, 1));
+	}
+
+	/**
+	 * 邻居输入恢复为非零后，过滤器原有规则应重新生效。
+	 */
+	@Test
+	void allowsShouldReactivateRulesWhenNeighborSignalRestoresToNonZero() {
+		List<LinkFilterRuleEvaluator.FilterRuntimeView> filters = List.of(
+			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterNodeSetMode.BLOCKLIST,
+				Set.of(11L),
+				LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
+				15,
+				LinkFilterSignalMode.UPPER_BOUND,
+				9
+			)
+		);
+
+		assertFalse(LinkFilterRuleEvaluator.allows(filters, 11L, 9));
+		assertFalse(LinkFilterRuleEvaluator.allows(filters, 12L, 10));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, 12L, 9));
+	}
 }

@@ -114,7 +114,7 @@ class LinkDispatchFilterServiceTest {
 				Level.OVERWORLD,
 				new BlockPos(0, 64, 0),
 				nodeSetOnlyConfig("11", LinkFilterNodeSetMode.BLOCKLIST),
-				0
+				15
 			)
 		);
 
@@ -144,7 +144,7 @@ class LinkDispatchFilterServiceTest {
 				Level.OVERWORLD,
 				new BlockPos(32, 64, 32),
 				nodeSetOnlyConfig("21", LinkFilterNodeSetMode.BLOCKLIST),
-				0
+				15
 			)
 		);
 
@@ -174,7 +174,7 @@ class LinkDispatchFilterServiceTest {
 				Level.OVERWORLD,
 				new BlockPos(0, 64, 0),
 				nodeSetOnlyConfig("11", LinkFilterNodeSetMode.WHITELIST),
-				0
+				15
 			)
 		);
 		assertTrue(
@@ -183,7 +183,7 @@ class LinkDispatchFilterServiceTest {
 				Level.OVERWORLD,
 				new BlockPos(32, 64, 32),
 				nodeSetOnlyConfig("21", LinkFilterNodeSetMode.WHITELIST),
-				0
+				15
 			)
 		);
 
@@ -216,7 +216,7 @@ class LinkDispatchFilterServiceTest {
 				Level.OVERWORLD,
 				filterPos,
 				nodeSetOnlyConfig("11", LinkFilterNodeSetMode.BLOCKLIST),
-				0
+				15
 			)
 		);
 		PlacedLinkFilterSavedData.FilterEntry beforeEntry = data
@@ -228,7 +228,7 @@ class LinkDispatchFilterServiceTest {
 				Level.OVERWORLD,
 				filterPos,
 				nodeSetOnlyConfig("11", LinkFilterNodeSetMode.WHITELIST),
-				0
+				15
 			)
 		);
 		PlacedLinkFilterSavedData.FilterEntry afterEntry = data
@@ -263,6 +263,66 @@ class LinkDispatchFilterServiceTest {
 		assertTrue(LinkDispatchFilterService.allowsReplayByPersistedFilters(data, Level.OVERWORLD, nodePos, 11L, Level.OVERWORLD, new BlockPos(32, 64, 32), 21L, 9));
 		assertFalse(previousAllowed);
 		assertNotNull(afterEntry);
+	}
+
+	/**
+	 * send 过滤器邻居输入为 0 时，应作为总开关关闭并放行 replay。
+	 */
+	@Test
+	void allowsReplayByPersistedFiltersShouldAllowWhenSendFilterNeighborSignalIsZero() {
+		PlacedLinkFilterSavedData data = new PlacedLinkFilterSavedData();
+		assertTrue(
+			data.upsert(
+				LinkFilterKind.SEND,
+				Level.OVERWORLD,
+				new BlockPos(0, 64, 0),
+				nodeSetOnlyConfig("11", LinkFilterNodeSetMode.BLOCKLIST),
+				0
+			)
+		);
+
+		assertTrue(
+			LinkDispatchFilterService.allowsReplayByPersistedFilters(
+				data,
+				Level.OVERWORLD,
+				new BlockPos(1, 64, 1),
+				11L,
+				Level.OVERWORLD,
+				new BlockPos(32, 64, 32),
+				21L,
+				9
+			)
+		);
+	}
+
+	/**
+	 * receive 过滤器邻居输入为 0 时，应作为总开关关闭并放行 replay。
+	 */
+	@Test
+	void allowsReplayByPersistedFiltersShouldAllowWhenReceiveFilterNeighborSignalIsZero() {
+		PlacedLinkFilterSavedData data = new PlacedLinkFilterSavedData();
+		assertTrue(
+			data.upsert(
+				LinkFilterKind.RECEIVE,
+				Level.OVERWORLD,
+				new BlockPos(32, 64, 32),
+				nodeSetOnlyConfig("21", LinkFilterNodeSetMode.BLOCKLIST),
+				0
+			)
+		);
+
+		assertTrue(
+			LinkDispatchFilterService.allowsReplayByPersistedFilters(
+				data,
+				Level.OVERWORLD,
+				new BlockPos(0, 64, 0),
+				11L,
+				Level.OVERWORLD,
+				new BlockPos(31, 64, 31),
+				21L,
+				9
+			)
+		);
 	}
 
 	private static LinkFilterConfigSnapshot nodeSetOnlyConfig(String serialExpression, LinkFilterNodeSetMode nodeSetMode) {
