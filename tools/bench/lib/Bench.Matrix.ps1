@@ -28,6 +28,23 @@ function Get-OptionalProperty {
 	return $property.Value
 }
 
+function Set-BenchObjectProperty {
+	param(
+		$Object,
+		[string]$Name,
+		$Value
+	)
+	if ($null -eq $Object -or [string]::IsNullOrWhiteSpace($Name)) {
+		return
+	}
+	if ($Object -is [System.Collections.IDictionary]) {
+		$Object[$Name] = $Value
+		return
+	}
+	# PowerShell 5 的 PSCustomObject 不能直接通过赋值新增属性，这里统一补属性。
+	$Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
+}
+
 function Resolve-PathFromBase {
 	param(
 		[string]$BaseDirectory,
@@ -207,8 +224,8 @@ function Expand-CaseConfigWithParameters {
 		-Value (ConvertTo-NormalizedBenchValue -Value $CaseConfig) `
 		-Parameters $resolvedParameters
 	$caseObject = ConvertTo-PSObjectTree -Value $expandedCase
-	$caseObject.id = [string](Get-OptionalProperty -Object $CaseConfig -Name "id" -DefaultValue "")
-	$caseObject.parameters = ConvertTo-PSObjectTree -Value $resolvedParameters
+	Set-BenchObjectProperty -Object $caseObject -Name "id" -Value ([string](Get-OptionalProperty -Object $CaseConfig -Name "id" -DefaultValue ""))
+	Set-BenchObjectProperty -Object $caseObject -Name "parameters" -Value (ConvertTo-PSObjectTree -Value $resolvedParameters)
 	return $caseObject
 }
 

@@ -1,0 +1,229 @@
+{
+  "id": "send_filter_runtime_sync_reconcile",
+  "description": "验证 send 过滤器在运行期既能对固定阈值下被拦截的新 sync 清旧贡献，也能在 neighbor_max_input 变化时对持续高态 sync 执行失效与补发。",
+  "layer": "X",
+  "scenarioId": "X24",
+  "arena": {
+    "clearFrom": [-8, 63, 580],
+    "clearTo": [20, 66, 590]
+  },
+  "targets": {
+    "id": "core_send_filter_runtime",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 584],
+      "to": [12, 64, 584]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_send_filter_runtime",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 584],
+        "to": [0, 64, 584]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_send_filter_runtime",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "link_command",
+      "name": "link_send_filter_runtime_target",
+      "action": "set",
+      "sourceRef": "sync_send_filter_runtime",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_send_filter_runtime_target"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_send_filter_block",
+      "command": "setblock 2 64 584 redstonelink:link_send_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_send_filter_fixed_upper_bound",
+      "command": "data merge block 2 64 584 {serialExpression:\"\",nodeSetMode:\"disabled\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:10,signalMode:\"upper_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_send_filter_neighbor_for_initial_refresh",
+      "command": "setblock 2 64 585 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_fixed_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_send_filter_constant_five",
+      "serialRef": "sync_send_filter_runtime",
+      "serialFormat": "slash_list",
+      "sequence": "5",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_constant_five",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_target_should_allow_strength_five",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 5
+      }
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_send_filter_constant_fifteen_under_fixed_threshold",
+      "serialRef": "sync_send_filter_runtime",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_constant_fifteen_fixed_threshold",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "send_filter_source_should_stay_online_high",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_send_filter_runtime[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_target_should_clear_previous_sync_when_new_signal_blocked",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_send_filter_neighbor_upper_bound",
+      "command": "data merge block 2 64 584 {serialExpression:\"\",nodeSetMode:\"disabled\",signalThresholdSource:\"neighbor_max_input\",fixedSignalThreshold:15,signalMode:\"upper_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "drop_send_filter_neighbor_power_to_zero",
+      "command": "setblock 2 64 585 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_zero",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_target_should_stay_low_when_neighbor_threshold_is_zero",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "restore_send_filter_neighbor_power_to_fifteen",
+      "command": "setblock 2 64 585 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_restore_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_target_should_replay_sync_after_neighbor_restore",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "drop_send_filter_neighbor_power_again",
+      "command": "setblock 2 64 585 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_drop_again",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_target_should_invalidate_sync_after_neighbor_drop",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "restore_send_filter_neighbor_power_again",
+      "command": "setblock 2 64 585 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_restore_again",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_target_should_recover_sync_after_second_neighbor_restore",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_send_filter_runtime_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_send_filter_runtime_target"
+    }
+  ]
+}

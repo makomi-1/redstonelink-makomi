@@ -62,6 +62,14 @@
       "caseId": "input_activate_trace_command_alignment"
     },
     {
+      "entryId": "x24_send_filter_runtime",
+      "caseId": "send_filter_runtime_sync_reconcile"
+    },
+    {
+      "entryId": "x26_receive_filter_runtime",
+      "caseId": "receive_filter_runtime_sync_reconcile"
+    },
+    {
       "entryId": "x01_crosschunk_sync",
       "caseId": "crosschunk_sync_triggerSource_zip_square"
     },
