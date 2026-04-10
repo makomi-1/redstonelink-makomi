@@ -1,8 +1,10 @@
 package com.makomi.data;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Method;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.AfterEach;
@@ -197,6 +199,70 @@ class LinkDispatchFilterServiceTest {
 				9
 			)
 		);
+	}
+
+	/**
+	 * 旧视图回算应能在“当前条目已更新”后恢复到更新前的过滤结果。
+	 */
+	@Test
+	void allowsByKindWithChangedEntryShouldRestorePreviousEntryView() throws Exception {
+		PlacedLinkFilterSavedData data = new PlacedLinkFilterSavedData();
+		BlockPos filterPos = new BlockPos(0, 64, 0);
+		BlockPos nodePos = new BlockPos(1, 64, 1);
+
+		assertTrue(
+			data.upsert(
+				LinkFilterKind.SEND,
+				Level.OVERWORLD,
+				filterPos,
+				nodeSetOnlyConfig("11", LinkFilterNodeSetMode.BLOCKLIST),
+				0
+			)
+		);
+		PlacedLinkFilterSavedData.FilterEntry beforeEntry = data
+			.findEntry(Level.OVERWORLD, LinkFilterKind.SEND, filterPos)
+			.orElseThrow();
+		assertTrue(
+			data.upsert(
+				LinkFilterKind.SEND,
+				Level.OVERWORLD,
+				filterPos,
+				nodeSetOnlyConfig("11", LinkFilterNodeSetMode.WHITELIST),
+				0
+			)
+		);
+		PlacedLinkFilterSavedData.FilterEntry afterEntry = data
+			.findEntry(Level.OVERWORLD, LinkFilterKind.SEND, filterPos)
+			.orElseThrow();
+
+		Method method = LinkDispatchFilterService.class.getDeclaredMethod(
+			"allowsByKindWithChangedEntry",
+			PlacedLinkFilterSavedData.class,
+			net.minecraft.resources.ResourceKey.class,
+			BlockPos.class,
+			long.class,
+			int.class,
+			LinkFilterKind.class,
+			PlacedLinkFilterSavedData.FilterEntry.class,
+			PlacedLinkFilterSavedData.FilterEntry.class
+		);
+		method.setAccessible(true);
+
+		boolean previousAllowed = (boolean) method.invoke(
+			null,
+			data,
+			Level.OVERWORLD,
+			nodePos,
+			11L,
+			9,
+			LinkFilterKind.SEND,
+			afterEntry,
+			beforeEntry
+		);
+
+		assertTrue(LinkDispatchFilterService.allowsReplayByPersistedFilters(data, Level.OVERWORLD, nodePos, 11L, Level.OVERWORLD, new BlockPos(32, 64, 32), 21L, 9));
+		assertFalse(previousAllowed);
+		assertNotNull(afterEntry);
 	}
 
 	private static LinkFilterConfigSnapshot nodeSetOnlyConfig(String serialExpression, LinkFilterNodeSetMode nodeSetMode) {

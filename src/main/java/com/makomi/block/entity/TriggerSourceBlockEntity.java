@@ -66,10 +66,32 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 	 */
 	public void forwardLinkedSignal(Player player, int signalStrength) {
 		int normalizedStrength = SignalStrengths.clamp(signalStrength);
-		dispatchToLinkedTargets(player, DispatchMode.SYNC_SIGNAL, normalizedStrength);
+		ActivatableTargetBlockEntity.EventMeta eventMeta = ActivatableTargetBlockEntity.EventMeta.now(level);
+		SyncReplaySourceBlockEntity.ReplaySyncSnapshot previousSnapshot = this instanceof SyncReplaySourceBlockEntity syncReplaySourceBlockEntity
+			? syncReplaySourceBlockEntity.replaySyncSnapshot().orElse(null)
+			: null;
+		dispatchToLinkedTargets(player, DispatchMode.SYNC_SIGNAL, normalizedStrength, previousSnapshot, eventMeta);
+		if (!(this instanceof SyncReplaySourceBlockEntity syncReplaySourceBlockEntity)) {
+			return;
+		}
+		if (this instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity && triggerSourceBlockEntity.isRuntimeInputRefreshInProgress()) {
+			syncReplaySourceBlockEntity.recordRuntimeReplaySyncSnapshot(normalizedStrength, eventMeta);
+			return;
+		}
+		syncReplaySourceBlockEntity.recordReplaySyncSnapshot(normalizedStrength, eventMeta);
 	}
 
 	private void dispatchToLinkedTargets(Player player, DispatchMode dispatchMode, int signalStrength) {
+		dispatchToLinkedTargets(player, dispatchMode, signalStrength, null, ActivatableTargetBlockEntity.EventMeta.now(level));
+	}
+
+	private void dispatchToLinkedTargets(
+		Player player,
+		DispatchMode dispatchMode,
+		int signalStrength,
+		SyncReplaySourceBlockEntity.ReplaySyncSnapshot previousSyncSnapshot,
+		ActivatableTargetBlockEntity.EventMeta eventMeta
+	) {
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
@@ -81,6 +103,15 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 		}
 		int effectiveSignalStrength = dispatchMode == DispatchMode.ACTIVATION ? 15 : SignalStrengths.clamp(signalStrength);
 		if (!LinkDispatchFilterService.allowsSend(serverLevel, worldPosition, sourceSerial, effectiveSignalStrength)) {
+			if (dispatchMode == DispatchMode.SYNC_SIGNAL) {
+				LinkDispatchFilterService.reconcileBlockedSyncDispatchBySendFilter(
+					serverLevel,
+					worldPosition,
+					sourceSerial,
+					previousSyncSnapshot,
+					eventMeta
+				);
+			}
 			return;
 		}
 
@@ -104,9 +135,12 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 				serverLevel,
 				getLinkNodeType(),
 				sourceSerial,
+				worldPosition,
 				getTargetNodeType(),
 				linkedTargets,
-				signalStrength
+				signalStrength,
+				previousSyncSnapshot,
+				eventMeta
 			);
 
 		if (dispatchSummary.handledCount() == 0) {

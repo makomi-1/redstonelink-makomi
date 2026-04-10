@@ -255,6 +255,25 @@ public final class InternalDispatchDeltaEvents {
 	}
 
 	/**
+	 * 发布“sync 来源失效”事件（集合入口）。
+	 */
+	public static void publishSourceInvalidation(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		java.util.Set<Long> affectedSerials,
+		EventMeta eventMeta
+	) {
+		InternalDispatchDeltaRuleSupport.publishSourceInvalidation(
+			sourceLevel,
+			linkViewSourceType,
+			linkViewSourceSerial,
+			affectedSerials,
+			eventMeta
+		);
+	}
+
+	/**
 	 * 发布单条“triggerSource 区块卸载失效”事件。
 	 */
 	public static void publishTriggerSourceChunkUnloadInvalidation(
@@ -287,6 +306,27 @@ public final class InternalDispatchDeltaEvents {
 		EventMeta eventMeta
 	) {
 		InternalDispatchDeltaRuleSupport.publishTriggerSourceInvalidation(
+			sourceLevel,
+			sourceType,
+			sourceSerial,
+			targetType,
+			targetSerial,
+			eventMeta
+		);
+	}
+
+	/**
+	 * 发布单条“sync 来源失效”事件。
+	 */
+	public static void publishSourceInvalidation(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		long targetSerial,
+		EventMeta eventMeta
+	) {
+		InternalDispatchDeltaRuleSupport.publishSourceInvalidation(
 			sourceLevel,
 			sourceType,
 			sourceSerial,

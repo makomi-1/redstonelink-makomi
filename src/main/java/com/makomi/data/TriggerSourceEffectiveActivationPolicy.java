@@ -119,6 +119,21 @@ final class TriggerSourceEffectiveActivationPolicy {
 	}
 
 	/**
+	 * 判断单个 `sync` 来源当前是否满足 replay/重建资格。
+	 */
+	static boolean isReplayEligibleSyncSource(ServerLevel contextLevel, LinkSavedData savedData, long sourceSerial) {
+		if (contextLevel == null || savedData == null || sourceSerial <= 0L) {
+			return false;
+		}
+		return isReplayEligible(
+			resolveSyncReplayRequirement(),
+			sourceSerial,
+			serial -> savedData.findNode(LinkNodeType.TRIGGER_SOURCE, serial).isPresent(),
+			serial -> savedData.probeRuntimeOnlineNodeNonBlocking(contextLevel, LinkNodeType.TRIGGER_SOURCE, serial).ready()
+		);
+	}
+
+	/**
 	 * 判断单个 `sync` 来源是否满足指定 replay 资格。
 	 */
 	private static boolean isReplayEligible(

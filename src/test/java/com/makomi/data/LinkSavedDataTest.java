@@ -377,4 +377,30 @@ class LinkSavedDataTest {
 
 		assertTrue(data.getTriggerSourceReplaySyncSnapshot(triggerSourceSerial).isEmpty());
 	}
+
+	/**
+	 * 运行时区块索引应只返回命中立方域且节点类型匹配的候选。
+	 */
+	@Test
+	void collectNodesInCubeShouldReturnOnlyMatchingTypeWithinRadius() {
+		LinkSavedData data = new LinkSavedData();
+		LinkSavedData.LinkNode nearTriggerSource = new LinkSavedData.LinkNode(100L, DIMENSION, new BlockPos(1, 64, 1), LinkNodeType.TRIGGER_SOURCE);
+		LinkSavedData.LinkNode edgeTriggerSource = new LinkSavedData.LinkNode(101L, DIMENSION, new BlockPos(8, 64, 0), LinkNodeType.TRIGGER_SOURCE);
+		LinkSavedData.LinkNode farTriggerSource = new LinkSavedData.LinkNode(102L, DIMENSION, new BlockPos(9, 64, 0), LinkNodeType.TRIGGER_SOURCE);
+		LinkSavedData.LinkNode nearCore = new LinkSavedData.LinkNode(200L, DIMENSION, new BlockPos(2, 64, 2), LinkNodeType.CORE);
+
+		data.registerNode(nearTriggerSource.serial(), nearTriggerSource.dimension(), nearTriggerSource.pos(), nearTriggerSource.type());
+		data.registerNode(edgeTriggerSource.serial(), edgeTriggerSource.dimension(), edgeTriggerSource.pos(), edgeTriggerSource.type());
+		data.registerNode(farTriggerSource.serial(), farTriggerSource.dimension(), farTriggerSource.pos(), farTriggerSource.type());
+		data.registerNode(nearCore.serial(), nearCore.dimension(), nearCore.pos(), nearCore.type());
+
+		assertEquals(
+			Set.of(nearTriggerSource, edgeTriggerSource),
+			data.collectNodesInCube(DIMENSION, LinkNodeType.TRIGGER_SOURCE, new BlockPos(0, 64, 0), 8)
+		);
+		assertEquals(
+			Set.of(nearCore),
+			data.collectNodesInCube(DIMENSION, LinkNodeType.CORE, new BlockPos(0, 64, 0), 8)
+		);
+	}
 }

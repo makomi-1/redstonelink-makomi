@@ -1,6 +1,5 @@
 package com.makomi.block;
 
-import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.LinkSyncLeverBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
@@ -138,7 +137,6 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 				// 拉杆改为同步语义：目标状态始终与拉杆当前状态对齐。
 				boolean signalOn = level.getBlockState(pos).getValue(POWERED);
 				int signalStrength = signalOn ? 15 : 0;
-				syncLeverBlockEntity.recordReplaySyncSnapshot(signalStrength, EventMeta.now(level));
 				syncLeverBlockEntity.forwardLinkedSignal(player, signalStrength);
 			}
 		}

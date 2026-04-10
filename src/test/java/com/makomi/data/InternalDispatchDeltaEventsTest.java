@@ -183,6 +183,29 @@ class InternalDispatchDeltaEventsTest {
 	}
 
 	/**
+	 * `sync` 专用失效事件应发布 `SOURCE_INVALIDATION`，避免误伤 toggle/pulse。
+	 */
+	@Test
+	void publishSourceInvalidationShouldEmitSyncOnlyInvalidation() {
+		AtomicReference<InternalDispatchDeltaEvents.DispatchDeltaEvent> published = new AtomicReference<>();
+		InternalDispatchDeltaEvents.register(published::set);
+
+		InternalDispatchDeltaEvents.publishSourceInvalidation(
+			dummyServerLevel(),
+			LinkNodeType.TRIGGER_SOURCE,
+			21L,
+			Set.of(121L),
+			EventMeta.of(450L, 0, 3L)
+		);
+
+		assertEquals(ActivatableTargetBlockEntity.DeltaKind.SOURCE_INVALIDATION, published.get().deltaKind());
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, published.get().sourceType());
+		assertEquals(21L, published.get().sourceSerial());
+		assertEquals(LinkNodeType.CORE, published.get().targetType());
+		assertEquals(121L, published.get().targetSerial());
+	}
+
+	/**
 	 * triggerSource 区块卸载失效默认关闭，未开启时不应发布事件。
 	 */
 	@Test

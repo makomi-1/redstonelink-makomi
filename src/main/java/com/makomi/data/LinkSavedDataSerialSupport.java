@@ -77,9 +77,14 @@ final class LinkSavedDataSerialSupport {
 		}
 
 		LinkSavedData.LinkNode node = new LinkSavedData.LinkNode(serial, dimension, pos.immutable(), type);
-		LinkSavedData.LinkNode previous = data.nodeMap(type).put(serial, node);
+		LinkSavedData.LinkNode previous = data.nodeMap(type).get(serial);
+		if (previous != null && !previous.equals(node)) {
+			data.unindexNode(previous);
+		}
+		data.nodeMap(type).put(serial, node);
 		boolean changed = previous == null || !previous.equals(node);
 		if (changed) {
+			data.indexNode(node);
 			data.bumpRuntimeNodeVersion();
 		}
 		if (markAllocatedInternal(data, type, serial) || changed) {
@@ -94,7 +99,9 @@ final class LinkSavedDataSerialSupport {
 		if (serial <= 0L) {
 			return;
 		}
-		if (data.nodeMap(type).remove(serial) != null) {
+		LinkSavedData.LinkNode removed = data.nodeMap(type).remove(serial);
+		if (removed != null) {
+			data.unindexNode(removed);
 			data.bumpRuntimeNodeVersion();
 			data.setDirty();
 		}
@@ -110,11 +117,13 @@ final class LinkSavedDataSerialSupport {
 
 		boolean allocatedMarked = markAllocatedInternal(data, type, serial);
 		boolean retiredMarked = markRetiredInternal(data, type, serial);
-		boolean removed = data.nodeMap(type).remove(serial) != null;
+		LinkSavedData.LinkNode removedNode = data.nodeMap(type).remove(serial);
+		boolean removed = removedNode != null;
 		boolean replaySnapshotRemoved = type == LinkNodeType.TRIGGER_SOURCE
 			&& data.triggerSourceReplaySyncSnapshots.remove(serial) != null;
 		int clearedLinks = LinkSavedDataLinkIndexSupport.clearLinksForNode(data, type, serial);
 		if (removed) {
+			data.unindexNode(removedNode);
 			data.bumpRuntimeNodeVersion();
 		}
 		if (allocatedMarked || retiredMarked || removed || replaySnapshotRemoved || clearedLinks > 0) {

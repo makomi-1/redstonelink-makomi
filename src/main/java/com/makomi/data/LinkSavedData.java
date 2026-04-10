@@ -2,16 +2,19 @@ package com.makomi.data;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongConsumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.SectionPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 
@@ -68,6 +71,7 @@ public final class LinkSavedData extends SavedData {
 	long graphRevision;
 	final Map<Long, Long> triggerSourceRevisions = new HashMap<>();
 	final Map<Long, Long> coreRevisions = new HashMap<>();
+	final Map<ResourceKey<Level>, Map<LinkNodeType, Map<Long, Set<Long>>>> nodeChunkIndex = new HashMap<>();
 
 	/**
 	 * 获取当前服务器共享的联动存档数据实例。
@@ -81,7 +85,9 @@ public final class LinkSavedData extends SavedData {
 	 * 保留原有反序列化入口，供反射测试与 SavedData 工厂复用。
 	 */
 	private static LinkSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
-		return LinkSavedDataCodecSupport.load(tag, provider);
+		LinkSavedData data = LinkSavedDataCodecSupport.load(tag, provider);
+		data.rebuildNodeChunkIndex();
+		return data;
 	}
 
 	/**
@@ -396,6 +402,124 @@ public final class LinkSavedData extends SavedData {
 			return;
 		}
 		coreRevisions.put(coreSerial, coreRevisions.getOrDefault(coreSerial, 0L) + 1L);
+	}
+
+	/**
+	 * 重建当前已登记节点的运行时区块索引。
+	 * <p>
+	 * 该索引只存在于内存中，用于过滤器变化等局部扫描场景快速定位候选节点。
+	 * </p>
+	 */
+	void rebuildNodeChunkIndex() {
+		nodeChunkIndex.clear();
+		for (LinkNode node : triggerSourceNodes.values()) {
+			indexNode(node);
+		}
+		for (LinkNode node : coreNodes.values()) {
+			indexNode(node);
+		}
+	}
+
+	/**
+	 * 将一个已登记节点写入运行时区块索引。
+	 */
+	void indexNode(LinkNode node) {
+		if (node == null || node.dimension() == null || node.type() == null || node.serial() <= 0L || node.pos() == null) {
+			return;
+		}
+		long chunkKey = new ChunkPos(node.pos()).toLong();
+		nodeChunkIndex
+			.computeIfAbsent(node.dimension(), ignored -> new HashMap<>())
+			.computeIfAbsent(node.type(), ignored -> new HashMap<>())
+			.computeIfAbsent(chunkKey, ignored -> new LinkedHashSet<>())
+			.add(node.serial());
+	}
+
+	/**
+	 * 从运行时区块索引中移除一个已登记节点。
+	 */
+	void unindexNode(LinkNode node) {
+		if (node == null || node.dimension() == null || node.type() == null || node.serial() <= 0L || node.pos() == null) {
+			return;
+		}
+		Map<LinkNodeType, Map<Long, Set<Long>>> indexByType = nodeChunkIndex.get(node.dimension());
+		if (indexByType == null) {
+			return;
+		}
+		Map<Long, Set<Long>> indexByChunk = indexByType.get(node.type());
+		if (indexByChunk == null) {
+			return;
+		}
+		Set<Long> serials = indexByChunk.get(new ChunkPos(node.pos()).toLong());
+		if (serials == null) {
+			return;
+		}
+		serials.remove(node.serial());
+		if (serials.isEmpty()) {
+			indexByChunk.remove(new ChunkPos(node.pos()).toLong());
+		}
+		if (indexByChunk.isEmpty()) {
+			indexByType.remove(node.type());
+		}
+		if (indexByType.isEmpty()) {
+			nodeChunkIndex.remove(node.dimension());
+		}
+	}
+
+	/**
+	 * 按立方域收集当前已登记节点候选。
+	 * <p>
+	 * 该查询先按区块桶裁剪，再按真实坐标二次过滤，供过滤器变化扫描复用。
+	 * </p>
+	 */
+	Set<LinkNode> collectNodesInCube(ResourceKey<Level> dimension, LinkNodeType type, BlockPos centerPos, int radius) {
+		if (dimension == null || type == null || centerPos == null || radius < 0) {
+			return Set.of();
+		}
+		Map<LinkNodeType, Map<Long, Set<Long>>> indexByType = nodeChunkIndex.get(dimension);
+		if (indexByType == null) {
+			return Set.of();
+		}
+		Map<Long, Set<Long>> indexByChunk = indexByType.get(type);
+		if (indexByChunk == null || indexByChunk.isEmpty()) {
+			return Set.of();
+		}
+		int minChunkX = SectionPos.blockToSectionCoord(centerPos.getX() - radius);
+		int maxChunkX = SectionPos.blockToSectionCoord(centerPos.getX() + radius);
+		int minChunkZ = SectionPos.blockToSectionCoord(centerPos.getZ() - radius);
+		int maxChunkZ = SectionPos.blockToSectionCoord(centerPos.getZ() + radius);
+		LinkedHashSet<LinkNode> nodes = new LinkedHashSet<>();
+		for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+			for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+				Set<Long> serials = indexByChunk.get(new ChunkPos(chunkX, chunkZ).toLong());
+				if (serials == null || serials.isEmpty()) {
+					continue;
+				}
+				for (Long serial : serials) {
+					if (serial == null || serial <= 0L) {
+						continue;
+					}
+					LinkNode node = nodeMap(type).get(serial);
+					if (node == null || !isInsideCube(node.pos(), centerPos, radius)) {
+						continue;
+					}
+					nodes.add(node);
+				}
+			}
+		}
+		return nodes.isEmpty() ? Set.of() : Set.copyOf(nodes);
+	}
+
+	/**
+	 * 判断节点是否位于给定立方域内。
+	 */
+	private static boolean isInsideCube(BlockPos nodePos, BlockPos centerPos, int radius) {
+		if (nodePos == null || centerPos == null || radius < 0) {
+			return false;
+		}
+		return Math.abs(nodePos.getX() - centerPos.getX()) <= radius
+			&& Math.abs(nodePos.getY() - centerPos.getY()) <= radius
+			&& Math.abs(nodePos.getZ() - centerPos.getZ()) <= radius;
 	}
 
 	/**

@@ -10,6 +10,7 @@ import com.makomi.util.SignalStrengths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -57,11 +58,14 @@ public final class LinkedTargetDispatchService {
 			sourceLevel,
 			sourceType,
 			sourceSerial,
+			null,
 			targetType,
 			targetSerials,
 			DispatchKind.ACTIVATION,
 			activationMode,
-			0
+			0,
+			null,
+			EventMeta.now(sourceLevel)
 		);
 	}
 
@@ -84,16 +88,75 @@ public final class LinkedTargetDispatchService {
 		Set<Long> targetSerials,
 		int signalStrength
 	) {
+		return dispatchSyncSignal(
+			sourceLevel,
+			sourceType,
+			sourceSerial,
+			null,
+			targetType,
+			targetSerials,
+			signalStrength,
+			null,
+			EventMeta.now(sourceLevel)
+		);
+	}
+
+	/**
+	 * 派发同步语义（SYNC）到目标集合，并显式携带来源坐标。
+	 */
+	public static DispatchSummary dispatchSyncSignal(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		BlockPos sourcePos,
+		LinkNodeType targetType,
+		Set<Long> targetSerials,
+		int signalStrength,
+		com.makomi.block.entity.SyncReplaySourceBlockEntity.ReplaySyncSnapshot previousSnapshot,
+		EventMeta eventMeta
+	) {
 		int normalizedStrength = SignalStrengths.clamp(signalStrength);
 		return dispatchInternal(
 			sourceLevel,
 			sourceType,
 			sourceSerial,
+			sourcePos == null ? null : sourcePos.immutable(),
 			targetType,
 			targetSerials,
 			DispatchKind.SYNC_SIGNAL,
 			ActivationMode.TOGGLE,
-			normalizedStrength
+			normalizedStrength,
+			previousSnapshot,
+			eventMeta
+		);
+	}
+
+	/**
+	 * 派发同步语义（SYNC）到目标集合，并在被过滤器拦截时按旧快照补做失效清理。
+	 */
+	public static DispatchSummary dispatchSyncSignal(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		Set<Long> targetSerials,
+		int signalStrength,
+		com.makomi.block.entity.SyncReplaySourceBlockEntity.ReplaySyncSnapshot previousSnapshot,
+		EventMeta eventMeta
+	) {
+		int normalizedStrength = SignalStrengths.clamp(signalStrength);
+		return dispatchInternal(
+			sourceLevel,
+			sourceType,
+			sourceSerial,
+			null,
+			targetType,
+			targetSerials,
+			DispatchKind.SYNC_SIGNAL,
+			ActivationMode.TOGGLE,
+			normalizedStrength,
+			previousSnapshot,
+			eventMeta
 		);
 	}
 
@@ -145,11 +208,14 @@ public final class LinkedTargetDispatchService {
 		ServerLevel sourceLevel,
 		LinkNodeType sourceType,
 		long sourceSerial,
+		BlockPos sourcePos,
 		LinkNodeType targetType,
 		Set<Long> targetSerials,
 		DispatchKind dispatchKind,
 		ActivationMode activationMode,
-		int syncSignalStrength
+		int syncSignalStrength,
+		com.makomi.block.entity.SyncReplaySourceBlockEntity.ReplaySyncSnapshot previousSnapshot,
+		EventMeta eventMeta
 	) {
 		if (
 			sourceLevel == null
@@ -171,9 +237,9 @@ public final class LinkedTargetDispatchService {
 		long startNs = System.nanoTime();
 
 		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
-		long eventTick = Math.max(0L, sourceLevel.getGameTime());
-		int eventSlot = 0;
-		EventMeta immediateEventMeta = EventMeta.of(eventTick, eventSlot, 0L);
+		EventMeta immediateEventMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;
+		long eventTick = immediateEventMeta.timeKey().tick();
+		int eventSlot = immediateEventMeta.timeKey().slot();
 		RedstoneLinkConfig.CrossChunkDirectBatchingMode directBatchingMode =
 			RedstoneLinkConfig.crossChunk().directBatchingMode();
 		boolean shouldBatchLoadedDirectDispatch = shouldBatchLoadedDispatch(dispatchKind, directBatchingMode);
@@ -193,6 +259,18 @@ public final class LinkedTargetDispatchService {
 			}
 			int effectiveSignalStrength = dispatchKind == DispatchKind.ACTIVATION ? 15 : syncSignalStrength;
 			if (!LinkDispatchFilterService.allowsReceive(sourceLevel.getServer(), node.dimension(), node.pos(), targetSerial, effectiveSignalStrength)) {
+				if (dispatchKind == DispatchKind.SYNC_SIGNAL) {
+					LinkDispatchFilterService.reconcileBlockedSyncDispatchByReceiveFilter(
+						sourceLevel,
+						sourcePos,
+						sourceSerial,
+						node.dimension(),
+						node.pos(),
+						targetSerial,
+						previousSnapshot,
+						immediateEventMeta
+					);
+				}
 				continue;
 			}
 

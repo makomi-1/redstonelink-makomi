@@ -316,6 +316,40 @@ final class InternalDispatchDeltaRuleSupport {
 	}
 
 	/**
+	 * 发布“sync 来源失效”事件（集合入口）。
+	 */
+	static void publishSourceInvalidation(
+		ServerLevel sourceLevel,
+		LinkNodeType linkViewSourceType,
+		long linkViewSourceSerial,
+		Set<Long> affectedSerials,
+		EventMeta eventMeta
+	) {
+		if (
+			sourceLevel == null
+				|| linkViewSourceType == null
+				|| linkViewSourceSerial <= 0L
+				|| affectedSerials == null
+				|| affectedSerials.isEmpty()
+		) {
+			return;
+		}
+		forEachNormalizedPair(
+			linkViewSourceType,
+			linkViewSourceSerial,
+			affectedSerials,
+			(sourceSerial, targetSerial) -> publishSourceInvalidation(
+				sourceLevel,
+				LinkNodeType.TRIGGER_SOURCE,
+				sourceSerial,
+				LinkNodeType.CORE,
+				targetSerial,
+				eventMeta
+			)
+		);
+	}
+
+	/**
 	 * 发布单条“triggerSource 区块卸载失效”事件。
 	 */
 	static void publishTriggerSourceChunkUnloadInvalidation(
@@ -413,6 +447,44 @@ final class InternalDispatchDeltaRuleSupport {
 				targetType,
 				targetSerial,
 				ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION,
+				ActivatableTargetBlockEntity.DeltaAction.REMOVE,
+				ActivationMode.TOGGLE,
+				0,
+				normalizedMeta
+			)
+		);
+	}
+
+	/**
+	 * 发布单条“sync 来源失效”事件。
+	 */
+	static void publishSourceInvalidation(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		long targetSerial,
+		EventMeta eventMeta
+	) {
+		if (sourceLevel == null || sourceType == null || targetType == null || sourceSerial <= 0L || targetSerial <= 0L) {
+			return;
+		}
+		if (!LinkNodeSemantics.isAllowedForRole(sourceType, LinkNodeSemantics.Role.SOURCE)) {
+			return;
+		}
+		if (!LinkNodeSemantics.isAllowedForRole(targetType, LinkNodeSemantics.Role.TARGET)) {
+			return;
+		}
+		EventMeta normalizedMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;
+
+		InternalDispatchDeltaEvents.publish(
+			new InternalDispatchDeltaEvents.DispatchDeltaEvent(
+				sourceLevel,
+				sourceType,
+				sourceSerial,
+				targetType,
+				targetSerial,
+				ActivatableTargetBlockEntity.DeltaKind.SOURCE_INVALIDATION,
 				ActivatableTargetBlockEntity.DeltaAction.REMOVE,
 				ActivationMode.TOGGLE,
 				0,

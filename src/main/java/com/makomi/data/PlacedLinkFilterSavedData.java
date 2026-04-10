@@ -174,6 +174,27 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		BlockPos nodePos,
 		LinkFilterKind filterKind
 	) {
+		List<FilterEntry> entries = collectEntries(dimension, nodePos, filterKind);
+		if (entries.isEmpty()) {
+			return List.of();
+		}
+		List<LinkFilterRuleEvaluator.FilterRuntimeView> activeFilters = new ArrayList<>(entries.size());
+		for (FilterEntry entry : entries) {
+			if (entry != null) {
+				activeFilters.add(entry.toRuntimeView());
+			}
+		}
+		return activeFilters.isEmpty() ? List.of() : List.copyOf(activeFilters);
+	}
+
+	/**
+	 * 收集指定节点位置命中的过滤器条目快照。
+	 */
+	public List<FilterEntry> collectEntries(
+		ResourceKey<Level> dimension,
+		BlockPos nodePos,
+		LinkFilterKind filterKind
+	) {
 		if (dimension == null || nodePos == null || filterKind == null) {
 			return List.of();
 		}
@@ -189,15 +210,29 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		if (candidates == null || candidates.isEmpty()) {
 			return List.of();
 		}
-		List<LinkFilterRuleEvaluator.FilterRuntimeView> activeFilters = new ArrayList<>(candidates.size());
+		List<FilterEntry> activeFilters = new ArrayList<>(candidates.size());
 		for (FilterEntryKey key : candidates) {
 			FilterEntry entry = entriesByKey.get(key);
 			if (entry == null || !entry.covers(nodePos)) {
 				continue;
 			}
-			activeFilters.add(entry.toRuntimeView());
+			activeFilters.add(entry);
 		}
 		return activeFilters.isEmpty() ? List.of() : List.copyOf(activeFilters);
+	}
+
+	/**
+	 * 查询指定位置的过滤器条目。
+	 */
+	public Optional<FilterEntry> findEntry(
+		ResourceKey<Level> dimension,
+		LinkFilterKind filterKind,
+		BlockPos filterPos
+	) {
+		if (dimension == null || filterKind == null || filterPos == null) {
+			return Optional.empty();
+		}
+		return Optional.ofNullable(entriesByKey.get(new FilterEntryKey(dimension, filterKind, filterPos.immutable())));
 	}
 
 	/**
@@ -399,9 +434,16 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		}
 
 		/**
+		 * 判断是否与另一条过滤器条目指向同一个放置过滤器。
+		 */
+		public boolean sameFilter(FilterEntry other) {
+			return other != null && key.equals(other.key());
+		}
+
+		/**
 		 * 判断当前过滤器立方域是否覆盖目标节点位置。
 		 */
-		boolean covers(BlockPos targetPos) {
+		public boolean covers(BlockPos targetPos) {
 			if (targetPos == null) {
 				return false;
 			}
