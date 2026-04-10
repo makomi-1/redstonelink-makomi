@@ -90,6 +90,18 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * 输入标签与输入框顶部的间距（像素）。
 	 */
 	private static final int INPUT_LABEL_MARGIN = 2;
+	/**
+	 * 内容背景左右留白（像素）。
+	 */
+	private static final int BACKGROUND_HORIZONTAL_PADDING = 12;
+	/**
+	 * 内容背景顶部留白（像素）。
+	 */
+	private static final int BACKGROUND_TOP_PADDING = 18;
+	/**
+	 * 内容背景底部留白（像素）。
+	 */
+	private static final int BACKGROUND_BOTTOM_PADDING = 26;
 
 	protected final long sourceSerial;
 	protected final List<Long> currentTargets;
@@ -137,8 +149,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
 		int inputX = layout.panelLeft();
 		int inputY = layout.inputY();
-
-		serialInput = new MultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty());
+		serialInput = createSerialInputBox(layout, inputX, inputY);
 		serialInput.setCharacterLimit(RedstoneLinkClientDisplayConfig.pairing().inputMaxLength());
 
 		// 仅在非空场景回填并自动聚焦，空场景不抢焦点，避免光标跳动影响示例阅读。
@@ -151,19 +162,15 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int buttonRowY = layout.actionButtonY();
 		int actionButtonWidth = layout.actionButtonWidth();
 		addRenderableWidget(
-			Button.builder(CONFIRM, button -> submit()).bounds(layout.actionButtonX(0), buttonRowY, actionButtonWidth, ACTION_BUTTON_HEIGHT).build()
+			createActionButton(ActionButtonKind.CONFIRM, CONFIRM, layout.actionButtonX(0), buttonRowY, actionButtonWidth, button -> submit())
 		);
 		addRenderableWidget(
-			Button
-				.builder(CLEAR, button -> clearPair())
-				.bounds(layout.actionButtonX(1), buttonRowY, actionButtonWidth, ACTION_BUTTON_HEIGHT)
-				.build()
+			createActionButton(ActionButtonKind.CLEAR, CLEAR, layout.actionButtonX(1), buttonRowY, actionButtonWidth, button -> clearPair())
 		);
 	}
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderBackground(guiGraphics, mouseX, mouseY, partialTick);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
 		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
@@ -199,6 +206,23 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	@Override
+	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		// 配对界面背景只包裹实际内容区域，并通过更大的垂直留白形成稳定的表单容器感。
+		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
+		GuiBackgroundRenderSupport.renderWrappedRegion(
+			guiGraphics,
+			backgroundPreset(),
+			resolveContentBounds(layout),
+			new GuiBackgroundRenderSupport.RegionPadding(
+				BACKGROUND_HORIZONTAL_PADDING,
+				BACKGROUND_TOP_PADDING,
+				BACKGROUND_HORIZONTAL_PADDING,
+				BACKGROUND_BOTTOM_PADDING
+			)
+		);
+	}
+
+	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
 		if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
 			if (serialInput != null && serialInput.isFocused()) {
@@ -226,6 +250,26 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected abstract Component serialLine(long sourceSerial);
 
 	protected abstract Component currentLinksLine(List<Long> currentTargets);
+
+	/**
+	 * @return 当前配对界面的背景预设
+	 */
+	protected abstract GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset();
+
+	/**
+	 * @return 当前界面的输入框皮肤；返回 `null` 表示沿用原版默认输入框背景
+	 */
+	protected StyledMultiLineEditBox.Style inputBoxStyle() {
+		return null;
+	}
+
+	/**
+	 * @param kind 按钮语义类型
+	 * @return 当前界面的按钮皮肤；返回 `null` 表示沿用原版默认按钮
+	 */
+	protected StyledButton.Style actionButtonStyle(ActionButtonKind kind) {
+		return null;
+	}
 
 	/**
 	 * @return `link set` 命令的来源类型（triggerSource/core 语义入口）
@@ -531,6 +575,84 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
+	 * 根据当前界面样式创建序号输入框。
+	 */
+	private MultiLineEditBox createSerialInputBox(MultiPairingLayout layout, int inputX, int inputY) {
+		StyledMultiLineEditBox.Style style = inputBoxStyle();
+		if (style == null) {
+			return new MultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty());
+		}
+		return new StyledMultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty(), style);
+	}
+
+	/**
+	 * 根据当前界面样式创建操作按钮。
+	 */
+	private Button createActionButton(
+		ActionButtonKind kind,
+		Component message,
+		int x,
+		int y,
+		int width,
+		Button.OnPress onPress
+	) {
+		StyledButton.Style style = actionButtonStyle(kind);
+		if (style == null) {
+			return Button.builder(message, onPress).bounds(x, y, width, ACTION_BUTTON_HEIGHT).build();
+		}
+		return new StyledButton(x, y, width, ACTION_BUTTON_HEIGHT, message, onPress, style);
+	}
+
+	/**
+	 * 解析当前界面内容组件的最小包围框。
+	 * <p>
+	 * 这里只纳入固定布局中的标题、序号、当前连接、输入标签、输入框、按钮和状态提示，
+	 * 不包含 tooltip。
+	 * </p>
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(MultiPairingLayout layout) {
+		int centerX = width / 2;
+		Component serialLine = serialLine(sourceSerial);
+		Component currentLinksLine = currentLinksLine(currentTargets);
+		GuiBackgroundRenderSupport.RegionBounds bounds = centeredTextBounds(title, centerX, layout.titleY());
+		bounds = bounds.include(centeredTextBounds(serialLine, centerX, layout.titleY() + 14));
+		bounds = bounds.include(leftAlignedTextBounds(currentLinksLine, layout.panelLeft(), layout.currentLinksY()));
+		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.inputY(), layout.panelWidth(), INPUT_BOX_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(
+					layout.panelLeft(),
+					layout.actionButtonY(),
+					layout.panelWidth(),
+					ACTION_BUTTON_HEIGHT
+				)
+			);
+		if (!statusMessage.getString().isEmpty()) {
+			bounds = bounds.include(centeredTextBounds(statusMessage, centerX, layout.statusMessageY()));
+		}
+		return bounds;
+	}
+
+	/**
+	 * 生成左对齐文本包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds leftAlignedTextBounds(Component text, int left, int top) {
+		return new GuiBackgroundRenderSupport.RegionBounds(left, top, Math.max(1, font.width(text)), font.lineHeight);
+	}
+
+	/**
+	 * 生成居中文本包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
+		int width = Math.max(1, font.width(text));
+		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (width / 2), top, width, font.lineHeight);
+	}
+
+	/**
 	 * 将目标序号列表转换为结构化输入文本。
 	 */
 	/**
@@ -583,5 +705,13 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int actionButtonX(int index) {
 			return panelLeft + (actionButtonWidth + ACTION_BUTTON_GAP) * Math.max(0, index);
 		}
+	}
+
+	/**
+	 * pairing 主操作按钮语义。
+	 */
+	protected enum ActionButtonKind {
+		CONFIRM,
+		CLEAR,
 	}
 }

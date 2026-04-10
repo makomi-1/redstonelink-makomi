@@ -13,6 +13,21 @@ import net.minecraft.network.chat.Component;
  * </p>
  */
 public class CorePairingScreen extends AbstractMultiPairingScreen {
+	private static final StyledMultiLineEditBox.Style CORE_INPUT_BOX_STYLE = new StyledMultiLineEditBox.Style(
+		0xFF0D47A1,
+		0xFF08306B,
+		0xFF4FC3F7
+	);
+	private static final StyledButton.Style CORE_ACTION_BUTTON_STYLE = new StyledButton.Style(
+		0xE00D47A1,
+		0xF01565C0,
+		0x99122B45,
+		0xFF08306B,
+		0xFF4FC3F7,
+		0xFF445A73,
+		0xFFF4FAFF,
+		0xFF9EB1C8
+	);
 	private static final LinkNodeType SOURCE_TYPE = LinkNodeType.CORE;
 	private static final Component TITLE = Component.translatable("screen.redstonelink.core_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.core_pairing.input");
@@ -76,6 +91,21 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	protected Component currentLinksLine(List<Long> currentTargets) {
 		String linkedText = currentTargets.isEmpty() ? "-" : buildCurrentLinksText(currentTargets);
 		return Component.translatable("screen.redstonelink.core_pairing.current_links", linkedText);
+	}
+
+	@Override
+	protected StyledMultiLineEditBox.Style inputBoxStyle() {
+		return CORE_INPUT_BOX_STYLE;
+	}
+
+	@Override
+	protected StyledButton.Style actionButtonStyle(ActionButtonKind kind) {
+		return CORE_ACTION_BUTTON_STYLE;
+	}
+
+	@Override
+	protected GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
+		return GuiBackgroundRenderSupport.BackgroundPreset.CORE_PAIRING;
 	}
 
 	/**

@@ -96,6 +96,11 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		return Component.translatable("screen.redstonelink.trigger_source_pairing.current_links", linkedText);
 	}
 
+	@Override
+	protected GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
+		return GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING;
+	}
+
 	/**
 	 * @return triggerSource 语义对应的来源类型（TRIGGER_SOURCE）
 	 */
