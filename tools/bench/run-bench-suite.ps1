@@ -13,7 +13,7 @@ param(
     [string]$ServerRoot,
     [string]$ServerPropertiesPath,
     [string]$ServerStartCommand,
-    [ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Normal",
+    [ValidateSet("Normal", "Minimized", "Hidden")][string]$ServerWindowMode = "Hidden",
     [string]$ServerPriorityClass,
     [string]$TemplateWorldPath,
     [string[]]$CaseIds,

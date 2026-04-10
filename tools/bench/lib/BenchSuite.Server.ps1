@@ -368,7 +368,7 @@ function Start-DedicatedServerProcess {
 	param(
 		[string]$WorkingDirectory,
 		[string]$Command,
-		[ValidateSet("Normal", "Minimized", "Hidden")][string]$WindowMode = "Normal",
+		[ValidateSet("Normal", "Minimized", "Hidden")][string]$WindowMode = "Hidden",
 		[string]$PriorityClass
 	)
 	if ([string]::IsNullOrWhiteSpace($Command)) {
