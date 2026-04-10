@@ -451,6 +451,7 @@
             material: '合成材料',
             triggerSource: 'triggerSource（来源）',
             core: 'core（目标）',
+            filter: '过滤器',
             utility: '工具',
             internal: '内部资源'
           },
@@ -466,6 +467,10 @@
             core: {
               title: 'core 节点',
               note: '只能作为目标节点，接收 triggerSource 的激活与同步信号。'
+            },
+            filters: {
+              title: '过滤器',
+              note: '用于按节点集与信号规则筛选 triggerSource/core 派发。'
             },
             tools: {
               title: '工具与遥控器',
@@ -494,6 +499,7 @@
             material: 'Crafting Material',
             triggerSource: 'triggerSource (Source)',
             core: 'core (Target)',
+            filter: 'Filter',
             utility: 'Utility Tool',
             internal: 'Internal Asset'
           },
@@ -509,6 +515,10 @@
             core: {
               title: 'core Nodes',
               note: 'Target-only nodes that consume activation/sync signals from triggerSource nodes.'
+            },
+            filters: {
+              title: 'Filters',
+              note: 'Used to filter triggerSource/core dispatch by node-set and signal rules.'
             },
             tools: {
               title: 'Tools & Linkers',
@@ -529,6 +539,8 @@
         'link_redstone_core_transparent': 'redstonelink:item/link_redstone_core_transparent_blue',
         'link_redstone_dust_core': 'redstonelink:item/link_redstone_dust_core_blue',
         'link_redstone_dust_core_transparent': 'redstonelink:item/link_redstone_dust_core_transparent_blue',
+        'link_receive_filter': 'redstonelink:block/link_receive_filter',
+        'link_send_filter': 'redstonelink:block/link_send_filter',
         'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
         'link_sync_lever': 'redstonelink:item/link_sync_lever_blue_overlay',
         'link_toggle_button': 'redstonelink:item/link_toggle_button_blue_overlay',
@@ -590,7 +602,7 @@
       var iconRotationIntervalMs = 1400;
       var activeVisualIntervals = [];
 
-      var categoryOrder = ['component', 'triggerSource', 'core', 'tools', 'internal'];
+      var categoryOrder = ['component', 'triggerSource', 'core', 'filters', 'tools', 'internal'];
 
       var items = [
         {
@@ -763,6 +775,44 @@
           }
         },
         {
+          path: 'link_send_filter',
+          category: 'filters',
+          role: 'filter',
+          render: 'block',
+          name: { zh: '发送过滤器', en: 'Send Filter' },
+          effect: {
+            zh: '位于 send 侧的派发筛选层，只影响作用范围内的 triggerSource 派发，不改变真实链路方向。',
+            en: 'A send-side dispatch filter that only affects triggerSource dispatch inside its coverage area without changing the real link direction.'
+          },
+          usage: {
+            zh: ['放置后在以自身为中心、半径 8 格的正方体范围内生效。', '潜行右键打开过滤器界面。', '可配置节点集、节点集模式、阈值来源和上下界判定。'],
+            en: ['After placement, it works in a cube centered on itself with radius 8.', 'Sneak right-click to open the filter editor.', 'Configure node set, node-set mode, threshold source, and upper/lower-bound rules.']
+          },
+          note: {
+            zh: '快速连接工具站立右键可把 triggerSource 缓存应用到该过滤器；左键不会采集过滤器。',
+            en: 'The Quick Link Tool can standing-right-click this filter to apply triggerSource cache; left-click never collects filters.'
+          }
+        },
+        {
+          path: 'link_receive_filter',
+          category: 'filters',
+          role: 'filter',
+          render: 'block',
+          name: { zh: '接收过滤器', en: 'Receive Filter' },
+          effect: {
+            zh: '位于 receive 侧的派发筛选层，只影响作用范围内的 core 命中结果，不改变真实链路方向。',
+            en: 'A receive-side dispatch filter that only affects core hits inside its coverage area without changing the real link direction.'
+          },
+          usage: {
+            zh: ['放置后在以自身为中心、半径 8 格的正方体范围内生效。', '潜行右键打开过滤器界面。', '可配置节点集、节点集模式、阈值来源和上下界判定。'],
+            en: ['After placement, it works in a cube centered on itself with radius 8.', 'Sneak right-click to open the filter editor.', 'Configure node set, node-set mode, threshold source, and upper/lower-bound rules.']
+          },
+          note: {
+            zh: '快速连接工具站立右键可把 core 缓存应用到该过滤器；运行期配置变化会对 sync 触发失效/补发重算。',
+            en: 'The Quick Link Tool can standing-right-click this filter to apply core cache; runtime config changes trigger sync invalidation/resend reconciliation.'
+          }
+        },
+        {
           path: 'redstonelink_toggle_linker',
           category: 'tools',
           role: 'utility',
@@ -822,12 +872,12 @@
             en: 'Uses serial cache for batch collect/apply workflows and faster pairing operations.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：打开缓存编辑器。', '左键命中节点：采集到缓存。', '站立右键命中节点：把缓存应用到命中节点。'],
-            en: ['Sneak + empty offhand + right-click: open cache editor.', 'Left-click node: collect into cache.', 'Stand + right-click node: apply cache to target node.']
+            zh: ['潜行且左手为空右键：打开缓存编辑器。', '左键命中节点：采集到缓存；命中过滤器不会采集。', '站立右键命中节点或对应过滤器：把缓存应用到命中对象。'],
+            en: ['Sneak + empty offhand + right-click: open cache editor.', 'Left-click node: collect into cache; filters are never collectible.', 'Stand + right-click node or matching filter: apply cache to the hit target.']
           },
           note: {
-            zh: '当前版本 channel 模式仅预留接口，主流程使用序号缓存模式。',
-            en: 'Channel mode is reserved in current version; serial-cache mode is the active workflow.'
+            zh: '当前版本 channel 模式仅预留接口，主流程使用序号缓存模式；命中过滤器时描边为亮红色。',
+            en: 'Channel mode is reserved in current version and serial-cache mode is the active workflow; filters are outlined in bright red.'
           }
         },
         {

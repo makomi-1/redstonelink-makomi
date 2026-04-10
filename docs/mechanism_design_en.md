@@ -187,6 +187,26 @@ The replay path explicitly avoids blocking chunk access on critical startup path
 
 This is a hard boundary in the current cross-chunk recovery design.
 
+### 7.5 Runtime Filter Reconciliation
+
+Send/receive filters are not another topology truth layer. They are a filtering layer attached to dispatch:
+
+- a `send` filter serves only `triggerSource`;
+- a `receive` filter serves only `core`;
+- filters do not change the real write direction. They only decide whether a dispatch on the `triggerSource -> core` path is still allowed to continue.
+
+Persistent placed-filter truth is maintained by `PlacedLinkFilterSavedData`, not by temporary "loaded chunk only" state:
+
+- as long as a filter remains placed, it participates in evaluation through a persistent entry;
+- its physical effect area is a cube centered on the filter block, with radius `8` on each `X/Y/Z` axis;
+- runtime config changes and neighbor-input changes both trigger resampling and before/after comparison.
+
+Current runtime compensation only applies to `sync`:
+
+- previously allowed, now blocked: publish one `sync` invalidation and remove the old contribution;
+- previously blocked, now allowed: resend one `sync` from the current replay/snapshot;
+- `pulse/toggle` do not replay historical events and only affect later dispatches.
+
 ## 8. Read/Write Control
 
 ### 8.1 Read Control
@@ -222,7 +242,21 @@ Real topology overwrite writes are unified through `LinkSetExecutionService`:
 
 quick-link, pairing, and bench submissions do not each implement their own low-level writer. They reuse this shared write pipeline as much as possible.
 
-### 8.4 OCC Conflict Control
+### 8.4 Filter Config Writes and Quick Link
+
+Filter editing must stay separate from "rewire links":
+
+- saving from the filter GUI and quick-linking into a filter are both filter-config writes, not link-graph writes;
+- the written object is the filter snapshot (`serialExpression/nodeSetMode/signalThresholdSource/fixedSignalThreshold/signalMode`), not the `triggerSource -> core` topology;
+- when quick-link hits a filter, it only overwrites `serialExpression` and keeps the rest of the filter config unchanged.
+
+So the player-facing interaction is similar, but the permission/OCC boundary is different:
+
+- hit a node: still go through `LinkSetExecutionService + LinkWriteControlService + LinkOccSupport`;
+- hit a filter: validate against `server.command.permissionLevel`, skip link write control, and do not participate in link OCC;
+- that difference exists because filter-config writes do not mutate link-graph revisions and only change filtering truth.
+
+### 8.5 OCC Conflict Control
 
 To prevent silent overwrite during "read first, write later", the project adds revision baselines:
 

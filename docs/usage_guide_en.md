@@ -15,7 +15,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ## I. Quick Start for Players
 
 - Best for: players using the mod for the first time and only wanting everyday linking plus state checks.
-- Recommended reading order: `Quick Link Tool` -> `Linked Sync Linker` -> `State Panel Tool` -> `Batch Serial Input Format for Commands/GUI`.
+- Recommended reading order: `Quick Link Tool` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `State Panel Tool` -> `Batch Serial Input Format for Commands/GUI`.
 
 ### Quick Link Tool
 - Item name: `Quick Link Tool`.
@@ -23,7 +23,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Basic interaction:
 1. Sneak and right-click with an empty offhand: open the Quick Link Tool cache editor.
 2. Left-click a valid link node: collect that node into the current cache.
-3. Right-click a valid link node while standing: apply the current cache to the hit node.
+3. Right-click a valid link node or the matching filter while standing: apply the current cache to the hit target.
 4. Middle-click (same binding as vanilla `pick item`): clear the current cache.
 5. Quick Link mode key: default `B`. Only the mode-switch entry remains right now; `channel` mode is still reserved for future expansion.
 - Collect rules:
@@ -31,14 +31,18 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 2. If the mode is still serial mode and the cache type matches, the collect action appends incrementally and deduplicates automatically.
 3. If the cache type changes, the tool rebuilds the current serial cache first, then writes the newly collected result.
 4. Collecting the same serial again does not duplicate it; the action bar will say that the serial is already in the cache.
+5. Filters cannot be collected; left-clicking a filter never writes it into the cache.
 - Apply rules:
 1. The real write direction is always `triggerSource -> core`.
 2. If the current cache type matches the type of the hit node, the direction is invalid and the apply is rejected.
 3. Applying a `core` cache to a `triggerSource` overwrites that `triggerSource`'s whole target set with the cached `core` set.
 4. Applying a `triggerSource` cache to a `core` overwrites every cached `triggerSource` so that each one links only to the currently hit `core`.
-5. If the serial cache is empty, right-click apply fails immediately with feedback.
-6. Applying a batch of `triggerSource` cache entries to a `core` is also limited by the server-side `server.maxTargetsPerSetLinks`.
-7. Quick Link Tool apply is also governed by server-side write control. If the target is read-only, limited, or blocked by the protected list, the current unified feedback is "insufficient permission".
+5. Hitting a node still follows normal server-side write control. If it is read-only, limited, or blocked by the protected list, the current unified feedback is "insufficient permission".
+6. Hitting a filter does not use link write control; it requires `server.command.permissionLevel` instead.
+7. If the serial cache is empty, right-click apply fails immediately with feedback.
+8. Applying a batch of `triggerSource` cache entries to a `core` is also limited by the server-side `server.maxTargetsPerSetLinks`.
+9. A `send` filter only accepts `triggerSource` cache entries and only overwrites the filter `serialExpression`; a `receive` filter only accepts `core` cache entries.
+10. Filter apply does not participate in link OCC; the baseline round-trip still happens, but the server returns zero revisions and writes the filter config directly.
 - Clear rules:
 1. Middle-click clear only clears the serial cache and channel cache.
 2. Clearing keeps the current mode and current serial-cache type. It does not forcibly reset back to the default type.
@@ -47,11 +51,11 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 2. The latest collect/apply/clear/mode-limit message is shown in the action bar, in the same area used by the `B` mode-switch hint.
 3. The GUI-side serial cache input length is controlled by client config `client.quickLinkSerialCacheMaxLength`, default `1024`.
 4. On real apply, the server still performs another length validation for the cache expression using `server.command.linkSet.maxInputLength`.
-5. While holding the Quick Link Tool and targeting a valid link node, an outline is shown: `core` is bright blue, `triggerSource` is bright orange.
+5. While holding the Quick Link Tool and targeting an object, an outline is shown: `core` is bright blue, `triggerSource` is bright orange, and filters are bright red.
 - Recommended usage order:
 1. Hold the Quick Link Tool in the main hand.
 2. Left-click to collect a batch of `core` or `triggerSource` serials into the cache.
-3. Right-click while standing to apply the cache to a valid target in the legal direction.
+3. Right-click while standing to apply the cache to a valid target in the legal direction, or to the matching filter.
 4. Press middle mouse to clear the cache if you want to start over.
 - Crafting recipe:
 1. `Redstone Link Component + Stick + Stick -> Quick Link Tool`
@@ -61,6 +65,29 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
    `S  `
    `C = redstonelink:redstone_link_component`
    `S = minecraft:stick`
+
+### Send / Receive Filters
+- Item names: `Send Filter` and `Receive Filter`.
+- Basic interaction:
+1. Place them as world blocks; they stay effective while placed.
+2. Sneak right-click to open the filter editor.
+3. While holding the Quick Link Tool, standing right-click on a filter can directly apply the matching serial cache into the filter node-input field.
+- Served node types:
+1. A `send` filter only serves `triggerSource`.
+2. A `receive` filter only serves `core`.
+3. Filters do not change the real write direction. The actual path still stays `triggerSource -> core`.
+- Configurable parts:
+1. `serialExpression`: node-set input using the same `N` / `A:B` grammar as the pairing UI.
+2. `nodeSetMode`: `disabled / whitelist / blocklist`.
+3. `signalThresholdSource`: `fixed_input / neighbor_max_input`.
+4. `fixedSignalThreshold`: fixed threshold in the range `0~15`.
+5. `signalMode`: `disabled / upper_bound / lower_bound`.
+- Runtime behavior:
+1. The physical effect area is a cube centered on the filter block, with radius `8` on each `X/Y/Z` axis.
+2. Only nodes inside that cube and matching the node-set/signal rules are filtered.
+3. Config changes or neighbor-input changes immediately resample the filter and refresh its runtime truth.
+4. For `sync`, changing from allow to block triggers invalidation; changing from block to allow triggers a resend from the current snapshot.
+5. `pulse / toggle` do not replay historical events; they only affect later dispatches.
 
 ### Linked Sync Linker
 - Item name: `Linked Sync Linker`.
@@ -152,7 +179,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 3. The current conflict strategy is "reject this submit and require reopening the screen". The server does not silently replay stale input in the background.
 - Snapshot baseline note:
 1. `NodeSnapshotQueryService` now always attaches revision baselines to current-link snapshots.
-2. The actual active revision conflict gate is pairing-GUI submit for now, but the same baseline is also the foundation for quick-link, state panel, and later editors.
+2. The active revision conflict gates now include pairing-GUI submit and formal quick-link apply; the same baseline also supports state panel and later editors.
 
 ### Linked Redstone Dust Core Redstone Behavior
 - Linked Redstone Dust Cores, including transparent variants, only activate the block they are attached to. They do not spread into redstone networks in other directions.
