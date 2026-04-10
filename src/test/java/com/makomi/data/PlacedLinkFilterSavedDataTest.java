@@ -60,6 +60,53 @@ class PlacedLinkFilterSavedDataTest {
 	}
 
 	/**
+	 * 无采样恢复路径应保留旧的邻居输入快照，避免 `clearRemoved()` 把最近一次阈值误清零。
+	 */
+	@Test
+	void upsertPreservingNeighborSignalShouldKeepPreviousNeighborSnapshot() {
+		PlacedLinkFilterSavedData data = new PlacedLinkFilterSavedData();
+		BlockPos filterPos = new BlockPos(10, 70, 10);
+
+		assertTrue(
+			data.upsert(
+				LinkFilterKind.SEND,
+				Level.OVERWORLD,
+				filterPos,
+				new LinkFilterConfigSnapshot(
+					"",
+					LinkFilterNodeSetMode.DISABLED,
+					LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
+					15,
+					LinkFilterSignalMode.UPPER_BOUND
+				),
+				11
+			)
+		);
+
+		assertTrue(
+			data.upsertPreservingNeighborSignal(
+				LinkFilterKind.SEND,
+				Level.OVERWORLD,
+				filterPos,
+				new LinkFilterConfigSnapshot(
+					"1/3",
+					LinkFilterNodeSetMode.WHITELIST,
+					LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
+					2,
+					LinkFilterSignalMode.LOWER_BOUND
+				)
+			)
+		);
+
+		PlacedLinkFilterSavedData.FilterEntry updatedEntry = data.entriesSnapshot().getFirst();
+		assertEquals(11, updatedEntry.neighborSignalStrength());
+		assertTrue(updatedEntry.usesNeighborSignalThreshold());
+		assertEquals(Set.of(1L, 3L), updatedEntry.serials());
+		assertEquals(LinkFilterNodeSetMode.WHITELIST, updatedEntry.configSnapshot().nodeSetMode());
+		assertEquals(LinkFilterSignalMode.LOWER_BOUND, updatedEntry.configSnapshot().signalMode());
+	}
+
+	/**
 	 * 保存与读取应保留 canonical kind/dimension/pos/config/neighborSignal 字段，并恢复查询能力。
 	 */
 	@Test

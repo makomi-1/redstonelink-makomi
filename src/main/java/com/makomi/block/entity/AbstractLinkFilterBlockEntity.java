@@ -84,7 +84,7 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 		signalMode = normalized.signalMode();
 		serials = parseSerialExpression(serialExpression);
 		syncToClient();
-		LinkDispatchFilterService.upsertFilter(this);
+		LinkDispatchFilterService.refreshFilterWithCurrentNeighborSignal(this);
 	}
 
 	/**
@@ -95,10 +95,17 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	}
 
 	/**
+	 * 在不重采样邻居输入的前提下恢复已放置过滤器真值。
+	 */
+	public final void restorePlacedFilterState() {
+		LinkDispatchFilterService.upsertFilter(this);
+	}
+
+	/**
 	 * 以当前世界输入重采样结果刷新已放置过滤器真值。
 	 */
 	public final void refreshPlacedFilterState() {
-		LinkDispatchFilterService.upsertFilter(this);
+		LinkDispatchFilterService.refreshFilterWithCurrentNeighborSignal(this);
 	}
 
 	/**
@@ -176,7 +183,7 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	public void clearRemoved() {
 		super.clearRemoved();
 		lifecycleState.onContextAttached();
-		LinkDispatchFilterService.upsertFilter(this);
+		restorePlacedFilterState();
 	}
 
 	@Override

@@ -95,6 +95,40 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 			return false;
 		}
 		FilterEntryKey key = new FilterEntryKey(dimension, filterKind, filterPos.immutable());
+		return upsertInternal(key, configSnapshot, neighborSignalStrength);
+	}
+
+	/**
+	 * 写入或覆盖一个已放置过滤器条目，并保留已有的邻居输入采样值。
+	 * <p>
+	 * 用于启动附着阶段只恢复过滤器真值、不主动触发世界邻居采样的路径。
+	 * </p>
+	 *
+	 * @return true 表示持久化真值发生变化
+	 */
+	public boolean upsertPreservingNeighborSignal(
+		LinkFilterKind filterKind,
+		ResourceKey<Level> dimension,
+		BlockPos filterPos,
+		LinkFilterConfigSnapshot configSnapshot
+	) {
+		if (filterKind == null || dimension == null || filterPos == null || configSnapshot == null) {
+			return false;
+		}
+		FilterEntryKey key = new FilterEntryKey(dimension, filterKind, filterPos.immutable());
+		FilterEntry previous = entriesByKey.get(key);
+		int preservedNeighborSignalStrength = previous == null ? 0 : previous.neighborSignalStrength();
+		return upsertInternal(key, configSnapshot, preservedNeighborSignalStrength);
+	}
+
+	/**
+	 * 共享的条目归一化与写入流程。
+	 */
+	private boolean upsertInternal(
+		FilterEntryKey key,
+		LinkFilterConfigSnapshot configSnapshot,
+		int neighborSignalStrength
+	) {
 		FilterEntry normalized = new FilterEntry(
 			key,
 			configSnapshot,
@@ -334,6 +368,34 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 			configSnapshot = configSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : configSnapshot;
 			serials = Set.copyOf(serials == null ? Set.of() : serials);
 			neighborSignalStrength = SignalStrengths.clamp(neighborSignalStrength);
+		}
+
+		/**
+		 * @return 过滤器所在维度
+		 */
+		public ResourceKey<Level> dimension() {
+			return key.dimension();
+		}
+
+		/**
+		 * @return 过滤器运行时种类
+		 */
+		public LinkFilterKind filterKind() {
+			return key.filterKind();
+		}
+
+		/**
+		 * @return 过滤器方块坐标
+		 */
+		public BlockPos filterPos() {
+			return key.filterPos();
+		}
+
+		/**
+		 * @return 当前条目是否依赖邻居输入作为阈值来源
+		 */
+		public boolean usesNeighborSignalThreshold() {
+			return configSnapshot.signalThresholdSource() == LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT;
 		}
 
 		/**

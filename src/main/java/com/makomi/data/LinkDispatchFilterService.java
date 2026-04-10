@@ -2,11 +2,14 @@ package com.makomi.data;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import java.util.List;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
 
 /**
  * 派发过滤器查询门面。
@@ -20,23 +23,46 @@ public final class LinkDispatchFilterService {
 	 * 过滤器立方域半径：以方块中心为中心，向六向各扩展 8 格。
 	 */
 	public static final int FILTER_RADIUS = 8;
+	private static boolean callbacksRegistered;
 
 	private LinkDispatchFilterService() {
 	}
 
 	/**
 	 * 注册服务端钩子。
-	 * <p>
-	 * 过滤器真值已转为 `SavedData` 持久化，此处保留空实现以兼容既有初始化调用顺序。
-	 * </p>
 	 */
 	public static void register() {
+		if (callbacksRegistered) {
+			return;
+		}
+		callbacksRegistered = true;
+		ServerLifecycleEvents.SERVER_STARTED.register(LinkDispatchFilterService::refreshLoadedNeighborSignalSnapshotsAfterServerStarted);
 	}
 
 	/**
-	 * 写入或刷新一个已放置过滤器的持久化真值。
+	 * 写入或刷新一个已放置过滤器的持久化真值，但不主动重采样邻居输入。
+	 * <p>
+	 * 启动附着阶段应优先使用该入口，避免把潜在阻塞式世界读取带回 `clearRemoved()` 链路。
+	 * </p>
 	 */
 	public static void upsertFilter(AbstractLinkFilterBlockEntity filterBlockEntity) {
+		if (filterBlockEntity == null || !(filterBlockEntity.getLevel() instanceof ServerLevel serverLevel)) {
+			return;
+		}
+		PlacedLinkFilterSavedData
+			.get(serverLevel)
+			.upsertPreservingNeighborSignal(
+				filterBlockEntity.filterKind(),
+				serverLevel.dimension(),
+				filterBlockEntity.getBlockPos(),
+				filterBlockEntity.snapshot()
+			);
+	}
+
+	/**
+	 * 以当前世界态重采样邻居输入，并刷新过滤器持久化真值。
+	 */
+	public static void refreshFilterWithCurrentNeighborSignal(AbstractLinkFilterBlockEntity filterBlockEntity) {
 		if (filterBlockEntity == null || !(filterBlockEntity.getLevel() instanceof ServerLevel serverLevel)) {
 			return;
 		}
@@ -126,5 +152,74 @@ public final class LinkDispatchFilterService {
 			.get(level)
 			.collectFilters(level.dimension(), nodePos, filterKind);
 		return LinkFilterRuleEvaluator.allows(activeFilters, serial, signalStrength);
+	}
+
+	/**
+	 * 在 `SERVER_STARTED` 后对已加载过滤器补做一次非阻塞邻居输入采样。
+	 * <p>
+	 * 这样既避免在启动附着链路里同步取邻居输入，也能在服务端真正启动后尽快刷新
+	 * `NEIGHBOR_MAX_INPUT` 过滤器的阈值快照。
+	 * </p>
+	 */
+	static void refreshLoadedNeighborSignalSnapshotsAfterServerStarted(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) {
+			return;
+		}
+		for (PlacedLinkFilterSavedData.FilterEntry entry : PlacedLinkFilterSavedData.get(overworld).entriesSnapshot()) {
+			if (!shouldRefreshNeighborSignalAfterServerStarted(entry)) {
+				continue;
+			}
+			AbstractLinkFilterBlockEntity filterBlockEntity = resolveLoadedFilterBlockEntity(server, entry);
+			if (filterBlockEntity == null) {
+				continue;
+			}
+			refreshFilterWithCurrentNeighborSignal(filterBlockEntity);
+		}
+	}
+
+	/**
+	 * 判断条目是否需要在服务端启动后补采样邻居输入。
+	 */
+	static boolean shouldRefreshNeighborSignalAfterServerStarted(PlacedLinkFilterSavedData.FilterEntry entry) {
+		return entry != null && entry.usesNeighborSignalThreshold();
+	}
+
+	/**
+	 * 以非阻塞方式解析当前已加载的过滤器方块实体。
+	 */
+	private static AbstractLinkFilterBlockEntity resolveLoadedFilterBlockEntity(
+		MinecraftServer server,
+		PlacedLinkFilterSavedData.FilterEntry entry
+	) {
+		if (server == null || entry == null) {
+			return null;
+		}
+		ServerLevel level = server.getLevel(entry.dimension());
+		if (level == null) {
+			return null;
+		}
+		LevelChunk chunk = level.getChunkSource().getChunkNow(entry.filterPos().getX() >> 4, entry.filterPos().getZ() >> 4);
+		if (chunk == null) {
+			return null;
+		}
+		BlockEntity blockEntity = chunk.getBlockEntity(entry.filterPos(), LevelChunk.EntityCreationType.CHECK);
+		if (!(blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity)) {
+			return null;
+		}
+		if (filterBlockEntity.filterKind() != entry.filterKind()) {
+			return null;
+		}
+		return filterBlockEntity;
+	}
+
+	/**
+	 * 测试专用：复位注册标记，避免多轮单测共享状态。
+	 */
+	static void resetForTesting() {
+		callbacksRegistered = false;
 	}
 }
