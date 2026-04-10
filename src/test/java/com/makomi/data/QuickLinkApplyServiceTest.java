@@ -65,6 +65,42 @@ class QuickLinkApplyServiceTest {
 	}
 
 	/**
+	 * 过滤器应用必须要求缓存类型与过滤器服务节点类型一致。
+	 */
+	@Test
+	void filterCompatibilityShouldFollowFilterServicedNodeType() {
+		assertTrue(QuickLinkApplyService.isCacheTypeCompatibleWithFilter(LinkNodeType.TRIGGER_SOURCE, LinkFilterKind.SEND));
+		assertFalse(QuickLinkApplyService.isCacheTypeCompatibleWithFilter(LinkNodeType.CORE, LinkFilterKind.SEND));
+		assertTrue(QuickLinkApplyService.isCacheTypeCompatibleWithFilter(LinkNodeType.CORE, LinkFilterKind.RECEIVE));
+		assertFalse(QuickLinkApplyService.isCacheTypeCompatibleWithFilter(LinkNodeType.TRIGGER_SOURCE, LinkFilterKind.RECEIVE));
+	}
+
+	/**
+	 * 过滤器 quick-link 应用应只覆盖序号表达式，并保留原有节点集与信号配置。
+	 */
+	@Test
+	void buildFilterSnapshotForAppliedCacheShouldOnlyReplaceSerialExpression() {
+		LinkFilterConfigSnapshot currentSnapshot = new LinkFilterConfigSnapshot(
+			"3/5",
+			LinkFilterNodeSetMode.WHITELIST,
+			LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
+			9,
+			LinkFilterSignalMode.LOWER_BOUND
+		);
+
+		LinkFilterConfigSnapshot nextSnapshot = QuickLinkApplyService.buildFilterSnapshotForAppliedCache(
+			currentSnapshot,
+			java.util.List.of(12L, 8L, 21L)
+		);
+
+		assertEquals("12/8/21", nextSnapshot.serialExpression());
+		assertEquals(currentSnapshot.nodeSetMode(), nextSnapshot.nodeSetMode());
+		assertEquals(currentSnapshot.signalThresholdSource(), nextSnapshot.signalThresholdSource());
+		assertEquals(currentSnapshot.fixedSignalThreshold(), nextSnapshot.fixedSignalThreshold());
+		assertEquals(currentSnapshot.signalMode(), nextSnapshot.signalMode());
+	}
+
+	/**
 	 * 构造 `1/2/3/...` 形式的序号表达式。
 	 */
 	private static String buildSerialExpression(int count) {

@@ -59,6 +59,8 @@
     "cases/functional/x29/dual_filter_1s1r_signal_matrix.json",
     "cases/functional/x30/dual_receive_filters_signal_matrix.json",
     "cases/functional/x31/dual_send_filters_signal_matrix.json",
+    "cases/functional/x32/send_filter_runtime_nodeset_reconcile.json",
+    "cases/functional/x33/receive_filter_runtime_nodeset_reconcile.json",
     "cases/functional/r02/restart_persist_toggle_verify.json",
     "cases/functional/r03/restart_input_job_prepare.json",
     "cases/functional/r04/restart_input_job_verify.json",

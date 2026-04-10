@@ -174,6 +174,8 @@
   "message.redstonelink.quick_link.apply.too_many_sources": "[RedstoneLink] triggerSource cache can contain at most %s.",
   "message.redstonelink.quick_link.apply.done.trigger_source": "[RedstoneLink] Applied cache to triggerSource %s (%s total).",
   "message.redstonelink.quick_link.apply.done.core": "[RedstoneLink] Overwrote links for %s triggerSources to core %s.",
+  "message.redstonelink.quick_link.apply.done.send_filter": "[RedstoneLink] Applied %s cached triggerSources to the send filter.",
+  "message.redstonelink.quick_link.apply.done.receive_filter": "[RedstoneLink] Applied %s cached cores to the receive filter.",
   "message.redstonelink.client.serial_overlay.enabled": "[RedstoneLink] serial overlay: ON (distance %s blocks).",
   "message.redstonelink.client.serial_overlay.disabled": "[RedstoneLink] serial overlay: OFF.",
   "message.redstonelink.client.serial_overlay.mode_far": "[RedstoneLink] Serial overlay mode: FAR.",

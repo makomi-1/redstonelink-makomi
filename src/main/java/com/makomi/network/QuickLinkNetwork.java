@@ -96,6 +96,9 @@ public final class QuickLinkNetwork {
 
 	/**
 	 * 客户端左键采集缓存的 C2S 请求。
+	 * <p>
+	 * 该载荷只用于可采集节点，因此 `expectedNodeTypeToken` 固定为 `triggerSource/core`。
+	 * </p>
 	 */
 	public record CollectQuickLinkPayload(
 		String dimensionKey,
@@ -141,6 +144,10 @@ public final class QuickLinkNetwork {
 
 	/**
 	 * 客户端右键应用前请求 revision 基线的 C2S 请求。
+	 * <p>
+	 * `expectedNodeTypeToken/expectedNodeSerial` 既可表示节点身份，
+	 * 也可表示过滤器目标（`send/receive + 0`）。
+	 * </p>
 	 */
 	public record RequestApplyQuickLinkBaselinePayload(
 		String dimensionKey,
@@ -186,6 +193,9 @@ public final class QuickLinkNetwork {
 
 	/**
 	 * 服务端返回给客户端的 quick-link apply revision 基线。
+	 * <p>
+	 * 过滤器目标不会参与 OCC，因此会回传全零 revision，仅用于复用现有 apply 往返。
+	 * </p>
 	 */
 	public record ApplyQuickLinkBaselinePayload(
 		String dimensionKey,
@@ -243,6 +253,9 @@ public final class QuickLinkNetwork {
 
 	/**
 	 * 客户端右键应用缓存的 C2S 请求。
+	 * <p>
+	 * 过滤器目标会沿用同一载荷结构，但服务端会跳过 OCC 并直接写入过滤器配置。
+	 * </p>
 	 */
 	public record ApplyQuickLinkPayload(
 		String dimensionKey,

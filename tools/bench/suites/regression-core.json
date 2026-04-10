@@ -88,6 +88,14 @@
     {
       "entryId": "x31_dual_send_filters",
       "caseId": "dual_send_filters_signal_matrix"
+    },
+    {
+      "entryId": "x32_send_filter_nodeset_runtime",
+      "caseId": "send_filter_runtime_nodeset_reconcile"
+    },
+    {
+      "entryId": "x33_receive_filter_nodeset_runtime",
+      "caseId": "receive_filter_runtime_nodeset_reconcile"
     }
   ]
 }

@@ -174,6 +174,8 @@
     "message.redstonelink.quick_link.apply.too_many_sources":  "[RedstoneLink] triggerSource 缓存最多 %s 个。",
     "message.redstonelink.quick_link.apply.done.trigger_source":  "[RedstoneLink] 已应用缓存到 triggerSource %s（共%s）。",
     "message.redstonelink.quick_link.apply.done.core":  "[RedstoneLink] 已将 %s 个 triggerSource 覆盖连接到 core %s。",
+    "message.redstonelink.quick_link.apply.done.send_filter":  "[RedstoneLink] 已将 %s 条 triggerSource 缓存应用到 send 过滤器。",
+    "message.redstonelink.quick_link.apply.done.receive_filter":  "[RedstoneLink] 已将 %s 条 core 缓存应用到 receive 过滤器。",
     "message.redstonelink.client.serial_overlay.enabled":  "[RedstoneLink] 序号外显：开启（显示距离 %s 格）。",
     "message.redstonelink.client.serial_overlay.disabled":  "[RedstoneLink] 核心粉序号外显：关闭。",
     "message.redstonelink.client.serial_overlay.mode_far":  "[RedstoneLink] 序号外显模式：远外显。",

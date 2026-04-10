@@ -1,11 +1,14 @@
 package com.makomi.network;
 
+import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkOccSupport;
+import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.QuickLinkApplyService;
 import com.makomi.data.QuickLinkCollectService;
 import com.makomi.data.QuickLinkOccSubmissionSupport;
 import com.makomi.data.QuickLinkOperationFeedback;
@@ -13,8 +16,10 @@ import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * 快速连接工具服务端接包处理壳。
@@ -97,7 +102,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (!(mainHandItem.getItem() instanceof QuickLinkToolItem)) {
 			return;
 		}
-		PairableNodeBlockEntity requestedNode = resolveRequestedNode(
+		ResolvedQuickLinkApplyTarget requestedTarget = resolveRequestedApplyTarget(
 			player,
 			payload.dimensionKey(),
 			payload.blockPosLong(),
@@ -105,10 +110,10 @@ final class QuickLinkNetworkServerHandlerSupport {
 			payload.expectedNodeSerial(),
 			"message.redstonelink.quick_link.apply.invalid_target"
 		);
-		if (requestedNode == null) {
+		if (requestedTarget == null) {
 			return;
 		}
-		sendApplyBaseline(player, requestedNode);
+		sendApplyBaseline(player, requestedTarget);
 	}
 
 	/**
@@ -124,7 +129,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.mode.channel_future"));
 			return;
 		}
-		PairableNodeBlockEntity requestedNode = resolveRequestedNode(
+		ResolvedQuickLinkApplyTarget requestedTarget = resolveRequestedApplyTarget(
 			player,
 			payload.dimensionKey(),
 			payload.blockPosLong(),
@@ -132,9 +137,24 @@ final class QuickLinkNetworkServerHandlerSupport {
 			payload.expectedNodeSerial(),
 			"message.redstonelink.quick_link.apply.invalid_target"
 		);
-		if (requestedNode == null) {
+		if (requestedTarget == null) {
 			return;
 		}
+		if (requestedTarget.filterBlockEntity() != null) {
+			sendFeedback(
+				player,
+				QuickLinkApplyService
+					.applyToFilterFromCache(
+						player,
+						requestedTarget.filterBlockEntity(),
+						snapshot.serialCacheType(),
+						snapshot.serialCacheExpression()
+					)
+					.feedback()
+			);
+			return;
+		}
+		PairableNodeBlockEntity requestedNode = requestedTarget.nodeBlockEntity();
 		sendFeedback(
 			player,
 			QuickLinkOccSubmissionSupport
@@ -156,8 +176,27 @@ final class QuickLinkNetworkServerHandlerSupport {
 	/**
 	 * 基于命中节点回传 quick-link apply 所需的 revision 基线。
 	 */
-	private static void sendApplyBaseline(ServerPlayer player, PairableNodeBlockEntity requestedNode) {
-		if (player == null || requestedNode == null || requestedNode.getLinkNodeType() == null || requestedNode.getSerial() <= 0L) {
+	private static void sendApplyBaseline(ServerPlayer player, ResolvedQuickLinkApplyTarget requestedTarget) {
+		if (player == null || requestedTarget == null) {
+			return;
+		}
+		if (requestedTarget.filterBlockEntity() != null) {
+			ServerPlayNetworking.send(
+				player,
+				new QuickLinkNetwork.ApplyQuickLinkBaselinePayload(
+					requestedTarget.dimensionKey(),
+					requestedTarget.blockPosLong(),
+					requestedTarget.expectedTargetToken(),
+					requestedTarget.expectedTargetSerial(),
+					0L,
+					0L,
+					0L
+				)
+			);
+			return;
+		}
+		PairableNodeBlockEntity requestedNode = requestedTarget.nodeBlockEntity();
+		if (requestedNode == null || requestedNode.getLinkNodeType() == null || requestedNode.getSerial() <= 0L) {
 			return;
 		}
 		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(
@@ -223,6 +262,92 @@ final class QuickLinkNetworkServerHandlerSupport {
 	}
 
 	/**
+	 * 解析并校验 quick-link 右键 apply 指向的目标，可为节点或过滤器。
+	 */
+	private static ResolvedQuickLinkApplyTarget resolveRequestedApplyTarget(
+		ServerPlayer player,
+		String dimensionKey,
+		long blockPosLong,
+		String expectedTargetToken,
+		long expectedTargetSerial,
+		String invalidMessageKey
+	) {
+		LinkNodeType expectedNodeType = LinkNodeSemantics.tryParseCanonicalType(expectedTargetToken).orElse(null);
+		if (expectedNodeType != null && expectedTargetSerial > 0L) {
+			PairableNodeBlockEntity requestedNode = PairableNodeRequestValidationSupport.resolveRequestedNode(
+				player,
+				dimensionKey,
+				blockPosLong,
+				expectedNodeType,
+				expectedTargetSerial,
+				QUICK_LINK_REQUEST_MAX_DISTANCE
+			);
+			if (requestedNode == null) {
+				sendFeedback(player, QuickLinkOperationFeedback.failure(invalidMessageKey));
+				return null;
+			}
+			return ResolvedQuickLinkApplyTarget.forNode(requestedNode);
+		}
+
+		LinkFilterKind expectedFilterKind = LinkFilterKind.tryParseToken(expectedTargetToken).orElse(null);
+		if (expectedFilterKind == null || expectedTargetSerial != 0L) {
+			sendFeedback(player, QuickLinkOperationFeedback.failure(invalidMessageKey));
+			return null;
+		}
+		AbstractLinkFilterBlockEntity requestedFilter = resolveRequestedFilter(
+			player,
+			dimensionKey,
+			blockPosLong,
+			expectedFilterKind
+		);
+		if (requestedFilter == null) {
+			sendFeedback(player, QuickLinkOperationFeedback.failure(invalidMessageKey));
+			return null;
+		}
+		return ResolvedQuickLinkApplyTarget.forFilter(requestedFilter);
+	}
+
+	/**
+	 * 校验客户端上报的过滤器目标是否仍在当前服务端视图内有效。
+	 */
+	private static AbstractLinkFilterBlockEntity resolveRequestedFilter(
+		ServerPlayer player,
+		String dimensionKey,
+		long blockPosLong,
+		LinkFilterKind expectedFilterKind
+	) {
+		if (player == null || expectedFilterKind == null || dimensionKey == null || dimensionKey.isBlank()) {
+			return null;
+		}
+		ServerLevel serverLevel = player.serverLevel();
+		if (serverLevel == null || !serverLevel.dimension().location().toString().equals(dimensionKey)) {
+			return null;
+		}
+
+		BlockPos blockPos = BlockPos.of(blockPosLong);
+		if (!serverLevel.isLoaded(blockPos)) {
+			return null;
+		}
+		if (
+			!PairableNodeRequestValidationSupport.isWithinInteractionDistance(
+				player.getX(),
+				player.getY(),
+				player.getZ(),
+				blockPos,
+				QUICK_LINK_REQUEST_MAX_DISTANCE
+			)
+		) {
+			return null;
+		}
+
+		BlockEntity blockEntity = serverLevel.getBlockEntity(blockPos);
+		if (!(blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity)) {
+			return null;
+		}
+		return filterBlockEntity.filterKind() == expectedFilterKind ? filterBlockEntity : null;
+	}
+
+	/**
 	 * 按目标节点语义构造 quick-link apply 的 revision 冲突反馈。
 	 * <p>
 	 * `triggerSource` 目标只比较 `sourceRevision`；`core` 目标只比较 `graphRevision`。
@@ -245,5 +370,39 @@ final class QuickLinkNetworkServerHandlerSupport {
 			new LinkOccSupport.RevisionBaseline(currentGraphRevision, currentSourceRevision, currentCoreRevision)
 		);
 		return conflict == null ? null : LinkOccSupport.toQuickLinkFeedback(conflict);
+	}
+
+	/**
+	 * quick-link apply 目标的服务端已校验快照。
+	 */
+	private record ResolvedQuickLinkApplyTarget(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedTargetToken,
+		long expectedTargetSerial,
+		PairableNodeBlockEntity nodeBlockEntity,
+		AbstractLinkFilterBlockEntity filterBlockEntity
+	) {
+		static ResolvedQuickLinkApplyTarget forNode(PairableNodeBlockEntity nodeBlockEntity) {
+			return new ResolvedQuickLinkApplyTarget(
+				nodeBlockEntity.getLevel().dimension().location().toString(),
+				nodeBlockEntity.getBlockPos().asLong(),
+				LinkNodeSemantics.toSemanticName(nodeBlockEntity.getLinkNodeType()),
+				nodeBlockEntity.getSerial(),
+				nodeBlockEntity,
+				null
+			);
+		}
+
+		static ResolvedQuickLinkApplyTarget forFilter(AbstractLinkFilterBlockEntity filterBlockEntity) {
+			return new ResolvedQuickLinkApplyTarget(
+				filterBlockEntity.getLevel().dimension().location().toString(),
+				filterBlockEntity.getBlockPos().asLong(),
+				filterBlockEntity.filterKind().token(),
+				0L,
+				null,
+				filterBlockEntity
+			);
+		}
 	}
 }

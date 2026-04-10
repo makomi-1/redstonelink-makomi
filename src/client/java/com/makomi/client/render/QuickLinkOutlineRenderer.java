@@ -1,5 +1,6 @@
 package com.makomi.client.render;
 
+import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.LinkNodeType;
 import com.makomi.item.QuickLinkToolItem;
@@ -21,6 +22,9 @@ public final class QuickLinkOutlineRenderer {
 	private static final float TRIGGER_SOURCE_RED = 1.00F;
 	private static final float TRIGGER_SOURCE_GREEN = 0.58F;
 	private static final float TRIGGER_SOURCE_BLUE = 0.18F;
+	private static final float FILTER_RED = 1.00F;
+	private static final float FILTER_GREEN = 0.16F;
+	private static final float FILTER_BLUE = 0.16F;
 
 	private QuickLinkOutlineRenderer() {
 	}
@@ -41,11 +45,8 @@ public final class QuickLinkOutlineRenderer {
 		if (!(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
 			return true;
 		}
-		if (!(minecraft.level.getBlockEntity(blockOutlineContext.blockPos()) instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
-			return true;
-		}
-		LinkNodeType targetType = pairableNodeBlockEntity.getLinkNodeType();
-		if (targetType == null) {
+		OutlineColor outlineColor = resolveOutlineColor(minecraft, blockOutlineContext.blockPos());
+		if (outlineColor == null) {
 			return true;
 		}
 
@@ -65,9 +66,9 @@ public final class QuickLinkOutlineRenderer {
 			(double) blockOutlineContext.blockPos().getX() - blockOutlineContext.cameraX(),
 			(double) blockOutlineContext.blockPos().getY() - blockOutlineContext.cameraY(),
 			(double) blockOutlineContext.blockPos().getZ() - blockOutlineContext.cameraZ(),
-			targetType == LinkNodeType.CORE ? CORE_RED : TRIGGER_SOURCE_RED,
-			targetType == LinkNodeType.CORE ? CORE_GREEN : TRIGGER_SOURCE_GREEN,
-			targetType == LinkNodeType.CORE ? CORE_BLUE : TRIGGER_SOURCE_BLUE,
+			outlineColor.red(),
+			outlineColor.green(),
+			outlineColor.blue(),
 			1.0F,
 			false
 		);
@@ -79,5 +80,33 @@ public final class QuickLinkOutlineRenderer {
 	 */
 	public static void register() {
 		WorldRenderEvents.BLOCK_OUTLINE.register(QuickLinkOutlineRenderer::onBlockOutline);
+	}
+
+	/**
+	 * 根据当前命中方块解析 quick-link 应使用的描边颜色。
+	 */
+	private static OutlineColor resolveOutlineColor(Minecraft minecraft, net.minecraft.core.BlockPos blockPos) {
+		if (minecraft == null || minecraft.level == null || blockPos == null) {
+			return null;
+		}
+		if (minecraft.level.getBlockEntity(blockPos) instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
+			LinkNodeType targetType = pairableNodeBlockEntity.getLinkNodeType();
+			if (targetType == null) {
+				return null;
+			}
+			return targetType == LinkNodeType.CORE
+				? new OutlineColor(CORE_RED, CORE_GREEN, CORE_BLUE)
+				: new OutlineColor(TRIGGER_SOURCE_RED, TRIGGER_SOURCE_GREEN, TRIGGER_SOURCE_BLUE);
+		}
+		if (minecraft.level.getBlockEntity(blockPos) instanceof AbstractLinkFilterBlockEntity) {
+			return new OutlineColor(FILTER_RED, FILTER_GREEN, FILTER_BLUE);
+		}
+		return null;
+	}
+
+	/**
+	 * quick-link 描边颜色值。
+	 */
+	private record OutlineColor(float red, float green, float blue) {
 	}
 }

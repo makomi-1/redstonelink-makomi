@@ -74,7 +74,10 @@ final class QuickLinkNetworkPayloadSupport {
 	}
 
 	/**
-	 * 编码应用请求。
+	 * 编码 quick-link 命中目标。
+	 * <p>
+	 * 节点目标使用 `triggerSource/core + serial>0`，过滤器目标使用 `send/receive + serial=0`。
+	 * </p>
 	 */
 	static void encodeBlockTargetPayload(
 		FriendlyByteBuf buffer,
@@ -90,7 +93,7 @@ final class QuickLinkNetworkPayloadSupport {
 	}
 
 	/**
-	 * 解码应用请求。
+	 * 解码 quick-link 命中目标。
 	 */
 	static DecodedBlockTargetPayload decodeBlockTargetPayload(FriendlyByteBuf buffer) {
 		return new DecodedBlockTargetPayload(

@@ -110,6 +110,29 @@ class QuickLinkNetworkPayloadTest {
 	}
 
 	/**
+	 * 过滤器 apply 预检请求应允许 `send/receive + serial=0` 目标编码。
+	 */
+	@Test
+	void requestApplyBaselinePayloadCodecRoundTripShouldPreserveFilterTargetFields() {
+		QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload original = new QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload(
+			"minecraft:overworld",
+			144L,
+			"send",
+			0L
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload decoded =
+			QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload.CODEC.decode(buffer);
+
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
+		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
+	}
+
+	/**
 	 * apply revision 基线回包编解码往返应保留目标上下文与 revision 字段。
 	 */
 	@Test
@@ -122,6 +145,34 @@ class QuickLinkNetworkPayloadTest {
 			18L,
 			0L,
 			6L
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.ApplyQuickLinkBaselinePayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.ApplyQuickLinkBaselinePayload decoded = QuickLinkNetwork.ApplyQuickLinkBaselinePayload.CODEC.decode(buffer);
+
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
+		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
+		assertEquals(original.graphRevision(), decoded.graphRevision());
+		assertEquals(original.sourceRevision(), decoded.sourceRevision());
+		assertEquals(original.coreRevision(), decoded.coreRevision());
+	}
+
+	/**
+	 * 过滤器 apply 基线回包应保留 `send/receive + serial=0` 与零 revision。
+	 */
+	@Test
+	void applyBaselinePayloadCodecRoundTripShouldPreserveFilterBaselineFields() {
+		QuickLinkNetwork.ApplyQuickLinkBaselinePayload original = new QuickLinkNetwork.ApplyQuickLinkBaselinePayload(
+			"minecraft:overworld",
+			512L,
+			"receive",
+			0L,
+			0L,
+			0L,
+			0L
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
