@@ -76,6 +76,18 @@
     {
       "entryId": "x28_receive_filter_scope_matrix",
       "caseId": "receive_filter_runtime_scope_nodeset_matrix"
+    },
+    {
+      "entryId": "x29_dual_filter_1s1r",
+      "caseId": "dual_filter_1s1r_signal_matrix"
+    },
+    {
+      "entryId": "x30_dual_receive_filters",
+      "caseId": "dual_receive_filters_signal_matrix"
+    },
+    {
+      "entryId": "x31_dual_send_filters",
+      "caseId": "dual_send_filters_signal_matrix"
     }
   ]
 }
