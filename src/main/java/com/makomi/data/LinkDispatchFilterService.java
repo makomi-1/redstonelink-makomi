@@ -99,11 +99,11 @@ public final class LinkDispatchFilterService {
 		if (server == null || dimension == null || filterKind == null || filterPos == null) {
 			return;
 		}
-		ServerLevel contextLevel = server.overworld();
-		if (contextLevel == null) {
+		PlacedLinkFilterSavedData filterSavedData = resolveSharedSavedData(server);
+		if (filterSavedData == null) {
 			return;
 		}
-		PlacedLinkFilterSavedData.get(contextLevel).remove(dimension, filterKind, filterPos);
+		filterSavedData.remove(dimension, filterKind, filterPos);
 	}
 
 	/**
@@ -136,6 +136,69 @@ public final class LinkDispatchFilterService {
 	}
 
 	/**
+	 * 判断一条 attach replay 是否可通过持久化 send/receive 过滤器真值。
+	 * <p>
+	 * 该入口直接读取 `PlacedLinkFilterSavedData`，不依赖过滤器实例附着顺序。
+	 * </p>
+	 */
+	public static boolean allowsReplayByPersistedFilters(
+		MinecraftServer server,
+		ResourceKey<Level> triggerSourceDimension,
+		BlockPos triggerSourcePos,
+		long triggerSourceSerial,
+		ResourceKey<Level> coreDimension,
+		BlockPos corePos,
+		long coreSerial,
+		int signalStrength
+	) {
+		return allowsReplayByPersistedFilters(
+			resolveSharedSavedData(server),
+			triggerSourceDimension,
+			triggerSourcePos,
+			triggerSourceSerial,
+			coreDimension,
+			corePos,
+			coreSerial,
+			signalStrength
+		);
+	}
+
+	/**
+	 * 测试专用：基于指定持久化过滤真值判断 replay 是否放行。
+	 */
+	static boolean allowsReplayByPersistedFilters(
+		PlacedLinkFilterSavedData filterSavedData,
+		ResourceKey<Level> triggerSourceDimension,
+		BlockPos triggerSourcePos,
+		long triggerSourceSerial,
+		ResourceKey<Level> coreDimension,
+		BlockPos corePos,
+		long coreSerial,
+		int signalStrength
+	) {
+		if (
+			filterSavedData == null
+				|| triggerSourceDimension == null
+				|| triggerSourcePos == null
+				|| triggerSourceSerial <= 0L
+				|| coreDimension == null
+				|| corePos == null
+				|| coreSerial <= 0L
+		) {
+			return false;
+		}
+		return allowsByKind(
+			filterSavedData,
+			triggerSourceDimension,
+			triggerSourcePos,
+			triggerSourceSerial,
+			signalStrength,
+			LinkFilterKind.SEND
+		)
+			&& allowsByKind(filterSavedData, coreDimension, corePos, coreSerial, signalStrength, LinkFilterKind.RECEIVE);
+	}
+
+	/**
 	 * 共用的按过滤种类求值入口。
 	 */
 	private static boolean allowsByKind(
@@ -145,12 +208,27 @@ public final class LinkDispatchFilterService {
 		int signalStrength,
 		LinkFilterKind filterKind
 	) {
-		if (level == null || nodePos == null || serial <= 0L || filterKind == null) {
+		if (level == null) {
 			return true;
 		}
-		List<LinkFilterRuleEvaluator.FilterRuntimeView> activeFilters = PlacedLinkFilterSavedData
-			.get(level)
-			.collectFilters(level.dimension(), nodePos, filterKind);
+		return allowsByKind(PlacedLinkFilterSavedData.get(level), level.dimension(), nodePos, serial, signalStrength, filterKind);
+	}
+
+	/**
+	 * 基于已解析持久化真值的过滤种类求值入口。
+	 */
+	private static boolean allowsByKind(
+		PlacedLinkFilterSavedData filterSavedData,
+		ResourceKey<Level> dimension,
+		BlockPos nodePos,
+		long serial,
+		int signalStrength,
+		LinkFilterKind filterKind
+	) {
+		if (filterSavedData == null || dimension == null || nodePos == null || serial <= 0L || filterKind == null) {
+			return true;
+		}
+		List<LinkFilterRuleEvaluator.FilterRuntimeView> activeFilters = filterSavedData.collectFilters(dimension, nodePos, filterKind);
 		return LinkFilterRuleEvaluator.allows(activeFilters, serial, signalStrength);
 	}
 
@@ -221,5 +299,16 @@ public final class LinkDispatchFilterService {
 	 */
 	static void resetForTesting() {
 		callbacksRegistered = false;
+	}
+
+	/**
+	 * 解析当前服务端共享的过滤器持久化真值实例。
+	 */
+	private static PlacedLinkFilterSavedData resolveSharedSavedData(MinecraftServer server) {
+		if (server == null) {
+			return null;
+		}
+		ServerLevel overworld = server.overworld();
+		return overworld == null ? null : PlacedLinkFilterSavedData.get(overworld);
 	}
 }

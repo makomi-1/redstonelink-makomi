@@ -5,6 +5,7 @@ import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.block.entity.SyncReplaySourceBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -277,7 +278,51 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (replayEligibleSources.isEmpty()) {
 			return ConsumeResult.COMPLETED;
 		}
-		InternalDispatchDeltaEvents.publishLinkAttachedFromTargetChunkLoadAsyncBatch(level, nodeType, serial, replayEligibleSources);
+		LinkSavedData.LinkNode coreNode = savedData.findNode(nodeType, serial).orElse(null);
+		if (coreNode == null) {
+			return ConsumeResult.DROPPED;
+		}
+		for (Long replayEligibleSourceSerial : replayEligibleSources) {
+			if (replayEligibleSourceSerial == null || replayEligibleSourceSerial <= 0L) {
+				continue;
+			}
+			LinkSavedData.LinkNode triggerSourceNode = savedData
+				.findNode(LinkNodeType.TRIGGER_SOURCE, replayEligibleSourceSerial)
+				.orElse(null);
+			if (triggerSourceNode == null) {
+				continue;
+			}
+			SyncReplaySourceBlockEntity.ReplaySyncSnapshot replaySnapshot = InternalDispatchDeltaRuleSupport.resolveReplaySyncSnapshot(
+				level,
+				LinkNodeType.TRIGGER_SOURCE,
+				replayEligibleSourceSerial
+			);
+			if (replaySnapshot == null) {
+				continue;
+			}
+			// attach replay 发布前必须直接重查持久化过滤真值，避免过滤器注册晚于 replay 时误放行。
+			if (
+				!LinkDispatchFilterService.allowsReplayByPersistedFilters(
+					level.getServer(),
+					triggerSourceNode.dimension(),
+					triggerSourceNode.pos(),
+					replayEligibleSourceSerial,
+					coreNode.dimension(),
+					coreNode.pos(),
+					serial,
+					replaySnapshot.signalStrength()
+				)
+			) {
+				continue;
+			}
+			InternalDispatchDeltaRuleSupport.publishResolvedTargetChunkLoadSyncReplay(
+				level,
+				replayEligibleSourceSerial,
+				serial,
+				replaySnapshot,
+				InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH
+			);
+		}
 		return ConsumeResult.COMPLETED;
 	}
 
@@ -300,7 +345,49 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (linkedPeers.isEmpty()) {
 			return;
 		}
-		InternalDispatchDeltaEvents.publishLinkAttachedAsyncBatch(level, nodeType, serial, linkedPeers, EventMeta.now(level));
+		LinkSavedData.LinkNode triggerSourceNode = savedData.findNode(nodeType, serial).orElse(null);
+		if (triggerSourceNode == null) {
+			return;
+		}
+		int replayStrength = InternalDispatchDeltaRuleSupport.resolveReplaySyncStrength(level, nodeType, serial);
+		if (replayStrength < 0) {
+			return;
+		}
+		EventMeta replayEventMeta = EventMeta.now(level);
+		for (Long linkedCoreSerial : linkedPeers) {
+			if (linkedCoreSerial == null || linkedCoreSerial <= 0L) {
+				continue;
+			}
+			LinkSavedData.LinkNode coreNode = savedData.findNode(LinkNodeType.CORE, linkedCoreSerial).orElse(null);
+			if (coreNode == null) {
+				continue;
+			}
+			// source attach replay 同样先按持久化过滤器真值补判，再发布恢复事件。
+			if (
+				!LinkDispatchFilterService.allowsReplayByPersistedFilters(
+					level.getServer(),
+					triggerSourceNode.dimension(),
+					triggerSourceNode.pos(),
+					serial,
+					coreNode.dimension(),
+					coreNode.pos(),
+					linkedCoreSerial,
+					replayStrength
+				)
+			) {
+				continue;
+			}
+			InternalDispatchDeltaRuleSupport.publishSourceRebuildUpsertResolved(
+				level,
+				LinkNodeType.TRIGGER_SOURCE,
+				serial,
+				LinkNodeType.CORE,
+				linkedCoreSerial,
+				replayEventMeta,
+				replayStrength,
+				InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH
+			);
+		}
 	}
 
 	private static void enqueueTask(MinecraftServer server, NodeLifecycleTask task) {
