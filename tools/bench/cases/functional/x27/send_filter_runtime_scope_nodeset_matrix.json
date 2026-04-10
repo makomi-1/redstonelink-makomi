@@ -1,0 +1,457 @@
+{
+  "id": "send_filter_runtime_scope_nodeset_matrix",
+  "description": "验证 send 过滤器在运行期覆盖物理正方体范围、neighbor_max_input 非零低态失效补发，以及 fixed_input lower_bound 重新配置语义。",
+  "layer": "X",
+  "scenarioId": "X27",
+  "arena": {
+    "clearFrom": [-8, 63, 620],
+    "clearTo": [28, 66, 630]
+  },
+  "targets": {
+    "id": "core_send_filter_scope_matrix",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [20, 64, 624],
+      "to": [20, 64, 624]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_send_filter_scope_allowed",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 624],
+        "to": [0, 64, 624]
+      }
+    },
+    {
+      "id": "sync_send_filter_scope_blocked_inside",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [4, 64, 624],
+        "to": [4, 64, 624]
+      }
+    },
+    {
+      "id": "sync_send_filter_scope_outside",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [12, 64, 624],
+        "to": [12, 64, 624]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_send_filter_scope_allowed",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_send_filter_scope_blocked_inside",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_send_filter_scope_outside",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_send_filter_scope_matrix_target"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_send_filter_scope_matrix_support",
+      "command": "setblock 2 63 625 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_send_filter_scope_matrix_block",
+      "command": "setblock 2 64 624 redstonelink:link_send_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_send_filter_scope_matrix_neighbor_high",
+      "command": "setblock 2 64 625 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_matrix_filter_attach",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_send_filter_scope_fixed_upper_bound",
+      "command": "data merge block 2 64 624 {serialExpression:\"\",nodeSetMode:\"disabled\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:10,signalMode:\"upper_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_nodeset_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_scope_fixed_config_drop_neighbor",
+      "command": "setblock 2 64 625 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_scope_fixed_config_restore_neighbor",
+      "command": "setblock 2 64 625 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_fixed_config_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_send_filter_scope_inside_constant_five",
+      "serialRef": "sync_send_filter_scope_allowed",
+      "serialFormat": "slash_list",
+      "sequence": "5",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_inside_constant_five",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_scope_inside_low_signal_should_pass",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 5
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_send_filter_scope_inside_low_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_inside_low_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_scope_target_should_clear_after_allowed_stop",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_send_filter_scope_inside_constant_fifteen",
+      "serialRef": "sync_send_filter_scope_allowed",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_inside_constant_fifteen",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_scope_inside_high_signal_should_be_blocked",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_send_filter_scope_inside_high_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_inside_high_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_send_filter_scope_outside_constant_fifteen",
+      "serialRef": "sync_send_filter_scope_outside",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_outside_constant_fifteen",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_scope_outside_radius_should_ignore_filter_and_pass",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_send_filter_scope_outside_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_scope_outside_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_send_filter_neighbor_upper_bound_nonzero_low",
+      "command": "data merge block 2 64 624 {serialExpression:\"\",nodeSetMode:\"disabled\",signalThresholdSource:\"neighbor_max_input\",fixedSignalThreshold:15,signalMode:\"upper_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_upper_bound_config",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_neighbor_upper_bound_drop_neighbor",
+      "command": "setblock 2 64 625 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_neighbor_upper_bound_restore_neighbor",
+      "command": "setblock 2 64 625 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_upper_bound_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_send_filter_neighbor_upper_bound_signal_fifteen",
+      "serialRef": "sync_send_filter_scope_allowed",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_upper_bound_signal_fifteen",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_neighbor_upper_bound_should_allow_initial_high",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "drop_send_filter_neighbor_to_nonzero_seven",
+      "command": "setblock 2 64 625 minecraft:redstone_wire[power=7]",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_nonzero_seven",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_neighbor_upper_bound_should_invalidate_on_nonzero_low",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "restore_send_filter_neighbor_to_high_redstone_block",
+      "command": "setblock 2 64 625 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_restore_high_after_nonzero_low",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_neighbor_upper_bound_should_replay_after_restore",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_send_filter_neighbor_upper_bound_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_upper_bound_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_send_filter_fixed_lower_bound_eight",
+      "command": "data merge block 2 64 624 {serialExpression:\"\",nodeSetMode:\"disabled\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:8,signalMode:\"lower_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_fixed_lower_bound_eight_config",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_fixed_lower_bound_eight_drop_neighbor",
+      "command": "setblock 2 64 625 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_fixed_lower_bound_eight_restore_neighbor",
+      "command": "setblock 2 64 625 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_fixed_lower_bound_eight_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_send_filter_neighbor_lower_bound_signal_nine",
+      "serialRef": "sync_send_filter_scope_allowed",
+      "serialFormat": "slash_list",
+      "sequence": "9",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_neighbor_lower_bound_signal_nine",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_fixed_lower_bound_should_allow_signal_nine_at_threshold_eight",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 9
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reconfigure_send_filter_fixed_lower_bound_ten",
+      "command": "data merge block 2 64 624 {serialExpression:\"\",nodeSetMode:\"disabled\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:10,signalMode:\"lower_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_fixed_lower_bound_ten_drop_neighbor",
+      "command": "setblock 2 64 625 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_fixed_lower_bound_ten_restore_neighbor",
+      "command": "setblock 2 64 625 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_fixed_lower_bound_ten_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_fixed_lower_bound_should_invalidate_when_threshold_rises_above_signal",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reconfigure_send_filter_fixed_lower_bound_eight_again",
+      "command": "data merge block 2 64 624 {serialExpression:\"\",nodeSetMode:\"disabled\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:8,signalMode:\"lower_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_fixed_lower_bound_eight_again_drop_neighbor",
+      "command": "setblock 2 64 625 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_send_filter_fixed_lower_bound_eight_again_restore_neighbor",
+      "command": "setblock 2 64 625 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_send_filter_fixed_lower_bound_eight_again_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "send_filter_fixed_lower_bound_should_replay_when_threshold_recovers",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 9
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_send_filter_scope_matrix_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_send_filter_scope_matrix_target"
+    }
+  ]
+}

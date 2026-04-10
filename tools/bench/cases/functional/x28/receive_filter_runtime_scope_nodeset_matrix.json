@@ -1,0 +1,371 @@
+{
+  "id": "receive_filter_runtime_scope_nodeset_matrix",
+  "description": "验证 receive 过滤器在运行期覆盖节点集 blocklist、物理正方体范围、neighbor_max_input 非零低态失效补发，以及 fixed_input lower_bound 重新配置语义。",
+  "layer": "X",
+  "scenarioId": "X28",
+  "arena": {
+    "clearFrom": [-8, 63, 640],
+    "clearTo": [32, 66, 650]
+  },
+  "targets": {
+    "id": "core_receive_filter_scope_matrix",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 644],
+      "to": [24, 64, 644]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_receive_filter_scope_matrix",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 644],
+        "to": [0, 64, 644]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "link_command",
+      "name": "link_receive_filter_scope_matrix_targets",
+      "action": "set",
+      "sourceRef": "sync_receive_filter_scope_matrix",
+      "targetRef": "targets",
+      "targetIndexes": [0, 4, 12],
+      "targetSerialFormat": "mixed"
+    },
+    {
+      "templateRef": "trace_mount_core_mixed",
+      "name": "mount_receive_filter_scope_matrix_targets"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_receive_filter_scope_matrix_support",
+      "command": "setblock 14 63 645 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_receive_filter_scope_matrix_block",
+      "command": "setblock 14 64 644 redstonelink:link_receive_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_receive_filter_scope_matrix_neighbor_high",
+      "command": "setblock 14 64 645 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_scope_matrix_filter_attach",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_receive_filter_scope_nodeset_blocklist",
+      "commandTemplate": "data merge block 14 64 644 {serialExpression:\"{{targets[4]}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_scope_nodeset_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_scope_fixed_config_drop_neighbor",
+      "command": "setblock 14 64 645 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_scope_fixed_config_restore_neighbor",
+      "command": "setblock 14 64 645 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_scope_fixed_config_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_receive_filter_scope_matrix_signal_fifteen",
+      "serialRef": "sync_receive_filter_scope_matrix",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_scope_matrix_signal_fifteen",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_scope_unblocked_target_should_pass",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_scope_inside_blocklist_target_should_stay_low",
+      "serialFormat": "slash_list",
+      "serialIndex": 4,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_scope_outside_radius_target_should_ignore_filter",
+      "serialFormat": "slash_list",
+      "serialIndex": 12,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_receive_filter_scope_matrix_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_scope_matrix_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_receive_filter_neighbor_upper_bound_nonzero_low",
+      "commandTemplate": "data merge block 14 64 644 {serialExpression:\"{{targets[4]}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"neighbor_max_input\",fixedSignalThreshold:15,signalMode:\"upper_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_neighbor_upper_bound_config",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_receive_filter_neighbor_upper_bound_signal_fifteen",
+      "serialRef": "sync_receive_filter_scope_matrix",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_neighbor_upper_bound_signal_fifteen",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_neighbor_upper_bound_should_allow_initial_high",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "drop_receive_filter_neighbor_to_nonzero_seven",
+      "command": "setblock 14 64 645 minecraft:redstone_wire[power=7]",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_neighbor_nonzero_seven",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_neighbor_upper_bound_should_invalidate_on_nonzero_low",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "restore_receive_filter_neighbor_to_high_redstone_block",
+      "command": "setblock 14 64 645 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_neighbor_restore_high_after_nonzero_low",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_neighbor_upper_bound_should_replay_after_restore",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_receive_filter_neighbor_upper_bound_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_neighbor_upper_bound_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_receive_filter_fixed_lower_bound_eight",
+      "commandTemplate": "data merge block 14 64 644 {serialExpression:\"{{targets[4]}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:8,signalMode:\"lower_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_fixed_lower_bound_eight_config",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_fixed_lower_bound_eight_drop_neighbor",
+      "command": "setblock 14 64 645 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_fixed_lower_bound_eight_restore_neighbor",
+      "command": "setblock 14 64 645 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_fixed_lower_bound_eight_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_receive_filter_neighbor_lower_bound_signal_nine",
+      "serialRef": "sync_receive_filter_scope_matrix",
+      "serialFormat": "slash_list",
+      "sequence": "9",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_neighbor_lower_bound_signal_nine",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_fixed_lower_bound_should_allow_signal_nine_at_threshold_eight",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 9
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reconfigure_receive_filter_fixed_lower_bound_ten",
+      "commandTemplate": "data merge block 14 64 644 {serialExpression:\"{{targets[4]}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:10,signalMode:\"lower_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_fixed_lower_bound_ten_drop_neighbor",
+      "command": "setblock 14 64 645 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_fixed_lower_bound_ten_restore_neighbor",
+      "command": "setblock 14 64 645 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_fixed_lower_bound_ten_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_fixed_lower_bound_should_invalidate_when_threshold_rises_above_signal",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reconfigure_receive_filter_fixed_lower_bound_eight_again",
+      "commandTemplate": "data merge block 14 64 644 {serialExpression:\"{{targets[4]}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:8,signalMode:\"lower_bound\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_fixed_lower_bound_eight_again_drop_neighbor",
+      "command": "setblock 14 64 645 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_receive_filter_fixed_lower_bound_eight_again_restore_neighbor",
+      "command": "setblock 14 64 645 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_receive_filter_fixed_lower_bound_eight_again_runtime_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "receive_filter_fixed_lower_bound_should_replay_when_threshold_recovers",
+      "serialFormat": "slash_list",
+      "serialIndex": 0,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 9
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_receive_filter_scope_matrix_final_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_mixed",
+      "name": "unmount_receive_filter_scope_matrix_targets"
+    }
+  ]
+}

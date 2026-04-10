@@ -68,6 +68,14 @@
     {
       "entryId": "x26_receive_filter_runtime",
       "caseId": "receive_filter_runtime_sync_reconcile"
+    },
+    {
+      "entryId": "x27_send_filter_scope_matrix",
+      "caseId": "send_filter_runtime_scope_nodeset_matrix"
+    },
+    {
+      "entryId": "x28_receive_filter_scope_matrix",
+      "caseId": "receive_filter_runtime_scope_nodeset_matrix"
     }
   ]
 }

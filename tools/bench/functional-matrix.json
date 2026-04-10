@@ -54,6 +54,8 @@
     "cases/functional/x23/mixed_samechunk_direct_combinations_tick_assert.json",
     "cases/functional/x25/restart_mixed_replay_redstone_prepare.json",
     "cases/functional/x26/receive_filter_runtime_sync_reconcile.json",
+    "cases/functional/x27/send_filter_runtime_scope_nodeset_matrix.json",
+    "cases/functional/x28/receive_filter_runtime_scope_nodeset_matrix.json",
     "cases/functional/r02/restart_persist_toggle_verify.json",
     "cases/functional/r03/restart_input_job_prepare.json",
     "cases/functional/r04/restart_input_job_verify.json",
