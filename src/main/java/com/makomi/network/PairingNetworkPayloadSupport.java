@@ -2,6 +2,7 @@ package com.makomi.network;
 
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeLinksSnapshot;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ final class PairingNetworkPayloadSupport {
 	static final int DIMENSION_KEY_MAX_LENGTH = 128;
 	static final int NODE_TYPE_MAX_LENGTH = 32;
 	private static final int CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH = 32;
+	private static final int DISPLAY_CONTEXT_TOKEN_MAX_LENGTH = 64;
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
 	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
 
@@ -33,7 +35,12 @@ final class PairingNetworkPayloadSupport {
 	 * @param currentTargets 当前可见目标序号
 	 * @return 对应来源类型的 payload
 	 */
-	static CustomPacketPayload buildPayloadForSourceType(LinkNodeType sourceType, long sourceSerial, NodeLinksSnapshot linksSnapshot) {
+	static CustomPacketPayload buildPayloadForSourceType(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		NodeLinksSnapshot linksSnapshot,
+		String displayContextToken
+	) {
 		NodeLinksSnapshot normalizedSnapshot = linksSnapshot == null
 			? new NodeLinksSnapshot(null, List.of(), false)
 			: linksSnapshot;
@@ -43,7 +50,8 @@ final class PairingNetworkPayloadSupport {
 				normalizedSnapshot.visibleTargets(),
 				normalizedSnapshot.graphRevision(),
 				normalizedSnapshot.sourceRevision(),
-				normalizedSnapshot.coreRevision()
+				normalizedSnapshot.coreRevision(),
+				LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE)
 			);
 		}
 		return new PairingNetwork.OpenCorePairingPayload(
@@ -51,7 +59,8 @@ final class PairingNetworkPayloadSupport {
 			normalizedSnapshot.visibleTargets(),
 			normalizedSnapshot.graphRevision(),
 			normalizedSnapshot.sourceRevision(),
-			normalizedSnapshot.coreRevision()
+			normalizedSnapshot.coreRevision(),
+			LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE)
 		);
 	}
 
@@ -64,7 +73,8 @@ final class PairingNetworkPayloadSupport {
 		List<Long> targets,
 		long graphRevision,
 		long sourceRevision,
-		long coreRevision
+		long coreRevision,
+		String displayContextToken
 	) {
 		buffer.writeVarLong(sourceSerial);
 		buffer.writeVarInt(targets.size());
@@ -74,6 +84,7 @@ final class PairingNetworkPayloadSupport {
 		buffer.writeVarLong(Math.max(0L, graphRevision));
 		buffer.writeVarLong(Math.max(0L, sourceRevision));
 		buffer.writeVarLong(Math.max(0L, coreRevision));
+		buffer.writeUtf(displayContextToken == null ? "" : displayContextToken, DISPLAY_CONTEXT_TOKEN_MAX_LENGTH);
 	}
 
 	/**
@@ -86,7 +97,8 @@ final class PairingNetworkPayloadSupport {
 			payload.targets(),
 			payload.graphRevision(),
 			payload.sourceRevision(),
-			payload.coreRevision()
+			payload.coreRevision(),
+			payload.displayContextToken()
 		);
 	}
 
@@ -100,7 +112,8 @@ final class PairingNetworkPayloadSupport {
 			payload.targets(),
 			payload.graphRevision(),
 			payload.sourceRevision(),
-			payload.coreRevision()
+			payload.coreRevision(),
+			payload.displayContextToken()
 		);
 	}
 
@@ -307,7 +320,14 @@ final class PairingNetworkPayloadSupport {
 		for (int i = 0; i < size; i++) {
 			targets.add(buffer.readVarLong());
 		}
-		return new DecodedPayload(sourceSerial, targets, buffer.readVarLong(), buffer.readVarLong(), buffer.readVarLong());
+		return new DecodedPayload(
+			sourceSerial,
+			targets,
+			buffer.readVarLong(),
+			buffer.readVarLong(),
+			buffer.readVarLong(),
+			buffer.readUtf(DISPLAY_CONTEXT_TOKEN_MAX_LENGTH)
+		);
 	}
 
 	/**
@@ -398,7 +418,8 @@ final class PairingNetworkPayloadSupport {
 		List<Long> targets,
 		long graphRevision,
 		long sourceRevision,
-		long coreRevision
+		long coreRevision,
+		String displayContextToken
 	) {}
 
 	/**

@@ -179,9 +179,9 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int baseY = layout.titleY();
 		int currentLinksX = layout.panelLeft();
 		int currentLinksY = layout.currentLinksY();
+		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 
-		GuiTitleRenderSupport.drawCenteredPrimaryTitle(guiGraphics, font, title, centerX, baseY);
-		GuiTitleRenderSupport.drawCenteredSecondaryTitle(guiGraphics, font, serialLine(sourceSerial), centerX, baseY + 14, 0xC8C8C8);
+		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, baseY, baseContentBounds);
 		Component currentLinksLine = currentLinksLine(currentTargets);
 		guiGraphics.drawString(font, currentLinksLine, currentLinksX, currentLinksY, currentLinksTextColor(), false);
 		guiGraphics.drawString(font, inputLabel(), currentLinksX, layout.inputLabelY(), 0xFFFFFF, false);
@@ -251,6 +251,41 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected abstract Component serialLine(long sourceSerial);
 
 	protected abstract Component currentLinksLine(List<Long> currentTargets);
+
+	/**
+	 * @return 当前界面头部标题；子类可覆写为更具体的双语标题
+	 */
+	protected Component headerTitle() {
+		return title;
+	}
+
+	/**
+	 * @return 当前界面头部副标题；默认展示来源序号行
+	 */
+	protected Component headerSubtitle() {
+		return serialLine(sourceSerial);
+	}
+
+	/**
+	 * @return 当前界面头部副标题颜色；默认使用浅灰色
+	 */
+	protected int headerSubtitleColor() {
+		return DEFAULT_CURRENT_LINKS_TEXT_COLOR;
+	}
+
+	/**
+	 * @return 当前界面头部图标；默认不显示
+	 */
+	protected GuiHeaderRenderSupport.HeaderIcon headerIcon() {
+		return null;
+	}
+
+	/**
+	 * @return 当前界面完整头部渲染规格
+	 */
+	protected GuiHeaderRenderSupport.HeaderSpec headerSpec() {
+		return new GuiHeaderRenderSupport.HeaderSpec(headerTitle(), headerSubtitle(), headerSubtitleColor(), headerIcon());
+	}
 
 	/**
 	 * @return 当前配对界面的背景预设
@@ -627,11 +662,21 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * </p>
 	 */
 	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(MultiPairingLayout layout) {
-		int centerX = width / 2;
-		Component serialLine = serialLine(sourceSerial);
+		GuiBackgroundRenderSupport.RegionBounds baseBounds = resolveBaseContentBounds(layout);
+		return baseBounds.include(GuiHeaderRenderSupport.resolveCenteredHeaderBounds(font, headerSpec(), width / 2, layout.titleY(), baseBounds));
+	}
+
+	/**
+	 * 解析不含头部图标的基础内容包围盒，用于给图标提供整体组件锚点。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds resolveBaseContentBounds(MultiPairingLayout layout) {
 		Component currentLinksLine = currentLinksLine(currentTargets);
-		GuiBackgroundRenderSupport.RegionBounds bounds = centeredTextBounds(title, centerX, layout.titleY());
-		bounds = bounds.include(centeredTextBounds(serialLine, centerX, layout.titleY() + 14));
+		GuiBackgroundRenderSupport.RegionBounds bounds = GuiHeaderRenderSupport.resolveCenteredHeaderTextBounds(
+			font,
+			headerSpec(),
+			width / 2,
+			layout.titleY()
+		);
 		bounds = bounds.include(leftAlignedTextBounds(currentLinksLine, layout.panelLeft(), layout.currentLinksY()));
 		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
 		bounds =
@@ -648,7 +693,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 				)
 			);
 		if (!statusMessage.getString().isEmpty()) {
-			bounds = bounds.include(centeredTextBounds(statusMessage, centerX, layout.statusMessageY()));
+			bounds = bounds.include(centeredTextBounds(statusMessage, width / 2, layout.statusMessageY()));
 		}
 		return bounds;
 	}

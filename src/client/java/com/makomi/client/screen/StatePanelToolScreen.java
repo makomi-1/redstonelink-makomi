@@ -176,8 +176,8 @@ public class StatePanelToolScreen extends Screen {
 		applyWidgetLayout(layout);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-		int centerX = width / 2;
-		GuiTitleRenderSupport.drawCenteredPrimaryTitle(guiGraphics, font, TITLE, centerX, layout.panelTop());
+		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
+		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), width / 2, layout.panelTop(), baseContentBounds);
 		guiGraphics.drawString(
 			font,
 			Component.translatable("screen.redstonelink.state_panel.input"),
@@ -464,8 +464,20 @@ public class StatePanelToolScreen extends Screen {
 	 * 解析状态面板内容包围盒。
 	 */
 	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(StatePanelLayout layout) {
-		int centerX = width / 2;
-		GuiBackgroundRenderSupport.RegionBounds bounds = centeredTextBounds(TITLE, centerX, layout.panelTop());
+		GuiBackgroundRenderSupport.RegionBounds baseBounds = resolveBaseContentBounds(layout);
+		return baseBounds.include(GuiHeaderRenderSupport.resolveCenteredHeaderBounds(font, headerSpec(), width / 2, layout.panelTop(), baseBounds));
+	}
+
+	/**
+	 * 解析不含头部图标的基础内容包围盒，用于将图标锚定到整组组件外框。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds resolveBaseContentBounds(StatePanelLayout layout) {
+		GuiBackgroundRenderSupport.RegionBounds bounds = GuiHeaderRenderSupport.resolveCenteredHeaderTextBounds(
+			font,
+			headerSpec(),
+			width / 2,
+			layout.panelTop()
+		);
 		bounds =
 			bounds.include(
 				leftAlignedTextBounds(
@@ -502,6 +514,13 @@ public class StatePanelToolScreen extends Screen {
 	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
 		int textWidth = Math.max(1, font.width(text));
 		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (textWidth / 2), top, textWidth, font.lineHeight);
+	}
+
+	/**
+	 * @return 当前状态面板头部规格
+	 */
+	private GuiHeaderRenderSupport.HeaderSpec headerSpec() {
+		return GuiHeaderContextSupport.statePanelHeader(currentType);
 	}
 
 	/**

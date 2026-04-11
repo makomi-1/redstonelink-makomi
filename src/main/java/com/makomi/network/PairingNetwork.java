@@ -2,6 +2,7 @@ package com.makomi.network;
 
 import com.makomi.RedstoneLink;
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeLinksSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
@@ -34,14 +35,28 @@ public final class PairingNetwork {
 	 * 打开触发源侧配对界面。
 	 */
 	public static void openTriggerSourcePairing(ServerPlayer player, long sourceSerial) {
-		openPairingBySourceType(player, LinkNodeType.TRIGGER_SOURCE, sourceSerial);
+		openTriggerSourcePairing(player, sourceSerial, LinkGuiDisplayContext.TRIGGER_SOURCE);
+	}
+
+	/**
+	 * 打开触发源侧配对界面，并显式携带显示上下文 token。
+	 */
+	public static void openTriggerSourcePairing(ServerPlayer player, long sourceSerial, String displayContextToken) {
+		openPairingBySourceType(player, LinkNodeType.TRIGGER_SOURCE, sourceSerial, displayContextToken);
 	}
 
 	/**
 	 * 打开核心侧配对界面（core 语义入口）。
 	 */
 	public static void openCorePairing(ServerPlayer player, long coreSerial) {
-		openPairingBySourceType(player, LinkNodeType.CORE, coreSerial);
+		openCorePairing(player, coreSerial, LinkGuiDisplayContext.CORE);
+	}
+
+	/**
+	 * 打开核心侧配对界面，并显式携带显示上下文 token。
+	 */
+	public static void openCorePairing(ServerPlayer player, long coreSerial, String displayContextToken) {
+		openPairingBySourceType(player, LinkNodeType.CORE, coreSerial, displayContextToken);
 	}
 
 	/**
@@ -52,11 +67,28 @@ public final class PairingNetwork {
 	 * @param sourceSerial 来源序列号
 	 */
 	public static void openPairingBySourceType(ServerPlayer player, LinkNodeType sourceType, long sourceSerial) {
+		openPairingBySourceType(player, sourceType, sourceSerial, LinkGuiDisplayContext.fallbackPairingToken(sourceType));
+	}
+
+	/**
+	 * 按来源类型打开配对界面，并下发具体显示上下文 token。
+	 *
+	 * @param player 服务端玩家
+	 * @param sourceType 来源节点类型
+	 * @param sourceSerial 来源序列号
+	 * @param displayContextToken 供客户端标题/图标解析的稳定 token
+	 */
+	public static void openPairingBySourceType(
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		String displayContextToken
+	) {
 		if (sourceType == null || sourceSerial <= 0L) {
 			return;
 		}
 		NodeLinksSnapshot linksSnapshot = NodeSnapshotQueryService.queryLinks(player, sourceType, sourceSerial);
-		ServerPlayNetworking.send(player, buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot));
+		ServerPlayNetworking.send(player, buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot, displayContextToken));
 	}
 
 	/**
@@ -73,9 +105,27 @@ public final class PairingNetwork {
 	private static CustomPacketPayload buildPayloadForSourceType(
 		LinkNodeType sourceType,
 		long sourceSerial,
+		NodeLinksSnapshot linksSnapshot,
+		String displayContextToken
+	) {
+		return PairingNetworkPayloadSupport.buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot, displayContextToken);
+	}
+
+	/**
+	 * 兼容旧测试入口：未指定显示上下文时按节点类型回退到通用 token。
+	 */
+	@SuppressWarnings("unused")
+	private static CustomPacketPayload buildPayloadForSourceType(
+		LinkNodeType sourceType,
+		long sourceSerial,
 		NodeLinksSnapshot linksSnapshot
 	) {
-		return PairingNetworkPayloadSupport.buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot);
+		return buildPayloadForSourceType(
+			sourceType,
+			sourceSerial,
+			linksSnapshot,
+			LinkGuiDisplayContext.fallbackPairingToken(sourceType)
+		);
 	}
 
 	/**
@@ -90,7 +140,12 @@ public final class PairingNetwork {
 		long sourceSerial,
 		List<Long> currentTargets
 	) {
-		return buildPayloadForSourceType(sourceType, sourceSerial, new NodeLinksSnapshot(null, currentTargets, false));
+		return buildPayloadForSourceType(
+			sourceType,
+			sourceSerial,
+			new NodeLinksSnapshot(null, currentTargets, false),
+			LinkGuiDisplayContext.fallbackPairingToken(sourceType)
+		);
 	}
 
 	/**
@@ -102,7 +157,8 @@ public final class PairingNetwork {
 		List<Long> targets,
 		long graphRevision,
 		long sourceRevision,
-		long coreRevision
+		long coreRevision,
+		String displayContextToken
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_triggersource_pairing")
@@ -114,7 +170,8 @@ public final class PairingNetwork {
 				payload.targets(),
 				payload.graphRevision(),
 				payload.sourceRevision(),
-				payload.coreRevision()
+				payload.coreRevision(),
+				payload.displayContextToken()
 			),
 			PairingNetworkPayloadSupport::decodeTriggerSourcePairingPayload
 		);
@@ -124,6 +181,7 @@ public final class PairingNetwork {
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
+			displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE);
 		}
 
 		@Override
@@ -142,7 +200,8 @@ public final class PairingNetwork {
 		List<Long> targets,
 		long graphRevision,
 		long sourceRevision,
-		long coreRevision
+		long coreRevision,
+		String displayContextToken
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_core_pairing")
@@ -154,7 +213,8 @@ public final class PairingNetwork {
 				payload.targets(),
 				payload.graphRevision(),
 				payload.sourceRevision(),
-				payload.coreRevision()
+				payload.coreRevision(),
+				payload.displayContextToken()
 			),
 			PairingNetworkPayloadSupport::decodeCorePairingPayload
 		);
@@ -164,6 +224,7 @@ public final class PairingNetwork {
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
+			displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE);
 		}
 
 		@Override

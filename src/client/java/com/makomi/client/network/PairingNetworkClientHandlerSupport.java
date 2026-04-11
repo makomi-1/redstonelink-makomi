@@ -3,6 +3,7 @@ package com.makomi.client.network;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.screen.CorePairingScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
@@ -32,7 +33,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.targets(),
 				payload.graphRevision(),
 				payload.sourceRevision(),
-				payload.coreRevision()
+				payload.coreRevision(),
+				payload.displayContextToken()
 			));
 		});
 
@@ -44,7 +46,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.targets(),
 				payload.graphRevision(),
 				payload.sourceRevision(),
-				payload.coreRevision()
+				payload.coreRevision(),
+				payload.displayContextToken()
 			));
 		});
 
@@ -92,17 +95,22 @@ public final class PairingNetworkClientHandlerSupport {
 		List<Long> currentTargets,
 		long graphRevision,
 		long sourceRevision,
-		long coreRevision
+		long coreRevision,
+		String displayContextToken
 	) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null) {
 			return;
 		}
 		if (sourceType == LinkNodeType.CORE) {
-			minecraft.setScreen(new CorePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision));
+			minecraft.setScreen(
+				new CorePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision, displayContextToken)
+			);
 			return;
 		}
-		minecraft.setScreen(new TriggerSourcePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision));
+		minecraft.setScreen(
+			new TriggerSourcePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision, displayContextToken)
+		);
 	}
 
 	public static void openPairingScreenBySourceType(
@@ -110,7 +118,34 @@ public final class PairingNetworkClientHandlerSupport {
 		long sourceSerial,
 		List<Long> currentTargets
 	) {
-		openPairingScreenBySourceType(sourceType, sourceSerial, currentTargets, 0L, 0L, 0L);
+		openPairingScreenBySourceType(
+			sourceType,
+			sourceSerial,
+			currentTargets,
+			0L,
+			0L,
+			0L,
+			LinkGuiDisplayContext.fallbackPairingToken(sourceType)
+		);
+	}
+
+	public static void openPairingScreenBySourceType(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision
+	) {
+		openPairingScreenBySourceType(
+			sourceType,
+			sourceSerial,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			coreRevision,
+			LinkGuiDisplayContext.fallbackPairingToken(sourceType)
+		);
 	}
 
 	/**

@@ -4,6 +4,7 @@ import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.LinkSyncLeverBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.NodeSnapshotQueryService;
@@ -203,7 +204,11 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 				triggerSourceBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {
-				PairingNetwork.openTriggerSourcePairing(serverPlayer, serial);
+				PairingNetwork.openTriggerSourcePairing(
+					serverPlayer,
+					serial,
+					LinkGuiDisplayContext.resolvePairingContextToken(level.getBlockState(pos).getBlock(), LinkNodeType.TRIGGER_SOURCE)
+				);
 			}
 		}
 	}

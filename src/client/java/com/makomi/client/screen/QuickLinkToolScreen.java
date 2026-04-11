@@ -132,17 +132,9 @@ public class QuickLinkToolScreen extends Screen {
 
 		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
-		int titleY = layout.titleY();
 		int leftX = layout.panelLeft();
-		GuiTitleRenderSupport.drawCenteredPrimaryTitle(guiGraphics, font, title, centerX, titleY);
-		GuiTitleRenderSupport.drawCenteredSecondaryTitle(
-			guiGraphics,
-			font,
-			Component.translatable("screen.redstonelink.quick_link.mode_line", Component.translatable(currentMode().translationKey())),
-			centerX,
-			titleY + MODE_LINE_MARGIN,
-			MODE_LINE_COLOR
-		);
+		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
+		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
 		if (isSerialMode()) {
 			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), LABEL_TEXT_COLOR, false);
 		} else {
@@ -275,6 +267,13 @@ public class QuickLinkToolScreen extends Screen {
 	}
 
 	/**
+	 * @return 当前快速连接工具头部规格
+	 */
+	private GuiHeaderRenderSupport.HeaderSpec headerSpec() {
+		return GuiHeaderContextSupport.quickLinkHeader(currentMode(), currentSerialCacheType);
+	}
+
+	/**
 	 * 创建快速连接工具主操作按钮。
 	 */
 	private Button createActionButton(Component message, int x, int y, int width, Button.OnPress onPress) {
@@ -292,16 +291,20 @@ public class QuickLinkToolScreen extends Screen {
 	 * 解析当前界面的内容包围盒。
 	 */
 	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(QuickLinkLayout layout) {
-		int centerX = width / 2;
-		GuiBackgroundRenderSupport.RegionBounds bounds = centeredTextBounds(title, centerX, layout.titleY());
-		bounds =
-			bounds.include(
-				centeredTextBounds(
-					Component.translatable("screen.redstonelink.quick_link.mode_line", Component.translatable(currentMode().translationKey())),
-					centerX,
-					layout.titleY() + MODE_LINE_MARGIN
-				)
-			);
+		GuiBackgroundRenderSupport.RegionBounds baseBounds = resolveBaseContentBounds(layout);
+		return baseBounds.include(GuiHeaderRenderSupport.resolveCenteredHeaderBounds(font, headerSpec(), width / 2, layout.titleY(), baseBounds));
+	}
+
+	/**
+	 * 解析不含头部图标的基础内容包围盒，用于统一图标锚点。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds resolveBaseContentBounds(QuickLinkLayout layout) {
+		GuiBackgroundRenderSupport.RegionBounds bounds = GuiHeaderRenderSupport.resolveCenteredHeaderTextBounds(
+			font,
+			headerSpec(),
+			width / 2,
+			layout.titleY()
+		);
 		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
 		if (!isSerialMode()) {
 			bounds =
@@ -336,7 +339,7 @@ public class QuickLinkToolScreen extends Screen {
 				)
 			);
 		if (!statusMessage.getString().isEmpty()) {
-			bounds = bounds.include(centeredTextBounds(statusMessage, centerX, layout.statusMessageY()));
+			bounds = bounds.include(centeredTextBounds(statusMessage, width / 2, layout.statusMessageY()));
 		}
 		return bounds;
 	}

@@ -1,5 +1,6 @@
 package com.makomi.client.screen;
 
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
@@ -33,6 +34,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	private static final Component TITLE = Component.translatable("screen.redstonelink.core_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.core_pairing.input");
 	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.core_pairing.invalid");
+	private final String displayContextToken;
 
 	/**
 	 * 基于明确来源序列号与当前连接初始化界面。
@@ -40,12 +42,20 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	 * @param sourceSerial 来源节点序列号
 	 * @param currentTargets 当前已连接目标序列号列表
 	 */
-	public CorePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision, long coreRevision) {
+	public CorePairingScreen(
+		long sourceSerial,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision,
+		String displayContextToken
+	) {
 		super(TITLE, sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision);
+		this.displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, SOURCE_TYPE);
 	}
 
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
-		this(sourceSerial, currentTargets, graphRevision, sourceRevision, 0L);
+		this(sourceSerial, currentTargets, graphRevision, sourceRevision, 0L, LinkGuiDisplayContext.CORE);
 	}
 
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets) {
@@ -92,6 +102,16 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	protected Component currentLinksLine(List<Long> currentTargets) {
 		String linkedText = currentTargets.isEmpty() ? "-" : buildCurrentLinksText(currentTargets);
 		return Component.translatable("screen.redstonelink.core_pairing.current_links", linkedText);
+	}
+
+	@Override
+	protected Component headerTitle() {
+		return GuiHeaderContextSupport.pairingHeader(displayContextToken, SOURCE_TYPE, Component.empty(), 0xFFFFFFFF).title();
+	}
+
+	@Override
+	protected GuiHeaderRenderSupport.HeaderIcon headerIcon() {
+		return GuiHeaderContextSupport.pairingHeader(displayContextToken, SOURCE_TYPE, Component.empty(), 0xFFFFFFFF).icon();
 	}
 
 	@Override

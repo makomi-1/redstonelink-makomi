@@ -5,7 +5,6 @@ import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
-import com.makomi.data.LinkNodeSemantics;
 import com.makomi.network.LinkFilterNetwork;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
@@ -202,18 +201,8 @@ public class LinkFilterEditorScreen extends Screen {
 
 		LinkFilterLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
-		GuiTitleRenderSupport.drawCenteredPrimaryTitle(guiGraphics, font, title, centerX, layout.titleY());
-		GuiTitleRenderSupport.drawCenteredSecondaryTitle(
-			guiGraphics,
-			font,
-			Component.translatable(
-				"screen.redstonelink.link_filter.service_line",
-				LinkNodeSemantics.toSemanticName(filterKind.servicedNodeType())
-			),
-			centerX,
-			layout.titleY() + SUBTITLE_MARGIN,
-			backgroundPreset().borderColor()
-		);
+		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
+		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.serial_input"), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.node_set_mode"), layout.panelLeft(), layout.nodeSetLabelY(), 0xFFFFFF, false);
 		guiGraphics.drawString(
@@ -499,19 +488,20 @@ public class LinkFilterEditorScreen extends Screen {
 	 * 解析当前过滤器编辑界面的内容包围盒。
 	 */
 	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(LinkFilterLayout layout) {
-		int centerX = width / 2;
-		GuiBackgroundRenderSupport.RegionBounds bounds = centeredTextBounds(title, centerX, layout.titleY());
-		bounds =
-			bounds.include(
-				centeredTextBounds(
-					Component.translatable(
-						"screen.redstonelink.link_filter.service_line",
-						LinkNodeSemantics.toSemanticName(filterKind.servicedNodeType())
-					),
-					centerX,
-					layout.titleY() + SUBTITLE_MARGIN
-				)
-			);
+		GuiBackgroundRenderSupport.RegionBounds baseBounds = resolveBaseContentBounds(layout);
+		return baseBounds.include(GuiHeaderRenderSupport.resolveCenteredHeaderBounds(font, headerSpec(), width / 2, layout.titleY(), baseBounds));
+	}
+
+	/**
+	 * 解析不含头部图标的基础内容包围盒，用于给图标提供统一锚点。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds resolveBaseContentBounds(LinkFilterLayout layout) {
+		GuiBackgroundRenderSupport.RegionBounds bounds = GuiHeaderRenderSupport.resolveCenteredHeaderTextBounds(
+			font,
+			headerSpec(),
+			width / 2,
+			layout.titleY()
+		);
 		bounds =
 			bounds.include(
 				leftAlignedTextBounds(Component.translatable("screen.redstonelink.link_filter.serial_input"), layout.panelLeft(), layout.serialLabelY())
@@ -573,7 +563,7 @@ public class LinkFilterEditorScreen extends Screen {
 				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.actionButtonY(), layout.panelWidth(), BUTTON_HEIGHT)
 			);
 		if (!statusMessage.getString().isEmpty()) {
-			bounds = bounds.include(centeredTextBounds(statusMessage, centerX, layout.statusMessageY()));
+			bounds = bounds.include(centeredTextBounds(statusMessage, width / 2, layout.statusMessageY()));
 		}
 		return bounds;
 	}
@@ -591,6 +581,13 @@ public class LinkFilterEditorScreen extends Screen {
 	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
 		int textWidth = Math.max(1, font.width(text));
 		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (textWidth / 2), top, textWidth, font.lineHeight);
+	}
+
+	/**
+	 * @return 当前过滤器头部规格
+	 */
+	private GuiHeaderRenderSupport.HeaderSpec headerSpec() {
+		return GuiHeaderContextSupport.filterHeader(filterKind, backgroundPreset().borderColor());
 	}
 
 	/**

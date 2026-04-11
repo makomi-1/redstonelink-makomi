@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkGuiDisplayContext;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +30,8 @@ class PairingNetworkPayloadTest {
 			source,
 			8L,
 			5L,
-			0L
+			0L,
+			LinkGuiDisplayContext.LINK_TOGGLE_BUTTON
 		);
 
 		assertNotSame(source, payload.targets());
@@ -46,7 +48,14 @@ class PairingNetworkPayloadTest {
 	@Test
 	void corePayloadShouldCopyAndFreezeTargets() {
 		List<Long> source = new ArrayList<>(List.of(2L, 5L));
-		PairingNetwork.OpenCorePairingPayload payload = new PairingNetwork.OpenCorePairingPayload(200L, source, 9L, 0L, 6L);
+		PairingNetwork.OpenCorePairingPayload payload = new PairingNetwork.OpenCorePairingPayload(
+			200L,
+			source,
+			9L,
+			0L,
+			6L,
+			LinkGuiDisplayContext.LINK_REDSTONE_CORE
+		);
 
 		assertNotSame(source, payload.targets());
 		assertEquals(List.of(2L, 5L), payload.targets());
@@ -122,7 +131,8 @@ class PairingNetworkPayloadTest {
 			List.of(1L, 4L, 9L),
 			21L,
 			13L,
-			0L
+			0L,
+			LinkGuiDisplayContext.LINK_PULSE_EMITTER
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -136,6 +146,7 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.graphRevision(), decoded.graphRevision());
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(original.coreRevision(), decoded.coreRevision());
+		assertEquals(original.displayContextToken(), decoded.displayContextToken());
 		assertEquals(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, decoded.type());
 	}
 
@@ -144,7 +155,14 @@ class PairingNetworkPayloadTest {
 	 */
 	@Test
 	void corePayloadCodecRoundTripShouldPreserveFields() {
-		PairingNetwork.OpenCorePairingPayload original = new PairingNetwork.OpenCorePairingPayload(321L, List.of(8L, 6L), 34L, 0L, 5L);
+		PairingNetwork.OpenCorePairingPayload original = new PairingNetwork.OpenCorePairingPayload(
+			321L,
+			List.of(8L, 6L),
+			34L,
+			0L,
+			5L,
+			LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE
+		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
 		PairingNetwork.OpenCorePairingPayload.CODEC.encode(buffer, original);
@@ -155,6 +173,7 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.graphRevision(), decoded.graphRevision());
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(original.coreRevision(), decoded.coreRevision());
+		assertEquals(original.displayContextToken(), decoded.displayContextToken());
 		assertEquals(PairingNetwork.OpenCorePairingPayload.TYPE, decoded.type());
 	}
 
@@ -229,7 +248,8 @@ class PairingNetworkPayloadTest {
 			List.of(),
 			0L,
 			0L,
-			0L
+			0L,
+			LinkGuiDisplayContext.TRIGGER_SOURCE
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 

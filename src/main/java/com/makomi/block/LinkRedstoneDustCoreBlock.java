@@ -3,6 +3,7 @@ package com.makomi.block;
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.NodeSnapshotQueryService;
@@ -285,7 +286,11 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 			ensureCoreSerialAssigned(serverLevel, coreBlockEntity);
 			long serial = coreBlockEntity.getSerial();
 			if (serial > 0L) {
-				PairingNetwork.openCorePairing(serverPlayer, serial);
+				PairingNetwork.openCorePairing(
+					serverPlayer,
+					serial,
+					LinkGuiDisplayContext.resolvePairingContextToken(level.getBlockState(pos).getBlock(), LinkNodeType.CORE)
+				);
 			}
 		}
 	}

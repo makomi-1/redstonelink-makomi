@@ -1,6 +1,7 @@
 package com.makomi.item;
 
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.config.RedstoneLinkConfig;
@@ -60,7 +61,12 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
 			long serial = LinkItemData.getSerial(heldStack);
 			if (serial > 0L) {
-				PairingNetwork.openPairingBySourceType(serverPlayer, nodeType, serial);
+				PairingNetwork.openPairingBySourceType(
+					serverPlayer,
+					nodeType,
+					serial,
+					LinkGuiDisplayContext.resolvePairingContextToken(heldStack, nodeType)
+				);
 			}
 		}
 		return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
@@ -80,7 +86,12 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
 				long serial = LinkItemData.getSerial(heldStack);
 				if (serial > 0L) {
-					PairingNetwork.openPairingBySourceType(serverPlayer, nodeType, serial);
+					PairingNetwork.openPairingBySourceType(
+						serverPlayer,
+						nodeType,
+						serial,
+						LinkGuiDisplayContext.resolvePairingContextToken(heldStack, nodeType)
+					);
 				}
 			}
 			return InteractionResult.sidedSuccess(level.isClientSide);

@@ -1,6 +1,7 @@
 package com.makomi.client.screen;
 
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
@@ -36,6 +37,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	private static final Component TITLE = Component.translatable("screen.redstonelink.trigger_source_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.trigger_source_pairing.input");
 	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.trigger_source_pairing.invalid");
+	private final String displayContextToken;
 
 	/**
 	 * 基于明确来源序列号与当前连接初始化界面。
@@ -48,13 +50,15 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		List<Long> currentTargets,
 		long graphRevision,
 		long sourceRevision,
-		long coreRevision
+		long coreRevision,
+		String displayContextToken
 	) {
 		super(TITLE, sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision);
+		this.displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, SOURCE_TYPE);
 	}
 
 	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
-		this(sourceSerial, currentTargets, graphRevision, sourceRevision, 0L);
+		this(sourceSerial, currentTargets, graphRevision, sourceRevision, 0L, LinkGuiDisplayContext.TRIGGER_SOURCE);
 	}
 
 	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets) {
@@ -67,7 +71,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	 * @param hand 手持槽位（主手/副手）
 	 */
 	public TriggerSourcePairingScreen(InteractionHand hand) {
-		this(resolveHeldSerial(hand), List.of());
+		this(resolveHeldSerial(hand), List.of(), 0L, 0L, 0L, resolveHeldDisplayContextToken(hand));
 	}
 
 	/**
@@ -110,6 +114,16 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	protected Component currentLinksLine(List<Long> currentTargets) {
 		String linkedText = currentTargets.isEmpty() ? "-" : buildCurrentLinksText(currentTargets);
 		return Component.translatable("screen.redstonelink.trigger_source_pairing.current_links", linkedText);
+	}
+
+	@Override
+	protected Component headerTitle() {
+		return GuiHeaderContextSupport.pairingHeader(displayContextToken, SOURCE_TYPE, Component.empty(), 0xFFFFFFFF).title();
+	}
+
+	@Override
+	protected GuiHeaderRenderSupport.HeaderIcon headerIcon() {
+		return GuiHeaderContextSupport.pairingHeader(displayContextToken, SOURCE_TYPE, Component.empty(), 0xFFFFFFFF).icon();
 	}
 
 	@Override
@@ -174,5 +188,16 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		}
 		ItemStack held = net.minecraft.client.Minecraft.getInstance().player.getItemInHand(hand);
 		return LinkItemData.getSerial(held);
+	}
+
+	/**
+	 * 解析玩家手持物品的配对显示上下文。
+	 */
+	private static String resolveHeldDisplayContextToken(InteractionHand hand) {
+		if (net.minecraft.client.Minecraft.getInstance().player == null) {
+			return LinkGuiDisplayContext.TRIGGER_SOURCE;
+		}
+		ItemStack held = net.minecraft.client.Minecraft.getInstance().player.getItemInHand(hand);
+		return LinkGuiDisplayContext.resolvePairingContextToken(held, SOURCE_TYPE);
 	}
 }

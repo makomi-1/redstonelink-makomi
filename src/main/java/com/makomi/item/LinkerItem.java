@@ -4,6 +4,7 @@ import com.makomi.advancement.RedstoneLinkAdvancementService;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -312,7 +313,11 @@ public class LinkerItem extends Item implements PairableItem {
 		if (serial <= 0L) {
 			return;
 		}
-		PairingNetwork.openTriggerSourcePairing(serverPlayer, serial);
+		PairingNetwork.openTriggerSourcePairing(
+			serverPlayer,
+			serial,
+			LinkGuiDisplayContext.resolvePairingContextToken(stack, LinkNodeType.TRIGGER_SOURCE)
+		);
 		LinkItemData.setLinkedSerials(
 			stack,
 			NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial).visibleTargetSet()

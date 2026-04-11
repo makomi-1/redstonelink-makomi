@@ -77,6 +77,8 @@
     "screen.redstonelink.trigger_source_pairing.invalid":  "请输入一个或多个正整数序号",
     "screen.redstonelink.core_pairing.title":  "核心连接配对",
     "screen.redstonelink.core_pairing.input":  "triggerSource 序号",
+    "screen.redstonelink.pairing.variant.link_redstone_core_transparent_short":  "连接核心块（透）",
+    "screen.redstonelink.pairing.variant.link_redstone_dust_core_transparent_short":  "连接核心片（透）",
     "screen.redstonelink.pairing.input_tooltip_rule":  "规则：支持 N 与 A:B，分隔符为 /。",
     "screen.redstonelink.pairing.input_tooltip_example":  "示例：1:100/1/1000/901:1903/",
     "screen.redstonelink.core_pairing.serial":  "核心序号: %s",

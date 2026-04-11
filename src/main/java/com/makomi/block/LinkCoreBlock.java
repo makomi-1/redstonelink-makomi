@@ -4,6 +4,7 @@ import com.mojang.serialization.MapCodec;
 import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.NodeSnapshotQueryService;
@@ -183,7 +184,11 @@ public class LinkCoreBlock extends BaseEntityBlock {
 				coreBlockEntity.setLinkData(serial);
 			}
 			if (serial > 0L) {
-				PairingNetwork.openCorePairing(serverPlayer, serial);
+				PairingNetwork.openCorePairing(
+					serverPlayer,
+					serial,
+					LinkGuiDisplayContext.resolvePairingContextToken(level.getBlockState(pos).getBlock(), LinkNodeType.CORE)
+				);
 			}
 		}
 	}
