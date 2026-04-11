@@ -411,6 +411,7 @@ function Test-SupportsStructuredBenchLinkMapping {
 	switch ([string]$Rule.mapping) {
 		"broadcast_all" { return $true }
 		"fan_in_first" { return $true }
+		"zip" { return $true }
 		"banded" { return $true }
 		default { return $false }
 	}
@@ -463,6 +464,9 @@ function New-StructuredLinkCommandPlan {
 		}
 		"fan_in_first" {
 			$mappingCommandText = "fan_in_first"
+		}
+		"zip" {
+			$mappingCommandText = "zip"
 		}
 		"banded" {
 			$fanout = [int](Get-OptionalProperty -Object $Rule -Name "fanout" -DefaultValue 0)

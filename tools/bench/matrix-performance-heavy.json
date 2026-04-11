@@ -32,6 +32,7 @@
     "cases/performance/p17/pulse_1024_to_1_core_dense.json",
     "cases/performance/p18/sync_1024_to_1024_core_banded16.json",
     "cases/performance/p19/mixed_1024_to_1024_core_banded16.json",
-    "cases/performance/p25/mixed_1024_to_1024_topology_mutation_batches.json"
+    "cases/performance/p25/mixed_1024_to_1024_topology_mutation_batches.json",
+    "cases/performance/p26/sync_1024_to_1024_core_banded16_min_cover_nodeset_filters.json"
   ]
 }

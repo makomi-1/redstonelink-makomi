@@ -124,6 +124,17 @@ switch ($Action) {
 				}
 			}
 
+			$setupPhases = @(Get-OptionalProperty -Object $caseConfig -Name "setupPhases" -DefaultValue @())
+			$setupPhaseExecution = Invoke-FunctionalPhases `
+				-Connection $connection `
+				-CaseConfig $caseConfig `
+				-SourceSerialMaps $sourceSerialMaps `
+				-TargetSerialMap $targetSerialMap `
+				-Phases $setupPhases
+			if (-not $setupPhaseExecution.passed) {
+				throw "Performance case setup phases failed: $($caseConfig.id)"
+			}
+
 			$observationDimension = [string](Get-OptionalProperty -Object (Get-OptionalProperty -Object $caseConfig -Name "observation") -Name "dimension" -DefaultValue $targetDimension)
 			$observationPoint = Get-ObservationPointForPlacedNodes `
 				-TargetPositions $targetPositions `
@@ -242,6 +253,7 @@ switch ($Action) {
 				linkBuild = $linkBuildSummary
 				linkCommands = $linkCommands
 				linkOperations = @($linkOperations)
+				setupPhases = $setupPhaseExecution
 				spark = [ordered]@{
 					start = $sparkStart
 					stop = $sparkStop

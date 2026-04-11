@@ -1713,8 +1713,16 @@ function Invoke-FunctionalPhases {
 		$Connection,
 		$CaseConfig,
 		[hashtable]$SourceSerialMaps,
-		[hashtable]$TargetSerialMap
+		[hashtable]$TargetSerialMap,
+		$Phases = $null
 	)
+	# 允许性能 case 复用同一套 phase 执行器，在 spark 前完成 setup。
+	$resolvedPhases = @()
+	if ($null -ne $Phases) {
+		$resolvedPhases = @($Phases)
+	} else {
+		$resolvedPhases = @(Get-OptionalProperty -Object $CaseConfig -Name "phases" -DefaultValue @())
+	}
 	$phaseResults = New-Object System.Collections.Generic.List[object]
 	$checks = New-Object System.Collections.Generic.List[object]
 	$failedChecks = New-Object System.Collections.Generic.List[object]
@@ -1726,7 +1734,7 @@ function Invoke-FunctionalPhases {
 		-Checks $checks `
 		-FailedChecks $failedChecks `
 		-PhaseContext $phaseContext
-	foreach ($phase in $CaseConfig.phases) {
+	foreach ($phase in $resolvedPhases) {
 		$kind = [string](Get-OptionalProperty -Object $phase -Name "kind" -DefaultValue "")
 		if ([string]::IsNullOrWhiteSpace($kind)) {
 			throw "Functional phase kind is required."

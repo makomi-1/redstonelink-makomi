@@ -54,6 +54,15 @@ public final class BenchLinkCommandRegistry {
 														)
 												)
 												.then(
+													Commands.literal("zip")
+														.executes(
+															context -> BenchLinkMappingApplySupport.executeApply(
+																context,
+																BenchLinkMappingApplySupport.MappingSpec.zip()
+															)
+														)
+												)
+												.then(
 													Commands
 														.literal("banded")
 														.then(

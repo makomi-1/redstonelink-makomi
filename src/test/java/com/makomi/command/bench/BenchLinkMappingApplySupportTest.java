@@ -47,6 +47,22 @@ class BenchLinkMappingApplySupportTest {
 	}
 
 	/**
+	 * zip 应按 source 索引逐项映射到同索引目标。
+	 */
+	@Test
+	void resolveTargetsForSourceIndexShouldZipToMatchingTarget() {
+		List<Long> targets = List.of(31L, 32L, 33L);
+
+		List<Long> resolved = BenchLinkMappingApplySupport.resolveTargetsForSourceIndex(
+			targets,
+			1,
+			BenchLinkMappingApplySupport.MappingSpec.zip()
+		);
+
+		assertEquals(List.of(32L), resolved);
+	}
+
+	/**
 	 * banded 应按窗口规则并支持 wrap。
 	 */
 	@Test

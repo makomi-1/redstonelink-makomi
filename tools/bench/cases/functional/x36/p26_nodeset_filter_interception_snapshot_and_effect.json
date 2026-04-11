@@ -1,0 +1,755 @@
+{
+  "id": "p26_nodeset_filter_interception_snapshot_and_effect",
+  "description": "基于 P26 的 1024->1024 最小空间覆盖过滤器场景，分别验证 triggerSource/core 连续对称节点集 blocklist 拦截的配置快照与高压实际结果。",
+  "layer": "X",
+  "scenarioId": "X36",
+  "parameters": {
+    "sharedSymmetricSerials": "1:4/29:32/993:996/1021:1024"
+  },
+  "arena": {
+    "clearFrom": [-8, 63, 752],
+    "clearTo": [87, 66, 800]
+  },
+  "targets": {
+    "id": "core_x36_p26_validation",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [48, 64, 760],
+      "to": [79, 64, 791]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_x36_p26_validation",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 760],
+        "to": [31, 64, 791]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_x36_p26_validation",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_mixed",
+      "name": "mount_x36_corner_targets",
+      "serialIndexes": [0, 4, 27, 31, 992, 996, 1019, 1023],
+      "capacity": 96
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_send_filter_support_1",
+      "command": "setblock 8 65 768 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_send_filter_support_2",
+      "command": "setblock 24 65 768 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_send_filter_support_3",
+      "command": "setblock 8 65 784 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_send_filter_support_4",
+      "command": "setblock 24 65 784 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_receive_filter_support_1",
+      "command": "setblock 56 65 768 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_receive_filter_support_2",
+      "command": "setblock 72 65 768 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_receive_filter_support_3",
+      "command": "setblock 56 65 784 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_receive_filter_support_4",
+      "command": "setblock 72 65 784 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_send_filter_1",
+      "command": "setblock 8 66 768 redstonelink:link_send_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_send_filter_2",
+      "command": "setblock 24 66 768 redstonelink:link_send_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_send_filter_3",
+      "command": "setblock 8 66 784 redstonelink:link_send_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_send_filter_4",
+      "command": "setblock 24 66 784 redstonelink:link_send_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_receive_filter_1",
+      "command": "setblock 56 66 768 redstonelink:link_receive_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_receive_filter_2",
+      "command": "setblock 72 66 768 redstonelink:link_receive_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_receive_filter_3",
+      "command": "setblock 56 66 784 redstonelink:link_receive_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_x36_receive_filter_4",
+      "command": "setblock 72 66 784 redstonelink:link_receive_filter",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_x36_send_filter_1",
+      "command": "setblock 8 66 769 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_x36_send_filter_2",
+      "command": "setblock 24 66 769 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_x36_send_filter_3",
+      "command": "setblock 8 66 785 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_x36_send_filter_4",
+      "command": "setblock 24 66 785 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_send_filter_attach",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_x36_send_filter_1",
+      "command": "data merge block 8 66 768 {serialExpression:\"{{param:sharedSymmetricSerials}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_x36_send_filter_2",
+      "command": "data merge block 24 66 768 {serialExpression:\"{{param:sharedSymmetricSerials}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_x36_send_filter_3",
+      "command": "data merge block 8 66 784 {serialExpression:\"{{param:sharedSymmetricSerials}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_x36_send_filter_4",
+      "command": "data merge block 24 66 784 {serialExpression:\"{{param:sharedSymmetricSerials}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_send_filter_config",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_send_filter_1_drop_neighbor",
+      "command": "setblock 8 66 769 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_send_filter_2_drop_neighbor",
+      "command": "setblock 24 66 769 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_send_filter_3_drop_neighbor",
+      "command": "setblock 8 66 785 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_send_filter_4_drop_neighbor",
+      "command": "setblock 24 66 785 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_send_filter_1_restore_neighbor",
+      "command": "setblock 8 66 769 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_send_filter_2_restore_neighbor",
+      "command": "setblock 24 66 769 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_send_filter_3_restore_neighbor",
+      "command": "setblock 8 66 785 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_send_filter_4_restore_neighbor",
+      "command": "setblock 24 66 785 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_send_filter_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_send_filter_serial_expression",
+      "command": "data get block 8 66 768 serialExpression",
+      "expectedRegex": "1:4/29:32/993:996/1021:1024"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_send_filter_node_set_mode",
+      "command": "data get block 8 66 768 nodeSetMode",
+      "expectedRegex": "(?i)blocklist"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_send_filter_signal_threshold_source",
+      "command": "data get block 8 66 768 signalThresholdSource",
+      "expectedRegex": "(?i)fixed_input"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_send_filter_fixed_threshold",
+      "command": "data get block 8 66 768 fixedSignalThreshold",
+      "expectedRegex": "(?<!\\d)15(?!\\d)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_send_filter_signal_mode",
+      "command": "data get block 8 66 768 signalMode",
+      "expectedRegex": "(?i)disabled"
+    },
+    {
+      "templateRef": "input_start_custom_batch_triggerSource",
+      "name": "start_x36_send_phase_all_sources_high",
+      "phaseTicks": 0,
+      "totalTicks": 0,
+      "entries": [
+        {
+          "serialRef": "sync_x36_p26_validation",
+          "serialFormat": "range",
+          "sequence": "15"
+        }
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_send_phase_all_sources_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_phase_nw_blocked_range_should_stay_low",
+      "serialFormat": "mixed",
+      "serialIndex": 0,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_phase_nw_outside_range_should_pass",
+      "serialFormat": "mixed",
+      "serialIndex": 4,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_phase_ne_outside_range_should_pass",
+      "serialFormat": "mixed",
+      "serialIndex": 27,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_phase_ne_blocked_range_should_stay_low",
+      "serialFormat": "mixed",
+      "serialIndex": 31,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_phase_sw_blocked_range_should_stay_low",
+      "serialFormat": "mixed",
+      "serialIndex": 992,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_phase_sw_outside_range_should_pass",
+      "serialFormat": "mixed",
+      "serialIndex": 996,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_phase_se_outside_range_should_pass",
+      "serialFormat": "mixed",
+      "serialIndex": 1019,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_phase_se_blocked_range_should_stay_low",
+      "serialFormat": "mixed",
+      "serialIndex": 1023,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_x36_send_phase_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_send_phase_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "disable_x36_send_filter_1_by_zero_neighbor",
+      "command": "setblock 8 66 769 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "disable_x36_send_filter_2_by_zero_neighbor",
+      "command": "setblock 24 66 769 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "disable_x36_send_filter_3_by_zero_neighbor",
+      "command": "setblock 8 66 785 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "disable_x36_send_filter_4_by_zero_neighbor",
+      "command": "setblock 24 66 785 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_send_filters_zero_disable",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_batch_triggerSource",
+      "name": "start_x36_send_disabled_sanity_all_sources_high",
+      "phaseTicks": 0,
+      "totalTicks": 0,
+      "entries": [
+        {
+          "serialRef": "sync_x36_p26_validation",
+          "serialFormat": "range",
+          "sequence": "15"
+        }
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_send_disabled_sanity_all_sources_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_disabled_sanity_nw_blocked_range_should_restore",
+      "serialFormat": "mixed",
+      "serialIndex": 0,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_disabled_sanity_ne_blocked_range_should_restore",
+      "serialFormat": "mixed",
+      "serialIndex": 31,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_disabled_sanity_sw_blocked_range_should_restore",
+      "serialFormat": "mixed",
+      "serialIndex": 992,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_send_disabled_sanity_se_blocked_range_should_restore",
+      "serialFormat": "mixed",
+      "serialIndex": 1023,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_x36_send_disabled_sanity_jobs"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_send_disabled_sanity_clear",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_x36_receive_filter_1",
+      "command": "setblock 56 66 769 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_x36_receive_filter_2",
+      "command": "setblock 72 66 769 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_x36_receive_filter_3",
+      "command": "setblock 56 66 785 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_x36_receive_filter_4",
+      "command": "setblock 72 66 785 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_receive_filter_attach",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_x36_receive_filter_1",
+      "command": "data merge block 56 66 768 {serialExpression:\"{{param:sharedSymmetricSerials}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_x36_receive_filter_2",
+      "command": "data merge block 72 66 768 {serialExpression:\"{{param:sharedSymmetricSerials}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_x36_receive_filter_3",
+      "command": "data merge block 56 66 784 {serialExpression:\"{{param:sharedSymmetricSerials}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_x36_receive_filter_4",
+      "command": "data merge block 72 66 784 {serialExpression:\"{{param:sharedSymmetricSerials}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"fixed_input\",fixedSignalThreshold:15,signalMode:\"disabled\"}",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_receive_filter_config",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_receive_filter_1_drop_neighbor",
+      "command": "setblock 56 66 769 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_receive_filter_2_drop_neighbor",
+      "command": "setblock 72 66 769 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_receive_filter_3_drop_neighbor",
+      "command": "setblock 56 66 785 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_receive_filter_4_drop_neighbor",
+      "command": "setblock 72 66 785 minecraft:air",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_receive_filter_1_restore_neighbor",
+      "command": "setblock 56 66 769 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_receive_filter_2_restore_neighbor",
+      "command": "setblock 72 66 769 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_receive_filter_3_restore_neighbor",
+      "command": "setblock 56 66 785 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_x36_receive_filter_4_restore_neighbor",
+      "command": "setblock 72 66 785 minecraft:redstone_block",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_receive_filter_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_receive_filter_serial_expression",
+      "command": "data get block 56 66 768 serialExpression",
+      "expectedRegex": "1:4/29:32/993:996/1021:1024"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_receive_filter_node_set_mode",
+      "command": "data get block 56 66 768 nodeSetMode",
+      "expectedRegex": "(?i)blocklist"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_receive_filter_signal_threshold_source",
+      "command": "data get block 56 66 768 signalThresholdSource",
+      "expectedRegex": "(?i)fixed_input"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_receive_filter_fixed_threshold",
+      "command": "data get block 56 66 768 fixedSignalThreshold",
+      "expectedRegex": "(?<!\\d)15(?!\\d)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_x36_receive_filter_signal_mode",
+      "command": "data get block 56 66 768 signalMode",
+      "expectedRegex": "(?i)disabled"
+    },
+    {
+      "templateRef": "input_start_custom_batch_triggerSource",
+      "name": "start_x36_receive_phase_all_sources_high",
+      "phaseTicks": 0,
+      "totalTicks": 0,
+      "entries": [
+        {
+          "serialRef": "sync_x36_p26_validation",
+          "serialFormat": "range",
+          "sequence": "15"
+        }
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_x36_receive_phase_all_sources_high",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_receive_phase_nw_blocked_range_should_stay_low",
+      "serialFormat": "mixed",
+      "serialIndex": 0,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_receive_phase_nw_outside_range_should_pass",
+      "serialFormat": "mixed",
+      "serialIndex": 4,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_receive_phase_ne_outside_range_should_pass",
+      "serialFormat": "mixed",
+      "serialIndex": 27,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_receive_phase_ne_blocked_range_should_stay_low",
+      "serialFormat": "mixed",
+      "serialIndex": 31,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_receive_phase_sw_blocked_range_should_stay_low",
+      "serialFormat": "mixed",
+      "serialIndex": 992,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_receive_phase_sw_outside_range_should_pass",
+      "serialFormat": "mixed",
+      "serialIndex": 996,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_receive_phase_se_outside_range_should_pass",
+      "serialFormat": "mixed",
+      "serialIndex": 1019,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "x36_receive_phase_se_blocked_range_should_stay_low",
+      "serialFormat": "mixed",
+      "serialIndex": 1023,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_x36_receive_phase_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_mixed",
+      "name": "unmount_x36_corner_targets",
+      "serialIndexes": [0, 4, 27, 31, 992, 996, 1019, 1023]
+    }
+  ]
+}

@@ -367,6 +367,7 @@ final class BenchLinkMappingApplySupport {
 		return switch (mappingSpec.mode()) {
 			case BROADCAST_ALL -> List.copyOf(orderedTargets);
 			case FAN_IN_FIRST -> List.of(orderedTargets.get(0));
+			case ZIP -> sourceIndex < orderedTargets.size() ? List.of(orderedTargets.get(sourceIndex)) : List.of();
 			case BANDED -> resolveBandedTargetsForSourceIndex(orderedTargets, sourceIndex, mappingSpec);
 		};
 	}
@@ -422,6 +423,10 @@ final class BenchLinkMappingApplySupport {
 			return new MappingSpec(MappingMode.FAN_IN_FIRST, 0, 0, 0, true);
 		}
 
+		static MappingSpec zip() {
+			return new MappingSpec(MappingMode.ZIP, 0, 0, 0, true);
+		}
+
 		static MappingSpec banded(int fanout, int stride, int offset, boolean wrap) {
 			return new MappingSpec(MappingMode.BANDED, fanout, stride, offset, wrap);
 		}
@@ -440,6 +445,7 @@ final class BenchLinkMappingApplySupport {
 	enum MappingMode {
 		BROADCAST_ALL("broadcast_all"),
 		FAN_IN_FIRST("fan_in_first"),
+		ZIP("zip"),
 		BANDED("banded");
 
 		private final String serializedName;

@@ -190,6 +190,54 @@ class CommandEntryContractTest {
 	}
 
 	/**
+	 * bench zip 映射应在双 serial batch 之后继续解析 zip literal。
+	 */
+	@Test
+	void benchLinkApplyShouldParseZipAfterTwoSerialBatches() throws Exception {
+		CommandDispatcher<Object> dispatcher = new CommandDispatcher<>();
+		AtomicReference<String> sourceSerials = new AtomicReference<>();
+		AtomicReference<String> targetSerials = new AtomicReference<>();
+		AtomicReference<String> mapping = new AtomicReference<>();
+		dispatcher.register(
+			com.mojang.brigadier.builder.LiteralArgumentBuilder
+				.<Object>literal("apply")
+				.then(
+					com.mojang.brigadier.builder.LiteralArgumentBuilder
+						.<Object>literal("triggerSource")
+						.then(
+							com.mojang.brigadier.builder.RequiredArgumentBuilder
+								.<Object, String>argument("source_serials", SerialBatchArgumentType.serialBatch())
+								.then(
+									com.mojang.brigadier.builder.LiteralArgumentBuilder
+										.<Object>literal("core")
+										.then(
+											com.mojang.brigadier.builder.RequiredArgumentBuilder
+												.<Object, String>argument("target_serials", SerialBatchArgumentType.serialBatch())
+												.then(
+													com.mojang.brigadier.builder.LiteralArgumentBuilder
+														.<Object>literal("zip")
+														.executes(context -> {
+															sourceSerials.set(SerialBatchArgumentType.getSerialBatch(context, "source_serials"));
+															targetSerials.set(SerialBatchArgumentType.getSerialBatch(context, "target_serials"));
+															mapping.set("zip");
+															return 1;
+														})
+												)
+										)
+								)
+						)
+				)
+		);
+
+		int result = dispatcher.execute("apply triggerSource 1:4 core 10:20 zip", new Object());
+
+		assertEquals(1, result);
+		assertEquals("1:4", sourceSerials.get());
+		assertEquals("10:20", targetSerials.get());
+		assertEquals("zip", mapping.get());
+	}
+
+	/**
 	 * bench banded 映射应保留 `key=value` 风格的显式参数顺序。
 	 */
 	@Test
