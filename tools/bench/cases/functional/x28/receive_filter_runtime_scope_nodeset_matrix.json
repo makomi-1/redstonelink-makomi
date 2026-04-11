@@ -50,6 +50,12 @@
     },
     {
       "templateRef": "command_assert",
+      "name": "place_receive_filter_scope_matrix_low_neighbor_support",
+      "command": "fill 14 63 646 22 63 646 minecraft:stone",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
       "name": "place_receive_filter_scope_matrix_block",
       "command": "setblock 14 64 644 redstonelink:link_receive_filter",
       "allowEmptyResponse": true
@@ -187,8 +193,20 @@
     },
     {
       "templateRef": "command_assert",
+      "name": "prepare_receive_filter_neighbor_nonzero_seven_source",
+      "command": "fill 14 64 646 21 64 646 minecraft:redstone_wire",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "prepare_receive_filter_neighbor_nonzero_seven_tail",
+      "command": "setblock 14 64 645 minecraft:redstone_wire",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
       "name": "drop_receive_filter_neighbor_to_nonzero_seven",
-      "command": "setblock 14 64 645 minecraft:redstone_wire[power=7]",
+      "command": "setblock 22 64 646 minecraft:redstone_block",
       "allowEmptyResponse": true
     },
     {

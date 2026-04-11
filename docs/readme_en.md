@@ -12,7 +12,7 @@
 
 # Overview
 
-A wireless redstone mod built around a `time-priority + fixed priority within the same tick` arbitration model and `serial-number pairing`. It supports `cross-chunk` links, `relay delay`, and `permission management`, and also provides transparent variants of `core` nodes plus a `quick link tool`.
+A wireless redstone mod built around a `time-priority + fixed priority within the same tick` arbitration model and `serial-number pairing`. It supports `cross-dimensionality` links, `relay delay`, and `permission management`, and also provides transparent variants of `core` nodes plus a `quick link tool`.
 
 ## Features
 - Theoretically almost `no distance limit`
