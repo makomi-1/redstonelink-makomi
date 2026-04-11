@@ -171,7 +171,7 @@ final class ActivatableTargetArbitrationComponent {
 		return switch (authorityMode) {
 			case SYNC -> concurrentComponent.syncSignalMaxStrength() > 0 ? EffectiveMode.SYNC : EffectiveMode.NONE;
 			case PULSE -> owner != null && concurrentComponent.isPulseTruthActive(owner) ? EffectiveMode.PULSE : EffectiveMode.NONE;
-			case TOGGLE -> (concurrentComponent.toggleConcurrentCount() > 0 || concurrentComponent.toggleState())
+			case TOGGLE -> (concurrentComponent.toggleSnapshotRecorded() || concurrentComponent.toggleState())
 				? EffectiveMode.TOGGLE
 				: EffectiveMode.NONE;
 			case NONE -> EffectiveMode.NONE;
@@ -237,50 +237,36 @@ final class ActivatableTargetArbitrationComponent {
 		ActivatableTargetConcurrentBucketComponent concurrentComponent,
 		ActivatableTargetBlockEntity owner
 	) {
-		if (owner == null || !concurrentComponent.isPulseTruthActive(owner) || concurrentComponent.pulseConcurrentBuckets().isEmpty()) {
+		if (
+			owner == null
+				|| !concurrentComponent.isPulseTruthActive(owner)
+				|| !concurrentComponent.pulseSnapshotRecorded()
+		) {
 			return null;
 		}
-		TimeKey timeKey = concurrentComponent.pulseConcurrentBuckets().lastKey();
-		Map<ActivatableTargetBlockEntity.SourceKey, ActivatableTargetConcurrentBucketComponent.PulseConcurrentEntry> bucket =
-			concurrentComponent.pulseConcurrentBuckets().get(timeKey);
-		long seq = 0L;
-		if (bucket != null) {
-			for (ActivatableTargetConcurrentBucketComponent.PulseConcurrentEntry entry : bucket.values()) {
-				if (entry != null) {
-					seq = Math.max(seq, entry.seq());
-				}
-			}
-		}
-		return new Candidate(EffectiveMode.PULSE, timeKey, seq, PRIORITY_PULSE);
+		return new Candidate(
+			EffectiveMode.PULSE,
+			concurrentComponent.pulseEventTimeKey(),
+			concurrentComponent.pulseEventSeq(),
+			PRIORITY_PULSE
+		);
 	}
 
 	private Candidate resolveToggleCandidate(ActivatableTargetConcurrentBucketComponent concurrentComponent) {
-		if (concurrentComponent.toggleConcurrentBuckets().isEmpty() || concurrentComponent.toggleConcurrentCount() <= 0) {
+		if (!concurrentComponent.toggleSnapshotRecorded()) {
 			return null;
 		}
-		TimeKey timeKey = concurrentComponent.toggleConcurrentBuckets().lastKey();
-		Map<ActivatableTargetBlockEntity.SourceKey, ActivatableTargetConcurrentBucketComponent.ToggleConcurrentEntry> bucket =
-			concurrentComponent.toggleConcurrentBuckets().get(timeKey);
-		long seq = 0L;
-		if (bucket != null) {
-			for (ActivatableTargetConcurrentBucketComponent.ToggleConcurrentEntry entry : bucket.values()) {
-				if (entry != null) {
-					seq = Math.max(seq, entry.seq());
-				}
-			}
-		}
-		return new Candidate(EffectiveMode.TOGGLE, timeKey, seq, PRIORITY_TOGGLE);
+		return new Candidate(
+			EffectiveMode.TOGGLE,
+			concurrentComponent.toggleEventTimeKey(),
+			concurrentComponent.toggleEventSeq(),
+			PRIORITY_TOGGLE
+		);
 	}
 
 	private static Candidate pickWinner(Candidate syncCandidate, Candidate pulseCandidate, Candidate toggleCandidate) {
-		Candidate nonToggleWinner = pickMoreRecentCandidate(syncCandidate, pulseCandidate);
-		if (nonToggleWinner == null) {
-			return toggleCandidate;
-		}
-		if (nonToggleWinner.mode() == EffectiveMode.PULSE) {
-			return nonToggleWinner;
-		}
-		return pickMoreRecentCandidate(nonToggleWinner, toggleCandidate);
+		Candidate winner = pickMoreRecentCandidate(syncCandidate, pulseCandidate);
+		return pickMoreRecentCandidate(winner, toggleCandidate);
 	}
 
 	private static Candidate pickMoreRecentCandidate(Candidate left, Candidate right) {

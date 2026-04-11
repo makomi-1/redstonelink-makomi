@@ -17,8 +17,8 @@ import net.minecraft.world.level.Level;
 /**
  * `core` 目标端并发来源桶组件。
  * <p>
- * 统一维护 `sync/pulse/toggle` 三类持久化来源桶、运行态模拟 `sync` 桶、
- * 以及由桶重建出的结构真值与快照。
+ * 统一维护 `sync` 来源贡献桶、运行态模拟 `sync` 桶，
+ * 以及 `pulse/toggle` 的目标本地事件快照与兼容运行时桶。
  * </p>
  */
 final class ActivatableTargetConcurrentBucketComponent {
@@ -26,6 +26,12 @@ final class ActivatableTargetConcurrentBucketComponent {
 	private long pulseEpoch;
 	private boolean toggleState;
 	private boolean pulseResetArmed;
+	private boolean pulseSnapshotRecorded;
+	private TimeKey pulseEventTimeKey = TimeKey.minValue();
+	private long pulseEventSeq;
+	private boolean toggleSnapshotRecorded;
+	private TimeKey toggleEventTimeKey = TimeKey.minValue();
+	private long toggleEventSeq;
 
 	private final Map<Long, Integer> syncSignalStrengthBySource = new HashMap<>();
 	private int syncSignalMaxStrength;
@@ -70,6 +76,54 @@ final class ActivatableTargetConcurrentBucketComponent {
 
 	void setPulseResetArmed(boolean pulseResetArmed) {
 		this.pulseResetArmed = pulseResetArmed;
+	}
+
+	boolean pulseSnapshotRecorded() {
+		return pulseSnapshotRecorded;
+	}
+
+	void setPulseSnapshotRecorded(boolean pulseSnapshotRecorded) {
+		this.pulseSnapshotRecorded = pulseSnapshotRecorded;
+	}
+
+	TimeKey pulseEventTimeKey() {
+		return pulseEventTimeKey;
+	}
+
+	void setPulseEventTimeKey(TimeKey pulseEventTimeKey) {
+		this.pulseEventTimeKey = pulseEventTimeKey == null ? TimeKey.of(0L, 0) : pulseEventTimeKey;
+	}
+
+	long pulseEventSeq() {
+		return pulseEventSeq;
+	}
+
+	void setPulseEventSeq(long pulseEventSeq) {
+		this.pulseEventSeq = Math.max(0L, pulseEventSeq);
+	}
+
+	boolean toggleSnapshotRecorded() {
+		return toggleSnapshotRecorded;
+	}
+
+	void setToggleSnapshotRecorded(boolean toggleSnapshotRecorded) {
+		this.toggleSnapshotRecorded = toggleSnapshotRecorded;
+	}
+
+	TimeKey toggleEventTimeKey() {
+		return toggleEventTimeKey;
+	}
+
+	void setToggleEventTimeKey(TimeKey toggleEventTimeKey) {
+		this.toggleEventTimeKey = toggleEventTimeKey == null ? TimeKey.of(0L, 0) : toggleEventTimeKey;
+	}
+
+	long toggleEventSeq() {
+		return toggleEventSeq;
+	}
+
+	void setToggleEventSeq(long toggleEventSeq) {
+		this.toggleEventSeq = Math.max(0L, toggleEventSeq);
 	}
 
 	int syncSignalMaxStrength() {
@@ -136,25 +190,24 @@ final class ActivatableTargetConcurrentBucketComponent {
 	}
 
 	boolean pruneOlderFramesForIncoming(TimeKey incomingTimeKey, EffectiveMode incomingMode) {
-		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
-		boolean changed = removeConcurrentBucketsBefore(syncConcurrentBuckets, normalizedTimeKey);
-		changed |= removeConcurrentBucketsBefore(runtimeSimulatedSyncConcurrentBuckets, normalizedTimeKey);
-		changed |= removeConcurrentBucketsBefore(toggleConcurrentBuckets, normalizedTimeKey);
-		if (incomingMode == EffectiveMode.SYNC) {
-			changed |= clearPulseTruth();
-			return changed;
-		}
-		if (incomingMode == EffectiveMode.PULSE) {
-			changed |= removeConcurrentBucketsBefore(pulseConcurrentBuckets, normalizedTimeKey);
-		}
-		return changed;
+		// 新模型下，旧候选需要作为后备真值保留，供 pulse 到期或 sync 失效后回退。
+		// 因此不再按“新事件到来”跨模式剪除旧 `sync/toggle/pulse` 快照。
+		return false;
 	}
 
 	boolean clearPulseTruth() {
-		boolean changed = !pulseConcurrentBuckets.isEmpty() || pulseUntilGameTime > 0L || pulseResetArmed;
+		boolean changed = !pulseConcurrentBuckets.isEmpty()
+			|| pulseUntilGameTime > 0L
+			|| pulseResetArmed
+			|| pulseSnapshotRecorded
+			|| pulseEventSeq > 0L
+			|| !TimeKey.minValue().equals(pulseEventTimeKey);
 		pulseConcurrentBuckets.clear();
 		pulseUntilGameTime = 0L;
 		pulseResetArmed = false;
+		pulseSnapshotRecorded = false;
+		pulseEventTimeKey = TimeKey.minValue();
+		pulseEventSeq = 0L;
 		return changed;
 	}
 
@@ -202,17 +255,14 @@ final class ActivatableTargetConcurrentBucketComponent {
 		long now = level == null ? 0L : level.getGameTime();
 		long untilTick = now + pulseTicks;
 		PulseConcurrentEntry nextEntry = new PulseConcurrentEntry(untilTick, seq);
-		if (hasExactConcurrentEntry(pulseConcurrentBuckets, sourceKey, timeKey, nextEntry)) {
-			return false;
+		boolean changed = !hasExactConcurrentEntry(pulseConcurrentBuckets, sourceKey, timeKey, nextEntry);
+		if (changed) {
+			removeSourceFromConcurrentBuckets(pulseConcurrentBuckets, sourceKey);
+			Map<SourceKey, PulseConcurrentEntry> bucket = pulseConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>());
+			bucket.put(sourceKey, nextEntry);
 		}
-		removeSourceFromConcurrentBuckets(pulseConcurrentBuckets, sourceKey);
-		Map<SourceKey, PulseConcurrentEntry> bucket = pulseConcurrentBuckets.computeIfAbsent(timeKey, ignored -> new TreeMap<>());
-		bucket.put(sourceKey, nextEntry);
-		pulseEpoch++;
-		if (level != null) {
-			owner.schedulePulseReset(pulseTicks);
-		}
-		return true;
+		boolean snapshotChanged = recordPulseSnapshot(owner, timeKey, seq);
+		return changed || snapshotChanged;
 	}
 
 	boolean removePulseConcurrentSource(SourceKey sourceKey) {
@@ -276,6 +326,47 @@ final class ActivatableTargetConcurrentBucketComponent {
 		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
 	}
 
+	/**
+	 * 记录 `pulse` 事件快照，并刷新其目标本地生效窗口。
+	 */
+	boolean recordPulseSnapshot(ActivatableTargetBlockEntity owner, TimeKey timeKey, long seq) {
+		int pulseTicks = Math.max(1, owner.getPulseDurationTicks());
+		Level level = owner.getLevel();
+		long now = level == null ? 0L : level.getGameTime();
+		long nextUntilTick = now + pulseTicks;
+		boolean changed = !pulseSnapshotRecorded
+			|| !java.util.Objects.equals(pulseEventTimeKey, timeKey)
+			|| pulseEventSeq != Math.max(0L, seq)
+			|| pulseUntilGameTime != nextUntilTick
+			|| !pulseResetArmed;
+		pulseSnapshotRecorded = true;
+		pulseEventTimeKey = timeKey == null ? TimeKey.of(0L, 0) : timeKey;
+		pulseEventSeq = Math.max(0L, seq);
+		pulseEpoch++;
+		pulseUntilGameTime = Math.max(pulseUntilGameTime, nextUntilTick);
+		pulseResetArmed = true;
+		if (level != null) {
+			long remaining = Math.max(1L, pulseUntilGameTime - now);
+			owner.schedulePulseReset((int) remaining);
+		}
+		return changed;
+	}
+
+	/**
+	 * 记录 `toggle` 事件快照，作为目标本地持久结果。
+	 */
+	boolean recordToggleSnapshot(boolean nextToggleState, TimeKey timeKey, long seq) {
+		boolean changed = !toggleSnapshotRecorded
+			|| toggleState != nextToggleState
+			|| !java.util.Objects.equals(toggleEventTimeKey, timeKey)
+			|| toggleEventSeq != Math.max(0L, seq);
+		toggleSnapshotRecorded = true;
+		toggleState = nextToggleState;
+		toggleEventTimeKey = timeKey == null ? TimeKey.of(0L, 0) : timeKey;
+		toggleEventSeq = Math.max(0L, seq);
+		return changed;
+	}
+
 	PersistentSyncSnapshot buildPersistentSyncSnapshot() {
 		Map<Long, Integer> persistentStrengthBySource = new TreeMap<>();
 		mergeSyncTruthFromBuckets(syncConcurrentBuckets, persistentStrengthBySource);
@@ -300,74 +391,51 @@ final class ActivatableTargetConcurrentBucketComponent {
 		return new PersistentSyncSnapshot(persistentStrengthBySource, persistentMaxSources);
 	}
 
+	/**
+	 * 按 `pulse` 事件快照重建当前生效窗口；旧来源桶仅用于兼容迁移。
+	 */
 	boolean recomputePulseTruthFromConcurrentBuckets(ActivatableTargetBlockEntity owner) {
 		Level level = owner.getLevel();
 		long now = level == null ? 0L : level.getGameTime();
-		List<TimeKey> emptyKeys = new ArrayList<>();
-		long maxUntilTick = 0L;
-		boolean changed = false;
-		for (Map.Entry<TimeKey, Map<SourceKey, PulseConcurrentEntry>> bucketEntry : pulseConcurrentBuckets.entrySet()) {
-			Map<SourceKey, PulseConcurrentEntry> bucket = bucketEntry.getValue();
-			if (bucket == null || bucket.isEmpty()) {
-				emptyKeys.add(bucketEntry.getKey());
-				changed = true;
-				continue;
-			}
-			if (bucket.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().untilGameTick() <= now)) {
-				changed = true;
-			}
-			if (bucket.isEmpty()) {
-				emptyKeys.add(bucketEntry.getKey());
-				continue;
-			}
-			for (PulseConcurrentEntry pulseEntry : bucket.values()) {
-				if (pulseEntry == null) {
-					continue;
-				}
-				maxUntilTick = Math.max(maxUntilTick, pulseEntry.untilGameTick());
-			}
+		if (!pulseSnapshotRecorded) {
+			boolean changed = !pulseConcurrentBuckets.isEmpty();
+			pulseConcurrentBuckets.clear();
+			pulseUntilGameTime = 0L;
+			pulseResetArmed = false;
+			return changed;
 		}
-		for (TimeKey emptyKey : emptyKeys) {
-			if (pulseConcurrentBuckets.remove(emptyKey) != null) {
-				changed = true;
-			}
+		if (pulseUntilGameTime <= now) {
+			return clearPulseTruth();
 		}
-		if (pulseUntilGameTime != maxUntilTick) {
-			changed = true;
-		}
-		pulseUntilGameTime = maxUntilTick;
-		boolean nextPulseResetArmed = maxUntilTick > now;
+		boolean changed = !pulseConcurrentBuckets.isEmpty();
+		pulseConcurrentBuckets.clear();
+		boolean nextPulseResetArmed = true;
 		if (pulseResetArmed != nextPulseResetArmed) {
 			changed = true;
 		}
 		pulseResetArmed = nextPulseResetArmed;
-		if (pulseResetArmed && level != null) {
-			long remaining = Math.max(1L, maxUntilTick - now);
+		if (level != null) {
+			long remaining = Math.max(1L, pulseUntilGameTime - now);
 			owner.schedulePulseReset((int) remaining);
 		}
 		return changed;
 	}
 
+	/**
+	 * `toggle` 结果直接由目标本地事件快照承载；兼容桶在重算时仅做清理。
+	 */
 	void recomputeToggleTruthFromConcurrentBuckets() {
-		int activeContributors = 0;
-		for (Map<SourceKey, ToggleConcurrentEntry> bucket : toggleConcurrentBuckets.values()) {
-			if (bucket == null || bucket.isEmpty()) {
-				continue;
-			}
-			for (ToggleConcurrentEntry entry : bucket.values()) {
-				if (entry != null && entry.contributes()) {
-					activeContributors++;
-				}
-			}
-		}
-		toggleConcurrentCount = activeContributors;
+		// 新模型下，TOGGLE 的结构真值就是目标本地事件结果；
+		// 旧的来源并发桶仅作为兼容迁移/运行期观察，不再驱动结果重算。
+		toggleConcurrentCount = 0;
+		toggleConcurrentBuckets.clear();
 	}
 
 	boolean hasAnyConcurrentBuckets() {
 		return !syncConcurrentBuckets.isEmpty()
 			|| !runtimeSimulatedSyncConcurrentBuckets.isEmpty()
-			|| !pulseConcurrentBuckets.isEmpty()
-			|| !toggleConcurrentBuckets.isEmpty();
+			|| pulseSnapshotRecorded
+			|| toggleSnapshotRecorded;
 	}
 
 	boolean isPulseTruthActive(ActivatableTargetBlockEntity owner) {
@@ -383,6 +451,9 @@ final class ActivatableTargetConcurrentBucketComponent {
 
 	void resetRuntimeTransientAfterLoad() {
 		runtimeSimulatedSyncConcurrentBuckets.clear();
+		pulseConcurrentBuckets.clear();
+		toggleConcurrentBuckets.clear();
+		toggleConcurrentCount = 0;
 		toggleFrameStartContributors.clear();
 		toggleSourcesTouchedInCurrentFrame.clear();
 	}

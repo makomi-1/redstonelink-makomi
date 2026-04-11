@@ -15,7 +15,7 @@ import net.minecraft.nbt.Tag;
 /**
  * `core` 目标端持久化辅助。
  * <p>
- * 统一维护 NBT 键定义，以及并发来源桶与 `sync` 快照的序列化细节。
+ * 统一维护 NBT 键定义，以及 `sync` 来源快照与 `pulse/toggle` 事件快照的序列化细节。
  * </p>
  */
 final class ActivatableTargetPersistenceHelper {
@@ -36,6 +36,14 @@ final class ActivatableTargetPersistenceHelper {
 	static final String KEY_SYNC_CONCURRENT_ENTRIES = "SyncConcurrentEntries";
 	static final String KEY_PULSE_CONCURRENT_ENTRIES = "PulseConcurrentEntries";
 	static final String KEY_TOGGLE_CONCURRENT_ENTRIES = "ToggleConcurrentEntries";
+	static final String KEY_PULSE_EVENT_RECORDED = "PulseEventRecorded";
+	static final String KEY_PULSE_EVENT_TICK = "PulseEventTick";
+	static final String KEY_PULSE_EVENT_SLOT = "PulseEventSlot";
+	static final String KEY_PULSE_EVENT_SEQ = "PulseEventSeq";
+	static final String KEY_TOGGLE_EVENT_RECORDED = "ToggleEventRecorded";
+	static final String KEY_TOGGLE_EVENT_TICK = "ToggleEventTick";
+	static final String KEY_TOGGLE_EVENT_SLOT = "ToggleEventSlot";
+	static final String KEY_TOGGLE_EVENT_SEQ = "ToggleEventSeq";
 	static final String KEY_CONCURRENT_SOURCE_TYPE = "SourceType";
 	static final String KEY_CONCURRENT_SOURCE_SERIAL = "SourceSerial";
 	static final String KEY_CONCURRENT_TICK = "Tick";
@@ -106,10 +114,16 @@ final class ActivatableTargetPersistenceHelper {
 		concurrentComponent.syncConcurrentBuckets().clear();
 		concurrentComponent.pulseConcurrentBuckets().clear();
 		concurrentComponent.toggleConcurrentBuckets().clear();
+		concurrentComponent.setPulseSnapshotRecorded(false);
+		concurrentComponent.setPulseEventTimeKey(TimeKey.minValue());
+		concurrentComponent.setPulseEventSeq(0L);
+		concurrentComponent.setToggleSnapshotRecorded(false);
+		concurrentComponent.setToggleEventTimeKey(TimeKey.minValue());
+		concurrentComponent.setToggleEventSeq(0L);
 		boolean loaded = false;
 		loaded |= loadSyncConcurrentEntries(tag.getList(KEY_SYNC_CONCURRENT_ENTRIES, Tag.TAG_COMPOUND), concurrentComponent);
-		loaded |= loadPulseConcurrentEntries(tag.getList(KEY_PULSE_CONCURRENT_ENTRIES, Tag.TAG_COMPOUND), concurrentComponent);
-		loaded |= loadToggleConcurrentEntries(tag.getList(KEY_TOGGLE_CONCURRENT_ENTRIES, Tag.TAG_COMPOUND), concurrentComponent);
+		loaded |= loadPulseSnapshot(tag, concurrentComponent);
+		loaded |= loadToggleSnapshot(tag, concurrentComponent);
 		return loaded;
 	}
 
@@ -119,18 +133,50 @@ final class ActivatableTargetPersistenceHelper {
 		if (!syncList.isEmpty()) {
 			tag.put(KEY_SYNC_CONCURRENT_ENTRIES, syncList);
 		}
-
-		ListTag pulseList = new ListTag();
-		appendPulseConcurrentEntries(pulseList, concurrentComponent);
-		if (!pulseList.isEmpty()) {
-			tag.put(KEY_PULSE_CONCURRENT_ENTRIES, pulseList);
+		if (concurrentComponent.pulseSnapshotRecorded() && concurrentComponent.pulseUntilGameTime() > 0L) {
+			tag.putBoolean(KEY_PULSE_EVENT_RECORDED, true);
+			tag.putLong(KEY_PULSE_EVENT_TICK, Math.max(0L, concurrentComponent.pulseEventTimeKey().tick()));
+			tag.putInt(KEY_PULSE_EVENT_SLOT, Math.max(0, concurrentComponent.pulseEventTimeKey().slot()));
+			tag.putLong(KEY_PULSE_EVENT_SEQ, Math.max(0L, concurrentComponent.pulseEventSeq()));
 		}
-
-		ListTag toggleList = new ListTag();
-		appendToggleConcurrentEntries(toggleList, concurrentComponent);
-		if (!toggleList.isEmpty()) {
-			tag.put(KEY_TOGGLE_CONCURRENT_ENTRIES, toggleList);
+		if (concurrentComponent.toggleSnapshotRecorded()) {
+			tag.putBoolean(KEY_TOGGLE_EVENT_RECORDED, true);
+			tag.putLong(KEY_TOGGLE_EVENT_TICK, Math.max(0L, concurrentComponent.toggleEventTimeKey().tick()));
+			tag.putInt(KEY_TOGGLE_EVENT_SLOT, Math.max(0, concurrentComponent.toggleEventTimeKey().slot()));
+			tag.putLong(KEY_TOGGLE_EVENT_SEQ, Math.max(0L, concurrentComponent.toggleEventSeq()));
 		}
+	}
+
+	private static boolean loadPulseSnapshot(CompoundTag tag, ActivatableTargetConcurrentBucketComponent concurrentComponent) {
+		boolean recordedFromNewKeys = tag.contains(KEY_PULSE_EVENT_RECORDED, Tag.TAG_BYTE) && tag.getBoolean(KEY_PULSE_EVENT_RECORDED);
+		if (recordedFromNewKeys) {
+			concurrentComponent.setPulseSnapshotRecorded(true);
+			concurrentComponent.setPulseEventTimeKey(
+				TimeKey.of(
+					Math.max(0L, tag.getLong(KEY_PULSE_EVENT_TICK)),
+					Math.max(0, tag.getInt(KEY_PULSE_EVENT_SLOT))
+				)
+			);
+			concurrentComponent.setPulseEventSeq(Math.max(0L, tag.getLong(KEY_PULSE_EVENT_SEQ)));
+			return true;
+		}
+		return loadPulseSnapshotFromLegacyConcurrentEntries(tag.getList(KEY_PULSE_CONCURRENT_ENTRIES, Tag.TAG_COMPOUND), concurrentComponent);
+	}
+
+	private static boolean loadToggleSnapshot(CompoundTag tag, ActivatableTargetConcurrentBucketComponent concurrentComponent) {
+		boolean recordedFromNewKeys = tag.contains(KEY_TOGGLE_EVENT_RECORDED, Tag.TAG_BYTE) && tag.getBoolean(KEY_TOGGLE_EVENT_RECORDED);
+		if (recordedFromNewKeys) {
+			concurrentComponent.setToggleSnapshotRecorded(true);
+			concurrentComponent.setToggleEventTimeKey(
+				TimeKey.of(
+					Math.max(0L, tag.getLong(KEY_TOGGLE_EVENT_TICK)),
+					Math.max(0, tag.getInt(KEY_TOGGLE_EVENT_SLOT))
+				)
+			);
+			concurrentComponent.setToggleEventSeq(Math.max(0L, tag.getLong(KEY_TOGGLE_EVENT_SEQ)));
+			return true;
+		}
+		return loadToggleSnapshotFromLegacyConcurrentEntries(tag, concurrentComponent);
 	}
 
 	private static boolean loadSyncConcurrentEntries(
@@ -217,6 +263,75 @@ final class ActivatableTargetPersistenceHelper {
 			loaded = true;
 		}
 		return loaded;
+	}
+
+	private static boolean loadPulseSnapshotFromLegacyConcurrentEntries(
+		ListTag listTag,
+		ActivatableTargetConcurrentBucketComponent concurrentComponent
+	) {
+		TimeKey latestTimeKey = TimeKey.minValue();
+		long latestSeq = 0L;
+		boolean found = false;
+		for (int index = 0; index < listTag.size(); index++) {
+			CompoundTag entryTag = listTag.getCompound(index);
+			TimeKey timeKey = TimeKey.of(
+				Math.max(0L, entryTag.getLong(KEY_CONCURRENT_TICK)),
+				Math.max(0, entryTag.getInt(KEY_CONCURRENT_SLOT))
+			);
+			long seq = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_SEQ));
+			long untilTick = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_UNTIL_TICK));
+			if (untilTick <= 0L) {
+				continue;
+			}
+			if (!found || timeKey.compareTo(latestTimeKey) > 0 || (timeKey.compareTo(latestTimeKey) == 0 && seq > latestSeq)) {
+				found = true;
+				latestTimeKey = timeKey;
+				latestSeq = seq;
+			}
+		}
+		if (!found) {
+			return false;
+		}
+		concurrentComponent.setPulseSnapshotRecorded(true);
+		concurrentComponent.setPulseEventTimeKey(latestTimeKey);
+		concurrentComponent.setPulseEventSeq(latestSeq);
+		return true;
+	}
+
+	private static boolean loadToggleSnapshotFromLegacyConcurrentEntries(
+		CompoundTag tag,
+		ActivatableTargetConcurrentBucketComponent concurrentComponent
+	) {
+		ListTag listTag = tag.getList(KEY_TOGGLE_CONCURRENT_ENTRIES, Tag.TAG_COMPOUND);
+		TimeKey latestTimeKey = TimeKey.minValue();
+		long latestSeq = 0L;
+		boolean found = false;
+		for (int index = 0; index < listTag.size(); index++) {
+			CompoundTag entryTag = listTag.getCompound(index);
+			if (!entryTag.getBoolean(KEY_CONCURRENT_CONTRIBUTES)) {
+				continue;
+			}
+			TimeKey timeKey = TimeKey.of(
+				Math.max(0L, entryTag.getLong(KEY_CONCURRENT_TICK)),
+				Math.max(0, entryTag.getInt(KEY_CONCURRENT_SLOT))
+			);
+			long seq = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_SEQ));
+			if (!found || timeKey.compareTo(latestTimeKey) > 0 || (timeKey.compareTo(latestTimeKey) == 0 && seq > latestSeq)) {
+				found = true;
+				latestTimeKey = timeKey;
+				latestSeq = seq;
+			}
+		}
+		boolean legacyRecorded = found
+			|| tag.contains(KEY_TOGGLE_STATE, Tag.TAG_BYTE)
+			|| tag.getInt(KEY_TOGGLE_CONCURRENT_COUNT) > 0;
+		if (!legacyRecorded) {
+			return false;
+		}
+		concurrentComponent.setToggleSnapshotRecorded(true);
+		concurrentComponent.setToggleEventTimeKey(latestTimeKey);
+		concurrentComponent.setToggleEventSeq(latestSeq);
+		return true;
 	}
 
 	private static Optional<SourceKey> parseConcurrentSourceKey(CompoundTag entryTag) {

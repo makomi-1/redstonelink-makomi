@@ -458,38 +458,40 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 
 		if (normalizedMode == ActivationMode.PULSE) {
-			applyPulseMerged();
+			applyPulseMerged(normalizedMeta);
 			return;
 		}
 
-		applyToggleMerged();
+		applyToggleMerged(normalizedMeta);
 	}
 
 	/**
 	 * 轻量版 L2：同 tick TOGGLE 按“基准态 + 奇偶”合并。
 	 */
-	void applyToggleMerged() {
-		arbitrationComponent.applyToggleMerged(concurrentComponent, active);
+	void applyToggleMerged(EventMeta eventMeta) {
+		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
+		boolean nextToggleState = arbitrationComponent.applyToggleMerged(concurrentComponent, active);
+		concurrentComponent.recordToggleSnapshot(nextToggleState, normalizedMeta.timeKey(), normalizedMeta.seq());
+		recomputeAuthorityFromConcurrentBuckets(normalizedMeta.timeKey(), normalizedMeta.seq());
 		applyDerivedStateFromTruth();
+	}
+
+	void applyToggleMerged() {
+		applyToggleMerged(EventMeta.now(level));
 	}
 
 	/**
 	 * 轻量版 L2：同 tick PULSE 只在到期时间被延长时重新调度。
 	 */
-	void applyPulseMerged() {
-		int pulseTicks = Math.max(1, getPulseDurationTicks());
-		concurrentComponent.setPulseEpoch(concurrentComponent.pulseEpoch() + 1L);
-		concurrentComponent.setPulseResetArmed(true);
-		if (level != null) {
-			long nextExpireTime = level.getGameTime() + pulseTicks;
-			if (nextExpireTime > concurrentComponent.pulseUntilGameTime()) {
-				concurrentComponent.setPulseUntilGameTime(nextExpireTime);
-				schedulePulseReset(pulseTicks);
-			}
-		} else {
-			schedulePulseReset(pulseTicks);
-		}
+	void applyPulseMerged(EventMeta eventMeta) {
+		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
+		concurrentComponent.recordPulseSnapshot(this, normalizedMeta.timeKey(), normalizedMeta.seq());
+		recomputeAuthorityFromConcurrentBuckets(normalizedMeta.timeKey(), normalizedMeta.seq());
 		applyDerivedStateFromTruth();
+	}
+
+	void applyPulseMerged() {
+		applyPulseMerged(EventMeta.now(level));
 	}
 
 	/**
@@ -624,7 +626,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
-	 * 从脉冲并发桶重建 PULSE 真值（有效下落窗口）。
+	 * 从 `pulse` 事件快照重建 PULSE 真值（有效下落窗口）。
 	 */
 	boolean recomputePulseTruthFromConcurrentBuckets() {
 		return concurrentComponent.recomputePulseTruthFromConcurrentBuckets(this);
@@ -640,13 +642,10 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
-	 * 从切换并发桶重建 TOGGLE 真值（并发计数 + 最终锁存态）。
+	 * 从 `toggle` 事件快照重建 TOGGLE 真值。
 	 */
 	void recomputeToggleTruthFromConcurrentBuckets() {
 		concurrentComponent.recomputeToggleTruthFromConcurrentBuckets();
-		boolean baseActive = concurrentComponent.syncSignalMaxStrength() > 0 || isPulseTruthActive();
-		boolean oddParity = (concurrentComponent.toggleConcurrentCount() & 1) == 1;
-		concurrentComponent.setToggleState(oddParity ? !baseActive : baseActive);
 	}
 
 	/**
@@ -761,7 +760,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 				&& concurrentComponent.pulseUntilGameTime() > 0L
 				&& level.getGameTime() >= concurrentComponent.pulseUntilGameTime()
 		) {
-			concurrentComponent.setPulseUntilGameTime(0L);
+			concurrentComponent.clearPulseTruth();
 		}
 		concurrentComponent.setPulseResetArmed(concurrentComponent.pulseUntilGameTime() > 0L);
 		rebuildDerivedCacheFromTruth();
@@ -796,8 +795,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (concurrentComponent.pulseEpoch() > 0L) {
 			tag.putLong(ActivatableTargetPersistenceHelper.KEY_PULSE_EPOCH, concurrentComponent.pulseEpoch());
 		}
-		if (concurrentComponent.toggleState()) {
-			tag.putBoolean(ActivatableTargetPersistenceHelper.KEY_TOGGLE_STATE, true);
+		if (concurrentComponent.toggleSnapshotRecorded() || concurrentComponent.toggleState()) {
+			tag.putBoolean(ActivatableTargetPersistenceHelper.KEY_TOGGLE_STATE, concurrentComponent.toggleState());
 		}
 		ActivatableTargetConcurrentBucketComponent.PersistentSyncSnapshot persistentSyncSnapshot =
 			concurrentComponent.buildPersistentSyncSnapshot();
@@ -847,7 +846,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		if (isPulseTruthActive()) {
 			return EffectiveMode.PULSE;
 		}
-		if (concurrentComponent.toggleState()) {
+		if (concurrentComponent.toggleSnapshotRecorded()) {
 			return EffectiveMode.TOGGLE;
 		}
 		return EffectiveMode.NONE;

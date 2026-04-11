@@ -293,8 +293,8 @@ final class RedstoneLinkConfigTemplate {
 			crosschunk.dispatch.batchWindowTicks=0
 
 			# crosschunk.activation.pulse.relay.enabled
-			# zh: 是否启用 PULSE 事件的普通 TTL relay。false=目标未加载时直接跳过。
-			# en: Whether PULSE events use normal TTL relay. false means skip when target is unloaded.
+			# zh: 是否启用 PULSE 事件的普通 TTL relay。该能力仅作兼容/实验入口，不推荐常开；false=目标未加载时直接跳过。
+			# en: Whether PULSE events use normal TTL relay. This is kept only as a compatibility/experimental path and is not recommended for normal use; false means skip when target is unloaded.
 			crosschunk.activation.pulse.relay.enabled=false
 
 			# crosschunk.activation.pulse.ttlTicks
@@ -303,13 +303,13 @@ final class RedstoneLinkConfigTemplate {
 			crosschunk.activation.pulse.ttlTicks=200
 
 			# crosschunk.activation.pulse.persistentExperimental
-			# zh: 是否启用 PULSE 事件实验性不限时投递。true=可无限期等待目标加载后补发一次脉冲。
-			# en: Enable experimental unlimited delivery for PULSE events. true means wait indefinitely and replay one pulse after target loads.
+			# zh: 是否启用 PULSE 事件实验性不限时投递。该能力不推荐常开；true=可无限期等待目标加载后补发一次脉冲。
+			# en: Enable experimental unlimited delivery for PULSE events. This path is not recommended for normal use; true means wait indefinitely and replay one pulse after target loads.
 			crosschunk.activation.pulse.persistentExperimental=false
 
 			# crosschunk.activation.toggle.relay.enabled
-			# zh: 是否启用 TOGGLE 事件的普通 TTL relay。false=目标未加载时直接跳过。
-			# en: Whether TOGGLE events use normal TTL relay. false means skip when target is unloaded.
+			# zh: 是否启用 TOGGLE 事件的普通 TTL relay。该能力仅作兼容/实验入口，不推荐常开；false=目标未加载时直接跳过。
+			# en: Whether TOGGLE events use normal TTL relay. This is kept only as a compatibility/experimental path and is not recommended for normal use; false means skip when target is unloaded.
 			crosschunk.activation.toggle.relay.enabled=false
 
 			# crosschunk.activation.toggle.ttlTicks
@@ -318,8 +318,8 @@ final class RedstoneLinkConfigTemplate {
 			crosschunk.activation.toggle.ttlTicks=200
 
 			# crosschunk.activation.toggle.persistentExperimental
-			# zh: 是否启用 TOGGLE 事件实验性不限时投递。true=可无限期等待目标加载后按净奇偶补发。
-			# en: Enable experimental unlimited delivery for TOGGLE events. true means wait indefinitely and replay by net parity after target loads.
+			# zh: 是否启用 TOGGLE 事件实验性不限时投递。该能力不推荐常开；true=可无限期等待目标加载后按净奇偶补发。
+			# en: Enable experimental unlimited delivery for TOGGLE events. This path is not recommended for normal use; true means wait indefinitely and replay by net parity after target loads.
 			crosschunk.activation.toggle.persistentExperimental=false
 
 			# ----- [失效处理 / Invalidation] ---------------------------------------

@@ -125,7 +125,7 @@ final class ActivatableTargetDispatchSupport {
 		if (level == null || level.isClientSide) {
 			return;
 		}
-		if (!concurrentComponent().pulseResetArmed() && concurrentComponent().pulseConcurrentBuckets().isEmpty()) {
+		if (!concurrentComponent().pulseResetArmed() && !concurrentComponent().pulseSnapshotRecorded()) {
 			return;
 		}
 		long now = level.getGameTime();
@@ -155,7 +155,6 @@ final class ActivatableTargetDispatchSupport {
 				return;
 			}
 			boolean bucketChanged = owner.updateSyncSignalStrength(0L, normalizedStrength);
-			bucketChanged |= concurrentComponent().clearPulseTruth();
 			owner.applyDerivedStateFromTruth();
 			owner.markStructuredTruthDirty(bucketChanged);
 			return;
@@ -199,8 +198,6 @@ final class ActivatableTargetDispatchSupport {
 				normalizedStrength,
 				normalizedMeta.seq()
 			);
-			concurrentComponent().setPulseUntilGameTime(0L);
-			concurrentComponent().setPulseResetArmed(false);
 		}
 		owner.recomputeSyncTruthFromConcurrentBuckets();
 		owner.recomputeToggleTruthFromConcurrentBuckets();
@@ -226,33 +223,22 @@ final class ActivatableTargetDispatchSupport {
 		if (!priorityAccepted && normalizedTimeKey.compareTo(arbitrationComponent().authorityTimeKey()) < 0) {
 			return;
 		}
-		boolean sameSourceHadToggleContribution = normalizedMode == ActivationMode.TOGGLE
-			&& deltaAction != DeltaAction.REMOVE
-			&& concurrentComponent().resolveToggleContributionBeforePrune(sourceKey);
-		boolean bucketChanged = concurrentComponent().pruneOlderFramesForIncoming(normalizedTimeKey, incomingMode);
+		boolean bucketChanged = false;
 		owner.recomputeSyncTruthFromConcurrentBuckets();
 		if (normalizedMode == ActivationMode.PULSE) {
 			if (deltaAction == DeltaAction.REMOVE) {
-				bucketChanged |= concurrentComponent().removePulseConcurrentSource(sourceKey);
+				bucketChanged |= concurrentComponent().clearPulseTruth();
 			} else {
-				bucketChanged |= concurrentComponent().upsertPulseConcurrentSource(owner, sourceKey, normalizedTimeKey, eventMeta.seq());
+				bucketChanged |= concurrentComponent().recordPulseSnapshot(owner, normalizedTimeKey, eventMeta.seq());
 			}
 			bucketChanged |= owner.recomputePulseTruthFromConcurrentBuckets();
-			owner.recomputeToggleTruthFromConcurrentBuckets();
+		} else if (deltaAction != DeltaAction.REMOVE) {
+			boolean baseToggleState = concurrentComponent().toggleSnapshotRecorded() && concurrentComponent().toggleState();
+			bucketChanged |= concurrentComponent().recordToggleSnapshot(!baseToggleState, normalizedTimeKey, eventMeta.seq());
 		} else {
-			concurrentComponent().markToggleSourceTouchedInCurrentFrame(sourceKey);
-			if (deltaAction == DeltaAction.REMOVE) {
-				bucketChanged |= concurrentComponent().removeToggleConcurrentSource(sourceKey);
-			} else {
-				bucketChanged |= concurrentComponent().upsertToggleConcurrentSource(
-					sourceKey,
-					normalizedTimeKey,
-					eventMeta.seq(),
-					sameSourceHadToggleContribution
-				);
+			return;
 			}
-			owner.recomputeToggleTruthFromConcurrentBuckets();
-		}
+		owner.recomputeToggleTruthFromConcurrentBuckets();
 		owner.recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
 		owner.applyDerivedStateFromTruth();
 		owner.markStructuredTruthDirty(bucketChanged);
@@ -275,7 +261,10 @@ final class ActivatableTargetDispatchSupport {
 	}
 
 	/**
-	 * 统一处理“triggerSource 其它失效”delta：剔除该来源的 toggle/pulse/sync 贡献并重算。
+	 * 统一处理“triggerSource 其它失效”delta：仅剔除该来源的 sync 贡献。
+	 * <p>
+	 * `toggle/pulse` 为目标端事件结果，不再享有来源失效带来的生命周期回滚。
+	 * </p>
 	 */
 	private void applyTriggerSourceInvalidationDelta(SourceKey sourceKey, DeltaAction deltaAction, EventMeta eventMeta) {
 		StructuredBatchMutationAccumulator accumulator = new StructuredBatchMutationAccumulator();
@@ -355,9 +344,9 @@ final class ActivatableTargetDispatchSupport {
 				normalizedStrength,
 				eventMeta.seq()
 			);
-			concurrentComponent().setPulseUntilGameTime(0L);
-			concurrentComponent().setPulseResetArmed(false);
 		}
+		owner.recomputeSyncTruthFromConcurrentBuckets();
+		owner.recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}
 
@@ -380,31 +369,24 @@ final class ActivatableTargetDispatchSupport {
 			return;
 		}
 
-		boolean sameSourceHadToggleContribution = normalizedMode == ActivationMode.TOGGLE
-			&& deltaAction != DeltaAction.REMOVE
-			&& concurrentComponent().resolveToggleContributionBeforePrune(sourceKey);
-		boolean bucketChanged = concurrentComponent().pruneOlderFramesForIncoming(normalizedTimeKey, incomingMode);
+		boolean bucketChanged = false;
 		if (normalizedMode == ActivationMode.PULSE) {
 			if (deltaAction == DeltaAction.REMOVE) {
-				bucketChanged |= concurrentComponent().removePulseConcurrentSource(sourceKey);
+				bucketChanged |= concurrentComponent().clearPulseTruth();
 			} else {
-				bucketChanged |= concurrentComponent().upsertPulseConcurrentSource(owner, sourceKey, normalizedTimeKey, eventMeta.seq());
+				bucketChanged |= concurrentComponent().recordPulseSnapshot(owner, normalizedTimeKey, eventMeta.seq());
 			}
+			owner.recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
 			accumulator.record(eventMeta, bucketChanged, true);
 			return;
 		}
 
-		concurrentComponent().markToggleSourceTouchedInCurrentFrame(sourceKey);
 		if (deltaAction == DeltaAction.REMOVE) {
-			bucketChanged |= concurrentComponent().removeToggleConcurrentSource(sourceKey);
-		} else {
-			bucketChanged |= concurrentComponent().upsertToggleConcurrentSource(
-				sourceKey,
-				normalizedTimeKey,
-				eventMeta.seq(),
-				sameSourceHadToggleContribution
-			);
+			return;
 		}
+		boolean baseToggleState = concurrentComponent().toggleSnapshotRecorded() && concurrentComponent().toggleState();
+		bucketChanged |= concurrentComponent().recordToggleSnapshot(!baseToggleState, normalizedTimeKey, eventMeta.seq());
+		owner.recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}
 
@@ -424,11 +406,13 @@ final class ActivatableTargetDispatchSupport {
 			return;
 		}
 		boolean bucketChanged = concurrentComponent().removeSyncConcurrentSource(sourceKey);
+		owner.recomputeSyncTruthFromConcurrentBuckets();
+		owner.recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}
 
 	/**
-	 * 批次内应用“triggerSource 其它失效”，剔除该来源的全部结构化贡献。
+	 * 批次内应用“triggerSource 其它失效”，仅剔除该来源的 sync 贡献。
 	 */
 	private void applyTriggerSourceInvalidationMutation(
 		SourceKey sourceKey,
@@ -443,9 +427,9 @@ final class ActivatableTargetDispatchSupport {
 			return;
 		}
 		boolean bucketChanged = concurrentComponent().removeSyncConcurrentSource(sourceKey);
-		bucketChanged |= concurrentComponent().removePulseConcurrentSource(sourceKey);
-		bucketChanged |= concurrentComponent().removeToggleConcurrentSource(sourceKey);
-		accumulator.record(eventMeta, bucketChanged, true);
+		owner.recomputeSyncTruthFromConcurrentBuckets();
+		owner.recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
+		accumulator.record(eventMeta, bucketChanged, false);
 	}
 
 	/**
