@@ -20,6 +20,22 @@ import org.lwjgl.glfw.GLFW;
 public class QuickLinkToolScreen extends Screen {
 	private static final Component SAVE = Component.translatable("screen.redstonelink.quick_link.save");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.quick_link.clear");
+	private static final StyledMultiLineEditBox.Style QUICK_LINK_SERIAL_INPUT_BOX_STYLE = new StyledMultiLineEditBox.Style(
+		0xFF8D2A2A,
+		0xFF610000,
+		0xFFFFC2C2,
+		0xFFFFD5D5
+	);
+	private static final StyledButton.Style QUICK_LINK_SERIAL_BUTTON_STYLE = new StyledButton.Style(
+		0xE0A54545,
+		0xF0C85D5D,
+		0x995F3434,
+		0xFF610000,
+		0xFFFFC2C2,
+		0xFF744C4C,
+		0xFFFFF3F3,
+		0xFFD5B8B8
+	);
 	private static final int TITLE_TOP_MARGIN = 48;
 	private static final int MODE_LINE_MARGIN = 14;
 	private static final int LABEL_MARGIN = 14;
@@ -35,6 +51,13 @@ public class QuickLinkToolScreen extends Screen {
 	private static final int SCREEN_EDGE_MARGIN = 16;
 	private static final int PANEL_CONTENT_HEIGHT = 188;
 	private static final int ACTION_BUTTON_COUNT = 2;
+	private static final int BACKGROUND_HORIZONTAL_PADDING = 12;
+	private static final int BACKGROUND_TOP_PADDING = 18;
+	private static final int BACKGROUND_BOTTOM_PADDING = 26;
+	private static final int MODE_LINE_COLOR = 0xFFFFD5D5;
+	private static final int LABEL_TEXT_COLOR = 0xFFFFF2F2;
+	private static final int CHANNEL_NOTE_TEXT_COLOR = 0xFFFFE1A6;
+	private static final int STATUS_MESSAGE_COLOR = 0xFFFFD0D0;
 
 	private final QuickLinkToolData.Snapshot initialSnapshot;
 
@@ -56,7 +79,16 @@ public class QuickLinkToolScreen extends Screen {
 		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
 		int inputX = layout.panelLeft();
 		int inputY = layout.inputY();
-		inputBox = new MultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty());
+		inputBox = new StyledMultiLineEditBox(
+			font,
+			inputX,
+			inputY,
+			layout.panelWidth(),
+			INPUT_BOX_HEIGHT,
+			inputLabel(),
+			Component.empty(),
+			QUICK_LINK_SERIAL_INPUT_BOX_STYLE
+		);
 		inputBox.setCharacterLimit(RedstoneLinkClientDisplayConfig.quickLink().serialCacheMaxLength());
 		inputBox.setValue(preservedInput);
 		addRenderableWidget(inputBox);
@@ -66,66 +98,84 @@ public class QuickLinkToolScreen extends Screen {
 		int buttonRowY = layout.actionButtonY();
 		int actionButtonWidth = layout.actionButtonWidth();
 		addRenderableWidget(
-			Button.builder(SAVE, button -> saveAndClose()).bounds(layout.actionButtonX(0), buttonRowY, actionButtonWidth, BUTTON_HEIGHT).build()
+			createActionButton(SAVE, layout.actionButtonX(0), buttonRowY, actionButtonWidth, button -> saveAndClose())
 		);
 		addRenderableWidget(
-			Button
-				.builder(CLEAR, button -> {
-					inputBox.setValue("");
-					statusMessage = Component.empty();
-				})
-				.bounds(layout.actionButtonX(1), buttonRowY, actionButtonWidth, BUTTON_HEIGHT)
-				.build()
+			createActionButton(CLEAR, layout.actionButtonX(1), buttonRowY, actionButtonWidth, button -> {
+				inputBox.setValue("");
+				statusMessage = Component.empty();
+			})
 		);
 
 		cacheTypeButton = addRenderableWidget(
-			Button
-				.builder(cacheTypeButtonLabel(), button -> {
+			new StyledButton(
+				layout.panelLeft(),
+				cacheTypeButtonY,
+				layout.panelWidth(),
+				BUTTON_HEIGHT,
+				cacheTypeButtonLabel(),
+				button -> {
 					currentSerialCacheType = currentSerialCacheType == LinkNodeType.TRIGGER_SOURCE
 						? LinkNodeType.CORE
 						: LinkNodeType.TRIGGER_SOURCE;
 					button.setMessage(cacheTypeButtonLabel());
-				})
-				.bounds(layout.panelLeft(), cacheTypeButtonY, layout.panelWidth(), BUTTON_HEIGHT)
-				.build()
+				},
+				QUICK_LINK_SERIAL_BUTTON_STYLE
+			)
 		);
 		cacheTypeButton.active = isSerialMode();
 	}
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderBackground(guiGraphics, mouseX, mouseY, partialTick);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
 		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
 		int titleY = layout.titleY();
 		int leftX = layout.panelLeft();
-		guiGraphics.drawCenteredString(font, title, centerX, titleY, 0xFFFFFF);
-		guiGraphics.drawCenteredString(
+		GuiTitleRenderSupport.drawCenteredPrimaryTitle(guiGraphics, font, title, centerX, titleY);
+		GuiTitleRenderSupport.drawCenteredSecondaryTitle(
+			guiGraphics,
 			font,
 			Component.translatable("screen.redstonelink.quick_link.mode_line", Component.translatable(currentMode().translationKey())),
 			centerX,
 			titleY + MODE_LINE_MARGIN,
-			0xC8C8C8
+			MODE_LINE_COLOR
 		);
 		if (isSerialMode()) {
-			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), 0xFFFFFF, false);
+			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), LABEL_TEXT_COLOR, false);
 		} else {
-			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), 0xFFFFFF, false);
+			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), LABEL_TEXT_COLOR, false);
 			guiGraphics.drawString(
 				font,
 				Component.translatable("screen.redstonelink.quick_link.channel_note"),
 				leftX,
 				layout.channelNoteY(),
-				0xE0B040,
+				CHANNEL_NOTE_TEXT_COLOR,
 				false
 			);
 		}
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
+			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), STATUS_MESSAGE_COLOR);
 		}
+	}
+
+	@Override
+	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
+		GuiBackgroundRenderSupport.renderWrappedRegion(
+			guiGraphics,
+			backgroundPreset(),
+			resolveContentBounds(layout),
+			new GuiBackgroundRenderSupport.RegionPadding(
+				BACKGROUND_HORIZONTAL_PADDING,
+				BACKGROUND_TOP_PADDING,
+				BACKGROUND_HORIZONTAL_PADDING,
+				BACKGROUND_BOTTOM_PADDING
+			)
+		);
 	}
 
 	@Override
@@ -222,6 +272,88 @@ public class QuickLinkToolScreen extends Screen {
 			"screen.redstonelink.quick_link.serial_cache_type_button",
 			LinkNodeSemantics.toSemanticName(currentSerialCacheType)
 		);
+	}
+
+	/**
+	 * 创建快速连接工具主操作按钮。
+	 */
+	private Button createActionButton(Component message, int x, int y, int width, Button.OnPress onPress) {
+		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, QUICK_LINK_SERIAL_BUTTON_STYLE);
+	}
+
+	/**
+	 * @return 当前轮次接入的快速连接工具背景预设
+	 */
+	private GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
+		return GuiBackgroundRenderSupport.BackgroundPreset.QUICK_LINK_SERIAL;
+	}
+
+	/**
+	 * 解析当前界面的内容包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(QuickLinkLayout layout) {
+		int centerX = width / 2;
+		GuiBackgroundRenderSupport.RegionBounds bounds = centeredTextBounds(title, centerX, layout.titleY());
+		bounds =
+			bounds.include(
+				centeredTextBounds(
+					Component.translatable("screen.redstonelink.quick_link.mode_line", Component.translatable(currentMode().translationKey())),
+					centerX,
+					layout.titleY() + MODE_LINE_MARGIN
+				)
+			);
+		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
+		if (!isSerialMode()) {
+			bounds =
+				bounds.include(
+					leftAlignedTextBounds(
+						Component.translatable("screen.redstonelink.quick_link.channel_note"),
+						layout.panelLeft(),
+						layout.channelNoteY()
+					)
+				);
+		}
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.inputY(), layout.panelWidth(), INPUT_BOX_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(
+					layout.panelLeft(),
+					layout.cacheTypeButtonY(),
+					layout.panelWidth(),
+					BUTTON_HEIGHT
+				)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(
+					layout.panelLeft(),
+					layout.actionButtonY(),
+					layout.panelWidth(),
+					BUTTON_HEIGHT
+				)
+			);
+		if (!statusMessage.getString().isEmpty()) {
+			bounds = bounds.include(centeredTextBounds(statusMessage, centerX, layout.statusMessageY()));
+		}
+		return bounds;
+	}
+
+	/**
+	 * 生成左对齐文本包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds leftAlignedTextBounds(Component text, int left, int top) {
+		return new GuiBackgroundRenderSupport.RegionBounds(left, top, Math.max(1, font.width(text)), font.lineHeight);
+	}
+
+	/**
+	 * 生成居中文本包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
+		int textWidth = Math.max(1, font.width(text));
+		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (textWidth / 2), top, textWidth, font.lineHeight);
 	}
 
 	/**

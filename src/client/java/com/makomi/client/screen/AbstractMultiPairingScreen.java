@@ -24,6 +24,7 @@ import org.lwjgl.glfw.GLFW;
 public abstract class AbstractMultiPairingScreen extends Screen {
 	private static final Component CONFIRM = Component.translatable("screen.redstonelink.pairing.confirm");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.pairing.clear");
+	private static final int DEFAULT_CURRENT_LINKS_TEXT_COLOR = 0xC8C8C8;
 	/**
 	 * 输入框悬停提示：规则行。
 	 */
@@ -179,10 +180,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int currentLinksX = layout.panelLeft();
 		int currentLinksY = layout.currentLinksY();
 
-		guiGraphics.drawCenteredString(font, title, centerX, baseY, 0xFFFFFF);
-		guiGraphics.drawCenteredString(font, serialLine(sourceSerial), centerX, baseY + 14, 0xC8C8C8);
+		GuiTitleRenderSupport.drawCenteredPrimaryTitle(guiGraphics, font, title, centerX, baseY);
+		GuiTitleRenderSupport.drawCenteredSecondaryTitle(guiGraphics, font, serialLine(sourceSerial), centerX, baseY + 14, 0xC8C8C8);
 		Component currentLinksLine = currentLinksLine(currentTargets);
-		guiGraphics.drawString(font, currentLinksLine, currentLinksX, currentLinksY, 0xC8C8C8, false);
+		guiGraphics.drawString(font, currentLinksLine, currentLinksX, currentLinksY, currentLinksTextColor(), false);
 		guiGraphics.drawString(font, inputLabel(), currentLinksX, layout.inputLabelY(), 0xFFFFFF, false);
 
 		if (!statusMessage.getString().isEmpty()) {
@@ -255,6 +256,13 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * @return 当前配对界面的背景预设
 	 */
 	protected abstract GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset();
+
+	/**
+	 * @return “当前连接”文本颜色；子类可覆写为主题色或背景边框色
+	 */
+	protected int currentLinksTextColor() {
+		return DEFAULT_CURRENT_LINKS_TEXT_COLOR;
+	}
 
 	/**
 	 * @return 当前界面的输入框皮肤；返回 `null` 表示沿用原版默认输入框背景
@@ -580,7 +588,15 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	private MultiLineEditBox createSerialInputBox(MultiPairingLayout layout, int inputX, int inputY) {
 		StyledMultiLineEditBox.Style style = inputBoxStyle();
 		if (style == null) {
-			return new MultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty());
+			return new ShadowlessCounterMultiLineEditBox(
+				font,
+				inputX,
+				inputY,
+				layout.panelWidth(),
+				INPUT_BOX_HEIGHT,
+				inputLabel(),
+				Component.empty()
+			);
 		}
 		return new StyledMultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty(), style);
 	}

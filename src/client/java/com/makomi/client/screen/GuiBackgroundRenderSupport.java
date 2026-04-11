@@ -14,9 +14,29 @@ import net.minecraft.resources.ResourceLocation;
  * </p>
  */
 final class GuiBackgroundRenderSupport {
-	private static final ResourceLocation PAIRING_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final ResourceLocation CORE_PAIRING_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
-		"textures/gui/pairing_background.png"
+		"textures/gui/core_pairing_background.png"
+	);
+	private static final ResourceLocation TRIGGER_SOURCE_PAIRING_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+		RedstoneLink.MOD_ID,
+		"textures/gui/triggersource_pairing_background.png"
+	);
+	private static final ResourceLocation FILTER_PAIRING_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+		RedstoneLink.MOD_ID,
+		"textures/gui/filter_pairing_background.png"
+	);
+	private static final ResourceLocation QUICK_LINK_SERIAL_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+		RedstoneLink.MOD_ID,
+		"textures/gui/qlt_sd_background.png"
+	);
+	private static final ResourceLocation QUICK_LINK_CHANNEL_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+		RedstoneLink.MOD_ID,
+		"textures/gui/qlt_cp_background.png"
+	);
+	private static final ResourceLocation STATE_PANEL_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+		RedstoneLink.MOD_ID,
+		"textures/gui/status_panel_background.png"
 	);
 
 	private GuiBackgroundRenderSupport() {
@@ -85,6 +105,7 @@ final class GuiBackgroundRenderSupport {
 		int sourceRightX = style.textureWidth() - style.rightBorder();
 		int sourceBottomY = style.textureHeight() - style.bottomBorder();
 
+		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
 		try {
@@ -187,6 +208,7 @@ final class GuiBackgroundRenderSupport {
 				style.bottomBorder()
 			);
 		} finally {
+			RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 			RenderSystem.disableBlend();
 		}
 	}
@@ -227,22 +249,35 @@ final class GuiBackgroundRenderSupport {
 	/**
 	 * 背景预设入口。
 	 * <p>
-	 * 触发源和核心当前先共用同一张贴图，但仍保留独立预设，
-	 * 便于后续切换成不同视觉资源时不改调用方结构。
+	 * 各个 GUI 预设保留独立背景与主色，便于调用方只关心语义类型，
+	 * 而不关心底层贴图文件名与主题常量。
 	 * </p>
 	 */
 	enum BackgroundPreset {
-		TRIGGER_SOURCE_PAIRING(new BackgroundStyle(PAIRING_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4)),
-		CORE_PAIRING(new BackgroundStyle(PAIRING_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4));
+		TRIGGER_SOURCE_PAIRING(new BackgroundStyle(TRIGGER_SOURCE_PAIRING_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF9F5600),
+		CORE_PAIRING(new BackgroundStyle(CORE_PAIRING_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF0D47A1),
+		FILTER_EDITOR(new BackgroundStyle(FILTER_PAIRING_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFFA00029),
+		QUICK_LINK_SERIAL(new BackgroundStyle(QUICK_LINK_SERIAL_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF610000),
+		QUICK_LINK_CHANNEL(new BackgroundStyle(QUICK_LINK_CHANNEL_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF294879),
+		STATE_PANEL(new BackgroundStyle(STATE_PANEL_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF9D0000);
 
 		private final BackgroundStyle style;
+		private final int borderColor;
 
-		BackgroundPreset(BackgroundStyle style) {
+		BackgroundPreset(BackgroundStyle style, int borderColor) {
 			this.style = style;
+			this.borderColor = borderColor;
 		}
 
 		BackgroundStyle style() {
 			return style;
+		}
+
+		/**
+		 * @return 与背景贴图边框对齐的主色，可供文本或控件样式复用
+		 */
+		int borderColor() {
+			return borderColor;
 		}
 	}
 

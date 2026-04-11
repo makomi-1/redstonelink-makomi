@@ -1,7 +1,7 @@
 package com.makomi.client.screen;
 
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.MultiLineEditBox;
+import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -11,14 +11,14 @@ import net.minecraft.network.chat.Component;
  * 仅接管输入框背景层绘制，便于不同 GUI 以覆写方式复用统一皮肤能力。
  * </p>
  */
-final class StyledMultiLineEditBox extends MultiLineEditBox {
+final class StyledMultiLineEditBox extends ShadowlessCounterMultiLineEditBox {
 	private final Style style;
 
 	/**
 	 * @param style 输入框皮肤配置
 	 */
 	StyledMultiLineEditBox(
-		net.minecraft.client.gui.Font font,
+		Font font,
 		int x,
 		int y,
 		int width,
@@ -42,15 +42,20 @@ final class StyledMultiLineEditBox extends MultiLineEditBox {
 		guiGraphics.fill(left + 1, top + 1, right - 1, bottom - 1, style.backgroundColor());
 	}
 
+	@Override
+	protected int counterTextColor() {
+		return style.counterTextColor();
+	}
+
 	/**
 	 * 输入框皮肤配置。
 	 */
-	record Style(int backgroundColor, int borderColor, int focusedBorderColor) {
+	record Style(int backgroundColor, int borderColor, int focusedBorderColor, int counterTextColor) {
 		/**
 		 * 默认皮肤尽量贴近原版深色输入框观感。
 		 */
 		static Style defaultStyle() {
-			return new Style(0xFF202020, 0xFF5A5A5A, 0xFFFFFFFF);
+			return new Style(0xFF202020, 0xFF5A5A5A, 0xFFFFFFFF, 0xFFA0A0A0);
 		}
 	}
 }

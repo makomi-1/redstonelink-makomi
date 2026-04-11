@@ -16,7 +16,8 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	private static final StyledMultiLineEditBox.Style CORE_INPUT_BOX_STYLE = new StyledMultiLineEditBox.Style(
 		0xFF0D47A1,
 		0xFF08306B,
-		0xFF4FC3F7
+		0xFF4FC3F7,
+		0xFFB9D7FF
 	);
 	private static final StyledButton.Style CORE_ACTION_BUTTON_STYLE = new StyledButton.Style(
 		0xE00D47A1,
@@ -91,6 +92,11 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	protected Component currentLinksLine(List<Long> currentTargets) {
 		String linkedText = currentTargets.isEmpty() ? "-" : buildCurrentLinksText(currentTargets);
 		return Component.translatable("screen.redstonelink.core_pairing.current_links", linkedText);
+	}
+
+	@Override
+	protected int currentLinksTextColor() {
+		return backgroundPreset().borderColor();
 	}
 
 	@Override

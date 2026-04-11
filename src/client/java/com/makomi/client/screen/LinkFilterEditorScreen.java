@@ -22,6 +22,31 @@ import org.lwjgl.glfw.GLFW;
 public class LinkFilterEditorScreen extends Screen {
 	private static final Component SAVE = Component.translatable("screen.redstonelink.link_filter.save");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.link_filter.clear");
+	private static final StyledMultiLineEditBox.Style FILTER_INPUT_BOX_STYLE = new StyledMultiLineEditBox.Style(
+		0xFFA00029,
+		0xFF6A001A,
+		0xFFFF8A80,
+		0xFFFFCCD5
+	);
+	private static final StyledEditBox.Style FILTER_EDIT_BOX_STYLE = new StyledEditBox.Style(
+		0xFFA00029,
+		0xFF6A001A,
+		0xFFFF8A80,
+		0x995A2531,
+		0xFF7D4B57,
+		0xFFFFF4F6,
+		0xFFD2B4BC
+	);
+	private static final StyledButton.Style FILTER_BUTTON_STYLE = new StyledButton.Style(
+		0xE0A00029,
+		0xF0BE1E3C,
+		0x995A2531,
+		0xFF6A001A,
+		0xFFFF8A80,
+		0xFF7D4B57,
+		0xFFFFF4F6,
+		0xFFD2B4BC
+	);
 	private static final int SCREEN_EDGE_MARGIN = 16;
 	private static final int PANEL_CONTENT_HEIGHT = 266;
 	private static final int PANEL_PREFERRED_WIDTH = 320;
@@ -33,6 +58,9 @@ public class LinkFilterEditorScreen extends Screen {
 	private static final int BUTTON_GAP = 4;
 	private static final int FIXED_THRESHOLD_WIDTH = 56;
 	private static final int STATUS_MESSAGE_MARGIN = 14;
+	private static final int BACKGROUND_HORIZONTAL_PADDING = 12;
+	private static final int BACKGROUND_TOP_PADDING = 18;
+	private static final int BACKGROUND_BOTTOM_PADDING = 26;
 
 	private final String dimensionKey;
 	private final long blockPosLong;
@@ -73,15 +101,7 @@ public class LinkFilterEditorScreen extends Screen {
 		String preservedFixedThreshold = fixedThresholdBox == null
 			? Integer.toString(initialSnapshot.fixedSignalThreshold())
 			: fixedThresholdBox.getValue();
-		serialInputBox = new MultiLineEditBox(
-			font,
-			layout.panelLeft(),
-			layout.serialInputY(),
-			layout.panelWidth(),
-			SERIAL_INPUT_HEIGHT,
-			Component.translatable("screen.redstonelink.link_filter.serial_input"),
-			Component.empty()
-		);
+		serialInputBox = createSerialInputBox(layout);
 		serialInputBox.setCharacterLimit(com.makomi.config.RedstoneLinkConfig.command().linkSetMaxInputLength());
 		serialInputBox.setValue(preservedSerialExpression);
 		addRenderableWidget(serialInputBox);
@@ -144,13 +164,14 @@ public class LinkFilterEditorScreen extends Screen {
 			)
 		};
 
-		fixedThresholdBox = new EditBox(
+		fixedThresholdBox = new StyledEditBox(
 			font,
 			layout.panelLeft(),
 			layout.fixedThresholdInputY(),
 			FIXED_THRESHOLD_WIDTH,
 			BUTTON_HEIGHT,
-			Component.translatable("screen.redstonelink.link_filter.fixed_threshold")
+			Component.translatable("screen.redstonelink.link_filter.fixed_threshold"),
+			FILTER_EDIT_BOX_STYLE
 		);
 		fixedThresholdBox.setMaxLength(2);
 		fixedThresholdBox.setFilter(value -> value.chars().allMatch(Character::isDigit));
@@ -159,13 +180,16 @@ public class LinkFilterEditorScreen extends Screen {
 
 		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(layout.panelWidth(), BUTTON_GAP, 2);
 		addRenderableWidget(
-			Button.builder(SAVE, button -> saveAndClose()).bounds(layout.panelLeft(), layout.actionButtonY(), actionButtonWidth, BUTTON_HEIGHT).build()
+			createActionButton(SAVE, layout.panelLeft(), layout.actionButtonY(), actionButtonWidth, button -> saveAndClose())
 		);
 		addRenderableWidget(
-			Button
-				.builder(CLEAR, button -> resetForm())
-				.bounds(layout.panelLeft() + actionButtonWidth + BUTTON_GAP, layout.actionButtonY(), actionButtonWidth, BUTTON_HEIGHT)
-				.build()
+			createActionButton(
+				CLEAR,
+				layout.panelLeft() + actionButtonWidth + BUTTON_GAP,
+				layout.actionButtonY(),
+				actionButtonWidth,
+				button -> resetForm()
+			)
 		);
 
 		refreshOptionButtonMessages();
@@ -174,13 +198,13 @@ public class LinkFilterEditorScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderBackground(guiGraphics, mouseX, mouseY, partialTick);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
 		LinkFilterLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
-		guiGraphics.drawCenteredString(font, title, centerX, layout.titleY(), 0xFFFFFF);
-		guiGraphics.drawCenteredString(
+		GuiTitleRenderSupport.drawCenteredPrimaryTitle(guiGraphics, font, title, centerX, layout.titleY());
+		GuiTitleRenderSupport.drawCenteredSecondaryTitle(
+			guiGraphics,
 			font,
 			Component.translatable(
 				"screen.redstonelink.link_filter.service_line",
@@ -188,7 +212,7 @@ public class LinkFilterEditorScreen extends Screen {
 			),
 			centerX,
 			layout.titleY() + SUBTITLE_MARGIN,
-			0xC8C8C8
+			backgroundPreset().borderColor()
 		);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.serial_input"), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.node_set_mode"), layout.panelLeft(), layout.nodeSetLabelY(), 0xFFFFFF, false);
@@ -212,6 +236,22 @@ public class LinkFilterEditorScreen extends Screen {
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
+	}
+
+	@Override
+	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		LinkFilterLayout layout = resolveLayout(width, height, font.lineHeight);
+		GuiBackgroundRenderSupport.renderWrappedRegion(
+			guiGraphics,
+			backgroundPreset(),
+			resolveContentBounds(layout),
+			new GuiBackgroundRenderSupport.RegionPadding(
+				BACKGROUND_HORIZONTAL_PADDING,
+				BACKGROUND_TOP_PADDING,
+				BACKGROUND_HORIZONTAL_PADDING,
+				BACKGROUND_BOTTOM_PADDING
+			)
+		);
 	}
 
 	@Override
@@ -354,13 +394,36 @@ public class LinkFilterEditorScreen extends Screen {
 	 * 创建统一的单选按钮。
 	 */
 	private Button createOptionButton(int x, int y, int width, Runnable onPress) {
-		Button button = Button.builder(Component.empty(), value -> {
+		Button button = new StyledButton(x, y, width, BUTTON_HEIGHT, Component.empty(), value -> {
 			onPress.run();
 			refreshOptionButtonMessages();
 			refreshFixedThresholdState();
-		}).bounds(x, y, width, BUTTON_HEIGHT).build();
+		}, FILTER_BUTTON_STYLE);
 		addRenderableWidget(button);
 		return button;
+	}
+
+	/**
+	 * 创建过滤器序号输入框，沿用与背景一致的主题色。
+	 */
+	private MultiLineEditBox createSerialInputBox(LinkFilterLayout layout) {
+		return new StyledMultiLineEditBox(
+			font,
+			layout.panelLeft(),
+			layout.serialInputY(),
+			layout.panelWidth(),
+			SERIAL_INPUT_HEIGHT,
+			Component.translatable("screen.redstonelink.link_filter.serial_input"),
+			Component.empty(),
+			FILTER_INPUT_BOX_STYLE
+		);
+	}
+
+	/**
+	 * 创建过滤器主操作按钮。
+	 */
+	private Button createActionButton(Component message, int x, int y, int width, Button.OnPress onPress) {
+		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, FILTER_BUTTON_STYLE);
 	}
 
 	/**
@@ -423,6 +486,111 @@ public class LinkFilterEditorScreen extends Screen {
 		return filterKind == LinkFilterKind.RECEIVE
 			? "screen.redstonelink.link_filter.receive.title"
 			: "screen.redstonelink.link_filter.send.title";
+	}
+
+	/**
+	 * @return 过滤器编辑器对应的背景预设
+	 */
+	private GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
+		return GuiBackgroundRenderSupport.BackgroundPreset.FILTER_EDITOR;
+	}
+
+	/**
+	 * 解析当前过滤器编辑界面的内容包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(LinkFilterLayout layout) {
+		int centerX = width / 2;
+		GuiBackgroundRenderSupport.RegionBounds bounds = centeredTextBounds(title, centerX, layout.titleY());
+		bounds =
+			bounds.include(
+				centeredTextBounds(
+					Component.translatable(
+						"screen.redstonelink.link_filter.service_line",
+						LinkNodeSemantics.toSemanticName(filterKind.servicedNodeType())
+					),
+					centerX,
+					layout.titleY() + SUBTITLE_MARGIN
+				)
+			);
+		bounds =
+			bounds.include(
+				leftAlignedTextBounds(Component.translatable("screen.redstonelink.link_filter.serial_input"), layout.panelLeft(), layout.serialLabelY())
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.serialInputY(), layout.panelWidth(), SERIAL_INPUT_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				leftAlignedTextBounds(
+					Component.translatable("screen.redstonelink.link_filter.node_set_mode"),
+					layout.panelLeft(),
+					layout.nodeSetLabelY()
+				)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.nodeSetRowY(), layout.panelWidth(), BUTTON_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				leftAlignedTextBounds(
+					Component.translatable("screen.redstonelink.link_filter.signal_threshold_source"),
+					layout.panelLeft(),
+					layout.thresholdSourceLabelY()
+				)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.thresholdSourceRowY(), layout.panelWidth(), BUTTON_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				leftAlignedTextBounds(
+					Component.translatable("screen.redstonelink.link_filter.fixed_threshold"),
+					layout.panelLeft(),
+					layout.fixedThresholdLabelY()
+				)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.fixedThresholdInputY(), FIXED_THRESHOLD_WIDTH, BUTTON_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				leftAlignedTextBounds(
+					Component.translatable("screen.redstonelink.link_filter.signal_mode"),
+					layout.panelLeft(),
+					layout.signalModeLabelY()
+				)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.signalModeRowY(), layout.panelWidth(), BUTTON_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.actionButtonY(), layout.panelWidth(), BUTTON_HEIGHT)
+			);
+		if (!statusMessage.getString().isEmpty()) {
+			bounds = bounds.include(centeredTextBounds(statusMessage, centerX, layout.statusMessageY()));
+		}
+		return bounds;
+	}
+
+	/**
+	 * 生成左对齐文本包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds leftAlignedTextBounds(Component text, int left, int top) {
+		return new GuiBackgroundRenderSupport.RegionBounds(left, top, Math.max(1, font.width(text)), font.lineHeight);
+	}
+
+	/**
+	 * 生成居中文本包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
+		int textWidth = Math.max(1, font.width(text));
+		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (textWidth / 2), top, textWidth, font.lineHeight);
 	}
 
 	/**

@@ -43,6 +43,8 @@
     "tooltip.redstonelink.pair":  "最近目标序号: %s",
     "tooltip.redstonelink.links":  "当前连接: %s",
     "tooltip.redstonelink.open_pairing":  "潜行且左手为空时右键可打开配对界面",
+    "tooltip.redstonelink.link_filter.service_target":  "服务对象: %s",
+    "tooltip.redstonelink.link_filter.open_editor":  "主手为空、潜行且左手为空时右键已放置过滤器可打开编辑器",
     "tooltip.redstonelink.trigger_linker":  "站立且左手为空时右键可触发已连接核心",
     "tooltip.redstonelink.sync_linker":  "站立且左手为空时右键可将已连接核心同步切换为 15/0",
     "tooltip.redstonelink.aggregate_single_only":  "聚合态需先拆成单序号后再右键使用",

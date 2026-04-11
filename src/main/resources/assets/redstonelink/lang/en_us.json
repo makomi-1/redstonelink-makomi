@@ -43,6 +43,8 @@
   "tooltip.redstonelink.pair": "Last Target Serial: %s",
   "tooltip.redstonelink.links": "Current Links: %s",
   "tooltip.redstonelink.open_pairing": "Sneak with empty offhand, then right-click to open pairing UI",
+  "tooltip.redstonelink.link_filter.service_target": "Service target: %s",
+  "tooltip.redstonelink.link_filter.open_editor": "Empty your main hand, then sneak with empty offhand and right-click a placed filter to open the editor",
   "tooltip.redstonelink.trigger_linker": "Right-click while standing with empty offhand to trigger linked cores",
   "tooltip.redstonelink.sync_linker": "Right-click while standing with empty offhand to sync linked cores to 15/0",
   "tooltip.redstonelink.aggregate_single_only": "Split this aggregate into a single serial before right-click use",

@@ -16,6 +16,22 @@ import net.minecraft.world.item.ItemStack;
  * </p>
  */
 public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
+	private static final StyledMultiLineEditBox.Style TRIGGER_SOURCE_INPUT_BOX_STYLE = new StyledMultiLineEditBox.Style(
+		0xFF9F5600,
+		0xFF6E3A00,
+		0xFFFFD180,
+		0xFFFFD9B0
+	);
+	private static final StyledButton.Style TRIGGER_SOURCE_ACTION_BUTTON_STYLE = new StyledButton.Style(
+		0xE09F5600,
+		0xF0BF6A14,
+		0x9960402A,
+		0xFF6E3A00,
+		0xFFFFD180,
+		0xFF7A5C47,
+		0xFFFFF7F0,
+		0xFFD4B8A2
+	);
 	private static final LinkNodeType SOURCE_TYPE = LinkNodeType.TRIGGER_SOURCE;
 	private static final Component TITLE = Component.translatable("screen.redstonelink.trigger_source_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.trigger_source_pairing.input");
@@ -94,6 +110,21 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	protected Component currentLinksLine(List<Long> currentTargets) {
 		String linkedText = currentTargets.isEmpty() ? "-" : buildCurrentLinksText(currentTargets);
 		return Component.translatable("screen.redstonelink.trigger_source_pairing.current_links", linkedText);
+	}
+
+	@Override
+	protected int currentLinksTextColor() {
+		return backgroundPreset().borderColor();
+	}
+
+	@Override
+	protected StyledMultiLineEditBox.Style inputBoxStyle() {
+		return TRIGGER_SOURCE_INPUT_BOX_STYLE;
+	}
+
+	@Override
+	protected StyledButton.Style actionButtonStyle(ActionButtonKind kind) {
+		return TRIGGER_SOURCE_ACTION_BUTTON_STYLE;
 	}
 
 	@Override

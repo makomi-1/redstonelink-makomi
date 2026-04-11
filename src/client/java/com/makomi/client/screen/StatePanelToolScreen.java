@@ -28,6 +28,25 @@ public class StatePanelToolScreen extends Screen {
 	private static final Component HEADER_STATUS = Component.translatable("screen.redstonelink.state_panel.header_status");
 	private static final Component STATUS_LOADING = Component.translatable("screen.redstonelink.state_panel.status_loading");
 	private static final Component STATUS_HIDDEN = Component.translatable("screen.redstonelink.state_panel.status_hidden");
+	private static final StyledEditBox.Style STATE_PANEL_INPUT_BOX_STYLE = new StyledEditBox.Style(
+		0xFF943434,
+		0xFF9D0000,
+		0xFFFFB8B8,
+		0x99643B3B,
+		0xFF7E4A4A,
+		0xFFFFF3F3,
+		0xFFD6BABA
+	);
+	private static final StyledButton.Style STATE_PANEL_BUTTON_STYLE = new StyledButton.Style(
+		0xE0B14C4C,
+		0xF0D56B6B,
+		0x99644343,
+		0xFF9D0000,
+		0xFFFFC1C1,
+		0xFF866060,
+		0xFFFFF4F4,
+		0xFFD5B8B8
+	);
 
 	/** 面板主体默认宽度。 */
 	private static final int PANEL_WIDTH = 500;
@@ -47,6 +66,17 @@ public class StatePanelToolScreen extends Screen {
 	private static final int HEADER_TOP_EXTRA_OFFSET = 2;
 	private static final int REMOVE_BUTTON_GAP = 6;
 	private static final int COLUMN_GAP = 6;
+	private static final int BACKGROUND_HORIZONTAL_PADDING = 14;
+	private static final int BACKGROUND_TOP_PADDING = 18;
+	private static final int BACKGROUND_BOTTOM_PADDING = 24;
+	private static final int INPUT_LABEL_TEXT_COLOR = 0xFFFFE3E3;
+	private static final int HEADER_TEXT_COLOR = 0xFFFFCBCB;
+	private static final int LIST_TYPE_TEXT_COLOR = 0xFFFFF0F0;
+	private static final int LIST_SERIAL_TEXT_COLOR = 0xFFFFE0E0;
+	private static final int LIST_STATUS_TEXT_COLOR = 0xFFFFD0D0;
+	private static final int LIST_EMPTY_TEXT_COLOR = 0xFFB67C7C;
+	private static final int STATUS_SUCCESS_TEXT_COLOR = 0xFF9AE39A;
+	private static final int STATUS_ERROR_TEXT_COLOR = 0xFFFFC1C1;
 
 	private static final int LIST_LEFT_PADDING = 4;
 	private static final int COL_TYPE_W = 116;
@@ -66,6 +96,7 @@ public class StatePanelToolScreen extends Screen {
 	private Button cleanAllButton;
 	private LinkNodeType currentType = LinkNodeType.CORE;
 	private Component statusMessage = Component.empty();
+	private int statusMessageColor = STATUS_ERROR_TEXT_COLOR;
 	private int scrollOffset;
 	private boolean initialRefreshRequested;
 	private boolean hasAppliedServerSnapshot;
@@ -82,55 +113,51 @@ public class StatePanelToolScreen extends Screen {
 		StatePanelLayout layout = resolveLayout(width, height);
 		removeButtons.clear();
 
-		inputBox = new EditBox(font, layout.panelLeft(), layout.inputY(), layout.panelWidth(), INPUT_HEIGHT, Component.empty());
+		inputBox = new StyledEditBox(
+			font,
+			layout.panelLeft(),
+			layout.inputY(),
+			layout.panelWidth(),
+			INPUT_HEIGHT,
+			Component.empty(),
+			STATE_PANEL_INPUT_BOX_STYLE
+		);
 		inputBox.setHint(Component.translatable("screen.redstonelink.state_panel.input_hint"));
 		inputBox.setValue(preservedInput);
 		addRenderableWidget(inputBox);
 		setInitialFocus(inputBox);
 
 		typeToggleButton = addRenderableWidget(
-			Button
-				.builder(typeToggleLabel(), button -> {
-					currentType = currentType == LinkNodeType.CORE ? LinkNodeType.TRIGGER_SOURCE : LinkNodeType.CORE;
-					button.setMessage(typeToggleLabel());
-				})
-				.bounds(layout.panelLeft(), layout.typeToggleY(), layout.panelWidth(), BUTTON_HEIGHT)
-				.build()
+			createThemedButton(typeToggleLabel(), layout.panelLeft(), layout.typeToggleY(), layout.panelWidth(), button -> {
+				currentType = currentType == LinkNodeType.CORE ? LinkNodeType.TRIGGER_SOURCE : LinkNodeType.CORE;
+				button.setMessage(typeToggleLabel());
+			})
 		);
 
 		subscribeButton = addRenderableWidget(
-			Button
-				.builder(SUBSCRIBE, button -> subscribe())
-				.bounds(layout.actionButtonX(0), layout.actionY(), layout.actionButtonWidth(), BUTTON_HEIGHT)
-				.build()
+			createThemedButton(SUBSCRIBE, layout.actionButtonX(0), layout.actionY(), layout.actionButtonWidth(), button -> subscribe())
 		);
 		refreshButton = addRenderableWidget(
-			Button
-				.builder(REFRESH, button -> requestRefresh())
-				.bounds(layout.actionButtonX(1), layout.actionY(), layout.actionButtonWidth(), BUTTON_HEIGHT)
-				.build()
+			createThemedButton(REFRESH, layout.actionButtonX(1), layout.actionY(), layout.actionButtonWidth(), button -> requestRefresh())
 		);
 		recordButton = addRenderableWidget(
-			Button
-				.builder(RECORD, button -> requestRecord())
-				.bounds(layout.actionButtonX(2), layout.actionY(), layout.actionButtonWidth(), BUTTON_HEIGHT)
-				.build()
+			createThemedButton(RECORD, layout.actionButtonX(2), layout.actionY(), layout.actionButtonWidth(), button -> requestRecord())
 		);
 
 		cleanAllButton = addRenderableWidget(
-			Button
-				.builder(CLEAN_ALL, button -> requestCleanAll())
-				.bounds(layout.cleanAllButtonX(), layout.headerY(), CLEAN_ALL_BUTTON_WIDTH, BUTTON_HEIGHT)
-				.build()
+			createThemedButton(CLEAN_ALL, layout.cleanAllButtonX(), layout.headerY(), CLEAN_ALL_BUTTON_WIDTH, button -> requestCleanAll())
 		);
 
 		for (int row = 0; row < VISIBLE_ROWS; row++) {
 			final int visibleRow = row;
 			Button removeButton = addRenderableWidget(
-				Button
-					.builder(Component.literal("×"), button -> removeAtVisibleRow(visibleRow))
-					.bounds(layout.removeButtonX(), layout.listRowY(row), REMOVE_BUTTON_WIDTH, BUTTON_HEIGHT)
-					.build()
+				createThemedButton(
+					Component.literal("×"),
+					layout.removeButtonX(),
+					layout.listRowY(row),
+					REMOVE_BUTTON_WIDTH,
+					button -> removeAtVisibleRow(visibleRow)
+				)
 			);
 			removeButtons.add(removeButton);
 		}
@@ -147,17 +174,16 @@ public class StatePanelToolScreen extends Screen {
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		StatePanelLayout layout = resolveLayout(width, height);
 		applyWidgetLayout(layout);
-		renderBackground(guiGraphics, mouseX, mouseY, partialTick);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
 		int centerX = width / 2;
-		guiGraphics.drawCenteredString(font, TITLE, centerX, layout.panelTop(), 0xFFFFFF);
+		GuiTitleRenderSupport.drawCenteredPrimaryTitle(guiGraphics, font, TITLE, centerX, layout.panelTop());
 		guiGraphics.drawString(
 			font,
 			Component.translatable("screen.redstonelink.state_panel.input"),
 			layout.panelLeft(),
 			layout.panelTop() + TYPE_LABEL_TOP_OFFSET,
-			0xC8C8C8,
+			INPUT_LABEL_TEXT_COLOR,
 			false
 		);
 
@@ -165,8 +191,24 @@ public class StatePanelToolScreen extends Screen {
 		renderList(guiGraphics, layout);
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawString(font, statusMessage, layout.panelLeft(), layout.statusMessageY(), 0xFF7777, false);
+			guiGraphics.drawString(font, statusMessage, layout.panelLeft(), layout.statusMessageY(), statusMessageColor, false);
 		}
+	}
+
+	@Override
+	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		StatePanelLayout layout = resolveLayout(width, height);
+		GuiBackgroundRenderSupport.renderWrappedRegion(
+			guiGraphics,
+			backgroundPreset(),
+			resolveContentBounds(layout),
+			new GuiBackgroundRenderSupport.RegionPadding(
+				BACKGROUND_HORIZONTAL_PADDING,
+				BACKGROUND_TOP_PADDING,
+				BACKGROUND_HORIZONTAL_PADDING,
+				BACKGROUND_BOTTOM_PADDING
+			)
+		);
 	}
 
 	@Override
@@ -222,13 +264,15 @@ public class StatePanelToolScreen extends Screen {
 			return;
 		}
 		Object[] args = messageArgs == null ? new Object[0] : messageArgs.toArray();
-		statusMessage = Component.translatable(messageKey, args).withColor(success ? 0x66CC66 : 0xFF7777);
+		statusMessage = Component.translatable(messageKey, args);
+		statusMessageColor = success ? STATUS_SUCCESS_TEXT_COLOR : STATUS_ERROR_TEXT_COLOR;
 	}
 
 	private void subscribe() {
 		SerialInputSyntaxSupport.ValidationResult validation = SerialInputSyntaxSupport.validate(inputBox.getValue());
 		if (validation.empty()) {
 			statusMessage = Component.translatable("screen.redstonelink.state_panel.input_empty");
+			statusMessageColor = STATUS_ERROR_TEXT_COLOR;
 			return;
 		}
 		if (!validation.valid()) {
@@ -236,6 +280,7 @@ public class StatePanelToolScreen extends Screen {
 				"screen.redstonelink.pairing.invalid_tokens",
 				String.join(", ", validation.invalidEntries())
 			);
+			statusMessageColor = STATUS_ERROR_TEXT_COLOR;
 			return;
 		}
 		ClientPlayNetworking.send(
@@ -295,13 +340,20 @@ public class StatePanelToolScreen extends Screen {
 	 * 渲染表头行，含列标签与右侧 clean all 按钮。
 	 */
 	private void renderHeader(GuiGraphics guiGraphics, StatePanelLayout layout) {
-		guiGraphics.drawString(font, clipTextToWidth(HEADER_TYPE.getString(), layout.typeWidth()), layout.typeX(), layout.headerY() + LIST_ROW_TEXT_OFFSET_Y, 0xAAAAAA, false);
+		guiGraphics.drawString(
+			font,
+			clipTextToWidth(HEADER_TYPE.getString(), layout.typeWidth()),
+			layout.typeX(),
+			layout.headerY() + LIST_ROW_TEXT_OFFSET_Y,
+			HEADER_TEXT_COLOR,
+			false
+		);
 		guiGraphics.drawString(
 			font,
 			clipTextToWidth(HEADER_SERIAL.getString(), layout.serialWidth()),
 			layout.serialX(),
 			layout.headerY() + LIST_ROW_TEXT_OFFSET_Y,
-			0xAAAAAA,
+			HEADER_TEXT_COLOR,
 			false
 		);
 		guiGraphics.drawString(
@@ -309,7 +361,7 @@ public class StatePanelToolScreen extends Screen {
 			clipTextToWidth(HEADER_STATUS.getString(), layout.statusWidth()),
 			layout.statusX(),
 			layout.headerY() + LIST_ROW_TEXT_OFFSET_Y,
-			0xAAAAAA,
+			HEADER_TEXT_COLOR,
 			false
 		);
 	}
@@ -322,7 +374,7 @@ public class StatePanelToolScreen extends Screen {
 			int index = scrollOffset + row;
 			int rowY = layout.listRowY(row);
 			if (index >= entries.size()) {
-				guiGraphics.drawString(font, "-", layout.typeX(), rowY + LIST_ROW_TEXT_OFFSET_Y, 0x666666, false);
+				guiGraphics.drawString(font, "-", layout.typeX(), rowY + LIST_ROW_TEXT_OFFSET_Y, LIST_EMPTY_TEXT_COLOR, false);
 				continue;
 			}
 			StatePanelNetwork.StatePanelSnapshotEntry entry = entries.get(index);
@@ -330,13 +382,20 @@ public class StatePanelToolScreen extends Screen {
 			String serialLabel = "#" + entry.serial();
 			String status = buildStatusText(entry, hasAppliedServerSnapshot);
 
-			guiGraphics.drawString(font, clipTextToWidth(typeLabel, layout.typeWidth()), layout.typeX(), rowY + LIST_ROW_TEXT_OFFSET_Y, 0xE6E6E6, false);
+			guiGraphics.drawString(
+				font,
+				clipTextToWidth(typeLabel, layout.typeWidth()),
+				layout.typeX(),
+				rowY + LIST_ROW_TEXT_OFFSET_Y,
+				LIST_TYPE_TEXT_COLOR,
+				false
+			);
 			guiGraphics.drawString(
 				font,
 				clipTextToWidth(serialLabel, layout.serialWidth()),
 				layout.serialX(),
 				rowY + LIST_ROW_TEXT_OFFSET_Y,
-				0xDDDDDD,
+				LIST_SERIAL_TEXT_COLOR,
 				false
 			);
 			guiGraphics.drawString(
@@ -344,7 +403,7 @@ public class StatePanelToolScreen extends Screen {
 				clipTextToWidth(status, layout.statusWidth()),
 				layout.statusX(),
 				rowY + LIST_ROW_TEXT_OFFSET_Y,
-				0xCCCCCC,
+				LIST_STATUS_TEXT_COLOR,
 				false
 			);
 		}
@@ -385,6 +444,64 @@ public class StatePanelToolScreen extends Screen {
 
 	private Component typeToggleLabel() {
 		return Component.translatable("screen.redstonelink.state_panel.type", LinkNodeSemantics.toSemanticName(currentType));
+	}
+
+	/**
+	 * 创建状态面板统一主题按钮。
+	 */
+	private Button createThemedButton(Component message, int x, int y, int width, Button.OnPress onPress) {
+		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, STATE_PANEL_BUTTON_STYLE);
+	}
+
+	/**
+	 * @return 状态面板背景预设
+	 */
+	private GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
+		return GuiBackgroundRenderSupport.BackgroundPreset.STATE_PANEL;
+	}
+
+	/**
+	 * 解析状态面板内容包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(StatePanelLayout layout) {
+		int centerX = width / 2;
+		GuiBackgroundRenderSupport.RegionBounds bounds = centeredTextBounds(TITLE, centerX, layout.panelTop());
+		bounds =
+			bounds.include(
+				leftAlignedTextBounds(
+					Component.translatable("screen.redstonelink.state_panel.input"),
+					layout.panelLeft(),
+					layout.panelTop() + TYPE_LABEL_TOP_OFFSET
+				)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(
+					layout.panelLeft(),
+					layout.inputY(),
+					layout.panelWidth(),
+					layout.statusMessageY() + font.lineHeight - layout.inputY()
+				)
+			);
+		if (!statusMessage.getString().isEmpty()) {
+			bounds = bounds.include(leftAlignedTextBounds(statusMessage, layout.panelLeft(), layout.statusMessageY()));
+		}
+		return bounds;
+	}
+
+	/**
+	 * 生成左对齐文本包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds leftAlignedTextBounds(Component text, int left, int top) {
+		return new GuiBackgroundRenderSupport.RegionBounds(left, top, Math.max(1, font.width(text)), font.lineHeight);
+	}
+
+	/**
+	 * 生成居中文本包围盒。
+	 */
+	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
+		int textWidth = Math.max(1, font.width(text));
+		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (textWidth / 2), top, textWidth, font.lineHeight);
 	}
 
 	/**
