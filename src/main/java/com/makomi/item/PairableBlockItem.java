@@ -4,6 +4,7 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
@@ -139,7 +140,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.serial",
-				serial > 0L ? Long.toString(serial) : "-"
+				NodeAliasDisplayUtil.formatDisplayText(LinkItemData.getDisplayAlias(stack), serial)
 			)
 		);
 		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。

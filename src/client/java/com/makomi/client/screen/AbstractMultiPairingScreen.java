@@ -3,6 +3,7 @@ package com.makomi.client.screen;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.util.SerialDisplayFormatUtil;
 import java.util.ArrayList;
 import java.util.List;
@@ -105,6 +106,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	private static final int BACKGROUND_BOTTOM_PADDING = 26;
 
 	protected final long sourceSerial;
+	protected final String sourceDisplayText;
 	protected final List<Long> currentTargets;
 	protected final long graphRevision;
 	protected final long sourceRevision;
@@ -116,6 +118,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected AbstractMultiPairingScreen(
 		Component title,
 		long sourceSerial,
+		String sourceDisplayText,
 		List<Long> currentTargets,
 		long graphRevision,
 		long sourceRevision,
@@ -123,6 +126,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	) {
 		super(title);
 		this.sourceSerial = sourceSerial;
+		this.sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceDisplayText);
 		this.currentTargets = new ArrayList<>(currentTargets);
 		this.graphRevision = Math.max(0L, graphRevision);
 		this.sourceRevision = Math.max(0L, sourceRevision);
@@ -132,15 +136,16 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected AbstractMultiPairingScreen(
 		Component title,
 		long sourceSerial,
+		String sourceDisplayText,
 		List<Long> currentTargets,
 		long graphRevision,
 		long sourceRevision
 	) {
-		this(title, sourceSerial, currentTargets, graphRevision, sourceRevision, 0L);
+		this(title, sourceSerial, sourceDisplayText, currentTargets, graphRevision, sourceRevision, 0L);
 	}
 
-	protected AbstractMultiPairingScreen(Component title, long sourceSerial, List<Long> currentTargets) {
-		this(title, sourceSerial, currentTargets, 0L, 0L);
+	protected AbstractMultiPairingScreen(Component title, long sourceSerial, String sourceDisplayText, List<Long> currentTargets) {
+		this(title, sourceSerial, sourceDisplayText, currentTargets, 0L, 0L);
 	}
 
 	@Override
@@ -248,7 +253,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 	protected abstract Component invalidInput();
 
-	protected abstract Component serialLine(long sourceSerial);
+	protected abstract Component serialLine(String sourceDisplayText);
 
 	protected abstract Component currentLinksLine(List<Long> currentTargets);
 
@@ -263,7 +268,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * @return 当前界面头部副标题；默认展示来源序号行
 	 */
 	protected Component headerSubtitle() {
-		return serialLine(sourceSerial);
+		return serialLine(sourceDisplayText);
 	}
 
 	/**
@@ -774,5 +779,12 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected enum ActionButtonKind {
 		CONFIRM,
 		CLEAR,
+	}
+
+	private static String normalizeSourceDisplayText(long sourceSerial, String sourceDisplayText) {
+		String normalizedDisplayText = NodeAliasDisplayUtil.normalizeAlias(sourceDisplayText);
+		return normalizedDisplayText.isEmpty()
+			? NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
+			: normalizedDisplayText;
 	}
 }

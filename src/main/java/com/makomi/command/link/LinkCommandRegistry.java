@@ -7,6 +7,7 @@ import com.makomi.command.privacy.CurrentLinksPrivacyCommandRegistry;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.util.ServerSerialValidationUtil;
 import com.mojang.brigadier.Command;
@@ -162,11 +163,12 @@ public final class LinkCommandRegistry {
 			serial,
 			source.hasPermission(RedstoneLinkConfig.privacy().viewPermissionLevel())
 		);
+		String displaySerialText = NodeAliasServerSupport.resolveDisplayText(source.getLevel(), type, serial);
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.link.get",
 				CommandTreeSupport.typeCommandName(type),
-				serial,
+				displaySerialText,
 				readSnapshot.linksSnapshot().visibleTargetCount(),
 				CommandTreeSupport.formatSerialList(readSnapshot.linksSnapshot().visibleTargets())
 			),

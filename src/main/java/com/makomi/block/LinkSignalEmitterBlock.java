@@ -92,6 +92,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
 				if (triggerSourceBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
+					LinkItemData.syncDisplayAliasIfSingle(drop, serverLevel);
 					LinkItemData.setLinkedSerials(
 						drop,
 						NodeSnapshotQueryService

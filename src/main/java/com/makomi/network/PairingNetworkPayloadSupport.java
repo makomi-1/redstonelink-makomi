@@ -21,6 +21,7 @@ final class PairingNetworkPayloadSupport {
 	static final int NODE_TYPE_MAX_LENGTH = 32;
 	private static final int CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH = 32;
 	private static final int DISPLAY_CONTEXT_TOKEN_MAX_LENGTH = 64;
+	private static final int DISPLAY_TEXT_MAX_LENGTH = 96;
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
 	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
 
@@ -39,7 +40,8 @@ final class PairingNetworkPayloadSupport {
 		LinkNodeType sourceType,
 		long sourceSerial,
 		NodeLinksSnapshot linksSnapshot,
-		String displayContextToken
+		String displayContextToken,
+		String sourceDisplayText
 	) {
 		NodeLinksSnapshot normalizedSnapshot = linksSnapshot == null
 			? new NodeLinksSnapshot(null, List.of(), false)
@@ -51,7 +53,8 @@ final class PairingNetworkPayloadSupport {
 				normalizedSnapshot.graphRevision(),
 				normalizedSnapshot.sourceRevision(),
 				normalizedSnapshot.coreRevision(),
-				LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE)
+				LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE),
+				sourceDisplayText
 			);
 		}
 		return new PairingNetwork.OpenCorePairingPayload(
@@ -60,7 +63,8 @@ final class PairingNetworkPayloadSupport {
 			normalizedSnapshot.graphRevision(),
 			normalizedSnapshot.sourceRevision(),
 			normalizedSnapshot.coreRevision(),
-			LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE)
+			LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE),
+			sourceDisplayText
 		);
 	}
 
@@ -74,7 +78,8 @@ final class PairingNetworkPayloadSupport {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
-		String displayContextToken
+		String displayContextToken,
+		String sourceDisplayText
 	) {
 		buffer.writeVarLong(sourceSerial);
 		buffer.writeVarInt(targets.size());
@@ -85,6 +90,7 @@ final class PairingNetworkPayloadSupport {
 		buffer.writeVarLong(Math.max(0L, sourceRevision));
 		buffer.writeVarLong(Math.max(0L, coreRevision));
 		buffer.writeUtf(displayContextToken == null ? "" : displayContextToken, DISPLAY_CONTEXT_TOKEN_MAX_LENGTH);
+		buffer.writeUtf(sourceDisplayText == null ? "" : sourceDisplayText, DISPLAY_TEXT_MAX_LENGTH);
 	}
 
 	/**
@@ -98,7 +104,8 @@ final class PairingNetworkPayloadSupport {
 			payload.graphRevision(),
 			payload.sourceRevision(),
 			payload.coreRevision(),
-			payload.displayContextToken()
+			payload.displayContextToken(),
+			payload.sourceDisplayText()
 		);
 	}
 
@@ -113,7 +120,8 @@ final class PairingNetworkPayloadSupport {
 			payload.graphRevision(),
 			payload.sourceRevision(),
 			payload.coreRevision(),
-			payload.displayContextToken()
+			payload.displayContextToken(),
+			payload.sourceDisplayText()
 		);
 	}
 
@@ -326,7 +334,8 @@ final class PairingNetworkPayloadSupport {
 			buffer.readVarLong(),
 			buffer.readVarLong(),
 			buffer.readVarLong(),
-			buffer.readUtf(DISPLAY_CONTEXT_TOKEN_MAX_LENGTH)
+			buffer.readUtf(DISPLAY_CONTEXT_TOKEN_MAX_LENGTH),
+			buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH)
 		);
 	}
 
@@ -419,7 +428,8 @@ final class PairingNetworkPayloadSupport {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
-		String displayContextToken
+		String displayContextToken,
+		String sourceDisplayText
 	) {}
 
 	/**

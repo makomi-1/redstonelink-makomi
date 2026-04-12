@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkGuiDisplayContext;
+import com.makomi.data.NodeAliasDisplayUtil;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +32,8 @@ class PairingNetworkPayloadTest {
 			8L,
 			5L,
 			0L,
-			LinkGuiDisplayContext.LINK_TOGGLE_BUTTON
+			LinkGuiDisplayContext.LINK_TOGGLE_BUTTON,
+			"大门1(#100)"
 		);
 
 		assertNotSame(source, payload.targets());
@@ -54,7 +56,8 @@ class PairingNetworkPayloadTest {
 			9L,
 			0L,
 			6L,
-			LinkGuiDisplayContext.LINK_REDSTONE_CORE
+			LinkGuiDisplayContext.LINK_REDSTONE_CORE,
+			"中控(#200)"
 		);
 
 		assertNotSame(source, payload.targets());
@@ -132,7 +135,8 @@ class PairingNetworkPayloadTest {
 			21L,
 			13L,
 			0L,
-			LinkGuiDisplayContext.LINK_PULSE_EMITTER
+			LinkGuiDisplayContext.LINK_PULSE_EMITTER,
+			"脉冲源(#123)"
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -147,6 +151,7 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(original.coreRevision(), decoded.coreRevision());
 		assertEquals(original.displayContextToken(), decoded.displayContextToken());
+		assertEquals(original.sourceDisplayText(), decoded.sourceDisplayText());
 		assertEquals(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, decoded.type());
 	}
 
@@ -161,7 +166,8 @@ class PairingNetworkPayloadTest {
 			34L,
 			0L,
 			5L,
-			LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE
+			LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE,
+			"红石核心(#321)"
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -174,6 +180,7 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(original.coreRevision(), decoded.coreRevision());
 		assertEquals(original.displayContextToken(), decoded.displayContextToken());
+		assertEquals(original.sourceDisplayText(), decoded.sourceDisplayText());
 		assertEquals(PairingNetwork.OpenCorePairingPayload.TYPE, decoded.type());
 	}
 
@@ -249,7 +256,8 @@ class PairingNetworkPayloadTest {
 			0L,
 			0L,
 			0L,
-			LinkGuiDisplayContext.TRIGGER_SOURCE
+			LinkGuiDisplayContext.TRIGGER_SOURCE,
+			NodeAliasDisplayUtil.formatDisplayText("", 77L)
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -260,6 +268,7 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(77L, decoded.sourceSerial());
 		assertEquals(List.of(), decoded.targets());
+		assertEquals(NodeAliasDisplayUtil.formatDisplayText("", 77L), decoded.sourceDisplayText());
 	}
 
 	/**

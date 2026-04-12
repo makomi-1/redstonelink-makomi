@@ -1,10 +1,12 @@
 package com.makomi.network;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeIdentitySnapshot;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeRuntimeProbe.TraceNodeKind;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.StatePanelToolData;
@@ -28,7 +30,8 @@ class StatePanelNetworkServerHandlerSupportTest {
 			subscription,
 			false,
 			null,
-			null
+			null,
+			NodeAliasDisplayUtil.formatDisplayText("", 17L)
 		);
 
 		assertFalse(entry.readable());
@@ -36,6 +39,7 @@ class StatePanelNetworkServerHandlerSupportTest {
 		assertFalse(entry.retired());
 		assertFalse(entry.online());
 		assertFalse(entry.active());
+		assertTrue(entry.displayText().contains("#17"));
 	}
 
 	/**
@@ -65,7 +69,8 @@ class StatePanelNetworkServerHandlerSupportTest {
 			subscription,
 			true,
 			identity,
-			runtimeSnapshot
+			runtimeSnapshot,
+			"大门1(#29)"
 		);
 
 		assertTrue(entry.readable());
@@ -73,5 +78,6 @@ class StatePanelNetworkServerHandlerSupportTest {
 		assertFalse(entry.retired());
 		assertTrue(entry.online());
 		assertTrue(entry.active());
+		assertEquals("大门1(#29)", entry.displayText());
 	}
 }

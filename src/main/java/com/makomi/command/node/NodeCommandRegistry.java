@@ -8,6 +8,7 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeIdentitySnapshot;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
@@ -97,6 +98,7 @@ public final class NodeCommandRegistry {
 						)
 					)
 			)
+			.then(NodeAliasCommandRegistry.createRoot())
 			.then(NodeTraceCommandRegistry.createRoot());
 	}
 
@@ -123,11 +125,12 @@ public final class NodeCommandRegistry {
 		NodeIdentitySnapshot identity = readSnapshot.identity();
 		String dimensionText = identity.dimension() == null ? "-" : identity.dimension().location().toString();
 		String posText = identity.pos() == null ? "-" : CommandTreeSupport.formatBlockPos(identity.pos());
+		String displaySerialText = NodeAliasServerSupport.resolveDisplayText(source.getLevel(), type, serial);
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.node.get",
 				CommandTreeSupport.typeCommandName(type),
-				serial,
+				displaySerialText,
 				Boolean.toString(identity.allocated()),
 				Boolean.toString(identity.retired()),
 				Boolean.toString(identity.online()),

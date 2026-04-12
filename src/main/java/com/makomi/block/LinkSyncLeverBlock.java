@@ -88,6 +88,7 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
 				if (triggerSourceBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
+					LinkItemData.syncDisplayAliasIfSingle(drop, serverLevel);
 					LinkItemData.setLinkedSerials(
 						drop,
 						NodeSnapshotQueryService

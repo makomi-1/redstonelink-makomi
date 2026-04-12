@@ -5,6 +5,7 @@ import com.makomi.client.screen.CorePairingScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -34,7 +35,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
-				payload.displayContextToken()
+				payload.displayContextToken(),
+				payload.sourceDisplayText()
 			));
 		});
 
@@ -47,7 +49,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
-				payload.displayContextToken()
+				payload.displayContextToken(),
+				payload.sourceDisplayText()
 			));
 		});
 
@@ -96,7 +99,8 @@ public final class PairingNetworkClientHandlerSupport {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
-		String displayContextToken
+		String displayContextToken,
+		String sourceDisplayText
 	) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null) {
@@ -104,12 +108,28 @@ public final class PairingNetworkClientHandlerSupport {
 		}
 		if (sourceType == LinkNodeType.CORE) {
 			minecraft.setScreen(
-				new CorePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision, displayContextToken)
+				new CorePairingScreen(
+					sourceSerial,
+					currentTargets,
+					graphRevision,
+					sourceRevision,
+					coreRevision,
+					displayContextToken,
+					sourceDisplayText
+				)
 			);
 			return;
 		}
 		minecraft.setScreen(
-			new TriggerSourcePairingScreen(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision, displayContextToken)
+			new TriggerSourcePairingScreen(
+				sourceSerial,
+				currentTargets,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				displayContextToken,
+				sourceDisplayText
+			)
 		);
 	}
 
@@ -125,7 +145,8 @@ public final class PairingNetworkClientHandlerSupport {
 			0L,
 			0L,
 			0L,
-			LinkGuiDisplayContext.fallbackPairingToken(sourceType)
+			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
+			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
 		);
 	}
 
@@ -144,7 +165,8 @@ public final class PairingNetworkClientHandlerSupport {
 			graphRevision,
 			sourceRevision,
 			coreRevision,
-			LinkGuiDisplayContext.fallbackPairingToken(sourceType)
+			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
+			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
 		);
 	}
 

@@ -12,6 +12,7 @@ import net.minecraft.network.FriendlyByteBuf;
  */
 final class StatePanelNetworkPayloadSupport {
 	private static final int NODE_TYPE_TOKEN_MAX_LENGTH = PairingNetworkPayloadSupport.NODE_TYPE_MAX_LENGTH;
+	private static final int DISPLAY_TEXT_MAX_LENGTH = 96;
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
 	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
 
@@ -27,6 +28,7 @@ final class StatePanelNetworkPayloadSupport {
 		for (StatePanelNetwork.SubscriptionEntryPayload entry : values) {
 			buffer.writeUtf(LinkNodeSemantics.toSemanticName(entry.nodeType()), NODE_TYPE_TOKEN_MAX_LENGTH);
 			buffer.writeLong(entry.serial());
+			buffer.writeUtf(entry.displayText(), DISPLAY_TEXT_MAX_LENGTH);
 		}
 	}
 
@@ -41,7 +43,8 @@ final class StatePanelNetworkPayloadSupport {
 				.tryParseCanonicalType(buffer.readUtf(NODE_TYPE_TOKEN_MAX_LENGTH))
 				.orElse(LinkNodeType.CORE);
 			long serial = buffer.readLong();
-			values.add(new StatePanelNetwork.SubscriptionEntryPayload(nodeType, serial));
+			String displayText = buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH);
+			values.add(new StatePanelNetwork.SubscriptionEntryPayload(nodeType, serial, displayText));
 		}
 		return List.copyOf(values);
 	}
@@ -88,6 +91,7 @@ final class StatePanelNetworkPayloadSupport {
 		for (StatePanelNetwork.StatePanelSnapshotEntry entry : values) {
 			buffer.writeUtf(LinkNodeSemantics.toSemanticName(entry.nodeType()), NODE_TYPE_TOKEN_MAX_LENGTH);
 			buffer.writeLong(entry.serial());
+			buffer.writeUtf(entry.displayText(), DISPLAY_TEXT_MAX_LENGTH);
 			buffer.writeBoolean(entry.allocated());
 			buffer.writeBoolean(entry.retired());
 			buffer.writeBoolean(entry.online());
@@ -109,6 +113,7 @@ final class StatePanelNetworkPayloadSupport {
 				.tryParseCanonicalType(buffer.readUtf(NODE_TYPE_TOKEN_MAX_LENGTH))
 				.orElse(LinkNodeType.CORE);
 			long serial = buffer.readLong();
+			String displayText = buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH);
 			boolean allocated = buffer.readBoolean();
 			boolean retired = buffer.readBoolean();
 			boolean online = buffer.readBoolean();
@@ -120,6 +125,7 @@ final class StatePanelNetworkPayloadSupport {
 				new StatePanelNetwork.StatePanelSnapshotEntry(
 					nodeType,
 					serial,
+					displayText,
 					allocated,
 					retired,
 					online,

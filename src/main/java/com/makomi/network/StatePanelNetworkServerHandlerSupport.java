@@ -6,6 +6,8 @@ import com.makomi.data.CurrentLinksPrivacyService;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeIdentitySnapshot;
+import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.data.QuickLinkOperationFeedback;
@@ -269,7 +271,10 @@ final class StatePanelNetworkServerHandlerSupport {
 					.resolveRuntimeSnapshot(player.serverLevel().getServer(), subscription.nodeType(), subscription.serial())
 					.orElse(null)
 				: null;
-			values.add(buildSnapshotEntry(subscription, readable, identity, runtimeSnapshot));
+			String displayText = readable
+				? NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), subscription.nodeType(), subscription.serial())
+				: NodeAliasDisplayUtil.formatDisplayText("", subscription.serial());
+			values.add(buildSnapshotEntry(subscription, readable, identity, runtimeSnapshot, displayText));
 		}
 		return List.copyOf(values);
 	}
@@ -397,12 +402,24 @@ final class StatePanelNetworkServerHandlerSupport {
 		StatePanelToolData.SubscriptionEntry subscription,
 		boolean readable,
 		NodeIdentitySnapshot identity,
-		NodeRuntimeSnapshot runtimeSnapshot
+		NodeRuntimeSnapshot runtimeSnapshot,
+		String displayText
 	) {
 		LinkNodeType nodeType = subscription == null ? LinkNodeType.CORE : subscription.nodeType();
 		long serial = subscription == null ? 0L : subscription.serial();
 		if (!readable) {
-			return new StatePanelNetwork.StatePanelSnapshotEntry(nodeType, serial, false, false, false, false, 0, 0, false);
+			return new StatePanelNetwork.StatePanelSnapshotEntry(
+				nodeType,
+				serial,
+				displayText,
+				false,
+				false,
+				false,
+				false,
+				0,
+				0,
+				false
+			);
 		}
 		NodeIdentitySnapshot resolvedIdentity = identity == null
 			? new NodeIdentitySnapshot(nodeType, serial, false, false, false, null, null)
@@ -413,6 +430,7 @@ final class StatePanelNetworkServerHandlerSupport {
 		return new StatePanelNetwork.StatePanelSnapshotEntry(
 			nodeType,
 			serial,
+			displayText,
 			resolvedIdentity.allocated(),
 			resolvedIdentity.retired(),
 			resolvedIdentity.online(),

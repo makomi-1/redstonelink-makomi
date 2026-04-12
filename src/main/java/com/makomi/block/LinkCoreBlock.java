@@ -101,6 +101,7 @@ public class LinkCoreBlock extends BaseEntityBlock {
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
 				if (coreBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
+					LinkItemData.syncDisplayAliasIfSingle(drop, serverLevel);
 					LinkItemData.setLinkedSerials(
 						drop,
 						NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.CORE, serial).visibleTargetSet()

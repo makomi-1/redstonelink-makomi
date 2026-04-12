@@ -5,6 +5,8 @@ import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeLinksSnapshot;
+import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeSnapshotQueryService;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -88,7 +90,11 @@ public final class PairingNetwork {
 			return;
 		}
 		NodeLinksSnapshot linksSnapshot = NodeSnapshotQueryService.queryLinks(player, sourceType, sourceSerial);
-		ServerPlayNetworking.send(player, buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot, displayContextToken));
+		String sourceDisplayText = NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), sourceType, sourceSerial);
+		ServerPlayNetworking.send(
+			player,
+			buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot, displayContextToken, sourceDisplayText)
+		);
 	}
 
 	/**
@@ -106,9 +112,16 @@ public final class PairingNetwork {
 		LinkNodeType sourceType,
 		long sourceSerial,
 		NodeLinksSnapshot linksSnapshot,
-		String displayContextToken
+		String displayContextToken,
+		String sourceDisplayText
 	) {
-		return PairingNetworkPayloadSupport.buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot, displayContextToken);
+		return PairingNetworkPayloadSupport.buildPayloadForSourceType(
+			sourceType,
+			sourceSerial,
+			linksSnapshot,
+			displayContextToken,
+			sourceDisplayText
+		);
 	}
 
 	/**
@@ -124,7 +137,8 @@ public final class PairingNetwork {
 			sourceType,
 			sourceSerial,
 			linksSnapshot,
-			LinkGuiDisplayContext.fallbackPairingToken(sourceType)
+			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
+			normalizeSourceDisplayText(sourceSerial, "")
 		);
 	}
 
@@ -144,7 +158,8 @@ public final class PairingNetwork {
 			sourceType,
 			sourceSerial,
 			new NodeLinksSnapshot(null, currentTargets, false),
-			LinkGuiDisplayContext.fallbackPairingToken(sourceType)
+			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
+			normalizeSourceDisplayText(sourceSerial, "")
 		);
 	}
 
@@ -158,7 +173,8 @@ public final class PairingNetwork {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
-		String displayContextToken
+		String displayContextToken,
+		String sourceDisplayText
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_triggersource_pairing")
@@ -171,7 +187,8 @@ public final class PairingNetwork {
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
-				payload.displayContextToken()
+				payload.displayContextToken(),
+				payload.sourceDisplayText()
 			),
 			PairingNetworkPayloadSupport::decodeTriggerSourcePairingPayload
 		);
@@ -182,6 +199,7 @@ public final class PairingNetwork {
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
 			displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE);
+			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceDisplayText);
 		}
 
 		@Override
@@ -201,7 +219,8 @@ public final class PairingNetwork {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
-		String displayContextToken
+		String displayContextToken,
+		String sourceDisplayText
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_core_pairing")
@@ -214,7 +233,8 @@ public final class PairingNetwork {
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
-				payload.displayContextToken()
+				payload.displayContextToken(),
+				payload.sourceDisplayText()
 			),
 			PairingNetworkPayloadSupport::decodeCorePairingPayload
 		);
@@ -225,6 +245,7 @@ public final class PairingNetwork {
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
 			displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE);
+			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceDisplayText);
 		}
 
 		@Override
@@ -504,5 +525,12 @@ public final class PairingNetwork {
 		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
 			return TYPE;
 		}
+	}
+
+	private static String normalizeSourceDisplayText(long sourceSerial, String sourceDisplayText) {
+		String normalizedDisplayText = NodeAliasDisplayUtil.normalizeAlias(sourceDisplayText);
+		return normalizedDisplayText.isEmpty()
+			? NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
+			: normalizedDisplayText;
 	}
 }

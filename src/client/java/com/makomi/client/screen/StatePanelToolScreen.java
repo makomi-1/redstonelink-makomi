@@ -2,6 +2,7 @@ package com.makomi.client.screen;
 
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.StatePanelNetwork;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -80,9 +81,9 @@ public class StatePanelToolScreen extends Screen {
 
 	private static final int LIST_LEFT_PADDING = 4;
 	private static final int COL_TYPE_W = 116;
-	private static final int COL_SERIAL_W = 96;
+	private static final int COL_SERIAL_W = 156;
 	private static final int MIN_COL_TYPE_W = 72;
-	private static final int MIN_COL_SERIAL_W = 64;
+	private static final int MIN_COL_SERIAL_W = 96;
 	private static final int MIN_COL_STATUS_W = 64;
 
 	private final List<StatePanelNetwork.SubscriptionEntryPayload> initialSubscriptions;
@@ -322,6 +323,7 @@ public class StatePanelToolScreen extends Screen {
 				new StatePanelNetwork.StatePanelSnapshotEntry(
 					subscription.nodeType(),
 					subscription.serial(),
+					subscription.displayText(),
 					false,
 					false,
 					false,
@@ -379,7 +381,7 @@ public class StatePanelToolScreen extends Screen {
 			}
 			StatePanelNetwork.StatePanelSnapshotEntry entry = entries.get(index);
 			String typeLabel = LinkNodeSemantics.toSemanticName(entry.nodeType());
-			String serialLabel = "#" + entry.serial();
+			String serialLabel = resolveDisplayText(entry);
 			String status = buildStatusText(entry, hasAppliedServerSnapshot);
 
 			guiGraphics.drawString(
@@ -440,6 +442,17 @@ public class StatePanelToolScreen extends Screen {
 		sb.append(" out=");
 		sb.append(entry.outputPower());
 		return sb.toString();
+	}
+
+	private static String resolveDisplayText(StatePanelNetwork.StatePanelSnapshotEntry entry) {
+		if (entry == null) {
+			return "-";
+		}
+		String normalizedDisplayText = NodeAliasDisplayUtil.normalizeAlias(entry.displayText());
+		if (!normalizedDisplayText.isEmpty()) {
+			return normalizedDisplayText;
+		}
+		return NodeAliasDisplayUtil.formatDisplayText("", entry.serial());
 	}
 
 	private Component typeToggleLabel() {

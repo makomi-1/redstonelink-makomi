@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import io.netty.buffer.Unpooled;
 import java.util.List;
 import net.minecraft.network.FriendlyByteBuf;
@@ -23,8 +24,8 @@ class StatePanelNetworkPayloadTest {
 	void openPayloadCodecRoundTripShouldPreserveSubscriptions() {
 		StatePanelNetwork.OpenStatePanelPayload original = new StatePanelNetwork.OpenStatePanelPayload(
 			List.of(
-				new StatePanelNetwork.SubscriptionEntryPayload(LinkNodeType.CORE, 3L),
-				new StatePanelNetwork.SubscriptionEntryPayload(LinkNodeType.TRIGGER_SOURCE, 9L)
+				new StatePanelNetwork.SubscriptionEntryPayload(LinkNodeType.CORE, 3L, "中控(#3)"),
+				new StatePanelNetwork.SubscriptionEntryPayload(LinkNodeType.TRIGGER_SOURCE, 9L, "大门1(#9)")
 			)
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -75,8 +76,30 @@ class StatePanelNetworkPayloadTest {
 	void snapshotPayloadCodecRoundTripShouldPreserveEntries() {
 		StatePanelNetwork.StatePanelSnapshotPayload original = new StatePanelNetwork.StatePanelSnapshotPayload(
 			List.of(
-				new StatePanelNetwork.StatePanelSnapshotEntry(LinkNodeType.CORE, 21L, true, false, true, true, 7, 15, true),
-				new StatePanelNetwork.StatePanelSnapshotEntry(LinkNodeType.TRIGGER_SOURCE, 33L, false, false, false, false, 0, 0, false)
+				new StatePanelNetwork.StatePanelSnapshotEntry(
+					LinkNodeType.CORE,
+					21L,
+					"中控(#21)",
+					true,
+					false,
+					true,
+					true,
+					7,
+					15,
+					true
+				),
+				new StatePanelNetwork.StatePanelSnapshotEntry(
+					LinkNodeType.TRIGGER_SOURCE,
+					33L,
+					NodeAliasDisplayUtil.formatDisplayText("", 33L),
+					false,
+					false,
+					false,
+					false,
+					0,
+					0,
+					false
+				)
 			)
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());

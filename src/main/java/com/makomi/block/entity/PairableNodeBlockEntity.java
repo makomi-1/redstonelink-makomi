@@ -6,10 +6,11 @@ import com.makomi.data.LinkNodeLifecycleDispatchEvents;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -33,9 +34,12 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public abstract class PairableNodeBlockEntity extends BlockEntity {
 	protected static final String KEY_SERIAL = "Serial";
+	protected static final String KEY_DISPLAY_ALIAS = "DisplayAlias";
 
 	private long serial;
 	private long cachedDisplaySerial = Long.MIN_VALUE;
+	private String cachedDisplayAlias = "";
+	private String cachedRenderedAlias = "";
 	private String cachedDisplayText = "";
 	private final PairableNodeLifecycleState lifecycleState = new PairableNodeLifecycleState();
 
@@ -56,11 +60,13 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	 */
 	public String getSerialDisplayText() {
 		long currentSerial = serial;
-		if (cachedDisplaySerial == currentSerial) {
+		String currentAlias = NodeAliasDisplayUtil.normalizeAlias(cachedDisplayAlias);
+		if (cachedDisplaySerial == currentSerial && currentAlias.equals(cachedRenderedAlias)) {
 			return cachedDisplayText;
 		}
 		cachedDisplaySerial = currentSerial;
-		cachedDisplayText = formatSerialDisplayText(currentSerial);
+		cachedRenderedAlias = currentAlias;
+		cachedDisplayText = NodeAliasDisplayUtil.formatDisplayText(currentAlias, currentSerial);
 		return cachedDisplayText;
 	}
 
@@ -175,6 +181,12 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		if (tag.contains(KEY_SERIAL, Tag.TAG_LONG)) {
 			serial = tag.getLong(KEY_SERIAL);
 		}
+		cachedDisplayAlias = tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)
+			? NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS))
+			: "";
+		cachedDisplaySerial = Long.MIN_VALUE;
+		cachedRenderedAlias = "";
+		cachedDisplayText = "";
 	}
 
 	@Override
@@ -199,7 +211,17 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 
 	@Override
 	public CompoundTag getUpdateTag(HolderLookup.Provider provider) {
-		return saveWithoutMetadata(provider);
+		CompoundTag tag = saveWithoutMetadata(provider);
+		String alias = "";
+		if (level instanceof ServerLevel serverLevel) {
+			alias = NodeAliasServerSupport.resolveAlias(serverLevel, getNodeType(), serial).orElse("");
+		}
+		if (alias.isEmpty()) {
+			tag.remove(KEY_DISPLAY_ALIAS);
+		} else {
+			tag.putString(KEY_DISPLAY_ALIAS, alias);
+		}
+		return tag;
 	}
 
 	/**
@@ -255,13 +277,4 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		return level instanceof ServerLevel && serial > 0L && !lifecycleState.physicalRemovalInProgress();
 	}
 
-	/**
-	 * 将序号转为十进制分组文本，便于快速阅读。
-	 */
-	private static String formatSerialDisplayText(long serial) {
-		if (serial <= 0L) {
-			return "";
-		}
-		return String.format(Locale.ROOT, "%,d", serial);
-	}
 }

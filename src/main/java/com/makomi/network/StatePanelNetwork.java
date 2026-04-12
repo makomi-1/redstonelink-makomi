@@ -1,7 +1,10 @@
 package com.makomi.network;
 
 import com.makomi.RedstoneLink;
+import com.makomi.data.CurrentLinksPrivacyService;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.StatePanelToolData;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -36,7 +39,11 @@ public final class StatePanelNetwork {
 		List<SubscriptionEntryPayload> subscriptions = StatePanelToolData
 			.readSubscriptions(stack)
 			.stream()
-			.map(entry -> new SubscriptionEntryPayload(entry.nodeType(), entry.serial()))
+			.map(entry -> new SubscriptionEntryPayload(
+				entry.nodeType(),
+				entry.serial(),
+				resolveSubscriptionDisplayText(player, entry.nodeType(), entry.serial())
+			))
 			.toList();
 		ServerPlayNetworking.send(player, new OpenStatePanelPayload(subscriptions));
 	}
@@ -235,10 +242,11 @@ public final class StatePanelNetwork {
 	/**
 	 * 状态面板订阅项传输结构。
 	 */
-	public record SubscriptionEntryPayload(LinkNodeType nodeType, long serial) {
+	public record SubscriptionEntryPayload(LinkNodeType nodeType, long serial, String displayText) {
 		public SubscriptionEntryPayload {
 			nodeType = nodeType == LinkNodeType.TRIGGER_SOURCE ? LinkNodeType.TRIGGER_SOURCE : LinkNodeType.CORE;
 			serial = Math.max(0L, serial);
+			displayText = normalizeDisplayText(serial, displayText);
 		}
 	}
 
@@ -248,6 +256,7 @@ public final class StatePanelNetwork {
 	public record StatePanelSnapshotEntry(
 		LinkNodeType nodeType,
 		long serial,
+		String displayText,
 		boolean allocated,
 		boolean retired,
 		boolean online,
@@ -259,6 +268,24 @@ public final class StatePanelNetwork {
 		public StatePanelSnapshotEntry {
 			nodeType = nodeType == LinkNodeType.TRIGGER_SOURCE ? LinkNodeType.TRIGGER_SOURCE : LinkNodeType.CORE;
 			serial = Math.max(0L, serial);
+			displayText = normalizeDisplayText(serial, displayText);
 		}
+	}
+
+	private static String resolveSubscriptionDisplayText(ServerPlayer player, LinkNodeType nodeType, long serial) {
+		if (player == null || nodeType == null || serial <= 0L) {
+			return normalizeDisplayText(serial, "");
+		}
+		if (!CurrentLinksPrivacyService.canReadNodeState(player, nodeType, serial)) {
+			return normalizeDisplayText(serial, "");
+		}
+		return normalizeDisplayText(serial, NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), nodeType, serial));
+	}
+
+	private static String normalizeDisplayText(long serial, String displayText) {
+		String normalizedDisplayText = NodeAliasDisplayUtil.normalizeAlias(displayText);
+		return normalizedDisplayText.isEmpty()
+			? NodeAliasDisplayUtil.formatDisplayText("", serial)
+			: normalizedDisplayText;
 	}
 }

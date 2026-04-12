@@ -35,6 +35,7 @@ public final class LinkItemData {
 
 	private static final String KEY_SERIAL = "rl_serial";
 	private static final String KEY_SERIAL_GROUP = "rl_serial_group";
+	private static final String KEY_DISPLAY_ALIAS = "rl_display_alias";
 	private static final String KEY_PAIR = "rl_pair";
 	private static final String KEY_LINKS = "rl_links";
 	private static final String KEY_DESTROY_RETIRE = "rl_destroy_retire";
@@ -57,6 +58,7 @@ public final class LinkItemData {
 		List<Long> serialGroup = getSerialGroup(stack);
 		if (serialGroup.size() > 1) {
 			setDestroyRetireCandidate(stack, true);
+			syncDisplayAliasIfSingle(stack, level);
 			return serialGroup.get(0);
 		}
 
@@ -68,6 +70,7 @@ public final class LinkItemData {
 				setSerial(stack, reallocated);
 				// 统一标记为“销毁可退役候选”，覆盖创造栏直接取出的物品场景。
 				setDestroyRetireCandidate(stack, true);
+				syncDisplayAliasIfSingle(stack, level);
 				return reallocated;
 			}
 			if (!savedData.isSerialAllocated(type, serial)) {
@@ -75,6 +78,7 @@ public final class LinkItemData {
 			}
 			// 统一标记为“销毁可退役候选”，覆盖创造栏直接取出的物品场景。
 			setDestroyRetireCandidate(stack, true);
+			syncDisplayAliasIfSingle(stack, level);
 			return serial;
 		}
 
@@ -82,6 +86,7 @@ public final class LinkItemData {
 		setSerial(stack, allocated);
 		// 新分配序号后同步写入销毁退役候选标记，保证后续丢弃/销毁路径可识别。
 		setDestroyRetireCandidate(stack, true);
+		syncDisplayAliasIfSingle(stack, level);
 		return allocated;
 	}
 
@@ -237,6 +242,32 @@ public final class LinkItemData {
 				tag.remove(KEY_SERIAL);
 			}
 			tag.remove(KEY_SERIAL_GROUP);
+			tag.remove(KEY_DISPLAY_ALIAS);
+		});
+	}
+
+	/**
+	 * 读取物品缓存的展示别名。
+	 */
+	public static String getDisplayAlias(ItemStack stack) {
+		CompoundTag tag = readTag(stack);
+		if (!tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)) {
+			return "";
+		}
+		return NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS));
+	}
+
+	/**
+	 * 写入物品缓存的展示别名。
+	 */
+	public static void setDisplayAlias(ItemStack stack, String alias) {
+		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(alias);
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+			if (normalizedAlias.isEmpty()) {
+				tag.remove(KEY_DISPLAY_ALIAS);
+			} else {
+				tag.putString(KEY_DISPLAY_ALIAS, normalizedAlias);
+			}
 		});
 	}
 
@@ -332,6 +363,28 @@ public final class LinkItemData {
 			return;
 		}
 		setLinkedSerials(stack, NodeSnapshotQueryService.queryItemSnapshotLinks(level, nodeType.get(), serial).visibleTargetSet());
+		syncDisplayAliasIfSingle(stack, level);
+	}
+
+	/**
+	 * 为单件物品同步当前节点别名缓存。
+	 */
+	public static void syncDisplayAliasIfSingle(ItemStack stack, ServerLevel level) {
+		if (stack == null || stack.isEmpty() || level == null || getSerialCount(stack) != 1) {
+			setDisplayAlias(stack, "");
+			return;
+		}
+		Optional<LinkNodeType> nodeType = getNodeType(stack);
+		if (nodeType.isEmpty()) {
+			setDisplayAlias(stack, "");
+			return;
+		}
+		long serial = getSerial(stack);
+		if (serial <= 0L) {
+			setDisplayAlias(stack, "");
+			return;
+		}
+		setDisplayAlias(stack, NodeAliasServerSupport.resolveAlias(level, nodeType.get(), serial).orElse(""));
 	}
 
 	/**
@@ -465,6 +518,7 @@ public final class LinkItemData {
 		if (serials == null || serials.isEmpty()) {
 			tag.remove(KEY_SERIAL);
 			tag.remove(KEY_SERIAL_GROUP);
+			tag.remove(KEY_DISPLAY_ALIAS);
 			tag.remove(KEY_PAIR);
 			tag.remove(KEY_LINKS);
 			return;
@@ -476,6 +530,7 @@ public final class LinkItemData {
 		} else {
 			tag.remove(KEY_SERIAL_GROUP);
 		}
+		tag.remove(KEY_DISPLAY_ALIAS);
 		tag.remove(KEY_PAIR);
 		tag.remove(KEY_LINKS);
 	}

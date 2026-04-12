@@ -2,6 +2,7 @@ package com.makomi.client.screen;
 
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -48,14 +49,23 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
-		String displayContextToken
+		String displayContextToken,
+		String sourceDisplayText
 	) {
-		super(TITLE, sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision);
+		super(TITLE, sourceSerial, sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
 		this.displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, SOURCE_TYPE);
 	}
 
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
-		this(sourceSerial, currentTargets, graphRevision, sourceRevision, 0L, LinkGuiDisplayContext.CORE);
+		this(
+			sourceSerial,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			0L,
+			LinkGuiDisplayContext.CORE,
+			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
+		);
 	}
 
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets) {
@@ -85,10 +95,10 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	 * @return 本地化后的序列号文本
 	 */
 	@Override
-	protected Component serialLine(long sourceSerial) {
+	protected Component serialLine(String sourceDisplayText) {
 		return Component.translatable(
 			"screen.redstonelink.core_pairing.serial",
-			sourceSerial > 0L ? Long.toString(sourceSerial) : "-"
+			sourceDisplayText
 		);
 	}
 
