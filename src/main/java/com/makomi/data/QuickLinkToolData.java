@@ -23,6 +23,7 @@ public final class QuickLinkToolData {
 	private static final String KEY_SERIAL_CACHE_TYPE = "rl_quick_link_serial_cache_type";
 	private static final String KEY_SERIAL_CACHE_EXPRESSION = "rl_quick_link_serial_cache_expression";
 	private static final String KEY_CHANNEL_CACHE = "rl_quick_link_channel_cache";
+	private static final String KEY_APPLY_EDIT_MODE = "rl_quick_link_apply_edit_mode";
 
 	private QuickLinkToolData() {
 	}
@@ -39,7 +40,8 @@ public final class QuickLinkToolData {
 			mode,
 			normalizeSerialCacheType(serialCacheType),
 			normalizeText(tag.getString(KEY_SERIAL_CACHE_EXPRESSION)),
-			normalizeText(tag.getString(KEY_CHANNEL_CACHE))
+			normalizeText(tag.getString(KEY_CHANNEL_CACHE)),
+			ApplyEditMode.fromToken(tag.getString(KEY_APPLY_EDIT_MODE))
 		);
 	}
 
@@ -53,6 +55,7 @@ public final class QuickLinkToolData {
 			tag.putString(KEY_SERIAL_CACHE_TYPE, LinkNodeSemantics.toSemanticName(normalized.serialCacheType()));
 			writeStringOrRemove(tag, KEY_SERIAL_CACHE_EXPRESSION, normalized.serialCacheExpression());
 			writeStringOrRemove(tag, KEY_CHANNEL_CACHE, normalized.channelCache());
+			tag.putString(KEY_APPLY_EDIT_MODE, normalized.applyEditMode().token());
 		});
 	}
 
@@ -64,6 +67,18 @@ public final class QuickLinkToolData {
 	public static Snapshot cycleMode(ItemStack stack) {
 		Snapshot current = read(stack);
 		Snapshot next = current.withMode(current.mode().next());
+		write(stack, next);
+		return next;
+	}
+
+	/**
+	 * 将当前应用编辑模式循环切换为下一个模式并回写。
+	 *
+	 * @return 回写后的新快照
+	 */
+	public static Snapshot cycleApplyEditMode(ItemStack stack) {
+		Snapshot current = read(stack);
+		Snapshot next = current.withApplyEditMode(current.applyEditMode().next());
 		write(stack, next);
 		return next;
 	}
@@ -99,7 +114,13 @@ public final class QuickLinkToolData {
 		}
 
 		String nextExpression = SerialDisplayFormatUtil.buildExpression(mergedSerials).joinAll();
-		Snapshot next = new Snapshot(Mode.SERIAL, normalizedType, nextExpression, current.channelCache());
+		Snapshot next = new Snapshot(
+			Mode.SERIAL,
+			normalizedType,
+			nextExpression,
+			current.channelCache(),
+			current.applyEditMode()
+		);
 		write(stack, next);
 		return new SerialCollectOutcome(action, normalizedType, collectedSerial, mergedSerials.size(), next);
 	}
@@ -111,7 +132,13 @@ public final class QuickLinkToolData {
 	 */
 	public static Snapshot clearCaches(ItemStack stack) {
 		Snapshot current = read(stack);
-		Snapshot cleared = new Snapshot(current.mode(), current.serialCacheType(), "", "");
+		Snapshot cleared = new Snapshot(
+			current.mode(),
+			current.serialCacheType(),
+			"",
+			"",
+			current.applyEditMode()
+		);
 		write(stack, cleared);
 		return cleared;
 	}
@@ -127,7 +154,8 @@ public final class QuickLinkToolData {
 			snapshot.mode(),
 			snapshot.serialCacheType(),
 			snapshot.serialCacheExpression(),
-			snapshot.channelCache()
+			snapshot.channelCache(),
+			snapshot.applyEditMode()
 		);
 	}
 
@@ -138,12 +166,13 @@ public final class QuickLinkToolData {
 		String modeToken,
 		String serialCacheTypeToken,
 		String serialCacheExpression,
-		String channelCache
+		String channelCache,
+		String applyEditModeToken
 	) {
 		Mode mode = Mode.fromToken(modeToken);
 		LinkNodeType serialCacheType = LinkNodeSemantics.tryParseCanonicalType(serialCacheTypeToken)
 			.orElse(LinkNodeType.CORE);
-		return new Snapshot(mode, serialCacheType, serialCacheExpression, channelCache);
+		return new Snapshot(mode, serialCacheType, serialCacheExpression, channelCache, ApplyEditMode.fromToken(applyEditModeToken));
 	}
 
 	/**
@@ -233,22 +262,31 @@ public final class QuickLinkToolData {
 		Mode mode,
 		LinkNodeType serialCacheType,
 		String serialCacheExpression,
-		String channelCache
+		String channelCache,
+		ApplyEditMode applyEditMode
 	) {
-		public static final Snapshot EMPTY = new Snapshot(Mode.SERIAL, LinkNodeType.CORE, "", "");
+		public static final Snapshot EMPTY = new Snapshot(Mode.SERIAL, LinkNodeType.CORE, "", "", ApplyEditMode.REPLACE);
 
 		public Snapshot {
 			mode = mode == null ? Mode.SERIAL : mode;
 			serialCacheType = normalizeSerialCacheType(serialCacheType);
 			serialCacheExpression = normalizeText(serialCacheExpression);
 			channelCache = normalizeText(channelCache);
+			applyEditMode = applyEditMode == null ? ApplyEditMode.REPLACE : applyEditMode;
 		}
 
 		/**
 		 * 返回切换模式后的新快照。
 		 */
 		public Snapshot withMode(Mode nextMode) {
-			return new Snapshot(nextMode, serialCacheType, serialCacheExpression, channelCache);
+			return new Snapshot(nextMode, serialCacheType, serialCacheExpression, channelCache, applyEditMode);
+		}
+
+		/**
+		 * 返回切换应用编辑模式后的新快照。
+		 */
+		public Snapshot withApplyEditMode(ApplyEditMode nextApplyEditMode) {
+			return new Snapshot(mode, serialCacheType, serialCacheExpression, channelCache, nextApplyEditMode);
 		}
 
 		/**
@@ -268,6 +306,61 @@ public final class QuickLinkToolData {
 	public record ChannelCacheValue(String rawValue) {
 		public ChannelCacheValue {
 			rawValue = normalizeText(rawValue);
+		}
+	}
+
+	/**
+	 * quick-link 应用编辑模式。
+	 */
+	public enum ApplyEditMode {
+		REPLACE("replace", "message.redstonelink.quick_link.apply_edit_mode.replace"),
+		APPEND("append", "message.redstonelink.quick_link.apply_edit_mode.append"),
+		REMOVE("remove", "message.redstonelink.quick_link.apply_edit_mode.remove");
+
+		private final String token;
+		private final String translationKey;
+
+		ApplyEditMode(String token, String translationKey) {
+			this.token = token;
+			this.translationKey = translationKey;
+		}
+
+		/**
+		 * 从存储 token 读取应用编辑模式，非法值回退为 `replace`。
+		 */
+		public static ApplyEditMode fromToken(String token) {
+			if (APPEND.token.equalsIgnoreCase(token)) {
+				return APPEND;
+			}
+			if (REMOVE.token.equalsIgnoreCase(token)) {
+				return REMOVE;
+			}
+			return REPLACE;
+		}
+
+		/**
+		 * @return 适合持久化/网络传输的模式 token
+		 */
+		public String token() {
+			return token;
+		}
+
+		/**
+		 * @return 模式名称翻译键
+		 */
+		public String translationKey() {
+			return translationKey;
+		}
+
+		/**
+		 * @return 下一个循环模式
+		 */
+		public ApplyEditMode next() {
+			return switch (this) {
+				case REPLACE -> APPEND;
+				case APPEND -> REMOVE;
+				case REMOVE -> REPLACE;
+			};
 		}
 	}
 

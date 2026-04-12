@@ -1,0 +1,108 @@
+{
+  "id": "send_filter_hidden_intercept_persistent_sync",
+  "description": "send 过滤器隐藏拦截态边界专项：1 个 sync triggerSource -> 1 core，core 邻接 send filter 以 nodeSet blocklist + neighbor_max_input 构造最小自反馈，在持久高电平与邻居刷新窗口内仅观察 spark 是否异常。",
+  "layer": "P",
+  "scenarioId": "P27A",
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [4252, 63, 4222],
+        "clearTo": [4260, 66, 4231]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_p27_hidden_loop",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [4256, 64, 4228],
+      "to": [4256, 64, 4228]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p27_hidden_loop",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4256, 64, 4224],
+        "to": [4256, 64, 4224]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_p27_hidden_loop",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "setupPhases": [
+    {
+      "templateRef": "command_assert",
+      "name": "place_hidden_intercept_send_filter",
+      "command": "setblock 4256 64 4229 redstonelink:link_send_filter",
+      "commandDimension": "minecraft:overworld",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_hidden_intercept_filter_attach",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_hidden_intercept_send_filter",
+      "commandTemplate": "data merge block 4256 64 4229 {serialExpression:\"{{source:sync_p27_hidden_loop[0]}}\",nodeSetMode:\"blocklist\",signalThresholdSource:\"neighbor_max_input\",fixedSignalThreshold:15,signalMode:\"upper_bound\"}",
+      "commandDimension": "minecraft:overworld",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_hidden_intercept_filter_config",
+      "ticks": 4
+    }
+  ],
+  "drive": {
+    "totalTicks": 320,
+    "steps": [
+      {
+        "templateRef": "command_assert",
+        "name": "power_hidden_intercept_source_high",
+        "command": "setblock 4255 64 4224 minecraft:redstone_block",
+        "commandDimension": "minecraft:overworld",
+        "allowEmptyResponse": true
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_hidden_intercept_persistent_pre_refresh",
+        "ticks": 80
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "refresh_hidden_intercept_filter_neighbor_place",
+        "command": "setblock 4256 65 4229 minecraft:stone",
+        "commandDimension": "minecraft:overworld",
+        "allowEmptyResponse": true
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "refresh_hidden_intercept_filter_neighbor_clear",
+        "command": "setblock 4256 65 4229 minecraft:air",
+        "commandDimension": "minecraft:overworld",
+        "allowEmptyResponse": true
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_hidden_intercept_persistent_post_refresh",
+        "ticks": 240
+      }
+    ]
+  }
+}

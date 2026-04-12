@@ -28,6 +28,35 @@ public final class QuickLinkOccSubmissionSupport {
 		long expectedCoreRevision,
 		long expectedSourceRevision
 	) {
+		return submit(
+			commandSource,
+			player,
+			level,
+			targetNodeType,
+			targetNodeSerial,
+			cacheType,
+			serialCacheExpression,
+			QuickLinkToolData.ApplyEditMode.REPLACE,
+			expectedCoreRevision,
+			expectedSourceRevision
+		);
+	}
+
+	/**
+	 * 按显式缓存参数提交一次 quick-link 应用。
+	 */
+	public static SubmissionResult submit(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		LinkNodeType targetNodeType,
+		long targetNodeSerial,
+		LinkNodeType cacheType,
+		String serialCacheExpression,
+		QuickLinkToolData.ApplyEditMode applyEditMode,
+		long expectedCoreRevision,
+		long expectedSourceRevision
+	) {
 		if (level == null || targetNodeType == null || targetNodeSerial <= 0L) {
 			return SubmissionResult.rejected(QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.invalid_target"));
 		}
@@ -53,7 +82,8 @@ public final class QuickLinkOccSubmissionSupport {
 			targetNodeType,
 			targetNodeSerial,
 			cacheType,
-			serialCacheExpression
+			serialCacheExpression,
+			applyEditMode
 		);
 		return applyResult.feedback().success()
 			? SubmissionResult.applied(

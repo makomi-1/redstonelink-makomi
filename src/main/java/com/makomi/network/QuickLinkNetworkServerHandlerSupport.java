@@ -57,7 +57,8 @@ final class QuickLinkNetworkServerHandlerSupport {
 				payload.modeToken(),
 				payload.serialCacheTypeToken(),
 				payload.serialCacheExpression(),
-				payload.channelCache()
+				payload.channelCache(),
+				payload.applyEditModeToken()
 			)
 		);
 		player.containerMenu.broadcastChanges();
@@ -148,7 +149,8 @@ final class QuickLinkNetworkServerHandlerSupport {
 						player,
 						requestedTarget.filterBlockEntity(),
 						snapshot.serialCacheType(),
-						snapshot.serialCacheExpression()
+						snapshot.serialCacheExpression(),
+						snapshot.applyEditMode()
 					)
 					.feedback()
 			);
@@ -161,14 +163,15 @@ final class QuickLinkNetworkServerHandlerSupport {
 				.submit(
 					player.createCommandSourceStack(),
 					player,
-					player.serverLevel(),
-					requestedNode.getLinkNodeType(),
-					requestedNode.getSerial(),
-					snapshot.serialCacheType(),
-					snapshot.serialCacheExpression(),
-					payload.expectedCoreRevision(),
-					payload.expectedSourceRevision()
-				)
+				player.serverLevel(),
+				requestedNode.getLinkNodeType(),
+				requestedNode.getSerial(),
+				snapshot.serialCacheType(),
+				snapshot.serialCacheExpression(),
+				snapshot.applyEditMode(),
+				payload.expectedCoreRevision(),
+				payload.expectedSourceRevision()
+			)
 				.feedback()
 		);
 	}

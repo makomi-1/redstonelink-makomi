@@ -153,15 +153,29 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			}
 
 			while (toggleQuickLinkModeKey.consumeClick()) {
-				handleQuickLinkModeToggle(client);
+				handleQuickLinkModeKeyPress(client);
 			}
 
 			boolean quickLinkClearKeyDown = client.options.keyPickItem.isDown();
 			if (quickLinkClearKeyDown && !quickLinkClearKeyWasDown) {
-				handleQuickLinkClear(client);
+				handleQuickLinkApplyEditModeToggle(client);
 			}
 			quickLinkClearKeyWasDown = quickLinkClearKeyDown;
 		});
+	}
+
+	/**
+	 * 处理快速连接工具模式键。
+	 */
+	private static void handleQuickLinkModeKeyPress(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		if (client.player.isShiftKeyDown()) {
+			handleQuickLinkClear(client);
+			return;
+		}
+		handleQuickLinkModeToggle(client);
 	}
 
 	/**
@@ -180,17 +194,14 @@ public class RedstoneLinkClient implements ClientModInitializer {
 
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(client.player.getMainHandItem());
 		QuickLinkToolData.Mode nextMode = snapshot.mode().next();
-		if (nextMode == QuickLinkToolData.Mode.CHANNEL) {
-			client.player.displayClientMessage(Component.translatable("message.redstonelink.quick_link.mode.channel_future"), true);
-			return;
-		}
 
 		ClientPlayNetworking.send(
 			new QuickLinkNetwork.SaveQuickLinkPayload(
 				nextMode.token(),
 				com.makomi.data.LinkNodeSemantics.toSemanticName(snapshot.serialCacheType()),
 				snapshot.serialCacheExpression(),
-				snapshot.channelCache()
+				snapshot.channelCache(),
+				snapshot.applyEditMode().token()
 			)
 		);
 		client.player.displayClientMessage(
@@ -203,7 +214,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	}
 
 	/**
-	 * 处理中键清空快速连接工具缓存。
+	 * 处理潜行模式键触发的 quick-link 缓存清空。
 	 */
 	private static void handleQuickLinkClear(Minecraft client) {
 		if (client == null || client.player == null) {
@@ -222,10 +233,44 @@ public class RedstoneLinkClient implements ClientModInitializer {
 				cleared.mode().token(),
 				com.makomi.data.LinkNodeSemantics.toSemanticName(cleared.serialCacheType()),
 				cleared.serialCacheExpression(),
-				cleared.channelCache()
+				cleared.channelCache(),
+				cleared.applyEditMode().token()
 			)
 		);
 		client.player.displayClientMessage(Component.translatable("message.redstonelink.quick_link.cache_cleared"), true);
+	}
+
+	/**
+	 * 处理中键切换 quick-link 应用编辑模式。
+	 */
+	private static void handleQuickLinkApplyEditModeToggle(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		if (client.screen != null) {
+			return;
+		}
+		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+			return;
+		}
+
+		QuickLinkToolData.Snapshot nextSnapshot = QuickLinkToolData.cycleApplyEditMode(client.player.getMainHandItem());
+		ClientPlayNetworking.send(
+			new QuickLinkNetwork.SaveQuickLinkPayload(
+				nextSnapshot.mode().token(),
+				com.makomi.data.LinkNodeSemantics.toSemanticName(nextSnapshot.serialCacheType()),
+				nextSnapshot.serialCacheExpression(),
+				nextSnapshot.channelCache(),
+				nextSnapshot.applyEditMode().token()
+			)
+		);
+		client.player.displayClientMessage(
+			Component.translatable(
+				"message.redstonelink.quick_link.apply_edit_mode_switched",
+				Component.translatable(nextSnapshot.applyEditMode().translationKey())
+			),
+			true
+		);
 	}
 
 	/**

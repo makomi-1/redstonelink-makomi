@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.config.RedstoneLinkConfig;
+import java.util.List;
+import java.util.Set;
 import com.makomi.util.SerialParseUtil;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -73,6 +75,99 @@ class QuickLinkApplyServiceTest {
 		assertFalse(QuickLinkApplyService.isCacheTypeCompatibleWithFilter(LinkNodeType.CORE, LinkFilterKind.SEND));
 		assertTrue(QuickLinkApplyService.isCacheTypeCompatibleWithFilter(LinkNodeType.CORE, LinkFilterKind.RECEIVE));
 		assertFalse(QuickLinkApplyService.isCacheTypeCompatibleWithFilter(LinkNodeType.TRIGGER_SOURCE, LinkFilterKind.RECEIVE));
+	}
+
+	/**
+	 * triggerSource 命中时，三态应用应只修改当前 triggerSource 的一跳目标集合。
+	 */
+	@Test
+	void buildNextSourceTargetsShouldRespectReplaceAppendAndRemove() {
+		assertEquals(
+			Set.of(4L),
+			QuickLinkApplyService.buildNextSourceTargets(
+				Set.of(1L, 2L),
+				List.of(4L),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertEquals(
+			Set.of(1L, 2L, 4L),
+			QuickLinkApplyService.buildNextSourceTargets(
+				Set.of(1L, 2L),
+				List.of(4L, 2L),
+				QuickLinkToolData.ApplyEditMode.APPEND
+			)
+		);
+		assertEquals(
+			Set.of(2L, 4L),
+			QuickLinkApplyService.buildNextSourceTargets(
+				Set.of(1L, 2L, 4L),
+				List.of(1L, 7L),
+				QuickLinkToolData.ApplyEditMode.REMOVE
+			)
+		);
+	}
+
+	/**
+	 * core 命中时，三态应用应只修改当前 core 的一跳 triggerSource 集合。
+	 */
+	@Test
+	void buildDesiredTriggerSourcesForCoreApplyShouldRespectReplaceAppendAndRemove() {
+		assertEquals(
+			List.of(4L),
+			QuickLinkApplyService.buildDesiredTriggerSourcesForCoreApply(
+				Set.of(1L, 2L),
+				List.of(4L),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertEquals(
+			List.of(1L, 2L, 4L),
+			QuickLinkApplyService.buildDesiredTriggerSourcesForCoreApply(
+				Set.of(2L, 1L),
+				List.of(4L, 2L),
+				QuickLinkToolData.ApplyEditMode.APPEND
+			)
+		);
+		assertEquals(
+			List.of(2L, 4L),
+			QuickLinkApplyService.buildDesiredTriggerSourcesForCoreApply(
+				Set.of(1L, 2L, 4L),
+				List.of(1L, 7L),
+				QuickLinkToolData.ApplyEditMode.REMOVE
+			)
+		);
+	}
+
+	/**
+	 * 过滤器命中时，三态应用应在当前表达式上做覆盖或有序增删。
+	 */
+	@Test
+	void buildNextFilterOrderedSerialsShouldRespectReplaceAppendAndRemove() {
+		assertEquals(
+			List.of(4L),
+			QuickLinkApplyService.buildNextFilterOrderedSerials(
+				List.of(1L, 2L),
+				List.of(4L),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertEquals(
+			List.of(1L, 2L, 4L),
+			QuickLinkApplyService.buildNextFilterOrderedSerials(
+				List.of(1L, 2L),
+				List.of(4L, 2L),
+				QuickLinkToolData.ApplyEditMode.APPEND
+			)
+		);
+		assertEquals(
+			List.of(2L),
+			QuickLinkApplyService.buildNextFilterOrderedSerials(
+				List.of(1L, 2L, 4L),
+				List.of(1L, 7L, 4L),
+				QuickLinkToolData.ApplyEditMode.REMOVE
+			)
+		);
 	}
 
 	/**

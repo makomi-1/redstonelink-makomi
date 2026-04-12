@@ -1,0 +1,73 @@
+{
+  "id": "send_filter_hidden_intercept_reload_replay",
+  "description": "send 过滤器隐藏拦截态边界专项：复用持久高电平版本留下的世界，重启后直接观察最小 triggerSource -> core + 邻接 send filter 边界是否出现异常 spark 热点。",
+  "layer": "P",
+  "scenarioId": "P27C",
+  "clearArena": false,
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [4252, 63, 4222],
+        "clearTo": [4260, 66, 4231]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_p27_hidden_loop",
+    "kind": "core_block",
+    "reuseExisting": true,
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [4256, 64, 4228],
+      "to": [4256, 64, 4228]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p27_hidden_loop",
+      "kind": "sync_emitter",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [4256, 64, 4224],
+        "to": [4256, 64, 4224]
+      }
+    }
+  ],
+  "links": [],
+  "drive": {
+    "totalTicks": 320,
+    "steps": [
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_hidden_intercept_reload_initial",
+        "ticks": 120
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "refresh_hidden_intercept_filter_neighbor_place_after_reload",
+        "command": "setblock 4256 65 4229 minecraft:stone",
+        "commandDimension": "minecraft:overworld",
+        "allowEmptyResponse": true
+      },
+      {
+        "templateRef": "command_assert",
+        "name": "refresh_hidden_intercept_filter_neighbor_clear_after_reload",
+        "command": "setblock 4256 65 4229 minecraft:air",
+        "commandDimension": "minecraft:overworld",
+        "allowEmptyResponse": true
+      },
+      {
+        "templateRef": "wait_ticks",
+        "name": "observe_hidden_intercept_reload_post_refresh",
+        "ticks": 200
+      }
+    ]
+  }
+}

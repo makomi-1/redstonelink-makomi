@@ -200,7 +200,8 @@ public class QuickLinkToolScreen extends Screen {
 				currentMode().token(),
 				LinkNodeSemantics.toSemanticName(currentSerialCacheType),
 				isSerialMode() ? validation.normalizedExpression() : initialSnapshot.serialCacheExpression(),
-				isSerialMode() ? initialSnapshot.channelCache() : inputBox.getValue()
+				isSerialMode() ? initialSnapshot.channelCache() : inputBox.getValue(),
+				initialSnapshot.applyEditMode().token()
 			)
 		);
 		onClose();

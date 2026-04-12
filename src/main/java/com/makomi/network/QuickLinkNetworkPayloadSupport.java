@@ -28,6 +28,7 @@ final class QuickLinkNetworkPayloadSupport {
 		buffer.writeUtf(LinkNodeSemantics.toSemanticName(snapshot.serialCacheType()), TOKEN_MAX_LENGTH);
 		buffer.writeUtf(snapshot.serialCacheExpression(), maxInputLength);
 		buffer.writeUtf(snapshot.channelCache(), maxInputLength);
+		buffer.writeUtf(snapshot.applyEditMode().token(), TOKEN_MAX_LENGTH);
 	}
 
 	/**
@@ -39,7 +40,8 @@ final class QuickLinkNetworkPayloadSupport {
 			buffer.readUtf(TOKEN_MAX_LENGTH),
 			buffer.readUtf(TOKEN_MAX_LENGTH),
 			buffer.readUtf(maxInputLength),
-			buffer.readUtf(maxInputLength)
+			buffer.readUtf(maxInputLength),
+			buffer.readUtf(TOKEN_MAX_LENGTH)
 		);
 	}
 
@@ -51,13 +53,15 @@ final class QuickLinkNetworkPayloadSupport {
 		String modeToken,
 		String serialCacheTypeToken,
 		String serialCacheExpression,
-		String channelCache
+		String channelCache,
+		String applyEditModeToken
 	) {
 		int maxInputLength = resolveMaxInputLength();
 		buffer.writeUtf(modeToken == null ? "" : modeToken, TOKEN_MAX_LENGTH);
 		buffer.writeUtf(serialCacheTypeToken == null ? "" : serialCacheTypeToken, TOKEN_MAX_LENGTH);
 		buffer.writeUtf(serialCacheExpression == null ? "" : serialCacheExpression, maxInputLength);
 		buffer.writeUtf(channelCache == null ? "" : channelCache, maxInputLength);
+		buffer.writeUtf(applyEditModeToken == null ? "" : applyEditModeToken, TOKEN_MAX_LENGTH);
 	}
 
 	/**
@@ -69,7 +73,8 @@ final class QuickLinkNetworkPayloadSupport {
 			buffer.readUtf(TOKEN_MAX_LENGTH),
 			buffer.readUtf(TOKEN_MAX_LENGTH),
 			buffer.readUtf(maxInputLength),
-			buffer.readUtf(maxInputLength)
+			buffer.readUtf(maxInputLength),
+			buffer.readUtf(TOKEN_MAX_LENGTH)
 		);
 	}
 
@@ -212,7 +217,8 @@ final class QuickLinkNetworkPayloadSupport {
 		String modeToken,
 		String serialCacheTypeToken,
 		String serialCacheExpression,
-		String channelCache
+		String channelCache,
+		String applyEditModeToken
 	) {
 	}
 

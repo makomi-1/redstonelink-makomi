@@ -64,7 +64,8 @@ public final class QuickLinkNetwork {
 		String modeToken,
 		String serialCacheTypeToken,
 		String serialCacheExpression,
-		String channelCache
+		String channelCache,
+		String applyEditModeToken
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SaveQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_quick_link_payload")
@@ -75,7 +76,8 @@ public final class QuickLinkNetwork {
 				payload.modeToken(),
 				payload.serialCacheTypeToken(),
 				payload.serialCacheExpression(),
-				payload.channelCache()
+				payload.channelCache(),
+				payload.applyEditModeToken()
 			),
 			buffer -> {
 				QuickLinkNetworkPayloadSupport.DecodedSavePayload decoded = QuickLinkNetworkPayloadSupport.decodeSavePayload(buffer);
@@ -83,7 +85,8 @@ public final class QuickLinkNetwork {
 					decoded.modeToken(),
 					decoded.serialCacheTypeToken(),
 					decoded.serialCacheExpression(),
-					decoded.channelCache()
+					decoded.channelCache(),
+					decoded.applyEditModeToken()
 				);
 			}
 		);

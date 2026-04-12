@@ -26,7 +26,8 @@ class QuickLinkNetworkPayloadTest {
 			QuickLinkToolData.Mode.SERIAL,
 			LinkNodeType.CORE,
 			"1:5/7",
-			"alpha"
+			"alpha",
+			QuickLinkToolData.ApplyEditMode.REMOVE
 		);
 		QuickLinkNetwork.OpenQuickLinkEditorPayload original = new QuickLinkNetwork.OpenQuickLinkEditorPayload(snapshot);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -219,6 +220,7 @@ class QuickLinkNetworkPayloadTest {
 		buffer.writeUtf("core");
 		buffer.writeUtf(tooLongExpression);
 		buffer.writeUtf("");
+		buffer.writeUtf(QuickLinkToolData.ApplyEditMode.REPLACE.token());
 
 		assertThrows(RuntimeException.class, () -> QuickLinkNetwork.SaveQuickLinkPayload.CODEC.decode(buffer));
 	}

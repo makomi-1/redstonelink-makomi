@@ -19,6 +19,9 @@
   ],
   "casePaths": [
     "cases/performance/p22/sync_minimal_loop_single_pair.json",
+    "cases/performance/p27/send_filter_hidden_intercept_persistent_sync.json",
+    "cases/performance/p27/send_filter_hidden_intercept_sync_square_2tick.json",
+    "cases/performance/p27/send_filter_hidden_intercept_reload_replay.json",
     "cases/performance/p20/sync_queue_release_1024_single_shot.json",
     "cases/performance/p21/sync_queue_release_1024_blank_control.json",
     "cases/performance/p25/sync_target_reload_replay_1024_single_shot.json",

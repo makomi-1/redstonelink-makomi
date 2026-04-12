@@ -24,8 +24,9 @@ import net.minecraft.world.level.Level;
  * </p>
  * <br/>1) 潜行右键：打开缓存编辑 GUI；
  * <br/>2) 左键命中方块：由客户端专用回调发送采集请求；
- * <br/>3) 站立右键命中方块：由客户端专用回调发送应用请求；
- * <br/>4) 模式切换：由客户端可配置按键触发。
+ * <br/>3) 站立右键命中方块：由客户端专用回调按当前应用编辑模式发送应用请求；
+ * <br/>4) 鼠标中键：由客户端专用回调循环切换应用编辑模式；
+ * <br/>5) 模式切换与清空：由客户端可配置按键触发，潜行时改为清空缓存。
  */
 public class QuickLinkToolItem extends Item {
 	public QuickLinkToolItem(Item.Properties properties) {
@@ -87,12 +88,20 @@ public class QuickLinkToolItem extends Item {
 		);
 		tooltipComponents.add(
 			Component.translatable(
+				"tooltip.redstonelink.quick_link.apply_edit_mode",
+				Component.translatable(snapshot.applyEditMode().translationKey())
+			)
+		);
+		tooltipComponents.add(
+			Component.translatable(
 				"tooltip.redstonelink.quick_link.channel_cache",
 				truncateTooltipText(snapshot.channelCache())
 			)
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.open_editor"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.toggle_mode"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.clear_cache"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.toggle_apply_edit_mode"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.collect"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.apply"));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);

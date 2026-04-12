@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "description": "send 过滤器隐藏拦截态性能边界 suite：a=持久输入最小自反馈，b=2 tick 方波输入，c=复用 a 的世界重启后观察；验收只看 spark 是否异常。",
+  "defaults": {
+    "benchAction": "RunCase",
+    "matrixPath": "../matrix-crosschunk-stress.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false"
+    }
+  },
+  "entries": [
+    {
+      "entryId": "p27_hidden_intercept_persistent",
+      "caseId": "send_filter_hidden_intercept_persistent_sync"
+    },
+    {
+      "entryId": "p27_hidden_intercept_square_2tick",
+      "caseId": "send_filter_hidden_intercept_sync_square_2tick"
+    },
+    {
+      "entryId": "p27_hidden_intercept_reload",
+      "caseId": "send_filter_hidden_intercept_reload_replay",
+      "reuseWorldFrom": "p27_hidden_intercept_persistent"
+    }
+  ]
+}

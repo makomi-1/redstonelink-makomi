@@ -799,8 +799,8 @@
             en: ['While held or placed, the filter editor can be opened whenever the same open-GUI condition used by other configurable nodes is satisfied.', 'After placement, it works in a cube centered on itself with radius 8.', 'Configure node set, node-set mode, threshold source, and upper/lower-bound rules.', 'When broken, the dropped item keeps the current config and restores it on the next placement; the item tooltip shows the current config snapshot, including the node set.']
           },
           note: {
-            zh: '快速连接工具站立右键可把 triggerSource 缓存应用到该过滤器，但只覆盖 serialExpression；左键不会采集过滤器。',
-            en: 'The Quick Link Tool can standing-right-click this filter to apply triggerSource cache, but it only overwrites serialExpression; left-click never collects filters.'
+            zh: '快速连接工具站立右键可把 triggerSource 缓存应用到该过滤器；serialExpression 支持覆盖、增量增加、增量删除三态编辑；左键不会采集过滤器。',
+            en: 'The Quick Link Tool can standing-right-click this filter to apply triggerSource cache; serialExpression supports replace, append, and remove; left-click never collects filters.'
           }
         },
         {
@@ -818,8 +818,8 @@
             en: ['While held or placed, the filter editor can be opened whenever the same open-GUI condition used by other configurable nodes is satisfied.', 'After placement, it works in a cube centered on itself with radius 8.', 'Configure node set, node-set mode, threshold source, and upper/lower-bound rules.', 'When broken, the dropped item keeps the current config and restores it on the next placement; the item tooltip shows the current config snapshot, including the node set.']
           },
           note: {
-            zh: '快速连接工具站立右键可把 core 缓存应用到该过滤器，但只覆盖 serialExpression；运行期配置变化会对 sync 触发失效/补发重算。',
-            en: 'The Quick Link Tool can standing-right-click this filter to apply core cache, but it only overwrites serialExpression; runtime config changes trigger sync invalidation/resend reconciliation.'
+            zh: '快速连接工具站立右键可把 core 缓存应用到该过滤器；serialExpression 支持覆盖、增量增加、增量删除三态编辑；运行期配置变化会对 sync 触发失效/补发重算。',
+            en: 'The Quick Link Tool can standing-right-click this filter to apply core cache; serialExpression supports replace, append, and remove; runtime config changes trigger sync invalidation/resend reconciliation.'
           }
         },
         {
@@ -882,12 +882,12 @@
             en: 'Uses serial cache for batch collect/apply workflows and faster pairing operations.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：打开缓存编辑器。', '左键命中节点：采集到缓存；命中过滤器不会采集。', '站立右键命中节点或对应过滤器：把缓存应用到命中对象。'],
-            en: ['Sneak + empty offhand + right-click: open cache editor.', 'Left-click node: collect into cache; filters are never collectible.', 'Stand + right-click node or matching filter: apply cache to the hit target.']
+            zh: ['潜行且左手为空右键：打开缓存编辑器。', '左键命中节点：采集到缓存；命中过滤器不会采集。', '鼠标中键：循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：按当前编辑模式把缓存应用到命中对象。', '潜行按模式键（默认 B）：清空序号缓存与频道缓存。'],
+            en: ['Sneak + empty offhand + right-click: open cache editor.', 'Left-click node: collect into cache; filters are never collectible.', 'Middle mouse: cycle replace, append, and remove.', 'Stand + right-click node or matching filter: apply the cache to the hit target with the current edit mode.', 'Sneak + mode key (default B): clear both serial and channel caches.']
           },
           note: {
-            zh: '当前版本 channel 模式仅预留接口，主流程使用序号缓存模式；命中过滤器时描边为亮红色。',
-            en: 'Channel mode is reserved in current version and serial-cache mode is the active workflow; filters are outlined in bright red.'
+            zh: '当前版本 channel 模式允许切换并编辑缓存，但 collect/apply 仍只走未来扩展提示；命中过滤器时描边为亮红色。',
+            en: 'Channel mode can now be switched to and edited, but collect/apply still return the future-expansion notice; filters are outlined in bright red.'
           }
         },
         {

@@ -31,6 +31,7 @@ class QuickLinkToolDataTest {
 		assertEquals(LinkNodeType.CORE, snapshot.serialCacheType());
 		assertEquals("", snapshot.serialCacheExpression());
 		assertEquals("", snapshot.channelCache());
+		assertEquals(QuickLinkToolData.ApplyEditMode.REPLACE, snapshot.applyEditMode());
 	}
 
 	/**
@@ -45,7 +46,8 @@ class QuickLinkToolDataTest {
 				QuickLinkToolData.Mode.CHANNEL,
 				LinkNodeType.TRIGGER_SOURCE,
 				" 1:3/5 ",
-				" demo-channel "
+				" demo-channel ",
+				QuickLinkToolData.ApplyEditMode.REMOVE
 			)
 		);
 
@@ -54,6 +56,7 @@ class QuickLinkToolDataTest {
 		assertEquals(LinkNodeType.TRIGGER_SOURCE, snapshot.serialCacheType());
 		assertEquals("1:3/5", snapshot.serialCacheExpression());
 		assertEquals("demo-channel", snapshot.channelCache());
+		assertEquals(QuickLinkToolData.ApplyEditMode.REMOVE, snapshot.applyEditMode());
 	}
 
 	/**
@@ -64,6 +67,17 @@ class QuickLinkToolDataTest {
 		ItemStack stack = new ItemStack(Items.STONE);
 		assertEquals(QuickLinkToolData.Mode.CHANNEL, QuickLinkToolData.cycleMode(stack).mode());
 		assertEquals(QuickLinkToolData.Mode.SERIAL, QuickLinkToolData.cycleMode(stack).mode());
+	}
+
+	/**
+	 * 应用编辑模式循环切换应在 `replace/append/remove` 间往返。
+	 */
+	@Test
+	void cycleApplyEditModeShouldToggleAcrossAllModes() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		assertEquals(QuickLinkToolData.ApplyEditMode.APPEND, QuickLinkToolData.cycleApplyEditMode(stack).applyEditMode());
+		assertEquals(QuickLinkToolData.ApplyEditMode.REMOVE, QuickLinkToolData.cycleApplyEditMode(stack).applyEditMode());
+		assertEquals(QuickLinkToolData.ApplyEditMode.REPLACE, QuickLinkToolData.cycleApplyEditMode(stack).applyEditMode());
 	}
 
 	/**
@@ -78,7 +92,8 @@ class QuickLinkToolDataTest {
 				QuickLinkToolData.Mode.SERIAL,
 				LinkNodeType.CORE,
 				"1:3",
-				"reserved-channel"
+				"reserved-channel",
+				QuickLinkToolData.ApplyEditMode.APPEND
 			)
 		);
 
@@ -86,6 +101,7 @@ class QuickLinkToolDataTest {
 		assertEquals(QuickLinkToolData.SerialCollectAction.APPENDED, appended.action());
 		assertEquals("1:3/5", appended.snapshot().serialCacheExpression());
 		assertEquals("reserved-channel", appended.snapshot().channelCache());
+		assertEquals(QuickLinkToolData.ApplyEditMode.APPEND, appended.snapshot().applyEditMode());
 
 		QuickLinkToolData.SerialCollectOutcome duplicate = QuickLinkToolData.collectSerial(stack, LinkNodeType.CORE, 3L);
 		assertEquals(QuickLinkToolData.SerialCollectAction.DUPLICATE, duplicate.action());
@@ -104,7 +120,8 @@ class QuickLinkToolDataTest {
 				QuickLinkToolData.Mode.SERIAL,
 				LinkNodeType.CORE,
 				"1:3",
-				"reserved-channel"
+				"reserved-channel",
+				QuickLinkToolData.ApplyEditMode.REMOVE
 			)
 		);
 
@@ -113,6 +130,7 @@ class QuickLinkToolDataTest {
 		assertEquals(LinkNodeType.TRIGGER_SOURCE, replaced.snapshot().serialCacheType());
 		assertEquals("12", replaced.snapshot().serialCacheExpression());
 		assertEquals("reserved-channel", replaced.snapshot().channelCache());
+		assertEquals(QuickLinkToolData.ApplyEditMode.REMOVE, replaced.snapshot().applyEditMode());
 	}
 
 	/**
@@ -127,7 +145,8 @@ class QuickLinkToolDataTest {
 				QuickLinkToolData.Mode.SERIAL,
 				LinkNodeType.TRIGGER_SOURCE,
 				"1:3/5",
-				"channel-42"
+				"channel-42",
+				QuickLinkToolData.ApplyEditMode.APPEND
 			)
 		);
 
@@ -136,5 +155,6 @@ class QuickLinkToolDataTest {
 		assertEquals(LinkNodeType.TRIGGER_SOURCE, cleared.serialCacheType());
 		assertEquals("", cleared.serialCacheExpression());
 		assertEquals("", cleared.channelCache());
+		assertEquals(QuickLinkToolData.ApplyEditMode.APPEND, cleared.applyEditMode());
 	}
 }

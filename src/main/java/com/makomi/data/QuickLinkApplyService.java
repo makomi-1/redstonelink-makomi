@@ -1,12 +1,13 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
+import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.link.LinkSetExecutionService;
-import com.makomi.command.link.LinkCommandSupport;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SerialParseUtil;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -45,7 +46,13 @@ public final class QuickLinkApplyService {
 
 		BlockEntity blockEntity = level.getBlockEntity(blockPos);
 		if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
-			return applyToFilterFromCache(player, filterBlockEntity, snapshot.serialCacheType(), snapshot.serialCacheExpression()).feedback();
+			return applyToFilterFromCache(
+				player,
+				filterBlockEntity,
+				snapshot.serialCacheType(),
+				snapshot.serialCacheExpression(),
+				snapshot.applyEditMode()
+			).feedback();
 		}
 		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
 			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.invalid_target");
@@ -72,7 +79,8 @@ public final class QuickLinkApplyService {
 			targetNodeType,
 			pairableNodeBlockEntity.getSerial(),
 			cacheType,
-			snapshot.serialCacheExpression()
+			snapshot.serialCacheExpression(),
+			snapshot.applyEditMode()
 		)
 			.feedback();
 	}
@@ -80,7 +88,7 @@ public final class QuickLinkApplyService {
 	/**
 	 * 将当前缓存应用到命中过滤器。
 	 * <p>
-	 * quick-link 对过滤器的应用只覆盖 `serialExpression`，其余过滤器配置保持不变；
+	 * quick-link 对过滤器的应用只修改 `serialExpression`，其余过滤器配置保持不变；
 	 * 同时权限口径与过滤器编辑界面保存保持一致，统一要求命令权限。
 	 * </p>
 	 */
@@ -88,7 +96,8 @@ public final class QuickLinkApplyService {
 		ServerPlayer player,
 		AbstractLinkFilterBlockEntity filterBlockEntity,
 		LinkNodeType cacheType,
-		String serialCacheExpression
+		String serialCacheExpression,
+		QuickLinkToolData.ApplyEditMode applyEditMode
 	) {
 		if (player == null || filterBlockEntity == null || filterBlockEntity.filterKind() == null) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
@@ -132,14 +141,19 @@ public final class QuickLinkApplyService {
 			);
 		}
 
-		filterBlockEntity.applySnapshot(buildFilterSnapshotForAppliedCache(filterBlockEntity.snapshot(), parseResult.orderedTargets()));
+		List<Long> nextOrderedSerials = buildNextFilterOrderedSerials(
+			parseFilterOrderedSerials(filterBlockEntity.snapshot().serialExpression()),
+			parseResult.orderedTargets(),
+			applyEditMode
+		);
+		filterBlockEntity.applySnapshot(buildFilterSnapshotForAppliedCache(filterBlockEntity.snapshot(), nextOrderedSerials));
 		return new ApplyFromCacheResult(
 			QuickLinkOperationFeedback.success(
 				filterApplySuccessMessageKey(filterBlockEntity.filterKind()),
-				Integer.toString(parseResult.orderedTargets().size())
+				Integer.toString(nextOrderedSerials.size())
 			),
 			0,
-			parseResult.orderedTargets().size()
+			nextOrderedSerials.size()
 		);
 	}
 
@@ -154,6 +168,31 @@ public final class QuickLinkApplyService {
 		long targetNodeSerial,
 		LinkNodeType cacheType,
 		String serialCacheExpression
+	) {
+		return applyFromCache(
+			commandSource,
+			player,
+			level,
+			targetNodeType,
+			targetNodeSerial,
+			cacheType,
+			serialCacheExpression,
+			QuickLinkToolData.ApplyEditMode.REPLACE
+		);
+	}
+
+	/**
+	 * 按显式缓存参数执行一次 quick-link 应用。
+	 */
+	static ApplyFromCacheResult applyFromCache(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		LinkNodeType targetNodeType,
+		long targetNodeSerial,
+		LinkNodeType cacheType,
+		String serialCacheExpression,
+		QuickLinkToolData.ApplyEditMode applyEditMode
 	) {
 		if (level == null || targetNodeType == null || targetNodeSerial <= 0L) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
@@ -178,8 +217,8 @@ public final class QuickLinkApplyService {
 		}
 
 		return cacheType == LinkNodeType.CORE
-			? applyCachedCoresToTriggerSource(commandSource, player, level, targetNodeSerial, normalizedExpression)
-			: applyCachedTriggerSourcesToCore(commandSource, player, level, targetNodeSerial, normalizedExpression);
+			? applyCachedCoresToTriggerSource(commandSource, player, level, targetNodeSerial, normalizedExpression, applyEditMode)
+			: applyCachedTriggerSourcesToCore(commandSource, player, level, targetNodeSerial, normalizedExpression, applyEditMode);
 	}
 
 	/**
@@ -190,7 +229,8 @@ public final class QuickLinkApplyService {
 		ServerPlayer player,
 		ServerLevel level,
 		long triggerSourceSerial,
-		String rawExpression
+		String rawExpression,
+		QuickLinkToolData.ApplyEditMode applyEditMode
 	) {
 		int maxTargets = RedstoneLinkConfig.general().maxTargetsPerSetLinks();
 		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(rawExpression, maxTargets);
@@ -205,47 +245,24 @@ public final class QuickLinkApplyService {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
-		for (long coreSerial : parseResult.orderedTargets()) {
-			if (!savedData.isSerialAllocated(LinkNodeType.CORE, coreSerial)) {
-				return ApplyFromCacheResult.failure("message.redstonelink.target_serial_unallocated", Long.toString(coreSerial));
-			}
-			if (savedData.isSerialRetired(LinkNodeType.CORE, coreSerial)) {
-				return ApplyFromCacheResult.failure("message.redstonelink.target_serial_retired", Long.toString(coreSerial));
-			}
-			if (!RedstoneLinkConfig.general().allowOfflineTargetBinding() && savedData.findNode(LinkNodeType.CORE, coreSerial).isEmpty()) {
-				return ApplyFromCacheResult.failure("message.redstonelink.offline_targets_blocked", Long.toString(coreSerial));
-			}
-		}
-
-		Set<Long> nextTargets = new HashSet<>(parseResult.orderedTargets());
 		Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(triggerSourceSerial));
-		Set<Long> affectedTargets = new HashSet<>(previousTargets);
-		affectedTargets.addAll(nextTargets);
+		Set<Long> nextTargets = buildNextSourceTargets(previousTargets, parseResult.orderedTargets(), applyEditMode);
 
-		LinkWriteControlService.WriteDecision writeDecision = resolveWriteDecision(
-			commandSource,
+		LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
 			level,
+			player,
 			LinkNodeType.TRIGGER_SOURCE,
 			triggerSourceSerial,
-			affectedTargets,
-			nextTargets.size()
+			nextTargets,
+			hasLimitedBypassPermission(commandSource),
+			hasProtectedBypassPermission(commandSource)
 		);
-		if (!writeDecision.allowed()) {
-			return new ApplyFromCacheResult(failureFromWriteDecision(writeDecision), 0, previousTargets.size());
+		if (!preparationResult.successful()) {
+			return new ApplyFromCacheResult(toQuickLinkFeedback(preparationResult.feedbacks().get(0)), 0, previousTargets.size());
 		}
 
 		LinkSetExecutionService.ApplyResult applyResult = LinkSetExecutionService.applyPreparedReplace(
-			LinkSetExecutionService.createPreparedReplaceOperation(
-				level,
-				player,
-				LinkNodeType.TRIGGER_SOURCE,
-				triggerSourceSerial,
-				LinkNodeType.CORE,
-				previousTargets,
-				nextTargets,
-				List.of(),
-				1
-			)
+			preparationResult.operation()
 		);
 		return new ApplyFromCacheResult(
 			QuickLinkOperationFeedback.success(
@@ -266,11 +283,11 @@ public final class QuickLinkApplyService {
 		ServerPlayer player,
 		ServerLevel level,
 		long coreSerial,
-		String rawExpression
+		String rawExpression,
+		QuickLinkToolData.ApplyEditMode applyEditMode
 	) {
 		int maxTargets = maxQuickLinkApplyTargetCount();
 		SerialParseUtil.OrderedTargetParseResult parseResult = parseCachedTriggerSources(rawExpression);
-		int writeControlSetSize = writeControlSetSizeForCachedTriggerSourcesToCore(parseResult.orderedTargets().size());
 		if (!parseResult.invalidEntries().isEmpty()) {
 			return ApplyFromCacheResult.failure(
 				"message.redstonelink.invalid_target_tokens",
@@ -288,63 +305,36 @@ public final class QuickLinkApplyService {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
-		for (long triggerSourceSerial : parseResult.orderedTargets()) {
-			if (!savedData.isSerialAllocated(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)) {
-				return ApplyFromCacheResult.failure("message.redstonelink.source_serial_unallocated", Long.toString(triggerSourceSerial));
-			}
-			if (savedData.isSerialRetired(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)) {
-				return ApplyFromCacheResult.failure("message.redstonelink.source_serial_retired", Long.toString(triggerSourceSerial));
-			}
+		Set<Long> currentTriggerSources = savedData.getLinkedTriggerSourcesByCore(coreSerial);
+		List<Long> desiredTriggerSources = buildDesiredTriggerSourcesForCoreApply(
+			currentTriggerSources,
+			parseResult.orderedTargets(),
+			applyEditMode
+		);
+
+		CoreLinkEditingService.PreparationResult preparationResult = CoreLinkEditingService.prepareConfirmedReplace(
+			level,
+			player,
+			coreSerial,
+			desiredTriggerSources,
+			List.copyOf(parseResult.duplicateEntries()),
+			hasLimitedBypassPermission(commandSource),
+			hasProtectedBypassPermission(commandSource)
+		);
+		if (!preparationResult.successful()) {
+			return new ApplyFromCacheResult(toQuickLinkFeedback(preparationResult.feedbacks().get(0)), 0, currentTriggerSources.size());
 		}
 
-		for (long triggerSourceSerial : parseResult.orderedTargets()) {
-			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(triggerSourceSerial));
-			Set<Long> affectedTargets = new HashSet<>(previousTargets);
-			affectedTargets.add(coreSerial);
-			LinkWriteControlService.WriteDecision writeDecision = resolveWriteDecision(
-				commandSource,
-				level,
-				LinkNodeType.TRIGGER_SOURCE,
-				triggerSourceSerial,
-				affectedTargets,
-				writeControlSetSize
-			);
-			if (!writeDecision.allowed()) {
-				return new ApplyFromCacheResult(failureFromWriteDecision(writeDecision), 0, 0);
-			}
-		}
-
-		int appliedSourceCount = 0;
-		LinkCommandSupport.BatchLinkSnapshotSyncCollector batchSyncCollector = new LinkCommandSupport.BatchLinkSnapshotSyncCollector(level);
-		for (long triggerSourceSerial : parseResult.orderedTargets()) {
-			Set<Long> previousTargets = new HashSet<>(savedData.getLinkedCoresByTriggerSource(triggerSourceSerial));
-			Set<Long> nextTargets = Set.of(coreSerial);
-			LinkSetExecutionService.applyPreparedReplace(
-				LinkSetExecutionService.createPreparedReplaceOperation(
-					level,
-					player,
-					LinkNodeType.TRIGGER_SOURCE,
-					triggerSourceSerial,
-					LinkNodeType.CORE,
-					previousTargets,
-					nextTargets,
-					List.of(),
-					1
-				),
-				batchSyncCollector
-			);
-			appliedSourceCount++;
-		}
-		batchSyncCollector.flush();
+		CoreLinkEditingService.ApplyResult applyResult = CoreLinkEditingService.applyPreparedReplace(preparationResult.plan());
 
 		return new ApplyFromCacheResult(
 			QuickLinkOperationFeedback.success(
 				"message.redstonelink.quick_link.apply.done.core",
-				Integer.toString(appliedSourceCount),
-				Long.toString(coreSerial)
+				Long.toString(coreSerial),
+				Integer.toString(applyResult.currentTriggerSourceCount())
 			),
-			appliedSourceCount,
-			appliedSourceCount > 0 ? 1 : 0
+			preparationResult.plan().changedTriggerSourceCount(),
+			applyResult.currentTriggerSourceCount()
 		);
 	}
 
@@ -445,6 +435,95 @@ public final class QuickLinkApplyService {
 	}
 
 	/**
+	 * 将命令层结构化反馈转成 quick-link 反馈。
+	 */
+	static QuickLinkOperationFeedback toQuickLinkFeedback(LinkSetExecutionService.OperationFeedback feedback) {
+		if (feedback == null) {
+			return QuickLinkOperationFeedback.failure("message.redstonelink.permission.insufficient");
+		}
+		return feedback.success()
+			? QuickLinkOperationFeedback.success(feedback.messageKey(), feedback.messageArgs().toArray(String[]::new))
+			: QuickLinkOperationFeedback.failure(feedback.messageKey(), feedback.messageArgs().toArray(String[]::new));
+	}
+
+	/**
+	 * 构造来源视角 quick-link 应用后的目标集合。
+	 */
+	static Set<Long> buildNextSourceTargets(
+		Set<Long> currentTargets,
+		List<Long> cachedTargets,
+		QuickLinkToolData.ApplyEditMode applyEditMode
+	) {
+		Set<Long> normalizedCurrentTargets = normalizePositiveSerialSet(currentTargets);
+		Set<Long> normalizedCachedTargets = normalizePositiveSerialSet(cachedTargets);
+		QuickLinkToolData.ApplyEditMode resolvedApplyEditMode = normalizeApplyEditMode(applyEditMode);
+		if (resolvedApplyEditMode == QuickLinkToolData.ApplyEditMode.REPLACE) {
+			return normalizedCachedTargets;
+		}
+
+		Set<Long> nextTargets = new HashSet<>(normalizedCurrentTargets);
+		if (resolvedApplyEditMode == QuickLinkToolData.ApplyEditMode.APPEND) {
+			nextTargets.addAll(normalizedCachedTargets);
+		} else {
+			nextTargets.removeAll(normalizedCachedTargets);
+		}
+		return nextTargets.isEmpty() ? Set.of() : Set.copyOf(nextTargets);
+	}
+
+	/**
+	 * 构造 `core` 视角 quick-link 应用后的来源集合。
+	 */
+	static List<Long> buildDesiredTriggerSourcesForCoreApply(
+		Set<Long> currentTriggerSources,
+		List<Long> cachedTriggerSources,
+		QuickLinkToolData.ApplyEditMode applyEditMode
+	) {
+		LinkedHashSet<Long> normalizedCachedTriggerSources = normalizePositiveOrderedSerials(cachedTriggerSources);
+		QuickLinkToolData.ApplyEditMode resolvedApplyEditMode = normalizeApplyEditMode(applyEditMode);
+		if (resolvedApplyEditMode == QuickLinkToolData.ApplyEditMode.REPLACE) {
+			return List.copyOf(normalizedCachedTriggerSources);
+		}
+
+		LinkedHashSet<Long> nextTriggerSources = new LinkedHashSet<>(sortedPositiveSerials(currentTriggerSources));
+		if (resolvedApplyEditMode == QuickLinkToolData.ApplyEditMode.APPEND) {
+			nextTriggerSources.addAll(normalizedCachedTriggerSources);
+		} else {
+			nextTriggerSources.removeAll(normalizedCachedTriggerSources);
+		}
+		return List.copyOf(nextTriggerSources);
+	}
+
+	/**
+	 * 构造过滤器 quick-link 应用后的有序序号集合。
+	 */
+	static List<Long> buildNextFilterOrderedSerials(
+		List<Long> currentOrderedSerials,
+		List<Long> cachedOrderedSerials,
+		QuickLinkToolData.ApplyEditMode applyEditMode
+	) {
+		LinkedHashSet<Long> normalizedCachedOrderedSerials = normalizePositiveOrderedSerials(cachedOrderedSerials);
+		QuickLinkToolData.ApplyEditMode resolvedApplyEditMode = normalizeApplyEditMode(applyEditMode);
+		if (resolvedApplyEditMode == QuickLinkToolData.ApplyEditMode.REPLACE) {
+			return List.copyOf(normalizedCachedOrderedSerials);
+		}
+
+		LinkedHashSet<Long> nextOrderedSerials = normalizePositiveOrderedSerials(currentOrderedSerials);
+		if (resolvedApplyEditMode == QuickLinkToolData.ApplyEditMode.APPEND) {
+			nextOrderedSerials.addAll(normalizedCachedOrderedSerials);
+		} else {
+			nextOrderedSerials.removeAll(normalizedCachedOrderedSerials);
+		}
+		return List.copyOf(nextOrderedSerials);
+	}
+
+	/**
+	 * 解析过滤器当前表达式中的有序序号集合。
+	 */
+	static List<Long> parseFilterOrderedSerials(String serialExpression) {
+		return List.copyOf(SerialParseUtil.parseTargetsOrdered(serialExpression, 0).orderedTargets());
+	}
+
+	/**
 	 * 将 quick-link 缓存中的有序序号集合还原为过滤器可持久化的 `/` 分段表达式。
 	 */
 	private static String buildFilterSerialExpression(List<Long> orderedSerials) {
@@ -462,6 +541,68 @@ public final class QuickLinkApplyService {
 			builder.append(orderedSerial);
 		}
 		return builder.toString();
+	}
+
+	/**
+	 * 归一化应用编辑模式，空值回退为 `replace`。
+	 */
+	private static QuickLinkToolData.ApplyEditMode normalizeApplyEditMode(QuickLinkToolData.ApplyEditMode applyEditMode) {
+		return applyEditMode == null ? QuickLinkToolData.ApplyEditMode.REPLACE : applyEditMode;
+	}
+
+	/**
+	 * 归一化正整数集合。
+	 */
+	private static Set<Long> normalizePositiveSerialSet(Iterable<Long> serials) {
+		if (serials == null) {
+			return Set.of();
+		}
+		Set<Long> normalized = new HashSet<>();
+		for (Long serial : serials) {
+			if (serial != null && serial > 0L) {
+				normalized.add(serial);
+			}
+		}
+		return normalized.isEmpty() ? Set.of() : Set.copyOf(normalized);
+	}
+
+	/**
+	 * 归一化有序正整数集合，并保留首次出现顺序。
+	 */
+	private static LinkedHashSet<Long> normalizePositiveOrderedSerials(Iterable<Long> serials) {
+		LinkedHashSet<Long> normalized = new LinkedHashSet<>();
+		if (serials == null) {
+			return normalized;
+		}
+		for (Long serial : serials) {
+			if (serial != null && serial > 0L) {
+				normalized.add(serial);
+			}
+		}
+		return normalized;
+	}
+
+	/**
+	 * 将序号集合归一化为升序列表，供 `core` 视角保持稳定输出顺序。
+	 */
+	private static List<Long> sortedPositiveSerials(Iterable<Long> serials) {
+		List<Long> normalized = new java.util.ArrayList<>(normalizePositiveOrderedSerials(serials));
+		normalized.sort(Long::compareTo);
+		return normalized;
+	}
+
+	/**
+	 * @return 当前命令源是否具备 limited 模式越权权限
+	 */
+	private static boolean hasLimitedBypassPermission(CommandSourceStack commandSource) {
+		return commandSource != null && commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
+	}
+
+	/**
+	 * @return 当前命令源是否具备 protected 模式越权权限
+	 */
+	private static boolean hasProtectedBypassPermission(CommandSourceStack commandSource) {
+		return commandSource != null && commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
 	}
 
 	/**
