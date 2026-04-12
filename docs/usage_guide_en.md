@@ -111,7 +111,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - The Linked Sync Lever always forwards `ON=15` and `OFF=0`; a sync emitter inherits external input strength (`0~15`) and forwards that value.
 - If one sync emitter receives multiple redstone inputs at once, it only forwards the current maximum input strength (`max`).
 - If the emitter stays powered and the maximum input strength does not change, it will not resend. It dispatches again only when the powered state changes or the max strength changes.
-- All trigger types (buttons / levers / emitters) send one instantaneous signal when a trigger event happens; they do not continuously send while staying active.
+- `sync` is a state signal: although it still reaches the target through dispatch, it expresses the state the target should align to. `pulse/toggle` are the actual event signals.
 
 ### State Panel Tool
 - Item name: `State Panel Tool`.
@@ -198,11 +198,13 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 3. Opening pairing on placed blocks now requires sneaking by default. If you want to remove that gate, set `interaction.requireSneakToOpenPairing=false`.
 
 ### Signal Contention Model
-- The mod uses a "same-tick merge + time-order arbitration" model: events for the same target within the same tick are merged by rule, and class priority is fixed as `sync > pulse > toggle`.
-- Within the same-tick class, `sync` aggregates by strength (`max`); `pulse` uses the delay window; `toggle` merges by parity.
-- The current state is determined by the latest effective event. It does not require a source to keep sending continuously.
-- Compared with many wireless redstone mods, RedstoneLink is still driven primarily by event time ordering, and only introduces strength aggregation inside the `sync` class.
-- Because of that, concurrent race scenarios can end with different final states and reproducibility boundaries from other models.
+- The mod treats `sync` as a state signal and `pulse/toggle` as event signals.
+- `sync` expresses the state the target should currently align to, can forward exact redstone strength, and has source-level invalidation, resend, and replay support. It is the recommended mainline for stable redstone machines, latches, and long automation chains.
+- `pulse/toggle` express only target-side event results: `pulse` is a short-window event, and `toggle` means "invert the current resolved target state". They do not participate in the default relay/replay mainline.
+- The target still uses a "compare time first, then fixed same-tick priority" arbitration model, with class priority fixed as `sync > pulse > toggle`.
+- Within the same tick, `sync` aggregates by strength (`max`); `pulse/toggle` share one event domain, and only one event result is kept, with `pulse` higher than `toggle`.
+- A same-tick or later `sync` clears event persistence. Because of that, when `sync` becomes invalid, the target only falls back to remaining `sync` and never re-exposes older `pulse/toggle` events.
+- Compared with wireless redstone mods that treat every trigger as the same kind of event, RedstoneLink keeps a strict split between state signals and event signals, so the default config is better suited for repeatable and maintainable machine-state transport.
 
 ## II. Client Display and Observation
 
@@ -463,7 +465,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 16. `crosschunk.activation.toggle.ttlTicks`: TTL for normal `toggle` relay
 17. `crosschunk.activation.toggle.persistentExperimental`: whether experimental unlimited `toggle` delivery is enabled, default `false`
 18. `crosschunk.triggerSourceContextDetachInvalidation.enabled`: whether to enable `triggerSource` `soft/context-detach invalidation`, which removes only `sync` contribution on targets; default `false`
-19. `triggerSource` hard invalidation is always on and no longer has its own config key; source offline / unlink / retire / delete and other non-context-detach invalidations still remove `toggle/pulse/sync` contributions from targets
+19. `triggerSource` hard invalidation is always on and no longer has its own config key; source offline / unlink / retire / delete and other non-context-detach invalidations still remove only that source's `sync` contribution from targets
 20. `crosschunk.forceLoad.enabled`: master switch for force-load
 21. `crosschunk.forceLoad.mode`: `all` / `whitelist`
 22. `crosschunk.forceLoad.ticketTicks`: lifetime of force-load tickets in ticks
@@ -479,20 +481,22 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 5. `queue=false` + `forceLoad=true` + `mode=whitelist`: whitelist-only force-load; non-whitelisted targets are skipped
 6. `queue=false` + `forceLoad=true` + `mode=all`: force-load everything without needing the whitelist
 7. Stale-entry guard: same-key entries reject older versions monotonically; expired entries are dropped directly by TTL
-8. `sync` does not use unlimited persistent fallback by default (`crosschunk.syncSignalPersistent=false`); normal recovery for unloaded targets is target-chunk-load replay (`crosschunk.syncTargetChunkLoadReplay.enabled=true`)
-9. If `crosschunk.syncSignalPersistent=true` is enabled, `sync` waits indefinitely as a latest-state pending entry and redelivers after the target recovers; this is better treated as a fallback, not the default main recovery path
-10. With `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=true`, replay is attempted in the same `CHUNK_LOAD` tick first; only if the target is still not truly ready does it fall back to the next-tick local retry queue
-11. If `crosschunk.syncTargetChunkLoadReplay.enabled=false`, the `CHUNK_LOAD` replay path is fully skipped; if you still want recovery after target restoration, then consider enabling `crosschunk.syncSignalPersistent=true`
-12. With `crosschunk.syncSourceAttachReplay.enabled=true`, a reattached `triggerSource` resends one `sync-only replay` to all linked `core` nodes based on the current source state; default is off to avoid duplicating real post-placement input dispatch
-13. With `crosschunk.directBatching=queued_only`, only loaded `sync` hit by async / queue paths enters batching; loaded-direct `sync/toggle/pulse` still apply immediately
-14. With `crosschunk.directBatching=all_direct`, loaded-direct `sync/toggle/pulse` and async loaded `sync` all enter unified target-level batching; this is the current default
-15. `crosschunk.directBatching=all_direct` + `crosschunk.dispatch.batchWindowTicks=0` is the closest fixed-delay setup to "no extra tick delay": everything still goes through unified batching, but it stays aligned to the current tick and allows same-tick late flush after `END_SERVER_TICK`
-16. `crosschunk.directBatching=off` + `crosschunk.dispatch.batchWindowTicks=0` is the closest setup to immediate original behavior: loaded-direct `sync/toggle/pulse` do not enter direct batching and apply as soon as they hit the target; `batchWindowTicks=0` is still useful for async invalidation and similar batchable items
-17. `pulse` does not relay cross-chunk by default; only when `crosschunk.activation.pulse.relay.enabled=true` is enabled does it buffer by TTL; with `persistentExperimental=true`, it may wait indefinitely and replay one pulse after target load
-18. `toggle` does not relay cross-chunk by default; only when `crosschunk.activation.toggle.relay.enabled=true` is enabled does it buffer by TTL; with `persistentExperimental=true`, it may wait indefinitely and replay by net parity after target load
-19. `pulse/toggle` ready-drain and force-load hits now also reuse `crosschunk.dispatch.batchWindowTicks` and enter target-level batching; lifecycle replay remains `sync-only` and does not replay historical `pulse/toggle` events
-20. `triggerSource` soft/context-detach invalidation only affects `sync` and is off by default; with `crosschunk.triggerSourceContextDetachInvalidation.enabled=true`, a source that only detaches from context still removes its `sync` contribution from targets and triggers recomputation
-21. `triggerSource` hard invalidation is always on; offline / unlink / retire / delete and other non-context-detach invalidations continue to remove that source's `toggle/pulse/sync` contributions from targets
+8. The default config is also the recommended signal model: `triggerSource` hard invalidation is always on, and real source-offline cases such as offline / unlink / retire / delete remove that source's `sync` contribution from targets
+9. Chunk activity itself does not decide source logical validity: temporary chunk unload, temporary inactivity, or pure context detach does not automatically make the source invalid; the default recovery mainline is target-chunk-load `sync` replay
+10. `sync` does not use unlimited persistent fallback by default (`crosschunk.syncSignalPersistent=false`); the normal relay/recovery mainline for unloaded targets is target-chunk-load replay (`crosschunk.syncTargetChunkLoadReplay.enabled=true`)
+11. If `crosschunk.syncSignalPersistent=true` is enabled, `sync` waits indefinitely as a latest-state pending entry and redelivers after the target recovers; this is better treated as a fallback, not the default main recovery path
+12. With `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=true`, replay is attempted in the same `CHUNK_LOAD` tick first; only if the target is still not truly ready does it fall back to the next-tick local retry queue
+13. If `crosschunk.syncTargetChunkLoadReplay.enabled=false`, the `CHUNK_LOAD` replay path is fully skipped; if you still want recovery after target restoration, then consider enabling `crosschunk.syncSignalPersistent=true`
+14. With `crosschunk.syncSourceAttachReplay.enabled=true`, a reattached `triggerSource` resends one `sync-only replay` to all linked `core` nodes based on the current source state; default is off to avoid duplicating real post-placement input dispatch
+15. With `crosschunk.directBatching=queued_only`, only loaded `sync` hit by async / queue paths enters batching; loaded-direct `sync/toggle/pulse` still apply immediately
+16. With `crosschunk.directBatching=all_direct`, loaded-direct `sync/toggle/pulse` and async loaded `sync` all enter unified target-level batching; this is the current default
+17. `crosschunk.directBatching=all_direct` + `crosschunk.dispatch.batchWindowTicks=0` is the closest fixed-delay setup to "no extra tick delay": everything still goes through unified batching, but it stays aligned to the current tick and allows same-tick late flush after `END_SERVER_TICK`
+18. `crosschunk.directBatching=off` + `crosschunk.dispatch.batchWindowTicks=0` is the closest setup to immediate original behavior: loaded-direct `sync/toggle/pulse` do not enter direct batching and apply as soon as they hit the target; `batchWindowTicks=0` is still recommended so async invalidation and similar batchable items also avoid extra tick delay
+19. `pulse` does not relay cross-chunk by default; this path remains only as a compatibility/experimental entry and is not part of the recommended machine mainline. Only when `crosschunk.activation.pulse.relay.enabled=true` is enabled does it buffer by TTL; with `persistentExperimental=true`, it may wait indefinitely and replay one pulse after target load
+20. `toggle` does not relay cross-chunk by default; this path remains only as a compatibility/experimental entry and is not part of the recommended machine mainline. Only when `crosschunk.activation.toggle.relay.enabled=true` is enabled does it buffer by TTL; with `persistentExperimental=true`, it may wait indefinitely and replay by net parity after target load
+21. `pulse/toggle` ready-drain and force-load hits now also reuse `crosschunk.dispatch.batchWindowTicks` and enter target-level batching; lifecycle replay remains `sync-only` and does not replay historical `pulse/toggle` events
+22. `triggerSource` soft/context-detach invalidation only affects `sync` and is off by default; with `crosschunk.triggerSourceContextDetachInvalidation.enabled=true`, a source that only detaches from context still removes its `sync` contribution from targets and triggers recomputation
+23. `triggerSource` hard invalidation is always on; offline / unlink / retire / delete and other non-context-detach invalidations continue to remove that source's `sync` contribution from targets and do not roll back already persisted `pulse/toggle` event results
 
 ### `sync` Target-Chunk-Load Replay Switch
 - Goal: decide whether target-chunk `CHUNK_LOAD` automatically replays the source side's latest real sync state.

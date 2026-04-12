@@ -39,7 +39,7 @@ Edit entry / input entry
         -> pending queue / force-load / resident
   -> CoreDispatchBatchScheduler
   -> ActivatableTargetBlockEntity
-     -> sync / pulse / toggle concurrent buckets
+     -> sync source buckets + pulse/toggle event snapshots
      -> time-priority + fixed same-tick priority arbitration
   -> block state, redstone output, observation snapshot
 
@@ -53,11 +53,11 @@ Lifecycle attachment / chunk loading
 ### 4.1 Core Idea
 
 Arbitration happens on each individual `core` target, not on a global bus.
-The target maintains three concurrent source buckets:
+The target no longer treats all three signal classes as the same kind of long-lived source contribution.
+Instead, runtime truth is split into two layers:
 
-- `sync` bucket
-- `pulse` bucket
-- `toggle` bucket
+- `sync`: a state signal that maintains source-level aggregated buckets.
+- `pulse/toggle`: event signals that keep only target-local event-result snapshots.
 
 Each event carries `EventMeta`. Its key time axis is `tick + slot`, with `seq` used to keep a stable order within the same time granularity.
 
@@ -69,14 +69,17 @@ Each event carries `EventMeta`. Its key time axis is `tick + slot`, with `seq` u
 
 ### 4.3 How the Three Semantics Merge
 
-- `sync`: not "last write wins". It aggregates source strengths and takes `max` as the final sync strength, while preserving the tied max-source list for observation.
-- `pulse`: maintains an effective pulse window. As long as the window has not expired, the pulse truth stays active.
-- `toggle`: merges by "base state + parity". Multiple toggles in the same time window do not produce unbounded dirty flips; they converge into an odd/even result.
+- `sync`: a state signal, not "last write wins". It aggregates source strengths and takes `max` as the final sync strength, while preserving the tied max-source list for observation. It also has source-level invalidation, resend, and replay support, and is the default and recommended mainline for stable redstone machines.
+- `pulse`: an event signal. It keeps a target-local effective pulse window. It overrides older event results, but a same-tick or later `sync` clears its persisted event result.
+- `toggle`: an event signal whose semantic is "invert the current resolved target state". It keeps only the latest event result and no longer survives as a long-lived source-level fallback.
+- `pulse/toggle` share one event domain: within the same tick only one event result is retained, with fixed priority `PULSE > TOGGLE`; a later event overrides an earlier one.
+- When `sync` becomes invalid, it only falls back to remaining `sync`, and never re-exposes older `pulse/toggle` events that were already cleared.
 
 ### 4.4 Invalidation Semantics
 
-- `triggerSource` chunk unload invalidation: only removes that source's `sync` contribution, and does not roll back `pulse/toggle` event semantics.
-- Other `triggerSource` invalidation: removes that source's `sync/pulse/toggle` contributions and forces the target to recompute authority.
+- The default config is also the recommended model: `triggerSource` hard invalidation is always on; real source-offline cases such as offline / unlink / retire / delete remove only that source's `sync` contribution on targets.
+- Chunk activity itself is not source logical invalidity: temporary chunk unload, temporary inactivity, or pure context detach does not automatically make the source invalid; the default recovery mainline is `sync` target-chunk-load replay.
+- `pulse/toggle` do not participate in source-level relay/replay. Their relay paths stay disabled by default and remain only as compatibility or experimental entry points.
 
 This keeps "synchronized state" and "event semantics" from being collapsed into one coarse invalidation rule.
 
@@ -157,6 +160,7 @@ The project contains at least three replay-like concepts that are easy to confus
 - `InputPlaybackService`: runtime/bench waveform playback used to inject simulated input jobs.
 
 The first two are lifecycle recovery. The last one is test/runtime input injection.
+Under the default config, the actual cross-chunk recovery mainline is `sync` replay; `pulse/toggle` do not participate in that mainline.
 
 ### 7.2 `sync` Replay Snapshots
 
@@ -176,6 +180,7 @@ When the target attaches, `LinkNodeLifecycleDispatchEvents` will:
 3. replay the latest real snapshot from each source instead of pretending the target-load moment was the event time.
 
 This ensures replay restores the original source state, not a fake "new event on load".
+For the default config, this is also the recommended relay/recovery path for `sync`; stable cross-chunk state chains do not need `pulse/toggle` relay as the mainline.
 
 ### 7.4 Non-Blocking Rule
 

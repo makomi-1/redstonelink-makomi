@@ -282,35 +282,41 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 更晚的 sync 结束后，应回退到仍持久保留的更早 toggle 结果。
+	 * 更晚的 `sync` 应清掉更早事件快照，移除后不再回露旧 `toggle`。
 	 */
 	@Test
-	void laterSyncShouldRollbackToEarlierToggleSnapshot() {
+	void laterSyncShouldClearEarlierToggleSnapshot() {
 		TestTargetEntity target = createTarget();
 		target.triggerBySource(1L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
 
 		target.syncBySource(2L, 15, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleState"));
 
 		target.syncBySource(2L, 0, ActivatableTargetBlockEntity.EventMeta.of(12L, 0, 3L));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
-		assertTrue(getBooleanField(target, "toggleState"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "active"));
 	}
 
 	/**
-	 * 更晚的 pulse 不再淘汰更早 toggle 快照，pulse 结束后仍可回退到 toggle。
+	 * 更晚的 `pulse` 会覆盖更早 `toggle`，脉冲结束后保持其自身回落结果。
 	 */
 	@Test
-	void laterPulseShouldKeepEarlierToggleSnapshot() {
+	void laterPulseShouldClearEarlierToggleSnapshot() {
 		TestTargetEntity target = createTarget();
 		target.triggerBySource(1L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
 
 		target.triggerBySource(2L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
+
+		expirePulseWindow(target, 11L, 2L);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "active"));
 	}
 
 	/**
@@ -329,25 +335,27 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * sync 覆盖后移除时，应先回退到旧 toggle 结果；同源再次 toggle 再改写为新的结果。
+	 * `sync` 清掉旧事件后，后续新的 `toggle` 应从清空后的事件域重新写入结果。
 	 */
 	@Test
-	void laterToggleAfterSyncRollbackShouldWriteNewResult() {
+	void laterToggleAfterSyncClearShouldWriteNewResult() {
 		TestTargetEntity target = createTarget();
 		target.triggerBySource(1L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
 
 		target.syncBySource(2L, 15, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 
 		target.syncBySource(2L, 0, ActivatableTargetBlockEntity.EventMeta.of(12L, 0, 3L));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleState"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
 
 		target.triggerBySource(1L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(13L, 0, 4L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertFalse(getBooleanField(target, "active"));
+		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertTrue(invokeResolveDerivedOutputPowerFromTruth(target) > 0);
+		assertTrue(getBooleanField(target, "toggleState"));
 	}
 
 	/**
@@ -361,50 +369,50 @@ class ActivatableTargetBlockEntityInternalTest {
 
 		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "pulseSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
 		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
 
-		expirePulseWindow(target, 11L, 2L);
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleState"));
+		assertFalse(getBooleanField(target, "toggleState"));
 	}
 
 	/**
-	 * 同时间粒度 pulse 后到 toggle 时，toggle 应保留为 pulse 回落后的候选。
+	 * 同时间粒度 `pulse` 与 `toggle` 并发时，仅保留更高优先级的 `pulse`。
 	 */
 	@Test
-	void sameTimePulseThenToggleShouldFallbackToToggleAfterPulseEnds() {
+	void sameTimePulseThenToggleShouldDiscardToggleFallback() {
 		TestTargetEntity target = createTarget();
 		target.triggerBySource(1L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 2L));
 
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
 		assertTrue(getBooleanField(target, "pulseSnapshotRecorded"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 
 		expirePulseWindow(target, 10L, 2L);
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleState"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 	}
 
 	/**
-	 * 同时间粒度 sync 覆盖时不会清掉历史 pulse；pulse 到期后仍可回退到 toggle。
+	 * 同时间粒度 `sync` 会清掉事件域持久化，移除后不再回露旧事件。
 	 */
 	@Test
-	void sameTimeSyncReplayShouldKeepPersistedPulseUntilExpireThenFallbackToToggle() {
+	void sameTimeSyncReplayShouldClearPersistedEvents() {
 		TestTargetEntity target = createTarget();
 		target.triggerBySource(2L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		target.triggerBySource(3L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 2L));
 
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
 		assertTrue(getBooleanField(target, "pulseSnapshotRecorded"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 
 		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 3L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "pulseSnapshotRecorded"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 
 		target.applyDispatchDelta(
 			ActivatableTargetBlockEntity.DeltaKind.TRIGGER_SOURCE_INVALIDATION,
@@ -415,34 +423,31 @@ class ActivatableTargetBlockEntityInternalTest {
 			0,
 			ActivatableTargetBlockEntity.EventMeta.of(20L, 0, 4L)
 		);
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
-
-		expirePulseWindow(target, 20L, 4L);
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleState"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "active"));
 	}
 
 	/**
-	 * 重复两轮同时间粒度 pulse+toggle 后，pulse 回落结果仍应保持 toggle 交替。
+	 * 重复两轮同时间粒度 `pulse+toggle` 时，每轮都只保留 `pulse`，回落后保持关闭。
 	 */
 	@Test
-	void repeatedSameTimePulseThenToggleShouldAlternateAfterPulseEnds() {
+	void repeatedSameTimePulseThenToggleShouldStayOffAfterPulseEnds() {
 		TestTargetEntity target = createTarget();
 
 		target.triggerBySource(1L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 2L));
 		expirePulseWindow(target, 10L, 2L);
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleState"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "active"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 
 		target.triggerBySource(1L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(20L, 0, 3L));
 		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(20L, 0, 4L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 
 		expirePulseWindow(target, 20L, 4L);
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
 		assertFalse(getBooleanField(target, "active"));
 	}
 
@@ -487,13 +492,13 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * TOGGLE 基准应取当前 active：当外显为亮且 toggleState 为 false 时，首次 TOGGLE 应直接回落。
+	 * TOGGLE 基准应取当前解析目标状态，而不是仅在有 level 时才刷新的 active 缓存。
 	 */
 	@Test
-	void toggleMergeShouldUseActiveAsBaseState() {
+	void toggleMergeShouldUseResolvedTargetStateAsBaseState() {
 		TestTargetEntity target = createTarget();
-		setField(target, "active", true);
-		setField(target, "toggleState", false);
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		setField(target, "active", false);
 
 		invoke(target, "applyToggleMerged", new Class<?>[] {}, new Object[] {});
 		assertFalse(getBooleanField(target, "toggleState"));
@@ -596,10 +601,10 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 批提交中的 pulse + toggle 应保留“pulse 当前生效、toggle 作为回落候选”的最终态，并只提交一次。
+	 * 批提交中的同 tick `pulse + toggle` 只保留 `pulse`，不再记录 `toggle` fallback。
 	 */
 	@Test
-	void applyDispatchBatchShouldKeepPulseWinnerAndToggleFallbackWithinSingleCommit() {
+	void applyDispatchBatchShouldKeepPulseWinnerAndDiscardToggleFallbackWithinSingleCommit() {
 		TestTargetEntity target = createTarget();
 
 		target.applyDispatchBatch(
@@ -628,11 +633,11 @@ class ActivatableTargetBlockEntityInternalTest {
 		assertEquals(1, target.getSetChangedCount());
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
 		assertTrue(getBooleanField(target, "pulseSnapshotRecorded"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 
 		expirePulseWindow(target, 10L, 2L);
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleState"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "active"));
 	}
 
 	/**
@@ -662,11 +667,12 @@ class ActivatableTargetBlockEntityInternalTest {
 
 		assertEquals(1, target.getSetChangedCount());
 		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
-		assertTrue(getBooleanField(target, "pulseSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
 		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
 		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleState"));
+		assertFalse(getBooleanField(target, "toggleState"));
+		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
 	}
 
 	/**
@@ -690,9 +696,10 @@ class ActivatableTargetBlockEntityInternalTest {
 		);
 
 		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
-		assertTrue(getBooleanField(target, "pulseSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
 		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
 		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
 	}
 
 	/**
@@ -716,10 +723,11 @@ class ActivatableTargetBlockEntityInternalTest {
 		);
 
 		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
-		assertTrue(getBooleanField(target, "pulseSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
 		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getBooleanField(target, "toggleState"));
+		assertFalse(getBooleanField(target, "toggleState"));
+		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
 	}
 
 	private static TestTargetEntity createTarget() {
@@ -766,6 +774,10 @@ class ActivatableTargetBlockEntityInternalTest {
 			new Class<?>[] { long.class },
 			new Object[] { nowTick }
 		);
+	}
+
+	private static int invokeResolveDerivedOutputPowerFromTruth(TestTargetEntity target) {
+		return (Integer) invoke(target, "resolveDerivedOutputPowerFromTruth", new Class<?>[] {}, new Object[] {});
 	}
 
 	/**

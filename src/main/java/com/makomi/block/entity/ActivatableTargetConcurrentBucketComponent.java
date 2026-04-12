@@ -189,10 +189,25 @@ final class ActivatableTargetConcurrentBucketComponent {
 		return bucketChanged;
 	}
 
+	/**
+	 * 在更高层或更新的输入到来时，清理已失效的旧事件快照。
+	 * <p>
+	 * 本轮语义收紧为：
+	 * 1. `pulse/toggle` 属于同一事件域，互相覆盖；
+	 * 2. 同 tick 或更晚的 `sync` 会清掉事件域持久化，避免后续回露旧事件。
+	 * </p>
+	 */
 	boolean pruneOlderFramesForIncoming(TimeKey incomingTimeKey, EffectiveMode incomingMode) {
-		// 新模型下，旧候选需要作为后备真值保留，供 pulse 到期或 sync 失效后回退。
-		// 因此不再按“新事件到来”跨模式剪除旧 `sync/toggle/pulse` 快照。
-		return false;
+		if (incomingMode != EffectiveMode.SYNC) {
+			return false;
+		}
+		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
+		boolean shouldClearPulse = pulseSnapshotRecorded && pulseEventTimeKey.compareTo(normalizedTimeKey) <= 0;
+		boolean shouldClearToggle = toggleSnapshotRecorded && toggleEventTimeKey.compareTo(normalizedTimeKey) <= 0;
+		if (!shouldClearPulse && !shouldClearToggle) {
+			return false;
+		}
+		return clearEventTruth();
 	}
 
 	boolean clearPulseTruth() {
@@ -209,6 +224,35 @@ final class ActivatableTargetConcurrentBucketComponent {
 		pulseEventTimeKey = TimeKey.minValue();
 		pulseEventSeq = 0L;
 		return changed;
+	}
+
+	/**
+	 * 清理 `toggle` 事件结果，避免被更晚事件或 `sync` 回露。
+	 */
+	boolean clearToggleTruth() {
+		boolean changed = toggleSnapshotRecorded
+			|| toggleState
+			|| toggleConcurrentCount > 0
+			|| !toggleConcurrentBuckets.isEmpty()
+			|| toggleEventSeq > 0L
+			|| !TimeKey.minValue().equals(toggleEventTimeKey);
+		toggleState = false;
+		toggleSnapshotRecorded = false;
+		toggleEventTimeKey = TimeKey.minValue();
+		toggleEventSeq = 0L;
+		toggleConcurrentCount = 0;
+		toggleConcurrentBuckets.clear();
+		toggleFrameStartContributors.clear();
+		toggleSourcesTouchedInCurrentFrame.clear();
+		return changed;
+	}
+
+	/**
+	 * 清理整个事件域快照，使目标只保留 `sync` 或更新事件。
+	 */
+	boolean clearEventTruth() {
+		boolean changed = clearPulseTruth();
+		return clearToggleTruth() || changed;
 	}
 
 	boolean upsertSyncConcurrentSource(SourceKey sourceKey, TimeKey timeKey, int strength, long seq) {
@@ -330,11 +374,12 @@ final class ActivatableTargetConcurrentBucketComponent {
 	 * 记录 `pulse` 事件快照，并刷新其目标本地生效窗口。
 	 */
 	boolean recordPulseSnapshot(ActivatableTargetBlockEntity owner, TimeKey timeKey, long seq) {
+		boolean changed = clearToggleTruth();
 		int pulseTicks = Math.max(1, owner.getPulseDurationTicks());
 		Level level = owner.getLevel();
 		long now = level == null ? 0L : level.getGameTime();
 		long nextUntilTick = now + pulseTicks;
-		boolean changed = !pulseSnapshotRecorded
+		changed |= !pulseSnapshotRecorded
 			|| !java.util.Objects.equals(pulseEventTimeKey, timeKey)
 			|| pulseEventSeq != Math.max(0L, seq)
 			|| pulseUntilGameTime != nextUntilTick
@@ -356,7 +401,8 @@ final class ActivatableTargetConcurrentBucketComponent {
 	 * 记录 `toggle` 事件快照，作为目标本地持久结果。
 	 */
 	boolean recordToggleSnapshot(boolean nextToggleState, TimeKey timeKey, long seq) {
-		boolean changed = !toggleSnapshotRecorded
+		boolean changed = clearPulseTruth();
+		changed |= !toggleSnapshotRecorded
 			|| toggleState != nextToggleState
 			|| !java.util.Objects.equals(toggleEventTimeKey, timeKey)
 			|| toggleEventSeq != Math.max(0L, seq);

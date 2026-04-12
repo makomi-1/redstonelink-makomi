@@ -453,6 +453,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		ActivationMode normalizedMode = mode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
 		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
 		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
+		boolean baseToggleState = normalizedMode == ActivationMode.TOGGLE && resolveCurrentTargetStateBeforeToggle();
 		if (!acceptByPriority(normalizedMeta.timeKey(), priority, incomingMode, normalizedMeta.seq())) {
 			return;
 		}
@@ -462,15 +463,24 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			return;
 		}
 
-		applyToggleMerged(normalizedMeta);
+		applyToggleMerged(normalizedMeta, baseToggleState);
 	}
 
 	/**
-	 * 轻量版 L2：同 tick TOGGLE 按“基准态 + 奇偶”合并。
+	 * 轻量版 L2：同 tick TOGGLE 按“当前解析目标状态 + 奇偶”合并。
 	 */
 	void applyToggleMerged(EventMeta eventMeta) {
 		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
-		boolean nextToggleState = arbitrationComponent.applyToggleMerged(concurrentComponent, active);
+		boolean currentTargetState = resolveCurrentTargetStateBeforeToggle();
+		applyToggleMerged(normalizedMeta, currentTargetState);
+	}
+
+	/**
+	 * 按已解析出的当前目标状态写入一次 toggle 合并结果。
+	 */
+	void applyToggleMerged(EventMeta eventMeta, boolean currentTargetState) {
+		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
+		boolean nextToggleState = arbitrationComponent.applyToggleMerged(concurrentComponent, currentTargetState);
 		concurrentComponent.recordToggleSnapshot(nextToggleState, normalizedMeta.timeKey(), normalizedMeta.seq());
 		recomputeAuthorityFromConcurrentBuckets(normalizedMeta.timeKey(), normalizedMeta.seq());
 		applyDerivedStateFromTruth();
@@ -504,6 +514,18 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		normalizeAuthorityByTruth();
 		int resolvedPower = resolveDerivedOutputPowerFromTruth();
 		observationComponent.applyResolvedState(this, arbitrationComponent.authorityTimeKey(), resolvedPower > 0, resolvedPower);
+	}
+
+	/**
+	 * 在写入新 toggle 前，解析当前目标结果态。
+	 * <p>
+	 * 必须在本次 toggle 更新 authority 之前取值；否则较新的 toggle 会提前遮掉仍在生效的
+	 * `sync/pulse`，把“对当前状态取反”误算成“对空态取反”。
+	 * </p>
+	 */
+	boolean resolveCurrentTargetStateBeforeToggle() {
+		normalizeAuthorityByTruth();
+		return resolveDerivedOutputPowerFromTruth() > 0;
 	}
 
 	/**

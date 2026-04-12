@@ -361,10 +361,12 @@ function Build-MixedDirectPulseToggleRelativeTraceExpectations {
 			[ordered]@{ power = 0 },
 			[ordered]@{ power = 0 },
 			[ordered]@{ power = 15; mode = "pulse" },
-			[ordered]@{ power = 15; mode = "pulse" },
-			[ordered]@{ power = 15; mode = "pulse" },
-			[ordered]@{ power = 15; mode = "toggle" },
-			[ordered]@{ power = 15; mode = "toggle" }
+			# 新语义下，later toggle 会直接对 pulse 当前结果态取反；
+			# 因此第二段 pulse 只保留首拍，随后立即回到 toggle=false 的关闭态。
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 }
 		) `
 		-Type $Type)
 }
@@ -384,10 +386,11 @@ function Build-MixedDirectSyncPulseToggleRelativeTraceExpectations {
 			[ordered]@{ power = 15; mode = "toggle" },
 			[ordered]@{ power = 15; mode = "toggle" },
 			[ordered]@{ power = 15; mode = "pulse" },
-			[ordered]@{ power = 15; mode = "pulse" },
-			[ordered]@{ power = 15; mode = "pulse" },
-			[ordered]@{ power = 15; mode = "toggle" },
-			[ordered]@{ power = 15; mode = "toggle" }
+			# 同窗口 S+P+T 里，pulse 覆盖 toggle，但更晚的 toggle 会立刻把当前亮态翻回关闭并保持。
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 },
+			[ordered]@{ power = 0 }
 		) `
 		-Type $Type)
 }

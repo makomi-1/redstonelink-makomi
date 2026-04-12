@@ -12,9 +12,10 @@
 
 # Overview
 
-A wireless redstone mod built around a `time-priority + fixed priority within the same tick` arbitration model and `serial-number pairing`. It supports `cross-dimensionality` links, `relay delay`, and `permission management`, and also provides transparent variants of `core` nodes plus a `quick link tool`.
+A wireless redstone mod built around a `time-priority + fixed priority within the same tick` arbitration model, with a clear split between `state signals (sync)` and `event signals (pulse/toggle)`, plus `signal persistence` and `serial-number pairing`. It supports `cross-dimensional` links, `relay delay`, and `permission management`, and also provides transparent variants of `core` nodes plus a `quick link tool`.
 
 ## Features
+- Sneak-right-click a handheld node to open `pre-pairing`
 - Theoretically almost `no distance limit`
 - Supports structured batch serial input such as `1:1000`
 - Can be configured for `zero delay`

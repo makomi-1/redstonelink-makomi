@@ -154,7 +154,11 @@ final class ActivatableTargetDispatchSupport {
 			if (!owner.acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
 				return;
 			}
-			boolean bucketChanged = owner.updateSyncSignalStrength(0L, normalizedStrength);
+			boolean bucketChanged = false;
+			if (normalizedStrength > 0) {
+				bucketChanged |= concurrentComponent().pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
+			}
+			bucketChanged |= owner.updateSyncSignalStrength(0L, normalizedStrength);
 			owner.applyDerivedStateFromTruth();
 			owner.markStructuredTruthDirty(bucketChanged);
 			return;
@@ -187,8 +191,11 @@ final class ActivatableTargetDispatchSupport {
 			return;
 		}
 		SourceKey sourceKey = new SourceKey(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
-		boolean bucketChanged = concurrentComponent().pruneOlderFramesForIncoming(normalizedMeta.timeKey(), EffectiveMode.SYNC);
 		int normalizedStrength = ActivatableTargetBlockEntity.normalizeSignalStrength(signalStrength);
+		boolean bucketChanged = false;
+		if (!removeOnly && normalizedStrength > 0) {
+			bucketChanged |= concurrentComponent().pruneOlderFramesForIncoming(normalizedMeta.timeKey(), EffectiveMode.SYNC);
+		}
 		if (removeOnly || normalizedStrength <= 0) {
 			bucketChanged |= concurrentComponent().removeRuntimeSimulatedSyncConcurrentSource(sourceKey);
 		} else {
@@ -219,12 +226,15 @@ final class ActivatableTargetDispatchSupport {
 		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
 		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
 		TimeKey normalizedTimeKey = eventMeta.timeKey() == null ? TimeKey.of(0L, 0) : eventMeta.timeKey();
+		owner.recomputeSyncTruthFromConcurrentBuckets();
+		boolean baseToggleState = normalizedMode == ActivationMode.TOGGLE
+			&& deltaAction != DeltaAction.REMOVE
+			&& owner.resolveCurrentTargetStateBeforeToggle();
 		boolean priorityAccepted = owner.acceptByPriority(normalizedTimeKey, priority, incomingMode, eventMeta.seq());
-		if (!priorityAccepted && normalizedTimeKey.compareTo(arbitrationComponent().authorityTimeKey()) < 0) {
+		if (!priorityAccepted) {
 			return;
 		}
 		boolean bucketChanged = false;
-		owner.recomputeSyncTruthFromConcurrentBuckets();
 		if (normalizedMode == ActivationMode.PULSE) {
 			if (deltaAction == DeltaAction.REMOVE) {
 				bucketChanged |= concurrentComponent().clearPulseTruth();
@@ -233,11 +243,12 @@ final class ActivatableTargetDispatchSupport {
 			}
 			bucketChanged |= owner.recomputePulseTruthFromConcurrentBuckets();
 		} else if (deltaAction != DeltaAction.REMOVE) {
-			boolean baseToggleState = concurrentComponent().toggleSnapshotRecorded() && concurrentComponent().toggleState();
+			// `toggle` 语义直接对“本次写入前”的当前目标结果态取反，
+			// 不能依赖旧 toggle fallback，也不能在 authority 已切到 TOGGLE 后再取基准。
 			bucketChanged |= concurrentComponent().recordToggleSnapshot(!baseToggleState, normalizedTimeKey, eventMeta.seq());
 		} else {
 			return;
-			}
+		}
 		owner.recomputeToggleTruthFromConcurrentBuckets();
 		owner.recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
 		owner.applyDerivedStateFromTruth();
@@ -333,8 +344,11 @@ final class ActivatableTargetDispatchSupport {
 		if (!owner.acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
 			return;
 		}
-		boolean bucketChanged = concurrentComponent().pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
 		int normalizedStrength = ActivatableTargetBlockEntity.normalizeSignalStrength(signalStrength);
+		boolean bucketChanged = false;
+		if (deltaAction != DeltaAction.REMOVE && normalizedStrength > 0) {
+			bucketChanged |= concurrentComponent().pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
+		}
 		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
 			bucketChanged |= concurrentComponent().removeSyncConcurrentSource(sourceKey);
 		} else {
@@ -364,8 +378,12 @@ final class ActivatableTargetDispatchSupport {
 		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
 		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
 		TimeKey normalizedTimeKey = eventMeta.timeKey() == null ? TimeKey.of(0L, 0) : eventMeta.timeKey();
+		owner.recomputeSyncTruthFromConcurrentBuckets();
+		boolean baseToggleState = normalizedMode == ActivationMode.TOGGLE
+			&& deltaAction != DeltaAction.REMOVE
+			&& owner.resolveCurrentTargetStateBeforeToggle();
 		boolean priorityAccepted = owner.acceptByPriority(normalizedTimeKey, priority, incomingMode, eventMeta.seq());
-		if (!priorityAccepted && normalizedTimeKey.compareTo(arbitrationComponent().authorityTimeKey()) < 0) {
+		if (!priorityAccepted) {
 			return;
 		}
 
@@ -384,7 +402,7 @@ final class ActivatableTargetDispatchSupport {
 		if (deltaAction == DeltaAction.REMOVE) {
 			return;
 		}
-		boolean baseToggleState = concurrentComponent().toggleSnapshotRecorded() && concurrentComponent().toggleState();
+		// 批路径与 direct 路径保持一致：toggle 直接翻转“本次写入前”的当前目标结果态。
 		bucketChanged |= concurrentComponent().recordToggleSnapshot(!baseToggleState, normalizedTimeKey, eventMeta.seq());
 		owner.recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
