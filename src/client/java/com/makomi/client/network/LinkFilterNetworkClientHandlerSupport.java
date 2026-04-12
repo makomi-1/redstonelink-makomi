@@ -35,8 +35,10 @@ public final class LinkFilterNetworkClientHandlerSupport {
 		}
 		minecraft.setScreen(
 			new LinkFilterEditorScreen(
+				payload.targetKind(),
 				payload.dimensionKey(),
 				payload.blockPosLong(),
+				payload.selectedSlot(),
 				payload.filterKind(),
 				payload.configSnapshot()
 			)

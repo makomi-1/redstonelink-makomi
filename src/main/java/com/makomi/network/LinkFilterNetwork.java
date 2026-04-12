@@ -3,6 +3,7 @@ package com.makomi.network;
 import com.makomi.RedstoneLink;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.data.LinkFilterConfigSnapshot;
+import com.makomi.data.LinkFilterItemData;
 import com.makomi.data.LinkFilterKind;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -11,6 +12,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * 过滤器编辑器网络通道。
@@ -36,10 +38,32 @@ public final class LinkFilterNetwork {
 		ServerPlayNetworking.send(
 			player,
 			new OpenFilterEditorPayload(
+				LinkFilterEditorTargetKind.BLOCK_ENTITY,
 				filterBlockEntity.getLevel().dimension().location().toString(),
 				filterBlockEntity.getBlockPos().asLong(),
+				-1,
 				filterBlockEntity.filterKind(),
 				filterBlockEntity.snapshot()
+			)
+		);
+	}
+
+	/**
+	 * 打开主手手持过滤器编辑器。
+	 */
+	public static void openHeldItemEditor(ServerPlayer player, ItemStack stack, LinkFilterKind filterKind) {
+		if (player == null || stack == null || stack.isEmpty() || filterKind == null) {
+			return;
+		}
+		ServerPlayNetworking.send(
+			player,
+			new OpenFilterEditorPayload(
+				LinkFilterEditorTargetKind.HELD_MAIN_HAND,
+				"",
+				0L,
+				player.getInventory().selected,
+				filterKind,
+				LinkFilterItemData.read(stack)
 			)
 		);
 	}
@@ -48,8 +72,10 @@ public final class LinkFilterNetwork {
 	 * 服务端打开编辑器的 S2C 包。
 	 */
 	public record OpenFilterEditorPayload(
+		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
 		long blockPosLong,
+		int selectedSlot,
 		LinkFilterKind filterKind,
 		LinkFilterConfigSnapshot configSnapshot
 	) implements CustomPacketPayload {
@@ -59,8 +85,10 @@ public final class LinkFilterNetwork {
 		public static final StreamCodec<FriendlyByteBuf, OpenFilterEditorPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> LinkFilterNetworkPayloadSupport.encodeOpenEditorPayload(
 				buffer,
+				payload.targetKind(),
 				payload.dimensionKey(),
 				payload.blockPosLong(),
+				payload.selectedSlot(),
 				payload.filterKind(),
 				payload.configSnapshot()
 			),
@@ -69,8 +97,10 @@ public final class LinkFilterNetwork {
 					buffer
 				);
 				return new OpenFilterEditorPayload(
+					decoded.targetKind(),
 					decoded.dimensionKey(),
 					decoded.blockPosLong(),
+					decoded.selectedSlot(),
 					decoded.filterKind(),
 					decoded.configSnapshot()
 				);
@@ -78,7 +108,9 @@ public final class LinkFilterNetwork {
 		);
 
 		public OpenFilterEditorPayload {
+			targetKind = targetKind == null ? LinkFilterEditorTargetKind.BLOCK_ENTITY : targetKind;
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			selectedSlot = targetKind.usesHeldMainHandTarget() ? Math.max(0, selectedSlot) : -1;
 			filterKind = filterKind == null ? LinkFilterKind.SEND : filterKind;
 			configSnapshot = configSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : configSnapshot;
 		}
@@ -93,8 +125,10 @@ public final class LinkFilterNetwork {
 	 * 客户端提交过滤器配置的 C2S 请求。
 	 */
 	public record SaveFilterPayload(
+		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
 		long blockPosLong,
+		int selectedSlot,
 		LinkFilterKind filterKind,
 		LinkFilterConfigSnapshot configSnapshot
 	) implements CustomPacketPayload {
@@ -104,16 +138,20 @@ public final class LinkFilterNetwork {
 		public static final StreamCodec<FriendlyByteBuf, SaveFilterPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> LinkFilterNetworkPayloadSupport.encodeSavePayload(
 				buffer,
+				payload.targetKind(),
 				payload.dimensionKey(),
 				payload.blockPosLong(),
+				payload.selectedSlot(),
 				payload.filterKind(),
 				payload.configSnapshot()
 			),
 			buffer -> {
 				LinkFilterNetworkPayloadSupport.DecodedSavePayload decoded = LinkFilterNetworkPayloadSupport.decodeSavePayload(buffer);
 				return new SaveFilterPayload(
+					decoded.targetKind(),
 					decoded.dimensionKey(),
 					decoded.blockPosLong(),
+					decoded.selectedSlot(),
 					decoded.filterKind(),
 					decoded.configSnapshot()
 				);
@@ -121,7 +159,9 @@ public final class LinkFilterNetwork {
 		);
 
 		public SaveFilterPayload {
+			targetKind = targetKind == null ? LinkFilterEditorTargetKind.BLOCK_ENTITY : targetKind;
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			selectedSlot = targetKind.usesHeldMainHandTarget() ? Math.max(0, selectedSlot) : -1;
 			filterKind = filterKind == null ? LinkFilterKind.SEND : filterKind;
 			configSnapshot = configSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : configSnapshot;
 		}

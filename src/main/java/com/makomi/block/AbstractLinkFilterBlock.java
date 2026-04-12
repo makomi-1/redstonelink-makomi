@@ -2,14 +2,18 @@ package com.makomi.block;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
-import com.makomi.data.LinkDispatchFilterService;
+import com.makomi.data.LinkFilterItemData;
 import com.makomi.network.LinkFilterNetwork;
 import com.mojang.serialization.MapCodec;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
@@ -20,6 +24,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 
 /**
@@ -54,6 +60,35 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 			refreshPoweredState(level, pos, state);
 			refreshPlacedFilterState(level, pos);
 		}
+	}
+
+	@Override
+	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
+		super.setPlacedBy(level, pos, state, placer, stack);
+		if (level.isClientSide) {
+			return;
+		}
+		if (!(level.getBlockEntity(pos) instanceof AbstractLinkFilterBlockEntity filterBlockEntity)) {
+			return;
+		}
+		filterBlockEntity.applySnapshot(LinkFilterItemData.read(stack));
+	}
+
+	@Override
+	protected List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
+		List<ItemStack> drops = new ArrayList<>(super.getDrops(state, builder));
+		if (drops.isEmpty()) {
+			drops.add(new ItemStack(asItem()));
+		}
+		if (!(builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY) instanceof AbstractLinkFilterBlockEntity filterBlockEntity)) {
+			return drops;
+		}
+		for (ItemStack drop : drops) {
+			if (drop.is(asItem())) {
+				LinkFilterItemData.write(drop, filterBlockEntity.snapshot());
+			}
+		}
+		return drops;
 	}
 
 	@Override

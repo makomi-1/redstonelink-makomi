@@ -5,6 +5,7 @@ import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.network.LinkFilterEditorTargetKind;
 import com.makomi.network.LinkFilterNetwork;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
@@ -61,8 +62,10 @@ public class LinkFilterEditorScreen extends Screen {
 	private static final int BACKGROUND_TOP_PADDING = 18;
 	private static final int BACKGROUND_BOTTOM_PADDING = 26;
 
+	private final LinkFilterEditorTargetKind targetKind;
 	private final String dimensionKey;
 	private final long blockPosLong;
+	private final int selectedSlot;
 	private final LinkFilterKind filterKind;
 	private final LinkFilterConfigSnapshot initialSnapshot;
 
@@ -77,14 +80,18 @@ public class LinkFilterEditorScreen extends Screen {
 	private Component statusMessage = Component.empty();
 
 	public LinkFilterEditorScreen(
+		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
 		long blockPosLong,
+		int selectedSlot,
 		LinkFilterKind filterKind,
 		LinkFilterConfigSnapshot initialSnapshot
 	) {
 		super(Component.translatable(titleTranslationKey(filterKind)));
+		this.targetKind = targetKind == null ? LinkFilterEditorTargetKind.BLOCK_ENTITY : targetKind;
 		this.dimensionKey = dimensionKey == null ? "" : dimensionKey;
 		this.blockPosLong = blockPosLong;
+		this.selectedSlot = this.targetKind.usesHeldMainHandTarget() ? Math.max(0, selectedSlot) : -1;
 		this.filterKind = filterKind == null ? LinkFilterKind.SEND : filterKind;
 		this.initialSnapshot = initialSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : initialSnapshot;
 		currentNodeSetMode = this.initialSnapshot.nodeSetMode();
@@ -278,8 +285,10 @@ public class LinkFilterEditorScreen extends Screen {
 		statusMessage = Component.empty();
 		ClientPlayNetworking.send(
 			new LinkFilterNetwork.SaveFilterPayload(
+				targetKind,
 				dimensionKey,
 				blockPosLong,
+				selectedSlot,
 				filterKind,
 				new LinkFilterConfigSnapshot(
 					validation.normalizedExpression(),

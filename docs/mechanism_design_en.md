@@ -206,6 +206,12 @@ Persistent placed-filter truth is maintained by `PlacedLinkFilterSavedData`, not
 - its physical effect area is a cube centered on the filter block, with radius `8` on each `X/Y/Z` axis;
 - runtime config changes and neighbor-input changes both trigger resampling and before/after comparison.
 
+Filters also keep a separate config-snapshot path that is distinct from runtime truth:
+
+- editing a handheld filter reads and writes the filter config snapshot stored in item NBT;
+- placement restores that snapshot into the block entity and `PlacedLinkFilterSavedData`, while breaking the block writes the current effective config back into the dropped item;
+- item tooltips show the same config snapshot, including the node set. It is only a config carrier, not another link-truth layer.
+
 Current runtime compensation only applies to `sync`:
 
 - previously allowed, now blocked: publish one `sync` invalidation and remove the old contribution;
@@ -251,9 +257,11 @@ quick-link, pairing, and bench submissions do not each implement their own low-l
 
 Filter editing must stay separate from "rewire links":
 
-- saving from the filter GUI and quick-linking into a filter are both filter-config writes, not link-graph writes;
+- saving from the filter GUI, saving from the handheld filter editor, and quick-linking into a filter are all filter-config writes, not link-graph writes;
+- for a handheld filter, the write target is the item-side config snapshot; for a placed filter, the write target is the block-entity config plus persisted filter truth;
 - the written object is the filter snapshot (`serialExpression/nodeSetMode/signalThresholdSource/fixedSignalThreshold/signalMode`), not the `triggerSource -> core` topology;
 - when quick-link hits a filter, it only overwrites `serialExpression` and keeps the rest of the filter config unchanged.
+- because the write target is a config snapshot, filters support a closed loop of "edit in hand -> place into runtime truth -> break and keep config -> place again and restore", without touching link-graph revisions.
 
 So the player-facing interaction is similar, but the permission/OCC boundary is different:
 

@@ -69,9 +69,11 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ### Send / Receive Filters
 - Item names: `Send Filter` and `Receive Filter`.
 - Basic interaction:
-1. Place them as world blocks; they stay effective while placed.
-2. Sneak right-click to open the filter editor.
-3. While holding the Quick Link Tool, standing right-click on a filter can directly apply the matching serial cache into the filter node-input field.
+1. While held or placed, the filter editor can be opened whenever the same open-GUI condition used by other configurable nodes is satisfied.
+2. Place them as world blocks; they stay effective while placed.
+3. When broken, the dropped item keeps the current config and restores it on the next placement.
+4. The item tooltip shows the current config snapshot, including the node set.
+5. While holding the Quick Link Tool, standing right-click on a filter can directly apply the matching serial cache into the filter node-input field.
 - Served node types:
 1. A `send` filter only serves `triggerSource`.
 2. A `receive` filter only serves `core`.

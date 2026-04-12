@@ -4,7 +4,9 @@ import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.command.CommandTreeSupport;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkFilterConfigSnapshot;
+import com.makomi.data.LinkFilterItemData;
 import com.makomi.data.LinkFilterNodeSetMode;
+import com.makomi.item.LinkFilterBlockItem;
 import com.makomi.util.SerialParseUtil;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +17,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 /**
@@ -31,17 +34,6 @@ final class LinkFilterNetworkServerHandlerSupport {
 		if (player == null || payload == null) {
 			return;
 		}
-		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
-			sendFeedback(player, false, "message.redstonelink.permission.insufficient");
-			return;
-		}
-
-		AbstractLinkFilterBlockEntity filterBlockEntity = resolveFilterBlockEntity(player, payload);
-		if (filterBlockEntity == null) {
-			sendFeedback(player, false, "message.redstonelink.link_filter.target_missing");
-			return;
-		}
-
 		LinkFilterConfigSnapshot configSnapshot = payload.configSnapshot();
 		if (configSnapshot.serialExpression().length() > RedstoneLinkConfig.command().linkSetMaxInputLength()) {
 			sendFeedback(
@@ -76,7 +68,26 @@ final class LinkFilterNetworkServerHandlerSupport {
 			return;
 		}
 
-		filterBlockEntity.applySnapshot(configSnapshot);
+		if (payload.targetKind().usesBlockEntityTarget()) {
+			if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+				sendFeedback(player, false, "message.redstonelink.permission.insufficient");
+				return;
+			}
+			AbstractLinkFilterBlockEntity filterBlockEntity = resolveFilterBlockEntity(player, payload);
+			if (filterBlockEntity == null) {
+				sendFeedback(player, false, "message.redstonelink.link_filter.target_missing");
+				return;
+			}
+			filterBlockEntity.applySnapshot(configSnapshot);
+		} else {
+			ItemStack heldFilterStack = resolveHeldFilterStack(player, payload);
+			if (heldFilterStack.isEmpty()) {
+				sendFeedback(player, false, "message.redstonelink.link_filter.target_missing");
+				return;
+			}
+			LinkFilterItemData.write(heldFilterStack, configSnapshot);
+		}
+
 		if (configSnapshot.nodeSetMode() == LinkFilterNodeSetMode.WHITELIST && parseResult.orderedTargets().isEmpty()) {
 			sendFeedback(player, true, "message.redstonelink.link_filter.saved_whitelist_empty");
 			return;
@@ -117,6 +128,26 @@ final class LinkFilterNetworkServerHandlerSupport {
 			return null;
 		}
 		return filterBlockEntity.filterKind() == payload.filterKind() ? filterBlockEntity : null;
+	}
+
+	/**
+	 * 解析当前主手手持过滤器物品。
+	 */
+	private static ItemStack resolveHeldFilterStack(ServerPlayer player, LinkFilterNetwork.SaveFilterPayload payload) {
+		if (player == null || payload == null || !payload.targetKind().usesHeldMainHandTarget()) {
+			return ItemStack.EMPTY;
+		}
+		if (player.getInventory().selected != payload.selectedSlot()) {
+			return ItemStack.EMPTY;
+		}
+		ItemStack heldStack = player.getMainHandItem();
+		if (heldStack.isEmpty()) {
+			return ItemStack.EMPTY;
+		}
+		if (!(heldStack.getItem() instanceof LinkFilterBlockItem filterBlockItem)) {
+			return ItemStack.EMPTY;
+		}
+		return filterBlockItem.filterKind() == payload.filterKind() ? heldStack : ItemStack.EMPTY;
 	}
 
 	/**

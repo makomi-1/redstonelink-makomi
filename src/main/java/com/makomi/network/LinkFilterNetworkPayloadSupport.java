@@ -16,6 +16,7 @@ import net.minecraft.util.Mth;
  */
 final class LinkFilterNetworkPayloadSupport {
 	static final int DIMENSION_KEY_MAX_LENGTH = 128;
+	private static final int TARGET_KIND_TOKEN_MAX_LENGTH = 32;
 	private static final int FILTER_KIND_TOKEN_MAX_LENGTH = 16;
 	private static final int MODE_TOKEN_MAX_LENGTH = 32;
 	private static final int MESSAGE_KEY_MAX_LENGTH = 128;
@@ -30,13 +31,17 @@ final class LinkFilterNetworkPayloadSupport {
 	 */
 	static void encodeOpenEditorPayload(
 		FriendlyByteBuf buffer,
+		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
 		long blockPosLong,
+		int selectedSlot,
 		LinkFilterKind filterKind,
 		LinkFilterConfigSnapshot configSnapshot
 	) {
+		buffer.writeUtf(targetKind == null ? "" : targetKind.token(), TARGET_KIND_TOKEN_MAX_LENGTH);
 		buffer.writeUtf(dimensionKey == null ? "" : dimensionKey, DIMENSION_KEY_MAX_LENGTH);
 		buffer.writeLong(blockPosLong);
+		buffer.writeInt(selectedSlot);
 		buffer.writeUtf(filterKind == null ? "" : filterKind.token(), FILTER_KIND_TOKEN_MAX_LENGTH);
 		encodeConfigSnapshot(buffer, configSnapshot);
 	}
@@ -45,12 +50,16 @@ final class LinkFilterNetworkPayloadSupport {
 	 * 解码过滤器编辑器打开包。
 	 */
 	static DecodedOpenEditorPayload decodeOpenEditorPayload(FriendlyByteBuf buffer) {
+		LinkFilterEditorTargetKind targetKind = LinkFilterEditorTargetKind
+			.tryParseToken(buffer.readUtf(TARGET_KIND_TOKEN_MAX_LENGTH))
+			.orElseThrow(() -> new IllegalArgumentException("Unknown editor target kind"));
 		String dimensionKey = buffer.readUtf(DIMENSION_KEY_MAX_LENGTH);
 		long blockPosLong = buffer.readLong();
+		int selectedSlot = buffer.readInt();
 		LinkFilterKind filterKind = LinkFilterKind
 			.tryParseToken(buffer.readUtf(FILTER_KIND_TOKEN_MAX_LENGTH))
 			.orElseThrow(() -> new IllegalArgumentException("Unknown filter kind"));
-		return new DecodedOpenEditorPayload(dimensionKey, blockPosLong, filterKind, decodeConfigSnapshot(buffer));
+		return new DecodedOpenEditorPayload(targetKind, dimensionKey, blockPosLong, selectedSlot, filterKind, decodeConfigSnapshot(buffer));
 	}
 
 	/**
@@ -58,12 +67,14 @@ final class LinkFilterNetworkPayloadSupport {
 	 */
 	static void encodeSavePayload(
 		FriendlyByteBuf buffer,
+		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
 		long blockPosLong,
+		int selectedSlot,
 		LinkFilterKind filterKind,
 		LinkFilterConfigSnapshot configSnapshot
 	) {
-		encodeOpenEditorPayload(buffer, dimensionKey, blockPosLong, filterKind, configSnapshot);
+		encodeOpenEditorPayload(buffer, targetKind, dimensionKey, blockPosLong, selectedSlot, filterKind, configSnapshot);
 	}
 
 	/**
@@ -72,8 +83,10 @@ final class LinkFilterNetworkPayloadSupport {
 	static DecodedSavePayload decodeSavePayload(FriendlyByteBuf buffer) {
 		DecodedOpenEditorPayload decoded = decodeOpenEditorPayload(buffer);
 		return new DecodedSavePayload(
+			decoded.targetKind(),
 			decoded.dimensionKey(),
 			decoded.blockPosLong(),
+			decoded.selectedSlot(),
 			decoded.filterKind(),
 			decoded.configSnapshot()
 		);
@@ -154,8 +167,10 @@ final class LinkFilterNetworkPayloadSupport {
 	 * 打开包解码结果。
 	 */
 	record DecodedOpenEditorPayload(
+		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
 		long blockPosLong,
+		int selectedSlot,
 		LinkFilterKind filterKind,
 		LinkFilterConfigSnapshot configSnapshot
 	) {
@@ -165,8 +180,10 @@ final class LinkFilterNetworkPayloadSupport {
 	 * 保存包解码结果。
 	 */
 	record DecodedSavePayload(
+		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
 		long blockPosLong,
+		int selectedSlot,
 		LinkFilterKind filterKind,
 		LinkFilterConfigSnapshot configSnapshot
 	) {

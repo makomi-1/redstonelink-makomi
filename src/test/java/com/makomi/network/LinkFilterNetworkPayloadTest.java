@@ -26,8 +26,10 @@ class LinkFilterNetworkPayloadTest {
 	@Test
 	void openEditorPayloadCodecRoundTripShouldPreserveFields() {
 		LinkFilterNetwork.OpenFilterEditorPayload original = new LinkFilterNetwork.OpenFilterEditorPayload(
+			LinkFilterEditorTargetKind.BLOCK_ENTITY,
 			"minecraft:overworld",
 			42L,
+			-1,
 			LinkFilterKind.RECEIVE,
 			new LinkFilterConfigSnapshot(
 				"1:5/9",
@@ -42,8 +44,10 @@ class LinkFilterNetworkPayloadTest {
 		LinkFilterNetwork.OpenFilterEditorPayload.CODEC.encode(buffer, original);
 		LinkFilterNetwork.OpenFilterEditorPayload decoded = LinkFilterNetwork.OpenFilterEditorPayload.CODEC.decode(buffer);
 
+		assertEquals(original.targetKind(), decoded.targetKind());
 		assertEquals(original.dimensionKey(), decoded.dimensionKey());
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.selectedSlot(), decoded.selectedSlot());
 		assertEquals(original.filterKind(), decoded.filterKind());
 		assertEquals(original.configSnapshot(), decoded.configSnapshot());
 	}
@@ -54,8 +58,10 @@ class LinkFilterNetworkPayloadTest {
 	@Test
 	void savePayloadCodecRoundTripShouldPreserveFields() {
 		LinkFilterNetwork.SaveFilterPayload original = new LinkFilterNetwork.SaveFilterPayload(
-			"minecraft:the_nether",
-			84L,
+			LinkFilterEditorTargetKind.HELD_MAIN_HAND,
+			"",
+			0L,
+			3,
 			LinkFilterKind.SEND,
 			new LinkFilterConfigSnapshot(
 				"3/7:9",
@@ -70,8 +76,10 @@ class LinkFilterNetworkPayloadTest {
 		LinkFilterNetwork.SaveFilterPayload.CODEC.encode(buffer, original);
 		LinkFilterNetwork.SaveFilterPayload decoded = LinkFilterNetwork.SaveFilterPayload.CODEC.decode(buffer);
 
+		assertEquals(original.targetKind(), decoded.targetKind());
 		assertEquals(original.dimensionKey(), decoded.dimensionKey());
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.selectedSlot(), decoded.selectedSlot());
 		assertEquals(original.filterKind(), decoded.filterKind());
 		assertEquals(original.configSnapshot(), decoded.configSnapshot());
 	}
@@ -103,8 +111,10 @@ class LinkFilterNetworkPayloadTest {
 	void savePayloadCodecShouldRejectTooLongSerialExpression() {
 		String tooLongExpression = "1".repeat(RedstoneLinkConfig.command().linkSetMaxInputLength() + 1);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeUtf("block_entity");
 		buffer.writeUtf("minecraft:overworld");
 		buffer.writeLong(42L);
+		buffer.writeInt(-1);
 		buffer.writeUtf("send");
 		buffer.writeUtf(tooLongExpression);
 		buffer.writeUtf("disabled");
