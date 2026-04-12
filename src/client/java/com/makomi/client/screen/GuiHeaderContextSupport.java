@@ -48,9 +48,16 @@ final class GuiHeaderContextSupport {
 		return new GuiHeaderRenderSupport.HeaderSpec(
 			Component.translatable("screen.redstonelink.quick_link.title"),
 			subtitle,
-			0xFFFFD5D5,
+			quickLinkSubtitleColor(normalizedMode),
 			null
 		);
+	}
+
+	/**
+	 * quick-link 头部副标题颜色随模式主题切换。
+	 */
+	private static int quickLinkSubtitleColor(QuickLinkToolData.Mode mode) {
+		return mode == QuickLinkToolData.Mode.CHANNEL ? 0xFFD7E7FF : 0xFFFFD5D5;
 	}
 
 	/**

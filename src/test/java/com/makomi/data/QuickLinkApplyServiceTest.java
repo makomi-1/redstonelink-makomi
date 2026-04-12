@@ -109,6 +109,24 @@ class QuickLinkApplyServiceTest {
 	}
 
 	/**
+	 * `replace` + 空缓存应允许把命中 triggerSource 的一跳目标清空。
+	 */
+	@Test
+	void buildNextSourceTargetsShouldAllowReplaceWithEmptyCache() {
+		assertTrue(QuickLinkApplyService.allowsEmptySerialCacheApply(QuickLinkToolData.ApplyEditMode.REPLACE));
+		assertFalse(QuickLinkApplyService.allowsEmptySerialCacheApply(QuickLinkToolData.ApplyEditMode.APPEND));
+		assertFalse(QuickLinkApplyService.allowsEmptySerialCacheApply(QuickLinkToolData.ApplyEditMode.REMOVE));
+		assertEquals(
+			Set.of(),
+			QuickLinkApplyService.buildNextSourceTargets(
+				Set.of(1L, 2L),
+				List.of(),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+	}
+
+	/**
 	 * core 命中时，三态应用应只修改当前 core 的一跳 triggerSource 集合。
 	 */
 	@Test
@@ -135,6 +153,21 @@ class QuickLinkApplyServiceTest {
 				Set.of(1L, 2L, 4L),
 				List.of(1L, 7L),
 				QuickLinkToolData.ApplyEditMode.REMOVE
+			)
+		);
+	}
+
+	/**
+	 * `replace` + 空缓存应允许把命中 core 的一跳来源清空。
+	 */
+	@Test
+	void buildDesiredTriggerSourcesForCoreApplyShouldAllowReplaceWithEmptyCache() {
+		assertEquals(
+			List.of(),
+			QuickLinkApplyService.buildDesiredTriggerSourcesForCoreApply(
+				Set.of(1L, 2L),
+				List.of(),
+				QuickLinkToolData.ApplyEditMode.REPLACE
 			)
 		);
 	}
@@ -171,6 +204,21 @@ class QuickLinkApplyServiceTest {
 	}
 
 	/**
+	 * `replace` + 空缓存应允许清空过滤器节点集。
+	 */
+	@Test
+	void buildNextFilterOrderedSerialsShouldAllowReplaceWithEmptyCache() {
+		assertEquals(
+			List.of(),
+			QuickLinkApplyService.buildNextFilterOrderedSerials(
+				List.of(1L, 2L, 4L),
+				List.of(),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+	}
+
+	/**
 	 * 过滤器 quick-link 应用应只覆盖序号表达式，并保留原有节点集与信号配置。
 	 */
 	@Test
@@ -193,6 +241,19 @@ class QuickLinkApplyServiceTest {
 		assertEquals(currentSnapshot.signalThresholdSource(), nextSnapshot.signalThresholdSource());
 		assertEquals(currentSnapshot.fixedSignalThreshold(), nextSnapshot.fixedSignalThreshold());
 		assertEquals(currentSnapshot.signalMode(), nextSnapshot.signalMode());
+	}
+
+	/**
+	 * 过滤器应用空缓存时，应回写为空表达式。
+	 */
+	@Test
+	void buildFilterSnapshotForAppliedCacheShouldAllowEmptyExpression() {
+		LinkFilterConfigSnapshot nextSnapshot = QuickLinkApplyService.buildFilterSnapshotForAppliedCache(
+			new LinkFilterConfigSnapshot("3/5", null, null, 15, null),
+			List.of()
+		);
+
+		assertEquals("", nextSnapshot.serialExpression());
 	}
 
 	/**

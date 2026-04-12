@@ -40,7 +40,7 @@ public final class QuickLinkApplyService {
 		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
 			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.mode.channel_future");
 		}
-		if (snapshot.serialCacheExpression().isBlank()) {
+		if (!allowsEmptySerialCacheApply(snapshot.applyEditMode()) && snapshot.serialCacheExpression().isBlank()) {
 			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
 		}
 
@@ -114,7 +114,7 @@ public final class QuickLinkApplyService {
 		}
 
 		String normalizedExpression = serialCacheExpression == null ? "" : serialCacheExpression.trim();
-		if (normalizedExpression.isBlank()) {
+		if (!allowsEmptySerialCacheApply(applyEditMode) && normalizedExpression.isBlank()) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
 		}
 		if (normalizedExpression.length() > RedstoneLinkConfig.command().linkSetMaxInputLength()) {
@@ -201,7 +201,7 @@ public final class QuickLinkApplyService {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
 		}
 		String normalizedExpression = serialCacheExpression == null ? "" : serialCacheExpression.trim();
-		if (normalizedExpression.isBlank()) {
+		if (!allowsEmptySerialCacheApply(applyEditMode) && normalizedExpression.isBlank()) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
 		}
 		int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
@@ -299,9 +299,6 @@ public final class QuickLinkApplyService {
 				"message.redstonelink.quick_link.apply.too_many_sources",
 				Integer.toString(maxTargets)
 			);
-		}
-		if (parseResult.orderedTargets().isEmpty()) {
-			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
@@ -548,6 +545,13 @@ public final class QuickLinkApplyService {
 	 */
 	private static QuickLinkToolData.ApplyEditMode normalizeApplyEditMode(QuickLinkToolData.ApplyEditMode applyEditMode) {
 		return applyEditMode == null ? QuickLinkToolData.ApplyEditMode.REPLACE : applyEditMode;
+	}
+
+	/**
+	 * `replace` 允许空缓存执行“覆盖为空”，其余模式仍要求缓存非空。
+	 */
+	static boolean allowsEmptySerialCacheApply(QuickLinkToolData.ApplyEditMode applyEditMode) {
+		return normalizeApplyEditMode(applyEditMode) == QuickLinkToolData.ApplyEditMode.REPLACE;
 	}
 
 	/**

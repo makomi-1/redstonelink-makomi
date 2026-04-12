@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -57,6 +58,12 @@ public class QuickLinkToolItem extends Item {
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
 		return InteractionResult.PASS;
+	}
+
+	@Override
+	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+		QuickLinkToolData.syncQuickLinkToolModelState(stack);
+		super.inventoryTick(stack, level, entity, slotId, isSelected);
 	}
 
 	@Override

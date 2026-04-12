@@ -1,11 +1,14 @@
 package com.makomi.data;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import net.minecraft.SharedConstants;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomModelData;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -57,6 +60,7 @@ class QuickLinkToolDataTest {
 		assertEquals("1:3/5", snapshot.serialCacheExpression());
 		assertEquals("demo-channel", snapshot.channelCache());
 		assertEquals(QuickLinkToolData.ApplyEditMode.REMOVE, snapshot.applyEditMode());
+		assertEquals(new CustomModelData(1), stack.get(DataComponents.CUSTOM_MODEL_DATA));
 	}
 
 	/**
@@ -156,5 +160,36 @@ class QuickLinkToolDataTest {
 		assertEquals("", cleared.serialCacheExpression());
 		assertEquals("", cleared.channelCache());
 		assertEquals(QuickLinkToolData.ApplyEditMode.APPEND, cleared.applyEditMode());
+	}
+
+	/**
+	 * 模式镜像应驱动物品贴图切换。
+	 */
+	@Test
+	void quickLinkModelStateShouldFollowMode() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		QuickLinkToolData.write(
+			stack,
+			new QuickLinkToolData.Snapshot(
+				QuickLinkToolData.Mode.CHANNEL,
+				LinkNodeType.CORE,
+				"",
+				"channel-42",
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertEquals(new CustomModelData(1), stack.get(DataComponents.CUSTOM_MODEL_DATA));
+
+		QuickLinkToolData.write(
+			stack,
+			new QuickLinkToolData.Snapshot(
+				QuickLinkToolData.Mode.SERIAL,
+				LinkNodeType.CORE,
+				"",
+				"",
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertNull(stack.get(DataComponents.CUSTOM_MODEL_DATA));
 	}
 }

@@ -7,6 +7,7 @@ import java.util.List;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.component.CustomData;
 
 /**
@@ -24,6 +25,7 @@ public final class QuickLinkToolData {
 	private static final String KEY_SERIAL_CACHE_EXPRESSION = "rl_quick_link_serial_cache_expression";
 	private static final String KEY_CHANNEL_CACHE = "rl_quick_link_channel_cache";
 	private static final String KEY_APPLY_EDIT_MODE = "rl_quick_link_apply_edit_mode";
+	private static final int QUICK_LINK_TOOL_CHANNEL_MODEL = 1;
 
 	private QuickLinkToolData() {
 	}
@@ -57,6 +59,7 @@ public final class QuickLinkToolData {
 			writeStringOrRemove(tag, KEY_CHANNEL_CACHE, normalized.channelCache());
 			tag.putString(KEY_APPLY_EDIT_MODE, normalized.applyEditMode().token());
 		});
+		syncQuickLinkToolModelState(stack);
 	}
 
 	/**
@@ -141,6 +144,27 @@ public final class QuickLinkToolData {
 		);
 		write(stack, cleared);
 		return cleared;
+	}
+
+	/**
+	 * 按当前 quick-link 模式同步物品贴图镜像。
+	 * <p>
+	 * `serial` 使用默认 `_sd` 贴图；`channel` 通过 `CustomModelData=1` 切到 `_cp`。
+	 * </p>
+	 */
+	public static void syncQuickLinkToolModelState(ItemStack stack) {
+		if (stack == null) {
+			return;
+		}
+		if (stack.isEmpty()) {
+			stack.remove(DataComponents.CUSTOM_MODEL_DATA);
+			return;
+		}
+		if (read(stack).mode() == Mode.CHANNEL) {
+			stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(QUICK_LINK_TOOL_CHANNEL_MODEL));
+			return;
+		}
+		stack.remove(DataComponents.CUSTOM_MODEL_DATA);
 	}
 
 	/**

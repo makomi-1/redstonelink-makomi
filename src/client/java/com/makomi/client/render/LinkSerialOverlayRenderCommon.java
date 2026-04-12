@@ -1,8 +1,10 @@
 package com.makomi.client.render;
 
+import com.makomi.data.LinkFilterKind;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.LinkNodeType;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * 序号外显公共渲染语义工具。
@@ -13,6 +15,7 @@ import net.minecraft.client.Minecraft;
 public final class LinkSerialOverlayRenderCommon {
 	private static final int CORE_TEXT_COLOR = 0xFF5DD7FF;
 	private static final int TRIGGER_SOURCE_TEXT_COLOR = 0xFFFFC66A;
+	private static final int FILTER_TEXT_COLOR = 0xFFFF7AA8;
 	private static final int DEFAULT_TEXT_COLOR = 0xFFFFFFFF;
 
 	private LinkSerialOverlayRenderCommon() {
@@ -27,6 +30,22 @@ public final class LinkSerialOverlayRenderCommon {
 		}
 		if (nodeType == LinkNodeType.TRIGGER_SOURCE) {
 			return TRIGGER_SOURCE_TEXT_COLOR;
+		}
+		return DEFAULT_TEXT_COLOR;
+	}
+
+	/**
+	 * 按过滤器类型返回固定文本颜色。
+	 * <p>
+	 * 当前 send/receive 过滤器的近外显统一使用同一红色主题，避免出现两套不同滤镜色。
+	 * </p>
+	 */
+	public static int resolveFilterTextColor(LinkFilterKind filterKind) {
+		if (filterKind == LinkFilterKind.SEND) {
+			return FILTER_TEXT_COLOR;
+		}
+		if (filterKind == LinkFilterKind.RECEIVE) {
+			return FILTER_TEXT_COLOR;
 		}
 		return DEFAULT_TEXT_COLOR;
 	}
@@ -47,7 +66,7 @@ public final class LinkSerialOverlayRenderCommon {
 	 */
 	public static boolean isWithinDisplayDistance(
 		Minecraft minecraft,
-		PairableNodeBlockEntity blockEntity,
+		BlockEntity blockEntity,
 		double maxDistance
 	) {
 		if (minecraft == null || minecraft.player == null || blockEntity == null || maxDistance <= 0.0D) {

@@ -1,5 +1,6 @@
 package com.makomi.client.render;
 
+import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
@@ -102,15 +103,30 @@ public final class LinkSerialHudOverlayRenderer {
 
 		BlockHitResult blockHitResult = (BlockHitResult) minecraft.hitResult;
 		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockHitResult.getBlockPos());
-		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
+		double maxDistance = RedstoneLinkClientDisplayConfig.overlay().nearDistance();
+		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
 			return;
 		}
+		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
+			renderNodeOverlay(guiGraphics, minecraft, blockHitResult, pairableNodeBlockEntity);
+			return;
+		}
+		if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
+			renderFilterOverlay(guiGraphics, minecraft, filterBlockEntity);
+		}
+	}
+
+	/**
+	 * 绘制节点近外显。
+	 */
+	private static void renderNodeOverlay(
+		GuiGraphics guiGraphics,
+		Minecraft minecraft,
+		BlockHitResult blockHitResult,
+		PairableNodeBlockEntity pairableNodeBlockEntity
+	) {
 		String serialText = LinkSerialOverlayRenderCommon.resolveDisplaySerialText(pairableNodeBlockEntity);
 		if (serialText.isEmpty()) {
-			return;
-		}
-		double maxDistance = RedstoneLinkClientDisplayConfig.overlay().nearDistance();
-		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, pairableNodeBlockEntity, maxDistance)) {
 			return;
 		}
 
@@ -147,6 +163,33 @@ public final class LinkSerialHudOverlayRenderer {
 			minecraft.font,
 			displayLines,
 			textColor,
+			RedstoneLinkClientDisplayConfig.overlay().fontScale()
+		);
+	}
+
+	/**
+	 * 绘制过滤器近外显。
+	 */
+	private static void renderFilterOverlay(
+		GuiGraphics guiGraphics,
+		Minecraft minecraft,
+		AbstractLinkFilterBlockEntity filterBlockEntity
+	) {
+		if (filterBlockEntity.filterKind() == null) {
+			return;
+		}
+		List<String> displayLines = LinkSerialHudOverlayTextSupport.buildNearOverlayLines(
+			filterBlockEntity,
+			minecraft.font
+		);
+		if (displayLines.isEmpty()) {
+			return;
+		}
+		LinkSerialHudOverlayDrawSupport.drawCenteredWithDeepBackground(
+			guiGraphics,
+			minecraft.font,
+			displayLines,
+			LinkSerialOverlayRenderCommon.resolveFilterTextColor(filterBlockEntity.filterKind()),
 			RedstoneLinkClientDisplayConfig.overlay().fontScale()
 		);
 	}

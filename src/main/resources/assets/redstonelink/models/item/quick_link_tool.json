@@ -2,5 +2,13 @@
   "parent": "item/generated",
   "textures": {
     "layer0": "redstonelink:item/fast_link_tool_sd"
-  }
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "custom_model_data": 1
+      },
+      "model": "redstonelink:item/quick_link_tool_channel"
+    }
+  ]
 }

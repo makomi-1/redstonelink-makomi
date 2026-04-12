@@ -26,6 +26,12 @@ public class QuickLinkToolScreen extends Screen {
 		0xFFFFC2C2,
 		0xFFFFD5D5
 	);
+	private static final StyledMultiLineEditBox.Style QUICK_LINK_CHANNEL_INPUT_BOX_STYLE = new StyledMultiLineEditBox.Style(
+		0xFF24416B,
+		0xFF294879,
+		0xFFD7E7FF,
+		0xFFD7E7FF
+	);
 	private static final StyledButton.Style QUICK_LINK_SERIAL_BUTTON_STYLE = new StyledButton.Style(
 		0xE0A54545,
 		0xF0C85D5D,
@@ -35,6 +41,16 @@ public class QuickLinkToolScreen extends Screen {
 		0xFF744C4C,
 		0xFFFFF3F3,
 		0xFFD5B8B8
+	);
+	private static final StyledButton.Style QUICK_LINK_CHANNEL_BUTTON_STYLE = new StyledButton.Style(
+		0xE0456DA5,
+		0xF05A84C2,
+		0x992E4363,
+		0xFF294879,
+		0xFF5E8FD3,
+		0xFF263A56,
+		0xFFF2F7FF,
+		0xFFA6B7CE
 	);
 	private static final int TITLE_TOP_MARGIN = 48;
 	private static final int MODE_LINE_MARGIN = 14;
@@ -54,10 +70,22 @@ public class QuickLinkToolScreen extends Screen {
 	private static final int BACKGROUND_HORIZONTAL_PADDING = 12;
 	private static final int BACKGROUND_TOP_PADDING = 18;
 	private static final int BACKGROUND_BOTTOM_PADDING = 26;
-	private static final int MODE_LINE_COLOR = 0xFFFFD5D5;
-	private static final int LABEL_TEXT_COLOR = 0xFFFFF2F2;
-	private static final int CHANNEL_NOTE_TEXT_COLOR = 0xFFFFE1A6;
-	private static final int STATUS_MESSAGE_COLOR = 0xFFFFD0D0;
+	private static final Theme QUICK_LINK_SERIAL_THEME = new Theme(
+		GuiBackgroundRenderSupport.BackgroundPreset.QUICK_LINK_SERIAL,
+		QUICK_LINK_SERIAL_INPUT_BOX_STYLE,
+		QUICK_LINK_SERIAL_BUTTON_STYLE,
+		0xFFFFF2F2,
+		0xFFFFE1A6,
+		0xFFFFD0D0
+	);
+	private static final Theme QUICK_LINK_CHANNEL_THEME = new Theme(
+		GuiBackgroundRenderSupport.BackgroundPreset.QUICK_LINK_CHANNEL,
+		QUICK_LINK_CHANNEL_INPUT_BOX_STYLE,
+		QUICK_LINK_CHANNEL_BUTTON_STYLE,
+		0xFFF0F6FF,
+		0xFFB8D6FF,
+		0xFFD7E7FF
+	);
 
 	private final QuickLinkToolData.Snapshot initialSnapshot;
 
@@ -87,7 +115,7 @@ public class QuickLinkToolScreen extends Screen {
 			INPUT_BOX_HEIGHT,
 			inputLabel(),
 			Component.empty(),
-			QUICK_LINK_SERIAL_INPUT_BOX_STYLE
+			currentTheme().inputBoxStyle()
 		);
 		inputBox.setCharacterLimit(RedstoneLinkClientDisplayConfig.quickLink().serialCacheMaxLength());
 		inputBox.setValue(preservedInput);
@@ -120,7 +148,7 @@ public class QuickLinkToolScreen extends Screen {
 						: LinkNodeType.TRIGGER_SOURCE;
 					button.setMessage(cacheTypeButtonLabel());
 				},
-				QUICK_LINK_SERIAL_BUTTON_STYLE
+				currentTheme().buttonStyle()
 			)
 		);
 		cacheTypeButton.active = isSerialMode();
@@ -133,24 +161,25 @@ public class QuickLinkToolScreen extends Screen {
 		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
 		int leftX = layout.panelLeft();
+		Theme theme = currentTheme();
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
 		if (isSerialMode()) {
-			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), LABEL_TEXT_COLOR, false);
+			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), theme.labelTextColor(), false);
 		} else {
-			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), LABEL_TEXT_COLOR, false);
+			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), theme.labelTextColor(), false);
 			guiGraphics.drawString(
 				font,
 				Component.translatable("screen.redstonelink.quick_link.channel_note"),
 				leftX,
 				layout.channelNoteY(),
-				CHANNEL_NOTE_TEXT_COLOR,
+				theme.channelNoteTextColor(),
 				false
 			);
 		}
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), STATUS_MESSAGE_COLOR);
+			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), theme.statusMessageColor());
 		}
 	}
 
@@ -278,14 +307,21 @@ public class QuickLinkToolScreen extends Screen {
 	 * 创建快速连接工具主操作按钮。
 	 */
 	private Button createActionButton(Component message, int x, int y, int width, Button.OnPress onPress) {
-		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, QUICK_LINK_SERIAL_BUTTON_STYLE);
+		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, currentTheme().buttonStyle());
 	}
 
 	/**
 	 * @return 当前轮次接入的快速连接工具背景预设
 	 */
 	private GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
-		return GuiBackgroundRenderSupport.BackgroundPreset.QUICK_LINK_SERIAL;
+		return currentTheme().backgroundPreset();
+	}
+
+	/**
+	 * @return 当前模式对应的主题样式
+	 */
+	private Theme currentTheme() {
+		return currentMode() == QuickLinkToolData.Mode.CHANNEL ? QUICK_LINK_CHANNEL_THEME : QUICK_LINK_SERIAL_THEME;
 	}
 
 	/**
@@ -413,5 +449,18 @@ public class QuickLinkToolScreen extends Screen {
 		int actionButtonX(int index) {
 			return panelLeft + (actionButtonWidth + BUTTON_GAP) * Math.max(0, index);
 		}
+	}
+
+	/**
+	 * quick-link 各模式复用的界面主题。
+	 */
+	private record Theme(
+		GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset,
+		StyledMultiLineEditBox.Style inputBoxStyle,
+		StyledButton.Style buttonStyle,
+		int labelTextColor,
+		int channelNoteTextColor,
+		int statusMessageColor
+	) {
 	}
 }

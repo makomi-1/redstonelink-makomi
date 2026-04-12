@@ -1,10 +1,18 @@
 package com.makomi.client.render;
 
+import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkFilterConfigSnapshot;
+import com.makomi.data.LinkFilterKind;
+import com.makomi.data.LinkFilterNodeSetMode;
+import com.makomi.data.LinkFilterSignalMode;
+import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.util.SerialDisplayFormatUtil;
+import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
@@ -37,6 +45,11 @@ final class LinkSerialHudOverlayTextSupport {
 	private static final String KEY_NEAR_OVERLAY_TYPE_CORE = "hud.redstonelink.near_overlay.type_core";
 	private static final String KEY_NEAR_OVERLAY_TYPE_TRIGGER_SOURCE = "hud.redstonelink.near_overlay.type_trigger_source";
 	private static final String KEY_NEAR_OVERLAY_TYPE_NODE = "hud.redstonelink.near_overlay.type_node";
+	private static final String KEY_NEAR_OVERLAY_FILTER_TITLE_LINE = "hud.redstonelink.near_overlay.filter_title_line";
+	private static final String KEY_NEAR_OVERLAY_FILTER_SERVICE_LINE = "hud.redstonelink.near_overlay.filter_service_line";
+	private static final String KEY_NEAR_OVERLAY_FILTER_NODE_SET_LINE = "hud.redstonelink.near_overlay.filter_node_set_line";
+	private static final String KEY_NEAR_OVERLAY_FILTER_MODE_LINE = "hud.redstonelink.near_overlay.filter_mode_line";
+	private static final String KEY_NEAR_OVERLAY_FILTER_THRESHOLD_LINE = "hud.redstonelink.near_overlay.filter_threshold_line";
 	private static final int LINKS_LINE_MAX_WIDTH = 280;
 	/**
 	 * 近外显文本缓存，避免每帧重复格式化连接信息。
@@ -141,6 +154,49 @@ final class LinkSerialHudOverlayTextSupport {
 	}
 
 	/**
+	 * 生成过滤器近外显文本。
+	 */
+	static List<String> buildNearOverlayLines(AbstractLinkFilterBlockEntity filterBlockEntity, Font font) {
+		if (filterBlockEntity == null || font == null || filterBlockEntity.filterKind() == null) {
+			return List.of();
+		}
+		LinkFilterConfigSnapshot snapshot = filterBlockEntity.snapshot();
+		List<Long> orderedSerials = SerialParseUtil.parseTargetsOrdered(snapshot.serialExpression(), 0).orderedTargets();
+		return List.of(
+			translate(KEY_NEAR_OVERLAY_FILTER_TITLE_LINE, resolveItemPrefix(filterBlockEntity)),
+			translate(KEY_NEAR_OVERLAY_STATUS_LINE, resolveFilterActivationStatusText(filterBlockEntity)),
+			translate(
+				KEY_NEAR_OVERLAY_FILTER_SERVICE_LINE,
+				LinkNodeSemantics.toSemanticName(filterBlockEntity.filterKind().servicedNodeType())
+			),
+			translate(KEY_NEAR_OVERLAY_FILTER_NODE_SET_LINE, buildCurrentLinksText(font, orderedSerials)),
+			translate(
+				KEY_NEAR_OVERLAY_FILTER_MODE_LINE,
+				resolveFilterNodeSetModeText(snapshot.nodeSetMode()),
+				resolveFilterSignalModeText(snapshot.signalMode())
+			),
+			translate(
+				KEY_NEAR_OVERLAY_FILTER_THRESHOLD_LINE,
+				resolveFilterThresholdSourceText(snapshot.signalThresholdSource()),
+				Integer.toString(snapshot.fixedSignalThreshold()),
+				Integer.toString(filterBlockEntity.sampleNeighborSignalStrength())
+			)
+		);
+	}
+
+	/**
+	 * 读取过滤器当前外显激活状态。
+	 * <p>
+	 * 过滤器当前用方块状态 `powered` 表达是否被激活，因此这里直接复用该布尔外显语义。
+	 * </p>
+	 */
+	private static String resolveFilterActivationStatusText(AbstractLinkFilterBlockEntity filterBlockEntity) {
+		BlockState state = filterBlockEntity == null ? null : filterBlockEntity.getBlockState();
+		Boolean powered = readBooleanPropertyByName(state, "powered");
+		return resolveActivationStatusText(Boolean.TRUE.equals(powered) ? ActivationStatusToken.ON : ActivationStatusToken.OFF);
+	}
+
+	/**
 	 * 将最终 IO 快照转换为 HUD 文本；无快照时统一显示 `-`。
 	 */
 	private static String resolveRuntimeHudPowerText(
@@ -158,6 +214,24 @@ final class LinkSerialHudOverlayTextSupport {
 	 */
 	private static String resolveItemPrefix(PairableNodeBlockEntity pairableNodeBlockEntity) {
 		BlockState state = pairableNodeBlockEntity.getBlockState();
+		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
+		return resolveBlockDisplayName(state, fallbackNodeTypeText(nodeType));
+	}
+
+	/**
+	 * 获取过滤器标题所需的方块显示名。
+	 */
+	private static String resolveItemPrefix(AbstractLinkFilterBlockEntity filterBlockEntity) {
+		return resolveBlockDisplayName(filterBlockEntity.getBlockState(), fallbackFilterTitle(filterBlockEntity.filterKind()));
+	}
+
+	/**
+	 * 统一解析方块/物品显示名。
+	 */
+	private static String resolveBlockDisplayName(BlockState state, String fallbackText) {
+		if (state == null) {
+			return fallbackText;
+		}
 		Block block = state.getBlock();
 		Item blockItem = block.asItem();
 		if (blockItem != Items.AIR) {
@@ -170,7 +244,13 @@ final class LinkSerialHudOverlayTextSupport {
 		if (!blockName.isBlank()) {
 			return blockName;
 		}
-		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
+		return fallbackText;
+	}
+
+	/**
+	 * 节点标题兜底文本。
+	 */
+	private static String fallbackNodeTypeText(LinkNodeType nodeType) {
 		if (nodeType == LinkNodeType.CORE) {
 			return translate(KEY_NEAR_OVERLAY_TYPE_CORE);
 		}
@@ -178,6 +258,17 @@ final class LinkSerialHudOverlayTextSupport {
 			return translate(KEY_NEAR_OVERLAY_TYPE_TRIGGER_SOURCE);
 		}
 		return translate(KEY_NEAR_OVERLAY_TYPE_NODE);
+	}
+
+	/**
+	 * 过滤器标题兜底文本。
+	 */
+	private static String fallbackFilterTitle(LinkFilterKind filterKind) {
+		return translate(
+			filterKind == LinkFilterKind.RECEIVE
+				? "screen.redstonelink.link_filter.receive.title"
+				: "screen.redstonelink.link_filter.send.title"
+		);
 	}
 
 	/**
@@ -254,6 +345,43 @@ final class LinkSerialHudOverlayTextSupport {
 		int remainingAll = SerialDisplayFormatUtil.countRemainingSerials(expression, 0);
 		String suffixOnly = SerialDisplayFormatUtil.buildRemainingSuffix(remainingAll);
 		return font.width(suffixOnly) <= LINKS_LINE_MAX_WIDTH ? suffixOnly : translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
+	}
+
+	/**
+	 * 解析过滤器节点集模式文本。
+	 */
+	private static String resolveFilterNodeSetModeText(LinkFilterNodeSetMode nodeSetMode) {
+		LinkFilterNodeSetMode normalizedMode = nodeSetMode == null ? LinkFilterNodeSetMode.DISABLED : nodeSetMode;
+		return switch (normalizedMode) {
+			case WHITELIST -> translate("screen.redstonelink.link_filter.node_set_mode.whitelist");
+			case BLOCKLIST -> translate("screen.redstonelink.link_filter.node_set_mode.blocklist");
+			case DISABLED -> translate("screen.redstonelink.link_filter.node_set_mode.disabled");
+		};
+	}
+
+	/**
+	 * 解析过滤器信号模式文本。
+	 */
+	private static String resolveFilterSignalModeText(LinkFilterSignalMode signalMode) {
+		LinkFilterSignalMode normalizedSignalMode = signalMode == null ? LinkFilterSignalMode.DISABLED : signalMode;
+		return switch (normalizedSignalMode) {
+			case UPPER_BOUND -> translate("screen.redstonelink.link_filter.signal_mode.upper_bound");
+			case LOWER_BOUND -> translate("screen.redstonelink.link_filter.signal_mode.lower_bound");
+			case DISABLED -> translate("screen.redstonelink.link_filter.signal_mode.disabled");
+		};
+	}
+
+	/**
+	 * 解析过滤器阈值来源文本。
+	 */
+	private static String resolveFilterThresholdSourceText(LinkFilterSignalThresholdSource thresholdSource) {
+		LinkFilterSignalThresholdSource normalizedThresholdSource = thresholdSource == null
+			? LinkFilterSignalThresholdSource.FIXED_INPUT
+			: thresholdSource;
+		return switch (normalizedThresholdSource) {
+			case FIXED_INPUT -> translate("screen.redstonelink.link_filter.threshold_source.fixed_input");
+			case NEIGHBOR_MAX_INPUT -> translate("screen.redstonelink.link_filter.threshold_source.neighbor_max_input");
+		};
 	}
 
 	/**
