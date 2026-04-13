@@ -1,9 +1,11 @@
 package com.makomi.client.network;
 
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
+import com.makomi.client.screen.AbstractMultiPairingScreen;
 import com.makomi.client.screen.CorePairingScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.data.LinkGuiDisplayContext;
+import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.PairingNetwork;
@@ -36,6 +38,7 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.sourceRevision(),
 				payload.coreRevision(),
 				payload.displayContextToken(),
+				payload.sourceAlias(),
 				payload.sourceDisplayText()
 			));
 		});
@@ -50,12 +53,22 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.sourceRevision(),
 				payload.coreRevision(),
 				payload.displayContextToken(),
+				payload.sourceAlias(),
 				payload.sourceDisplayText()
 			));
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.PairingFeedbackPayload.TYPE, (payload, context) -> {
-			context.client().execute(() -> showPairingFeedback(payload.messageKey(), payload.messageArgs()));
+			context.client().execute(() -> applyPairingFeedback(payload.success(), payload.messageKey(), payload.messageArgs()));
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.PairingAliasStatePayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> applyPairingAliasState(
+				payload.sourceType(),
+				payload.sourceSerial(),
+				payload.sourceAlias(),
+				payload.sourceDisplayText()
+			));
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(PairingNetwork.CurrentLinksSnapshotPayload.TYPE, (payload, context) -> {
@@ -100,6 +113,7 @@ public final class PairingNetworkClientHandlerSupport {
 		long sourceRevision,
 		long coreRevision,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) {
 		Minecraft minecraft = Minecraft.getInstance();
@@ -115,6 +129,7 @@ public final class PairingNetworkClientHandlerSupport {
 					sourceRevision,
 					coreRevision,
 					displayContextToken,
+					sourceAlias,
 					sourceDisplayText
 				)
 			);
@@ -128,6 +143,7 @@ public final class PairingNetworkClientHandlerSupport {
 				sourceRevision,
 				coreRevision,
 				displayContextToken,
+				sourceAlias,
 				sourceDisplayText
 			)
 		);
@@ -146,6 +162,7 @@ public final class PairingNetworkClientHandlerSupport {
 			0L,
 			0L,
 			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
+			"",
 			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
 		);
 	}
@@ -166,22 +183,42 @@ public final class PairingNetworkClientHandlerSupport {
 			sourceRevision,
 			coreRevision,
 			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
+			"",
 			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
 		);
 	}
 
 	/**
-	 * 将服务端配对反馈展示到客户端聊天栏。
+	 * 将服务端配对反馈优先投递到当前 pairing 界面；界面不存在时回退到聊天栏。
 	 */
-	private static void showPairingFeedback(String messageKey, List<String> messageArgs) {
+	private static void applyPairingFeedback(boolean success, String messageKey, List<String> messageArgs) {
 		if (messageKey == null || messageKey.isBlank()) {
 			return;
 		}
 		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.screen instanceof AbstractMultiPairingScreen pairingScreen) {
+			pairingScreen.applyPairingFeedback(success, messageKey, messageArgs);
+			return;
+		}
 		if (minecraft.player == null) {
 			return;
 		}
 		Object[] args = (messageArgs == null ? List.<String>of() : messageArgs).toArray();
 		minecraft.player.displayClientMessage(Component.translatable(messageKey, args), false);
+	}
+
+	/**
+	 * 将服务端确认后的 alias 真值回填到当前 pairing 界面。
+	 */
+	private static void applyPairingAliasState(String sourceType, long sourceSerial, String sourceAlias, String sourceDisplayText) {
+		Minecraft minecraft = Minecraft.getInstance();
+		if (!(minecraft.screen instanceof AbstractMultiPairingScreen pairingScreen)) {
+			return;
+		}
+		LinkNodeType type = LinkNodeSemantics.tryParseCanonicalType(sourceType).orElse(null);
+		if (type == null) {
+			return;
+		}
+		pairingScreen.applySourceAliasState(type, sourceSerial, sourceAlias, sourceDisplayText);
 	}
 }

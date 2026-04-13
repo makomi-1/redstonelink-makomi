@@ -24,6 +24,15 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		0xFFFFD180,
 		0xFFFFD9B0
 	);
+	private static final StyledEditBox.Style TRIGGER_SOURCE_ALIAS_INPUT_STYLE = new StyledEditBox.Style(
+		0xFF9F5600,
+		0xFF6E3A00,
+		0xFFFFD180,
+		0x9960402A,
+		0xFF6E3A00,
+		0xFFFFF7F0,
+		0xFFD4B8A2
+	);
 	private static final StyledButton.Style TRIGGER_SOURCE_ACTION_BUTTON_STYLE = new StyledButton.Style(
 		0xE09F5600,
 		0xF0BF6A14,
@@ -53,10 +62,23 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		long sourceRevision,
 		long coreRevision,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) {
-		super(TITLE, sourceSerial, sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
+		super(TITLE, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
 		this.displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, SOURCE_TYPE);
+	}
+
+	public TriggerSourcePairingScreen(
+		long sourceSerial,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision,
+		String displayContextToken,
+		String sourceDisplayText
+	) {
+		this(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision, displayContextToken, "", sourceDisplayText);
 	}
 
 	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
@@ -67,6 +89,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 			sourceRevision,
 			0L,
 			LinkGuiDisplayContext.TRIGGER_SOURCE,
+			"",
 			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
 		);
 	}
@@ -81,7 +104,16 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	 * @param hand 手持槽位（主手/副手）
 	 */
 	public TriggerSourcePairingScreen(InteractionHand hand) {
-		this(resolveHeldSerial(hand), List.of(), 0L, 0L, 0L, resolveHeldDisplayContextToken(hand), resolveHeldSourceDisplayText(hand));
+		this(
+			resolveHeldSerial(hand),
+			List.of(),
+			0L,
+			0L,
+			0L,
+			resolveHeldDisplayContextToken(hand),
+			resolveHeldSourceAlias(hand),
+			resolveHeldSourceDisplayText(hand)
+		);
 	}
 
 	/**
@@ -98,20 +130,6 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	@Override
 	protected Component invalidInput() {
 		return INVALID_INPUT;
-	}
-
-	/**
-	 * 组装来源节点序列号展示文本。
-	 *
-	 * @param sourceSerial 来源节点序列号
-	 * @return 本地化后的序列号文本
-	 */
-	@Override
-	protected Component serialLine(String sourceDisplayText) {
-		return Component.translatable(
-			"screen.redstonelink.trigger_source_pairing.serial",
-			sourceDisplayText
-		);
 	}
 
 	/**
@@ -144,6 +162,11 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	@Override
 	protected StyledMultiLineEditBox.Style inputBoxStyle() {
 		return TRIGGER_SOURCE_INPUT_BOX_STYLE;
+	}
+
+	@Override
+	protected StyledEditBox.Style aliasInputStyle() {
+		return TRIGGER_SOURCE_ALIAS_INPUT_STYLE;
 	}
 
 	@Override
@@ -212,6 +235,17 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	/**
+	 * 解析玩家手持物品上的来源原始别名。
+	 */
+	private static String resolveHeldSourceAlias(InteractionHand hand) {
+		if (net.minecraft.client.Minecraft.getInstance().player == null) {
+			return "";
+		}
+		ItemStack held = net.minecraft.client.Minecraft.getInstance().player.getItemInHand(hand);
+		return LinkItemData.getDisplayAlias(held);
+	}
+
+	/**
 	 * 解析玩家手持物品上的来源展示文本。
 	 */
 	private static String resolveHeldSourceDisplayText(InteractionHand hand) {
@@ -220,6 +254,6 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 			return NodeAliasDisplayUtil.formatDisplayText("", serial);
 		}
 		ItemStack held = net.minecraft.client.Minecraft.getInstance().player.getItemInHand(hand);
-		return NodeAliasDisplayUtil.formatDisplayText(LinkItemData.getDisplayAlias(held), serial);
+		return NodeAliasDisplayUtil.formatDisplayText(resolveHeldSourceAlias(hand), serial);
 	}
 }

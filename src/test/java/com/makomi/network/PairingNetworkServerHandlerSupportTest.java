@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.command.link.LinkSetExecutionService;
+import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasSavedData;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,5 +112,36 @@ class PairingNetworkServerHandlerSupportTest {
 		);
 
 		assertTrue(changedTargets.isEmpty());
+	}
+
+	/**
+	 * pairing GUI alias 校验失败应映射为短反馈键，避免沿用命令端嵌套 reason 组件。
+	 */
+	@Test
+	void buildAliasValidationFeedbackShouldMapKnownReasonToShortMessageKey() {
+		LinkSetExecutionService.OperationFeedback feedback = PairingNetworkServerHandlerSupport.buildAliasValidationFeedback(
+			"门@1",
+			new NodeAliasSavedData.ValidationResult(false, "invalid_chars", "门@1")
+		);
+
+		assertFalse(feedback.success());
+		assertEquals("message.redstonelink.pairing.alias.invalid.invalid_chars", feedback.messageKey());
+		assertEquals(List.of("门@1"), feedback.messageArgs());
+	}
+
+	/**
+	 * alias 已保存反馈应使用 `别名(#序号)` 展示文本，而不是只回显裸别名。
+	 */
+	@Test
+	void buildAliasSavedFeedbackShouldUseDisplayText() {
+		LinkSetExecutionService.OperationFeedback feedback = PairingNetworkServerHandlerSupport.buildAliasSavedFeedback(
+			LinkNodeType.CORE,
+			42L,
+			new NodeAliasSavedData.UpsertResult(true, false, true, "旧中控", "新中控", 0L, null)
+		);
+
+		assertTrue(feedback.success());
+		assertEquals("message.redstonelink.pairing.alias.saved", feedback.messageKey());
+		assertEquals(List.of("core", "新中控(#42)", "旧中控"), feedback.messageArgs());
 	}
 }

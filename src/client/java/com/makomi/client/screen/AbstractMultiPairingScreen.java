@@ -3,12 +3,15 @@ package com.makomi.client.screen;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasSavedData;
 import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.network.PairingNetwork;
 import com.makomi.util.SerialDisplayFormatUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineEditBox;
@@ -23,9 +26,12 @@ import org.lwjgl.glfw.GLFW;
  * </p>
  */
 public abstract class AbstractMultiPairingScreen extends Screen {
+	private static final Component SAVE = Component.translatable("screen.redstonelink.pairing.save");
 	private static final Component CONFIRM = Component.translatable("screen.redstonelink.pairing.confirm");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.pairing.clear");
 	private static final int DEFAULT_CURRENT_LINKS_TEXT_COLOR = 0xC8C8C8;
+	private static final int STATUS_MESSAGE_ERROR_COLOR = 0xFF6666;
+	private static final int STATUS_MESSAGE_SUCCESS_COLOR = 0xFF9AE39A;
 	/**
 	 * 输入框悬停提示：规则行。
 	 */
@@ -65,13 +71,25 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	private static final int ACTION_BUTTON_GAP = 4;
 	/**
-	 * 输入区域总宽度（像素）。
+	 * pairing 面板的首选宽度（像素）。
 	 */
-	private static final int INPUT_BOX_WIDTH = ACTION_BUTTON_WIDTH * 2 + ACTION_BUTTON_GAP;
+	private static final int PANEL_PREFERRED_WIDTH = ACTION_BUTTON_WIDTH * 2 + ACTION_BUTTON_GAP;
 	/**
 	 * 窗口边缘安全留白（像素）。
 	 */
 	private static final int SCREEN_EDGE_MARGIN = 16;
+	/**
+	 * 别名输入框高度（像素）。
+	 */
+	private static final int ALIAS_INPUT_HEIGHT = 20;
+	/**
+	 * 别名输入框固定宽度（像素）。
+	 */
+	private static final int ALIAS_INPUT_WIDTH = 60;
+	/**
+	 * 别名输入框与固定序号后缀的间距（像素）。
+	 */
+	private static final int ALIAS_SUFFIX_GAP = 4;
 	/**
 	 * 输入框高度（像素）。
 	 */
@@ -79,11 +97,11 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	/**
 	 * 面板内容默认高度（像素）。
 	 */
-	private static final int PANEL_CONTENT_HEIGHT = 156;
+	private static final int PANEL_CONTENT_HEIGHT = 184;
 	/**
 	 * 主操作按钮数量。
 	 */
-	private static final int ACTION_BUTTON_COUNT = 2;
+	private static final int ACTION_BUTTON_COUNT = 3;
 	/**
 	 * 非法提示与按钮底部的间距（像素）。
 	 */
@@ -106,14 +124,53 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	private static final int BACKGROUND_BOTTOM_PADDING = 26;
 
 	protected final long sourceSerial;
-	protected final String sourceDisplayText;
+	protected String sourceAlias;
+	protected String sourceDisplayText;
 	protected final List<Long> currentTargets;
 	protected final long graphRevision;
 	protected final long sourceRevision;
 	protected final long coreRevision;
 
+	private StyledEditBox aliasInput;
 	private MultiLineEditBox serialInput;
 	private Component statusMessage = Component.empty();
+	private int statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
+
+	protected AbstractMultiPairingScreen(
+		Component title,
+		long sourceSerial,
+		String sourceAlias,
+		String sourceDisplayText,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision
+	) {
+		super(title);
+		this.sourceSerial = sourceSerial;
+		this.sourceAlias = normalizeSourceAlias(sourceAlias);
+		this.sourceDisplayText = normalizeSourceDisplayText(sourceSerial, this.sourceAlias, sourceDisplayText);
+		this.currentTargets = new ArrayList<>(currentTargets);
+		this.graphRevision = Math.max(0L, graphRevision);
+		this.sourceRevision = Math.max(0L, sourceRevision);
+		this.coreRevision = Math.max(0L, coreRevision);
+	}
+
+	protected AbstractMultiPairingScreen(
+		Component title,
+		long sourceSerial,
+		String sourceAlias,
+		String sourceDisplayText,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision
+	) {
+		this(title, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, graphRevision, sourceRevision, 0L);
+	}
+
+	protected AbstractMultiPairingScreen(Component title, long sourceSerial, String sourceAlias, String sourceDisplayText, List<Long> currentTargets) {
+		this(title, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, 0L, 0L);
+	}
 
 	protected AbstractMultiPairingScreen(
 		Component title,
@@ -124,13 +181,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		long sourceRevision,
 		long coreRevision
 	) {
-		super(title);
-		this.sourceSerial = sourceSerial;
-		this.sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceDisplayText);
-		this.currentTargets = new ArrayList<>(currentTargets);
-		this.graphRevision = Math.max(0L, graphRevision);
-		this.sourceRevision = Math.max(0L, sourceRevision);
-		this.coreRevision = Math.max(0L, coreRevision);
+		this(title, sourceSerial, "", sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
 	}
 
 	protected AbstractMultiPairingScreen(
@@ -141,18 +192,24 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		long graphRevision,
 		long sourceRevision
 	) {
-		this(title, sourceSerial, sourceDisplayText, currentTargets, graphRevision, sourceRevision, 0L);
+		this(title, sourceSerial, "", sourceDisplayText, currentTargets, graphRevision, sourceRevision, 0L);
 	}
 
 	protected AbstractMultiPairingScreen(Component title, long sourceSerial, String sourceDisplayText, List<Long> currentTargets) {
-		this(title, sourceSerial, sourceDisplayText, currentTargets, 0L, 0L);
+		this(title, sourceSerial, "", sourceDisplayText, currentTargets, 0L, 0L);
 	}
 
 	@Override
 	protected void init() {
 		super.init();
+		String preservedAlias = aliasInput == null ? sourceAlias : aliasInput.getValue();
 		String preservedInput = serialInput == null ? SerialInputSyntaxSupport.joinTargets(currentTargets) : serialInput.getValue();
 		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
+		aliasInput = createAliasInputBox(layout);
+		aliasInput.setMaxLength(NodeAliasSavedData.maxAliasLength());
+		aliasInput.setHint(Component.translatable("screen.redstonelink.pairing.alias_hint"));
+		aliasInput.setValue(preservedAlias);
+		addRenderableWidget(aliasInput);
 		int inputX = layout.panelLeft();
 		int inputY = layout.inputY();
 		serialInput = createSerialInputBox(layout, inputX, inputY);
@@ -168,10 +225,13 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int buttonRowY = layout.actionButtonY();
 		int actionButtonWidth = layout.actionButtonWidth();
 		addRenderableWidget(
-			createActionButton(ActionButtonKind.CONFIRM, CONFIRM, layout.actionButtonX(0), buttonRowY, actionButtonWidth, button -> submit())
+			createActionButton(ActionButtonKind.SAVE, SAVE, layout.actionButtonX(0), buttonRowY, actionButtonWidth, button -> saveAlias())
 		);
 		addRenderableWidget(
-			createActionButton(ActionButtonKind.CLEAR, CLEAR, layout.actionButtonX(1), buttonRowY, actionButtonWidth, button -> clearPair())
+			createActionButton(ActionButtonKind.CONFIRM, CONFIRM, layout.actionButtonX(1), buttonRowY, actionButtonWidth, button -> submit())
+		);
+		addRenderableWidget(
+			createActionButton(ActionButtonKind.CLEAR, CLEAR, layout.actionButtonX(2), buttonRowY, actionButtonWidth, button -> clearPair())
 		);
 	}
 
@@ -187,12 +247,13 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, baseY, baseContentBounds);
+		guiGraphics.drawString(font, aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY(), currentLinksTextColor(), false);
 		Component currentLinksLine = currentLinksLine(currentTargets);
 		guiGraphics.drawString(font, currentLinksLine, currentLinksX, currentLinksY, currentLinksTextColor(), false);
 		guiGraphics.drawString(font, inputLabel(), currentLinksX, layout.inputLabelY(), 0xFFFFFF, false);
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
+			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), statusMessageColor);
 		}
 
 		if (isMouseOverInput(mouseX, mouseY)) {
@@ -231,6 +292,9 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
 		if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+			if (aliasInput != null && aliasInput.isFocused()) {
+				return super.keyPressed(keyCode, scanCode, modifiers);
+			}
 			if (serialInput != null && serialInput.isFocused()) {
 				if (hasControlDown()) {
 					submit();
@@ -253,8 +317,6 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 	protected abstract Component invalidInput();
 
-	protected abstract Component serialLine(String sourceDisplayText);
-
 	protected abstract Component currentLinksLine(List<Long> currentTargets);
 
 	/**
@@ -265,10 +327,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
-	 * @return 当前界面头部副标题；默认展示来源序号行
+	 * @return 当前界面头部副标题；别名编辑模式下改为空，由下方独立 alias row 承接
 	 */
 	protected Component headerSubtitle() {
-		return serialLine(sourceDisplayText);
+		return Component.empty();
 	}
 
 	/**
@@ -308,6 +370,13 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * @return 当前界面的输入框皮肤；返回 `null` 表示沿用原版默认输入框背景
 	 */
 	protected StyledMultiLineEditBox.Style inputBoxStyle() {
+		return null;
+	}
+
+	/**
+	 * @return 当前界面的别名单行输入框皮肤；返回 `null` 表示沿用默认主题输入框
+	 */
+	protected StyledEditBox.Style aliasInputStyle() {
 		return null;
 	}
 
@@ -593,6 +662,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	private void submit() {
 		if (sourceSerial <= 0L) {
 			statusMessage = invalidInput();
+			statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
 			return;
 		}
 
@@ -602,6 +672,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 				"screen.redstonelink.pairing.invalid_tokens",
 				String.join(", ", validation.invalidEntries())
 			);
+			statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
 			return;
 		}
 
@@ -615,11 +686,30 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	private void clearPair() {
 		if (sourceSerial <= 0L) {
 			statusMessage = invalidInput();
+			statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
 			return;
 		}
 
 		clearPairingRequest(sourceSerial);
 		onClose();
+	}
+
+	/**
+	 * 提交当前节点的别名保存请求。
+	 */
+	private void saveAlias() {
+		if (sourceSerial <= 0L || aliasInput == null || net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
+			return;
+		}
+		ClientPlayNetworking.send(
+			new PairingNetwork.SubmitPairingAliasPayload(
+				LinkNodeSemantics.toSemanticName(sourceType()),
+				sourceSerial,
+				aliasInput.getValue()
+			)
+		);
+		statusMessage = Component.empty();
+		statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
 	}
 
 	/**
@@ -639,6 +729,21 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			);
 		}
 		return new StyledMultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty(), style);
+	}
+
+	/**
+	 * 根据当前界面样式创建别名单行输入框。
+	 */
+	private StyledEditBox createAliasInputBox(MultiPairingLayout layout) {
+		return new StyledEditBox(
+			font,
+			layout.panelLeft(),
+			layout.aliasInputY(),
+			aliasInputWidth(layout),
+			ALIAS_INPUT_HEIGHT,
+			Component.empty(),
+			aliasInputStyle()
+		);
 	}
 
 	/**
@@ -662,7 +767,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	/**
 	 * 解析当前界面内容组件的最小包围框。
 	 * <p>
-	 * 这里只纳入固定布局中的标题、序号、当前连接、输入标签、输入框、按钮和状态提示，
+	 * 这里只纳入固定布局中的标题、序号、当前连接、输入标签、输入框和按钮，
 	 * 不包含 tooltip。
 	 * </p>
 	 */
@@ -682,6 +787,11 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			width / 2,
 			layout.titleY()
 		);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.aliasInputY(), aliasInputWidth(layout), ALIAS_INPUT_HEIGHT)
+			);
+		bounds = bounds.include(leftAlignedTextBounds(aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY()));
 		bounds = bounds.include(leftAlignedTextBounds(currentLinksLine, layout.panelLeft(), layout.currentLinksY()));
 		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
 		bounds =
@@ -697,9 +807,6 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 					ACTION_BUTTON_HEIGHT
 				)
 			);
-		if (!statusMessage.getString().isEmpty()) {
-			bounds = bounds.include(centeredTextBounds(statusMessage, width / 2, layout.statusMessageY()));
-		}
 		return bounds;
 	}
 
@@ -708,14 +815,6 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	private GuiBackgroundRenderSupport.RegionBounds leftAlignedTextBounds(Component text, int left, int top) {
 		return new GuiBackgroundRenderSupport.RegionBounds(left, top, Math.max(1, font.width(text)), font.lineHeight);
-	}
-
-	/**
-	 * 生成居中文本包围盒。
-	 */
-	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
-		int width = Math.max(1, font.width(text));
-		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (width / 2), top, width, font.lineHeight);
 	}
 
 	/**
@@ -728,13 +827,15 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		CenteredFormLayoutSupport.CenteredPanelBox panelBox = CenteredFormLayoutSupport.resolvePanelBox(
 			screenWidth,
 			screenHeight,
-			INPUT_BOX_WIDTH,
+			PANEL_PREFERRED_WIDTH,
 			PANEL_CONTENT_HEIGHT,
 			SCREEN_EDGE_MARGIN
 		);
 		int titleY = panelBox.top();
-		int currentLinksY = titleY + 30;
-		int inputLabelY = titleY + 42;
+		int aliasInputY = titleY + 30;
+		int aliasSuffixY = aliasInputY + Math.max(0, (ALIAS_INPUT_HEIGHT - fontLineHeight) / 2) + 1;
+		int currentLinksY = aliasInputY + ALIAS_INPUT_HEIGHT + 6;
+		int inputLabelY = currentLinksY + 12;
 		int inputY = inputLabelY + fontLineHeight + INPUT_LABEL_MARGIN;
 		int actionButtonY = inputY + INPUT_BOX_HEIGHT + BUTTON_ROW_MARGIN + 4;
 		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelBox.width(), ACTION_BUTTON_GAP, ACTION_BUTTON_COUNT);
@@ -744,6 +845,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			panelBox.top(),
 			panelBox.width(),
 			titleY,
+			aliasInputY,
+			aliasSuffixY,
 			currentLinksY,
 			inputLabelY,
 			inputY,
@@ -761,6 +864,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int panelTop,
 		int panelWidth,
 		int titleY,
+		int aliasInputY,
+		int aliasSuffixY,
 		int currentLinksY,
 		int inputLabelY,
 		int inputY,
@@ -777,14 +882,65 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * pairing 主操作按钮语义。
 	 */
 	protected enum ActionButtonKind {
+		SAVE,
 		CONFIRM,
 		CLEAR,
 	}
 
-	private static String normalizeSourceDisplayText(long sourceSerial, String sourceDisplayText) {
+	/**
+	 * 接收配对界面服务端反馈；界面开启时优先落到状态行，否则由网络层回退到聊天栏。
+	 */
+	public void applyPairingFeedback(boolean success, String messageKey, List<String> messageArgs) {
+		if (messageKey == null || messageKey.isBlank()) {
+			statusMessage = Component.empty();
+			return;
+		}
+		Object[] args = messageArgs == null ? new Object[0] : messageArgs.toArray();
+		statusMessage = Component.translatable(messageKey, args);
+		statusMessageColor = success ? STATUS_MESSAGE_SUCCESS_COLOR : STATUS_MESSAGE_ERROR_COLOR;
+	}
+
+	/**
+	 * 判断当前配对界面是否命中指定来源节点。
+	 */
+	public boolean matchesSourceNode(LinkNodeType type, long serial) {
+		return type == sourceType() && sourceSerial == serial;
+	}
+
+	/**
+	 * 接收服务端回写的最新别名状态，并同步到 GUI 输入框。
+	 */
+	public void applySourceAliasState(LinkNodeType type, long serial, String alias, String displayText) {
+		if (!matchesSourceNode(type, serial)) {
+			return;
+		}
+		sourceAlias = normalizeSourceAlias(alias);
+		sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceAlias, displayText);
+		if (aliasInput != null && !sourceAlias.equals(aliasInput.getValue())) {
+			aliasInput.setValue(sourceAlias);
+		}
+	}
+
+	private int aliasInputWidth(MultiPairingLayout layout) {
+		return ALIAS_INPUT_WIDTH;
+	}
+
+	private int aliasSuffixX(MultiPairingLayout layout) {
+		return layout.panelLeft() + aliasInputWidth(layout) + ALIAS_SUFFIX_GAP;
+	}
+
+	private Component aliasSerialSuffix() {
+		return Component.literal("(" + NodeAliasDisplayUtil.formatSerialToken(sourceSerial) + ")");
+	}
+
+	private static String normalizeSourceAlias(String sourceAlias) {
+		return NodeAliasDisplayUtil.normalizeAlias(sourceAlias);
+	}
+
+	private static String normalizeSourceDisplayText(long sourceSerial, String sourceAlias, String sourceDisplayText) {
 		String normalizedDisplayText = NodeAliasDisplayUtil.normalizeAlias(sourceDisplayText);
 		return normalizedDisplayText.isEmpty()
-			? NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
+			? NodeAliasDisplayUtil.formatDisplayText(sourceAlias, sourceSerial)
 			: normalizedDisplayText;
 	}
 }

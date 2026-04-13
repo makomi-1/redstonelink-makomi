@@ -41,7 +41,7 @@ public final class NodeAliasCommandRegistry {
 				Commands.literal("set").then(
 					Commands.argument("type", StringArgumentType.word()).then(
 						Commands.argument("serial", LongArgumentType.longArg(1L)).then(
-							Commands.argument("alias", StringArgumentType.word()).executes(NodeAliasCommandRegistry::executeSet)
+							Commands.argument("alias", StringArgumentType.greedyString()).executes(NodeAliasCommandRegistry::executeSet)
 						)
 					)
 				)
@@ -55,7 +55,7 @@ public final class NodeAliasCommandRegistry {
 			)
 			.then(
 				Commands.literal("resolve").then(
-					Commands.argument("alias", StringArgumentType.word()).executes(NodeAliasCommandRegistry::executeResolve)
+					Commands.argument("alias", StringArgumentType.greedyString()).executes(NodeAliasCommandRegistry::executeResolve)
 				)
 			)
 			.then(

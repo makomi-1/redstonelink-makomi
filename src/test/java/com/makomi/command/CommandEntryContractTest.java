@@ -431,6 +431,44 @@ class CommandEntryContractTest {
 	}
 
 	/**
+	 * node alias 的末尾别名参数应支持中文输入，并完整进入业务校验层。
+	 */
+	@Test
+	void nodeAliasCommandShouldAcceptChineseAliasAsTrailingArgument() throws Exception {
+		CommandDispatcher<Object> dispatcher = new CommandDispatcher<>();
+		AtomicReference<String> parsedAlias = new AtomicReference<>();
+		dispatcher.register(
+			com.mojang.brigadier.builder.LiteralArgumentBuilder
+				.<Object>literal("alias")
+				.then(
+					com.mojang.brigadier.builder.LiteralArgumentBuilder
+						.<Object>literal("set")
+						.then(
+							com.mojang.brigadier.builder.RequiredArgumentBuilder
+								.<Object, String>argument("type", StringArgumentType.word())
+								.then(
+									com.mojang.brigadier.builder.RequiredArgumentBuilder
+										.<Object, Long>argument("serial", LongArgumentType.longArg(1L))
+										.then(
+											com.mojang.brigadier.builder.RequiredArgumentBuilder
+												.<Object, String>argument("alias", StringArgumentType.greedyString())
+												.executes(context -> {
+													parsedAlias.set(StringArgumentType.getString(context, "alias"));
+													return 1;
+												})
+										)
+								)
+						)
+				)
+		);
+
+		int result = dispatcher.execute("alias set triggerSource 12 大门1", new Object());
+
+		assertEquals(1, result);
+		assertEquals("大门1", parsedAlias.get());
+	}
+
+	/**
 	 * 创建 confirm-only 命令测试用 dispatcher。
 	 */
 	private static CommandDispatcher<Object> createConfirmOnlyBatchDispatcher() {

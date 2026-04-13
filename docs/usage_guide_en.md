@@ -153,6 +153,14 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Long text: when the content exceeds available space, append `(+n)`, where `n` is the number of omitted serials.
 - Note: this is a structured view. It does not guarantee that the user's original segmented input formatting is preserved.
 
+### Node Alias in the Pairing GUI
+- Direct editing of the current node alias is currently available only in the `triggerSource/core` pairing UI.
+- The pairing-screen header now shows `alias input box + fixed (#serial)` suffix. For example, alias `Gate1` and serial `12` render as `Gate1(#12)`.
+- Saving an alias requires clicking `Save`. This only stores the alias of the currently opened node and does not modify any link relationship.
+- GUI alias save permission is aligned with `/redstonelink node alias ...` and uses `server.command.otherPermissionLevel`.
+- The pairing target input box still accepts only serial expressions `N / A:B`; aliases are not currently resolved as pairing-write input.
+- If you only know the alias and need the serial, use `/redstonelink node alias resolve <alias>`.
+
 ### Batch Serial Input Format for Commands / GUI
 - Applies to: `/redstonelink link set ... <targets>`, `/redstonelink node activate triggerSource <source_serials> [toggle|pulse]`, and the pairing GUI input box.
 - Unified separator: `/`.
@@ -250,6 +258,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Batch activation: `/redstonelink node activate triggerSource <source_serials> [toggle|pulse]`
 - Batch whitelist overwrite: `/redstonelink crosschunk whitelist set <role> <type> <serials> confirm`
 - Batch retire: `/redstonelink node retire batch <type> <serials> confirm`
+- Node alias maintenance and reverse lookup: `/redstonelink node alias ...`
 
 ### Simplified Link Command Surface
 - Removed commands: `/redstonelink pair ...`, `/redstonelink pair_node ...`
@@ -271,6 +280,15 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 2. `link get`: query the current target list linked to a source node.
 3. `audit summary text/csv`: output audit summary data.
 4. `place setblock dry_run/force`: preview or force single-block placement; `place fill` now only keeps `force/confirm`.
+
+### Node Alias Commands
+- `/redstonelink node alias set <type> <serial> <alias>`: set or update the alias for an allocated, non-retired node.
+- `/redstonelink node alias remove <type> <serial>`: remove the current alias from that node.
+- `/redstonelink node alias resolve <alias>`: reverse lookup every node that matches the alias; use this when you only know the alias and need the serial.
+- `/redstonelink node alias list [type]`: list all aliases, or only aliases for one node type.
+- `type` only supports `triggerSource|core`; the command permission gate is `server.command.otherPermissionLevel`.
+- The current alias phase is read-only helper behavior: near overlay, parts of GUI/tooltip output, and command reads can display aliases, but pairing writes, `link set`, and batch serial input still accept serials only.
+- Alias validation rules: Chinese characters, letters, and digits are allowed; numeric-only aliases are rejected; conflicts with another node alias are rejected directly.
 
 ### Default Link-Set Target Limit
 - Config key: `server.maxTargetsPerSetLinks`
@@ -338,7 +356,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 | Config Key | Default | Scope |
 | --- | --- | --- |
 | `server.command.permissionLevel` | `0` | Permission gate for the `/redstonelink` root command (includes `link set`, so it also affects GUI submit) |
-| `server.command.otherPermissionLevel` | `2` | Permission gate for the other command group: `node activate`, `node retire`, `node get/list`, `link get`, `place`, `audit` |
+| `server.command.otherPermissionLevel` | `2` | Permission gate for the other command group: `node activate`, `node retire`, `node get/list`, `node alias`, `link get`, `place`, `audit` |
 | `server.currentLinksPrivacy.mode` | `masked` | Current-link read mode: `hidden/masked/plain` |
 | `server.currentLinksPrivacy.overlayResponsePermissionLevel` | `0` | Minimum permission needed for the server to send near-overlay packets |
 | `server.currentLinksPrivacy.viewPermissionLevel` | `2` | Permission needed to view masked current links |

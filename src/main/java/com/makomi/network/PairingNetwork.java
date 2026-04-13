@@ -90,10 +90,11 @@ public final class PairingNetwork {
 			return;
 		}
 		NodeLinksSnapshot linksSnapshot = NodeSnapshotQueryService.queryLinks(player, sourceType, sourceSerial);
+		String sourceAlias = NodeAliasServerSupport.resolveAlias(player.serverLevel(), sourceType, sourceSerial).orElse("");
 		String sourceDisplayText = NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), sourceType, sourceSerial);
 		ServerPlayNetworking.send(
 			player,
-			buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot, displayContextToken, sourceDisplayText)
+			buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot, displayContextToken, sourceAlias, sourceDisplayText)
 		);
 	}
 
@@ -113,6 +114,7 @@ public final class PairingNetwork {
 		long sourceSerial,
 		NodeLinksSnapshot linksSnapshot,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) {
 		return PairingNetworkPayloadSupport.buildPayloadForSourceType(
@@ -120,6 +122,7 @@ public final class PairingNetwork {
 			sourceSerial,
 			linksSnapshot,
 			displayContextToken,
+			sourceAlias,
 			sourceDisplayText
 		);
 	}
@@ -138,6 +141,7 @@ public final class PairingNetwork {
 			sourceSerial,
 			linksSnapshot,
 			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
+			"",
 			normalizeSourceDisplayText(sourceSerial, "")
 		);
 	}
@@ -159,6 +163,7 @@ public final class PairingNetwork {
 			sourceSerial,
 			new NodeLinksSnapshot(null, currentTargets, false),
 			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
+			"",
 			normalizeSourceDisplayText(sourceSerial, "")
 		);
 	}
@@ -174,6 +179,7 @@ public final class PairingNetwork {
 		long sourceRevision,
 		long coreRevision,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -188,6 +194,7 @@ public final class PairingNetwork {
 				payload.sourceRevision(),
 				payload.coreRevision(),
 				payload.displayContextToken(),
+				payload.sourceAlias(),
 				payload.sourceDisplayText()
 			),
 			PairingNetworkPayloadSupport::decodeTriggerSourcePairingPayload
@@ -199,7 +206,20 @@ public final class PairingNetwork {
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
 			displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE);
-			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceDisplayText);
+			sourceAlias = normalizeSourceAlias(sourceAlias);
+			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceAlias, sourceDisplayText);
+		}
+
+		public OpenTriggerSourcePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String displayContextToken,
+			String sourceDisplayText
+		) {
+			this(sourceSerial, targets, graphRevision, sourceRevision, coreRevision, displayContextToken, "", sourceDisplayText);
 		}
 
 		@Override
@@ -220,6 +240,7 @@ public final class PairingNetwork {
 		long sourceRevision,
 		long coreRevision,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -234,6 +255,7 @@ public final class PairingNetwork {
 				payload.sourceRevision(),
 				payload.coreRevision(),
 				payload.displayContextToken(),
+				payload.sourceAlias(),
 				payload.sourceDisplayText()
 			),
 			PairingNetworkPayloadSupport::decodeCorePairingPayload
@@ -245,7 +267,20 @@ public final class PairingNetwork {
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
 			displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE);
-			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceDisplayText);
+			sourceAlias = normalizeSourceAlias(sourceAlias);
+			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceAlias, sourceDisplayText);
+		}
+
+		public OpenCorePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String displayContextToken,
+			String sourceDisplayText
+		) {
+			this(sourceSerial, targets, graphRevision, sourceRevision, coreRevision, displayContextToken, "", sourceDisplayText);
 		}
 
 		@Override
@@ -324,6 +359,34 @@ public final class PairingNetwork {
 	}
 
 	/**
+	 * pairing GUI 别名保存提交包。
+	 */
+	public record SubmitPairingAliasPayload(String sourceType, long sourceSerial, String sourceAlias) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<SubmitPairingAliasPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_pairing_alias")
+		);
+		public static final StreamCodec<FriendlyByteBuf, SubmitPairingAliasPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSubmitPairingAliasPayload(
+				buffer,
+				payload.sourceType(),
+				payload.sourceSerial(),
+				payload.sourceAlias()
+			),
+			PairingNetworkPayloadSupport::decodeSubmitPairingAliasPayload
+		);
+
+		public SubmitPairingAliasPayload {
+			sourceType = sourceType == null ? "" : sourceType;
+			sourceAlias = normalizeSourceAlias(sourceAlias);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 服务端返回给配对界面的结构化反馈回执。
 	 */
 	public record PairingFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
@@ -344,6 +407,41 @@ public final class PairingNetwork {
 		public PairingFeedbackPayload {
 			messageKey = messageKey == null ? "" : messageKey;
 			messageArgs = List.copyOf(messageArgs == null ? List.of() : messageArgs);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端返回给配对界面的最新 alias 真值快照。
+	 */
+	public record PairingAliasStatePayload(
+		String sourceType,
+		long sourceSerial,
+		String sourceAlias,
+		String sourceDisplayText
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<PairingAliasStatePayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "pairing_alias_state")
+		);
+		public static final StreamCodec<FriendlyByteBuf, PairingAliasStatePayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> PairingNetworkPayloadSupport.encodePairingAliasStatePayload(
+				buffer,
+				payload.sourceType(),
+				payload.sourceSerial(),
+				payload.sourceAlias(),
+				payload.sourceDisplayText()
+			),
+			PairingNetworkPayloadSupport::decodePairingAliasStatePayload
+		);
+
+		public PairingAliasStatePayload {
+			sourceType = sourceType == null ? "" : sourceType;
+			sourceAlias = normalizeSourceAlias(sourceAlias);
+			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceAlias, sourceDisplayText);
 		}
 
 		@Override
@@ -527,10 +625,18 @@ public final class PairingNetwork {
 		}
 	}
 
-	private static String normalizeSourceDisplayText(long sourceSerial, String sourceDisplayText) {
+	private static String normalizeSourceAlias(String sourceAlias) {
+		return NodeAliasDisplayUtil.normalizeAlias(sourceAlias);
+	}
+
+	private static String normalizeSourceDisplayText(long sourceSerial, String sourceAlias, String sourceDisplayText) {
 		String normalizedDisplayText = NodeAliasDisplayUtil.normalizeAlias(sourceDisplayText);
 		return normalizedDisplayText.isEmpty()
-			? NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
+			? NodeAliasDisplayUtil.formatDisplayText(sourceAlias, sourceSerial)
 			: normalizedDisplayText;
+	}
+
+	private static String normalizeSourceDisplayText(long sourceSerial, String sourceDisplayText) {
+		return normalizeSourceDisplayText(sourceSerial, "", sourceDisplayText);
 	}
 }

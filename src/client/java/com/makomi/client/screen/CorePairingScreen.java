@@ -21,6 +21,15 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		0xFF4FC3F7,
 		0xFFB9D7FF
 	);
+	private static final StyledEditBox.Style CORE_ALIAS_INPUT_STYLE = new StyledEditBox.Style(
+		0xFF0D47A1,
+		0xFF08306B,
+		0xFF4FC3F7,
+		0x99122B45,
+		0xFF08306B,
+		0xFFF4FAFF,
+		0xFF9EB1C8
+	);
 	private static final StyledButton.Style CORE_ACTION_BUTTON_STYLE = new StyledButton.Style(
 		0xE00D47A1,
 		0xF01565C0,
@@ -50,10 +59,23 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		long sourceRevision,
 		long coreRevision,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) {
-		super(TITLE, sourceSerial, sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
+		super(TITLE, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
 		this.displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, SOURCE_TYPE);
+	}
+
+	public CorePairingScreen(
+		long sourceSerial,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision,
+		String displayContextToken,
+		String sourceDisplayText
+	) {
+		this(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision, displayContextToken, "", sourceDisplayText);
 	}
 
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
@@ -64,6 +86,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 			sourceRevision,
 			0L,
 			LinkGuiDisplayContext.CORE,
+			"",
 			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)
 		);
 	}
@@ -86,20 +109,6 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	@Override
 	protected Component invalidInput() {
 		return INVALID_INPUT;
-	}
-
-	/**
-	 * 组装来源节点序列号展示文本。
-	 *
-	 * @param sourceSerial 来源节点序列号
-	 * @return 本地化后的序列号文本
-	 */
-	@Override
-	protected Component serialLine(String sourceDisplayText) {
-		return Component.translatable(
-			"screen.redstonelink.core_pairing.serial",
-			sourceDisplayText
-		);
 	}
 
 	/**
@@ -132,6 +141,11 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	@Override
 	protected StyledMultiLineEditBox.Style inputBoxStyle() {
 		return CORE_INPUT_BOX_STYLE;
+	}
+
+	@Override
+	protected StyledEditBox.Style aliasInputStyle() {
+		return CORE_ALIAS_INPUT_STYLE;
 	}
 
 	@Override

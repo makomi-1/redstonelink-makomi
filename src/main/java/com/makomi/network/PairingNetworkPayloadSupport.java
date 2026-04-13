@@ -21,6 +21,7 @@ final class PairingNetworkPayloadSupport {
 	static final int NODE_TYPE_MAX_LENGTH = 32;
 	private static final int CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH = 32;
 	private static final int DISPLAY_CONTEXT_TOKEN_MAX_LENGTH = 64;
+	private static final int ALIAS_TEXT_MAX_LENGTH = 96;
 	private static final int DISPLAY_TEXT_MAX_LENGTH = 96;
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
 	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
@@ -41,6 +42,7 @@ final class PairingNetworkPayloadSupport {
 		long sourceSerial,
 		NodeLinksSnapshot linksSnapshot,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) {
 		NodeLinksSnapshot normalizedSnapshot = linksSnapshot == null
@@ -54,6 +56,7 @@ final class PairingNetworkPayloadSupport {
 				normalizedSnapshot.sourceRevision(),
 				normalizedSnapshot.coreRevision(),
 				LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE),
+				sourceAlias,
 				sourceDisplayText
 			);
 		}
@@ -64,6 +67,7 @@ final class PairingNetworkPayloadSupport {
 			normalizedSnapshot.sourceRevision(),
 			normalizedSnapshot.coreRevision(),
 			LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE),
+			sourceAlias,
 			sourceDisplayText
 		);
 	}
@@ -79,6 +83,7 @@ final class PairingNetworkPayloadSupport {
 		long sourceRevision,
 		long coreRevision,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) {
 		buffer.writeVarLong(sourceSerial);
@@ -90,6 +95,7 @@ final class PairingNetworkPayloadSupport {
 		buffer.writeVarLong(Math.max(0L, sourceRevision));
 		buffer.writeVarLong(Math.max(0L, coreRevision));
 		buffer.writeUtf(displayContextToken == null ? "" : displayContextToken, DISPLAY_CONTEXT_TOKEN_MAX_LENGTH);
+		buffer.writeUtf(sourceAlias == null ? "" : sourceAlias, ALIAS_TEXT_MAX_LENGTH);
 		buffer.writeUtf(sourceDisplayText == null ? "" : sourceDisplayText, DISPLAY_TEXT_MAX_LENGTH);
 	}
 
@@ -105,6 +111,7 @@ final class PairingNetworkPayloadSupport {
 			payload.sourceRevision(),
 			payload.coreRevision(),
 			payload.displayContextToken(),
+			payload.sourceAlias(),
 			payload.sourceDisplayText()
 		);
 	}
@@ -121,6 +128,7 @@ final class PairingNetworkPayloadSupport {
 			payload.sourceRevision(),
 			payload.coreRevision(),
 			payload.displayContextToken(),
+			payload.sourceAlias(),
 			payload.sourceDisplayText()
 		);
 	}
@@ -170,6 +178,26 @@ final class PairingNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码 pairing GUI 别名保存提交包。
+	 */
+	static void encodeSubmitPairingAliasPayload(FriendlyByteBuf buffer, String sourceType, long sourceSerial, String sourceAlias) {
+		buffer.writeUtf(sourceType == null ? "" : sourceType, NODE_TYPE_MAX_LENGTH);
+		buffer.writeVarLong(Math.max(0L, sourceSerial));
+		buffer.writeUtf(sourceAlias == null ? "" : sourceAlias, ALIAS_TEXT_MAX_LENGTH);
+	}
+
+	/**
+	 * 解码 pairing GUI 别名保存提交包。
+	 */
+	static PairingNetwork.SubmitPairingAliasPayload decodeSubmitPairingAliasPayload(FriendlyByteBuf buffer) {
+		return new PairingNetwork.SubmitPairingAliasPayload(
+			buffer.readUtf(NODE_TYPE_MAX_LENGTH),
+			buffer.readVarLong(),
+			buffer.readUtf(ALIAS_TEXT_MAX_LENGTH)
+		);
+	}
+
+	/**
 	 * 编码配对反馈回执。
 	 */
 	static void encodeFeedbackPayload(FriendlyByteBuf buffer, boolean success, String messageKey, List<String> messageArgs) {
@@ -188,6 +216,34 @@ final class PairingNetworkPayloadSupport {
 	static PairingNetwork.PairingFeedbackPayload decodePairingFeedbackPayload(FriendlyByteBuf buffer) {
 		DecodedFeedbackPayload payload = decodeFeedbackPayload(buffer);
 		return new PairingNetwork.PairingFeedbackPayload(payload.success(), payload.messageKey(), payload.messageArgs());
+	}
+
+	/**
+	 * 编码 pairing GUI alias 状态回包。
+	 */
+	static void encodePairingAliasStatePayload(
+		FriendlyByteBuf buffer,
+		String sourceType,
+		long sourceSerial,
+		String sourceAlias,
+		String sourceDisplayText
+	) {
+		buffer.writeUtf(sourceType == null ? "" : sourceType, NODE_TYPE_MAX_LENGTH);
+		buffer.writeVarLong(Math.max(0L, sourceSerial));
+		buffer.writeUtf(sourceAlias == null ? "" : sourceAlias, ALIAS_TEXT_MAX_LENGTH);
+		buffer.writeUtf(sourceDisplayText == null ? "" : sourceDisplayText, DISPLAY_TEXT_MAX_LENGTH);
+	}
+
+	/**
+	 * 解码 pairing GUI alias 状态回包。
+	 */
+	static PairingNetwork.PairingAliasStatePayload decodePairingAliasStatePayload(FriendlyByteBuf buffer) {
+		return new PairingNetwork.PairingAliasStatePayload(
+			buffer.readUtf(NODE_TYPE_MAX_LENGTH),
+			buffer.readVarLong(),
+			buffer.readUtf(ALIAS_TEXT_MAX_LENGTH),
+			buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH)
+		);
 	}
 
 	/**
@@ -335,6 +391,7 @@ final class PairingNetworkPayloadSupport {
 			buffer.readVarLong(),
 			buffer.readVarLong(),
 			buffer.readUtf(DISPLAY_CONTEXT_TOKEN_MAX_LENGTH),
+			buffer.readUtf(ALIAS_TEXT_MAX_LENGTH),
 			buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH)
 		);
 	}
@@ -429,6 +486,7 @@ final class PairingNetworkPayloadSupport {
 		long sourceRevision,
 		long coreRevision,
 		String displayContextToken,
+		String sourceAlias,
 		String sourceDisplayText
 	) {}
 

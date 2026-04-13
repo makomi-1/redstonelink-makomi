@@ -1,6 +1,7 @@
 package com.makomi.network;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
@@ -9,6 +10,9 @@ import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.NodeAliasSavedData;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
 import java.util.HashMap;
@@ -107,6 +111,75 @@ final class PairingNetworkServerHandlerSupport {
 					payload.expectedCoreRevision()
 				)
 				.feedbacks()
+		);
+	}
+
+	/**
+	 * 处理 pairing GUI 的节点别名保存请求。
+	 */
+	static void handleSubmitPairingAlias(ServerPlayer player, PairingNetwork.SubmitPairingAliasPayload payload) {
+		if (player == null || payload == null) {
+			return;
+		}
+		if (!player.hasPermissions(RedstoneLinkConfig.command().otherPermissionLevel())) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient")
+			);
+			return;
+		}
+		if (
+			!CommandRateLimitService.tryAcquire(
+				player.createCommandSourceStack(),
+				CommandRateLimitService.CommandGroup.OTHER,
+				1
+			)
+		) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.command.rate_limit.exceeded")
+			);
+			return;
+		}
+
+		LinkNodeType sourceType = LinkNodeSemantics.tryParseCanonicalType(payload.sourceType()).orElse(null);
+		if (sourceType == null) {
+			sendPairingFeedback(
+				player,
+				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.node.invalid_type", payload.sourceType())
+			);
+			return;
+		}
+		LinkSetExecutionService.OperationFeedback sourceStateFeedback = validatePairingAliasSourceActive(
+			player.serverLevel(),
+			sourceType,
+			payload.sourceSerial()
+		);
+		if (sourceStateFeedback != null) {
+			sendPairingFeedback(player, sourceStateFeedback);
+			return;
+		}
+
+		NodeAliasSavedData aliasSavedData = NodeAliasSavedData.get(player.serverLevel());
+		NodeAliasSavedData.UpsertResult result = aliasSavedData.upsert(sourceType, payload.sourceSerial(), payload.sourceAlias());
+		if (!result.valid()) {
+			sendPairingFeedback(player, buildAliasValidationFeedback(payload.sourceAlias(), result.validation()));
+			return;
+		}
+		if (result.conflict()) {
+			sendPairingFeedback(player, buildAliasConflictFeedback(sourceType, result));
+			return;
+		}
+
+		if (result.changed()) {
+			NodeAliasServerSupport.syncDisplaysAfterAliasChanged(player.serverLevel(), sourceType, payload.sourceSerial());
+		}
+		sendPairingAliasState(player, sourceType, payload.sourceSerial(), result.alias());
+		sendPairingFeedback(
+			player,
+			result.changed()
+				? buildAliasSavedFeedback(sourceType, payload.sourceSerial(), result)
+				: buildAliasUnchangedFeedback(sourceType, payload.sourceSerial(), result)
 		);
 	}
 
@@ -412,6 +485,25 @@ final class PairingNetworkServerHandlerSupport {
 	}
 
 	/**
+	 * 回传 alias 保存后的最新真值快照。
+	 */
+	private static void sendPairingAliasState(ServerPlayer player, LinkNodeType sourceType, long sourceSerial, String sourceAlias) {
+		if (player == null || sourceType == null || sourceSerial <= 0L) {
+			return;
+		}
+		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(sourceAlias);
+		ServerPlayNetworking.send(
+			player,
+			new PairingNetwork.PairingAliasStatePayload(
+				LinkNodeSemantics.toSemanticName(sourceType),
+				sourceSerial,
+				normalizedAlias,
+				NodeAliasDisplayUtil.formatDisplayText(normalizedAlias, sourceSerial)
+			)
+		);
+	}
+
+	/**
 	 * 回传多条配对反馈，保持服务端执行顺序。
 	 */
 	private static void sendPairingFeedbacks(ServerPlayer player, List<LinkSetExecutionService.OperationFeedback> feedbacks) {
@@ -474,6 +566,111 @@ final class PairingNetworkServerHandlerSupport {
 	 */
 	static int saturatingAdd(int currentCost, int nextCost) {
 		return CoreLinkEditingService.saturatingAdd(currentCost, nextCost);
+	}
+
+	/**
+	 * 校验 GUI 别名保存目标是否仍处于 active 状态（已分配且未退役）。
+	 */
+	private static LinkSetExecutionService.OperationFeedback validatePairingAliasSourceActive(
+		net.minecraft.server.level.ServerLevel level,
+		LinkNodeType sourceType,
+		long sourceSerial
+	) {
+		if (level == null || sourceType == null) {
+			return LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient");
+		}
+		LinkSavedData savedData = LinkSavedData.get(level);
+		if (sourceSerial <= 0L || !savedData.isSerialAllocated(sourceType, sourceSerial)) {
+			return LinkSetExecutionService.OperationFeedback.failure(
+				"message.redstonelink.pairing.alias.serial_unallocated",
+				LinkNodeSemantics.toSemanticName(sourceType),
+				NodeAliasDisplayUtil.formatSerialToken(sourceSerial)
+			);
+		}
+		if (savedData.isSerialRetired(sourceType, sourceSerial)) {
+			return LinkSetExecutionService.OperationFeedback.failure(
+				"message.redstonelink.pairing.alias.serial_retired",
+				LinkNodeSemantics.toSemanticName(sourceType),
+				NodeAliasDisplayUtil.formatSerialToken(sourceSerial)
+			);
+		}
+		return null;
+	}
+
+	/**
+	 * 将 alias 校验失败原因映射为 pairing GUI 可直接展示的短文案。
+	 */
+	static LinkSetExecutionService.OperationFeedback buildAliasValidationFeedback(
+		String rawAlias,
+		NodeAliasSavedData.ValidationResult validation
+	) {
+		String safeAlias = rawAlias == null ? "" : rawAlias;
+		String reason = validation == null ? "" : validation.reason();
+		return switch (reason) {
+			case "empty" -> LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.pairing.alias.invalid.empty");
+			case "too_long" -> LinkSetExecutionService.OperationFeedback.failure(
+				"message.redstonelink.pairing.alias.invalid.too_long",
+				Integer.toString(NodeAliasSavedData.maxAliasLength())
+			);
+			case "invalid_chars" -> LinkSetExecutionService.OperationFeedback.failure(
+				"message.redstonelink.pairing.alias.invalid.invalid_chars",
+				safeAlias
+			);
+			case "numeric_only" -> LinkSetExecutionService.OperationFeedback.failure(
+				"message.redstonelink.pairing.alias.invalid.numeric_only",
+				safeAlias
+			);
+			default -> LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.pairing.alias.invalid.unknown", safeAlias);
+		};
+	}
+
+	/**
+	 * 构造 alias 冲突反馈。
+	 */
+	static LinkSetExecutionService.OperationFeedback buildAliasConflictFeedback(
+		LinkNodeType sourceType,
+		NodeAliasSavedData.UpsertResult result
+	) {
+		return LinkSetExecutionService.OperationFeedback.failure(
+			"message.redstonelink.pairing.alias.conflict",
+			result == null ? "" : result.alias(),
+			LinkNodeSemantics.toSemanticName(sourceType),
+			NodeAliasDisplayUtil.formatSerialToken(result == null ? 0L : result.conflictSerial())
+		);
+	}
+
+	/**
+	 * 构造 alias 已保存反馈。
+	 */
+	static LinkSetExecutionService.OperationFeedback buildAliasSavedFeedback(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		NodeAliasSavedData.UpsertResult result
+	) {
+		String alias = result == null ? "" : result.alias();
+		String previousAlias = result == null || result.previousAlias().isEmpty() ? "-" : result.previousAlias();
+		return LinkSetExecutionService.OperationFeedback.success(
+			"message.redstonelink.pairing.alias.saved",
+			LinkNodeSemantics.toSemanticName(sourceType),
+			NodeAliasDisplayUtil.formatDisplayText(alias, sourceSerial),
+			previousAlias
+		);
+	}
+
+	/**
+	 * 构造 alias 未变化反馈。
+	 */
+	static LinkSetExecutionService.OperationFeedback buildAliasUnchangedFeedback(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		NodeAliasSavedData.UpsertResult result
+	) {
+		String alias = result == null ? "" : result.alias();
+		return LinkSetExecutionService.OperationFeedback.success(
+			"message.redstonelink.pairing.alias.unchanged",
+			LinkNodeSemantics.toSemanticName(sourceType),
+			NodeAliasDisplayUtil.formatDisplayText(alias, sourceSerial)
+		);
 	}
 
 	/**

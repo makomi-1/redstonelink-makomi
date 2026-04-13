@@ -44,10 +44,10 @@
 - [冲突反馈](https://www.wjx.top/vm/wTsJKow.aspx)
 
 # 未来计划
-- [x] 添加发送/接收过滤器
-- [ ] 状态面板支持录制回放
-- [ ] 支持自定义节点别名
-- [ ] 扩展频道匹配
-- [x] UI美化
-- [ ] 迁移到26.1+版本
-- [ ] 可视化网络分析器
+-  ☑️Add Send/receive filters
+-  ❌Add recording and playback support to the status panel
+-  ☑️Support custom node aliases
+-  ❌Expand channel matching
+-  ☑️Improve the UI
+-  ❌Migrate to version 26.1+
+-  ❌Add a visual network analyzer

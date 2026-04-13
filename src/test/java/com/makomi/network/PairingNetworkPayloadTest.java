@@ -33,6 +33,7 @@ class PairingNetworkPayloadTest {
 			5L,
 			0L,
 			LinkGuiDisplayContext.LINK_TOGGLE_BUTTON,
+			"大门1",
 			"大门1(#100)"
 		);
 
@@ -57,6 +58,7 @@ class PairingNetworkPayloadTest {
 			0L,
 			6L,
 			LinkGuiDisplayContext.LINK_REDSTONE_CORE,
+			"中控",
 			"中控(#200)"
 		);
 
@@ -105,6 +107,20 @@ class PairingNetworkPayloadTest {
 	}
 
 	/**
+	 * pairing GUI alias 提交包应规范化空白并保持字段稳定。
+	 */
+	@Test
+	void submitPairingAliasPayloadShouldNormalizeAlias() {
+		PairingNetwork.SubmitPairingAliasPayload payload = new PairingNetwork.SubmitPairingAliasPayload("core", 512L, " 中控A ");
+		PairingNetwork.SubmitPairingAliasPayload emptyPayload = new PairingNetwork.SubmitPairingAliasPayload("triggerSource", 513L, null);
+
+		assertEquals("core", payload.sourceType());
+		assertEquals(512L, payload.sourceSerial());
+		assertEquals("中控A", payload.sourceAlias());
+		assertEquals("", emptyPayload.sourceAlias());
+	}
+
+	/**
 	 * 配对反馈包参数列表应做不可变拷贝，避免外部修改污染消息体。
 	 */
 	@Test
@@ -136,6 +152,7 @@ class PairingNetworkPayloadTest {
 			13L,
 			0L,
 			LinkGuiDisplayContext.LINK_PULSE_EMITTER,
+			"脉冲源",
 			"脉冲源(#123)"
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -151,6 +168,7 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(original.coreRevision(), decoded.coreRevision());
 		assertEquals(original.displayContextToken(), decoded.displayContextToken());
+		assertEquals(original.sourceAlias(), decoded.sourceAlias());
 		assertEquals(original.sourceDisplayText(), decoded.sourceDisplayText());
 		assertEquals(PairingNetwork.OpenTriggerSourcePairingPayload.TYPE, decoded.type());
 	}
@@ -167,6 +185,7 @@ class PairingNetworkPayloadTest {
 			0L,
 			5L,
 			LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE,
+			"红石核心",
 			"红石核心(#321)"
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -180,6 +199,7 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(original.coreRevision(), decoded.coreRevision());
 		assertEquals(original.displayContextToken(), decoded.displayContextToken());
+		assertEquals(original.sourceAlias(), decoded.sourceAlias());
 		assertEquals(original.sourceDisplayText(), decoded.sourceDisplayText());
 		assertEquals(PairingNetwork.OpenCorePairingPayload.TYPE, decoded.type());
 	}
@@ -225,6 +245,23 @@ class PairingNetworkPayloadTest {
 	}
 
 	/**
+	 * pairing GUI alias 提交包编解码往返应保持字段一致。
+	 */
+	@Test
+	void submitPairingAliasPayloadCodecRoundTripShouldPreserveFields() {
+		PairingNetwork.SubmitPairingAliasPayload original = new PairingNetwork.SubmitPairingAliasPayload("triggerSource", 777L, "大门A");
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		PairingNetwork.SubmitPairingAliasPayload.CODEC.encode(buffer, original);
+		PairingNetwork.SubmitPairingAliasPayload decoded = PairingNetwork.SubmitPairingAliasPayload.CODEC.decode(buffer);
+
+		assertEquals(original.sourceType(), decoded.sourceType());
+		assertEquals(original.sourceSerial(), decoded.sourceSerial());
+		assertEquals(original.sourceAlias(), decoded.sourceAlias());
+		assertEquals(PairingNetwork.SubmitPairingAliasPayload.TYPE, decoded.type());
+	}
+
+	/**
 	 * 配对反馈包编解码往返应保持成功状态、翻译键和参数列表一致。
 	 */
 	@Test
@@ -246,6 +283,29 @@ class PairingNetworkPayloadTest {
 	}
 
 	/**
+	 * pairing GUI alias 状态回包编解码往返应保持字段一致。
+	 */
+	@Test
+	void pairingAliasStatePayloadCodecRoundTripShouldPreserveFields() {
+		PairingNetwork.PairingAliasStatePayload original = new PairingNetwork.PairingAliasStatePayload(
+			"core",
+			901L,
+			"中控总站",
+			"中控总站(#901)"
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		PairingNetwork.PairingAliasStatePayload.CODEC.encode(buffer, original);
+		PairingNetwork.PairingAliasStatePayload decoded = PairingNetwork.PairingAliasStatePayload.CODEC.decode(buffer);
+
+		assertEquals(original.sourceType(), decoded.sourceType());
+		assertEquals(original.sourceSerial(), decoded.sourceSerial());
+		assertEquals(original.sourceAlias(), decoded.sourceAlias());
+		assertEquals(original.sourceDisplayText(), decoded.sourceDisplayText());
+		assertEquals(PairingNetwork.PairingAliasStatePayload.TYPE, decoded.type());
+	}
+
+	/**
 	 * 编解码时应保留空目标列表。
 	 */
 	@Test
@@ -257,6 +317,7 @@ class PairingNetworkPayloadTest {
 			0L,
 			0L,
 			LinkGuiDisplayContext.TRIGGER_SOURCE,
+			"",
 			NodeAliasDisplayUtil.formatDisplayText("", 77L)
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -268,6 +329,7 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(77L, decoded.sourceSerial());
 		assertEquals(List.of(), decoded.targets());
+		assertEquals("", decoded.sourceAlias());
 		assertEquals(NodeAliasDisplayUtil.formatDisplayText("", 77L), decoded.sourceDisplayText());
 	}
 
