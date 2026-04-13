@@ -64,6 +64,46 @@
     },
     {
       "templateRef": "command_assert",
+      "name": "low_permission_node_list_third",
+      "command": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_node_list_fourth",
+      "command": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_node_list_fifth",
+      "command": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_node_list_sixth",
+      "command": "redstonelink node list core active 10 0",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(scope=active|范围=active)",
+        "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
       "name": "low_permission_node_list_rate_limited",
       "command": "redstonelink node list core active 10 0",
       "expectFailureResponse": true,
@@ -95,6 +135,114 @@
       "expectedRegexes": [
         "(?i)(scope=active|范围=active)",
         "(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "seed_alias_for_rate_limit_case",
+      "commandTemplate": "redstonelink node alias set core {{targets[0]}} 限流1",
+      "skipPlayerContext": true,
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(Set alias|已设置)",
+        "限流1\\(#{{targets[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_rate_limit_window_reset_before_alias_checks",
+      "ticks": 220
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "deop_rate_limit_player_for_alias_checks",
+      "command": "deop @a[tag=rl_perm_c08,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_alias_list_first",
+      "command": "redstonelink node alias list core",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(scope=core|范围=core)",
+        "限流1\\(#{{targets[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_alias_list_second",
+      "command": "redstonelink node alias list core",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(scope=core|范围=core)",
+        "限流1\\(#{{targets[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_alias_list_third",
+      "command": "redstonelink node alias list core",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(scope=core|范围=core)",
+        "限流1\\(#{{targets[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_alias_list_fourth",
+      "command": "redstonelink node alias list core",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(scope=core|范围=core)",
+        "限流1\\(#{{targets[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_alias_list_fifth",
+      "command": "redstonelink node alias list core",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(scope=core|范围=core)",
+        "限流1\\(#{{targets[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_alias_list_sixth",
+      "command": "redstonelink node alias list core",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(scope=core|范围=core)",
+        "限流1\\(#{{targets[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_alias_list_rate_limited",
+      "command": "redstonelink node alias list core",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink]",
+      "expectedRegex": "(?i)(Too many requests|操作过于频繁)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "op_rate_limit_player_for_alias_checks",
+      "command": "op @a[tag=rl_perm_c08,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_alias_list_after_op",
+      "command": "redstonelink node alias list core",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(scope=core|范围=core)",
+        "限流1\\(#{{targets[0]}}\\)"
       ]
     }
   ]

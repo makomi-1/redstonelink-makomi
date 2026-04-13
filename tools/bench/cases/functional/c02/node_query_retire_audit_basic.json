@@ -67,6 +67,49 @@
     },
     {
       "templateRef": "command_assert",
+      "name": "node_alias_set_trigger_source_basic",
+      "commandTemplate": "redstonelink node alias set triggerSource {{source:sync_query_runtime[0]}} 大门1",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(Set alias|已设置)",
+        "大门1\\(#{{source:sync_query_runtime[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_resolve_trigger_source_basic",
+      "command": "redstonelink node alias resolve 大门1",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "大门1",
+        "(?i)(type=triggerSource|类型=triggerSource)",
+        "大门1\\(#{{source:sync_query_runtime[0]}}\\)",
+        "(?i)allocated=true",
+        "(?i)online=true"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_list_trigger_source_basic",
+      "command": "redstonelink node alias list triggerSource",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(scope=triggerSource|范围=triggerSource)",
+        "大门1\\(#{{source:sync_query_runtime[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_get_trigger_source_should_show_alias_display",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_query_runtime[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(type=triggerSource|类型=triggerSource)",
+        "(?i)(serial=大门1\\(#{{source:sync_query_runtime[0]}}\\)|序号=大门1\\(#{{source:sync_query_runtime[0]}}\\))"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
       "name": "audit_summary_text",
       "command": "redstonelink audit summary text",
       "expectedPrefix": "[RedstoneLink]",
@@ -105,6 +148,24 @@
         "(?i)(scope=retired|范围=retired)",
         "(?<!\\d){{targets[1]}}(?!\\d)"
       ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_remove_trigger_source_basic",
+      "commandTemplate": "redstonelink node alias remove triggerSource {{source:sync_query_runtime[0]}}",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(Removed alias|已移除)",
+        "大门1"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_resolve_after_remove_should_fail",
+      "command": "redstonelink node alias resolve 大门1",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegex": "(?i)(Alias .* was not found|未找到别名)"
     }
   ]
 }

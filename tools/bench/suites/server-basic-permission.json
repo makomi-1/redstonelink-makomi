@@ -36,8 +36,8 @@
         "server.command.rateLimit.tier.stepPerLevel": "16",
         "server.command.rateLimit.actor.baseCapacity": "64",
         "server.command.rateLimit.actor.stepPerLevel": "16",
-        "server.command.rateLimit.actorGroup.other.baseCapacity": "2",
-        "server.command.rateLimit.actorGroup.other.stepPerLevel": "2",
+        "server.command.rateLimit.actorGroup.other.baseCapacity": "6",
+        "server.command.rateLimit.actorGroup.other.stepPerLevel": "4",
         "server.currentLinksPrivacy.mode": "plain",
         "server.linkWriteControl.mode": "full"
       }

@@ -57,10 +57,44 @@
     {
       "templateRef": "command_assert",
       "name": "crosschunk_whitelist_set_too_many_should_fail",
-      "commandTemplate": "redstonelink crosschunk whitelist set target core {{targets:range}} confirm",
+      "command": "redstonelink crosschunk whitelist set target core 1:1025 confirm",
       "expectFailureResponse": true,
       "expectedPrefix": "[RedstoneLink/CrossChunk]",
       "expectedRegex": "(?i)(Too many whitelist set serials|max|数量过多|最多)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_set_invalid_chars_should_fail",
+      "commandTemplate": "redstonelink node alias set core {{targets[0]}} 坏-1",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegex": "(?i)(invalid|无效|只能包含中文、字母或数字)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_set_numeric_only_should_fail",
+      "commandTemplate": "redstonelink node alias set core {{targets[0]}} 12345",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegex": "(?i)(numeric only|纯数字|不能为纯数字)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_set_core_first_success",
+      "commandTemplate": "redstonelink node alias set core {{targets[0]}} 边界1",
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegexes": [
+        "(?i)(Set alias|已设置)",
+        "边界1\\(#{{targets[0]}}\\)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_set_conflict_same_type_should_fail",
+      "commandTemplate": "redstonelink node alias set core {{targets[1]}} 边界1",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink/NodeAlias]",
+      "expectedRegex": "(?i)(occupied|占用)"
     },
     {
       "templateRef": "command_assert",
@@ -74,6 +108,14 @@
       "name": "crosschunk_whitelist_add_retired_should_fail",
       "commandTemplate": "redstonelink crosschunk whitelist add target core {{targets[2]}}",
       "expectFailureResponse": true,
+      "expectedRegex": "(?i)(retired|已退役)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "node_alias_set_retired_target_should_fail",
+      "commandTemplate": "redstonelink node alias set core {{targets[2]}} 退役1",
+      "expectFailureResponse": true,
+      "expectedPrefix": "[RedstoneLink]",
       "expectedRegex": "(?i)(retired|已退役)"
     }
   ]
