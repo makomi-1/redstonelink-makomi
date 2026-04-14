@@ -241,11 +241,13 @@ final class ActivatableTargetDispatchSupport {
 			} else {
 				bucketChanged |= concurrentComponent().recordPulseSnapshot(owner, normalizedTimeKey, eventMeta.seq());
 			}
+			owner.recomputeSyncTruthFromConcurrentBuckets();
 			bucketChanged |= owner.recomputePulseTruthFromConcurrentBuckets();
 		} else if (deltaAction != DeltaAction.REMOVE) {
 			// `toggle` 语义直接对“本次写入前”的当前目标结果态取反，
 			// 不能依赖旧 toggle fallback，也不能在 authority 已切到 TOGGLE 后再取基准。
 			bucketChanged |= concurrentComponent().recordToggleSnapshot(!baseToggleState, normalizedTimeKey, eventMeta.seq());
+			owner.recomputeSyncTruthFromConcurrentBuckets();
 		} else {
 			return;
 		}
@@ -394,6 +396,7 @@ final class ActivatableTargetDispatchSupport {
 			} else {
 				bucketChanged |= concurrentComponent().recordPulseSnapshot(owner, normalizedTimeKey, eventMeta.seq());
 			}
+			owner.recomputeSyncTruthFromConcurrentBuckets();
 			owner.recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
 			accumulator.record(eventMeta, bucketChanged, true);
 			return;
@@ -404,6 +407,7 @@ final class ActivatableTargetDispatchSupport {
 		}
 		// 批路径与 direct 路径保持一致：toggle 直接翻转“本次写入前”的当前目标结果态。
 		bucketChanged |= concurrentComponent().recordToggleSnapshot(!baseToggleState, normalizedTimeKey, eventMeta.seq());
+		owner.recomputeSyncTruthFromConcurrentBuckets();
 		owner.recomputeAuthorityFromConcurrentBuckets(normalizedTimeKey, eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}

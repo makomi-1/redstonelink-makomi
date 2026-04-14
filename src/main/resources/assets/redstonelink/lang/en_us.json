@@ -151,6 +151,7 @@
   "message.redstonelink.pairing.alias.conflict": "Alias `%s` is already occupied by %s %s.",
   "message.redstonelink.pairing.alias.unchanged": "%s alias is unchanged: %s.",
   "message.redstonelink.pairing.alias.saved": "Saved %s alias: %s, previous=%s.",
+  "message.redstonelink.pairing.alias.removed": "Cleared %s alias: current=%s, previous=%s.",
   "message.redstonelink.set_links.confirm_required": "[RedstoneLink] Batch overwrite detected (%s entries). Run again to confirm: /%s",
   "message.redstonelink.link.set.input_too_long": "[RedstoneLink] link set input is too long; max allowed length is %s characters.",
   "message.redstonelink.link_filter.target_missing": "[RedstoneLink] The filter target to save could not be found.",

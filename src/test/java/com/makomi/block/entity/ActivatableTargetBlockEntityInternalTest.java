@@ -254,18 +254,18 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 后到 toggle 应按时间键覆盖先到 sync，但旧 sync 仍作为更早候选保留。
+	 * 后到 toggle 应按时间键覆盖先到 sync，并清掉更早的旧 sync 真值。
 	 */
 	@Test
-	void laterToggleShouldOverrideEarlierSyncButKeepSyncSnapshot() {
+	void laterToggleShouldClearEarlierSyncSnapshot() {
 		TestTargetEntity target = createTarget();
 		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
 
 		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
-		assertFalse(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
+		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
 	}
 
 	/**
@@ -317,6 +317,57 @@ class ActivatableTargetBlockEntityInternalTest {
 		expirePulseWindow(target, 11L, 2L);
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
 		assertFalse(getBooleanField(target, "active"));
+	}
+
+	/**
+	 * 更晚的 `pulse` 在跨 tick 覆盖更早 `sync` 后，回落时不应再回露旧 `sync`。
+	 */
+	@Test
+	void laterPulseShouldClearEarlierSyncTruth() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+
+		target.triggerBySource(2L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
+		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+
+		expirePulseWindow(target, 11L, 2L);
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "active"));
+	}
+
+	/**
+	 * 更晚的 `toggle` 在跨 tick 覆盖更早 `sync` 后，应直接淘汰旧 `sync` 真值。
+	 */
+	@Test
+	void laterToggleShouldClearEarlierSyncTruth() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+
+		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
+		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleState"));
+		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
+	}
+
+	/**
+	 * 同 tick 的 `toggle` 仍受 `SYNC > PULSE > TOGGLE` 优先级约束，不应误清同 tick `sync`。
+	 */
+	@Test
+	void sameTimeToggleShouldNotClearExistingSyncTruth() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+
+		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 2L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+		assertFalse(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertEquals(15, invokeResolveDerivedOutputPowerFromTruth(target));
 	}
 
 	/**
@@ -641,7 +692,7 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 批提交中的 later invalidation 只应清掉该来源的 sync 历史贡献，并只提交一次最终结果。
+	 * later `pulse/toggle` 已淘汰旧 sync 后，后续 invalidation 不应再重复制造脏写。
 	 */
 	@Test
 	void applyDispatchBatchShouldClearHistoricalSyncContributionOnce() {
@@ -665,7 +716,7 @@ class ActivatableTargetBlockEntityInternalTest {
 			)
 		);
 
-		assertEquals(1, target.getSetChangedCount());
+		assertEquals(0, target.getSetChangedCount());
 		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
 		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
 		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));

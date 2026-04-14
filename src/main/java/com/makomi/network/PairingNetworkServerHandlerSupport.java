@@ -161,6 +161,29 @@ final class PairingNetworkServerHandlerSupport {
 		}
 
 		NodeAliasSavedData aliasSavedData = NodeAliasSavedData.get(player.serverLevel());
+		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(payload.sourceAlias());
+		if (normalizedAlias.isEmpty()) {
+			String previousAlias = aliasSavedData.getAlias(sourceType, payload.sourceSerial()).orElse("");
+			NodeAliasSavedData.RemoveResult removeResult = previousAlias.isEmpty()
+				? new NodeAliasSavedData.RemoveResult(false, "")
+				: aliasSavedData.remove(sourceType, payload.sourceSerial());
+			String currentAlias = aliasSavedData.getAlias(sourceType, payload.sourceSerial()).orElse("");
+			if (removeResult.removed()) {
+				NodeAliasServerSupport.syncDisplaysAfterAliasChanged(player.serverLevel(), sourceType, payload.sourceSerial());
+			}
+			sendPairingAliasState(player, sourceType, payload.sourceSerial(), currentAlias);
+			sendPairingFeedback(
+				player,
+				removeResult.removed()
+					? buildAliasRemovedFeedback(sourceType, payload.sourceSerial(), removeResult)
+					: buildAliasUnchangedFeedback(
+						sourceType,
+						payload.sourceSerial(),
+						new NodeAliasSavedData.UpsertResult(false, false, true, previousAlias, currentAlias, 0L, null)
+					)
+			);
+			return;
+		}
 		NodeAliasSavedData.UpsertResult result = aliasSavedData.upsert(sourceType, payload.sourceSerial(), payload.sourceAlias());
 		if (!result.valid()) {
 			sendPairingFeedback(player, buildAliasValidationFeedback(payload.sourceAlias(), result.validation()));
@@ -653,6 +676,23 @@ final class PairingNetworkServerHandlerSupport {
 			"message.redstonelink.pairing.alias.saved",
 			LinkNodeSemantics.toSemanticName(sourceType),
 			NodeAliasDisplayUtil.formatDisplayText(alias, sourceSerial),
+			previousAlias
+		);
+	}
+
+	/**
+	 * 构造 alias 已清空反馈。
+	 */
+	static LinkSetExecutionService.OperationFeedback buildAliasRemovedFeedback(
+		LinkNodeType sourceType,
+		long sourceSerial,
+		NodeAliasSavedData.RemoveResult result
+	) {
+		String previousAlias = result == null || result.alias().isEmpty() ? "-" : result.alias();
+		return LinkSetExecutionService.OperationFeedback.success(
+			"message.redstonelink.pairing.alias.removed",
+			LinkNodeSemantics.toSemanticName(sourceType),
+			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial),
 			previousAlias
 		);
 	}

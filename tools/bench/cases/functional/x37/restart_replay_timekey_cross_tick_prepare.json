@@ -1,0 +1,103 @@
+{
+  "id": "restart_replay_timekey_cross_tick_prepare",
+  "description": "先在较早 tick 点亮 sync，再在更晚 tick 触发 toggle 把当前高态翻成低态，准备跨 tick 最新事件覆盖旧 sync 的重启回放场景。",
+  "layer": "X",
+  "scenarioId": "X37",
+  "arena": {
+    "clearFrom": [-8, 63, 580],
+    "clearTo": [20, 66, 588]
+  },
+  "targets": {
+    "id": "core_replay_timekey_cross_tick",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 581],
+      "to": [12, 64, 581]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_replay_timekey_cross_tick",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 580],
+        "to": [0, 64, 580]
+      }
+    },
+    {
+      "id": "toggle_replay_timekey_cross_tick",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 581],
+        "to": [0, 64, 581]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_replay_timekey_cross_tick",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "toggle_replay_timekey_cross_tick",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_replay_timekey_cross_tick_target_prepare"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_replay_timekey_cross_tick_sync_first",
+      "command": "setblock 1 64 580 minecraft:redstone_block",
+      "captureTickWindow": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_replay_timekey_cross_tick_sync_first",
+      "ticks": 3
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "replay_timekey_cross_tick_target_should_start_as_sync",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_replay_timekey_cross_tick_toggle_later",
+      "command": "setblock 1 64 581 minecraft:redstone_block",
+      "captureTickWindow": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_replay_timekey_cross_tick_toggle_later",
+      "ticks": 3
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "replay_timekey_cross_tick_target_should_switch_to_toggle_off",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "toggle",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_replay_timekey_cross_tick_target_prepare"
+    }
+  ]
+}

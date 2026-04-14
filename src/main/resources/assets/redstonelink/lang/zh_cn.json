@@ -151,6 +151,7 @@
     "message.redstonelink.pairing.alias.conflict":  "别名 `%s` 已被 %s %s 占用。",
     "message.redstonelink.pairing.alias.unchanged":  "%s 的别名未变化：%s。",
     "message.redstonelink.pairing.alias.saved":  "已保存 %s 的别名：%s，旧别名=%s。",
+    "message.redstonelink.pairing.alias.removed":  "已清空 %s 的别名：当前=%s，旧别名=%s。",
     "message.redstonelink.set_links.confirm_required":  "[RedstoneLink] 检测到批量覆盖（%s 项），请再次确认：/%s",
     "message.redstonelink.link.set.input_too_long":  "[RedstoneLink] link set 输入过长，最大允许 %s 个字符。",
     "message.redstonelink.link_filter.target_missing":  "[RedstoneLink] 未找到要保存的过滤器目标。",

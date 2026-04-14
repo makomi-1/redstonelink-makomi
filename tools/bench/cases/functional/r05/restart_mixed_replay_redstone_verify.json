@@ -1,6 +1,6 @@
 {
   "id": "restart_mixed_replay_redstone_verify",
-  "description": "复用 mixed 红石块并发场景，重启后先验证 sync 恢复，再通过移除 sync emitter 验证历史 pulse 已被 sync replay 清理、目标会直接回落到 toggle。",
+  "description": "复用 mixed 红石块并发场景，重启后先验证 sync 恢复，再通过移除 sync emitter 验证最新简化模型下目标不会回落到事件信号，而是直接归零。",
   "layer": "R",
   "scenarioId": "R05",
   "clearArena": false,
@@ -85,12 +85,12 @@
     },
     {
       "templateRef": "trace_latest_assert_core",
-      "name": "mixed_restart_verify_target_should_fall_back_to_toggle_after_sync_removed",
+      "name": "mixed_restart_verify_target_should_clear_after_sync_removed",
       "serialFormat": "slash_list",
       "expect": {
-        "active": true,
-        "effectiveMode": "toggle",
-        "resolvedStrength": 15
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
       }
     },
     {

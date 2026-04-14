@@ -36,4 +36,16 @@ class NodeAliasSavedDataTest {
 		assertTrue(NodeAliasSavedData.validateAlias("门1").valid());
 		assertEquals(NodeAliasDisplayUtil.normalizeAlias(" 门1 "), NodeAliasSavedData.validateAlias(" 门1 ").normalizedAlias());
 	}
+
+	@Test
+	void removeShouldClearAliasResolution() {
+		NodeAliasSavedData data = new NodeAliasSavedData();
+		assertTrue(data.upsert(LinkNodeType.CORE, 9L, "中控A").changed());
+
+		NodeAliasSavedData.RemoveResult result = data.remove(LinkNodeType.CORE, 9L);
+		assertTrue(result.removed());
+		assertEquals("中控A", result.alias());
+		assertTrue(data.getAlias(LinkNodeType.CORE, 9L).isEmpty());
+		assertTrue(data.resolveAllByAlias("中控A").isEmpty());
+	}
 }

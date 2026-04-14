@@ -144,4 +144,20 @@ class PairingNetworkServerHandlerSupportTest {
 		assertEquals("message.redstonelink.pairing.alias.saved", feedback.messageKey());
 		assertEquals(List.of("core", "新中控(#42)", "旧中控"), feedback.messageArgs());
 	}
+
+	/**
+	 * alias 清空反馈应回填当前 `#序号` 显示，并带出旧别名。
+	 */
+	@Test
+	void buildAliasRemovedFeedbackShouldUseSerialDisplayText() {
+		LinkSetExecutionService.OperationFeedback feedback = PairingNetworkServerHandlerSupport.buildAliasRemovedFeedback(
+			LinkNodeType.CORE,
+			42L,
+			new NodeAliasSavedData.RemoveResult(true, "旧中控")
+		);
+
+		assertTrue(feedback.success());
+		assertEquals("message.redstonelink.pairing.alias.removed", feedback.messageKey());
+		assertEquals(List.of("core", "#42", "旧中控"), feedback.messageArgs());
+	}
 }

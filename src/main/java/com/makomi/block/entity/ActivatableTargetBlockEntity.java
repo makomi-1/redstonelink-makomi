@@ -482,6 +482,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
 		boolean nextToggleState = arbitrationComponent.applyToggleMerged(concurrentComponent, currentTargetState);
 		concurrentComponent.recordToggleSnapshot(nextToggleState, normalizedMeta.timeKey(), normalizedMeta.seq());
+		recomputeSyncTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(normalizedMeta.timeKey(), normalizedMeta.seq());
 		applyDerivedStateFromTruth();
 	}
@@ -496,6 +497,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	void applyPulseMerged(EventMeta eventMeta) {
 		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
 		concurrentComponent.recordPulseSnapshot(this, normalizedMeta.timeKey(), normalizedMeta.seq());
+		recomputeSyncTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(normalizedMeta.timeKey(), normalizedMeta.seq());
 		applyDerivedStateFromTruth();
 	}

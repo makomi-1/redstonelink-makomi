@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "description": "restart replay 时间键专项，先构造“较早 sync、较晚 toggle 把目标翻低”，再重启验证旧 sync replay 不会把更晚低态 toggle 重新点亮。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false",
+      "server.emitterEdgeMode": "rising",
+      "crosschunk.directBatching": "all_direct",
+      "crosschunk.dispatch.batchWindowTicks": 0,
+      "crosschunk.syncTargetChunkLoadReplay.enabled": "true",
+      "crosschunk.syncSourceAttachReplay.enabled": "false"
+    }
+  },
+  "entries": [
+    {
+      "entryId": "x37_replay_timekey_cross_tick_prepare",
+      "caseId": "restart_replay_timekey_cross_tick_prepare"
+    },
+    {
+      "entryId": "r06_replay_timekey_cross_tick_verify",
+      "caseId": "restart_replay_timekey_cross_tick_verify",
+      "reuseWorldFrom": "x37_replay_timekey_cross_tick_prepare",
+      "compareSerialsTo": "x37_replay_timekey_cross_tick_prepare"
+    }
+  ]
+}

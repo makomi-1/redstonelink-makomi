@@ -1,0 +1,69 @@
+{
+  "id": "restart_replay_timekey_cross_tick_verify",
+  "description": "复用跨 tick sync->toggle 世界，重启后验证 target attach replay 继续沿用旧 sync 时间键，不会把更晚的低态 toggle 重新覆盖成高态 sync。",
+  "layer": "R",
+  "scenarioId": "R06",
+  "clearArena": false,
+  "arena": {
+    "clearFrom": [-8, 63, 580],
+    "clearTo": [20, 66, 588]
+  },
+  "targets": {
+    "id": "core_replay_timekey_cross_tick",
+    "kind": "core_block",
+    "reuseExisting": true,
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 581],
+      "to": [12, 64, 581]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_replay_timekey_cross_tick",
+      "kind": "sync_emitter",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 580],
+        "to": [0, 64, 580]
+      }
+    },
+    {
+      "id": "toggle_replay_timekey_cross_tick",
+      "kind": "toggle_emitter",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 581],
+        "to": [0, 64, 581]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_replay_timekey_cross_tick_target_verify"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_replay_timekey_cross_tick_verify_mount_ticks",
+      "ticks": 2
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "replay_timekey_cross_tick_target_should_stay_toggle_off_after_restart",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "toggle",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_replay_timekey_cross_tick_target_verify"
+    }
+  ]
+}

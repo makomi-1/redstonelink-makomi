@@ -210,6 +210,19 @@ final class ActivatableTargetConcurrentBucketComponent {
 		return clearEventTruth();
 	}
 
+	/**
+	 * 清理早于当前激活事件的 `sync` 真值。
+	 * <p>
+	 * 仅清理“严格早于”当前时间键的 `sync` 桶，保留同 tick 的 `sync` 以继续交由优先级仲裁，
+	 * 也保留更晚 tick 的 `sync` 以兼容批窗口内的合法迟到事件。
+	 * </p>
+	 */
+	boolean clearSyncTruthBefore(TimeKey incomingTimeKey) {
+		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
+		boolean changed = removeConcurrentBucketsBefore(syncConcurrentBuckets, normalizedTimeKey);
+		return removeConcurrentBucketsBefore(runtimeSimulatedSyncConcurrentBuckets, normalizedTimeKey) || changed;
+	}
+
 	boolean clearPulseTruth() {
 		boolean changed = !pulseConcurrentBuckets.isEmpty()
 			|| pulseUntilGameTime > 0L
@@ -375,6 +388,7 @@ final class ActivatableTargetConcurrentBucketComponent {
 	 */
 	boolean recordPulseSnapshot(ActivatableTargetBlockEntity owner, TimeKey timeKey, long seq) {
 		boolean changed = clearToggleTruth();
+		changed |= clearSyncTruthBefore(timeKey);
 		int pulseTicks = Math.max(1, owner.getPulseDurationTicks());
 		Level level = owner.getLevel();
 		long now = level == null ? 0L : level.getGameTime();
@@ -402,6 +416,7 @@ final class ActivatableTargetConcurrentBucketComponent {
 	 */
 	boolean recordToggleSnapshot(boolean nextToggleState, TimeKey timeKey, long seq) {
 		boolean changed = clearPulseTruth();
+		changed |= clearSyncTruthBefore(timeKey);
 		changed |= !toggleSnapshotRecorded
 			|| toggleState != nextToggleState
 			|| !java.util.Objects.equals(toggleEventTimeKey, timeKey)
