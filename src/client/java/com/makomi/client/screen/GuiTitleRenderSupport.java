@@ -1,7 +1,6 @@
 package com.makomi.client.screen;
 
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.Font.DisplayMode;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
@@ -10,8 +9,8 @@ import org.joml.Matrix4f;
 /**
  * GUI 标题描边字渲染支持。
  * <p>
- * 统一封装主标题与副标题的八向描边绘制，避免各个界面重复维护
- * 居中坐标、描边色与缓冲区调用细节。
+ * 统一封装主标题与副标题的原版八向描边绘制，避免各个界面重复维护
+ * 居中坐标与描边配色细节。
  * </p>
  */
 final class GuiTitleRenderSupport {
@@ -38,6 +37,7 @@ final class GuiTitleRenderSupport {
 	/**
 	 * 绘制居中描边文本。
 	 */
+	@SuppressWarnings("deprecation")
 	static void drawCenteredOutlinedText(
 		GuiGraphics guiGraphics,
 		Font font,
@@ -54,35 +54,14 @@ final class GuiTitleRenderSupport {
 		Matrix4f poseMatrix = guiGraphics.pose().last().pose();
 		guiGraphics.drawManaged(
 			() -> {
-				for (int offsetX = -1; offsetX <= 1; offsetX++) {
-					for (int offsetY = -1; offsetY <= 1; offsetY++) {
-						if (offsetX == 0 && offsetY == 0) {
-							continue;
-						}
-						font.drawInBatch(
-							visualText,
-							left + offsetX,
-							y + offsetY,
-							style.outlineColor(),
-							false,
-							poseMatrix,
-							guiGraphics.bufferSource(),
-							DisplayMode.NORMAL,
-							0,
-							FULL_BRIGHT_LIGHT
-						);
-					}
-				}
-				font.drawInBatch(
+				font.drawInBatch8xOutline(
 					visualText,
 					left,
 					y,
 					style.textColor(),
-					false,
+					style.outlineColor(),
 					poseMatrix,
 					guiGraphics.bufferSource(),
-					DisplayMode.NORMAL,
-					0,
 					FULL_BRIGHT_LIGHT
 				);
 			}
