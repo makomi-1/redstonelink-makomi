@@ -6,6 +6,7 @@ import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.data.NodeAliasSavedData;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.network.FriendlyByteBuf;
@@ -19,6 +20,7 @@ final class LinkFilterNetworkPayloadSupport {
 	private static final int TARGET_KIND_TOKEN_MAX_LENGTH = 32;
 	private static final int FILTER_KIND_TOKEN_MAX_LENGTH = 16;
 	private static final int MODE_TOKEN_MAX_LENGTH = 32;
+	private static final int DISPLAY_ALIAS_MAX_LENGTH = NodeAliasSavedData.maxAliasLength();
 	private static final int MESSAGE_KEY_MAX_LENGTH = 128;
 	private static final int MESSAGE_ARG_MAX_LENGTH = 128;
 	private static final int MAX_FEEDBACK_ARGS = 8;
@@ -36,6 +38,7 @@ final class LinkFilterNetworkPayloadSupport {
 		long blockPosLong,
 		int selectedSlot,
 		LinkFilterKind filterKind,
+		String displayAlias,
 		LinkFilterConfigSnapshot configSnapshot
 	) {
 		buffer.writeUtf(targetKind == null ? "" : targetKind.token(), TARGET_KIND_TOKEN_MAX_LENGTH);
@@ -43,6 +46,7 @@ final class LinkFilterNetworkPayloadSupport {
 		buffer.writeLong(blockPosLong);
 		buffer.writeInt(selectedSlot);
 		buffer.writeUtf(filterKind == null ? "" : filterKind.token(), FILTER_KIND_TOKEN_MAX_LENGTH);
+		buffer.writeUtf(displayAlias == null ? "" : displayAlias, DISPLAY_ALIAS_MAX_LENGTH);
 		encodeConfigSnapshot(buffer, configSnapshot);
 	}
 
@@ -59,7 +63,16 @@ final class LinkFilterNetworkPayloadSupport {
 		LinkFilterKind filterKind = LinkFilterKind
 			.tryParseToken(buffer.readUtf(FILTER_KIND_TOKEN_MAX_LENGTH))
 			.orElseThrow(() -> new IllegalArgumentException("Unknown filter kind"));
-		return new DecodedOpenEditorPayload(targetKind, dimensionKey, blockPosLong, selectedSlot, filterKind, decodeConfigSnapshot(buffer));
+		String displayAlias = buffer.readUtf(DISPLAY_ALIAS_MAX_LENGTH);
+		return new DecodedOpenEditorPayload(
+			targetKind,
+			dimensionKey,
+			blockPosLong,
+			selectedSlot,
+			filterKind,
+			displayAlias,
+			decodeConfigSnapshot(buffer)
+		);
 	}
 
 	/**
@@ -72,9 +85,19 @@ final class LinkFilterNetworkPayloadSupport {
 		long blockPosLong,
 		int selectedSlot,
 		LinkFilterKind filterKind,
+		String displayAlias,
 		LinkFilterConfigSnapshot configSnapshot
 	) {
-		encodeOpenEditorPayload(buffer, targetKind, dimensionKey, blockPosLong, selectedSlot, filterKind, configSnapshot);
+		encodeOpenEditorPayload(
+			buffer,
+			targetKind,
+			dimensionKey,
+			blockPosLong,
+			selectedSlot,
+			filterKind,
+			displayAlias,
+			configSnapshot
+		);
 	}
 
 	/**
@@ -88,6 +111,7 @@ final class LinkFilterNetworkPayloadSupport {
 			decoded.blockPosLong(),
 			decoded.selectedSlot(),
 			decoded.filterKind(),
+			decoded.displayAlias(),
 			decoded.configSnapshot()
 		);
 	}
@@ -172,6 +196,7 @@ final class LinkFilterNetworkPayloadSupport {
 		long blockPosLong,
 		int selectedSlot,
 		LinkFilterKind filterKind,
+		String displayAlias,
 		LinkFilterConfigSnapshot configSnapshot
 	) {
 	}
@@ -185,6 +210,7 @@ final class LinkFilterNetworkPayloadSupport {
 		long blockPosLong,
 		int selectedSlot,
 		LinkFilterKind filterKind,
+		String displayAlias,
 		LinkFilterConfigSnapshot configSnapshot
 	) {
 	}

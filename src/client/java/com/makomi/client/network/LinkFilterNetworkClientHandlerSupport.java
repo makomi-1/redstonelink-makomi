@@ -40,6 +40,7 @@ public final class LinkFilterNetworkClientHandlerSupport {
 				payload.blockPosLong(),
 				payload.selectedSlot(),
 				payload.filterKind(),
+				payload.displayAlias(),
 				payload.configSnapshot()
 			)
 		);

@@ -5,6 +5,7 @@ import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterItemData;
 import com.makomi.data.LinkFilterKind;
+import com.makomi.data.NodeAliasDisplayUtil;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
@@ -43,6 +44,7 @@ public final class LinkFilterNetwork {
 				filterBlockEntity.getBlockPos().asLong(),
 				-1,
 				filterBlockEntity.filterKind(),
+				filterBlockEntity.displayAlias(),
 				filterBlockEntity.snapshot()
 			)
 		);
@@ -63,6 +65,7 @@ public final class LinkFilterNetwork {
 				0L,
 				player.getInventory().selected,
 				filterKind,
+				LinkFilterItemData.getDisplayAlias(stack),
 				LinkFilterItemData.read(stack)
 			)
 		);
@@ -77,6 +80,7 @@ public final class LinkFilterNetwork {
 		long blockPosLong,
 		int selectedSlot,
 		LinkFilterKind filterKind,
+		String displayAlias,
 		LinkFilterConfigSnapshot configSnapshot
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenFilterEditorPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -90,6 +94,7 @@ public final class LinkFilterNetwork {
 				payload.blockPosLong(),
 				payload.selectedSlot(),
 				payload.filterKind(),
+				payload.displayAlias(),
 				payload.configSnapshot()
 			),
 			buffer -> {
@@ -102,6 +107,7 @@ public final class LinkFilterNetwork {
 					decoded.blockPosLong(),
 					decoded.selectedSlot(),
 					decoded.filterKind(),
+					decoded.displayAlias(),
 					decoded.configSnapshot()
 				);
 			}
@@ -112,6 +118,7 @@ public final class LinkFilterNetwork {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			selectedSlot = targetKind.usesHeldMainHandTarget() ? Math.max(0, selectedSlot) : -1;
 			filterKind = filterKind == null ? LinkFilterKind.SEND : filterKind;
+			displayAlias = NodeAliasDisplayUtil.normalizeAlias(displayAlias);
 			configSnapshot = configSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : configSnapshot;
 		}
 
@@ -130,6 +137,7 @@ public final class LinkFilterNetwork {
 		long blockPosLong,
 		int selectedSlot,
 		LinkFilterKind filterKind,
+		String displayAlias,
 		LinkFilterConfigSnapshot configSnapshot
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SaveFilterPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -143,6 +151,7 @@ public final class LinkFilterNetwork {
 				payload.blockPosLong(),
 				payload.selectedSlot(),
 				payload.filterKind(),
+				payload.displayAlias(),
 				payload.configSnapshot()
 			),
 			buffer -> {
@@ -153,6 +162,7 @@ public final class LinkFilterNetwork {
 					decoded.blockPosLong(),
 					decoded.selectedSlot(),
 					decoded.filterKind(),
+					decoded.displayAlias(),
 					decoded.configSnapshot()
 				);
 			}
@@ -163,6 +173,7 @@ public final class LinkFilterNetwork {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			selectedSlot = targetKind.usesHeldMainHandTarget() ? Math.max(0, selectedSlot) : -1;
 			filterKind = filterKind == null ? LinkFilterKind.SEND : filterKind;
+			displayAlias = NodeAliasDisplayUtil.normalizeAlias(displayAlias);
 			configSnapshot = configSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : configSnapshot;
 		}
 

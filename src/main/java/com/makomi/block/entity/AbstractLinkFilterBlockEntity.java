@@ -6,6 +6,7 @@ import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.util.SerialParseUtil;
 import com.makomi.util.SignalStrengths;
 import java.util.LinkedHashSet;
@@ -35,6 +36,7 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	private static final String KEY_SIGNAL_THRESHOLD_SOURCE = "signalThresholdSource";
 	private static final String KEY_FIXED_SIGNAL_THRESHOLD = "fixedSignalThreshold";
 	private static final String KEY_SIGNAL_MODE = "signalMode";
+	private static final String KEY_DISPLAY_ALIAS = "DisplayAlias";
 
 	private String serialExpression = "";
 	private Set<Long> serials = Set.of();
@@ -42,6 +44,7 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	private LinkFilterSignalThresholdSource signalThresholdSource = LinkFilterSignalThresholdSource.FIXED_INPUT;
 	private int fixedSignalThreshold = 15;
 	private LinkFilterSignalMode signalMode = LinkFilterSignalMode.DISABLED;
+	private String displayAlias = "";
 	private final LinkFilterLifecycleState lifecycleState = new LinkFilterLifecycleState();
 
 	protected AbstractLinkFilterBlockEntity(
@@ -71,12 +74,27 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	}
 
 	/**
+	 * @return 当前缓存的过滤器别名
+	 */
+	public final String displayAlias() {
+		return displayAlias;
+	}
+
+	/**
 	 * 应用一份新的配置快照，并同步客户端与运行时索引。
 	 *
 	 * @param configSnapshot 新配置快照
 	 */
 	public final void applySnapshot(LinkFilterConfigSnapshot configSnapshot) {
+		applyEditorState(displayAlias, configSnapshot);
+	}
+
+	/**
+	 * 同时应用过滤器别名与规则配置，并同步客户端与运行时索引。
+	 */
+	public final void applyEditorState(String rawDisplayAlias, LinkFilterConfigSnapshot configSnapshot) {
 		LinkFilterConfigSnapshot normalized = configSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : configSnapshot;
+		displayAlias = NodeAliasDisplayUtil.normalizeAlias(rawDisplayAlias);
 		serialExpression = normalized.serialExpression().trim();
 		nodeSetMode = normalized.nodeSetMode();
 		signalThresholdSource = normalized.signalThresholdSource();
@@ -164,6 +182,9 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 		signalMode = LinkFilterSignalMode
 			.tryParseToken(tag.getString(KEY_SIGNAL_MODE))
 			.orElse(LinkFilterSignalMode.DISABLED);
+		displayAlias = tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)
+			? NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS))
+			: "";
 		serials = parseSerialExpression(serialExpression);
 	}
 
@@ -177,6 +198,9 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 		tag.putString(KEY_SIGNAL_THRESHOLD_SOURCE, signalThresholdSource.token());
 		tag.putInt(KEY_FIXED_SIGNAL_THRESHOLD, SignalStrengths.clamp(fixedSignalThreshold));
 		tag.putString(KEY_SIGNAL_MODE, signalMode.token());
+		if (!displayAlias.isBlank()) {
+			tag.putString(KEY_DISPLAY_ALIAS, displayAlias);
+		}
 	}
 
 	@Override

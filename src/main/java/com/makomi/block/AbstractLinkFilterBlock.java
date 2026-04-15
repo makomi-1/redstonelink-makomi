@@ -71,7 +71,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 		if (!(level.getBlockEntity(pos) instanceof AbstractLinkFilterBlockEntity filterBlockEntity)) {
 			return;
 		}
-		filterBlockEntity.applySnapshot(LinkFilterItemData.read(stack));
+		filterBlockEntity.applyEditorState(LinkFilterItemData.getDisplayAlias(stack), LinkFilterItemData.read(stack));
 	}
 
 	@Override
@@ -86,6 +86,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 		for (ItemStack drop : drops) {
 			if (drop.is(asItem())) {
 				LinkFilterItemData.write(drop, filterBlockEntity.snapshot());
+				LinkFilterItemData.setDisplayAlias(drop, filterBlockEntity.displayAlias());
 			}
 		}
 		return drops;

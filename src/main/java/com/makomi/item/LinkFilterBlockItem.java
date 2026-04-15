@@ -5,6 +5,7 @@ import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterItemData;
 import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.NodeAliasDisplayUtil;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.network.chat.Component;
@@ -85,6 +86,13 @@ public class LinkFilterBlockItem extends BlockItem {
 	) {
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		LinkFilterConfigSnapshot snapshot = LinkFilterItemData.read(stack);
+		String displayAlias = NodeAliasDisplayUtil.normalizeAlias(LinkFilterItemData.getDisplayAlias(stack));
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.link_filter.alias",
+				displayAlias.isEmpty() ? "-" : displayAlias
+			)
+		);
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.link_filter.service_target",

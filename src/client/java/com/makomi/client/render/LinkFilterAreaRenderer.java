@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -24,6 +25,11 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 	private static final float GREEN = 0.22F;
 	private static final float BLUE = 0.22F;
 	private static final float FILL_ALPHA = 0.18F;
+	private static final float TEXT_SCALE = 0.03F;
+	private static final int BACKGROUND_COLOR = 0x80000000;
+	private static final int FULL_BRIGHT = 0x00F000F0;
+	private static final double BLOCK_TOP_TEXT_Y = 1.25D;
+	private static final float FOREGROUND_Z_BIAS = 0.5F;
 	private static final RenderType FILTER_FILL_RENDER_TYPE = RenderType.create(
 		"redstonelink_link_filter_fill",
 		DefaultVertexFormat.POSITION_COLOR,
@@ -49,8 +55,10 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		LinkDispatchFilterService.FILTER_RADIUS + 1.0D,
 		LinkDispatchFilterService.FILTER_RADIUS + 1.0D
 	);
+	private final Font font;
 
 	public LinkFilterAreaRenderer(BlockEntityRendererProvider.Context context) {
+		this.font = context.getFont();
 	}
 
 	@Override
@@ -78,6 +86,7 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		}
 
 		renderFilterBox(poseStack, buffer);
+		renderFilterText(blockEntity, poseStack, buffer, minecraft);
 	}
 
 	@Override
@@ -103,6 +112,62 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 			BLUE,
 			1.0F
 		);
+	}
+
+	/**
+	 * 绘制过滤器 far overlay 文本，优先显示别名，空别名回退到过滤器标题。
+	 */
+	private void renderFilterText(
+		T blockEntity,
+		PoseStack poseStack,
+		MultiBufferSource buffer,
+		Minecraft minecraft
+	) {
+		String displayText = LinkSerialOverlayRenderCommon.resolveFilterDisplayText(blockEntity);
+		if (displayText.isEmpty()) {
+			return;
+		}
+		int textColor = LinkSerialOverlayRenderCommon.resolveFilterTextColor(blockEntity.filterKind());
+		int backgroundGlyphColor = withAlpha(textColor, 0x00);
+		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.overlay().farSeeThrough()
+			? Font.DisplayMode.SEE_THROUGH
+			: Font.DisplayMode.POLYGON_OFFSET;
+
+		poseStack.pushPose();
+		poseStack.translate(0.5D, BLOCK_TOP_TEXT_Y, 0.5D);
+		poseStack.mulPose(minecraft.getEntityRenderDispatcher().cameraOrientation());
+		float textScale = TEXT_SCALE * RedstoneLinkClientDisplayConfig.overlay().fontScale();
+		poseStack.scale(textScale, -textScale, textScale);
+		float textStartX = -font.width(displayText) / 2.0F;
+		float textStartY = -font.lineHeight / 2.0F;
+		font.drawInBatch(
+			displayText,
+			textStartX,
+			textStartY,
+			backgroundGlyphColor,
+			false,
+			poseStack.last().pose(),
+			buffer,
+			Font.DisplayMode.POLYGON_OFFSET,
+			BACKGROUND_COLOR,
+			FULL_BRIGHT
+		);
+		poseStack.pushPose();
+		poseStack.translate(0.0D, 0.0D, FOREGROUND_Z_BIAS);
+		font.drawInBatch(
+			displayText,
+			textStartX,
+			textStartY,
+			textColor,
+			false,
+			poseStack.last().pose(),
+			buffer,
+			foregroundDisplayMode,
+			0,
+			FULL_BRIGHT
+		);
+		poseStack.popPose();
+		poseStack.popPose();
 	}
 
 	/**
@@ -164,5 +229,12 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		float z
 	) {
 		vertexConsumer.addVertex(pose, x, y, z).setColor(RED, GREEN, BLUE, FILL_ALPHA);
+	}
+
+	/**
+	 * 将文本颜色替换为指定透明度，保持原有 RGB 不变。
+	 */
+	private static int withAlpha(int color, int alpha) {
+		return ((alpha & 0xFF) << 24) | (color & 0x00FFFFFF);
 	}
 }

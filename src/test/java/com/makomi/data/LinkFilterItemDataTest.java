@@ -51,6 +51,20 @@ class LinkFilterItemDataTest {
 	}
 
 	/**
+	 * 过滤器物品展示别名应支持独立读写，并对空白输入归一化清空。
+	 */
+	@Test
+	void displayAliasShouldRoundTripIndependently() {
+		ItemStack stack = new ItemStack(Items.STONE);
+
+		LinkFilterItemData.setDisplayAlias(stack, " 门厅A ");
+		assertEquals("门厅A", LinkFilterItemData.getDisplayAlias(stack));
+
+		LinkFilterItemData.setDisplayAlias(stack, "   ");
+		assertEquals("", LinkFilterItemData.getDisplayAlias(stack));
+	}
+
+	/**
 	 * tooltip 节点集文本应转为结构化表达式并按上限截断。
 	 */
 	@Test

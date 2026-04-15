@@ -2,10 +2,13 @@ package com.makomi.network;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.command.CommandTreeSupport;
+import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterItemData;
 import com.makomi.data.LinkFilterNodeSetMode;
+import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.NodeAliasSavedData;
 import com.makomi.item.LinkFilterBlockItem;
 import com.makomi.util.SerialParseUtil;
 import java.util.List;
@@ -33,6 +36,18 @@ final class LinkFilterNetworkServerHandlerSupport {
 	static void handleSaveFilter(ServerPlayer player, LinkFilterNetwork.SaveFilterPayload payload) {
 		if (player == null || payload == null) {
 			return;
+		}
+		String normalizedDisplayAlias = NodeAliasDisplayUtil.normalizeAlias(payload.displayAlias());
+		if (!normalizedDisplayAlias.isEmpty()) {
+			NodeAliasSavedData.ValidationResult aliasValidation = NodeAliasSavedData.validateAlias(normalizedDisplayAlias);
+			if (!aliasValidation.valid()) {
+				LinkSetExecutionService.OperationFeedback feedback = PairingNetworkServerHandlerSupport.buildAliasValidationFeedback(
+					normalizedDisplayAlias,
+					aliasValidation
+				);
+				sendFeedback(player, false, feedback.messageKey(), feedback.messageArgs().toArray(String[]::new));
+				return;
+			}
 		}
 		LinkFilterConfigSnapshot configSnapshot = payload.configSnapshot();
 		if (configSnapshot.serialExpression().length() > RedstoneLinkConfig.command().linkSetMaxInputLength()) {
@@ -78,7 +93,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 				sendFeedback(player, false, "message.redstonelink.link_filter.target_missing");
 				return;
 			}
-			filterBlockEntity.applySnapshot(configSnapshot);
+			filterBlockEntity.applyEditorState(normalizedDisplayAlias, configSnapshot);
 		} else {
 			ItemStack heldFilterStack = resolveHeldFilterStack(player, payload);
 			if (heldFilterStack.isEmpty()) {
@@ -86,6 +101,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 				return;
 			}
 			LinkFilterItemData.write(heldFilterStack, configSnapshot);
+			LinkFilterItemData.setDisplayAlias(heldFilterStack, normalizedDisplayAlias);
 		}
 
 		if (configSnapshot.nodeSetMode() == LinkFilterNodeSetMode.WHITELIST && parseResult.orderedTargets().isEmpty()) {

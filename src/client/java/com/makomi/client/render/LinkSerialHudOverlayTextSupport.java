@@ -12,6 +12,7 @@ import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.util.SerialDisplayFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
@@ -169,8 +170,9 @@ final class LinkSerialHudOverlayTextSupport {
 		}
 		LinkFilterConfigSnapshot snapshot = filterBlockEntity.snapshot();
 		List<Long> orderedSerials = SerialParseUtil.parseTargetsOrdered(snapshot.serialExpression(), 0).orderedTargets();
+		String filterTitle = composeFilterTitleText(resolveItemPrefix(filterBlockEntity), filterBlockEntity.displayAlias());
 		return List.of(
-			translate(KEY_NEAR_OVERLAY_FILTER_TITLE_LINE, resolveItemPrefix(filterBlockEntity)),
+			translate(KEY_NEAR_OVERLAY_FILTER_TITLE_LINE, filterTitle),
 			translate(KEY_NEAR_OVERLAY_STATUS_LINE, resolveFilterActivationStatusText(filterBlockEntity)),
 			translate(
 				KEY_NEAR_OVERLAY_FILTER_SERVICE_LINE,
@@ -230,6 +232,21 @@ final class LinkSerialHudOverlayTextSupport {
 	 */
 	private static String resolveItemPrefix(AbstractLinkFilterBlockEntity filterBlockEntity) {
 		return resolveBlockDisplayName(filterBlockEntity.getBlockState(), fallbackFilterTitle(filterBlockEntity.filterKind()));
+	}
+
+	/**
+	 * 组合过滤器近外显标题：保留方块标题，并在存在别名时附加别名。
+	 */
+	static String composeFilterTitleText(String itemPrefix, String rawDisplayAlias) {
+		String normalizedPrefix = itemPrefix == null ? "" : itemPrefix;
+		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(rawDisplayAlias);
+		if (normalizedAlias.isEmpty()) {
+			return normalizedPrefix;
+		}
+		if (normalizedPrefix.isBlank()) {
+			return normalizedAlias;
+		}
+		return normalizedPrefix + " " + normalizedAlias;
 	}
 
 	/**

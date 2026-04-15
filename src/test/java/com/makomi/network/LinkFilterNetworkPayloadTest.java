@@ -31,6 +31,7 @@ class LinkFilterNetworkPayloadTest {
 			42L,
 			-1,
 			LinkFilterKind.RECEIVE,
+			"南厅过滤器",
 			new LinkFilterConfigSnapshot(
 				"1:5/9",
 				LinkFilterNodeSetMode.WHITELIST,
@@ -49,6 +50,7 @@ class LinkFilterNetworkPayloadTest {
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
 		assertEquals(original.selectedSlot(), decoded.selectedSlot());
 		assertEquals(original.filterKind(), decoded.filterKind());
+		assertEquals(original.displayAlias(), decoded.displayAlias());
 		assertEquals(original.configSnapshot(), decoded.configSnapshot());
 	}
 
@@ -63,6 +65,7 @@ class LinkFilterNetworkPayloadTest {
 			0L,
 			3,
 			LinkFilterKind.SEND,
+			"西厅过滤器",
 			new LinkFilterConfigSnapshot(
 				"3/7:9",
 				LinkFilterNodeSetMode.BLOCKLIST,
@@ -81,6 +84,7 @@ class LinkFilterNetworkPayloadTest {
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
 		assertEquals(original.selectedSlot(), decoded.selectedSlot());
 		assertEquals(original.filterKind(), decoded.filterKind());
+		assertEquals(original.displayAlias(), decoded.displayAlias());
 		assertEquals(original.configSnapshot(), decoded.configSnapshot());
 	}
 
@@ -116,6 +120,7 @@ class LinkFilterNetworkPayloadTest {
 		buffer.writeLong(42L);
 		buffer.writeInt(-1);
 		buffer.writeUtf("send");
+		buffer.writeUtf("别名");
 		buffer.writeUtf(tooLongExpression);
 		buffer.writeUtf("disabled");
 		buffer.writeUtf("fixed_input");

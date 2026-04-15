@@ -176,7 +176,10 @@ final class InternalDispatchDeltaRuleSupport {
 		) {
 			return;
 		}
+		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
 		Map<Long, Integer> replayStrengthBySourceSerial = new HashMap<>();
+		Map<Long, LinkSavedData.LinkNode> triggerSourceNodeBySerial = new HashMap<>();
+		Map<Long, LinkSavedData.LinkNode> coreNodeBySerial = new HashMap<>();
 		EventMeta normalizedMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;
 		forEachNormalizedPair(
 			linkViewSourceType,
@@ -187,6 +190,21 @@ final class InternalDispatchDeltaRuleSupport {
 					sourceSerial,
 					serial -> resolveReplaySyncStrength(sourceLevel, LinkNodeType.TRIGGER_SOURCE, serial)
 				);
+				// 新增边 attach replay 必须与其它 replay 路径保持同一过滤口径；
+				// 若持久化 send/receive 过滤器拦截，则不再补发本次恢复事件。
+				if (
+					!allowsLinkAttachedReplayByPersistedFilters(
+						sourceLevel,
+						savedData,
+						sourceSerial,
+						targetSerial,
+						replayStrength,
+						triggerSourceNodeBySerial,
+						coreNodeBySerial
+					)
+				) {
+					return;
+				}
 				publishSourceRebuildUpsertResolved(
 					sourceLevel,
 					LinkNodeType.TRIGGER_SOURCE,
@@ -266,19 +284,95 @@ final class InternalDispatchDeltaRuleSupport {
 		if (attachedSerial <= 0L) {
 			return;
 		}
-		forEachNormalizedPair(
-			linkViewSourceType,
-			linkViewSourceSerial,
-			attachedSerial,
-			(sourceSerial, targetSerial) -> publishSourceRebuildUpsert(
-				sourceLevel,
-				LinkNodeType.TRIGGER_SOURCE,
-				sourceSerial,
-				LinkNodeType.CORE,
-				targetSerial,
-				eventMeta
-			)
+		publishLinkAttached(sourceLevel, linkViewSourceType, linkViewSourceSerial, Set.of(attachedSerial), eventMeta);
+	}
+
+	/**
+	 * 判断新增边 attach replay 是否允许通过持久化 send/receive 过滤器。
+	 * <p>
+	 * 若当前上下文无法解析服务端或节点快照，则回退到旧行为放行，避免测试夹具或异常态误伤；
+	 * 正常运行时会在已解析出的 `triggerSource -> core` 配对上严格按双侧过滤真值补判。
+	 * </p>
+	 */
+	static boolean allowsLinkAttachedReplayByPersistedFilters(
+		ServerLevel sourceLevel,
+		long triggerSourceSerial,
+		long coreSerial,
+		int replayStrength
+	) {
+		if (sourceLevel == null) {
+			return true;
+		}
+		return allowsLinkAttachedReplayByPersistedFilters(
+			sourceLevel,
+			LinkSavedData.get(sourceLevel),
+			triggerSourceSerial,
+			coreSerial,
+			replayStrength,
+			new HashMap<>(),
+			new HashMap<>()
 		);
+	}
+
+	/**
+	 * attach replay 过滤补判的共享实现。
+	 */
+	private static boolean allowsLinkAttachedReplayByPersistedFilters(
+		ServerLevel sourceLevel,
+		LinkSavedData savedData,
+		long triggerSourceSerial,
+		long coreSerial,
+		int replayStrength,
+		Map<Long, LinkSavedData.LinkNode> triggerSourceNodeBySerial,
+		Map<Long, LinkSavedData.LinkNode> coreNodeBySerial
+	) {
+		if (
+			sourceLevel == null
+				|| savedData == null
+				|| triggerSourceSerial <= 0L
+				|| coreSerial <= 0L
+				|| replayStrength < 0
+				|| sourceLevel.getServer() == null
+		) {
+			return replayStrength >= 0;
+		}
+		LinkSavedData.LinkNode triggerSourceNode = resolveCachedNode(
+			triggerSourceNodeBySerial,
+			savedData,
+			LinkNodeType.TRIGGER_SOURCE,
+			triggerSourceSerial
+		);
+		LinkSavedData.LinkNode coreNode = resolveCachedNode(coreNodeBySerial, savedData, LinkNodeType.CORE, coreSerial);
+		if (triggerSourceNode == null || coreNode == null) {
+			return true;
+		}
+		return LinkDispatchFilterService.allowsReplayByPersistedFilters(
+			sourceLevel.getServer(),
+			triggerSourceNode.dimension(),
+			triggerSourceNode.pos(),
+			triggerSourceSerial,
+			coreNode.dimension(),
+			coreNode.pos(),
+			coreSerial,
+			replayStrength
+		);
+	}
+
+	/**
+	 * 以允许缓存 null 值的方式复用节点快照查找，避免同一批新增边重复命中 SavedData。
+	 */
+	private static LinkSavedData.LinkNode resolveCachedNode(
+		Map<Long, LinkSavedData.LinkNode> cache,
+		LinkSavedData savedData,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		if (cache.containsKey(serial)) {
+			return cache.get(serial);
+		}
+		LinkSavedData.LinkNode node = savedData.findNode(nodeType, serial).orElse(null);
+		cache.put(serial, node);
+		return node;
 	}
 
 	/**

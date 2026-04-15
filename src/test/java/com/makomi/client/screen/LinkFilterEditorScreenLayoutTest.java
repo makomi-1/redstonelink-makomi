@@ -29,6 +29,8 @@ class LinkFilterEditorScreenLayoutTest {
 	void resolveLayoutShouldKeepRowsOrdered() {
 		LinkFilterEditorScreen.LinkFilterLayout layout = LinkFilterEditorScreen.resolveLayout(320, 300, 9);
 
+		assertTrue(layout.aliasInputY() > layout.aliasLabelY());
+		assertTrue(layout.serialLabelY() > layout.aliasInputY());
 		assertTrue(layout.serialInputY() > layout.serialLabelY());
 		assertTrue(layout.nodeSetRowY() > layout.nodeSetLabelY());
 		assertTrue(layout.thresholdSourceRowY() > layout.thresholdSourceLabelY());

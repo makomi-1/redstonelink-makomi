@@ -4,6 +4,7 @@ import com.makomi.util.SerialDisplayFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
@@ -20,6 +21,7 @@ public final class LinkFilterItemData {
 	private static final String KEY_SIGNAL_THRESHOLD_SOURCE = "rl_filter_signal_threshold_source";
 	private static final String KEY_FIXED_SIGNAL_THRESHOLD = "rl_filter_fixed_signal_threshold";
 	private static final String KEY_SIGNAL_MODE = "rl_filter_signal_mode";
+	private static final String KEY_DISPLAY_ALIAS = "rl_filter_display_alias";
 
 	private LinkFilterItemData() {
 	}
@@ -51,6 +53,31 @@ public final class LinkFilterItemData {
 			tag.putString(KEY_SIGNAL_THRESHOLD_SOURCE, normalized.signalThresholdSource().token());
 			tag.putInt(KEY_FIXED_SIGNAL_THRESHOLD, normalized.fixedSignalThreshold());
 			tag.putString(KEY_SIGNAL_MODE, normalized.signalMode().token());
+		});
+	}
+
+	/**
+	 * 读取过滤器物品缓存的展示别名。
+	 */
+	public static String getDisplayAlias(ItemStack stack) {
+		CompoundTag tag = readTag(stack);
+		if (!tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)) {
+			return "";
+		}
+		return NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS));
+	}
+
+	/**
+	 * 写入过滤器物品缓存的展示别名。
+	 */
+	public static void setDisplayAlias(ItemStack stack, String alias) {
+		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(alias);
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+			if (normalizedAlias.isEmpty()) {
+				tag.remove(KEY_DISPLAY_ALIAS);
+			} else {
+				tag.putString(KEY_DISPLAY_ALIAS, normalizedAlias);
+			}
 		});
 	}
 

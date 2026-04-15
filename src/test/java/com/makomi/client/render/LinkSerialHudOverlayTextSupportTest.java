@@ -81,4 +81,13 @@ class LinkSerialHudOverlayTextSupportTest {
 		assertEquals("12", LinkSerialHudOverlayTextSupport.resolveChannelValueText(12L));
 		assertEquals("-", LinkSerialHudOverlayTextSupport.resolveChannelValueText(0L));
 	}
+
+	/**
+	 * 过滤器近外显标题应在存在别名时附加别名，空别名时保持标题本身。
+	 */
+	@Test
+	void composeFilterTitleTextShouldAppendAliasWhenPresent() {
+		assertEquals("发送过滤器 门厅A", LinkSerialHudOverlayTextSupport.composeFilterTitleText("发送过滤器", " 门厅A "));
+		assertEquals("发送过滤器", LinkSerialHudOverlayTextSupport.composeFilterTitleText("发送过滤器", "   "));
+	}
 }
