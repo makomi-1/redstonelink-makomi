@@ -34,8 +34,41 @@ public final class QuickLinkOccSubmissionSupport {
 			level,
 			targetNodeType,
 			targetNodeSerial,
+			QuickLinkToolData.Mode.SERIAL,
 			cacheType,
 			serialCacheExpression,
+			"",
+			expectedCoreRevision,
+			expectedSourceRevision
+		);
+	}
+
+	/**
+	 * 按显式缓存参数提交一次 quick-link 应用。
+	 */
+	public static SubmissionResult submit(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		LinkNodeType targetNodeType,
+		long targetNodeSerial,
+		QuickLinkToolData.Mode mode,
+		LinkNodeType cacheType,
+		String serialCacheExpression,
+		String channelCache,
+		long expectedCoreRevision,
+		long expectedSourceRevision
+	) {
+		return submit(
+			commandSource,
+			player,
+			level,
+			targetNodeType,
+			targetNodeSerial,
+			mode,
+			cacheType,
+			serialCacheExpression,
+			channelCache,
 			QuickLinkToolData.ApplyEditMode.REPLACE,
 			expectedCoreRevision,
 			expectedSourceRevision
@@ -51,8 +84,10 @@ public final class QuickLinkOccSubmissionSupport {
 		ServerLevel level,
 		LinkNodeType targetNodeType,
 		long targetNodeSerial,
+		QuickLinkToolData.Mode mode,
 		LinkNodeType cacheType,
 		String serialCacheExpression,
+		String channelCache,
 		QuickLinkToolData.ApplyEditMode applyEditMode,
 		long expectedCoreRevision,
 		long expectedSourceRevision
@@ -75,16 +110,18 @@ public final class QuickLinkOccSubmissionSupport {
 			);
 		}
 
-		QuickLinkApplyService.ApplyFromCacheResult applyResult = QuickLinkApplyService.applyFromCache(
-			commandSource,
-			player,
-			level,
-			targetNodeType,
-			targetNodeSerial,
-			cacheType,
-			serialCacheExpression,
-			applyEditMode
-		);
+		QuickLinkApplyService.ApplyFromCacheResult applyResult = mode == QuickLinkToolData.Mode.CHANNEL
+			? QuickLinkApplyService.applyChannelFromCache(commandSource, player, level, targetNodeType, targetNodeSerial, channelCache)
+			: QuickLinkApplyService.applyFromCache(
+				commandSource,
+				player,
+				level,
+				targetNodeType,
+				targetNodeSerial,
+				cacheType,
+				serialCacheExpression,
+				applyEditMode
+			);
 		return applyResult.feedback().success()
 			? SubmissionResult.applied(
 				applyResult.feedback(),
@@ -92,6 +129,37 @@ public final class QuickLinkOccSubmissionSupport {
 				applyResult.currentTargetCount()
 			)
 			: SubmissionResult.rejected(applyResult.feedback());
+	}
+
+	/**
+	 * 兼容旧入口：默认按 serial 模式提交。
+	 */
+	public static SubmissionResult submit(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		LinkNodeType targetNodeType,
+		long targetNodeSerial,
+		LinkNodeType cacheType,
+		String serialCacheExpression,
+		QuickLinkToolData.ApplyEditMode applyEditMode,
+		long expectedCoreRevision,
+		long expectedSourceRevision
+	) {
+		return submit(
+			commandSource,
+			player,
+			level,
+			targetNodeType,
+			targetNodeSerial,
+			QuickLinkToolData.Mode.SERIAL,
+			cacheType,
+			serialCacheExpression,
+			"",
+			applyEditMode,
+			expectedCoreRevision,
+			expectedSourceRevision
+		);
 	}
 
 	/**

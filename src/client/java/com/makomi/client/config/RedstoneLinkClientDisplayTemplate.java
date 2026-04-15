@@ -46,8 +46,8 @@ final class RedstoneLinkClientDisplayTemplate {
 			client.pairingInputMaxLength=%s
 
 			# client.quickLinkModeToggleKey
-			# zh: 快速连接工具模式切换按键（默认 B；当前频道模式仅预留，按键切换时会提示未来扩展）。
-			# en: Quick Link mode toggle key (default B; channel mode is reserved for future expansion).
+			# zh: 快速连接工具模式切换按键（默认 B；用于在序号/频道缓存模式间切换）。
+			# en: Quick Link mode toggle key (default B; switches between serial and channel cache modes).
 			client.quickLinkModeToggleKey=%s
 
 			# client.quickLinkSerialCacheMaxLength

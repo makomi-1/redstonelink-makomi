@@ -3,6 +3,7 @@ package com.makomi.data;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.command.link.LinkChannelEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SerialParseUtil;
@@ -37,15 +38,19 @@ public final class QuickLinkApplyService {
 		}
 
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(stack);
-		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
-			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.mode.channel_future");
-		}
-		if (!allowsEmptySerialCacheApply(snapshot.applyEditMode()) && snapshot.serialCacheExpression().isBlank()) {
+		if (
+			snapshot.mode() == QuickLinkToolData.Mode.SERIAL &&
+			!allowsEmptySerialCacheApply(snapshot.applyEditMode()) &&
+			snapshot.serialCacheExpression().isBlank()
+		) {
 			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
 		}
 
 		BlockEntity blockEntity = level.getBlockEntity(blockPos);
 		if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
+			if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
+				return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.channel_filter_unsupported");
+			}
 			return applyToFilterFromCache(
 				player,
 				filterBlockEntity,
@@ -61,6 +66,18 @@ public final class QuickLinkApplyService {
 		LinkNodeType targetNodeType = pairableNodeBlockEntity.getLinkNodeType();
 		if (targetNodeType == null || pairableNodeBlockEntity.getSerial() <= 0L) {
 			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+
+		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
+			return applyChannelFromCache(
+				player.createCommandSourceStack(),
+				player,
+				level,
+				targetNodeType,
+				pairableNodeBlockEntity.getSerial(),
+				snapshot.channelCache()
+			)
+				.feedback();
 		}
 
 		LinkNodeType cacheType = snapshot.serialCacheType();
@@ -219,6 +236,54 @@ public final class QuickLinkApplyService {
 		return cacheType == LinkNodeType.CORE
 			? applyCachedCoresToTriggerSource(commandSource, player, level, targetNodeSerial, normalizedExpression, applyEditMode)
 			: applyCachedTriggerSourcesToCore(commandSource, player, level, targetNodeSerial, normalizedExpression, applyEditMode);
+	}
+
+	/**
+	 * 将频道缓存应用到命中节点。
+	 */
+	static ApplyFromCacheResult applyChannelFromCache(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		LinkNodeType targetNodeType,
+		long targetNodeSerial,
+		String channelCache
+	) {
+		if (level == null || targetNodeType == null || targetNodeSerial <= 0L) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+		long channel = new QuickLinkToolData.ChannelCacheValue(channelCache).parseChannelOrZero();
+		if (channel <= 0L) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_channel_cache");
+		}
+
+		LinkChannelEditingService.PreparationResult preparationResult = LinkChannelEditingService.prepareConfirmedSetChannel(
+			level,
+			player,
+			targetNodeType,
+			targetNodeSerial,
+			channel,
+			hasLimitedBypassPermission(commandSource),
+			hasProtectedBypassPermission(commandSource)
+		);
+		if (!preparationResult.successful()) {
+			return new ApplyFromCacheResult(toQuickLinkFeedback(preparationResult.feedbacks().get(0)), 0, 0);
+		}
+
+		LinkChannelEditingService.ApplyResult applyResult = LinkChannelEditingService.applyPreparedSetChannel(preparationResult.plan());
+		String messageKey = targetNodeType == LinkNodeType.TRIGGER_SOURCE
+			? "message.redstonelink.quick_link.apply.done.trigger_source_channel"
+			: "message.redstonelink.quick_link.apply.done.core_channel";
+		return new ApplyFromCacheResult(
+			QuickLinkOperationFeedback.success(
+				messageKey,
+				Long.toString(targetNodeSerial),
+				Long.toString(channel),
+				Integer.toString(applyResult.currentLinkedPeerCount())
+			),
+			applyResult.appliedOperationCount(),
+			applyResult.currentLinkedPeerCount()
+		);
 	}
 
 	/**
@@ -396,32 +461,6 @@ public final class QuickLinkApplyService {
 		return filterKind == LinkFilterKind.RECEIVE
 			? "message.redstonelink.quick_link.apply.done.receive_filter"
 			: "message.redstonelink.quick_link.apply.done.send_filter";
-	}
-
-	/**
-	 * 基于命令源权限解析写控判定。
-	 */
-	private static LinkWriteControlService.WriteDecision resolveWriteDecision(
-		CommandSourceStack commandSource,
-		ServerLevel level,
-		LinkNodeType sourceType,
-		long sourceSerial,
-		Set<Long> affectedTargets,
-		int setSize
-	) {
-		boolean hasLimitedBypassPermission = commandSource != null
-			&& commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
-		boolean hasProtectedBypassPermission = commandSource != null
-			&& commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
-		return LinkWriteControlService.evaluate(
-			level,
-			sourceType,
-			sourceSerial,
-			affectedTargets,
-			setSize,
-			hasLimitedBypassPermission,
-			hasProtectedBypassPermission
-		);
 	}
 
 	/**

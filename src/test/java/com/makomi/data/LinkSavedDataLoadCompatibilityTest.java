@@ -169,7 +169,7 @@ class LinkSavedDataLoadCompatibilityTest {
 	/**
 	 * 使用默认方法名封装反射调用，便于测试复用。
 	 */
-	private static LinkSavedData invokeLoad(CompoundTag tag) {
+	static LinkSavedData invokeLoad(CompoundTag tag) {
 		return invokeLoadViaMethodName("load", tag);
 	}
 

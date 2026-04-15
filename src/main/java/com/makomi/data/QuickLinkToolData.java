@@ -17,7 +17,7 @@ import net.minecraft.world.item.component.CustomData;
  * 第一阶段固定保留两类模式：
  * </p>
  * <br/>1) `serial`：可真正用于快速应用；
- * <br/>2) `channel`：仅保存输入，暂不执行真实建链。
+ * <br/>2) `channel`：保存正 long 频道号，并在服务端展开为真实普通边。
  */
 public final class QuickLinkToolData {
 	private static final String KEY_MODE = "rl_quick_link_mode";
@@ -126,6 +126,29 @@ public final class QuickLinkToolData {
 		);
 		write(stack, next);
 		return new SerialCollectOutcome(action, normalizedType, collectedSerial, mergedSerials.size(), next);
+	}
+
+	/**
+	 * 采集单个频道号到工具缓存。
+	 */
+	public static ChannelCollectOutcome collectChannel(ItemStack stack, long collectedChannel) {
+		if (!ChannelCacheValue.isValidChannel(collectedChannel)) {
+			return new ChannelCollectOutcome(ChannelCollectAction.REPLACED, 0L, read(stack));
+		}
+		Snapshot current = read(stack);
+		String normalizedChannel = Long.toString(collectedChannel);
+		ChannelCollectAction action = normalizedChannel.equals(current.channelCache())
+			? ChannelCollectAction.DUPLICATE
+			: ChannelCollectAction.REPLACED;
+		Snapshot next = new Snapshot(
+			current.mode(),
+			current.serialCacheType(),
+			current.serialCacheExpression(),
+			normalizedChannel,
+			current.applyEditMode()
+		);
+		write(stack, next);
+		return new ChannelCollectOutcome(action, collectedChannel, next);
 	}
 
 	/**
@@ -324,12 +347,34 @@ public final class QuickLinkToolData {
 	/**
 	 * 频道缓存值语义包装。
 	 * <p>
-	 * 当前仅预留接口，不对其进行数值级解析；后续可平滑切换为 `long` 等强类型实现。
+	 * 当前已约束为“正 long”频道号。
 	 * </p>
 	 */
 	public record ChannelCacheValue(String rawValue) {
 		public ChannelCacheValue {
 			rawValue = normalizeText(rawValue);
+		}
+
+		/**
+		 * 解析频道缓存为正 long；非法值返回 0。
+		 */
+		public long parseChannelOrZero() {
+			if (rawValue.isEmpty()) {
+				return 0L;
+			}
+			try {
+				long parsed = Long.parseLong(rawValue);
+				return isValidChannel(parsed) ? parsed : 0L;
+			} catch (NumberFormatException ignored) {
+				return 0L;
+			}
+		}
+
+		/**
+		 * 判断频道号是否为合法的正 long。
+		 */
+		public static boolean isValidChannel(long channel) {
+			return channel > 0L;
 		}
 	}
 
@@ -398,6 +443,14 @@ public final class QuickLinkToolData {
 	}
 
 	/**
+	 * 频道采集动作类型。
+	 */
+	public enum ChannelCollectAction {
+		REPLACED,
+		DUPLICATE
+	}
+
+	/**
 	 * 序号采集结果。
 	 */
 	public record SerialCollectOutcome(
@@ -407,5 +460,11 @@ public final class QuickLinkToolData {
 		int serialCount,
 		Snapshot snapshot
 	) {
+	}
+
+	/**
+	 * 频道采集结果。
+	 */
+	public record ChannelCollectOutcome(ChannelCollectAction action, long collectedChannel, Snapshot snapshot) {
 	}
 }

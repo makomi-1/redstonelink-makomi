@@ -192,4 +192,41 @@ class QuickLinkToolDataTest {
 		);
 		assertNull(stack.get(DataComponents.CUSTOM_MODEL_DATA));
 	}
+
+	/**
+	 * 频道缓存应只接受正 long，非法值统一回退为 0。
+	 */
+	@Test
+	void channelCacheValueShouldParsePositiveLongOnly() {
+		assertEquals(42L, new QuickLinkToolData.ChannelCacheValue("42").parseChannelOrZero());
+		assertEquals(0L, new QuickLinkToolData.ChannelCacheValue("0").parseChannelOrZero());
+		assertEquals(0L, new QuickLinkToolData.ChannelCacheValue("-5").parseChannelOrZero());
+		assertEquals(0L, new QuickLinkToolData.ChannelCacheValue("abc").parseChannelOrZero());
+	}
+
+	/**
+	 * 频道采集应覆盖旧值，并在重复采集时返回 duplicate。
+	 */
+	@Test
+	void collectChannelShouldReplaceAndDeduplicate() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		QuickLinkToolData.write(
+			stack,
+			new QuickLinkToolData.Snapshot(
+				QuickLinkToolData.Mode.CHANNEL,
+				LinkNodeType.CORE,
+				"",
+				"17",
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+
+		QuickLinkToolData.ChannelCollectOutcome replaced = QuickLinkToolData.collectChannel(stack, 23L);
+		assertEquals(QuickLinkToolData.ChannelCollectAction.REPLACED, replaced.action());
+		assertEquals("23", replaced.snapshot().channelCache());
+
+		QuickLinkToolData.ChannelCollectOutcome duplicate = QuickLinkToolData.collectChannel(stack, 23L);
+		assertEquals(QuickLinkToolData.ChannelCollectAction.DUPLICATE, duplicate.action());
+		assertEquals("23", duplicate.snapshot().channelCache());
+	}
 }

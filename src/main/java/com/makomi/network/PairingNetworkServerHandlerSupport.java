@@ -70,7 +70,9 @@ final class PairingNetworkServerHandlerSupport {
 					player,
 					player.serverLevel(),
 					payload.sourceSerial(),
+					payload.connectionModeToken(),
 					payload.targetsExpression(),
+					payload.channel(),
 					payload.expectedSourceRevision()
 				)
 				.feedbacks()
@@ -107,7 +109,9 @@ final class PairingNetworkServerHandlerSupport {
 					player,
 					player.serverLevel(),
 					payload.coreSerial(),
+					payload.connectionModeToken(),
 					payload.triggerSourceExpression(),
+					payload.channel(),
 					payload.expectedCoreRevision()
 				)
 				.feedbacks()

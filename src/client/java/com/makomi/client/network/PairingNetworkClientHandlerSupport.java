@@ -4,6 +4,7 @@ import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.screen.AbstractMultiPairingScreen;
 import com.makomi.client.screen.CorePairingScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -37,6 +38,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
+				payload.connectionModeToken(),
+				payload.channel(),
 				payload.displayContextToken(),
 				payload.sourceAlias(),
 				payload.sourceDisplayText()
@@ -52,6 +55,8 @@ public final class PairingNetworkClientHandlerSupport {
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
+				payload.connectionModeToken(),
+				payload.channel(),
 				payload.displayContextToken(),
 				payload.sourceAlias(),
 				payload.sourceDisplayText()
@@ -112,6 +117,8 @@ public final class PairingNetworkClientHandlerSupport {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		String connectionModeToken,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
@@ -128,6 +135,8 @@ public final class PairingNetworkClientHandlerSupport {
 					graphRevision,
 					sourceRevision,
 					coreRevision,
+					LinkConnectionMode.fromToken(connectionModeToken),
+					channel,
 					displayContextToken,
 					sourceAlias,
 					sourceDisplayText
@@ -142,6 +151,8 @@ public final class PairingNetworkClientHandlerSupport {
 				graphRevision,
 				sourceRevision,
 				coreRevision,
+				LinkConnectionMode.fromToken(connectionModeToken),
+				channel,
 				displayContextToken,
 				sourceAlias,
 				sourceDisplayText
@@ -160,6 +171,8 @@ public final class PairingNetworkClientHandlerSupport {
 			currentTargets,
 			0L,
 			0L,
+			0L,
+			LinkConnectionMode.SERIAL.token(),
 			0L,
 			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
 			"",
@@ -182,6 +195,8 @@ public final class PairingNetworkClientHandlerSupport {
 			graphRevision,
 			sourceRevision,
 			coreRevision,
+			LinkConnectionMode.SERIAL.token(),
+			0L,
 			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
 			"",
 			NodeAliasDisplayUtil.formatDisplayText("", sourceSerial)

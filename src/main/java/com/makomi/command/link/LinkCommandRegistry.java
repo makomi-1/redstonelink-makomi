@@ -430,7 +430,7 @@ public final class LinkCommandRegistry {
 				return 0;
 			}
 			LinkSetExecutionService.applyPreparedReplace(
-				LinkSetExecutionService.createPreparedReplaceOperation(
+				LinkSetExecutionService.createPreparedSerialReplaceOperation(
 					level,
 					player,
 					sourceType,
@@ -470,7 +470,7 @@ public final class LinkCommandRegistry {
 			Set<Long> nextTargets = new HashSet<>(previousTargets);
 			nextTargets.remove(targetSerial);
 			LinkSetExecutionService.applyPreparedReplace(
-				LinkSetExecutionService.createPreparedReplaceOperation(
+				LinkSetExecutionService.createPreparedSerialReplaceOperation(
 					level,
 					player,
 					sourceType,
@@ -492,6 +492,12 @@ public final class LinkCommandRegistry {
 		if (!ServerSerialValidationUtil.validateTargetSerialActive(source, savedData, targetType, targetSerial)) {
 			return 0;
 		}
+		if (savedData.getConnectionMode(targetType, targetSerial) == com.makomi.data.LinkConnectionMode.CHANNEL) {
+			source.sendFailure(
+				Component.translatable("message.redstonelink.invalid_target_channel_mode", Long.toString(targetSerial))
+			);
+			return 0;
+		}
 		boolean targetOffline = savedData.findNode(targetType, targetSerial).isEmpty();
 		if (targetOffline && !RedstoneLinkConfig.general().allowOfflineTargetBinding()) {
 			source.sendFailure(Component.translatable("message.redstonelink.offline_targets_blocked", Long.toString(targetSerial)));
@@ -510,7 +516,7 @@ public final class LinkCommandRegistry {
 		Set<Long> nextTargets = new HashSet<>(previousTargets);
 		nextTargets.add(targetSerial);
 		LinkSetExecutionService.applyPreparedReplace(
-			LinkSetExecutionService.createPreparedReplaceOperation(
+			LinkSetExecutionService.createPreparedSerialReplaceOperation(
 				level,
 				player,
 				sourceType,

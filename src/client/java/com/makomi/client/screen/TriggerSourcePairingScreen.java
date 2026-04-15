@@ -1,6 +1,7 @@
 package com.makomi.client.screen;
 
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
@@ -47,6 +48,8 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	private static final Component TITLE = Component.translatable("screen.redstonelink.trigger_source_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.trigger_source_pairing.input");
 	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.trigger_source_pairing.invalid");
+	private static final Component CHANNEL_INPUT_LABEL = Component.translatable("screen.redstonelink.pairing.channel_input");
+	private static final Component INVALID_CHANNEL_INPUT = Component.translatable("screen.redstonelink.pairing.invalid_channel");
 	private final String displayContextToken;
 
 	/**
@@ -61,11 +64,24 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		LinkConnectionMode connectionMode,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
 	) {
-		super(TITLE, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
+		super(
+			TITLE,
+			sourceSerial,
+			sourceAlias,
+			sourceDisplayText,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			coreRevision,
+			connectionMode,
+			channel
+		);
 		this.displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, SOURCE_TYPE);
 	}
 
@@ -75,10 +91,23 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		LinkConnectionMode connectionMode,
+		long channel,
 		String displayContextToken,
 		String sourceDisplayText
 	) {
-		this(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision, displayContextToken, "", sourceDisplayText);
+		this(
+			sourceSerial,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			coreRevision,
+			connectionMode,
+			channel,
+			displayContextToken,
+			"",
+			sourceDisplayText
+		);
 	}
 
 	public TriggerSourcePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
@@ -87,6 +116,8 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 			currentTargets,
 			graphRevision,
 			sourceRevision,
+			0L,
+			LinkConnectionMode.SERIAL,
 			0L,
 			LinkGuiDisplayContext.TRIGGER_SOURCE,
 			"",
@@ -110,6 +141,8 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 			0L,
 			0L,
 			0L,
+			LinkConnectionMode.SERIAL,
+			0L,
 			resolveHeldDisplayContextToken(hand),
 			resolveHeldSourceAlias(hand),
 			resolveHeldSourceDisplayText(hand)
@@ -121,7 +154,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	 */
 	@Override
 	protected Component inputLabel() {
-		return INPUT_LABEL;
+		return isChannelMode() ? CHANNEL_INPUT_LABEL : INPUT_LABEL;
 	}
 
 	/**
@@ -129,7 +162,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	 */
 	@Override
 	protected Component invalidInput() {
-		return INVALID_INPUT;
+		return isChannelMode() ? INVALID_CHANNEL_INPUT : INVALID_INPUT;
 	}
 
 	/**
@@ -191,22 +224,24 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	 * triggerSource 配对改走结构化提交，避免再拼装命令字符串。
 	 */
 	@Override
-	protected void submitPairingRequest(long sourceSerial, String rawTargetsInput) {
+	protected void submitPairingRequest(
+		long sourceSerial,
+		LinkConnectionMode connectionMode,
+		String rawTargetsInput,
+		long channel
+	) {
 		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
 			return;
 		}
-		ClientPlayNetworking.send(new PairingNetwork.SubmitTriggerSourcePairingPayload(sourceSerial, rawTargetsInput, sourceRevision));
-	}
-
-	/**
-	 * triggerSource 清空操作走空表达式结构化提交。
-	 */
-	@Override
-	protected void clearPairingRequest(long sourceSerial) {
-		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
-			return;
-		}
-		ClientPlayNetworking.send(new PairingNetwork.SubmitTriggerSourcePairingPayload(sourceSerial, "", sourceRevision));
+		ClientPlayNetworking.send(
+			new PairingNetwork.SubmitTriggerSourcePairingPayload(
+				sourceSerial,
+				connectionMode.token(),
+				rawTargetsInput,
+				channel,
+				sourceRevision
+			)
+		);
 	}
 
 	/**

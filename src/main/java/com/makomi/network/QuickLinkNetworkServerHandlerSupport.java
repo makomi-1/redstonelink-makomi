@@ -126,10 +126,6 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return;
 		}
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(mainHandItem);
-		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
-			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.mode.channel_future"));
-			return;
-		}
 		ResolvedQuickLinkApplyTarget requestedTarget = resolveRequestedApplyTarget(
 			player,
 			payload.dimensionKey(),
@@ -142,6 +138,10 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return;
 		}
 		if (requestedTarget.filterBlockEntity() != null) {
+			if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
+				sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.channel_filter_unsupported"));
+				return;
+			}
 			sendFeedback(
 				player,
 				QuickLinkApplyService
@@ -163,15 +163,17 @@ final class QuickLinkNetworkServerHandlerSupport {
 				.submit(
 					player.createCommandSourceStack(),
 					player,
-				player.serverLevel(),
-				requestedNode.getLinkNodeType(),
-				requestedNode.getSerial(),
-				snapshot.serialCacheType(),
-				snapshot.serialCacheExpression(),
-				snapshot.applyEditMode(),
-				payload.expectedCoreRevision(),
-				payload.expectedSourceRevision()
-			)
+					player.serverLevel(),
+					requestedNode.getLinkNodeType(),
+					requestedNode.getSerial(),
+					snapshot.mode(),
+					snapshot.serialCacheType(),
+					snapshot.serialCacheExpression(),
+					snapshot.channelCache(),
+					snapshot.applyEditMode(),
+					payload.expectedCoreRevision(),
+					payload.expectedSourceRevision()
+				)
 				.feedback()
 		);
 	}

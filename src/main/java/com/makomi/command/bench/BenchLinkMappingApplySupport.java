@@ -135,7 +135,7 @@ final class BenchLinkMappingApplySupport {
 				continue;
 			}
 			LinkSetExecutionService.applyPreparedReplace(
-				LinkSetExecutionService.createPreparedReplaceOperation(
+				LinkSetExecutionService.createPreparedSerialReplaceOperation(
 					level,
 					player,
 					LinkNodeType.TRIGGER_SOURCE,
@@ -262,6 +262,7 @@ final class BenchLinkMappingApplySupport {
 		List<Long> unallocatedTargets = new ArrayList<>();
 		List<Long> retiredTargets = new ArrayList<>();
 		List<Long> offlineTargets = new ArrayList<>();
+		List<Long> channelModeTargets = new ArrayList<>();
 		for (long targetSerial : targetSerials) {
 			if (!savedData.isSerialAllocated(LinkNodeType.CORE, targetSerial)) {
 				unallocatedTargets.add(targetSerial);
@@ -273,6 +274,9 @@ final class BenchLinkMappingApplySupport {
 			}
 			if (savedData.findNode(LinkNodeType.CORE, targetSerial).isEmpty()) {
 				offlineTargets.add(targetSerial);
+			}
+			if (savedData.getConnectionMode(LinkNodeType.CORE, targetSerial) == com.makomi.data.LinkConnectionMode.CHANNEL) {
+				channelModeTargets.add(targetSerial);
 			}
 		}
 		if (!unallocatedTargets.isEmpty()) {
@@ -289,6 +293,15 @@ final class BenchLinkMappingApplySupport {
 				Component.translatable(
 					"message.redstonelink.invalid_target_retired",
 					CommandTreeSupport.formatSerialList(retiredTargets)
+				)
+			);
+			return null;
+		}
+		if (!channelModeTargets.isEmpty()) {
+			source.sendFailure(
+				Component.translatable(
+					"message.redstonelink.invalid_target_channel_mode",
+					CommandTreeSupport.formatSerialList(channelModeTargets)
 				)
 			);
 			return null;

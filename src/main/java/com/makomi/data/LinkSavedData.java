@@ -45,10 +45,13 @@ public final class LinkSavedData extends SavedData {
 	static final String KEY_RETIRED_CORE_SERIALS = "retiredCoreSerials";
 	static final String KEY_RETIRED_TRIGGER_SOURCE_SERIALS = "retiredTriggerSourceSerials";
 	static final String KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS = "triggerSourceReplaySyncSnapshots";
+	static final String KEY_TRIGGER_SOURCE_CHANNEL_CONFIGS = "triggerSourceChannelConfigs";
+	static final String KEY_CORE_CHANNEL_CONFIGS = "coreChannelConfigs";
 	static final String KEY_SIGNAL_STRENGTH = "signalStrength";
 	static final String KEY_TICK = "tick";
 	static final String KEY_SLOT = "slot";
 	static final String KEY_SEQ = "seq";
+	static final String KEY_CHANNEL = "channel";
 
 	private static final SavedData.Factory<LinkSavedData> FACTORY = new SavedData.Factory<>(
 		LinkSavedData::new,
@@ -66,6 +69,10 @@ public final class LinkSavedData extends SavedData {
 	final Set<Long> allocatedTriggerSourceSerials = new HashSet<>();
 	final Set<Long> retiredCoreSerials = new HashSet<>();
 	final Set<Long> retiredTriggerSourceSerials = new HashSet<>();
+	final Map<Long, Long> triggerSourceChannelConfigs = new HashMap<>();
+	final Map<Long, Long> coreChannelConfigs = new HashMap<>();
+	final Map<Long, Set<Long>> channelToTriggerSources = new HashMap<>();
+	final Map<Long, Set<Long>> channelToCores = new HashMap<>();
 	final Map<Long, ReplaySyncSnapshotRecord> triggerSourceReplaySyncSnapshots = new HashMap<>();
 	long runtimeNodeVersion;
 	long graphRevision;
@@ -87,6 +94,7 @@ public final class LinkSavedData extends SavedData {
 	private static LinkSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
 		LinkSavedData data = LinkSavedDataCodecSupport.load(tag, provider);
 		data.rebuildNodeChunkIndex();
+		data.rebuildChannelIndex();
 		return data;
 	}
 
@@ -248,6 +256,27 @@ public final class LinkSavedData extends SavedData {
 	 */
 	public Optional<ReplaySyncSnapshotRecord> getTriggerSourceReplaySyncSnapshot(long triggerSourceSerial) {
 		return LinkSavedDataQuerySupport.getTriggerSourceReplaySyncSnapshot(this, triggerSourceSerial);
+	}
+
+	/**
+	 * 查询节点当前连接模式。
+	 */
+	public LinkConnectionMode getConnectionMode(LinkNodeType type, long serial) {
+		return LinkSavedDataChannelSupport.getConnectionMode(this, type, serial);
+	}
+
+	/**
+	 * 查询节点当前频道号；非频道模式返回 0。
+	 */
+	public long getChannel(LinkNodeType type, long serial) {
+		return LinkSavedDataChannelSupport.getChannel(this, type, serial);
+	}
+
+	/**
+	 * 查询指定频道下的节点成员集合。
+	 */
+	public Set<Long> getChannelMembers(LinkNodeType type, long channel) {
+		return LinkSavedDataChannelSupport.getChannelMembers(this, type, channel);
 	}
 
 	/**
@@ -418,6 +447,13 @@ public final class LinkSavedData extends SavedData {
 		for (LinkNode node : coreNodes.values()) {
 			indexNode(node);
 		}
+	}
+
+	/**
+	 * 重建当前频道配置的运行时桶索引。
+	 */
+	void rebuildChannelIndex() {
+		LinkSavedDataChannelSupport.rebuildChannelIndex(this);
 	}
 
 	/**

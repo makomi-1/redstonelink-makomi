@@ -114,6 +114,9 @@ final class LinkSavedDataCodecSupport {
 			data.triggerSourceReplaySyncSnapshots.put(triggerSourceSerial, snapshot);
 		}
 
+		loadChannelConfigs(tag.getList(LinkSavedData.KEY_TRIGGER_SOURCE_CHANNEL_CONFIGS, Tag.TAG_COMPOUND), data, LinkNodeType.TRIGGER_SOURCE);
+		loadChannelConfigs(tag.getList(LinkSavedData.KEY_CORE_CHANNEL_CONFIGS, Tag.TAG_COMPOUND), data, LinkNodeType.CORE);
+
 		boolean hasAllocatedCore = tag.contains(LinkSavedData.KEY_ALLOCATED_CORE_SERIALS, Tag.TAG_LONG_ARRAY);
 		boolean hasAllocatedTriggerSource = tag.contains(LinkSavedData.KEY_ALLOCATED_TRIGGER_SOURCE_SERIALS, Tag.TAG_LONG_ARRAY);
 		if (hasAllocatedCore) {
@@ -174,6 +177,14 @@ final class LinkSavedDataCodecSupport {
 		ListTag replaySnapshotsTag = new ListTag();
 		saveReplaySnapshots(replaySnapshotsTag, data.triggerSourceReplaySyncSnapshots);
 		tag.put(LinkSavedData.KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS, replaySnapshotsTag);
+
+		ListTag triggerSourceChannelConfigsTag = new ListTag();
+		saveChannelConfigs(triggerSourceChannelConfigsTag, data.triggerSourceChannelConfigs);
+		tag.put(LinkSavedData.KEY_TRIGGER_SOURCE_CHANNEL_CONFIGS, triggerSourceChannelConfigsTag);
+
+		ListTag coreChannelConfigsTag = new ListTag();
+		saveChannelConfigs(coreChannelConfigsTag, data.coreChannelConfigs);
+		tag.put(LinkSavedData.KEY_CORE_CHANNEL_CONFIGS, coreChannelConfigsTag);
 		return tag;
 	}
 
@@ -215,6 +226,25 @@ final class LinkSavedDataCodecSupport {
 	}
 
 	/**
+	 * 保存节点频道配置。
+	 */
+	static void saveChannelConfigs(ListTag channelConfigsTag, Map<Long, Long> channelConfigs) {
+		List<Map.Entry<Long, Long>> entries = new ArrayList<>(channelConfigs.entrySet());
+		entries.sort(Map.Entry.comparingByKey());
+		for (Map.Entry<Long, Long> entry : entries) {
+			long serial = entry.getKey() == null ? 0L : entry.getKey();
+			long channel = entry.getValue() == null ? 0L : entry.getValue();
+			if (serial <= 0L || !LinkSavedDataChannelSupport.isValidChannel(channel)) {
+				continue;
+			}
+			CompoundTag configTag = new CompoundTag();
+			configTag.putLong(LinkSavedData.KEY_SERIAL, serial);
+			configTag.putLong(LinkSavedData.KEY_CHANNEL, channel);
+			channelConfigsTag.add(configTag);
+		}
+	}
+
+	/**
 	 * 读取一条 triggerSource sync replay 快照记录。
 	 */
 	static Optional<LinkSavedData.ReplaySyncSnapshotRecord> loadReplaySyncSnapshotRecord(CompoundTag compound) {
@@ -231,6 +261,26 @@ final class LinkSavedDataCodecSupport {
 				)
 			)
 		);
+	}
+
+	/**
+	 * 读取指定节点类型的频道配置列表。
+	 */
+	private static void loadChannelConfigs(ListTag configsTag, LinkSavedData data, LinkNodeType type) {
+		if (configsTag == null || data == null || type == null) {
+			return;
+		}
+		for (Tag entryTag : configsTag) {
+			if (!(entryTag instanceof CompoundTag compound)) {
+				continue;
+			}
+			long serial = compound.getLong(LinkSavedData.KEY_SERIAL);
+			long channel = compound.getLong(LinkSavedData.KEY_CHANNEL);
+			if (serial <= 0L || !LinkSavedDataChannelSupport.isValidChannel(channel)) {
+				continue;
+			}
+			LinkSavedDataChannelSupport.configMap(data, type).put(serial, channel);
+		}
 	}
 
 	/**

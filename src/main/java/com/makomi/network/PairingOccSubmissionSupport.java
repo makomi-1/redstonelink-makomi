@@ -2,8 +2,10 @@ package com.makomi.network;
 
 import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.link.CoreLinkEditingService;
+import com.makomi.command.link.LinkChannelEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
@@ -31,13 +33,26 @@ public final class PairingOccSubmissionSupport {
 		ServerPlayer player,
 		ServerLevel level,
 		long sourceSerial,
+		String connectionModeToken,
 		String targetsExpression,
+		long channel,
 		long expectedSourceRevision
 	) {
 		if (commandSource == null || level == null) {
 			return SubmissionResult.rejected(
 				List.of(LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient")),
 				0
+			);
+		}
+		LinkConnectionMode connectionMode = LinkConnectionMode.fromToken(connectionModeToken);
+		if (connectionMode == LinkConnectionMode.CHANNEL) {
+			return submitTriggerSourceChannel(
+				commandSource,
+				player,
+				level,
+				sourceSerial,
+				channel,
+				expectedSourceRevision
 			);
 		}
 
@@ -84,6 +99,29 @@ public final class PairingOccSubmissionSupport {
 	}
 
 	/**
+	 * 兼容旧入口：默认按 serial 模式提交。
+	 */
+	public static SubmissionResult submitTriggerSource(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		long sourceSerial,
+		String targetsExpression,
+		long expectedSourceRevision
+	) {
+		return submitTriggerSource(
+			commandSource,
+			player,
+			level,
+			sourceSerial,
+			LinkConnectionMode.SERIAL.token(),
+			targetsExpression,
+			0L,
+			expectedSourceRevision
+		);
+	}
+
+	/**
 	 * 提交 `core` 视角的 pairing 覆盖写入。
 	 */
 	public static SubmissionResult submitCore(
@@ -91,7 +129,9 @@ public final class PairingOccSubmissionSupport {
 		ServerPlayer player,
 		ServerLevel level,
 		long coreSerial,
+		String connectionModeToken,
 		String triggerSourceExpression,
+		long channel,
 		long expectedCoreRevision
 	) {
 		if (commandSource == null || level == null) {
@@ -99,6 +139,10 @@ public final class PairingOccSubmissionSupport {
 				List.of(LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient")),
 				0
 			);
+		}
+		LinkConnectionMode connectionMode = LinkConnectionMode.fromToken(connectionModeToken);
+		if (connectionMode == LinkConnectionMode.CHANNEL) {
+			return submitCoreChannel(commandSource, player, level, coreSerial, channel, expectedCoreRevision);
 		}
 
 		PairingNetworkServerHandlerSupport.CorePairingParseResult parseResult = PairingNetworkServerHandlerSupport.parseCorePairingTriggerSources(
@@ -179,6 +223,159 @@ public final class PairingOccSubmissionSupport {
 			)
 		);
 		return SubmissionResult.applied(feedbacks, applyResult.appliedOperationCount(), applyResult.currentTriggerSourceCount());
+	}
+
+	/**
+	 * 兼容旧入口：默认按 serial 模式提交。
+	 */
+	public static SubmissionResult submitCore(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		long coreSerial,
+		String triggerSourceExpression,
+		long expectedCoreRevision
+	) {
+		return submitCore(
+			commandSource,
+			player,
+			level,
+			coreSerial,
+			LinkConnectionMode.SERIAL.token(),
+			triggerSourceExpression,
+			0L,
+			expectedCoreRevision
+		);
+	}
+
+	/**
+	 * 提交 triggerSource 频道配置写入。
+	 */
+	private static SubmissionResult submitTriggerSourceChannel(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		long sourceSerial,
+		long channel,
+		long expectedSourceRevision
+	) {
+		LinkSavedData savedData = LinkSavedData.get(level);
+		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveTriggerSourceConflict(savedData, sourceSerial, expectedSourceRevision);
+		if (conflict != null) {
+			return SubmissionResult.conflict(conflict, savedData.getLinkedCoresByTriggerSource(sourceSerial).size());
+		}
+
+		LinkChannelEditingService.PreparationResult preparationResult = LinkChannelEditingService.prepareConfirmedSetChannel(
+			level,
+			player,
+			LinkNodeType.TRIGGER_SOURCE,
+			sourceSerial,
+			channel,
+			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+		);
+		if (!preparationResult.successful()) {
+			return SubmissionResult.rejected(preparationResult.feedbacks(), 0);
+		}
+
+		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>(preparationResult.feedbacks());
+		LinkChannelEditingService.PreparedChannelUpdate plan = preparationResult.plan();
+		if (!plan.hasChanges()) {
+			feedbacks.add(
+				LinkSetExecutionService.OperationFeedback.success(
+					"message.redstonelink.pairing.channel.no_changes.trigger_source",
+					Long.toString(sourceSerial),
+					Long.toString(channel),
+					Integer.toString(savedData.getLinkedCoresByTriggerSource(sourceSerial).size())
+				)
+			);
+			return SubmissionResult.applied(feedbacks, 0, savedData.getLinkedCoresByTriggerSource(sourceSerial).size());
+		}
+		if (
+			plan.totalCommandCost() > 0 &&
+			!CommandRateLimitService.tryAcquire(commandSource, CommandRateLimitService.CommandGroup.LINK_RW, plan.totalCommandCost())
+		) {
+			return SubmissionResult.rejected(
+				List.of(LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.command.rate_limit.exceeded")),
+				0
+			);
+		}
+
+		LinkChannelEditingService.ApplyResult applyResult = LinkChannelEditingService.applyPreparedSetChannel(plan);
+		feedbacks.add(
+			LinkSetExecutionService.OperationFeedback.success(
+				"message.redstonelink.pairing.channel.done.trigger_source",
+				Long.toString(sourceSerial),
+				Long.toString(channel),
+				Integer.toString(applyResult.currentLinkedPeerCount())
+			)
+		);
+		return SubmissionResult.applied(feedbacks, applyResult.appliedOperationCount(), applyResult.currentLinkedPeerCount());
+	}
+
+	/**
+	 * 提交 core 频道配置写入。
+	 */
+	private static SubmissionResult submitCoreChannel(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		long coreSerial,
+		long channel,
+		long expectedCoreRevision
+	) {
+		LinkSavedData savedData = LinkSavedData.get(level);
+		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveCoreConflict(savedData, coreSerial, expectedCoreRevision);
+		if (conflict != null) {
+			return SubmissionResult.conflict(conflict, savedData.getLinkedTriggerSourcesByCore(coreSerial).size());
+		}
+
+		LinkChannelEditingService.PreparationResult preparationResult = LinkChannelEditingService.prepareConfirmedSetChannel(
+			level,
+			player,
+			LinkNodeType.CORE,
+			coreSerial,
+			channel,
+			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+		);
+		if (!preparationResult.successful()) {
+			return SubmissionResult.rejected(preparationResult.feedbacks(), 0);
+		}
+
+		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>(preparationResult.feedbacks());
+		LinkChannelEditingService.PreparedChannelUpdate plan = preparationResult.plan();
+		if (!plan.hasChanges()) {
+			feedbacks.add(
+				LinkSetExecutionService.OperationFeedback.success(
+					"message.redstonelink.pairing.channel.no_changes.core",
+					Long.toString(coreSerial),
+					Long.toString(channel),
+					Integer.toString(savedData.getLinkedTriggerSourcesByCore(coreSerial).size())
+				)
+			);
+			return SubmissionResult.applied(feedbacks, 0, savedData.getLinkedTriggerSourcesByCore(coreSerial).size());
+		}
+		if (
+			plan.totalCommandCost() > 0 &&
+			!CommandRateLimitService.tryAcquire(commandSource, CommandRateLimitService.CommandGroup.LINK_RW, plan.totalCommandCost())
+		) {
+			return SubmissionResult.rejected(
+				List.of(LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.command.rate_limit.exceeded")),
+				0
+			);
+		}
+
+		LinkChannelEditingService.ApplyResult applyResult = LinkChannelEditingService.applyPreparedSetChannel(plan);
+		feedbacks.add(
+			LinkSetExecutionService.OperationFeedback.success(
+				"message.redstonelink.pairing.channel.done.core",
+				Long.toString(coreSerial),
+				Long.toString(channel),
+				Integer.toString(applyResult.currentLinkedPeerCount())
+			)
+		);
+		return SubmissionResult.applied(feedbacks, applyResult.appliedOperationCount(), applyResult.currentLinkedPeerCount());
 	}
 
 	/**

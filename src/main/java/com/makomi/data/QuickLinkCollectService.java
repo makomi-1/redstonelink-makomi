@@ -32,7 +32,25 @@ public final class QuickLinkCollectService {
 
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(stack);
 		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
-			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.mode.channel_future");
+			LinkSavedData savedData = LinkSavedData.get(level);
+			long channel = savedData.getChannel(pairableNodeBlockEntity.getLinkNodeType(), pairableNodeBlockEntity.getSerial());
+			if (
+				savedData.getConnectionMode(pairableNodeBlockEntity.getLinkNodeType(), pairableNodeBlockEntity.getSerial()) != LinkConnectionMode.CHANNEL ||
+				channel <= 0L
+			) {
+				return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.collect.channel_missing");
+			}
+			QuickLinkToolData.ChannelCollectOutcome outcome = QuickLinkToolData.collectChannel(stack, channel);
+			return switch (outcome.action()) {
+				case REPLACED -> QuickLinkOperationFeedback.success(
+					"message.redstonelink.quick_link.collect.channel.replaced",
+					Long.toString(outcome.collectedChannel())
+				);
+				case DUPLICATE -> QuickLinkOperationFeedback.success(
+					"message.redstonelink.quick_link.collect.channel.duplicate",
+					Long.toString(outcome.collectedChannel())
+				);
+			};
 		}
 
 		QuickLinkToolData.SerialCollectOutcome outcome = QuickLinkToolData.collectSerial(

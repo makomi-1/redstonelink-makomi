@@ -2,8 +2,10 @@ package com.makomi.command.link;
 
 import com.makomi.command.CommandTreeSupport;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.LinkSavedDataChannelSupport;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,7 +68,7 @@ public final class CoreLinkEditingService {
 		for (long triggerSourceSerial : affectedTriggerSources) {
 			currentTargetsByTriggerSource.put(
 				triggerSourceSerial,
-				savedData == null ? Set.of() : savedData.getLinkedCoresByTriggerSource(triggerSourceSerial)
+				resolveCurrentTargetsForCoreEditing(savedData, triggerSourceSerial)
 			);
 		}
 		return currentTargetsByTriggerSource;
@@ -158,6 +160,18 @@ public final class CoreLinkEditingService {
 		List<Long> normalizedDesiredTriggerSources = desiredTriggerSources == null
 			? List.of()
 			: List.copyOf(new LinkedHashSet<>(desiredTriggerSources));
+		List<Long> channelModeTriggerSources = normalizedDesiredTriggerSources
+			.stream()
+			.filter(triggerSourceSerial -> savedData.getConnectionMode(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial) == LinkConnectionMode.CHANNEL)
+			.toList();
+		if (!channelModeTriggerSources.isEmpty()) {
+			return PreparationResult.failure(
+				LinkSetExecutionService.OperationFeedback.failure(
+					"message.redstonelink.invalid_source_channel_mode",
+					CommandTreeSupport.formatSerialList(channelModeTriggerSources)
+				)
+			);
+		}
 		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>();
 		if (duplicateEntries != null && !duplicateEntries.isEmpty()) {
 			feedbacks.add(
@@ -184,14 +198,17 @@ public final class CoreLinkEditingService {
 		List<LinkSetExecutionService.PreparedReplaceOperation> preparedOperations = new ArrayList<>();
 		int totalCommandCost = 0;
 		for (Map.Entry<Long, Set<Long>> entry : changedTargetsByTriggerSource.entrySet()) {
-			LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
+			LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplaceResolvedTargets(
 				level,
 				player,
 				LinkNodeType.TRIGGER_SOURCE,
 				entry.getKey(),
 				entry.getValue(),
+				List.of(),
 				hasLimitedBypassPermission,
-				hasProtectedBypassPermission
+				hasProtectedBypassPermission,
+				false,
+				false
 			);
 			if (!preparationResult.successful()) {
 				List<LinkSetExecutionService.OperationFeedback> allFeedbacks = new ArrayList<>(feedbacks);
@@ -211,7 +228,8 @@ public final class CoreLinkEditingService {
 				normalizedDesiredTriggerSources,
 				changedTargetsByTriggerSource,
 				preparedOperations,
-				totalCommandCost
+				totalCommandCost,
+				savedData.getConnectionMode(LinkNodeType.CORE, coreSerial) == LinkConnectionMode.CHANNEL
 			),
 			feedbacks
 		);
@@ -223,6 +241,9 @@ public final class CoreLinkEditingService {
 	public static ApplyResult applyPreparedReplace(PreparedReplacePlan plan) {
 		if (plan == null) {
 			return new ApplyResult(0, 0);
+		}
+		if (plan.switchEditedCoreToSerialModeBeforeApply()) {
+			LinkSavedDataChannelSupport.clearChannelConfig(LinkSavedData.get(plan.level()), LinkNodeType.CORE, plan.coreSerial());
 		}
 		int appliedOperationCount = 0;
 		LinkCommandSupport.BatchLinkSnapshotSyncCollector batchSyncCollector = new LinkCommandSupport.BatchLinkSnapshotSyncCollector(plan.level());
@@ -243,6 +264,27 @@ public final class CoreLinkEditingService {
 	public static int saturatingAdd(int currentCost, int nextCost) {
 		long resolved = (long) Math.max(0, currentCost) + Math.max(0, nextCost);
 		return (int) Math.min(Integer.MAX_VALUE, resolved);
+	}
+
+	/**
+	 * 为 core 视角编辑解析“当前应保留的基础目标集合”。
+	 * <p>
+	 * 对 serial 模式 triggerSource，会自动过滤掉 channel 模式 core；
+	 * 对 channel 模式 triggerSource，则按当前频道配置回推其应有目标集合。
+	 * </p>
+	 */
+	private static Set<Long> resolveCurrentTargetsForCoreEditing(LinkSavedData savedData, long triggerSourceSerial) {
+		if (savedData == null || triggerSourceSerial <= 0L) {
+			return Set.of();
+		}
+		return LinkSavedDataChannelSupport.resolveDesiredTargetsForTriggerSourceWithOverride(
+			savedData,
+			triggerSourceSerial,
+			null,
+			0L,
+			null,
+			0L
+		);
 	}
 
 	/**
@@ -305,7 +347,8 @@ public final class CoreLinkEditingService {
 		List<Long> desiredTriggerSources,
 		Map<Long, Set<Long>> changedTargetsByTriggerSource,
 		List<LinkSetExecutionService.PreparedReplaceOperation> preparedOperations,
-		int totalCommandCost
+		int totalCommandCost,
+		boolean switchEditedCoreToSerialModeBeforeApply
 	) {
 		public PreparedReplacePlan {
 			currentTriggerSources = Set.copyOf(currentTriggerSources == null ? Set.of() : currentTriggerSources);

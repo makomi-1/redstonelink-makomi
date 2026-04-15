@@ -1,5 +1,6 @@
 package com.makomi.client.screen;
 
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
@@ -44,6 +45,8 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	private static final Component TITLE = Component.translatable("screen.redstonelink.core_pairing.title");
 	private static final Component INPUT_LABEL = Component.translatable("screen.redstonelink.core_pairing.input");
 	private static final Component INVALID_INPUT = Component.translatable("screen.redstonelink.core_pairing.invalid");
+	private static final Component CHANNEL_INPUT_LABEL = Component.translatable("screen.redstonelink.pairing.channel_input");
+	private static final Component INVALID_CHANNEL_INPUT = Component.translatable("screen.redstonelink.pairing.invalid_channel");
 	private final String displayContextToken;
 
 	/**
@@ -58,11 +61,24 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		LinkConnectionMode connectionMode,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
 	) {
-		super(TITLE, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
+		super(
+			TITLE,
+			sourceSerial,
+			sourceAlias,
+			sourceDisplayText,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			coreRevision,
+			connectionMode,
+			channel
+		);
 		this.displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, SOURCE_TYPE);
 	}
 
@@ -72,10 +88,23 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		LinkConnectionMode connectionMode,
+		long channel,
 		String displayContextToken,
 		String sourceDisplayText
 	) {
-		this(sourceSerial, currentTargets, graphRevision, sourceRevision, coreRevision, displayContextToken, "", sourceDisplayText);
+		this(
+			sourceSerial,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			coreRevision,
+			connectionMode,
+			channel,
+			displayContextToken,
+			"",
+			sourceDisplayText
+		);
 	}
 
 	public CorePairingScreen(long sourceSerial, List<Long> currentTargets, long graphRevision, long sourceRevision) {
@@ -84,6 +113,8 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 			currentTargets,
 			graphRevision,
 			sourceRevision,
+			0L,
+			LinkConnectionMode.SERIAL,
 			0L,
 			LinkGuiDisplayContext.CORE,
 			"",
@@ -100,7 +131,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	 */
 	@Override
 	protected Component inputLabel() {
-		return INPUT_LABEL;
+		return isChannelMode() ? CHANNEL_INPUT_LABEL : INPUT_LABEL;
 	}
 
 	/**
@@ -108,7 +139,7 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	 */
 	@Override
 	protected Component invalidInput() {
-		return INVALID_INPUT;
+		return isChannelMode() ? INVALID_CHANNEL_INPUT : INVALID_INPUT;
 	}
 
 	/**
@@ -170,21 +201,17 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	 * core 配对改走结构化提交，再由服务端拆成 `triggerSource -> core` 正向写入。
 	 */
 	@Override
-	protected void submitPairingRequest(long sourceSerial, String rawTargetsInput) {
+	protected void submitPairingRequest(
+		long sourceSerial,
+		LinkConnectionMode connectionMode,
+		String rawTargetsInput,
+		long channel
+	) {
 		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
 			return;
 		}
-		ClientPlayNetworking.send(new PairingNetwork.SubmitCorePairingPayload(sourceSerial, rawTargetsInput, coreRevision));
-	}
-
-	/**
-	 * core 清空操作走空表达式结构化提交。
-	 */
-	@Override
-	protected void clearPairingRequest(long sourceSerial) {
-		if (net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
-			return;
-		}
-		ClientPlayNetworking.send(new PairingNetwork.SubmitCorePairingPayload(sourceSerial, "", coreRevision));
+		ClientPlayNetworking.send(
+			new PairingNetwork.SubmitCorePairingPayload(sourceSerial, connectionMode.token(), rawTargetsInput, channel, coreRevision)
+		);
 	}
 }

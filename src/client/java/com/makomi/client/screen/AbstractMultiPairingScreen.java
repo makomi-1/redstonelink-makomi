@@ -1,6 +1,7 @@
 package com.makomi.client.screen;
 
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasSavedData;
@@ -97,7 +98,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	/**
 	 * 面板内容默认高度（像素）。
 	 */
-	private static final int PANEL_CONTENT_HEIGHT = 184;
+	private static final int PANEL_CONTENT_HEIGHT = 212;
 	/**
 	 * 主操作按钮数量。
 	 */
@@ -130,9 +131,12 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected final long graphRevision;
 	protected final long sourceRevision;
 	protected final long coreRevision;
+	protected LinkConnectionMode currentConnectionMode;
+	protected long currentChannel;
 
 	private StyledEditBox aliasInput;
 	private MultiLineEditBox serialInput;
+	private Button modeButton;
 	private Component statusMessage = Component.empty();
 	private int statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
 
@@ -144,7 +148,9 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		List<Long> currentTargets,
 		long graphRevision,
 		long sourceRevision,
-		long coreRevision
+		long coreRevision,
+		LinkConnectionMode connectionMode,
+		long channel
 	) {
 		super(title);
 		this.sourceSerial = sourceSerial;
@@ -154,6 +160,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		this.graphRevision = Math.max(0L, graphRevision);
 		this.sourceRevision = Math.max(0L, sourceRevision);
 		this.coreRevision = Math.max(0L, coreRevision);
+		this.currentConnectionMode = connectionMode == null ? LinkConnectionMode.SERIAL : connectionMode;
+		this.currentChannel = Math.max(0L, channel);
 	}
 
 	protected AbstractMultiPairingScreen(
@@ -165,7 +173,18 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		long graphRevision,
 		long sourceRevision
 	) {
-		this(title, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, graphRevision, sourceRevision, 0L);
+		this(
+			title,
+			sourceSerial,
+			sourceAlias,
+			sourceDisplayText,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			0L,
+			LinkConnectionMode.SERIAL,
+			0L
+		);
 	}
 
 	protected AbstractMultiPairingScreen(Component title, long sourceSerial, String sourceAlias, String sourceDisplayText, List<Long> currentTargets) {
@@ -181,7 +200,18 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		long sourceRevision,
 		long coreRevision
 	) {
-		this(title, sourceSerial, "", sourceDisplayText, currentTargets, graphRevision, sourceRevision, coreRevision);
+		this(
+			title,
+			sourceSerial,
+			"",
+			sourceDisplayText,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			coreRevision,
+			LinkConnectionMode.SERIAL,
+			0L
+		);
 	}
 
 	protected AbstractMultiPairingScreen(
@@ -192,7 +222,18 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		long graphRevision,
 		long sourceRevision
 	) {
-		this(title, sourceSerial, "", sourceDisplayText, currentTargets, graphRevision, sourceRevision, 0L);
+		this(
+			title,
+			sourceSerial,
+			"",
+			sourceDisplayText,
+			currentTargets,
+			graphRevision,
+			sourceRevision,
+			0L,
+			LinkConnectionMode.SERIAL,
+			0L
+		);
 	}
 
 	protected AbstractMultiPairingScreen(Component title, long sourceSerial, String sourceDisplayText, List<Long> currentTargets) {
@@ -203,7 +244,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected void init() {
 		super.init();
 		String preservedAlias = aliasInput == null ? sourceAlias : aliasInput.getValue();
-		String preservedInput = serialInput == null ? SerialInputSyntaxSupport.joinTargets(currentTargets) : serialInput.getValue();
+		String preservedInput = serialInput == null ? initialInputValue() : serialInput.getValue();
 		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
 		aliasInput = createAliasInputBox(layout);
 		aliasInput.setMaxLength(NodeAliasSavedData.maxAliasLength());
@@ -221,6 +262,17 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		}
 		setInitialFocus(serialInput);
 		addRenderableWidget(serialInput);
+		modeButton =
+			addRenderableWidget(
+				createActionButton(
+					ActionButtonKind.MODE,
+					modeButtonLabel(),
+					layout.panelLeft(),
+					layout.modeButtonY(),
+					layout.panelWidth(),
+					button -> toggleConnectionMode()
+				)
+			);
 
 		int buttonRowY = layout.actionButtonY();
 		int actionButtonWidth = layout.actionButtonWidth();
@@ -402,20 +454,16 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * @param sourceSerial 来源节点序列号
 	 * @param rawTargetsInput 输入框中的原始目标文本
 	 */
-	protected void submitPairingRequest(long sourceSerial, String rawTargetsInput) {
+	protected void submitPairingRequest(
+		long sourceSerial,
+		LinkConnectionMode connectionMode,
+		String rawTargetsInput,
+		long channel
+	) {
+		if (connectionMode == LinkConnectionMode.CHANNEL) {
+			return;
+		}
 		sendSetLinksCommand(sourceSerial, rawTargetsInput);
-	}
-
-	/**
-	 * 提交清空请求。
-	 * <p>
-	 * 默认仍走命令兼容链路，子类可覆写为结构化 payload。
-	 * </p>
-	 *
-	 * @param sourceSerial 来源节点序列号
-	 */
-	protected void clearPairingRequest(long sourceSerial) {
-		sendClearLinksCommand(sourceSerial);
 	}
 
 	/**
@@ -438,18 +486,6 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		// 客户端不再按数量做业务裁决；非空输入统一追加 confirm，最终由服务端判定是否执行。
 		String command = base + " " + normalizedTargets + " confirm";
 		minecraft.player.connection.sendCommand(command);
-	}
-
-	/**
-	 * 发送 clear_links 语义（通过空目标覆盖 `link set` 实现）。
-	 *
-	 * @param sourceSerial 来源节点序列号
-	 */
-	protected final void sendClearLinksCommand(long sourceSerial) {
-		if (minecraft == null || minecraft.player == null || minecraft.player.connection == null) {
-			return;
-		}
-		minecraft.player.connection.sendCommand(setLinksBaseCommand(sourceSerial));
 	}
 
 	/**
@@ -651,6 +687,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	private List<Component> buildInputTooltipLines() {
 		List<Component> lines = new ArrayList<>(2);
+		if (isChannelMode()) {
+			lines.add(Component.translatable("screen.redstonelink.pairing.channel_input_tooltip_rule"));
+			return lines;
+		}
 		lines.add(INPUT_TOOLTIP_RULE);
 		lines.add(INPUT_TOOLTIP_EXAMPLE);
 		return lines;
@@ -665,6 +705,18 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
 			return;
 		}
+		if (isChannelMode()) {
+			Long parsedChannel = parseChannelInput(serialInput.getValue());
+			if (parsedChannel == null) {
+				statusMessage = invalidInput();
+				statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
+				return;
+			}
+			currentChannel = parsedChannel;
+			submitPairingRequest(sourceSerial, LinkConnectionMode.CHANNEL, "", parsedChannel);
+			onClose();
+			return;
+		}
 
 		SerialInputSyntaxSupport.ValidationResult validation = SerialInputSyntaxSupport.validate(serialInput.getValue());
 		if (!validation.valid()) {
@@ -676,7 +728,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
-		submitPairingRequest(sourceSerial, validation.normalizedExpression());
+		submitPairingRequest(sourceSerial, LinkConnectionMode.SERIAL, validation.normalizedExpression(), 0L);
 		onClose();
 	}
 
@@ -690,7 +742,9 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
-		clearPairingRequest(sourceSerial);
+		currentConnectionMode = LinkConnectionMode.SERIAL;
+		currentChannel = 0L;
+		submitPairingRequest(sourceSerial, LinkConnectionMode.SERIAL, "", 0L);
 		onClose();
 	}
 
@@ -793,6 +847,15 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			);
 		bounds = bounds.include(leftAlignedTextBounds(aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY()));
 		bounds = bounds.include(leftAlignedTextBounds(currentLinksLine, layout.panelLeft(), layout.currentLinksY()));
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(
+					layout.panelLeft(),
+					layout.modeButtonY(),
+					layout.panelWidth(),
+					ACTION_BUTTON_HEIGHT
+				)
+			);
 		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
 		bounds =
 			bounds.include(
@@ -835,7 +898,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int aliasInputY = titleY + 30;
 		int aliasSuffixY = aliasInputY + Math.max(0, (ALIAS_INPUT_HEIGHT - fontLineHeight) / 2) + 1;
 		int currentLinksY = aliasInputY + ALIAS_INPUT_HEIGHT + 6;
-		int inputLabelY = currentLinksY + 12;
+		int modeButtonY = currentLinksY + fontLineHeight + 6;
+		int inputLabelY = modeButtonY + ACTION_BUTTON_HEIGHT + 8;
 		int inputY = inputLabelY + fontLineHeight + INPUT_LABEL_MARGIN;
 		int actionButtonY = inputY + INPUT_BOX_HEIGHT + BUTTON_ROW_MARGIN + 4;
 		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelBox.width(), ACTION_BUTTON_GAP, ACTION_BUTTON_COUNT);
@@ -848,6 +912,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			aliasInputY,
 			aliasSuffixY,
 			currentLinksY,
+			modeButtonY,
 			inputLabelY,
 			inputY,
 			actionButtonY,
@@ -867,6 +932,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int aliasInputY,
 		int aliasSuffixY,
 		int currentLinksY,
+		int modeButtonY,
 		int inputLabelY,
 		int inputY,
 		int actionButtonY,
@@ -883,6 +949,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	protected enum ActionButtonKind {
 		SAVE,
+		MODE,
 		CONFIRM,
 		CLEAR,
 	}
@@ -931,6 +998,54 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 	private Component aliasSerialSuffix() {
 		return Component.literal("(" + NodeAliasDisplayUtil.formatSerialToken(sourceSerial) + ")");
+	}
+
+	/**
+	 * @return 当前界面是否处于频道模式
+	 */
+	protected final boolean isChannelMode() {
+		return currentConnectionMode == LinkConnectionMode.CHANNEL;
+	}
+
+	private String initialInputValue() {
+		if (isChannelMode()) {
+			return currentChannel > 0L ? Long.toString(currentChannel) : "";
+		}
+		return SerialInputSyntaxSupport.joinTargets(currentTargets);
+	}
+
+	private Component modeButtonLabel() {
+		return Component.translatable(
+			"screen.redstonelink.pairing.mode_button",
+			Component.translatable(currentConnectionMode.translationKey())
+		);
+	}
+
+	private void toggleConnectionMode() {
+		currentConnectionMode = currentConnectionMode.next();
+		currentChannel = 0L;
+		statusMessage = Component.empty();
+		statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
+		if (serialInput != null) {
+			serialInput.setValue("");
+			setInitialFocus(serialInput);
+		}
+		if (modeButton != null) {
+			modeButton.setMessage(modeButtonLabel());
+		}
+	}
+
+	private Long parseChannelInput(String rawInput) {
+		String normalized = rawInput == null ? "" : rawInput.trim();
+		if (normalized.isEmpty()) {
+			return null;
+		}
+		try {
+			long parsed = Long.parseLong(normalized);
+			return parsed > 0L ? parsed : null;
+		} catch (NumberFormatException ignored) {
+			return null;
+		}
 	}
 
 	private static String normalizeSourceAlias(String sourceAlias) {

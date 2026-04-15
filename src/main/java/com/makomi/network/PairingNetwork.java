@@ -3,11 +3,13 @@ package com.makomi.network;
 import com.makomi.RedstoneLink;
 import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkGuiDisplayContext;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeLinksSnapshot;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeSnapshotQueryService;
+import com.makomi.data.LinkSavedData;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
@@ -90,11 +92,23 @@ public final class PairingNetwork {
 			return;
 		}
 		NodeLinksSnapshot linksSnapshot = NodeSnapshotQueryService.queryLinks(player, sourceType, sourceSerial);
+		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
+		LinkConnectionMode connectionMode = savedData.getConnectionMode(sourceType, sourceSerial);
+		long channel = savedData.getChannel(sourceType, sourceSerial);
 		String sourceAlias = NodeAliasServerSupport.resolveAlias(player.serverLevel(), sourceType, sourceSerial).orElse("");
 		String sourceDisplayText = NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), sourceType, sourceSerial);
 		ServerPlayNetworking.send(
 			player,
-			buildPayloadForSourceType(sourceType, sourceSerial, linksSnapshot, displayContextToken, sourceAlias, sourceDisplayText)
+			buildPayloadForSourceType(
+				sourceType,
+				sourceSerial,
+				linksSnapshot,
+				connectionMode,
+				channel,
+				displayContextToken,
+				sourceAlias,
+				sourceDisplayText
+			)
 		);
 	}
 
@@ -113,6 +127,8 @@ public final class PairingNetwork {
 		LinkNodeType sourceType,
 		long sourceSerial,
 		NodeLinksSnapshot linksSnapshot,
+		LinkConnectionMode connectionMode,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
@@ -121,6 +137,8 @@ public final class PairingNetwork {
 			sourceType,
 			sourceSerial,
 			linksSnapshot,
+			connectionMode,
+			channel,
 			displayContextToken,
 			sourceAlias,
 			sourceDisplayText
@@ -140,6 +158,8 @@ public final class PairingNetwork {
 			sourceType,
 			sourceSerial,
 			linksSnapshot,
+			LinkConnectionMode.SERIAL,
+			0L,
 			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
 			"",
 			normalizeSourceDisplayText(sourceSerial, "")
@@ -162,6 +182,8 @@ public final class PairingNetwork {
 			sourceType,
 			sourceSerial,
 			new NodeLinksSnapshot(null, currentTargets, false),
+			LinkConnectionMode.SERIAL,
+			0L,
 			LinkGuiDisplayContext.fallbackPairingToken(sourceType),
 			"",
 			normalizeSourceDisplayText(sourceSerial, "")
@@ -178,6 +200,8 @@ public final class PairingNetwork {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		String connectionModeToken,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
@@ -193,6 +217,8 @@ public final class PairingNetwork {
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
+				payload.connectionModeToken(),
+				payload.channel(),
 				payload.displayContextToken(),
 				payload.sourceAlias(),
 				payload.sourceDisplayText()
@@ -205,6 +231,8 @@ public final class PairingNetwork {
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
+			connectionModeToken = LinkConnectionMode.fromToken(connectionModeToken).token();
+			channel = Math.max(0L, channel);
 			displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE);
 			sourceAlias = normalizeSourceAlias(sourceAlias);
 			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceAlias, sourceDisplayText);
@@ -216,10 +244,70 @@ public final class PairingNetwork {
 			long graphRevision,
 			long sourceRevision,
 			long coreRevision,
+			String connectionModeToken,
+			long channel,
 			String displayContextToken,
 			String sourceDisplayText
 		) {
-			this(sourceSerial, targets, graphRevision, sourceRevision, coreRevision, displayContextToken, "", sourceDisplayText);
+			this(
+				sourceSerial,
+				targets,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				connectionModeToken,
+				channel,
+				displayContextToken,
+				"",
+				sourceDisplayText
+			);
+		}
+
+		public OpenTriggerSourcePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String displayContextToken,
+			String sourceAlias,
+			String sourceDisplayText
+		) {
+			this(
+				sourceSerial,
+				targets,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				LinkConnectionMode.SERIAL.token(),
+				0L,
+				displayContextToken,
+				sourceAlias,
+				sourceDisplayText
+			);
+		}
+
+		public OpenTriggerSourcePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String displayContextToken,
+			String sourceDisplayText
+		) {
+			this(
+				sourceSerial,
+				targets,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				LinkConnectionMode.SERIAL.token(),
+				0L,
+				displayContextToken,
+				"",
+				sourceDisplayText
+			);
 		}
 
 		@Override
@@ -239,6 +327,8 @@ public final class PairingNetwork {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		String connectionModeToken,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
@@ -254,6 +344,8 @@ public final class PairingNetwork {
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
+				payload.connectionModeToken(),
+				payload.channel(),
 				payload.displayContextToken(),
 				payload.sourceAlias(),
 				payload.sourceDisplayText()
@@ -266,6 +358,8 @@ public final class PairingNetwork {
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
+			connectionModeToken = LinkConnectionMode.fromToken(connectionModeToken).token();
+			channel = Math.max(0L, channel);
 			displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE);
 			sourceAlias = normalizeSourceAlias(sourceAlias);
 			sourceDisplayText = normalizeSourceDisplayText(sourceSerial, sourceAlias, sourceDisplayText);
@@ -277,10 +371,70 @@ public final class PairingNetwork {
 			long graphRevision,
 			long sourceRevision,
 			long coreRevision,
+			String connectionModeToken,
+			long channel,
 			String displayContextToken,
 			String sourceDisplayText
 		) {
-			this(sourceSerial, targets, graphRevision, sourceRevision, coreRevision, displayContextToken, "", sourceDisplayText);
+			this(
+				sourceSerial,
+				targets,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				connectionModeToken,
+				channel,
+				displayContextToken,
+				"",
+				sourceDisplayText
+			);
+		}
+
+		public OpenCorePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String displayContextToken,
+			String sourceAlias,
+			String sourceDisplayText
+		) {
+			this(
+				sourceSerial,
+				targets,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				LinkConnectionMode.SERIAL.token(),
+				0L,
+				displayContextToken,
+				sourceAlias,
+				sourceDisplayText
+			);
+		}
+
+		public OpenCorePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String displayContextToken,
+			String sourceDisplayText
+		) {
+			this(
+				sourceSerial,
+				targets,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				LinkConnectionMode.SERIAL.token(),
+				0L,
+				displayContextToken,
+				"",
+				sourceDisplayText
+			);
 		}
 
 		@Override
@@ -295,7 +449,9 @@ public final class PairingNetwork {
 	 */
 	public record SubmitTriggerSourcePairingPayload(
 		long sourceSerial,
+		String connectionModeToken,
 		String targetsExpression,
+		long channel,
 		long expectedSourceRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SubmitTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -305,15 +461,23 @@ public final class PairingNetwork {
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSubmitTriggerSourcePairingPayload(
 				buffer,
 				payload.sourceSerial(),
+				payload.connectionModeToken(),
 				payload.targetsExpression(),
+				payload.channel(),
 				payload.expectedSourceRevision()
 			),
 			PairingNetworkPayloadSupport::decodeSubmitTriggerSourcePairingPayload
 		);
 
 		public SubmitTriggerSourcePairingPayload {
+			connectionModeToken = LinkConnectionMode.fromToken(connectionModeToken).token();
 			targetsExpression = targetsExpression == null ? "" : targetsExpression.trim();
+			channel = Math.max(0L, channel);
 			expectedSourceRevision = Math.max(0L, expectedSourceRevision);
+		}
+
+		public SubmitTriggerSourcePairingPayload(long sourceSerial, String targetsExpression, long expectedSourceRevision) {
+			this(sourceSerial, LinkConnectionMode.SERIAL.token(), targetsExpression, 0L, expectedSourceRevision);
 		}
 
 		@Override
@@ -331,7 +495,9 @@ public final class PairingNetwork {
 	 */
 	public record SubmitCorePairingPayload(
 		long coreSerial,
+		String connectionModeToken,
 		String triggerSourceExpression,
+		long channel,
 		long expectedCoreRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SubmitCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -341,15 +507,23 @@ public final class PairingNetwork {
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSubmitCorePairingPayload(
 				buffer,
 				payload.coreSerial(),
+				payload.connectionModeToken(),
 				payload.triggerSourceExpression(),
+				payload.channel(),
 				payload.expectedCoreRevision()
 			),
 			PairingNetworkPayloadSupport::decodeSubmitCorePairingPayload
 		);
 
 		public SubmitCorePairingPayload {
+			connectionModeToken = LinkConnectionMode.fromToken(connectionModeToken).token();
 			triggerSourceExpression = triggerSourceExpression == null ? "" : triggerSourceExpression.trim();
+			channel = Math.max(0L, channel);
 			expectedCoreRevision = Math.max(0L, expectedCoreRevision);
+		}
+
+		public SubmitCorePairingPayload(long coreSerial, String triggerSourceExpression, long expectedCoreRevision) {
+			this(coreSerial, LinkConnectionMode.SERIAL.token(), triggerSourceExpression, 0L, expectedCoreRevision);
 		}
 
 		@Override

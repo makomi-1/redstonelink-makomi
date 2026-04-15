@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.NodeAliasDisplayUtil;
 import io.netty.buffer.Unpooled;
@@ -39,6 +40,8 @@ class PairingNetworkPayloadTest {
 
 		assertNotSame(source, payload.targets());
 		assertEquals(List.of(7L, 3L, 9L), payload.targets());
+		assertEquals(LinkConnectionMode.SERIAL.token(), payload.connectionModeToken());
+		assertEquals(0L, payload.channel());
 
 		source.add(11L);
 		assertEquals(List.of(7L, 3L, 9L), payload.targets());
@@ -64,6 +67,8 @@ class PairingNetworkPayloadTest {
 
 		assertNotSame(source, payload.targets());
 		assertEquals(List.of(2L, 5L), payload.targets());
+		assertEquals(LinkConnectionMode.SERIAL.token(), payload.connectionModeToken());
+		assertEquals(0L, payload.channel());
 
 		source.clear();
 		assertEquals(List.of(2L, 5L), payload.targets());
@@ -87,7 +92,9 @@ class PairingNetworkPayloadTest {
 		);
 
 		assertEquals(300L, payload.sourceSerial());
+		assertEquals(LinkConnectionMode.SERIAL.token(), payload.connectionModeToken());
 		assertEquals("1/3:5", payload.targetsExpression());
+		assertEquals(0L, payload.channel());
 		assertEquals(12L, payload.expectedSourceRevision());
 		assertEquals("", emptyPayload.targetsExpression());
 	}
@@ -101,9 +108,37 @@ class PairingNetworkPayloadTest {
 		PairingNetwork.SubmitCorePairingPayload emptyPayload = new PairingNetwork.SubmitCorePairingPayload(401L, null, 0L);
 
 		assertEquals(400L, payload.coreSerial());
+		assertEquals(LinkConnectionMode.SERIAL.token(), payload.connectionModeToken());
 		assertEquals("2/4:6", payload.triggerSourceExpression());
+		assertEquals(0L, payload.channel());
 		assertEquals(17L, payload.expectedCoreRevision());
 		assertEquals("", emptyPayload.triggerSourceExpression());
+	}
+
+	/**
+	 * 频道模式配对包编解码往返应保持 mode/channel 字段一致。
+	 */
+	@Test
+	void channelModePayloadCodecRoundTripShouldPreserveModeAndChannel() {
+		PairingNetwork.OpenCorePairingPayload original = new PairingNetwork.OpenCorePairingPayload(
+			321L,
+			List.of(8L, 6L),
+			34L,
+			0L,
+			5L,
+			LinkConnectionMode.CHANNEL.token(),
+			88L,
+			LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE,
+			"红石核心",
+			"红石核心(#321)"
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		PairingNetwork.OpenCorePairingPayload.CODEC.encode(buffer, original);
+		PairingNetwork.OpenCorePairingPayload decoded = PairingNetwork.OpenCorePairingPayload.CODEC.decode(buffer);
+
+		assertEquals(LinkConnectionMode.CHANNEL.token(), decoded.connectionModeToken());
+		assertEquals(88L, decoded.channel());
 	}
 
 	/**

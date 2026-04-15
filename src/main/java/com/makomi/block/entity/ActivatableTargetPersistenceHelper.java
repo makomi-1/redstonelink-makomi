@@ -208,63 +208,6 @@ final class ActivatableTargetPersistenceHelper {
 		return loaded;
 	}
 
-	private static boolean loadPulseConcurrentEntries(
-		ListTag listTag,
-		ActivatableTargetConcurrentBucketComponent concurrentComponent
-	) {
-		boolean loaded = false;
-		for (int index = 0; index < listTag.size(); index++) {
-			CompoundTag entryTag = listTag.getCompound(index);
-			Optional<SourceKey> sourceKey = parseConcurrentSourceKey(entryTag);
-			if (sourceKey.isEmpty()) {
-				continue;
-			}
-			TimeKey timeKey = TimeKey.of(
-				Math.max(0L, entryTag.getLong(KEY_CONCURRENT_TICK)),
-				Math.max(0, entryTag.getInt(KEY_CONCURRENT_SLOT))
-			);
-			long untilTick = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_UNTIL_TICK));
-			if (untilTick <= 0L) {
-				continue;
-			}
-			long seq = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_SEQ));
-			concurrentComponent
-				.pulseConcurrentBuckets()
-				.computeIfAbsent(timeKey, ignored -> new java.util.TreeMap<>())
-				.put(sourceKey.get(), new ActivatableTargetConcurrentBucketComponent.PulseConcurrentEntry(untilTick, seq));
-			loaded = true;
-		}
-		return loaded;
-	}
-
-	private static boolean loadToggleConcurrentEntries(
-		ListTag listTag,
-		ActivatableTargetConcurrentBucketComponent concurrentComponent
-	) {
-		boolean loaded = false;
-		for (int index = 0; index < listTag.size(); index++) {
-			CompoundTag entryTag = listTag.getCompound(index);
-			Optional<SourceKey> sourceKey = parseConcurrentSourceKey(entryTag);
-			if (sourceKey.isEmpty()) {
-				continue;
-			}
-			if (!entryTag.getBoolean(KEY_CONCURRENT_CONTRIBUTES)) {
-				continue;
-			}
-			TimeKey timeKey = TimeKey.of(
-				Math.max(0L, entryTag.getLong(KEY_CONCURRENT_TICK)),
-				Math.max(0, entryTag.getInt(KEY_CONCURRENT_SLOT))
-			);
-			long seq = Math.max(0L, entryTag.getLong(KEY_CONCURRENT_SEQ));
-			concurrentComponent
-				.toggleConcurrentBuckets()
-				.computeIfAbsent(timeKey, ignored -> new java.util.TreeMap<>())
-				.put(sourceKey.get(), new ActivatableTargetConcurrentBucketComponent.ToggleConcurrentEntry(true, seq));
-			loaded = true;
-		}
-		return loaded;
-	}
-
 	private static boolean loadPulseSnapshotFromLegacyConcurrentEntries(
 		ListTag listTag,
 		ActivatableTargetConcurrentBucketComponent concurrentComponent
@@ -368,58 +311,6 @@ final class ActivatableTargetPersistenceHelper {
 				CompoundTag entryTag = new CompoundTag();
 				writeConcurrentSourceKey(entryTag, sourceKey, timeKey, concurrentEntry.seq());
 				entryTag.putInt(KEY_CONCURRENT_STRENGTH, SignalStrengths.clamp(concurrentEntry.strength()));
-				targetList.add(entryTag);
-			}
-		}
-	}
-
-	private static void appendPulseConcurrentEntries(
-		ListTag targetList,
-		ActivatableTargetConcurrentBucketComponent concurrentComponent
-	) {
-		for (Map.Entry<TimeKey, Map<SourceKey, ActivatableTargetConcurrentBucketComponent.PulseConcurrentEntry>> bucketEntry : concurrentComponent
-			.pulseConcurrentBuckets()
-			.entrySet()) {
-			TimeKey timeKey = bucketEntry.getKey();
-			Map<SourceKey, ActivatableTargetConcurrentBucketComponent.PulseConcurrentEntry> bucket = bucketEntry.getValue();
-			if (timeKey == null || bucket == null || bucket.isEmpty()) {
-				continue;
-			}
-			for (Map.Entry<SourceKey, ActivatableTargetConcurrentBucketComponent.PulseConcurrentEntry> sourceEntry : bucket.entrySet()) {
-				SourceKey sourceKey = sourceEntry.getKey();
-				ActivatableTargetConcurrentBucketComponent.PulseConcurrentEntry concurrentEntry = sourceEntry.getValue();
-				if (sourceKey == null || concurrentEntry == null || concurrentEntry.untilGameTick() <= 0L) {
-					continue;
-				}
-				CompoundTag entryTag = new CompoundTag();
-				writeConcurrentSourceKey(entryTag, sourceKey, timeKey, concurrentEntry.seq());
-				entryTag.putLong(KEY_CONCURRENT_UNTIL_TICK, Math.max(0L, concurrentEntry.untilGameTick()));
-				targetList.add(entryTag);
-			}
-		}
-	}
-
-	private static void appendToggleConcurrentEntries(
-		ListTag targetList,
-		ActivatableTargetConcurrentBucketComponent concurrentComponent
-	) {
-		for (Map.Entry<TimeKey, Map<SourceKey, ActivatableTargetConcurrentBucketComponent.ToggleConcurrentEntry>> bucketEntry : concurrentComponent
-			.toggleConcurrentBuckets()
-			.entrySet()) {
-			TimeKey timeKey = bucketEntry.getKey();
-			Map<SourceKey, ActivatableTargetConcurrentBucketComponent.ToggleConcurrentEntry> bucket = bucketEntry.getValue();
-			if (timeKey == null || bucket == null || bucket.isEmpty()) {
-				continue;
-			}
-			for (Map.Entry<SourceKey, ActivatableTargetConcurrentBucketComponent.ToggleConcurrentEntry> sourceEntry : bucket.entrySet()) {
-				SourceKey sourceKey = sourceEntry.getKey();
-				ActivatableTargetConcurrentBucketComponent.ToggleConcurrentEntry concurrentEntry = sourceEntry.getValue();
-				if (sourceKey == null || concurrentEntry == null || !concurrentEntry.contributes()) {
-					continue;
-				}
-				CompoundTag entryTag = new CompoundTag();
-				writeConcurrentSourceKey(entryTag, sourceKey, timeKey, concurrentEntry.seq());
-				entryTag.putBoolean(KEY_CONCURRENT_CONTRIBUTES, true);
 				targetList.add(entryTag);
 			}
 		}

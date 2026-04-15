@@ -322,6 +322,67 @@ class LinkSavedDataTest {
 	}
 
 	/**
+	 * 频道配置应支持按类型独立查询，并在加载后保持频道桶索引可用。
+	 */
+	@Test
+	void channelConfigShouldRoundTripWithStableModeAndBucketIndex() {
+		LinkSavedData data = new LinkSavedData();
+		LinkSavedDataChannelSupport.putChannelConfig(data, LinkNodeType.TRIGGER_SOURCE, 91L, 7L);
+		LinkSavedDataChannelSupport.putChannelConfig(data, LinkNodeType.CORE, 301L, 7L);
+		LinkSavedDataChannelSupport.putChannelConfig(data, LinkNodeType.CORE, 302L, 7L);
+
+		assertEquals(LinkConnectionMode.CHANNEL, data.getConnectionMode(LinkNodeType.TRIGGER_SOURCE, 91L));
+		assertEquals(7L, data.getChannel(LinkNodeType.TRIGGER_SOURCE, 91L));
+		assertEquals(Set.of(301L, 302L), data.getChannelMembers(LinkNodeType.CORE, 7L));
+
+		CompoundTag saved = data.save(new CompoundTag(), null);
+		LinkSavedData restored = LinkSavedDataLoadCompatibilityTest.invokeLoad(saved);
+
+		assertEquals(LinkConnectionMode.CHANNEL, restored.getConnectionMode(LinkNodeType.TRIGGER_SOURCE, 91L));
+		assertEquals(7L, restored.getChannel(LinkNodeType.CORE, 301L));
+		assertEquals(Set.of(91L), restored.getChannelMembers(LinkNodeType.TRIGGER_SOURCE, 7L));
+		assertEquals(Set.of(301L, 302L), restored.getChannelMembers(LinkNodeType.CORE, 7L));
+	}
+
+	/**
+	 * 退役节点时应同步清理其频道配置与频道桶成员。
+	 */
+	@Test
+	void retireNodeShouldClearChannelConfigAndBucketMembership() {
+		LinkSavedData data = new LinkSavedData();
+		LinkSavedDataChannelSupport.putChannelConfig(data, LinkNodeType.CORE, 401L, 19L);
+
+		data.retireNode(LinkNodeType.CORE, 401L);
+
+		assertEquals(LinkConnectionMode.SERIAL, data.getConnectionMode(LinkNodeType.CORE, 401L));
+		assertEquals(0L, data.getChannel(LinkNodeType.CORE, 401L));
+		assertTrue(data.getChannelMembers(LinkNodeType.CORE, 19L).isEmpty());
+	}
+
+	/**
+	 * 频道模式 triggerSource 应按频道桶推导目标，serial 模式则应自动过滤 channel 模式 core。
+	 */
+	@Test
+	void resolveDesiredTargetsForTriggerSourceShouldFollowModeIsolation() {
+		LinkSavedData data = new LinkSavedData();
+		data.addTriggerSourceCoreLink(501L, 601L);
+		data.addTriggerSourceCoreLink(501L, 602L);
+		LinkSavedDataChannelSupport.putChannelConfig(data, LinkNodeType.CORE, 602L, 33L);
+		LinkSavedDataChannelSupport.putChannelConfig(data, LinkNodeType.CORE, 603L, 33L);
+
+		assertEquals(
+			Set.of(601L),
+			LinkSavedDataChannelSupport.resolveDesiredTargetsForTriggerSourceWithOverride(data, 501L, null, 0L, null, 0L)
+		);
+
+		LinkSavedDataChannelSupport.putChannelConfig(data, LinkNodeType.TRIGGER_SOURCE, 501L, 33L);
+		assertEquals(
+			Set.of(602L, 603L),
+			LinkSavedDataChannelSupport.resolveDesiredTargetsForTriggerSourceWithOverride(data, 501L, null, 0L, null, 0L)
+		);
+	}
+
+	/**
 	 * clearLinksForNode 返回值应反映真实移除链路数量（triggerSource/core 两侧）。
 	 */
 	@Test

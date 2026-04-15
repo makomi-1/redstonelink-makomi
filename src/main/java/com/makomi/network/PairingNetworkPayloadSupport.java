@@ -3,6 +3,7 @@ package com.makomi.network;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkGuiDisplayContext;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeLinksSnapshot;
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ final class PairingNetworkPayloadSupport {
 	static final int NODE_TYPE_MAX_LENGTH = 32;
 	private static final int CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH = 32;
 	private static final int DISPLAY_CONTEXT_TOKEN_MAX_LENGTH = 64;
+	private static final int MODE_TOKEN_MAX_LENGTH = 16;
 	private static final int ALIAS_TEXT_MAX_LENGTH = 96;
 	private static final int DISPLAY_TEXT_MAX_LENGTH = 96;
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
@@ -41,6 +43,8 @@ final class PairingNetworkPayloadSupport {
 		LinkNodeType sourceType,
 		long sourceSerial,
 		NodeLinksSnapshot linksSnapshot,
+		LinkConnectionMode connectionMode,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
@@ -55,6 +59,8 @@ final class PairingNetworkPayloadSupport {
 				normalizedSnapshot.graphRevision(),
 				normalizedSnapshot.sourceRevision(),
 				normalizedSnapshot.coreRevision(),
+				connectionMode == null ? LinkConnectionMode.SERIAL.token() : connectionMode.token(),
+				channel,
 				LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.TRIGGER_SOURCE),
 				sourceAlias,
 				sourceDisplayText
@@ -66,6 +72,8 @@ final class PairingNetworkPayloadSupport {
 			normalizedSnapshot.graphRevision(),
 			normalizedSnapshot.sourceRevision(),
 			normalizedSnapshot.coreRevision(),
+			connectionMode == null ? LinkConnectionMode.SERIAL.token() : connectionMode.token(),
+			channel,
 			LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, LinkNodeType.CORE),
 			sourceAlias,
 			sourceDisplayText
@@ -82,6 +90,8 @@ final class PairingNetworkPayloadSupport {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		String connectionModeToken,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
@@ -94,6 +104,8 @@ final class PairingNetworkPayloadSupport {
 		buffer.writeVarLong(Math.max(0L, graphRevision));
 		buffer.writeVarLong(Math.max(0L, sourceRevision));
 		buffer.writeVarLong(Math.max(0L, coreRevision));
+		buffer.writeUtf(LinkConnectionMode.fromToken(connectionModeToken).token(), MODE_TOKEN_MAX_LENGTH);
+		buffer.writeVarLong(Math.max(0L, channel));
 		buffer.writeUtf(displayContextToken == null ? "" : displayContextToken, DISPLAY_CONTEXT_TOKEN_MAX_LENGTH);
 		buffer.writeUtf(sourceAlias == null ? "" : sourceAlias, ALIAS_TEXT_MAX_LENGTH);
 		buffer.writeUtf(sourceDisplayText == null ? "" : sourceDisplayText, DISPLAY_TEXT_MAX_LENGTH);
@@ -110,6 +122,8 @@ final class PairingNetworkPayloadSupport {
 			payload.graphRevision(),
 			payload.sourceRevision(),
 			payload.coreRevision(),
+			payload.connectionModeToken(),
+			payload.channel(),
 			payload.displayContextToken(),
 			payload.sourceAlias(),
 			payload.sourceDisplayText()
@@ -127,6 +141,8 @@ final class PairingNetworkPayloadSupport {
 			payload.graphRevision(),
 			payload.sourceRevision(),
 			payload.coreRevision(),
+			payload.connectionModeToken(),
+			payload.channel(),
 			payload.displayContextToken(),
 			payload.sourceAlias(),
 			payload.sourceDisplayText()
@@ -139,10 +155,12 @@ final class PairingNetworkPayloadSupport {
 	static void encodeSubmitTriggerSourcePairingPayload(
 		FriendlyByteBuf buffer,
 		long sourceSerial,
+		String connectionModeToken,
 		String targetsExpression,
+		long channel,
 		long expectedSourceRevision
 	) {
-		encodeSubmitPairingExpressionPayload(buffer, sourceSerial, targetsExpression, expectedSourceRevision);
+		encodeSubmitPairingExpressionPayload(buffer, sourceSerial, connectionModeToken, targetsExpression, channel, expectedSourceRevision);
 	}
 
 	/**
@@ -152,7 +170,9 @@ final class PairingNetworkPayloadSupport {
 		DecodedSubmitPairingPayload payload = decodeSubmitPairingExpressionPayload(buffer);
 		return new PairingNetwork.SubmitTriggerSourcePairingPayload(
 			payload.serial(),
+			payload.connectionModeToken(),
 			payload.expression(),
+			payload.channel(),
 			payload.expectedRevision()
 		);
 	}
@@ -163,10 +183,12 @@ final class PairingNetworkPayloadSupport {
 	static void encodeSubmitCorePairingPayload(
 		FriendlyByteBuf buffer,
 		long coreSerial,
+		String connectionModeToken,
 		String triggerSourceExpression,
+		long channel,
 		long expectedCoreRevision
 	) {
-		encodeSubmitPairingExpressionPayload(buffer, coreSerial, triggerSourceExpression, expectedCoreRevision);
+		encodeSubmitPairingExpressionPayload(buffer, coreSerial, connectionModeToken, triggerSourceExpression, channel, expectedCoreRevision);
 	}
 
 	/**
@@ -174,7 +196,13 @@ final class PairingNetworkPayloadSupport {
 	 */
 	static PairingNetwork.SubmitCorePairingPayload decodeSubmitCorePairingPayload(FriendlyByteBuf buffer) {
 		DecodedSubmitPairingPayload payload = decodeSubmitPairingExpressionPayload(buffer);
-		return new PairingNetwork.SubmitCorePairingPayload(payload.serial(), payload.expression(), payload.expectedRevision());
+		return new PairingNetwork.SubmitCorePairingPayload(
+			payload.serial(),
+			payload.connectionModeToken(),
+			payload.expression(),
+			payload.channel(),
+			payload.expectedRevision()
+		);
 	}
 
 	/**
@@ -390,6 +418,8 @@ final class PairingNetworkPayloadSupport {
 			buffer.readVarLong(),
 			buffer.readVarLong(),
 			buffer.readVarLong(),
+			buffer.readUtf(MODE_TOKEN_MAX_LENGTH),
+			buffer.readVarLong(),
 			buffer.readUtf(DISPLAY_CONTEXT_TOKEN_MAX_LENGTH),
 			buffer.readUtf(ALIAS_TEXT_MAX_LENGTH),
 			buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH)
@@ -443,11 +473,15 @@ final class PairingNetworkPayloadSupport {
 	private static void encodeSubmitPairingExpressionPayload(
 		FriendlyByteBuf buffer,
 		long serial,
+		String connectionModeToken,
 		String expression,
+		long channel,
 		long expectedRevision
 	) {
 		buffer.writeVarLong(Math.max(0L, serial));
+		buffer.writeUtf(LinkConnectionMode.fromToken(connectionModeToken).token(), MODE_TOKEN_MAX_LENGTH);
 		buffer.writeUtf(expression == null ? "" : expression, RedstoneLinkConfig.command().linkSetMaxInputLength());
+		buffer.writeVarLong(Math.max(0L, channel));
 		buffer.writeVarLong(Math.max(0L, expectedRevision));
 	}
 
@@ -457,7 +491,9 @@ final class PairingNetworkPayloadSupport {
 	private static DecodedSubmitPairingPayload decodeSubmitPairingExpressionPayload(FriendlyByteBuf buffer) {
 		return new DecodedSubmitPairingPayload(
 			buffer.readVarLong(),
+			buffer.readUtf(MODE_TOKEN_MAX_LENGTH),
 			buffer.readUtf(RedstoneLinkConfig.command().linkSetMaxInputLength()),
+			buffer.readVarLong(),
 			buffer.readVarLong()
 		);
 	}
@@ -485,6 +521,8 @@ final class PairingNetworkPayloadSupport {
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
+		String connectionModeToken,
+		long channel,
 		String displayContextToken,
 		String sourceAlias,
 		String sourceDisplayText
@@ -493,7 +531,13 @@ final class PairingNetworkPayloadSupport {
 	/**
 	 * “单序号 + 表达式”提交包解码结果。
 	 */
-	private record DecodedSubmitPairingPayload(long serial, String expression, long expectedRevision) {}
+	private record DecodedSubmitPairingPayload(
+		long serial,
+		String connectionModeToken,
+		String expression,
+		long channel,
+		long expectedRevision
+	) {}
 
 	/**
 	 * 只携带节点定位上下文的请求解码结果。

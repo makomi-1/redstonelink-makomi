@@ -6,9 +6,11 @@ import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.CommandTreeSupport;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.InternalDispatchDeltaEvents;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.LinkSavedDataChannelSupport;
 import com.makomi.data.LinkWriteControlService;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -86,7 +88,9 @@ public final class LinkSetExecutionService {
 			targets,
 			duplicateEntries,
 			hasLimitedBypassPermission,
-			hasProtectedBypassPermission
+			hasProtectedBypassPermission,
+			true,
+			true
 		);
 	}
 
@@ -119,7 +123,9 @@ public final class LinkSetExecutionService {
 			normalizePositiveTargets(targetSerials),
 			List.of(),
 			hasLimitedBypassPermission,
-			hasProtectedBypassPermission
+			hasProtectedBypassPermission,
+			true,
+			true
 		);
 	}
 
@@ -130,7 +136,7 @@ public final class LinkSetExecutionService {
 	 * 来源校验、目标校验、写控判定、命令成本计算与预备反馈。
 	 * </p>
 	 */
-	private static PreparationResult prepareConfirmedReplaceResolvedTargets(
+	static PreparationResult prepareConfirmedReplaceResolvedTargets(
 		ServerLevel level,
 		ServerPlayer player,
 		LinkNodeType sourceType,
@@ -138,7 +144,9 @@ public final class LinkSetExecutionService {
 		Set<Long> targetSerials,
 		List<Long> duplicateEntries,
 		boolean hasLimitedBypassPermission,
-		boolean hasProtectedBypassPermission
+		boolean hasProtectedBypassPermission,
+		boolean switchSourceToSerialModeBeforeApply,
+		boolean requireSerialTargets
 	) {
 		if (level == null || sourceType == null) {
 			return PreparationResult.failure(OperationFeedback.failure("message.redstonelink.permission.insufficient"));
@@ -175,6 +183,7 @@ public final class LinkSetExecutionService {
 		List<Long> unallocatedTargets = new ArrayList<>();
 		List<Long> retiredTargets = new ArrayList<>();
 		List<Long> offlineTargets = new ArrayList<>();
+		List<Long> channelModeTargets = new ArrayList<>();
 		for (long targetSerial : targets) {
 			if (!savedData.isSerialAllocated(targetType, targetSerial)) {
 				unallocatedTargets.add(targetSerial);
@@ -186,6 +195,12 @@ public final class LinkSetExecutionService {
 			}
 			if (savedData.findNode(targetType, targetSerial).isEmpty()) {
 				offlineTargets.add(targetSerial);
+			}
+			if (
+				requireSerialTargets &&
+				savedData.getConnectionMode(targetType, targetSerial) == LinkConnectionMode.CHANNEL
+			) {
+				channelModeTargets.add(targetSerial);
 			}
 		}
 		if (!unallocatedTargets.isEmpty()) {
@@ -201,6 +216,14 @@ public final class LinkSetExecutionService {
 				OperationFeedback.failure(
 					"message.redstonelink.invalid_target_retired",
 					CommandTreeSupport.formatSerialList(retiredTargets)
+				)
+			);
+		}
+		if (!channelModeTargets.isEmpty()) {
+			return PreparationResult.failure(
+				OperationFeedback.failure(
+					"message.redstonelink.invalid_target_channel_mode",
+					CommandTreeSupport.formatSerialList(channelModeTargets)
 				)
 			);
 		}
@@ -250,7 +273,8 @@ public final class LinkSetExecutionService {
 			Set.copyOf(targets),
 			Set.copyOf(previousTargets),
 			List.copyOf(offlineTargets),
-			CommandRateLimitService.computeBatchCost(2, targets.size(), 64)
+			CommandRateLimitService.computeBatchCost(2, targets.size(), 64),
+			switchSourceToSerialModeBeforeApply
 		);
 		return PreparationResult.success(operation, preparationFeedbacks);
 	}
@@ -289,6 +313,63 @@ public final class LinkSetExecutionService {
 		List<Long> offlineTargets,
 		int commandCost
 	) {
+		return createPreparedReplaceOperation(
+			level,
+			player,
+			sourceType,
+			sourceSerial,
+			targetType,
+			previousTargets,
+			nextTargets,
+			offlineTargets,
+			commandCost,
+			false
+		);
+	}
+
+	/**
+	 * 基于已完成校验的目标集合构造“切回 serial 模式”的覆盖写入操作。
+	 */
+	public static PreparedReplaceOperation createPreparedSerialReplaceOperation(
+		ServerLevel level,
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		Set<Long> previousTargets,
+		Set<Long> nextTargets,
+		List<Long> offlineTargets,
+		int commandCost
+	) {
+		return createPreparedReplaceOperation(
+			level,
+			player,
+			sourceType,
+			sourceSerial,
+			targetType,
+			previousTargets,
+			nextTargets,
+			offlineTargets,
+			commandCost,
+			true
+		);
+	}
+
+	/**
+	 * 基于已完成校验的目标集合构造共享覆盖写入操作，并可选在应用前清理来源频道模式。
+	 */
+	static PreparedReplaceOperation createPreparedReplaceOperation(
+		ServerLevel level,
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		Set<Long> previousTargets,
+		Set<Long> nextTargets,
+		List<Long> offlineTargets,
+		int commandCost,
+		boolean switchSourceToSerialModeBeforeApply
+	) {
 		return new PreparedReplaceOperation(
 			level,
 			player,
@@ -298,7 +379,8 @@ public final class LinkSetExecutionService {
 			normalizePositiveTargets(nextTargets),
 			normalizePositiveTargets(previousTargets),
 			offlineTargets,
-			commandCost
+			commandCost,
+			switchSourceToSerialModeBeforeApply
 		);
 	}
 
@@ -330,6 +412,9 @@ public final class LinkSetExecutionService {
 		LinkSavedData savedData = LinkSavedData.get(operation.level());
 		if (operation.sourceType() != LinkNodeType.TRIGGER_SOURCE || operation.targetType() != LinkNodeType.CORE) {
 			return new ApplyResult(0, List.of(OperationFeedback.failure("message.redstonelink.permission.insufficient")));
+		}
+		if (operation.switchSourceToSerialModeBeforeApply()) {
+			LinkSavedDataChannelSupport.clearChannelConfig(savedData, LinkNodeType.TRIGGER_SOURCE, operation.sourceSerial());
 		}
 
 		LinkSavedData.ReplaceLinksResult replaceResult = savedData.replaceTriggerSourceTargets(
@@ -476,7 +561,8 @@ public final class LinkSetExecutionService {
 		Set<Long> targets,
 		Set<Long> previousTargets,
 		List<Long> offlineTargets,
-		int commandCost
+		int commandCost,
+		boolean switchSourceToSerialModeBeforeApply
 	) {
 		public PreparedReplaceOperation {
 			targets = Set.copyOf(targets == null ? Set.of() : targets);

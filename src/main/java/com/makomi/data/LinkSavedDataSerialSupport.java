@@ -119,6 +119,7 @@ final class LinkSavedDataSerialSupport {
 		boolean retiredMarked = markRetiredInternal(data, type, serial);
 		LinkSavedData.LinkNode removedNode = data.nodeMap(type).remove(serial);
 		boolean removed = removedNode != null;
+		boolean channelConfigRemoved = LinkSavedDataChannelSupport.clearChannelConfig(data, type, serial);
 		boolean replaySnapshotRemoved = type == LinkNodeType.TRIGGER_SOURCE
 			&& data.triggerSourceReplaySyncSnapshots.remove(serial) != null;
 		int clearedLinks = LinkSavedDataLinkIndexSupport.clearLinksForNode(data, type, serial);
@@ -126,7 +127,7 @@ final class LinkSavedDataSerialSupport {
 			data.unindexNode(removedNode);
 			data.bumpRuntimeNodeVersion();
 		}
-		if (allocatedMarked || retiredMarked || removed || replaySnapshotRemoved || clearedLinks > 0) {
+		if (allocatedMarked || retiredMarked || removed || channelConfigRemoved || replaySnapshotRemoved || clearedLinks > 0) {
 			data.setDirty();
 		}
 		return new LinkSavedData.RetireResult(removed, clearedLinks, retiredMarked);
@@ -214,8 +215,10 @@ final class LinkSavedDataSerialSupport {
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.allocatedTriggerSourceSerials));
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.retiredTriggerSourceSerials));
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.triggerSourceReplaySyncSnapshots.keySet()));
+		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.triggerSourceChannelConfigs.keySet()));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.allocatedCoreSerials));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.retiredCoreSerials));
+		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.coreChannelConfigs.keySet()));
 
 		data.nextTriggerSourceSerial = Math.max(data.nextTriggerSourceSerial, maxTriggerSourceSerial + 1L);
 		data.nextCoreSerial = Math.max(data.nextCoreSerial, maxCoreSerial + 1L);
@@ -284,6 +287,8 @@ final class LinkSavedDataSerialSupport {
 			}
 		}
 		data.allocatedTriggerSourceSerials.addAll(data.triggerSourceReplaySyncSnapshots.keySet());
+		data.allocatedTriggerSourceSerials.addAll(data.triggerSourceChannelConfigs.keySet());
+		data.allocatedCoreSerials.addAll(data.coreChannelConfigs.keySet());
 	}
 
 	/**
