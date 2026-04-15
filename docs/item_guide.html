@@ -791,16 +791,16 @@
           render: 'block',
           name: { zh: '发送过滤器', en: 'Send Filter' },
           effect: {
-            zh: '位于 send 侧的派发筛选层，只影响作用范围内的 triggerSource 派发，不改变真实链路方向。',
-            en: 'A send-side dispatch filter that only affects triggerSource dispatch inside its coverage area without changing the real link direction.'
+            zh: '位于 send 侧的派发筛选层，可按序号或频道筛选作用范围内的 triggerSource 派发，不改变真实链路方向。',
+            en: 'A send-side dispatch filter that can filter triggerSource dispatch by serial or channel inside its coverage area without changing the real link direction.'
           },
           usage: {
-            zh: ['手持或已放置状态下，满足与其它可配置节点一致的打开条件时都可打开过滤器界面。', '放置后在以自身为中心、半径 8 格的正方体范围内生效。', '可配置节点集、节点集模式、阈值来源和上下界判定。', '挖起后掉落物会保留当前配置，重新放置恢复；物品 tooltip 会显示当前配置快照，包括节点集。'],
-            en: ['While held or placed, the filter editor can be opened whenever the same open-GUI condition used by other configurable nodes is satisfied.', 'After placement, it works in a cube centered on itself with radius 8.', 'Configure node set, node-set mode, threshold source, and upper/lower-bound rules.', 'When broken, the dropped item keeps the current config and restores it on the next placement; the item tooltip shows the current config snapshot, including the node set.']
+            zh: ['手持或已放置状态下，满足与其它可配置节点一致的打开条件时都可打开过滤器界面。', '放置后在以自身为中心、半径 8 格的正方体范围内生效。', '可配置别名、目标模式（serial/channel）、序号组或频道值、节点集模式、阈值来源和上下界判定。', '挖起后掉落物会保留当前配置，重新放置恢复；物品 tooltip 会显示当前配置快照，包括别名和目标值。'],
+            en: ['While held or placed, the filter editor can be opened whenever the same open-GUI condition used by other configurable nodes is satisfied.', 'After placement, it works in a cube centered on itself with radius 8.', 'Configure alias, target mode (`serial/channel`), serial set or channel value, node-set mode, threshold source, and upper/lower-bound rules.', 'When broken, the dropped item keeps the current config and restores it on the next placement; the item tooltip shows the current config snapshot, including alias and target value.']
           },
           note: {
-            zh: '快速连接工具站立右键可把 triggerSource 缓存应用到该过滤器；serialExpression 支持覆盖、增量增加、增量删除三态编辑；左键不会采集过滤器。',
-            en: 'The Quick Link Tool can standing-right-click this filter to apply triggerSource cache; serialExpression supports replace, append, and remove; left-click never collects filters.'
+            zh: '快速连接工具站立右键可把 triggerSource 序号缓存或当前频道缓存应用到该过滤器；节点在检测时会按自身当前连接模式选择序号或频道匹配；左键不会采集过滤器。',
+            en: 'The Quick Link Tool can standing-right-click this filter to apply triggerSource serial cache or the current channel cache; at runtime the served node chooses serial or channel matching from its own current mode; left-click never collects filters.'
           }
         },
         {
@@ -810,16 +810,16 @@
           render: 'block',
           name: { zh: '接收过滤器', en: 'Receive Filter' },
           effect: {
-            zh: '位于 receive 侧的派发筛选层，只影响作用范围内的 core 命中结果，不改变真实链路方向。',
-            en: 'A receive-side dispatch filter that only affects core hits inside its coverage area without changing the real link direction.'
+            zh: '位于 receive 侧的派发筛选层，可按序号或频道筛选作用范围内的 core 命中结果，不改变真实链路方向。',
+            en: 'A receive-side dispatch filter that can filter core hits by serial or channel inside its coverage area without changing the real link direction.'
           },
           usage: {
-            zh: ['手持或已放置状态下，满足与其它可配置节点一致的打开条件时都可打开过滤器界面。', '放置后在以自身为中心、半径 8 格的正方体范围内生效。', '可配置节点集、节点集模式、阈值来源和上下界判定。', '挖起后掉落物会保留当前配置，重新放置恢复；物品 tooltip 会显示当前配置快照，包括节点集。'],
-            en: ['While held or placed, the filter editor can be opened whenever the same open-GUI condition used by other configurable nodes is satisfied.', 'After placement, it works in a cube centered on itself with radius 8.', 'Configure node set, node-set mode, threshold source, and upper/lower-bound rules.', 'When broken, the dropped item keeps the current config and restores it on the next placement; the item tooltip shows the current config snapshot, including the node set.']
+            zh: ['手持或已放置状态下，满足与其它可配置节点一致的打开条件时都可打开过滤器界面。', '放置后在以自身为中心、半径 8 格的正方体范围内生效。', '可配置别名、目标模式（serial/channel）、序号组或频道值、节点集模式、阈值来源和上下界判定。', '挖起后掉落物会保留当前配置，重新放置恢复；物品 tooltip 会显示当前配置快照，包括别名和目标值。'],
+            en: ['While held or placed, the filter editor can be opened whenever the same open-GUI condition used by other configurable nodes is satisfied.', 'After placement, it works in a cube centered on itself with radius 8.', 'Configure alias, target mode (`serial/channel`), serial set or channel value, node-set mode, threshold source, and upper/lower-bound rules.', 'When broken, the dropped item keeps the current config and restores it on the next placement; the item tooltip shows the current config snapshot, including alias and target value.']
           },
           note: {
-            zh: '快速连接工具站立右键可把 core 缓存应用到该过滤器；serialExpression 支持覆盖、增量增加、增量删除三态编辑；运行期配置变化会对 sync 触发失效/补发重算。',
-            en: 'The Quick Link Tool can standing-right-click this filter to apply core cache; serialExpression supports replace, append, and remove; runtime config changes trigger sync invalidation/resend reconciliation.'
+            zh: '快速连接工具站立右键可把 core 序号缓存或当前频道缓存应用到该过滤器；节点在检测时会按自身当前连接模式选择序号或频道匹配；运行期配置变化会对 sync 触发失效/补发重算。',
+            en: 'The Quick Link Tool can standing-right-click this filter to apply core serial cache or the current channel cache; at runtime the served node chooses serial or channel matching from its own current mode; config changes still trigger sync invalidation/resend reconciliation.'
           }
         },
         {
@@ -878,16 +878,16 @@
           render: 'item',
           name: { zh: '快速连接工具', en: 'Quick Link Tool' },
           effect: {
-            zh: '通过序号缓存实现批量采集与批量应用，提升节点配对效率。',
-            en: 'Uses serial cache for batch collect/apply workflows and faster pairing operations.'
+            zh: '通过序号缓存或频道缓存实现批量采集与批量应用，提升节点配对效率。',
+            en: 'Uses serial or channel cache for batch collect/apply workflows and faster pairing operations.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：打开缓存编辑器。', '左键命中节点：采集到缓存；命中过滤器不会采集。', '鼠标中键：循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：按当前编辑模式把缓存应用到命中对象。', '潜行按模式键（默认 B）：清空序号缓存与频道缓存。'],
-            en: ['Sneak + empty offhand + right-click: open cache editor.', 'Left-click node: collect into cache; filters are never collectible.', 'Middle mouse: cycle replace, append, and remove.', 'Stand + right-click node or matching filter: apply the cache to the hit target with the current edit mode.', 'Sneak + mode key (default B): clear both serial and channel caches.']
+            zh: ['潜行且左手为空右键：打开缓存编辑器。', '按模式键（默认 B）可切换 serial/channel；潜行按会清空序号缓存与频道缓存。', '左键命中节点：按当前模式采集序号组或频道；命中过滤器不会采集。', '鼠标中键：在 serial 模式下循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：把当前缓存应用到命中对象。'],
+            en: ['Sneak + empty offhand + right-click: open cache editor.', 'Press the mode key (default `B`) to switch `serial/channel`; press it while sneaking to clear both serial and channel caches.', 'Left-click a node to collect serials or a channel value according to the current mode; filters are never collectible.', 'Middle mouse cycles `replace/append/remove` in serial mode.', 'Stand + right-click a node or matching filter to apply the current cache to the hit target.']
           },
           note: {
-            zh: '当前版本 channel 模式允许切换并编辑缓存，但 collect/apply 仍只走未来扩展提示；命中过滤器时描边为亮红色。',
-            en: 'Channel mode can now be switched to and edited, but collect/apply still return the future-expansion notice; filters are outlined in bright red.'
+            zh: 'channel 模式是当前真实功能：只能采集已在频道模式且频道大于 0 的节点，应用到节点时会切到频道模式并按频道映射重建普通边；命中过滤器时描边为亮红色。',
+            en: 'Channel mode is live: it only collects nodes already in channel mode with a channel value greater than 0, and applying to a node switches it into channel mode while rebuilding ordinary edges from channel mapping; filters are outlined in bright red.'
           }
         },
         {

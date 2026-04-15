@@ -19,44 +19,52 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 
 ### Quick Link Tool
 - Item name: `Quick Link Tool`.
-- In the current version, the usable workflow revolves around the serial cache. `channel` mode is only a reserved entry point. If you try to switch into it, the game will say it is a future expansion, so it is not part of the current usable feature set.
+- In the current version, both `serial` and `channel` caches are live. `channel` mode can collect the current channel from a node already using channel mode, then apply that channel cache to nodes or filters.
 - Basic interaction:
 1. Sneak and right-click with an empty offhand: open the Quick Link Tool cache editor.
 2. Left-click a valid link node: collect that node into the current cache.
 3. Right-click a valid link node or the matching filter while standing: apply the current cache to the hit target.
-4. Middle-click (same binding as vanilla `pick item`): clear the current cache.
-5. Quick Link mode key: default `B`. Only the mode-switch entry remains right now; `channel` mode is still reserved for future expansion.
+4. Middle-click (same binding as vanilla `pick item`): cycle apply edit mode `replace -> append -> remove -> replace`.
+5. Quick Link mode key: default `B`; press while standing to switch `serial/channel`, press while sneaking to clear both serial and channel caches.
 - Collect rules:
-1. After collecting, the tool automatically switches the current serial-cache type based on the hit node: hit `core` -> cache type becomes `core`; hit `triggerSource` -> cache type becomes `triggerSource`.
-2. If the mode is still serial mode and the cache type matches, the collect action appends incrementally and deduplicates automatically.
-3. If the cache type changes, the tool rebuilds the current serial cache first, then writes the newly collected result.
-4. Collecting the same serial again does not duplicate it; the action bar will say that the serial is already in the cache.
-5. Filters cannot be collected; left-clicking a filter never writes it into the cache.
+1. In `serial` mode, the tool automatically switches the current serial-cache type based on the hit node: hit `core` -> cache type becomes `core`; hit `triggerSource` -> cache type becomes `triggerSource`.
+2. If the tool is still in `serial` mode and the cache type matches, collect appends incrementally and deduplicates automatically.
+3. If the serial-cache type changes, the tool rebuilds the current serial cache first, then writes the newly collected result.
+4. Collecting the same serial again does not duplicate it; the action bar reports that the serial is already present.
+5. In `channel` mode, collect only succeeds if the hit node is already using channel mode and currently has a channel value greater than `0`. Channel cache is always a single value, not an appendable set.
+6. Filters cannot be collected; left-clicking a filter never writes anything into the cache.
 - Apply rules:
 1. The real write direction is always `triggerSource -> core`.
-2. If the current cache type matches the type of the hit node, the direction is invalid and the apply is rejected.
-3. Applying a `core` cache to a `triggerSource` overwrites that `triggerSource`'s whole target set with the cached `core` set.
-4. Applying a `triggerSource` cache to a `core` overwrites every cached `triggerSource` so that each one links only to the currently hit `core`.
-5. Hitting a node still follows normal server-side write control. If it is read-only, limited, or blocked by the protected list, the current unified feedback is "insufficient permission".
-6. Hitting a filter does not use link write control; it requires `server.command.permissionLevel` instead.
-7. If the serial cache is empty, right-click apply fails immediately with feedback.
-8. Applying a batch of `triggerSource` cache entries to a `core` is also limited by the server-side `server.maxTargetsPerSetLinks`.
-9. A `send` filter only accepts `triggerSource` cache entries and only overwrites the filter `serialExpression`; a `receive` filter only accepts `core` cache entries.
-10. Filter apply does not participate in link OCC; the baseline round-trip still happens, but the server returns zero revisions and writes the filter config directly.
+2. In `serial` mode, if the current cache type matches the type of the hit node, the direction is invalid and the apply is rejected.
+3. Apply edit mode has three states: `replace`, `append`, and `remove`. They only affect `serial` mode.
+4. Applying a `core` cache to a `triggerSource` only changes that hit `triggerSource`'s one-hop target set.
+5. Applying a `triggerSource` cache to a `core` only changes the one-hop source set for the hit `core`.
+6. In `channel` mode, the channel cache must be a positive `long`. Applying to a node switches that node into channel mode, writes the channel value, and rebuilds ordinary edges from the channel mapping. Applying to a filter switches the filter target to `channel` and writes the channel value.
+7. Hitting a node still follows normal server-side write control. If it is read-only, limited, or blocked by the protected list, the current unified feedback is "insufficient permission".
+8. Hitting a filter does not use link write control; it requires `server.command.permissionLevel` instead.
+9. If the serial cache is empty, only `replace` is still allowed, with the meaning "overwrite to empty".
+10. `append/remove` still require a non-empty serial cache.
+11. Applying a batch of `triggerSource` cache entries to a `core` is also limited by server-side `server.maxTargetsPerSetLinks`.
+12. In `serial` mode, a `send` filter only accepts `triggerSource` cache entries and a `receive` filter only accepts `core` cache entries. Both filter kinds also accept channel cache in `channel` mode.
+13. Filter `serialExpression` supports `replace/append/remove`; channel apply directly overwrites the channel target and does not use incremental semantics.
+14. Filter apply does not participate in link OCC; the baseline round-trip still happens, but the server returns zero revisions and writes the filter config directly.
 - Clear rules:
-1. Middle-click clear only clears the serial cache and channel cache.
-2. Clearing keeps the current mode and current serial-cache type. It does not forcibly reset back to the default type.
+1. `Sneak + B` clears both the serial cache and the channel cache.
+2. Clearing keeps the current mode, current serial-cache type, and current apply edit mode. It does not forcibly reset them.
 - UI and feedback:
-1. The GUI allows manual editing of the serial cache. The channel input box is only a reserved display field and does not participate in the current real apply flow.
+1. The GUI allows manual editing of the serial cache. After switching to `channel`, the channel input is also editable and participates in real collect/apply.
 2. The latest collect/apply/clear/mode-limit message is shown in the action bar, in the same area used by the `B` mode-switch hint.
 3. The GUI-side serial cache input length is controlled by client config `client.quickLinkSerialCacheMaxLength`, default `1024`.
-4. On real apply, the server still performs another length validation for the cache expression using `server.command.linkSet.maxInputLength`.
-5. While holding the Quick Link Tool and targeting an object, an outline is shown: `core` is bright blue, `triggerSource` is bright orange, and filters are bright red.
+4. Channel cache must be a positive `long`; `0` or empty means there is currently no valid channel cache.
+5. On real serial apply, the server still performs another length validation for the cache expression using `server.command.linkSet.maxInputLength`.
+6. While holding the Quick Link Tool and targeting an object, an outline is shown: `core` is bright blue, `triggerSource` is bright orange, and filters are bright red.
 - Recommended usage order:
 1. Hold the Quick Link Tool in the main hand.
-2. Left-click to collect a batch of `core` or `triggerSource` serials into the cache.
-3. Right-click while standing to apply the cache to a valid target in the legal direction, or to the matching filter.
-4. Press middle mouse to clear the cache if you want to start over.
+2. Use `B` to choose whether you are working in `serial` mode or `channel` mode.
+3. Left-click to collect a batch of `core` / `triggerSource` serials, or a single channel value.
+4. If you are in `serial` mode, use middle mouse to choose `replace`, `append`, or `remove`.
+5. Right-click while standing to apply the cache to a valid target in the legal direction, or to a filter.
+6. Press `Sneak + B` to clear caches if you want to start over.
 - Crafting recipe:
 1. `Redstone Link Component + Stick + Stick -> Quick Link Tool`
 2. Pattern:
@@ -72,24 +80,28 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 1. While held or placed, the filter editor can be opened whenever the same open-GUI condition used by other configurable nodes is satisfied.
 2. Place them as world blocks; they stay effective while placed.
 3. When broken, the dropped item keeps the current config and restores it on the next placement.
-4. The item tooltip shows the current config snapshot, including the node set.
-5. While holding the Quick Link Tool, standing right-click on a filter can directly apply the matching serial cache into the filter node-input field.
+4. The item tooltip shows the current config snapshot, including alias, target mode, and the current serial set or channel value.
+5. While holding the Quick Link Tool, standing right-click on a filter can directly apply the matching serial cache or the current channel cache.
 - Served node types:
 1. A `send` filter only serves `triggerSource`.
 2. A `receive` filter only serves `core`.
 3. Filters do not change the real write direction. The actual path still stays `triggerSource -> core`.
 - Configurable parts:
-1. `serialExpression`: node-set input using the same `N` / `A:B` grammar as the pairing UI.
-2. `nodeSetMode`: `disabled / whitelist / blocklist`.
-3. `signalThresholdSource`: `fixed_input / neighbor_max_input`.
-4. `fixedSignalThreshold`: fixed threshold in the range `0~15`.
-5. `signalMode`: `disabled / upper_bound / lower_bound`.
+1. `displayAlias`: filter alias used by GUI, tooltip, and near overlay.
+2. `targetMode`: `serial / channel`; only one target mode is active at a time.
+3. `serialExpression`: target input used when `targetMode=serial`, with the same `N` / `A:B` grammar as the pairing UI.
+4. `channel`: target value used when `targetMode=channel`; a value greater than `0` is valid, while `0` means there is currently no channel target.
+5. `nodeSetMode`: `disabled / whitelist / blocklist`.
+6. `signalThresholdSource`: `fixed_input / neighbor_max_input`.
+7. `fixedSignalThreshold`: fixed threshold in the range `0~15`.
+8. `signalMode`: `disabled / upper_bound / lower_bound`.
 - Runtime behavior:
 1. The physical effect area is a cube centered on the filter block, with radius `8` on each `X/Y/Z` axis.
-2. Only nodes inside that cube and matching the node-set/signal rules are filtered.
-3. Config changes or neighbor-input changes immediately resample the filter and refresh its runtime truth.
-4. For `sync`, changing from allow to block triggers invalidation; changing from block to allow triggers a resend from the current snapshot.
-5. `pulse / toggle` do not replay historical events; they only affect later dispatches.
+2. Only nodes inside that cube and matching the target/signal rules are filtered.
+3. At evaluation time, the served node first exposes its current connection mode: nodes in `serial` mode are checked by serial, while nodes in `channel` mode are checked by channel.
+4. Config changes or neighbor-input changes immediately resample the filter and refresh its runtime truth.
+5. For `sync`, changing from allow to block triggers invalidation; changing from block to allow triggers a resend from the current snapshot.
+6. `pulse / toggle` do not replay historical events; they only affect later dispatches.
 
 ### Linked Sync Linker
 - Item name: `Linked Sync Linker`.
@@ -156,7 +168,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ### Node Alias in the Pairing GUI
 - Direct editing of the current node alias is currently available only in the `triggerSource/core` pairing UI.
 - The pairing-screen header now shows `alias input box + fixed (#serial)` suffix. For example, alias `Gate1` and serial `12` render as `Gate1(#12)`.
-- Saving an alias requires clicking `Save`. This only stores the alias of the currently opened node and does not modify any link relationship.
+- Alias save no longer uses a standalone `Save` button. It is submitted together with the normal `Confirm` action, so alias and the current pairing/channel input are saved in one confirmation. This only stores the alias of the currently opened node and does not modify any link relationship.
 - GUI alias save permission is aligned with `/redstonelink node alias ...` and uses `server.command.otherPermissionLevel`.
 - The pairing target input box still accepts only serial expressions `N / A:B`; aliases are not currently resolved as pairing-write input.
 - If you only know the alias and need the serial, use `/redstonelink node alias resolve <alias>`.
@@ -224,12 +236,22 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ### Serial Overlay for Linked Redstone Dust Core and Linked Redstone Core (Client)
 - `Linked Redstone Dust Core` and `Linked Redstone Dust Core (Transparent)` render decimal serial text outside the attached face, using thousands separators.
 - `Linked Redstone Core` and `triggerSource` emitters render the same serial overlay system slightly above the top edge of the block.
-- When the crosshair hits a node at close range, the center of the screen can show three lines of information on a dark background; this only works within 8 blocks:
+- When the crosshair hits a node at close range, the center of the screen can show five to six lines of information on a dark background; this only works within 8 blocks:
 1. `[Item Name] Serial`
 2. Activation status (`ON` / `OFF`)
-3. Current links (structured expression using `N` / `A:B`, separator `/`, with `(+n)` for overflow)
+3. Final IO (`I/O`)
+4. Current links (structured expression using `N` / `A:B`, separator `/`, with `(+n)` for overflow)
+5. Current channel (only shown when the node is currently in channel mode)
+6. Cross-chunk identity
+- When the crosshair hits a filter at close range, the overlay shows six summary lines:
+1. Filter title, including alias when present
+2. Status (`ON` / `OFF`)
+3. Served node type
+4. Filter target (structured serial set or channel)
+5. Node-set mode / signal mode
+6. Threshold source / fixed threshold / sampled neighbor input
 - The far overlay format is `serial only`, for example `12,345`.
-- Different node types use fixed colors: `core` is cyan, `triggerSource` is orange; Linked Redstone Dust Cores currently use the `core` color.
+- Different node types use fixed colors: `core` is cyan, `triggerSource` is orange, and both filters use red; Linked Redstone Dust Cores currently use the `core` color.
 - Client hotkey: default `K`; each press cycles one mode: `far -> near -> far+near -> off`.
 - Client config file: `config/redstonelink-client.properties`
 1. `client.serialOverlayMode`: default overlay mode (`far/near/both/off`, default `far`)

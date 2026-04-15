@@ -12,6 +12,7 @@ import com.makomi.network.LinkFilterEditorTargetKind;
 import com.makomi.network.LinkFilterNetwork;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
@@ -308,6 +309,22 @@ public class LinkFilterEditorScreen extends Screen {
 	}
 
 	@Override
+	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		LinkFilterTargetMode clickTargetMode = resolveTargetInputClickTarget(
+			resolveLayout(width, height, font.lineHeight),
+			currentTargetMode,
+			mouseX,
+			mouseY
+		);
+		if (button == 0 && clickTargetMode != null) {
+			return clickTargetMode == LinkFilterTargetMode.CHANNEL
+				? routeTargetInputClick(channelInputBox, clickTargetMode, mouseX, mouseY, button)
+				: routeTargetInputClick(serialInputBox, clickTargetMode, mouseX, mouseY, button);
+		}
+		return super.mouseClicked(mouseX, mouseY, button);
+	}
+
+	@Override
 	public boolean isPauseScreen() {
 		return false;
 	}
@@ -451,16 +468,15 @@ public class LinkFilterEditorScreen extends Screen {
 			if (channelInputBox != null) {
 				channelInputBox.setValue("");
 			}
-			setFocused(serialInputBox);
 		} else {
 			if (serialInputBox != null) {
 				serialInputBox.setValue("");
 			}
-			setFocused(channelInputBox);
 		}
 		statusMessage = Component.empty();
 		refreshOptionButtonMessages();
 		refreshTargetInputState();
+		focusCurrentTargetInput();
 	}
 
 	/**
@@ -470,11 +486,61 @@ public class LinkFilterEditorScreen extends Screen {
 		if (serialInputBox != null) {
 			serialInputBox.visible = currentTargetMode == LinkFilterTargetMode.SERIAL;
 			serialInputBox.active = currentTargetMode == LinkFilterTargetMode.SERIAL;
+			if (currentTargetMode != LinkFilterTargetMode.SERIAL) {
+				serialInputBox.setFocused(false);
+			}
 		}
 		if (channelInputBox != null) {
 			channelInputBox.visible = currentTargetMode == LinkFilterTargetMode.CHANNEL;
 			channelInputBox.active = currentTargetMode == LinkFilterTargetMode.CHANNEL;
 			channelInputBox.setEditable(currentTargetMode == LinkFilterTargetMode.CHANNEL);
+			if (currentTargetMode != LinkFilterTargetMode.CHANNEL) {
+				channelInputBox.setFocused(false);
+			}
+		}
+	}
+
+	/**
+	 * 将共享输入区点击显式路由到当前模式输入框，避免隐藏的多行框抢占事件。
+	 */
+	private boolean routeTargetInputClick(AbstractWidget targetInput, LinkFilterTargetMode targetMode, double mouseX, double mouseY, int button) {
+		if (targetInput == null || !targetInput.visible || !targetInput.active) {
+			return false;
+		}
+		clearTargetInputFocus();
+		targetInput.setFocused(true);
+		setFocused(targetInput);
+		boolean handled = targetInput.mouseClicked(mouseX, mouseY, button);
+		return handled || isWithinTargetInputBounds(resolveLayout(width, height, font.lineHeight), targetMode, mouseX, mouseY);
+	}
+
+	/**
+	 * 清理共享输入区控件焦点，避免模式切换后残留旧输入框抢焦点。
+	 */
+	private void clearTargetInputFocus() {
+		if (serialInputBox != null) {
+			serialInputBox.setFocused(false);
+		}
+		if (channelInputBox != null) {
+			channelInputBox.setFocused(false);
+		}
+	}
+
+	/**
+	 * 将焦点切到当前模式对应输入框。
+	 */
+	private void focusCurrentTargetInput() {
+		clearTargetInputFocus();
+		if (currentTargetMode == LinkFilterTargetMode.CHANNEL) {
+			if (channelInputBox != null && channelInputBox.visible && channelInputBox.active) {
+				channelInputBox.setFocused(true);
+				setFocused(channelInputBox);
+			}
+			return;
+		}
+		if (serialInputBox != null && serialInputBox.visible && serialInputBox.active) {
+			serialInputBox.setFocused(true);
+			setFocused(serialInputBox);
 		}
 	}
 
@@ -646,6 +712,42 @@ public class LinkFilterEditorScreen extends Screen {
 			actionButtonY,
 			statusMessageY
 		);
+	}
+
+	/**
+	 * 解析共享输入区点击应落到哪种输入模式。
+	 */
+	static LinkFilterTargetMode resolveTargetInputClickTarget(
+		LinkFilterLayout layout,
+		LinkFilterTargetMode currentTargetMode,
+		double mouseX,
+		double mouseY
+	) {
+		if (layout == null || currentTargetMode == null) {
+			return null;
+		}
+		return isWithinTargetInputBounds(layout, currentTargetMode, mouseX, mouseY) ? currentTargetMode : null;
+	}
+
+	/**
+	 * 判断鼠标是否命中当前模式对应的共享输入区外框。
+	 */
+	private static boolean isWithinTargetInputBounds(
+		LinkFilterLayout layout,
+		LinkFilterTargetMode targetMode,
+		double mouseX,
+		double mouseY
+	) {
+		if (layout == null || targetMode == null) {
+			return false;
+		}
+		int inputX = layout.panelLeft();
+		int inputY = targetMode == LinkFilterTargetMode.CHANNEL ? layout.channelInputY() : layout.serialInputY();
+		int inputHeight = targetMode == LinkFilterTargetMode.CHANNEL ? BUTTON_HEIGHT : SERIAL_INPUT_HEIGHT;
+		return mouseX >= inputX &&
+			mouseX < inputX + layout.panelWidth() &&
+			mouseY >= inputY &&
+			mouseY < inputY + inputHeight;
 	}
 
 	/**
