@@ -369,16 +369,18 @@ class PairingNetworkPayloadTest {
 	}
 
 	/**
-	 * 当前连接快照包编解码往返应保留跨区块身份字段。
+	 * 当前连接快照包编解码往返应保留频道模式与跨区块身份字段。
 	 */
 	@Test
-	void currentLinksSnapshotPayloadCodecRoundTripShouldPreserveCrossChunkIdentity() {
+	void currentLinksSnapshotPayloadCodecRoundTripShouldPreserveChannelModeAndCrossChunkIdentity() {
 		PairingNetwork.CurrentLinksSnapshotPayload original = new PairingNetwork.CurrentLinksSnapshotPayload(
 			"minecraft:overworld",
 			1234L,
 			"triggerSource",
 			88L,
 			List.of(3L, 7L),
+			LinkConnectionMode.CHANNEL.token(),
+			66L,
 			CrossChunkNodeIdentity.FORCE_LOAD
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -391,6 +393,8 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.sourceType(), decoded.sourceType());
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targets(), decoded.targets());
+		assertEquals(original.connectionModeToken(), decoded.connectionModeToken());
+		assertEquals(original.channel(), decoded.channel());
 		assertEquals(original.crossChunkIdentity(), decoded.crossChunkIdentity());
 	}
 

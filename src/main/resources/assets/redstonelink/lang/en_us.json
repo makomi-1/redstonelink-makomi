@@ -238,6 +238,7 @@
   "hud.redstonelink.near_overlay.status_line": "Status: %s",
   "hud.redstonelink.near_overlay.final_io_line": "Final IO: I=%s / O=%s",
   "hud.redstonelink.near_overlay.links_line": "Current Links: %s",
+  "hud.redstonelink.near_overlay.channel_line": "Channel: %s",
   "hud.redstonelink.near_overlay.crosschunk_line": "Cross-Chunk: %s",
   "hud.redstonelink.near_overlay.status_on": "ON",
   "hud.redstonelink.near_overlay.status_off": "OFF",

@@ -2,6 +2,7 @@ package com.makomi.client.render;
 
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.network.PairingNetwork;
@@ -74,6 +75,8 @@ final class LinkSerialHudOverlaySnapshotSupport {
 	 * @param sourceType 语义类型（triggerSource/core）
 	 * @param sourceSerial 来源序号
 	 * @param linkedTargets 可见目标列表（已脱敏）
+	 * @param connectionMode 当前连接模式
+	 * @param channel 当前频道号
 	 * @param crossChunkIdentity 跨区块身份
 	 */
 	static void updateCurrentLinksSnapshot(
@@ -82,6 +85,8 @@ final class LinkSerialHudOverlaySnapshotSupport {
 		String sourceType,
 		long sourceSerial,
 		List<Long> linkedTargets,
+		String connectionModeToken,
+		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		Optional<LinkNodeType> parsedType = LinkNodeSemantics.tryParseCanonicalType(sourceType);
@@ -95,6 +100,8 @@ final class LinkSerialHudOverlaySnapshotSupport {
 			new CachedCurrentLinksSnapshot(
 				now + CURRENT_LINKS_CACHE_TTL_MILLIS,
 				normalizeLinkedTargets(linkedTargets),
+				normalizeConnectionMode(connectionModeToken),
+				Math.max(0L, channel),
 				normalizeCrossChunkIdentity(crossChunkIdentity)
 			)
 		);
@@ -321,6 +328,13 @@ final class LinkSerialHudOverlaySnapshotSupport {
 	}
 
 	/**
+	 * 归一化连接模式字段，避免客户端缓存出现空值或非法 token。
+	 */
+	private static LinkConnectionMode normalizeConnectionMode(String connectionModeToken) {
+		return LinkConnectionMode.fromToken(connectionModeToken);
+	}
+
+	/**
 	 * 归一化 HUD 强度值，限制在红石强度范围内。
 	 */
 	private static int normalizeHudPower(int power) {
@@ -343,16 +357,22 @@ final class LinkSerialHudOverlaySnapshotSupport {
 	 *
 	 * @param expireAtMillis 过期时间戳
 	 * @param linkedTargets 可见连接快照
+	 * @param connectionMode 当前连接模式
+	 * @param channel 当前频道号
 	 * @param crossChunkIdentity 命中节点的跨区块身份
 	 */
 	record CachedCurrentLinksSnapshot(
 		long expireAtMillis,
 		List<Long> linkedTargets,
+		LinkConnectionMode connectionMode,
+		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		private static final CachedCurrentLinksSnapshot EMPTY = new CachedCurrentLinksSnapshot(
 			0L,
 			List.of(),
+			LinkConnectionMode.SERIAL,
+			0L,
 			CrossChunkNodeIdentity.NORMAL
 		);
 

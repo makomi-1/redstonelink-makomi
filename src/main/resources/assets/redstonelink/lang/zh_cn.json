@@ -238,6 +238,7 @@
     "hud.redstonelink.near_overlay.status_line":  "状态：%s",
     "hud.redstonelink.near_overlay.final_io_line":  "最终IO：I=%s / O=%s",
     "hud.redstonelink.near_overlay.links_line":  "当前连接：%s",
+    "hud.redstonelink.near_overlay.channel_line":  "频道：%s",
     "hud.redstonelink.near_overlay.crosschunk_line":  "跨区块：%s",
     "hud.redstonelink.near_overlay.status_on":  "ON",
     "hud.redstonelink.near_overlay.status_off":  "OFF",

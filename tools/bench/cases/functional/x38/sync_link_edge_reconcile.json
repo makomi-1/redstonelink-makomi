@@ -1,0 +1,138 @@
+{
+  "id": "sync_link_edge_reconcile",
+  "description": "验证普通边删除时当前 sync 会立即失效，而在来源保持高态时重新 add 普通边会立即补发 sync。",
+  "layer": "X",
+  "scenarioId": "X38",
+  "arena": {
+    "clearFrom": [-8, 63, 720],
+    "clearTo": [20, 66, 728]
+  },
+  "targets": {
+    "id": "core_link_edge_reconcile",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 724],
+      "to": [12, 64, 724]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_link_edge_source",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 724],
+        "to": [0, 64, 724]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_link_edge_reconcile_target"
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_link_edge_constant_sync_without_link",
+      "serialRef": "sync_link_edge_source",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_link_edge_constant_sync_without_link",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "link_edge_target_should_stay_low_without_link",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_edge_add_target",
+      "action": "add",
+      "sourceRef": "sync_link_edge_source",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_link_edge_after_add",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "link_edge_target_should_replay_sync_after_add",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_edge_remove_target",
+      "action": "remove",
+      "sourceRef": "sync_link_edge_source",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_link_edge_after_remove",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "link_edge_target_should_clear_sync_after_remove",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_edge_add_target_again",
+      "action": "add",
+      "sourceRef": "sync_link_edge_source",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_link_edge_after_second_add",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "link_edge_target_should_replay_sync_after_second_add",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_link_edge_sync_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_link_edge_reconcile_target"
+    }
+  ]
+}

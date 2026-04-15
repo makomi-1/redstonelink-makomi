@@ -6,6 +6,7 @@ import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
@@ -229,6 +230,8 @@ final class PairingNetworkServerHandlerSupport {
 		}
 
 		List<Long> visibleTargets = List.of();
+		LinkConnectionMode connectionMode = LinkConnectionMode.SERIAL;
+		long channel = 0L;
 		CrossChunkNodeIdentity crossChunkIdentity = CrossChunkNodeIdentity.NORMAL;
 		PairableNodeBlockEntity pairableNode = resolveRequestedNode(
 			player,
@@ -242,6 +245,9 @@ final class PairingNetworkServerHandlerSupport {
 				.queryLinks(player, pairableNode.getLinkNodeType(), pairableNode.getSerial())
 				.visibleTargets();
 			if (pairableNode.getLevel() instanceof net.minecraft.server.level.ServerLevel requestedLevel) {
+				LinkSavedData savedData = LinkSavedData.get(requestedLevel);
+				connectionMode = savedData.getConnectionMode(pairableNode.getLinkNodeType(), pairableNode.getSerial());
+				channel = savedData.getChannel(pairableNode.getLinkNodeType(), pairableNode.getSerial());
 				crossChunkIdentity = NodeSnapshotQueryService.resolveCrossChunkNodeIdentity(
 					requestedLevel,
 					pairableNode.getLinkNodeType(),
@@ -250,7 +256,7 @@ final class PairingNetworkServerHandlerSupport {
 			}
 		}
 
-		sendCurrentLinksSnapshot(player, payload, visibleTargets, crossChunkIdentity);
+		sendCurrentLinksSnapshot(player, payload, visibleTargets, connectionMode, channel, crossChunkIdentity);
 	}
 
 	/**
@@ -457,6 +463,8 @@ final class PairingNetworkServerHandlerSupport {
 		ServerPlayer player,
 		PairingNetwork.RequestCurrentLinksPayload payload,
 		List<Long> visibleTargets,
+		LinkConnectionMode connectionMode,
+		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		ServerPlayNetworking.send(
@@ -467,6 +475,8 @@ final class PairingNetworkServerHandlerSupport {
 				payload.sourceType(),
 				payload.sourceSerial(),
 				visibleTargets,
+				connectionMode == null ? LinkConnectionMode.SERIAL.token() : connectionMode.token(),
+				Math.max(0L, channel),
 				crossChunkIdentity
 			)
 		);

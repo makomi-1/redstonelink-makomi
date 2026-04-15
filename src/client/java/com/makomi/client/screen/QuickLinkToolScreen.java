@@ -55,7 +55,6 @@ public class QuickLinkToolScreen extends Screen {
 	private static final int TITLE_TOP_MARGIN = 48;
 	private static final int MODE_LINE_MARGIN = 14;
 	private static final int LABEL_MARGIN = 14;
-	private static final int CHANNEL_NOTE_MARGIN = 2;
 	private static final int CACHE_TYPE_BUTTON_MARGIN = 8;
 	private static final int BUTTON_ROW_MARGIN = 6;
 	private static final int STATUS_MESSAGE_MARGIN = 16;
@@ -75,7 +74,6 @@ public class QuickLinkToolScreen extends Screen {
 		QUICK_LINK_SERIAL_INPUT_BOX_STYLE,
 		QUICK_LINK_SERIAL_BUTTON_STYLE,
 		0xFFFFF2F2,
-		0xFFFFE1A6,
 		0xFFFFD0D0
 	);
 	private static final Theme QUICK_LINK_CHANNEL_THEME = new Theme(
@@ -83,7 +81,6 @@ public class QuickLinkToolScreen extends Screen {
 		QUICK_LINK_CHANNEL_INPUT_BOX_STYLE,
 		QUICK_LINK_CHANNEL_BUTTON_STYLE,
 		0xFFF0F6FF,
-		0xFFB8D6FF,
 		0xFFD7E7FF
 	);
 
@@ -164,19 +161,7 @@ public class QuickLinkToolScreen extends Screen {
 		Theme theme = currentTheme();
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
-		if (isSerialMode()) {
-			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), theme.labelTextColor(), false);
-		} else {
-			guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), theme.labelTextColor(), false);
-			guiGraphics.drawString(
-				font,
-				Component.translatable("screen.redstonelink.quick_link.channel_note"),
-				leftX,
-				layout.channelNoteY(),
-				theme.channelNoteTextColor(),
-				false
-			);
-		}
+		guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), theme.labelTextColor(), false);
 
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), theme.statusMessageColor());
@@ -343,16 +328,6 @@ public class QuickLinkToolScreen extends Screen {
 			layout.titleY()
 		);
 		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
-		if (!isSerialMode()) {
-			bounds =
-				bounds.include(
-					leftAlignedTextBounds(
-						Component.translatable("screen.redstonelink.quick_link.channel_note"),
-						layout.panelLeft(),
-						layout.channelNoteY()
-					)
-				);
-		}
 		bounds =
 			bounds.include(
 				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.inputY(), layout.panelWidth(), INPUT_BOX_HEIGHT)
@@ -410,7 +385,6 @@ public class QuickLinkToolScreen extends Screen {
 		int titleY = panelBox.top();
 		int inputLabelY = titleY + TITLE_TOP_MARGIN - LABEL_MARGIN;
 		int inputY = titleY + TITLE_TOP_MARGIN;
-		int channelNoteY = inputY - CHANNEL_NOTE_MARGIN;
 		int cacheTypeButtonY = inputY + INPUT_BOX_HEIGHT + CACHE_TYPE_BUTTON_MARGIN + 4;
 		int actionButtonY = cacheTypeButtonY + BUTTON_HEIGHT + BUTTON_ROW_MARGIN;
 		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelBox.width(), BUTTON_GAP, ACTION_BUTTON_COUNT);
@@ -422,7 +396,6 @@ public class QuickLinkToolScreen extends Screen {
 			titleY,
 			inputLabelY,
 			inputY,
-			channelNoteY,
 			cacheTypeButtonY,
 			actionButtonY,
 			actionButtonWidth,
@@ -440,7 +413,6 @@ public class QuickLinkToolScreen extends Screen {
 		int titleY,
 		int inputLabelY,
 		int inputY,
-		int channelNoteY,
 		int cacheTypeButtonY,
 		int actionButtonY,
 		int actionButtonWidth,
@@ -459,7 +431,6 @@ public class QuickLinkToolScreen extends Screen {
 		StyledMultiLineEditBox.Style inputBoxStyle,
 		StyledButton.Style buttonStyle,
 		int labelTextColor,
-		int channelNoteTextColor,
 		int statusMessageColor
 	) {
 	}

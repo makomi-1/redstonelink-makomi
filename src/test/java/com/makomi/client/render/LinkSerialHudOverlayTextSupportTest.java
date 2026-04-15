@@ -1,8 +1,11 @@
 package com.makomi.client.render;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkConnectionMode;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -39,5 +42,43 @@ class LinkSerialHudOverlayTextSupportTest {
 			"hud.redstonelink.near_overlay.crosschunk_normal",
 			LinkSerialHudOverlayTextSupport.resolveCrossChunkIdentityMessageKey(null)
 		);
+	}
+
+	/**
+	 * 频道模式快照应触发近外显频道行。
+	 */
+	@Test
+	void shouldRenderChannelLineShouldFollowConnectionMode() {
+		assertTrue(
+			LinkSerialHudOverlayTextSupport.shouldRenderChannelLine(
+				new LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot(
+					100L,
+					java.util.List.of(1L, 2L),
+					LinkConnectionMode.CHANNEL,
+					9L,
+					CrossChunkNodeIdentity.NORMAL
+				)
+			)
+		);
+		assertFalse(
+			LinkSerialHudOverlayTextSupport.shouldRenderChannelLine(
+				new LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot(
+					100L,
+					java.util.List.of(1L, 2L),
+					LinkConnectionMode.SERIAL,
+					0L,
+					CrossChunkNodeIdentity.NORMAL
+				)
+			)
+		);
+	}
+
+	/**
+	 * 频道值文本应对非法频道回退到占位符。
+	 */
+	@Test
+	void resolveChannelValueTextShouldFallbackForInvalidChannel() {
+		assertEquals("12", LinkSerialHudOverlayTextSupport.resolveChannelValueText(12L));
+		assertEquals("-", LinkSerialHudOverlayTextSupport.resolveChannelValueText(0L));
 	}
 }

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "description": "普通边增删导致 sync 失效/补发专项：验证 remove 立即失效，以及在来源持续高态下 add 立即补发。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false"
+    }
+  },
+  "entries": [
+    {
+      "entryId": "x38_sync_link_edge_reconcile",
+      "caseId": "sync_link_edge_reconcile"
+    }
+  ]
+}

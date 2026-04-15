@@ -27,7 +27,6 @@ import org.lwjgl.glfw.GLFW;
  * </p>
  */
 public abstract class AbstractMultiPairingScreen extends Screen {
-	private static final Component SAVE = Component.translatable("screen.redstonelink.pairing.save");
 	private static final Component CONFIRM = Component.translatable("screen.redstonelink.pairing.confirm");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.pairing.clear");
 	private static final int DEFAULT_CURRENT_LINKS_TEXT_COLOR = 0xC8C8C8;
@@ -102,7 +101,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	/**
 	 * 主操作按钮数量。
 	 */
-	private static final int ACTION_BUTTON_COUNT = 3;
+	private static final int ACTION_BUTTON_COUNT = 2;
 	/**
 	 * 非法提示与按钮底部的间距（像素）。
 	 */
@@ -277,13 +276,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int buttonRowY = layout.actionButtonY();
 		int actionButtonWidth = layout.actionButtonWidth();
 		addRenderableWidget(
-			createActionButton(ActionButtonKind.SAVE, SAVE, layout.actionButtonX(0), buttonRowY, actionButtonWidth, button -> saveAlias())
+			createActionButton(ActionButtonKind.CONFIRM, CONFIRM, layout.actionButtonX(0), buttonRowY, actionButtonWidth, button -> submit())
 		);
 		addRenderableWidget(
-			createActionButton(ActionButtonKind.CONFIRM, CONFIRM, layout.actionButtonX(1), buttonRowY, actionButtonWidth, button -> submit())
-		);
-		addRenderableWidget(
-			createActionButton(ActionButtonKind.CLEAR, CLEAR, layout.actionButtonX(2), buttonRowY, actionButtonWidth, button -> clearPair())
+			createActionButton(ActionButtonKind.CLEAR, CLEAR, layout.actionButtonX(1), buttonRowY, actionButtonWidth, button -> clearPair())
 		);
 	}
 
@@ -713,7 +709,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 				return;
 			}
 			currentChannel = parsedChannel;
-			submitPairingRequest(sourceSerial, LinkConnectionMode.CHANNEL, "", parsedChannel);
+			submitAliasIfChanged();
+			if (parsedChannel > 0L) {
+				submitPairingRequest(sourceSerial, LinkConnectionMode.CHANNEL, "", parsedChannel);
+			}
 			onClose();
 			return;
 		}
@@ -728,6 +727,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return;
 		}
 
+		submitAliasIfChanged();
 		submitPairingRequest(sourceSerial, LinkConnectionMode.SERIAL, validation.normalizedExpression(), 0L);
 		onClose();
 	}
@@ -751,19 +751,22 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	/**
 	 * 提交当前节点的别名保存请求。
 	 */
-	private void saveAlias() {
+	private void submitAliasIfChanged() {
 		if (sourceSerial <= 0L || aliasInput == null || net.minecraft.client.Minecraft.getInstance().getConnection() == null) {
+			return;
+		}
+		String normalizedAlias = normalizeSourceAlias(aliasInput.getValue());
+		if (normalizedAlias.equals(sourceAlias)) {
 			return;
 		}
 		ClientPlayNetworking.send(
 			new PairingNetwork.SubmitPairingAliasPayload(
 				LinkNodeSemantics.toSemanticName(sourceType()),
 				sourceSerial,
-				aliasInput.getValue()
+				normalizedAlias
 			)
 		);
-		statusMessage = Component.empty();
-		statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
+		sourceAlias = normalizedAlias;
 	}
 
 	/**
@@ -948,7 +951,6 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * pairing 主操作按钮语义。
 	 */
 	protected enum ActionButtonKind {
-		SAVE,
 		MODE,
 		CONFIRM,
 		CLEAR,
@@ -1009,7 +1011,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 	private String initialInputValue() {
 		if (isChannelMode()) {
-			return currentChannel > 0L ? Long.toString(currentChannel) : "";
+			return Long.toString(Math.max(0L, currentChannel));
 		}
 		return SerialInputSyntaxSupport.joinTargets(currentTargets);
 	}
@@ -1027,7 +1029,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		statusMessage = Component.empty();
 		statusMessageColor = STATUS_MESSAGE_ERROR_COLOR;
 		if (serialInput != null) {
-			serialInput.setValue("");
+			serialInput.setValue(isChannelMode() ? "0" : "");
 			setInitialFocus(serialInput);
 		}
 		if (modeButton != null) {
@@ -1038,11 +1040,11 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	private Long parseChannelInput(String rawInput) {
 		String normalized = rawInput == null ? "" : rawInput.trim();
 		if (normalized.isEmpty()) {
-			return null;
+			return 0L;
 		}
 		try {
 			long parsed = Long.parseLong(normalized);
-			return parsed > 0L ? parsed : null;
+			return parsed >= 0L ? parsed : null;
 		} catch (NumberFormatException ignored) {
 			return null;
 		}

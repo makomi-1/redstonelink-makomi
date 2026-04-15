@@ -31,6 +31,8 @@ public final class LinkSerialHudOverlayRenderer {
 	 * @param sourceType 语义类型（triggerSource/core）
 	 * @param sourceSerial 来源序号
 	 * @param linkedTargets 可见目标列表（已脱敏）
+	 * @param connectionModeToken 命中节点当前连接模式
+	 * @param channel 命中节点当前频道号
 	 * @param crossChunkIdentity 命中节点的跨区块身份
 	 */
 	public static void updateCurrentLinksSnapshot(
@@ -39,6 +41,8 @@ public final class LinkSerialHudOverlayRenderer {
 		String sourceType,
 		long sourceSerial,
 		List<Long> linkedTargets,
+		String connectionModeToken,
+		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		LinkSerialHudOverlaySnapshotSupport.updateCurrentLinksSnapshot(
@@ -47,6 +51,8 @@ public final class LinkSerialHudOverlayRenderer {
 			sourceType,
 			sourceSerial,
 			linkedTargets,
+			connectionModeToken,
+			channel,
 			crossChunkIdentity
 		);
 	}

@@ -1,6 +1,6 @@
 ![title.png](/docs/background_icon.png)
 
-[![CurseForge](https://img.shields.io/badge/CurseForge-Published-f16436?logo=curseforge&logoColor=white)](https://www.curseforge.com/minecraft/mc-mods/redstonelink-makomi) [![Modrinth](https://img.shields.io/badge/Modrinth-Published-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/mod/redstonelink-makomi) [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg?logo=gnu)](LICENSE) [![GitHub](https://img.shields.io/badge/GitHub-release%2Fno--mixin-181717?logo=github&logoColor=white)](https://github.com/makomi-1/redstonelink-makomi/tree/release/no-mixin)
+[![CurseForge](https://img.shields.io/badge/CurseForge-Published-f16436?logo=curseforge&logoColor=white)](https://www.curseforge.com/minecraft/mc-mods/redstonelink-makomi)  [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg?logo=gnu)](LICENSE) [![GitHub](https://img.shields.io/badge/GitHub-release%2Fno--mixin-181717?logo=github&logoColor=white)](https://github.com/makomi-1/redstonelink-makomi/tree/release/no-mixin)
 
 中文  |  [English](docs/readme_en.md)
 

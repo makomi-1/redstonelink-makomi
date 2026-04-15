@@ -65,6 +65,7 @@
     "cases/functional/x35/receive_filter_runtime_nodeset_zero_master_switch.json",
     "cases/functional/x36/p26_nodeset_filter_interception_snapshot_and_effect.json",
     "cases/functional/x37/restart_replay_timekey_cross_tick_prepare.json",
+    "cases/functional/x38/sync_link_edge_reconcile.json",
     "cases/functional/r02/restart_persist_toggle_verify.json",
     "cases/functional/r03/restart_input_job_prepare.json",
     "cases/functional/r04/restart_input_job_verify.json",

@@ -4,6 +4,7 @@ import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.CrossChunkNodeIdentity;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
@@ -27,7 +28,7 @@ import net.minecraft.world.level.block.state.properties.Property;
 /**
  * 近外显文案格式化支持。
  * <p>
- * 负责序号/状态/最终 IO/当前连接/跨区块身份五行文案组装，以及命中文本缓存，不承担快照请求与实际绘制职责。
+ * 负责序号/状态/最终 IO/当前连接/频道/跨区块身份文案组装，以及命中文本缓存，不承担快照请求与实际绘制职责。
  * </p>
  */
 final class LinkSerialHudOverlayTextSupport {
@@ -35,6 +36,7 @@ final class LinkSerialHudOverlayTextSupport {
 	private static final String KEY_NEAR_OVERLAY_STATUS_LINE = "hud.redstonelink.near_overlay.status_line";
 	private static final String KEY_NEAR_OVERLAY_FINAL_IO_LINE = "hud.redstonelink.near_overlay.final_io_line";
 	private static final String KEY_NEAR_OVERLAY_LINKS_LINE = "hud.redstonelink.near_overlay.links_line";
+	private static final String KEY_NEAR_OVERLAY_CHANNEL_LINE = "hud.redstonelink.near_overlay.channel_line";
 	private static final String KEY_NEAR_OVERLAY_CROSSCHUNK_LINE = "hud.redstonelink.near_overlay.crosschunk_line";
 	private static final String KEY_NEAR_OVERLAY_STATUS_ON = "hud.redstonelink.near_overlay.status_on";
 	private static final String KEY_NEAR_OVERLAY_STATUS_OFF = "hud.redstonelink.near_overlay.status_off";
@@ -69,6 +71,7 @@ final class LinkSerialHudOverlayTextSupport {
 			"|",
 			translate(KEY_NEAR_OVERLAY_STATUS_LINE, ""),
 			translate(KEY_NEAR_OVERLAY_FINAL_IO_LINE, "", ""),
+			translate(KEY_NEAR_OVERLAY_CHANNEL_LINE, ""),
 			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_LINE, ""),
 			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_NORMAL),
 			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_FORCE_LOAD),
@@ -82,7 +85,8 @@ final class LinkSerialHudOverlayTextSupport {
 	 * 2. 激活状态（ON/OFF）
 	 * 3. 最终 IO
 	 * 4. 当前连接（结构化表达式）
-	 * 5. 跨区块身份
+	 * 5. 频道（仅频道模式显示）
+	 * 6. 跨区块身份
 	 *
 	 * @param pairableNodeBlockEntity 当前命中的可配对节点
 	 * @param serialText 序号文本
@@ -122,7 +126,7 @@ final class LinkSerialHudOverlayTextSupport {
 			return cached.lines();
 		}
 
-		List<String> lines = new ArrayList<>(5);
+		List<String> lines = new ArrayList<>(6);
 		lines.add(translate(KEY_NEAR_OVERLAY_SERIAL_LINE, resolveItemPrefix(pairableNodeBlockEntity), serialText));
 		lines.add(translate(KEY_NEAR_OVERLAY_STATUS_LINE, resolveActivationStatusText(activationStatusToken)));
 		lines.add(translate(
@@ -131,6 +135,9 @@ final class LinkSerialHudOverlayTextSupport {
 			resolveRuntimeHudPowerText(runtimeHudSnapshot, false)
 		));
 		lines.add(translate(KEY_NEAR_OVERLAY_LINKS_LINE, buildCurrentLinksText(font, currentLinksSnapshot.linkedTargets())));
+		if (shouldRenderChannelLine(currentLinksSnapshot)) {
+			lines.add(translate(KEY_NEAR_OVERLAY_CHANNEL_LINE, resolveChannelValueText(currentLinksSnapshot.channel())));
+		}
 		lines.add(
 			translate(
 				KEY_NEAR_OVERLAY_CROSSCHUNK_LINE,
@@ -317,6 +324,22 @@ final class LinkSerialHudOverlayTextSupport {
 			case RESIDENT -> KEY_NEAR_OVERLAY_CROSSCHUNK_RESIDENT;
 			case NORMAL -> KEY_NEAR_OVERLAY_CROSSCHUNK_NORMAL;
 		};
+	}
+
+	/**
+	 * 当前连接快照是否需要额外渲染频道行。
+	 */
+	static boolean shouldRenderChannelLine(
+		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot currentLinksSnapshot
+	) {
+		return currentLinksSnapshot != null && currentLinksSnapshot.connectionMode() == LinkConnectionMode.CHANNEL;
+	}
+
+	/**
+	 * 将频道值转换为近外显可显示文本。
+	 */
+	static String resolveChannelValueText(long channel) {
+		return channel > 0L ? Long.toString(channel) : "-";
 	}
 
 	/**

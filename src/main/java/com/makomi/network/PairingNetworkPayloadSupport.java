@@ -326,6 +326,8 @@ final class PairingNetworkPayloadSupport {
 		String sourceType,
 		long sourceSerial,
 		List<Long> targets,
+		String connectionModeToken,
+		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		buffer.writeUtf(dimensionKey, DIMENSION_KEY_MAX_LENGTH);
@@ -336,6 +338,8 @@ final class PairingNetworkPayloadSupport {
 		for (long target : targets) {
 			buffer.writeVarLong(target);
 		}
+		buffer.writeUtf(LinkConnectionMode.fromToken(connectionModeToken).token(), MODE_TOKEN_MAX_LENGTH);
+		buffer.writeVarLong(Math.max(0L, channel));
 		buffer.writeUtf(normalizeCrossChunkIdentity(crossChunkIdentity).payloadToken(), CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH);
 	}
 
@@ -350,6 +354,8 @@ final class PairingNetworkPayloadSupport {
 			payload.sourceType(),
 			payload.sourceSerial(),
 			payload.targets(),
+			payload.connectionModeToken(),
+			payload.channel(),
 			payload.crossChunkIdentity()
 		);
 	}
@@ -447,6 +453,8 @@ final class PairingNetworkPayloadSupport {
 		for (int i = 0; i < size; i++) {
 			targets.add(buffer.readVarLong());
 		}
+		String connectionModeToken = buffer.readUtf(MODE_TOKEN_MAX_LENGTH);
+		long channel = buffer.readVarLong();
 		CrossChunkNodeIdentity crossChunkIdentity = CrossChunkNodeIdentity.fromPayloadToken(
 			buffer.readUtf(CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH)
 		);
@@ -456,6 +464,8 @@ final class PairingNetworkPayloadSupport {
 			payload.sourceType(),
 			payload.sourceSerial(),
 			targets,
+			connectionModeToken,
+			channel,
 			crossChunkIdentity
 		);
 	}
@@ -558,6 +568,8 @@ final class PairingNetworkPayloadSupport {
 		String sourceType,
 		long sourceSerial,
 		List<Long> targets,
+		String connectionModeToken,
+		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
 	) {}
 
