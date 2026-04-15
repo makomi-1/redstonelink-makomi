@@ -237,6 +237,8 @@ class QuickLinkApplyServiceTest {
 		);
 
 		assertEquals("12/8/21", nextSnapshot.serialExpression());
+		assertEquals(LinkFilterTargetMode.SERIAL, nextSnapshot.targetMode());
+		assertEquals(0L, nextSnapshot.channel());
 		assertEquals(currentSnapshot.nodeSetMode(), nextSnapshot.nodeSetMode());
 		assertEquals(currentSnapshot.signalThresholdSource(), nextSnapshot.signalThresholdSource());
 		assertEquals(currentSnapshot.fixedSignalThreshold(), nextSnapshot.fixedSignalThreshold());
@@ -254,6 +256,31 @@ class QuickLinkApplyServiceTest {
 		);
 
 		assertEquals("", nextSnapshot.serialExpression());
+		assertEquals(LinkFilterTargetMode.SERIAL, nextSnapshot.targetMode());
+	}
+
+	/**
+	 * 过滤器频道缓存应用应切到频道模式，并清空原有序号表达式。
+	 */
+	@Test
+	void buildChannelFilterSnapshotForAppliedCacheShouldOnlyReplaceChannelValue() {
+		LinkFilterConfigSnapshot currentSnapshot = new LinkFilterConfigSnapshot(
+			"3/5",
+			LinkFilterNodeSetMode.BLOCKLIST,
+			LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
+			9,
+			LinkFilterSignalMode.LOWER_BOUND
+		);
+
+		LinkFilterConfigSnapshot nextSnapshot = QuickLinkApplyService.buildChannelFilterSnapshotForAppliedCache(currentSnapshot, 88L);
+
+		assertEquals("", nextSnapshot.serialExpression());
+		assertEquals(LinkFilterTargetMode.CHANNEL, nextSnapshot.targetMode());
+		assertEquals(88L, nextSnapshot.channel());
+		assertEquals(currentSnapshot.nodeSetMode(), nextSnapshot.nodeSetMode());
+		assertEquals(currentSnapshot.signalThresholdSource(), nextSnapshot.signalThresholdSource());
+		assertEquals(currentSnapshot.fixedSignalThreshold(), nextSnapshot.fixedSignalThreshold());
+		assertEquals(currentSnapshot.signalMode(), nextSnapshot.signalMode());
 	}
 
 	/**

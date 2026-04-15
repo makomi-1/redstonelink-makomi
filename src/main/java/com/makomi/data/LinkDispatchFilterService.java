@@ -176,6 +176,7 @@ public final class LinkDispatchFilterService {
 	) {
 		return allowsReplayByPersistedFilters(
 			resolveSharedSavedData(server),
+			resolveSharedLinkSavedData(server),
 			triggerSourceDimension,
 			triggerSourcePos,
 			triggerSourceSerial,
@@ -206,13 +207,14 @@ public final class LinkDispatchFilterService {
 			return;
 		}
 		PlacedLinkFilterSavedData filterSavedData = resolveSharedSavedData(sourceLevel.getServer());
+		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
 		if (filterSavedData == null) {
 			return;
 		}
-		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
 		if (
 			!allowsByKind(
 				filterSavedData,
+				savedData,
 				sourceLevel.dimension(),
 				sourcePos,
 				triggerSourceSerial,
@@ -233,6 +235,7 @@ public final class LinkDispatchFilterService {
 			if (
 				!allowsByKind(
 					filterSavedData,
+					savedData,
 					coreNode.dimension(),
 					coreNode.pos(),
 					coreSerial,
@@ -279,9 +282,11 @@ public final class LinkDispatchFilterService {
 			return;
 		}
 		PlacedLinkFilterSavedData filterSavedData = resolveSharedSavedData(sourceLevel.getServer());
+		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
 		if (
 			!allowsReplayByPersistedFilters(
 				filterSavedData,
+				savedData,
 				sourceLevel.dimension(),
 				sourcePos,
 				triggerSourceSerial,
@@ -316,6 +321,33 @@ public final class LinkDispatchFilterService {
 		long coreSerial,
 		int signalStrength
 	) {
+		return allowsReplayByPersistedFilters(
+			filterSavedData,
+			null,
+			triggerSourceDimension,
+			triggerSourcePos,
+			triggerSourceSerial,
+			coreDimension,
+			corePos,
+			coreSerial,
+			signalStrength
+		);
+	}
+
+	/**
+	 * 测试专用：基于指定持久化过滤真值与连接模式信息判断 replay 是否放行。
+	 */
+	static boolean allowsReplayByPersistedFilters(
+		PlacedLinkFilterSavedData filterSavedData,
+		LinkSavedData linkSavedData,
+		ResourceKey<Level> triggerSourceDimension,
+		BlockPos triggerSourcePos,
+		long triggerSourceSerial,
+		ResourceKey<Level> coreDimension,
+		BlockPos corePos,
+		long coreSerial,
+		int signalStrength
+	) {
 		if (
 			filterSavedData == null
 				|| triggerSourceDimension == null
@@ -329,13 +361,14 @@ public final class LinkDispatchFilterService {
 		}
 		return allowsByKind(
 			filterSavedData,
+			linkSavedData,
 			triggerSourceDimension,
 			triggerSourcePos,
 			triggerSourceSerial,
 			signalStrength,
 			LinkFilterKind.SEND
 		)
-			&& allowsByKind(filterSavedData, coreDimension, corePos, coreSerial, signalStrength, LinkFilterKind.RECEIVE);
+			&& allowsByKind(filterSavedData, linkSavedData, coreDimension, corePos, coreSerial, signalStrength, LinkFilterKind.RECEIVE);
 	}
 
 	/**
@@ -351,7 +384,15 @@ public final class LinkDispatchFilterService {
 		if (level == null) {
 			return true;
 		}
-		return allowsByKind(PlacedLinkFilterSavedData.get(level), level.dimension(), nodePos, serial, signalStrength, filterKind);
+		return allowsByKind(
+			PlacedLinkFilterSavedData.get(level),
+			LinkSavedData.get(level),
+			level.dimension(),
+			nodePos,
+			serial,
+			signalStrength,
+			filterKind
+		);
 	}
 
 	/**
@@ -359,6 +400,7 @@ public final class LinkDispatchFilterService {
 	 */
 	private static boolean allowsByKind(
 		PlacedLinkFilterSavedData filterSavedData,
+		LinkSavedData linkSavedData,
 		ResourceKey<Level> dimension,
 		BlockPos nodePos,
 		long serial,
@@ -369,7 +411,8 @@ public final class LinkDispatchFilterService {
 			return true;
 		}
 		List<LinkFilterRuleEvaluator.FilterRuntimeView> activeFilters = filterSavedData.collectFilters(dimension, nodePos, filterKind);
-		return LinkFilterRuleEvaluator.allows(activeFilters, serial, signalStrength);
+		FilterEvaluationTarget evaluationTarget = resolveFilterEvaluationTarget(linkSavedData, filterKind, serial);
+		return LinkFilterRuleEvaluator.allows(activeFilters, evaluationTarget.targetMode(), evaluationTarget.targetValue(), signalStrength);
 	}
 
 	/**
@@ -377,6 +420,7 @@ public final class LinkDispatchFilterService {
 	 */
 	private static boolean allowsByKindWithChangedEntry(
 		PlacedLinkFilterSavedData filterSavedData,
+		LinkSavedData linkSavedData,
 		ResourceKey<Level> dimension,
 		BlockPos nodePos,
 		long serial,
@@ -403,7 +447,8 @@ public final class LinkDispatchFilterService {
 		if (!replaced && previousEntry != null && previousEntry.covers(nodePos)) {
 			activeFilters.add(previousEntry.toRuntimeView());
 		}
-		return LinkFilterRuleEvaluator.allows(activeFilters, serial, signalStrength);
+		FilterEvaluationTarget evaluationTarget = resolveFilterEvaluationTarget(linkSavedData, filterKind, serial);
+		return LinkFilterRuleEvaluator.allows(activeFilters, evaluationTarget.targetMode(), evaluationTarget.targetValue(), signalStrength);
 	}
 
 	/**
@@ -463,6 +508,7 @@ public final class LinkDispatchFilterService {
 			}
 			boolean beforeSendAllowed = allowsByKindWithChangedEntry(
 				filterSavedData,
+				savedData,
 				triggerSourceNode.dimension(),
 				triggerSourceNode.pos(),
 				triggerSourceNode.serial(),
@@ -473,6 +519,7 @@ public final class LinkDispatchFilterService {
 			);
 			boolean afterSendAllowed = allowsByKind(
 				filterSavedData,
+				savedData,
 				triggerSourceNode.dimension(),
 				triggerSourceNode.pos(),
 				triggerSourceNode.serial(),
@@ -492,6 +539,7 @@ public final class LinkDispatchFilterService {
 				}
 				boolean receiveAllowed = allowsByKind(
 					filterSavedData,
+					savedData,
 					coreNode.dimension(),
 					coreNode.pos(),
 					coreSerial,
@@ -552,6 +600,7 @@ public final class LinkDispatchFilterService {
 				}
 				boolean sendAllowed = allowsByKind(
 					filterSavedData,
+					savedData,
 					triggerSourceNode.dimension(),
 					triggerSourceNode.pos(),
 					triggerSourceSerial,
@@ -560,6 +609,7 @@ public final class LinkDispatchFilterService {
 				);
 				boolean beforeReceiveAllowed = allowsByKindWithChangedEntry(
 					filterSavedData,
+					savedData,
 					coreNode.dimension(),
 					coreNode.pos(),
 					coreNode.serial(),
@@ -570,6 +620,7 @@ public final class LinkDispatchFilterService {
 				);
 				boolean afterReceiveAllowed = allowsByKind(
 					filterSavedData,
+					savedData,
 					coreNode.dimension(),
 					coreNode.pos(),
 					coreNode.serial(),
@@ -719,6 +770,35 @@ public final class LinkDispatchFilterService {
 	}
 
 	/**
+	 * 解析当前服务端共享的连接与频道配置实例。
+	 */
+	private static LinkSavedData resolveSharedLinkSavedData(MinecraftServer server) {
+		if (server == null) {
+			return null;
+		}
+		ServerLevel overworld = server.overworld();
+		return overworld == null ? null : LinkSavedData.get(overworld);
+	}
+
+	/**
+	 * 将“节点当前连接模式”解析为过滤求值所需的目标模式和值。
+	 */
+	private static FilterEvaluationTarget resolveFilterEvaluationTarget(
+		LinkSavedData linkSavedData,
+		LinkFilterKind filterKind,
+		long serial
+	) {
+		if (filterKind == null || serial <= 0L || linkSavedData == null) {
+			return new FilterEvaluationTarget(LinkFilterTargetMode.SERIAL, Math.max(0L, serial));
+		}
+		LinkNodeType servicedNodeType = filterKind.servicedNodeType();
+		if (linkSavedData.getConnectionMode(servicedNodeType, serial) == LinkConnectionMode.CHANNEL) {
+			return new FilterEvaluationTarget(LinkFilterTargetMode.CHANNEL, linkSavedData.getChannel(servicedNodeType, serial));
+		}
+		return new FilterEvaluationTarget(LinkFilterTargetMode.SERIAL, serial);
+	}
+
+	/**
 	 * 按优先维度解析一个可用于当前事件的服务端上下文。
 	 */
 	private static ServerLevel resolveEventContextLevel(MinecraftServer server, ResourceKey<Level> preferredDimension) {
@@ -734,5 +814,15 @@ public final class LinkDispatchFilterService {
 	 */
 	static void resetForTesting() {
 		callbacksRegistered = false;
+	}
+
+	/**
+	 * 过滤求值所需的当前节点目标值。
+	 */
+	private record FilterEvaluationTarget(LinkFilterTargetMode targetMode, long targetValue) {
+		private FilterEvaluationTarget {
+			targetMode = targetMode == null ? LinkFilterTargetMode.SERIAL : targetMode;
+			targetValue = Math.max(0L, targetValue);
+		}
 	}
 }

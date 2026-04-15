@@ -5,6 +5,7 @@ import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterItemData;
 import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.NodeAliasDisplayUtil;
 import java.util.List;
 import java.util.Objects;
@@ -101,8 +102,14 @@ public class LinkFilterBlockItem extends BlockItem {
 		);
 		tooltipComponents.add(
 			Component.translatable(
-				"tooltip.redstonelink.link_filter.serial_expression",
-				LinkFilterItemData.buildTooltipSerialExpressionText(snapshot, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
+				"tooltip.redstonelink.link_filter.target_mode",
+				targetModeLabel(snapshot)
+			)
+		);
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.link_filter.target_value",
+				LinkFilterItemData.buildTooltipTargetText(snapshot, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
 			)
 		);
 		tooltipComponents.add(
@@ -157,6 +164,17 @@ public class LinkFilterBlockItem extends BlockItem {
 			case WHITELIST -> Component.translatable("screen.redstonelink.link_filter.node_set_mode.whitelist");
 			case BLOCKLIST -> Component.translatable("screen.redstonelink.link_filter.node_set_mode.blocklist");
 			case DISABLED -> Component.translatable("screen.redstonelink.link_filter.node_set_mode.disabled");
+		};
+	}
+
+	/**
+	 * 构建过滤目标模式 tooltip 文案。
+	 */
+	private static Component targetModeLabel(LinkFilterConfigSnapshot snapshot) {
+		LinkFilterTargetMode targetMode = snapshot == null ? LinkFilterTargetMode.SERIAL : snapshot.targetMode();
+		return switch (targetMode) {
+			case SERIAL -> Component.translatable("screen.redstonelink.link_filter.target_mode.serial");
+			case CHANNEL -> Component.translatable("screen.redstonelink.link_filter.target_mode.channel");
 		};
 	}
 

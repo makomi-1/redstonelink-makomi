@@ -238,6 +238,7 @@ class LinkDispatchFilterServiceTest {
 		Method method = LinkDispatchFilterService.class.getDeclaredMethod(
 			"allowsByKindWithChangedEntry",
 			PlacedLinkFilterSavedData.class,
+			LinkSavedData.class,
 			net.minecraft.resources.ResourceKey.class,
 			BlockPos.class,
 			long.class,
@@ -251,6 +252,7 @@ class LinkDispatchFilterServiceTest {
 		boolean previousAllowed = (boolean) method.invoke(
 			null,
 			data,
+			null,
 			Level.OVERWORLD,
 			nodePos,
 			11L,
@@ -263,6 +265,84 @@ class LinkDispatchFilterServiceTest {
 		assertTrue(LinkDispatchFilterService.allowsReplayByPersistedFilters(data, Level.OVERWORLD, nodePos, 11L, Level.OVERWORLD, new BlockPos(32, 64, 32), 21L, 9));
 		assertFalse(previousAllowed);
 		assertNotNull(afterEntry);
+	}
+
+	/**
+	 * 节点切到频道模式后，replay 过滤应改为读取频道过滤器而不是序号过滤器。
+	 */
+	@Test
+	void allowsReplayByPersistedFiltersShouldUseChannelFiltersWhenNodeRunsInChannelMode() {
+		PlacedLinkFilterSavedData filterData = new PlacedLinkFilterSavedData();
+		LinkSavedData linkSavedData = new LinkSavedData();
+		BlockPos sourcePos = new BlockPos(1, 64, 1);
+		BlockPos corePos = new BlockPos(31, 64, 31);
+
+		assertTrue(
+			filterData.upsert(
+				LinkFilterKind.SEND,
+				Level.OVERWORLD,
+				new BlockPos(0, 64, 0),
+				new LinkFilterConfigSnapshot(
+					"",
+					LinkFilterTargetMode.CHANNEL,
+					88L,
+					LinkFilterNodeSetMode.WHITELIST,
+					LinkFilterSignalThresholdSource.FIXED_INPUT,
+					15,
+					LinkFilterSignalMode.DISABLED
+				),
+				15
+			)
+		);
+		assertTrue(
+			filterData.upsert(
+				LinkFilterKind.RECEIVE,
+				Level.OVERWORLD,
+				new BlockPos(32, 64, 32),
+				new LinkFilterConfigSnapshot(
+					"",
+					LinkFilterTargetMode.CHANNEL,
+					99L,
+					LinkFilterNodeSetMode.WHITELIST,
+					LinkFilterSignalThresholdSource.FIXED_INPUT,
+					15,
+					LinkFilterSignalMode.DISABLED
+				),
+				15
+			)
+		);
+
+		LinkSavedDataChannelSupport.putChannelConfig(linkSavedData, LinkNodeType.TRIGGER_SOURCE, 11L, 88L);
+		LinkSavedDataChannelSupport.putChannelConfig(linkSavedData, LinkNodeType.CORE, 21L, 99L);
+
+		assertTrue(
+			LinkDispatchFilterService.allowsReplayByPersistedFilters(
+				filterData,
+				linkSavedData,
+				Level.OVERWORLD,
+				sourcePos,
+				11L,
+				Level.OVERWORLD,
+				corePos,
+				21L,
+				9
+			)
+		);
+
+		LinkSavedDataChannelSupport.putChannelConfig(linkSavedData, LinkNodeType.CORE, 21L, 77L);
+		assertFalse(
+			LinkDispatchFilterService.allowsReplayByPersistedFilters(
+				filterData,
+				linkSavedData,
+				Level.OVERWORLD,
+				sourcePos,
+				11L,
+				Level.OVERWORLD,
+				corePos,
+				21L,
+				9
+			)
+		);
 	}
 
 	/**

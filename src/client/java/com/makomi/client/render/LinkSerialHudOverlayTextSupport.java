@@ -10,6 +10,7 @@ import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
@@ -169,7 +170,6 @@ final class LinkSerialHudOverlayTextSupport {
 			return List.of();
 		}
 		LinkFilterConfigSnapshot snapshot = filterBlockEntity.snapshot();
-		List<Long> orderedSerials = SerialParseUtil.parseTargetsOrdered(snapshot.serialExpression(), 0).orderedTargets();
 		String filterTitle = composeFilterTitleText(resolveItemPrefix(filterBlockEntity), filterBlockEntity.displayAlias());
 		return List.of(
 			translate(KEY_NEAR_OVERLAY_FILTER_TITLE_LINE, filterTitle),
@@ -178,7 +178,7 @@ final class LinkSerialHudOverlayTextSupport {
 				KEY_NEAR_OVERLAY_FILTER_SERVICE_LINE,
 				LinkNodeSemantics.toSemanticName(filterBlockEntity.filterKind().servicedNodeType())
 			),
-			translate(KEY_NEAR_OVERLAY_FILTER_NODE_SET_LINE, buildCurrentLinksText(font, orderedSerials)),
+			translate(KEY_NEAR_OVERLAY_FILTER_NODE_SET_LINE, resolveFilterTargetText(font, snapshot)),
 			translate(
 				KEY_NEAR_OVERLAY_FILTER_MODE_LINE,
 				resolveFilterNodeSetModeText(snapshot.nodeSetMode()),
@@ -247,6 +247,18 @@ final class LinkSerialHudOverlayTextSupport {
 			return normalizedAlias;
 		}
 		return normalizedPrefix + " " + normalizedAlias;
+	}
+
+	/**
+	 * 解析过滤器当前目标文本；序号模式显示结构化序号组，频道模式显示频道值。
+	 */
+	private static String resolveFilterTargetText(Font font, LinkFilterConfigSnapshot snapshot) {
+		LinkFilterConfigSnapshot normalized = snapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : snapshot;
+		if (normalized.targetMode() == LinkFilterTargetMode.CHANNEL) {
+			return resolveChannelValueText(normalized.channel());
+		}
+		List<Long> orderedSerials = SerialParseUtil.parseTargetsOrdered(normalized.serialExpression(), 0).orderedTargets();
+		return buildCurrentLinksText(font, orderedSerials);
 	}
 
 	/**

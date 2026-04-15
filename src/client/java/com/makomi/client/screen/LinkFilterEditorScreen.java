@@ -5,6 +5,7 @@ import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.network.LinkFilterEditorTargetKind;
@@ -50,12 +51,13 @@ public class LinkFilterEditorScreen extends Screen {
 		0xFFD2B4BC
 	);
 	private static final int SCREEN_EDGE_MARGIN = 16;
-	private static final int PANEL_CONTENT_HEIGHT = 310;
+	private static final int PANEL_CONTENT_HEIGHT = 344;
 	private static final int PANEL_PREFERRED_WIDTH = 320;
 	private static final int TITLE_TOP_MARGIN = 26;
 	private static final int SUBTITLE_MARGIN = 14;
 	private static final int GROUP_LABEL_MARGIN = 12;
 	private static final int SERIAL_INPUT_HEIGHT = 54;
+	private static final int CHANNEL_INPUT_MAX_LENGTH = 19;
 	private static final int BUTTON_HEIGHT = 20;
 	private static final int BUTTON_GAP = 4;
 	private static final int FIXED_THRESHOLD_WIDTH = 56;
@@ -73,11 +75,14 @@ public class LinkFilterEditorScreen extends Screen {
 	private final LinkFilterConfigSnapshot initialSnapshot;
 
 	private StyledEditBox aliasInput;
+	private EditBox channelInputBox;
 	private MultiLineEditBox serialInputBox;
 	private EditBox fixedThresholdBox;
+	private Button[] targetModeButtons = new Button[0];
 	private Button[] nodeSetButtons = new Button[0];
 	private Button[] thresholdSourceButtons = new Button[0];
 	private Button[] signalModeButtons = new Button[0];
+	private LinkFilterTargetMode currentTargetMode;
 	private LinkFilterNodeSetMode currentNodeSetMode;
 	private LinkFilterSignalThresholdSource currentSignalThresholdSource;
 	private LinkFilterSignalMode currentSignalMode;
@@ -100,6 +105,7 @@ public class LinkFilterEditorScreen extends Screen {
 		this.filterKind = filterKind == null ? LinkFilterKind.SEND : filterKind;
 		this.initialDisplayAlias = NodeAliasDisplayUtil.normalizeAlias(initialDisplayAlias);
 		this.initialSnapshot = initialSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : initialSnapshot;
+		currentTargetMode = this.initialSnapshot.targetMode();
 		currentNodeSetMode = this.initialSnapshot.nodeSetMode();
 		currentSignalThresholdSource = this.initialSnapshot.signalThresholdSource();
 		currentSignalMode = this.initialSnapshot.signalMode();
@@ -110,6 +116,7 @@ public class LinkFilterEditorScreen extends Screen {
 		super.init();
 		LinkFilterLayout layout = resolveLayout(width, height, font.lineHeight);
 		String preservedDisplayAlias = aliasInput == null ? initialDisplayAlias : aliasInput.getValue();
+		String preservedChannel = channelInputBox == null ? initialChannelValue() : channelInputBox.getValue();
 		String preservedSerialExpression = serialInputBox == null ? initialSnapshot.serialExpression() : serialInputBox.getValue();
 		String preservedFixedThreshold = fixedThresholdBox == null
 			? Integer.toString(initialSnapshot.fixedSignalThreshold())
@@ -123,10 +130,28 @@ public class LinkFilterEditorScreen extends Screen {
 		serialInputBox.setCharacterLimit(com.makomi.config.RedstoneLinkConfig.command().linkSetMaxInputLength());
 		serialInputBox.setValue(preservedSerialExpression);
 		addRenderableWidget(serialInputBox);
-		setInitialFocus(serialInputBox);
+		channelInputBox = createChannelInputBox(layout);
+		channelInputBox.setMaxLength(CHANNEL_INPUT_MAX_LENGTH);
+		channelInputBox.setFilter(value -> value.chars().allMatch(Character::isDigit));
+		channelInputBox.setValue(preservedChannel);
+		addRenderableWidget(channelInputBox);
 
 		int tripleButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(layout.panelWidth(), BUTTON_GAP, 3);
 		int doubleButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(layout.panelWidth(), BUTTON_GAP, 2);
+		targetModeButtons = new Button[] {
+			createOptionButton(
+				layout.panelLeft(),
+				layout.targetModeRowY(),
+				doubleButtonWidth,
+				() -> switchTargetMode(LinkFilterTargetMode.SERIAL)
+			),
+			createOptionButton(
+				layout.panelLeft() + doubleButtonWidth + BUTTON_GAP,
+				layout.targetModeRowY(),
+				doubleButtonWidth,
+				() -> switchTargetMode(LinkFilterTargetMode.CHANNEL)
+			)
+		};
 		nodeSetButtons = new Button[] {
 			createOptionButton(
 				layout.panelLeft(),
@@ -211,7 +236,9 @@ public class LinkFilterEditorScreen extends Screen {
 		);
 
 		refreshOptionButtonMessages();
+		refreshTargetInputState();
 		refreshFixedThresholdState();
+		setInitialFocus(currentTargetMode == LinkFilterTargetMode.CHANNEL ? channelInputBox : serialInputBox);
 	}
 
 	@Override
@@ -223,7 +250,15 @@ public class LinkFilterEditorScreen extends Screen {
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.serial_input"), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
+		guiGraphics.drawString(
+			font,
+			Component.translatable("screen.redstonelink.link_filter.target_mode"),
+			layout.panelLeft(),
+			layout.targetModeLabelY(),
+			0xFFFFFF,
+			false
+		);
+		guiGraphics.drawString(font, currentTargetInputLabel(), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.node_set_mode"), layout.panelLeft(), layout.nodeSetLabelY(), 0xFFFFFF, false);
 		guiGraphics.drawString(
 			font,
@@ -281,12 +316,19 @@ public class LinkFilterEditorScreen extends Screen {
 	 * 保存当前过滤器配置并关闭界面。
 	 */
 	private void saveAndClose() {
-		SerialInputSyntaxSupport.ValidationResult validation = SerialInputSyntaxSupport.validate(serialInputBox.getValue());
-		if (!validation.valid()) {
+		SerialInputSyntaxSupport.ValidationResult validation = SerialInputSyntaxSupport.validate(
+			currentTargetMode == LinkFilterTargetMode.SERIAL ? serialInputBox.getValue() : ""
+		);
+		if (currentTargetMode == LinkFilterTargetMode.SERIAL && !validation.valid()) {
 			statusMessage = Component.translatable(
 				"screen.redstonelink.pairing.invalid_tokens",
 				String.join(", ", validation.invalidEntries())
 			);
+			return;
+		}
+		long parsedChannel = currentTargetMode == LinkFilterTargetMode.CHANNEL ? parseChannelInput() : 0L;
+		if (currentTargetMode == LinkFilterTargetMode.CHANNEL && parsedChannel < 0L) {
+			statusMessage = Component.translatable("screen.redstonelink.link_filter.channel_invalid");
 			return;
 		}
 
@@ -306,7 +348,9 @@ public class LinkFilterEditorScreen extends Screen {
 				filterKind,
 				normalizedDisplayAlias,
 				new LinkFilterConfigSnapshot(
-					validation.normalizedExpression(),
+					currentTargetMode == LinkFilterTargetMode.SERIAL ? validation.normalizedExpression() : "",
+					currentTargetMode,
+					parsedChannel,
 					currentNodeSetMode,
 					currentSignalThresholdSource,
 					fixedThreshold,
@@ -325,12 +369,17 @@ public class LinkFilterEditorScreen extends Screen {
 			aliasInput.setValue("");
 		}
 		serialInputBox.setValue("");
+		if (channelInputBox != null) {
+			channelInputBox.setValue("");
+		}
+		currentTargetMode = LinkFilterTargetMode.SERIAL;
 		fixedThresholdBox.setValue("15");
 		currentNodeSetMode = LinkFilterNodeSetMode.DISABLED;
 		currentSignalThresholdSource = LinkFilterSignalThresholdSource.FIXED_INPUT;
 		currentSignalMode = LinkFilterSignalMode.DISABLED;
 		statusMessage = Component.empty();
 		refreshOptionButtonMessages();
+		refreshTargetInputState();
 		refreshFixedThresholdState();
 	}
 
@@ -338,6 +387,16 @@ public class LinkFilterEditorScreen extends Screen {
 	 * 刷新单选组按钮文案。
 	 */
 	private void refreshOptionButtonMessages() {
+		setOptionButtonMessage(
+			targetModeButtons[0],
+			currentTargetMode == LinkFilterTargetMode.SERIAL,
+			Component.translatable("screen.redstonelink.link_filter.target_mode.serial")
+		);
+		setOptionButtonMessage(
+			targetModeButtons[1],
+			currentTargetMode == LinkFilterTargetMode.CHANNEL,
+			Component.translatable("screen.redstonelink.link_filter.target_mode.channel")
+		);
 		setOptionButtonMessage(
 			nodeSetButtons[0],
 			currentNodeSetMode == LinkFilterNodeSetMode.WHITELIST,
@@ -381,6 +440,45 @@ public class LinkFilterEditorScreen extends Screen {
 	}
 
 	/**
+	 * 切换过滤目标模式，并清空另一种模式残留输入。
+	 */
+	private void switchTargetMode(LinkFilterTargetMode nextTargetMode) {
+		if (nextTargetMode == null || nextTargetMode == currentTargetMode) {
+			return;
+		}
+		currentTargetMode = nextTargetMode;
+		if (currentTargetMode == LinkFilterTargetMode.SERIAL) {
+			if (channelInputBox != null) {
+				channelInputBox.setValue("");
+			}
+			setFocused(serialInputBox);
+		} else {
+			if (serialInputBox != null) {
+				serialInputBox.setValue("");
+			}
+			setFocused(channelInputBox);
+		}
+		statusMessage = Component.empty();
+		refreshOptionButtonMessages();
+		refreshTargetInputState();
+	}
+
+	/**
+	 * 刷新序号/频道输入框的可见与可编辑状态。
+	 */
+	private void refreshTargetInputState() {
+		if (serialInputBox != null) {
+			serialInputBox.visible = currentTargetMode == LinkFilterTargetMode.SERIAL;
+			serialInputBox.active = currentTargetMode == LinkFilterTargetMode.SERIAL;
+		}
+		if (channelInputBox != null) {
+			channelInputBox.visible = currentTargetMode == LinkFilterTargetMode.CHANNEL;
+			channelInputBox.active = currentTargetMode == LinkFilterTargetMode.CHANNEL;
+			channelInputBox.setEditable(currentTargetMode == LinkFilterTargetMode.CHANNEL);
+		}
+	}
+
+	/**
 	 * 刷新固定阈值输入框可用态。
 	 */
 	private void refreshFixedThresholdState() {
@@ -403,6 +501,21 @@ public class LinkFilterEditorScreen extends Screen {
 			return parsed >= 0 && parsed <= 15 ? parsed : -1;
 		} catch (NumberFormatException ignored) {
 			return -1;
+		}
+	}
+
+	/**
+	 * 解析频道输入框；空白回退为 0，非法值返回 -1。
+	 */
+	private long parseChannelInput() {
+		if (channelInputBox == null || channelInputBox.getValue().isBlank()) {
+			return 0L;
+		}
+		try {
+			long parsed = Long.parseLong(channelInputBox.getValue());
+			return parsed >= 0L ? parsed : -1L;
+		} catch (NumberFormatException ignored) {
+			return -1L;
 		}
 	}
 
@@ -432,6 +545,21 @@ public class LinkFilterEditorScreen extends Screen {
 			Component.translatable("screen.redstonelink.link_filter.serial_input"),
 			Component.empty(),
 			FILTER_INPUT_BOX_STYLE
+		);
+	}
+
+	/**
+	 * 创建过滤器频道单行输入框。
+	 */
+	private StyledEditBox createChannelInputBox(LinkFilterLayout layout) {
+		return new StyledEditBox(
+			font,
+			layout.panelLeft(),
+			layout.channelInputY(),
+			layout.panelWidth(),
+			BUTTON_HEIGHT,
+			Component.translatable("screen.redstonelink.link_filter.channel_input"),
+			FILTER_EDIT_BOX_STYLE
 		);
 	}
 
@@ -480,8 +608,11 @@ public class LinkFilterEditorScreen extends Screen {
 		int titleY = panelBox.top() + 6;
 		int aliasLabelY = titleY + TITLE_TOP_MARGIN;
 		int aliasInputY = aliasLabelY + GROUP_LABEL_MARGIN;
-		int serialLabelY = aliasInputY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
+		int targetModeLabelY = aliasInputY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
+		int targetModeRowY = targetModeLabelY + GROUP_LABEL_MARGIN;
+		int serialLabelY = targetModeRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
 		int serialInputY = serialLabelY + GROUP_LABEL_MARGIN;
+		int channelInputY = serialInputY;
 		int nodeSetLabelY = serialInputY + SERIAL_INPUT_HEIGHT + GROUP_LABEL_MARGIN;
 		int nodeSetRowY = nodeSetLabelY + GROUP_LABEL_MARGIN;
 		int thresholdSourceLabelY = nodeSetRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
@@ -499,8 +630,11 @@ public class LinkFilterEditorScreen extends Screen {
 			titleY,
 			aliasLabelY,
 			aliasInputY,
+			targetModeLabelY,
+			targetModeRowY,
 			serialLabelY,
 			serialInputY,
+			channelInputY,
 			nodeSetLabelY,
 			nodeSetRowY,
 			thresholdSourceLabelY,
@@ -558,7 +692,15 @@ public class LinkFilterEditorScreen extends Screen {
 			);
 		bounds =
 			bounds.include(
-				leftAlignedTextBounds(Component.translatable("screen.redstonelink.link_filter.serial_input"), layout.panelLeft(), layout.serialLabelY())
+				leftAlignedTextBounds(Component.translatable("screen.redstonelink.link_filter.target_mode"), layout.panelLeft(), layout.targetModeLabelY())
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.targetModeRowY(), layout.panelWidth(), BUTTON_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				leftAlignedTextBounds(currentTargetInputLabel(), layout.panelLeft(), layout.serialLabelY())
 			);
 		bounds =
 			bounds.include(
@@ -623,6 +765,22 @@ public class LinkFilterEditorScreen extends Screen {
 	}
 
 	/**
+	 * 解析当前目标输入区标签。
+	 */
+	private Component currentTargetInputLabel() {
+		return currentTargetMode == LinkFilterTargetMode.CHANNEL
+			? Component.translatable("screen.redstonelink.link_filter.channel_input")
+			: Component.translatable("screen.redstonelink.link_filter.serial_input");
+	}
+
+	/**
+	 * 解析初始频道输入文本。
+	 */
+	private String initialChannelValue() {
+		return initialSnapshot.channel() > 0L ? Long.toString(initialSnapshot.channel()) : "";
+	}
+
+	/**
 	 * 生成左对齐文本包围盒。
 	 */
 	private GuiBackgroundRenderSupport.RegionBounds leftAlignedTextBounds(Component text, int left, int top) {
@@ -654,8 +812,11 @@ public class LinkFilterEditorScreen extends Screen {
 		int titleY,
 		int aliasLabelY,
 		int aliasInputY,
+		int targetModeLabelY,
+		int targetModeRowY,
 		int serialLabelY,
 		int serialInputY,
+		int channelInputY,
 		int nodeSetLabelY,
 		int nodeSetRowY,
 		int thresholdSourceLabelY,

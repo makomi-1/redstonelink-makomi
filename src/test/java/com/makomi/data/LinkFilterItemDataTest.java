@@ -51,6 +51,38 @@ class LinkFilterItemDataTest {
 	}
 
 	/**
+	 * 频道模式写入后应保留目标模式与频道值，并清空序号表达式。
+	 */
+	@Test
+	void writeShouldPreserveChannelTargetFields() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		LinkFilterConfigSnapshot original = new LinkFilterConfigSnapshot(
+			"1/3/5",
+			LinkFilterTargetMode.CHANNEL,
+			88L,
+			LinkFilterNodeSetMode.WHITELIST,
+			LinkFilterSignalThresholdSource.FIXED_INPUT,
+			15,
+			LinkFilterSignalMode.DISABLED
+		);
+
+		LinkFilterItemData.write(stack, original);
+
+		assertEquals(
+			new LinkFilterConfigSnapshot(
+				"",
+				LinkFilterTargetMode.CHANNEL,
+				88L,
+				LinkFilterNodeSetMode.WHITELIST,
+				LinkFilterSignalThresholdSource.FIXED_INPUT,
+				15,
+				LinkFilterSignalMode.DISABLED
+			),
+			LinkFilterItemData.read(stack)
+		);
+	}
+
+	/**
 	 * 过滤器物品展示别名应支持独立读写，并对空白输入归一化清空。
 	 */
 	@Test
@@ -79,5 +111,23 @@ class LinkFilterItemDataTest {
 
 		assertEquals("1:10", LinkFilterItemData.buildTooltipSerialExpressionText(snapshot, 48));
 		assertEquals("1:10", LinkFilterItemData.buildTooltipSerialExpressionText(snapshot, 6));
+	}
+
+	/**
+	 * tooltip 目标文本在频道模式下应显示频道值。
+	 */
+	@Test
+	void tooltipTargetTextShouldDisplayChannelValueInChannelMode() {
+		LinkFilterConfigSnapshot snapshot = new LinkFilterConfigSnapshot(
+			"",
+			LinkFilterTargetMode.CHANNEL,
+			77L,
+			LinkFilterNodeSetMode.BLOCKLIST,
+			LinkFilterSignalThresholdSource.FIXED_INPUT,
+			15,
+			LinkFilterSignalMode.DISABLED
+		);
+
+		assertEquals("77", LinkFilterItemData.buildTooltipTargetText(snapshot, 48));
 	}
 }

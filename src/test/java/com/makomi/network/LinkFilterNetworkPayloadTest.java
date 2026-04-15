@@ -9,6 +9,7 @@ import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.data.LinkFilterTargetMode;
 import io.netty.buffer.Unpooled;
 import java.util.List;
 import net.minecraft.network.FriendlyByteBuf;
@@ -34,6 +35,8 @@ class LinkFilterNetworkPayloadTest {
 			"南厅过滤器",
 			new LinkFilterConfigSnapshot(
 				"1:5/9",
+				LinkFilterTargetMode.SERIAL,
+				0L,
 				LinkFilterNodeSetMode.WHITELIST,
 				LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
 				7,
@@ -68,6 +71,8 @@ class LinkFilterNetworkPayloadTest {
 			"西厅过滤器",
 			new LinkFilterConfigSnapshot(
 				"3/7:9",
+				LinkFilterTargetMode.CHANNEL,
+				88L,
 				LinkFilterNodeSetMode.BLOCKLIST,
 				LinkFilterSignalThresholdSource.FIXED_INPUT,
 				11,
@@ -122,6 +127,8 @@ class LinkFilterNetworkPayloadTest {
 		buffer.writeUtf("send");
 		buffer.writeUtf("别名");
 		buffer.writeUtf(tooLongExpression);
+		buffer.writeUtf("serial");
+		buffer.writeVarLong(0L);
 		buffer.writeUtf("disabled");
 		buffer.writeUtf("fixed_input");
 		buffer.writeVarInt(15);

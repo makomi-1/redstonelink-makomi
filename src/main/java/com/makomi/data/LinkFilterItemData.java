@@ -17,6 +17,8 @@ import net.minecraft.world.item.component.CustomData;
  */
 public final class LinkFilterItemData {
 	private static final String KEY_SERIAL_EXPRESSION = "rl_filter_serial_expression";
+	private static final String KEY_TARGET_MODE = "rl_filter_target_mode";
+	private static final String KEY_CHANNEL = "rl_filter_channel";
 	private static final String KEY_NODE_SET_MODE = "rl_filter_node_set_mode";
 	private static final String KEY_SIGNAL_THRESHOLD_SOURCE = "rl_filter_signal_threshold_source";
 	private static final String KEY_FIXED_SIGNAL_THRESHOLD = "rl_filter_fixed_signal_threshold";
@@ -33,6 +35,8 @@ public final class LinkFilterItemData {
 		CompoundTag tag = readTag(stack);
 		return new LinkFilterConfigSnapshot(
 			tag.getString(KEY_SERIAL_EXPRESSION),
+			LinkFilterTargetMode.tryParseToken(tag.getString(KEY_TARGET_MODE)).orElse(null),
+			tag.contains(KEY_CHANNEL, Tag.TAG_LONG) ? Math.max(0L, tag.getLong(KEY_CHANNEL)) : 0L,
 			LinkFilterNodeSetMode.tryParseToken(tag.getString(KEY_NODE_SET_MODE)).orElse(LinkFilterNodeSetMode.DISABLED),
 			LinkFilterSignalThresholdSource
 				.tryParseToken(tag.getString(KEY_SIGNAL_THRESHOLD_SOURCE))
@@ -46,9 +50,17 @@ public final class LinkFilterItemData {
 	 * 写入过滤器物品配置；空白表达式会移除对应字段。
 	 */
 	public static void write(ItemStack stack, LinkFilterConfigSnapshot snapshot) {
-		LinkFilterConfigSnapshot normalized = snapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : snapshot;
+		LinkFilterConfigSnapshot normalized = snapshot == null
+			? new LinkFilterConfigSnapshot("", LinkFilterTargetMode.SERIAL, 0L, null, null, 15, null)
+			: snapshot;
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
 			writeStringOrRemove(tag, KEY_SERIAL_EXPRESSION, normalized.serialExpression().trim());
+			tag.putString(KEY_TARGET_MODE, normalized.targetMode().token());
+			if (normalized.channel() > 0L) {
+				tag.putLong(KEY_CHANNEL, normalized.channel());
+			} else {
+				tag.remove(KEY_CHANNEL);
+			}
 			tag.putString(KEY_NODE_SET_MODE, normalized.nodeSetMode().token());
 			tag.putString(KEY_SIGNAL_THRESHOLD_SOURCE, normalized.signalThresholdSource().token());
 			tag.putInt(KEY_FIXED_SIGNAL_THRESHOLD, normalized.fixedSignalThreshold());
@@ -92,6 +104,17 @@ public final class LinkFilterItemData {
 		}
 		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(serialExpression, 0);
 		return SerialDisplayFormatUtil.buildText(parseResult.orderedTargets(), maxChars);
+	}
+
+	/**
+	 * 为 tooltip 构建过滤目标文本；序号模式使用结构化序号组，频道模式输出频道号。
+	 */
+	public static String buildTooltipTargetText(LinkFilterConfigSnapshot snapshot, int maxChars) {
+		LinkFilterConfigSnapshot normalized = snapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : snapshot;
+		if (normalized.usesChannelTarget()) {
+			return normalized.channel() > 0L ? Long.toString(normalized.channel()) : "-";
+		}
+		return buildTooltipSerialExpressionText(normalized, maxChars);
 	}
 
 	/**

@@ -39,6 +39,8 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 	private static final String KEY_KIND = "kind";
 	private static final String KEY_POS = "pos";
 	private static final String KEY_SERIAL_EXPRESSION = "serialExpression";
+	private static final String KEY_TARGET_MODE = "targetMode";
+	private static final String KEY_CHANNEL = "channel";
 	private static final String KEY_NODE_SET_MODE = "nodeSetMode";
 	private static final String KEY_SIGNAL_THRESHOLD_SOURCE = "signalThresholdSource";
 	private static final String KEY_FIXED_SIGNAL_THRESHOLD = "fixedSignalThreshold";
@@ -129,10 +131,13 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		LinkFilterConfigSnapshot configSnapshot,
 		int neighborSignalStrength
 	) {
+		LinkFilterConfigSnapshot normalizedConfigSnapshot = configSnapshot == null
+			? new LinkFilterConfigSnapshot("", LinkFilterTargetMode.SERIAL, 0L, null, null, 15, null)
+			: configSnapshot;
 		FilterEntry normalized = new FilterEntry(
 			key,
-			configSnapshot,
-			parseSerialExpression(configSnapshot.serialExpression()),
+			normalizedConfigSnapshot,
+			parseSerialExpression(normalizedConfigSnapshot),
 			SignalStrengths.clamp(neighborSignalStrength)
 		);
 		FilterEntry previous = entriesByKey.get(key);
@@ -261,6 +266,10 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 			entryTag.putString(KEY_KIND, entry.key().filterKind().token());
 			entryTag.putLong(KEY_POS, entry.key().filterPos().asLong());
 			entryTag.putString(KEY_SERIAL_EXPRESSION, entry.configSnapshot().serialExpression());
+			entryTag.putString(KEY_TARGET_MODE, entry.configSnapshot().targetMode().token());
+			if (entry.configSnapshot().channel() > 0L) {
+				entryTag.putLong(KEY_CHANNEL, entry.configSnapshot().channel());
+			}
 			entryTag.putString(KEY_NODE_SET_MODE, entry.configSnapshot().nodeSetMode().token());
 			entryTag.putString(KEY_SIGNAL_THRESHOLD_SOURCE, entry.configSnapshot().signalThresholdSource().token());
 			entryTag.putInt(KEY_FIXED_SIGNAL_THRESHOLD, entry.configSnapshot().fixedSignalThreshold());
@@ -339,6 +348,8 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		BlockPos filterPos = BlockPos.of(entryTag.getLong(KEY_POS));
 		LinkFilterConfigSnapshot configSnapshot = new LinkFilterConfigSnapshot(
 			entryTag.getString(KEY_SERIAL_EXPRESSION),
+			LinkFilterTargetMode.tryParseToken(entryTag.getString(KEY_TARGET_MODE)).orElse(null),
+			entryTag.contains(KEY_CHANNEL, Tag.TAG_LONG) ? Math.max(0L, entryTag.getLong(KEY_CHANNEL)) : 0L,
 			LinkFilterNodeSetMode.tryParseToken(entryTag.getString(KEY_NODE_SET_MODE)).orElse(LinkFilterNodeSetMode.DISABLED),
 			LinkFilterSignalThresholdSource
 				.tryParseToken(entryTag.getString(KEY_SIGNAL_THRESHOLD_SOURCE))
@@ -348,13 +359,21 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		);
 		FilterEntryKey key = new FilterEntryKey(dimension, filterKind.get(), filterPos);
 		return Optional.of(
-			new FilterEntry(
-				key,
-				configSnapshot,
-				parseSerialExpression(configSnapshot.serialExpression()),
-				SignalStrengths.clamp(entryTag.getInt(KEY_NEIGHBOR_SIGNAL_STRENGTH))
-			)
+			new FilterEntry(key, configSnapshot, parseSerialExpression(configSnapshot), SignalStrengths.clamp(entryTag.getInt(KEY_NEIGHBOR_SIGNAL_STRENGTH)))
 		);
+	}
+
+	/**
+	 * 解析序号表达式，统一过滤非法与重复项。
+	 */
+	private static Set<Long> parseSerialExpression(LinkFilterConfigSnapshot configSnapshot) {
+		LinkFilterConfigSnapshot normalized = configSnapshot == null
+			? new LinkFilterConfigSnapshot("", LinkFilterTargetMode.SERIAL, 0L, null, null, 15, null)
+			: configSnapshot;
+		if (normalized.usesChannelTarget()) {
+			return Set.of();
+		}
+		return parseSerialExpression(normalized.serialExpression());
 	}
 
 	/**
@@ -457,8 +476,10 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		 */
 		LinkFilterRuleEvaluator.FilterRuntimeView toRuntimeView() {
 			return new LinkFilterRuleEvaluator.FilterRuntimeView(
+				configSnapshot.targetMode(),
 				configSnapshot.nodeSetMode(),
 				serials,
+				configSnapshot.channel(),
 				configSnapshot.signalThresholdSource(),
 				configSnapshot.fixedSignalThreshold(),
 				configSnapshot.signalMode(),

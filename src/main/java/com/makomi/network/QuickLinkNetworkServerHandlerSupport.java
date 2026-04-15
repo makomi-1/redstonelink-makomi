@@ -138,18 +138,16 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return;
 		}
 		if (requestedTarget.filterBlockEntity() != null) {
-			if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
-				sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.channel_filter_unsupported"));
-				return;
-			}
 			sendFeedback(
 				player,
 				QuickLinkApplyService
 					.applyToFilterFromCache(
 						player,
 						requestedTarget.filterBlockEntity(),
+						snapshot.mode(),
 						snapshot.serialCacheType(),
 						snapshot.serialCacheExpression(),
+						snapshot.channelCache(),
 						snapshot.applyEditMode()
 					)
 					.feedback()

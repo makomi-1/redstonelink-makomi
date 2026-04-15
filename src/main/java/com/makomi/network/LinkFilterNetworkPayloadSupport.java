@@ -6,6 +6,7 @@ import com.makomi.data.LinkFilterKind;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
+import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.NodeAliasSavedData;
 import java.util.ArrayList;
 import java.util.List;
@@ -152,11 +153,15 @@ final class LinkFilterNetworkPayloadSupport {
 	 * 编码过滤器配置快照。
 	 */
 	private static void encodeConfigSnapshot(FriendlyByteBuf buffer, LinkFilterConfigSnapshot configSnapshot) {
-		LinkFilterConfigSnapshot normalized = configSnapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : configSnapshot;
+		LinkFilterConfigSnapshot normalized = configSnapshot == null
+			? new LinkFilterConfigSnapshot("", LinkFilterTargetMode.SERIAL, 0L, null, null, 15, null)
+			: configSnapshot;
 		buffer.writeUtf(
 			normalized.serialExpression(),
 			RedstoneLinkConfig.command().linkSetMaxInputLength()
 		);
+		buffer.writeUtf(normalized.targetMode().token(), MODE_TOKEN_MAX_LENGTH);
+		buffer.writeVarLong(Math.max(0L, normalized.channel()));
 		buffer.writeUtf(normalized.nodeSetMode().token(), MODE_TOKEN_MAX_LENGTH);
 		buffer.writeUtf(normalized.signalThresholdSource().token(), MODE_TOKEN_MAX_LENGTH);
 		buffer.writeVarInt(normalized.fixedSignalThreshold());
@@ -168,6 +173,10 @@ final class LinkFilterNetworkPayloadSupport {
 	 */
 	private static LinkFilterConfigSnapshot decodeConfigSnapshot(FriendlyByteBuf buffer) {
 		String serialExpression = buffer.readUtf(RedstoneLinkConfig.command().linkSetMaxInputLength());
+		LinkFilterTargetMode targetMode = LinkFilterTargetMode
+			.tryParseToken(buffer.readUtf(MODE_TOKEN_MAX_LENGTH))
+			.orElseThrow(() -> new IllegalArgumentException("Unknown filter target mode"));
+		long channel = Math.max(0L, buffer.readVarLong());
 		LinkFilterNodeSetMode nodeSetMode = LinkFilterNodeSetMode
 			.tryParseToken(buffer.readUtf(MODE_TOKEN_MAX_LENGTH))
 			.orElseThrow(() -> new IllegalArgumentException("Unknown node set mode"));
@@ -180,6 +189,8 @@ final class LinkFilterNetworkPayloadSupport {
 			.orElseThrow(() -> new IllegalArgumentException("Unknown signal mode"));
 		return new LinkFilterConfigSnapshot(
 			serialExpression,
+			targetMode,
+			channel,
 			nodeSetMode,
 			signalThresholdSource,
 			fixedSignalThreshold,

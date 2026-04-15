@@ -4,6 +4,7 @@ import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.argument.KeyValueTokenArgumentType;
 import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.command.link.LinkSetExecutionService;
+import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
@@ -74,6 +75,15 @@ public final class BenchOccCommandRegistry {
 															.executes(BenchOccCommandRegistry::executeTriggerSourcePairingSubmit)
 													)
 												)
+												.then(
+													Commands.literal("channel").then(
+														Commands.argument("channel", LongArgumentType.longArg(1L)).then(
+															Commands
+																.argument("expected_source_revision_spec", KeyValueTokenArgumentType.keyValueToken())
+																.executes(BenchOccCommandRegistry::executeTriggerSourceChannelPairingSubmit)
+														)
+													)
+												)
 										)
 									)
 							)
@@ -89,6 +99,15 @@ public final class BenchOccCommandRegistry {
 														Commands
 															.argument("expected_core_revision_spec", KeyValueTokenArgumentType.keyValueToken())
 															.executes(BenchOccCommandRegistry::executeCorePairingSubmit)
+													)
+												)
+												.then(
+													Commands.literal("channel").then(
+														Commands.argument("channel", LongArgumentType.longArg(1L)).then(
+															Commands
+																.argument("expected_core_revision_spec", KeyValueTokenArgumentType.keyValueToken())
+																.executes(BenchOccCommandRegistry::executeCoreChannelPairingSubmit)
+														)
 													)
 												)
 										)
@@ -201,6 +220,54 @@ public final class BenchOccCommandRegistry {
 	}
 
 	/**
+	 * 提交 `triggerSource` 视角的频道 pairing 写入。
+	 */
+	private static int executeTriggerSourceChannelPairingSubmit(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		ServerLevel level = source.getLevel();
+		ServerPlayer player = source.getPlayer();
+		long sourceSerial = LongArgumentType.getLong(context, "serial");
+		long channel = LongArgumentType.getLong(context, "channel");
+		long expectedSourceRevision = parseNamedLongSpec(
+			source,
+			StringArgumentType.getString(context, "expected_source_revision_spec"),
+			"expectedSourceRevision"
+		);
+		if (expectedSourceRevision < 0L) {
+			return 0;
+		}
+		PairingOccSubmissionSupport.SubmissionResult result = PairingOccSubmissionSupport.submitTriggerSource(
+			source,
+			player,
+			level,
+			sourceSerial,
+			LinkConnectionMode.CHANNEL.token(),
+			"",
+			channel,
+			expectedSourceRevision
+		);
+		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(
+			LinkSavedData.get(level),
+			LinkNodeType.TRIGGER_SOURCE,
+			sourceSerial
+		);
+		String summary = buildPairingSummary(
+			"occ_pairing_submit",
+			LinkNodeType.TRIGGER_SOURCE,
+			sourceSerial,
+			0L,
+			expectedSourceRevision,
+			baseline,
+			result.conflict(),
+			result.currentTargetCount(),
+			result.appliedOperationCount(),
+			resolvePrimaryOperationFeedbackKey(result.feedbacks()),
+			resolveSubmissionOutcome(result.applied(), result.conflict())
+		);
+		return sendSubmissionSummary(source, result.applied(), result.conflict() != null, summary);
+	}
+
+	/**
 	 * 提交 `core` 视角的 pairing OCC 覆盖写入。
 	 */
 	private static int executeCorePairingSubmit(CommandContext<CommandSourceStack> context) {
@@ -224,6 +291,51 @@ public final class BenchOccCommandRegistry {
 			level,
 			coreSerial,
 			triggerSourceExpression,
+			expectedCoreRevision
+		);
+		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(LinkSavedData.get(level), LinkNodeType.CORE, coreSerial);
+		String summary = buildPairingSummary(
+			"occ_pairing_submit",
+			LinkNodeType.CORE,
+			coreSerial,
+			expectedCoreRevision,
+			0L,
+			baseline,
+			result.conflict(),
+			result.currentTargetCount(),
+			result.appliedOperationCount(),
+			resolvePrimaryOperationFeedbackKey(result.feedbacks()),
+			resolveSubmissionOutcome(result.applied(), result.conflict())
+		);
+		return sendSubmissionSummary(source, result.applied(), result.conflict() != null, summary);
+	}
+
+	/**
+	 * 提交 `core` 视角的频道 pairing 写入。
+	 */
+	private static int executeCoreChannelPairingSubmit(CommandContext<CommandSourceStack> context) {
+		CommandSourceStack source = context.getSource();
+		ServerLevel level = source.getLevel();
+		ServerPlayer player = source.getPlayer();
+		long coreSerial = LongArgumentType.getLong(context, "serial");
+		long channel = LongArgumentType.getLong(context, "channel");
+		long expectedCoreRevision = parseNamedLongSpec(
+			source,
+			StringArgumentType.getString(context, "expected_core_revision_spec"),
+			"expectedCoreRevision",
+			"expectedGraphRevision"
+		);
+		if (expectedCoreRevision < 0L) {
+			return 0;
+		}
+		PairingOccSubmissionSupport.SubmissionResult result = PairingOccSubmissionSupport.submitCore(
+			source,
+			player,
+			level,
+			coreSerial,
+			LinkConnectionMode.CHANNEL.token(),
+			"",
+			channel,
 			expectedCoreRevision
 		);
 		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(LinkSavedData.get(level), LinkNodeType.CORE, coreSerial);

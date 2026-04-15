@@ -51,8 +51,8 @@ class PlacedLinkFilterSavedDataTest {
 
 		assertEquals(1, filters.size());
 		assertEquals(0, filters.getFirst().neighborSignalStrength());
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 1L, 1));
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 1L, 0));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 1L, 1));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 1L, 0));
 
 		assertTrue(data.remove(Level.OVERWORLD, LinkFilterKind.SEND, filterPos));
 		assertFalse(data.remove(Level.OVERWORLD, LinkFilterKind.SEND, filterPos));
@@ -151,6 +151,7 @@ class PlacedLinkFilterSavedDataTest {
 		assertNotNull(receiveEntry);
 		assertEquals(new BlockPos(32, 70, 32).asLong(), receiveEntry.getLong("pos"));
 		assertEquals("3/7/7", receiveEntry.getString("serialExpression"));
+		assertEquals("serial", receiveEntry.getString("targetMode"));
 		assertEquals("whitelist", receiveEntry.getString("nodeSetMode"));
 		assertEquals("neighbor_max_input", receiveEntry.getString("signalThresholdSource"));
 		assertEquals("lower_bound", receiveEntry.getString("signalMode"));
@@ -166,8 +167,52 @@ class PlacedLinkFilterSavedDataTest {
 		assertEquals(1, receiveFilters.size());
 		assertEquals(Set.of(3L, 7L), receiveFilters.getFirst().serials());
 		assertEquals(6, receiveFilters.getFirst().neighborSignalStrength());
-		assertTrue(LinkFilterRuleEvaluator.allows(receiveFilters, 3L, 6));
-		assertFalse(LinkFilterRuleEvaluator.allows(receiveFilters, 9L, 6));
+		assertTrue(LinkFilterRuleEvaluator.allows(receiveFilters, LinkFilterTargetMode.SERIAL, 3L, 6));
+		assertFalse(LinkFilterRuleEvaluator.allows(receiveFilters, LinkFilterTargetMode.SERIAL, 9L, 6));
+	}
+
+	/**
+	 * 频道模式保存与读取应保留目标模式和频道值。
+	 */
+	@Test
+	void saveAndLoadShouldKeepChannelTargetMode() throws Exception {
+		PlacedLinkFilterSavedData data = new PlacedLinkFilterSavedData();
+		assertTrue(
+			data.upsert(
+				LinkFilterKind.SEND,
+				Level.OVERWORLD,
+				new BlockPos(8, 70, 8),
+				new LinkFilterConfigSnapshot(
+					"",
+					LinkFilterTargetMode.CHANNEL,
+					88L,
+					LinkFilterNodeSetMode.WHITELIST,
+					LinkFilterSignalThresholdSource.FIXED_INPUT,
+					15,
+					LinkFilterSignalMode.DISABLED
+				),
+				9
+			)
+		);
+
+		CompoundTag root = data.save(new CompoundTag(), null);
+		CompoundTag sendEntry = findEntry(root.getList("entries", net.minecraft.nbt.Tag.TAG_COMPOUND), "send", Level.OVERWORLD);
+		assertNotNull(sendEntry);
+		assertEquals("channel", sendEntry.getString("targetMode"));
+		assertEquals(88L, sendEntry.getLong("channel"));
+
+		PlacedLinkFilterSavedData loaded = invokeLoad(root);
+		List<LinkFilterRuleEvaluator.FilterRuntimeView> sendFilters = loaded.collectFilters(
+			Level.OVERWORLD,
+			new BlockPos(8, 70, 9),
+			LinkFilterKind.SEND
+		);
+
+		assertEquals(1, sendFilters.size());
+		assertEquals(LinkFilterTargetMode.CHANNEL, sendFilters.getFirst().targetMode());
+		assertEquals(88L, sendFilters.getFirst().channel());
+		assertTrue(LinkFilterRuleEvaluator.allows(sendFilters, LinkFilterTargetMode.CHANNEL, 88L, 9));
+		assertFalse(LinkFilterRuleEvaluator.allows(sendFilters, LinkFilterTargetMode.CHANNEL, 77L, 9));
 	}
 
 	/**
@@ -177,9 +222,9 @@ class PlacedLinkFilterSavedDataTest {
 	void loadShouldIgnoreInvalidDimensionAndKindEntries() throws Exception {
 		CompoundTag root = new CompoundTag();
 		ListTag entries = new ListTag();
-		entries.add(entry("minecraft:overworld", "send", new BlockPos(1, 2, 3), "", "disabled", "fixed_input", 15, "disabled", 0));
-		entries.add(entry("invalid::dimension", "send", new BlockPos(1, 2, 3), "", "disabled", "fixed_input", 15, "disabled", 0));
-		entries.add(entry("minecraft:overworld", "unknown", new BlockPos(1, 2, 3), "", "disabled", "fixed_input", 15, "disabled", 0));
+		entries.add(entry("minecraft:overworld", "send", new BlockPos(1, 2, 3), "", "serial", 0L, "disabled", "fixed_input", 15, "disabled", 0));
+		entries.add(entry("invalid::dimension", "send", new BlockPos(1, 2, 3), "", "serial", 0L, "disabled", "fixed_input", 15, "disabled", 0));
+		entries.add(entry("minecraft:overworld", "unknown", new BlockPos(1, 2, 3), "", "serial", 0L, "disabled", "fixed_input", 15, "disabled", 0));
 		root.put("entries", entries);
 
 		PlacedLinkFilterSavedData loaded = invokeLoad(root);
@@ -217,6 +262,8 @@ class PlacedLinkFilterSavedDataTest {
 		String kind,
 		BlockPos pos,
 		String serialExpression,
+		String targetMode,
+		long channel,
 		String nodeSetMode,
 		String signalThresholdSource,
 		int fixedSignalThreshold,
@@ -228,6 +275,10 @@ class PlacedLinkFilterSavedDataTest {
 		entry.putString("kind", kind);
 		entry.putLong("pos", pos.asLong());
 		entry.putString("serialExpression", serialExpression);
+		entry.putString("targetMode", targetMode);
+		if (channel > 0L) {
+			entry.putLong("channel", channel);
+		}
 		entry.putString("nodeSetMode", nodeSetMode);
 		entry.putString("signalThresholdSource", signalThresholdSource);
 		entry.putInt("fixedSignalThreshold", fixedSignalThreshold);

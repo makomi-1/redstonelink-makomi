@@ -20,24 +20,30 @@ class LinkFilterRuleEvaluatorTest {
 	void allowsShouldUseWhitelistUnionAndBlocklistPrecedence() {
 		List<LinkFilterRuleEvaluator.FilterRuntimeView> filters = List.of(
 			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterTargetMode.SERIAL,
 				LinkFilterNodeSetMode.WHITELIST,
 				Set.of(3L, 5L),
+				0L,
 				LinkFilterSignalThresholdSource.FIXED_INPUT,
 				15,
 				LinkFilterSignalMode.DISABLED,
 				8
 			),
 			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterTargetMode.SERIAL,
 				LinkFilterNodeSetMode.WHITELIST,
 				Set.of(7L),
+				0L,
 				LinkFilterSignalThresholdSource.FIXED_INPUT,
 				15,
 				LinkFilterSignalMode.DISABLED,
 				8
 			),
 			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterTargetMode.SERIAL,
 				LinkFilterNodeSetMode.BLOCKLIST,
 				Set.of(5L),
+				0L,
 				LinkFilterSignalThresholdSource.FIXED_INPUT,
 				15,
 				LinkFilterSignalMode.DISABLED,
@@ -45,10 +51,10 @@ class LinkFilterRuleEvaluatorTest {
 			)
 		);
 
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 3L, 9));
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 7L, 9));
-		assertFalse(LinkFilterRuleEvaluator.allows(filters, 5L, 9));
-		assertFalse(LinkFilterRuleEvaluator.allows(filters, 11L, 9));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 3L, 9));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 7L, 9));
+		assertFalse(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 5L, 9));
+		assertFalse(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 11L, 9));
 	}
 
 	/**
@@ -58,8 +64,10 @@ class LinkFilterRuleEvaluatorTest {
 	void allowsShouldRespectNeighborThresholdSourceAndLowerBoundMode() {
 		List<LinkFilterRuleEvaluator.FilterRuntimeView> filters = List.of(
 			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterTargetMode.SERIAL,
 				LinkFilterNodeSetMode.DISABLED,
 				Set.of(),
+				0L,
 				LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
 				2,
 				LinkFilterSignalMode.LOWER_BOUND,
@@ -67,9 +75,9 @@ class LinkFilterRuleEvaluatorTest {
 			)
 		);
 
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 1L, 9));
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 1L, 12));
-		assertFalse(LinkFilterRuleEvaluator.allows(filters, 1L, 8));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 1L, 9));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 1L, 12));
+		assertFalse(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 1L, 8));
 	}
 
 	/**
@@ -79,8 +87,10 @@ class LinkFilterRuleEvaluatorTest {
 	void allowsShouldSkipNodeSetAndSignalRulesWhenNeighborSignalIsZero() {
 		List<LinkFilterRuleEvaluator.FilterRuntimeView> filters = List.of(
 			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterTargetMode.SERIAL,
 				LinkFilterNodeSetMode.BLOCKLIST,
 				Set.of(11L),
+				0L,
 				LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
 				15,
 				LinkFilterSignalMode.UPPER_BOUND,
@@ -88,8 +98,8 @@ class LinkFilterRuleEvaluatorTest {
 			)
 		);
 
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 11L, 15));
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 99L, 1));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 11L, 15));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 99L, 1));
 	}
 
 	/**
@@ -99,8 +109,10 @@ class LinkFilterRuleEvaluatorTest {
 	void allowsShouldReactivateRulesWhenNeighborSignalRestoresToNonZero() {
 		List<LinkFilterRuleEvaluator.FilterRuntimeView> filters = List.of(
 			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterTargetMode.SERIAL,
 				LinkFilterNodeSetMode.BLOCKLIST,
 				Set.of(11L),
+				0L,
 				LinkFilterSignalThresholdSource.NEIGHBOR_MAX_INPUT,
 				15,
 				LinkFilterSignalMode.UPPER_BOUND,
@@ -108,8 +120,40 @@ class LinkFilterRuleEvaluatorTest {
 			)
 		);
 
-		assertFalse(LinkFilterRuleEvaluator.allows(filters, 11L, 9));
-		assertFalse(LinkFilterRuleEvaluator.allows(filters, 12L, 10));
-		assertTrue(LinkFilterRuleEvaluator.allows(filters, 12L, 9));
+		assertFalse(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 11L, 9));
+		assertFalse(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 12L, 10));
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.SERIAL, 12L, 9));
+	}
+
+	/**
+	 * 节点当前为频道模式时，应忽略序号过滤器，只对频道过滤器求值。
+	 */
+	@Test
+	void allowsShouldOnlyUseFiltersMatchingCurrentTargetMode() {
+		List<LinkFilterRuleEvaluator.FilterRuntimeView> filters = List.of(
+			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterTargetMode.SERIAL,
+				LinkFilterNodeSetMode.BLOCKLIST,
+				Set.of(11L),
+				0L,
+				LinkFilterSignalThresholdSource.FIXED_INPUT,
+				15,
+				LinkFilterSignalMode.DISABLED,
+				8
+			),
+			new LinkFilterRuleEvaluator.FilterRuntimeView(
+				LinkFilterTargetMode.CHANNEL,
+				LinkFilterNodeSetMode.WHITELIST,
+				Set.of(),
+				88L,
+				LinkFilterSignalThresholdSource.FIXED_INPUT,
+				15,
+				LinkFilterSignalMode.DISABLED,
+				8
+			)
+		);
+
+		assertTrue(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.CHANNEL, 88L, 9));
+		assertFalse(LinkFilterRuleEvaluator.allows(filters, LinkFilterTargetMode.CHANNEL, 77L, 9));
 	}
 }

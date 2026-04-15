@@ -48,14 +48,13 @@ public final class QuickLinkApplyService {
 
 		BlockEntity blockEntity = level.getBlockEntity(blockPos);
 		if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
-			if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
-				return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.channel_filter_unsupported");
-			}
 			return applyToFilterFromCache(
 				player,
 				filterBlockEntity,
+				snapshot.mode(),
 				snapshot.serialCacheType(),
 				snapshot.serialCacheExpression(),
+				snapshot.channelCache(),
 				snapshot.applyEditMode()
 			).feedback();
 		}
@@ -112,8 +111,10 @@ public final class QuickLinkApplyService {
 	public static ApplyFromCacheResult applyToFilterFromCache(
 		ServerPlayer player,
 		AbstractLinkFilterBlockEntity filterBlockEntity,
+		QuickLinkToolData.Mode mode,
 		LinkNodeType cacheType,
 		String serialCacheExpression,
+		String channelCache,
 		QuickLinkToolData.ApplyEditMode applyEditMode
 	) {
 		if (player == null || filterBlockEntity == null || filterBlockEntity.filterKind() == null) {
@@ -122,11 +123,27 @@ public final class QuickLinkApplyService {
 		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
 			return ApplyFromCacheResult.failure("message.redstonelink.permission.insufficient");
 		}
-		if (!isCacheTypeCompatibleWithFilter(cacheType, filterBlockEntity.filterKind())) {
+		QuickLinkToolData.Mode resolvedMode = mode == null ? QuickLinkToolData.Mode.SERIAL : mode;
+		if (resolvedMode == QuickLinkToolData.Mode.SERIAL && !isCacheTypeCompatibleWithFilter(cacheType, filterBlockEntity.filterKind())) {
 			return ApplyFromCacheResult.failure(
 				"message.redstonelink.quick_link.apply.invalid_target_type",
 				LinkNodeSemantics.toSemanticName(cacheType),
 				LinkNodeSemantics.toSemanticName(expectedCacheTypeForFilter(filterBlockEntity.filterKind()))
+			);
+		}
+		if (resolvedMode == QuickLinkToolData.Mode.CHANNEL) {
+			long parsedChannel = new QuickLinkToolData.ChannelCacheValue(channelCache).parseChannelOrZero();
+			if (parsedChannel <= 0L) {
+				return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_channel_cache");
+			}
+			filterBlockEntity.applySnapshot(buildChannelFilterSnapshotForAppliedCache(filterBlockEntity.snapshot(), parsedChannel));
+			return new ApplyFromCacheResult(
+				QuickLinkOperationFeedback.success(
+					filterChannelApplySuccessMessageKey(filterBlockEntity.filterKind()),
+					Long.toString(parsedChannel)
+				),
+				0,
+				1
 			);
 		}
 
@@ -447,6 +464,29 @@ public final class QuickLinkApplyService {
 			: currentSnapshot;
 		return new LinkFilterConfigSnapshot(
 			buildFilterSerialExpression(orderedSerials),
+			LinkFilterTargetMode.SERIAL,
+			0L,
+			normalizedSnapshot.nodeSetMode(),
+			normalizedSnapshot.signalThresholdSource(),
+			normalizedSnapshot.fixedSignalThreshold(),
+			normalizedSnapshot.signalMode()
+		);
+	}
+
+	/**
+	 * 基于当前过滤器配置，仅替换频道值并切到频道模式。
+	 */
+	static LinkFilterConfigSnapshot buildChannelFilterSnapshotForAppliedCache(
+		LinkFilterConfigSnapshot currentSnapshot,
+		long channel
+	) {
+		LinkFilterConfigSnapshot normalizedSnapshot = currentSnapshot == null
+			? new LinkFilterConfigSnapshot("", null, null, 15, null)
+			: currentSnapshot;
+		return new LinkFilterConfigSnapshot(
+			"",
+			LinkFilterTargetMode.CHANNEL,
+			Math.max(0L, channel),
 			normalizedSnapshot.nodeSetMode(),
 			normalizedSnapshot.signalThresholdSource(),
 			normalizedSnapshot.fixedSignalThreshold(),
@@ -461,6 +501,15 @@ public final class QuickLinkApplyService {
 		return filterKind == LinkFilterKind.RECEIVE
 			? "message.redstonelink.quick_link.apply.done.receive_filter"
 			: "message.redstonelink.quick_link.apply.done.send_filter";
+	}
+
+	/**
+	 * 解析频道模式过滤器应用成功反馈的翻译键。
+	 */
+	static String filterChannelApplySuccessMessageKey(LinkFilterKind filterKind) {
+		return filterKind == LinkFilterKind.RECEIVE
+			? "message.redstonelink.quick_link.apply.done.receive_filter_channel"
+			: "message.redstonelink.quick_link.apply.done.send_filter_channel";
 	}
 
 	/**

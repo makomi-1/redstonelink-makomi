@@ -19,14 +19,21 @@ public final class LinkFilterRuleEvaluator {
 	 * 计算当前节点是否允许通过过滤。
 	 *
 	 * @param activeFilters 当前命中的已激活过滤器视图
-	 * @param serial 当前节点序号
+	 * @param targetMode 当前节点使用的过滤目标模式
+	 * @param targetValue 当前节点按目标模式解析后的匹配值
 	 * @param signalStrength 当前派发强度
 	 * @return `true` 表示允许通过
 	 */
-	public static boolean allows(List<FilterRuntimeView> activeFilters, long serial, int signalStrength) {
+	public static boolean allows(
+		List<FilterRuntimeView> activeFilters,
+		LinkFilterTargetMode targetMode,
+		long targetValue,
+		int signalStrength
+	) {
 		if (activeFilters == null || activeFilters.isEmpty()) {
 			return true;
 		}
+		LinkFilterTargetMode normalizedTargetMode = targetMode == null ? LinkFilterTargetMode.SERIAL : targetMode;
 		int normalizedSignalStrength = SignalStrengths.clamp(signalStrength);
 		boolean hasWhitelist = false;
 		boolean whitelistMatched = false;
@@ -34,12 +41,15 @@ public final class LinkFilterRuleEvaluator {
 			if (!isEnabled(filter)) {
 				continue;
 			}
-			if (!passesNodeSet(filter, serial)) {
+			if (filter.targetMode() != normalizedTargetMode) {
+				continue;
+			}
+			if (!passesNodeSet(filter, targetValue)) {
 				return false;
 			}
 			if (filter.nodeSetMode() == LinkFilterNodeSetMode.WHITELIST) {
 				hasWhitelist = true;
-				if (filter.serials().contains(serial)) {
+				if (matchesTarget(filter, targetValue)) {
 					whitelistMatched = true;
 				}
 			}
@@ -63,11 +73,21 @@ public final class LinkFilterRuleEvaluator {
 	/**
 	 * 判断节点集合规则是否放行当前序号。
 	 */
-	private static boolean passesNodeSet(FilterRuntimeView filter, long serial) {
+	private static boolean passesNodeSet(FilterRuntimeView filter, long targetValue) {
 		if (filter.nodeSetMode() == LinkFilterNodeSetMode.BLOCKLIST) {
-			return !filter.serials().contains(serial);
+			return !matchesTarget(filter, targetValue);
 		}
 		return true;
+	}
+
+	/**
+	 * 判断过滤器当前配置是否命中给定目标值。
+	 */
+	private static boolean matchesTarget(FilterRuntimeView filter, long targetValue) {
+		if (filter.targetMode() == LinkFilterTargetMode.CHANNEL) {
+			return filter.channel() > 0L && filter.channel() == targetValue;
+		}
+		return filter.serials().contains(targetValue);
 	}
 
 	/**
@@ -91,16 +111,20 @@ public final class LinkFilterRuleEvaluator {
 	 * 运行时求值所需的过滤器只读视图。
 	 */
 	public record FilterRuntimeView(
+		LinkFilterTargetMode targetMode,
 		LinkFilterNodeSetMode nodeSetMode,
 		Set<Long> serials,
+		long channel,
 		LinkFilterSignalThresholdSource signalThresholdSource,
 		int fixedSignalThreshold,
 		LinkFilterSignalMode signalMode,
 		int neighborSignalStrength
 	) {
 		public FilterRuntimeView {
+			targetMode = targetMode == null ? LinkFilterTargetMode.SERIAL : targetMode;
 			nodeSetMode = nodeSetMode == null ? LinkFilterNodeSetMode.DISABLED : nodeSetMode;
-			serials = Set.copyOf(serials == null ? Set.of() : serials);
+			serials = targetMode == LinkFilterTargetMode.SERIAL ? Set.copyOf(serials == null ? Set.of() : serials) : Set.of();
+			channel = targetMode == LinkFilterTargetMode.CHANNEL ? Math.max(0L, channel) : 0L;
 			signalThresholdSource = signalThresholdSource == null
 				? LinkFilterSignalThresholdSource.FIXED_INPUT
 				: signalThresholdSource;

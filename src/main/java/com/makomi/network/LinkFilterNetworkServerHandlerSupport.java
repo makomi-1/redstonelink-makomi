@@ -7,6 +7,7 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterItemData;
 import com.makomi.data.LinkFilterNodeSetMode;
+import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.item.LinkFilterBlockItem;
@@ -50,7 +51,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 			}
 		}
 		LinkFilterConfigSnapshot configSnapshot = payload.configSnapshot();
-		if (configSnapshot.serialExpression().length() > RedstoneLinkConfig.command().linkSetMaxInputLength()) {
+		if (configSnapshot.usesSerialTarget() && configSnapshot.serialExpression().length() > RedstoneLinkConfig.command().linkSetMaxInputLength()) {
 			sendFeedback(
 				player,
 				false,
@@ -60,27 +61,26 @@ final class LinkFilterNetworkServerHandlerSupport {
 			return;
 		}
 
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
-			configSnapshot.serialExpression(),
-			RedstoneLinkConfig.general().maxTargetsPerSetLinks()
-		);
-		if (!parseResult.invalidEntries().isEmpty()) {
-			sendFeedback(
-				player,
-				false,
-				"message.redstonelink.pairing.invalid_tokens",
-				String.join(", ", parseResult.invalidEntries())
-			);
-			return;
-		}
-		if (parseResult.exceedLimit()) {
-			sendFeedback(
-				player,
-				false,
-				"message.redstonelink.link_filter.too_many_serials",
-				Integer.toString(RedstoneLinkConfig.general().maxTargetsPerSetLinks())
-			);
-			return;
+		SerialParseUtil.OrderedTargetParseResult parseResult = parseTargets(configSnapshot);
+		if (configSnapshot.usesSerialTarget()) {
+			if (!parseResult.invalidEntries().isEmpty()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.pairing.invalid_tokens",
+					String.join(", ", parseResult.invalidEntries())
+				);
+				return;
+			}
+			if (parseResult.exceedLimit()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.link_filter.too_many_serials",
+					Integer.toString(RedstoneLinkConfig.general().maxTargetsPerSetLinks())
+				);
+				return;
+			}
 		}
 
 		if (payload.targetKind().usesBlockEntityTarget()) {
@@ -104,11 +104,11 @@ final class LinkFilterNetworkServerHandlerSupport {
 			LinkFilterItemData.setDisplayAlias(heldFilterStack, normalizedDisplayAlias);
 		}
 
-		if (configSnapshot.nodeSetMode() == LinkFilterNodeSetMode.WHITELIST && parseResult.orderedTargets().isEmpty()) {
+		if (configSnapshot.nodeSetMode() == LinkFilterNodeSetMode.WHITELIST && isWhitelistTargetEmpty(configSnapshot, parseResult)) {
 			sendFeedback(player, true, "message.redstonelink.link_filter.saved_whitelist_empty");
 			return;
 		}
-		if (!parseResult.duplicateEntries().isEmpty()) {
+		if (configSnapshot.usesSerialTarget() && !parseResult.duplicateEntries().isEmpty()) {
 			sendFeedback(
 				player,
 				true,
@@ -117,6 +117,35 @@ final class LinkFilterNetworkServerHandlerSupport {
 			);
 		}
 		sendFeedback(player, true, "message.redstonelink.link_filter.saved");
+	}
+
+	/**
+	 * 解析序号模式下的节点表达式；频道模式直接回退为空结果。
+	 */
+	private static SerialParseUtil.OrderedTargetParseResult parseTargets(LinkFilterConfigSnapshot configSnapshot) {
+		if (configSnapshot == null || configSnapshot.targetMode() == LinkFilterTargetMode.CHANNEL) {
+			return SerialParseUtil.parseTargetsOrdered("", 0);
+		}
+		return SerialParseUtil.parseTargetsOrdered(
+			configSnapshot.serialExpression(),
+			RedstoneLinkConfig.general().maxTargetsPerSetLinks()
+		);
+	}
+
+	/**
+	 * 判断白名单模式下当前目标是否为空。
+	 */
+	private static boolean isWhitelistTargetEmpty(
+		LinkFilterConfigSnapshot configSnapshot,
+		SerialParseUtil.OrderedTargetParseResult parseResult
+	) {
+		if (configSnapshot == null) {
+			return true;
+		}
+		if (configSnapshot.usesChannelTarget()) {
+			return configSnapshot.channel() <= 0L;
+		}
+		return parseResult == null || parseResult.orderedTargets().isEmpty();
 	}
 
 	/**

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "description": "过滤器频道模式 dedicated 功能回归，覆盖 send/receive 的运行期失效补发与邻居 0 总开关。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json"
+  },
+  "entries": [
+    {
+      "entryId": "x39_send_filter_channel_reconcile",
+      "caseId": "send_filter_runtime_channel_reconcile"
+    },
+    {
+      "entryId": "x40_receive_filter_channel_reconcile",
+      "caseId": "receive_filter_runtime_channel_reconcile"
+    },
+    {
+      "entryId": "x41_send_filter_channel_zero_switch",
+      "caseId": "send_filter_runtime_channel_zero_master_switch"
+    },
+    {
+      "entryId": "x42_receive_filter_channel_zero_switch",
+      "caseId": "receive_filter_runtime_channel_zero_master_switch"
+    }
+  ]
+}
