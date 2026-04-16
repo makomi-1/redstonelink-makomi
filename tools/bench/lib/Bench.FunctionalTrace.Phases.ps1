@@ -550,6 +550,175 @@ function Invoke-FunctionalLinkCommandPhase {
 	}
 }
 
+# Handle OCC channel partition setup phases for performance cases.
+function Invoke-FunctionalOccChannelPartitionPhase {
+	param(
+		$ExecutionState,
+		$Phase,
+		[string]$Kind,
+		[string]$PhaseName
+	)
+	$typeRaw = [string](Get-OptionalProperty -Object $Phase -Name "type" -DefaultValue "")
+	$normalizedType = $typeRaw.Trim()
+	if ([string]::IsNullOrWhiteSpace($normalizedType)) {
+		throw "occ_channel_partition phase requires type."
+	}
+	$typeToken = ""
+	$peerTypeToken = ""
+	$expectedRevisionKey = ""
+	switch ($normalizedType.ToLowerInvariant()) {
+		"triggersource" {
+			$typeToken = "triggerSource"
+			$peerTypeToken = "core"
+			$expectedRevisionKey = "expectedSourceRevision"
+		}
+		"core" {
+			$typeToken = "core"
+			$peerTypeToken = "triggerSource"
+			$expectedRevisionKey = "expectedCoreRevision"
+		}
+		default {
+			throw "occ_channel_partition type must be triggerSource/core: $normalizedType"
+		}
+	}
+	$serialContext = Resolve-FunctionalPhaseSerialContext -ExecutionState $ExecutionState -Phase $Phase -DefaultSerialFormat "range"
+	$serials = @($serialContext.serials)
+	$serialText = [string]$serialContext.serialText
+	$partitionSize = [int](Get-OptionalProperty -Object $Phase -Name "partitionSize" -DefaultValue 0)
+	if ($partitionSize -le 0) {
+		throw "occ_channel_partition phase requires partitionSize > 0."
+	}
+	$channelBase = [long](Get-OptionalProperty -Object $Phase -Name "channelBase" -DefaultValue 1L)
+	if ($channelBase -le 0L) {
+		throw "occ_channel_partition phase requires channelBase > 0."
+	}
+	$expectedRevision = [long](Get-OptionalProperty -Object $Phase -Name "expectedRevision" -DefaultValue 0L)
+	if ($expectedRevision -lt 0L) {
+		throw "occ_channel_partition phase requires expectedRevision >= 0."
+	}
+	$chunkSize = [int](Get-OptionalProperty -Object $Phase -Name "chunkSize" -DefaultValue 128)
+	if ($chunkSize -le 0) {
+		$chunkSize = 128
+	}
+	$batchPauseMs = [int](Get-OptionalProperty -Object $Phase -Name "batchPauseMs" -DefaultValue 0)
+	$skipPlayerContext = [bool](Get-OptionalProperty -Object $Phase -Name "skipPlayerContext" -DefaultValue $false)
+	$commandDimension = [string](Get-OptionalProperty -Object $Phase -Name "commandDimension" -DefaultValue "")
+
+	if ($DryRun) {
+		$channelCount = if ($serials.Count -le 0) {
+			0
+		} else {
+			[int]([Math]::Floor((($serials.Count - 1) / [double]$partitionSize)) + 1)
+		}
+		$check = [ordered]@{
+			phase = $PhaseName
+			kind = $Kind
+			scope = "occ_channel_partition"
+			passed = $true
+			skipped = $true
+			reason = "dry_run"
+			type = $typeToken
+			requested = $serials.Count
+			partitionSize = $partitionSize
+			channelBase = $channelBase
+			channelCount = $channelCount
+			expectedRevision = $expectedRevision
+		}
+		Add-FunctionalCheck -ExecutionState $ExecutionState -Check $check
+		return [ordered]@{
+			kind = $Kind
+			name = $PhaseName
+			type = $typeToken
+			serials = $serials
+			serialText = $serialText
+			partitionSize = $partitionSize
+			channelBase = $channelBase
+			channelCount = $channelCount
+			expectedRevision = $expectedRevision
+			executedCommandCount = $serials.Count
+			commandDimension = if ([string]::IsNullOrWhiteSpace($commandDimension)) { $null } else { $commandDimension }
+			passed = $true
+			dryRun = $true
+		}
+	}
+
+	$executedCommandCount = 0
+	$firstChannel = $null
+	$lastChannel = $null
+	$commandBatchCount = 0
+	for ($index = 0; $index -lt $serials.Count; $index++) {
+		$serial = [long]$serials[$index]
+		$channel = [long]($channelBase + [Math]::Floor($index / [double]$partitionSize))
+		if ($null -eq $firstChannel) {
+			$firstChannel = $channel
+		}
+		$lastChannel = $channel
+		$commandText = (
+			"redstonelink bench occ pairing submit {0} {1} {2} channel {3} {4}={5}" -f
+			$typeToken,
+			$serial,
+			$peerTypeToken,
+			$channel,
+			$expectedRevisionKey,
+			$expectedRevision
+		)
+		$command = Wrap-WithBenchContexts `
+			-Command $commandText `
+			-Dimension $commandDimension `
+			-SkipPlayerContext:$skipPlayerContext
+		$response = Invoke-RconCommand -Connection $ExecutionState.Connection -Command $command -Silent
+		Assert-BenchCommandResponse `
+			-Command $command `
+			-ResponseText ([string]$response) `
+			-ExpectedPrefix "[RedstoneLink/Bench] occ_pairing_submit outcome=applied" `
+			-ExpectedRegex ("type={0}\s+serial={1}\b" -f $typeToken, $serial)
+		$executedCommandCount++
+		$commandBatchCount++
+		if ($batchPauseMs -gt 0 -and $commandBatchCount -ge $chunkSize -and $index -lt ($serials.Count - 1)) {
+			Start-Sleep -Milliseconds $batchPauseMs
+			$commandBatchCount = 0
+		}
+	}
+
+	$channelCount = if ($serials.Count -le 0) {
+		0
+	} else {
+		[int]($lastChannel - $channelBase + 1)
+	}
+	$check = [ordered]@{
+		phase = $PhaseName
+		kind = $Kind
+		scope = "occ_channel_partition"
+		passed = $true
+		type = $typeToken
+		requested = $serials.Count
+		partitionSize = $partitionSize
+		channelBase = $channelBase
+		firstChannel = $firstChannel
+		lastChannel = $lastChannel
+		channelCount = $channelCount
+		executedCommandCount = $executedCommandCount
+		expectedRevision = $expectedRevision
+	}
+	Add-FunctionalCheck -ExecutionState $ExecutionState -Check $check
+	return [ordered]@{
+		kind = $Kind
+		name = $PhaseName
+		type = $typeToken
+		serials = $serials
+		serialText = $serialText
+		partitionSize = $partitionSize
+		channelBase = $channelBase
+		firstChannel = $firstChannel
+		lastChannel = $lastChannel
+		channelCount = $channelCount
+		expectedRevision = $expectedRevision
+		executedCommandCount = $executedCommandCount
+		commandDimension = if ([string]::IsNullOrWhiteSpace($commandDimension)) { $null } else { $commandDimension }
+		passed = $true
+	}
+}
+
 # Handle generic command assertion phases.
 function Invoke-FunctionalCommandAssertPhase {
 	param(
@@ -1697,6 +1866,7 @@ function Invoke-FunctionalPhaseHandler {
 		"input_start_custom_batch" { return Invoke-FunctionalInputStartCustomBatchPhase -ExecutionState $ExecutionState -Phase $Phase -Kind $Kind -PhaseName $PhaseName }
 		"input_clear" { return Invoke-FunctionalInputClearPhase -ExecutionState $ExecutionState -Phase $Phase -Kind $Kind -PhaseName $PhaseName }
 		"link_command" { return Invoke-FunctionalLinkCommandPhase -ExecutionState $ExecutionState -Phase $Phase -Kind $Kind -PhaseName $PhaseName }
+		"occ_channel_partition" { return Invoke-FunctionalOccChannelPartitionPhase -ExecutionState $ExecutionState -Phase $Phase -Kind $Kind -PhaseName $PhaseName }
 		"command_assert" { return Invoke-FunctionalCommandAssertPhase -ExecutionState $ExecutionState -Phase $Phase -Kind $Kind -PhaseName $PhaseName }
 		"activate_batch" { return Invoke-FunctionalActivateBatchPhase -ExecutionState $ExecutionState -Phase $Phase -Kind $Kind -PhaseName $PhaseName }
 		"wait_ticks" { return Invoke-FunctionalWaitTicksPhase -ExecutionState $ExecutionState -Phase $Phase -Kind $Kind -PhaseName $PhaseName }

@@ -70,6 +70,26 @@ public final class LinkedTargetDispatchService {
 	}
 
 	/**
+	 * 按来源节点当前连接模式自动解析目标集合后，再派发激活语义。
+	 */
+	public static DispatchSummary dispatchActivation(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		ActivationMode activationMode
+	) {
+		return dispatchActivation(
+			sourceLevel,
+			sourceType,
+			sourceSerial,
+			targetType,
+			resolveDispatchTargets(sourceLevel, sourceType, sourceSerial, targetType),
+			activationMode
+		);
+	}
+
+	/**
 	 * 派发同步语义（SYNC）到目标集合。
 	 *
 	 * @param sourceLevel 来源所在服务端维度
@@ -102,6 +122,26 @@ public final class LinkedTargetDispatchService {
 	}
 
 	/**
+	 * 按来源节点当前连接模式自动解析目标集合后，再派发同步语义。
+	 */
+	public static DispatchSummary dispatchSyncSignal(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType,
+		int signalStrength
+	) {
+		return dispatchSyncSignal(
+			sourceLevel,
+			sourceType,
+			sourceSerial,
+			targetType,
+			resolveDispatchTargets(sourceLevel, sourceType, sourceSerial, targetType),
+			signalStrength
+		);
+	}
+
+	/**
 	 * 派发同步语义（SYNC）到目标集合，并显式携带来源坐标。
 	 */
 	public static DispatchSummary dispatchSyncSignal(
@@ -126,6 +166,32 @@ public final class LinkedTargetDispatchService {
 			DispatchKind.SYNC_SIGNAL,
 			ActivationMode.TOGGLE,
 			normalizedStrength,
+			previousSnapshot,
+			eventMeta
+		);
+	}
+
+	/**
+	 * 按来源节点当前连接模式自动解析目标集合后，再派发同步语义，并显式携带来源坐标。
+	 */
+	public static DispatchSummary dispatchSyncSignal(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		BlockPos sourcePos,
+		LinkNodeType targetType,
+		int signalStrength,
+		com.makomi.block.entity.SyncReplaySourceBlockEntity.ReplaySyncSnapshot previousSnapshot,
+		EventMeta eventMeta
+	) {
+		return dispatchSyncSignal(
+			sourceLevel,
+			sourceType,
+			sourceSerial,
+			sourcePos,
+			targetType,
+			resolveDispatchTargets(sourceLevel, sourceType, sourceSerial, targetType),
+			signalStrength,
 			previousSnapshot,
 			eventMeta
 		);
@@ -240,15 +306,26 @@ public final class LinkedTargetDispatchService {
 		EventMeta immediateEventMeta = eventMeta == null ? EventMeta.now(sourceLevel) : eventMeta;
 		long eventTick = immediateEventMeta.timeKey().tick();
 		int eventSlot = immediateEventMeta.timeKey().slot();
+		LinkConnectionMode sourceConnectionMode = savedData.getConnectionMode(sourceType, sourceSerial);
+		long sourceChannel = savedData.getChannel(sourceType, sourceSerial);
 		RedstoneLinkConfig.CrossChunkDirectBatchingMode directBatchingMode =
 			RedstoneLinkConfig.crossChunk().directBatchingMode();
 		boolean shouldBatchLoadedDirectDispatch = shouldBatchLoadedDispatch(dispatchKind, directBatchingMode);
+		boolean shouldStageLoadedTargetsIntoChannelBucket =
+			shouldStageLoadedTargetsIntoChannelBucket(
+				sourceType,
+				targetType,
+				sourceConnectionMode,
+				sourceChannel,
+				directBatchingMode
+			);
 		int handledCount = 0;
 		List<Long> forceLoadTargetSerials = new ArrayList<>();
 		List<Long> relayTargetSerials = new ArrayList<>();
 		Set<ResourceKey<Level>> handledTargetDimensions = new java.util.HashSet<>();
 		List<Long> pendingTargetSerials = new ArrayList<>();
 		List<LinkSavedData.LinkNode> pendingTargetNodes = new ArrayList<>();
+		List<ChannelDispatchScheduler.LoadedChannelTarget> loadedChannelTargets = new ArrayList<>();
 		for (long targetSerial : targetSerials) {
 			if (targetSerial <= 0L) {
 				continue;
@@ -293,7 +370,9 @@ public final class LinkedTargetDispatchService {
 				continue;
 			}
 
-			if (dispatchKind == DispatchKind.ACTIVATION) {
+			if (shouldStageLoadedTargetsIntoChannelBucket) {
+				loadedChannelTargets.add(new ChannelDispatchScheduler.LoadedChannelTarget(targetBlockEntity, targetType, targetSerial));
+			} else if (dispatchKind == DispatchKind.ACTIVATION) {
 				applyLoadedActivationDispatch(
 					sourceLevel,
 					targetBlockEntity,
@@ -358,7 +437,22 @@ public final class LinkedTargetDispatchService {
 			}
 		}
 
-		if (shouldBatchLoadedDirectDispatch) {
+		if (shouldStageLoadedTargetsIntoChannelBucket && !loadedChannelTargets.isEmpty()) {
+			ChannelDispatchScheduler.enqueueLoadedChannelDispatch(
+				sourceLevel.getServer(),
+				sourceChannel,
+				savedData.graphRevision(),
+				loadedChannelTargets,
+				buildLoadedDispatchBatchEntry(dispatchKind, sourceType, sourceSerial, activationMode, syncSignalStrength, immediateEventMeta)
+			);
+		}
+
+		if (shouldStageLoadedTargetsIntoChannelBucket && !loadedChannelTargets.isEmpty()) {
+			ChannelDispatchScheduler.flushLateArrivalsIfCurrentTickEndAlreadyPassed(
+				sourceLevel.getServer(),
+				eventTick
+			);
+		} else if (shouldBatchLoadedDirectDispatch) {
 			// `window=0` 的设计目的是保持当前 tick 对齐。
 			// 若本次 loaded direct 批派发发生在当前 tick 的 END 之后，则在整批入队完成后补一次 flush，
 			// 既保留统一 scheduler 的 merge 语义，也避免这批 late arrival 整体晚到下一 tick 末。
@@ -463,6 +557,92 @@ public final class LinkedTargetDispatchService {
 			fanoutDiagnosticsTotal.neighborNotifySentCount(),
 			fanoutDiagnosticsTotal.crossChunkSkipCount(),
 			fanoutDiagnosticsTotal.fanoutDedupHitCount()
+		);
+	}
+
+	/**
+	 * 按来源节点当前连接模式解析本次派发应使用的目标集合。
+	 * <p>
+	 * 频道模式优先走频道成员索引，序号模式保持走普通边集合。
+	 * </p>
+	 */
+	private static Set<Long> resolveDispatchTargets(
+		ServerLevel sourceLevel,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		LinkNodeType targetType
+	) {
+		if (sourceLevel == null || sourceType == null || targetType == null || sourceSerial <= 0L) {
+			return Set.of();
+		}
+		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
+		if (savedData == null) {
+			return Set.of();
+		}
+		if (
+			sourceType == LinkNodeType.TRIGGER_SOURCE
+				&& targetType == LinkNodeType.CORE
+				&& savedData.getConnectionMode(sourceType, sourceSerial) == LinkConnectionMode.CHANNEL
+		) {
+			long channel = savedData.getChannel(sourceType, sourceSerial);
+			if (LinkSavedDataChannelSupport.isValidChannel(channel)) {
+				return savedData.getChannelMembers(targetType, channel);
+			}
+			return Set.of();
+		}
+		return savedData.getLinkedPeersByNodeType(sourceType, sourceSerial);
+	}
+
+	/**
+	 * 判断当前 loaded direct 目标是否应先进入频道中间层。
+	 * <p>
+	 * `directBatching=off` 时，频道模式需与序号模式对齐，直接按边派发，不再经过频道收口层。
+	 * </p>
+	 */
+	static boolean shouldStageLoadedTargetsIntoChannelBucket(
+		LinkNodeType sourceType,
+		LinkNodeType targetType,
+		LinkConnectionMode sourceConnectionMode,
+		long sourceChannel,
+		RedstoneLinkConfig.CrossChunkDirectBatchingMode directBatchingMode
+	) {
+		return sourceType == LinkNodeType.TRIGGER_SOURCE
+			&& targetType == LinkNodeType.CORE
+			&& sourceConnectionMode == LinkConnectionMode.CHANNEL
+			&& LinkSavedDataChannelSupport.isValidChannel(sourceChannel)
+			&& directBatchingMode != RedstoneLinkConfig.CrossChunkDirectBatchingMode.OFF;
+	}
+
+	/**
+	 * 将 loaded direct 派发转换为频道中间层使用的批条目。
+	 */
+	private static ActivatableTargetBlockEntity.DispatchBatchEntry buildLoadedDispatchBatchEntry(
+		DispatchKind dispatchKind,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		ActivationMode activationMode,
+		int syncSignalStrength,
+		EventMeta eventMeta
+	) {
+		if (dispatchKind == DispatchKind.ACTIVATION) {
+			return new ActivatableTargetBlockEntity.DispatchBatchEntry(
+				ActivatableTargetBlockEntity.DeltaKind.ACTIVATION,
+				ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+				sourceType,
+				sourceSerial,
+				activationMode,
+				0,
+				eventMeta
+			);
+		}
+		return new ActivatableTargetBlockEntity.DispatchBatchEntry(
+			ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL,
+			ActivatableTargetBlockEntity.DeltaAction.UPSERT,
+			sourceType,
+			sourceSerial,
+			ActivationMode.TOGGLE,
+			syncSignalStrength,
+			eventMeta
 		);
 	}
 

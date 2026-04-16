@@ -1,0 +1,669 @@
+{
+  "id": "mixed_samechunk_channel_off_combinations_tick_assert",
+  "description": "同区块 single-core mixed 全组合逐 tick 验证，频道模式 + directBatching=off + batchWindowTicks={{param:dispatchBatchWindowTicks}} 下校验 S/P/T 非空子集经边展开后的 target 序列。",
+  "parameters": {
+    "dispatchBatchWindowTicks": 0
+  },
+  "layer": "X",
+  "scenarioId": "X43",
+  "arena": {
+    "clearFrom": [-8, 63, 540],
+    "clearTo": [20, 66, 548]
+  },
+  "targets": {
+    "id": "core_mixed_combo_channel_off",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 542],
+      "to": [12, 64, 542]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_mixed_combo_channel_off",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 540],
+        "to": [0, 64, 540]
+      }
+    },
+    {
+      "id": "pulse_mixed_combo_channel_off",
+      "kind": "pulse_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 542],
+        "to": [0, 64, 542]
+      }
+    },
+    {
+      "id": "toggle_mixed_combo_channel_off",
+      "kind": "toggle_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 544],
+        "to": [0, 64, 544]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_mixed_combo_channel_off_sources",
+      "serialRefs": [
+        "sync_mixed_combo_channel_off",
+        "pulse_mixed_combo_channel_off",
+        "toggle_mixed_combo_channel_off"
+      ],
+      "serialFormat": "slash_list",
+      "capacity": 512
+    },
+    {
+      "templateRef": "trace_mount_core_slash",
+      "name": "mount_mixed_combo_channel_off_target",
+      "capacity": 512
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_mixed_combo_channel_off_attach",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_mixed_combo_channel_off_core_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=core"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)\\s+coreRevision=(?<coreRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_mixed_combo_channel_off_core_channel",
+      "commandTemplate": "redstonelink bench occ pairing submit core {{targets[0]}} triggerSource channel 131 expectedCoreRevision={{phase:snapshot_mixed_combo_channel_off_core_baseline.captures.coreRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_pairing_submit",
+        "(?i)outcome=applied",
+        "(?i)type=core"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_mixed_combo_channel_off_sync_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot triggerSource {{source:sync_mixed_combo_channel_off[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=triggerSource"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_mixed_combo_channel_off_sync_channel",
+      "commandTemplate": "redstonelink bench occ pairing submit triggerSource {{source:sync_mixed_combo_channel_off[0]}} core channel 131 expectedSourceRevision={{phase:snapshot_mixed_combo_channel_off_sync_baseline.captures.sourceRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_pairing_submit",
+        "(?i)outcome=applied",
+        "(?i)type=triggerSource"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_mixed_combo_channel_off_pulse_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot triggerSource {{source:pulse_mixed_combo_channel_off[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=triggerSource"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_mixed_combo_channel_off_pulse_channel",
+      "commandTemplate": "redstonelink bench occ pairing submit triggerSource {{source:pulse_mixed_combo_channel_off[0]}} core channel 131 expectedSourceRevision={{phase:snapshot_mixed_combo_channel_off_pulse_baseline.captures.sourceRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_pairing_submit",
+        "(?i)outcome=applied",
+        "(?i)type=triggerSource"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_mixed_combo_channel_off_toggle_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot triggerSource {{source:toggle_mixed_combo_channel_off[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=triggerSource"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_mixed_combo_channel_off_toggle_channel",
+      "commandTemplate": "redstonelink bench occ pairing submit triggerSource {{source:toggle_mixed_combo_channel_off[0]}} core channel 131 expectedSourceRevision={{phase:snapshot_mixed_combo_channel_off_toggle_baseline.captures.sourceRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_pairing_submit",
+        "(?i)outcome=applied",
+        "(?i)type=triggerSource"
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_mixed_combo_channel_off_channel_apply",
+      "ticks": 8
+    },
+
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_combo_s_sync",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "15/0/15/0/0/0/0/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_combo_s_ticks",
+      "ticks": 12
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_s_sync_source_ticks",
+      "type": "triggerSource",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_sources",
+      "anchorRef": "start_combo_s_sync",
+      "expectTicks": [
+        { "active": true, "input": 15, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": true, "input": 15, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 }
+      ]
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_s_target_ticks",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_target",
+      "anchorRef": "start_combo_s_sync",
+      "referencePhaseRef": "combo_s_sync_source_ticks",
+      "referenceStartStrategy": "min",
+      "template": {
+        "kind": "mixed_direct_sync_relative",
+        "windowTicks": "{{param:dispatchBatchWindowTicks}}"
+      }
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "cleanup_combo_s_reset",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "15/0",
+      "phaseTicks": 0,
+      "totalTicks": 2
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "settle_combo_s_reset",
+      "ticks": 6
+    },
+
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_combo_p_pulse",
+      "serialRef": "pulse_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "14/0/0/0/0/14/0/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_combo_p_ticks",
+      "ticks": 12
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_p_pulse_source_ticks",
+      "type": "triggerSource",
+      "serialRef": "pulse_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_sources",
+      "anchorRef": "start_combo_p_pulse",
+      "expectTicks": [
+        { "active": true, "input": 14, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": true, "input": 14, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 }
+      ]
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_p_target_ticks",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_target",
+      "anchorRef": "start_combo_p_pulse",
+      "referencePhaseRef": "combo_p_pulse_source_ticks",
+      "referenceStartStrategy": "min",
+      "template": {
+        "kind": "mixed_direct_pulse_relative",
+        "windowTicks": "{{param:dispatchBatchWindowTicks}}"
+      }
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "cleanup_combo_p_reset",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "15/0",
+      "phaseTicks": 0,
+      "totalTicks": 2
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "settle_combo_p_reset",
+      "ticks": 6
+    },
+
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_combo_t_toggle",
+      "serialRef": "toggle_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "13/0/0/13/0/0/13/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_combo_t_ticks",
+      "ticks": 12
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_t_toggle_source_ticks",
+      "type": "triggerSource",
+      "serialRef": "toggle_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_sources",
+      "anchorRef": "start_combo_t_toggle",
+      "expectTicks": [
+        { "active": true, "input": 13, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": true, "input": 13, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": true, "input": 13, "output": 15 },
+        { "active": false, "input": 0, "output": 0 }
+      ]
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_t_target_ticks",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_target",
+      "anchorRef": "start_combo_t_toggle",
+      "referencePhaseRef": "combo_t_toggle_source_ticks",
+      "referenceStartStrategy": "min",
+      "template": {
+        "kind": "mixed_direct_toggle_relative",
+        "windowTicks": "{{param:dispatchBatchWindowTicks}}"
+      }
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "cleanup_combo_t_reset",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "15/0",
+      "phaseTicks": 0,
+      "totalTicks": 2
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "settle_combo_t_reset",
+      "ticks": 6
+    },
+
+    {
+      "templateRef": "input_start_custom_batch_triggerSource",
+      "name": "start_combo_sp_batch",
+      "entries": [
+        {
+          "serialRef": "sync_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "15/0/15/0/0/0/0/0"
+        },
+        {
+          "serialRef": "pulse_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "14/0/0/0/0/14/0/0"
+        }
+      ],
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_combo_sp_ticks",
+      "ticks": 12
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_sp_sync_source_ticks",
+      "type": "triggerSource",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_sources",
+      "anchorRef": "start_combo_sp_batch",
+      "expectTicks": [
+        { "active": true, "input": 15, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": true, "input": 15, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 }
+      ]
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_sp_target_ticks",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_target",
+      "anchorRef": "start_combo_sp_batch",
+      "referencePhaseRef": "combo_sp_sync_source_ticks",
+      "referenceStartStrategy": "min",
+      "template": {
+        "kind": "mixed_direct_sync_pulse_relative",
+        "windowTicks": "{{param:dispatchBatchWindowTicks}}"
+      }
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "cleanup_combo_sp_reset",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "15/0",
+      "phaseTicks": 0,
+      "totalTicks": 2
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "settle_combo_sp_reset",
+      "ticks": 6
+    },
+
+    {
+      "templateRef": "input_start_custom_batch_triggerSource",
+      "name": "start_combo_st_batch",
+      "entries": [
+        {
+          "serialRef": "sync_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "15/0/15/0/0/0/0/0"
+        },
+        {
+          "serialRef": "toggle_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "13/0/0/13/0/0/13/0"
+        }
+      ],
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_combo_st_ticks",
+      "ticks": 12
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_st_sync_source_ticks",
+      "type": "triggerSource",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_sources",
+      "anchorRef": "start_combo_st_batch",
+      "expectTicks": [
+        { "active": true, "input": 15, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": true, "input": 15, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 }
+      ]
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_st_target_ticks",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_target",
+      "anchorRef": "start_combo_st_batch",
+      "referencePhaseRef": "combo_st_sync_source_ticks",
+      "referenceStartStrategy": "min",
+      "template": {
+        "kind": "mixed_direct_sync_toggle_relative",
+        "windowTicks": "{{param:dispatchBatchWindowTicks}}"
+      }
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "cleanup_combo_st_reset",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "15/0",
+      "phaseTicks": 0,
+      "totalTicks": 2
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "settle_combo_st_reset",
+      "ticks": 6
+    },
+
+    {
+      "templateRef": "input_start_custom_batch_triggerSource",
+      "name": "start_combo_pt_batch",
+      "entries": [
+        {
+          "serialRef": "pulse_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "14/0/0/0/0/14/0/0"
+        },
+        {
+          "serialRef": "toggle_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "13/0/0/13/0/0/13/0"
+        }
+      ],
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_combo_pt_ticks",
+      "ticks": 12
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_pt_pulse_source_ticks",
+      "type": "triggerSource",
+      "serialRef": "pulse_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_sources",
+      "anchorRef": "start_combo_pt_batch",
+      "expectTicks": [
+        { "active": true, "input": 14, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": true, "input": 14, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 }
+      ]
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_pt_target_ticks",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_target",
+      "anchorRef": "start_combo_pt_batch",
+      "referencePhaseRef": "combo_pt_pulse_source_ticks",
+      "referenceStartStrategy": "min",
+      "template": {
+        "kind": "mixed_direct_pulse_toggle_relative",
+        "windowTicks": "{{param:dispatchBatchWindowTicks}}"
+      }
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "cleanup_combo_pt_reset",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "sequence": "15/0",
+      "phaseTicks": 0,
+      "totalTicks": 2
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "settle_combo_pt_reset",
+      "ticks": 6
+    },
+
+    {
+      "templateRef": "input_start_custom_batch_triggerSource",
+      "name": "start_combo_spt_batch",
+      "entries": [
+        {
+          "serialRef": "sync_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "15/0/15/0/0/0/0/0"
+        },
+        {
+          "serialRef": "pulse_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "14/0/0/0/0/14/0/0"
+        },
+        {
+          "serialRef": "toggle_mixed_combo_channel_off",
+          "serialFormat": "slash_list",
+          "sequence": "13/0/0/13/0/0/13/0"
+        }
+      ],
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_combo_spt_ticks",
+      "ticks": 12
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_spt_sync_source_ticks",
+      "type": "triggerSource",
+      "serialRef": "sync_mixed_combo_channel_off",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_sources",
+      "anchorRef": "start_combo_spt_batch",
+      "expectTicks": [
+        { "active": true, "input": 15, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": true, "input": 15, "output": 15 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 },
+        { "active": false, "input": 0, "output": 0 }
+      ]
+    },
+    {
+      "kind": "trace_read_tick_assert",
+      "name": "combo_spt_target_ticks",
+      "type": "core",
+      "serialRef": "targets",
+      "serialFormat": "slash_list",
+      "limit": 512,
+      "mountRef": "mount_mixed_combo_channel_off_target",
+      "anchorRef": "start_combo_spt_batch",
+      "referencePhaseRef": "combo_spt_sync_source_ticks",
+      "referenceStartStrategy": "min",
+      "template": {
+        "kind": "mixed_direct_sync_pulse_toggle_relative",
+        "windowTicks": "{{param:dispatchBatchWindowTicks}}"
+      }
+    },
+
+    {
+      "templateRef": "input_clear",
+      "name": "clear_mixed_combo_channel_off_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_mixed_combo_channel_off_sources",
+      "serialRefs": [
+        "sync_mixed_combo_channel_off",
+        "pulse_mixed_combo_channel_off",
+        "toggle_mixed_combo_channel_off"
+      ],
+      "serialFormat": "slash_list"
+    },
+    {
+      "templateRef": "trace_unmount_core_slash",
+      "name": "unmount_mixed_combo_channel_off_target"
+    }
+  ]
+}

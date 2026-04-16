@@ -52,6 +52,7 @@
     "cases/functional/x24/send_filter_runtime_sync_reconcile.json",
     "cases/functional/x22/mixed_samechunk_direct_tick_assert.json",
     "cases/functional/x23/mixed_samechunk_direct_combinations_tick_assert.json",
+    "cases/functional/x43/mixed_samechunk_channel_off_combinations_tick_assert.json",
     "cases/functional/x25/restart_mixed_replay_redstone_prepare.json",
     "cases/functional/x26/receive_filter_runtime_sync_reconcile.json",
     "cases/functional/x27/send_filter_runtime_scope_nodeset_matrix.json",

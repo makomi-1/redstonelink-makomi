@@ -13,7 +13,6 @@ import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
-import java.util.Set;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -347,25 +346,22 @@ public class LinkerItem extends Item implements PairableItem {
 			return;
 		}
 
-		Set<Long> linkedTargets = savedData.getLinkedCoresByTriggerSource(serial);
 		// 每次触发后都回写最新连接列表，确保物品提示信息与存档状态一致。
 		LinkItemData.setLinkedSerials(
 			stack,
 			NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial).visibleTargetSet()
 		);
-		if (linkedTargets.isEmpty()) {
-			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));
-			return;
-		}
-
 		LinkedTargetDispatchService.DispatchSummary dispatchSummary = LinkedTargetDispatchService.dispatchActivation(
 			serverLevel,
 			LinkNodeType.TRIGGER_SOURCE,
 			serial,
 			LinkNodeType.CORE,
-			linkedTargets,
 			activationMode
 		);
+		if (dispatchSummary.totalTargets() == 0) {
+			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));
+			return;
+		}
 		if (dispatchSummary.handledCount() == 0) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.no_reachable_targets"));
 			return;

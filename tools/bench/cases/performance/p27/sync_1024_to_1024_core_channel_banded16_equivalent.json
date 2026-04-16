@@ -1,0 +1,70 @@
+{
+  "id": "sync_1024_to_1024_core_channel_banded16_equivalent",
+  "description": "1024 个 sync triggerSource 与 1024 个 core 按 16x16 非重叠分块映射为 64 个频道，形成与 P18 banded16 完全等价的频道模式重压基线。",
+  "layer": "P",
+  "scenarioId": "P27",
+  "arena": {
+    "clearFrom": [-8, 63, -8],
+    "clearTo": [87, 66, 40]
+  },
+  "targets": {
+    "id": "core_p27_main",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [48, 64, 0],
+      "to": [79, 64, 31]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_p27_main",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 0],
+        "to": [31, 64, 31]
+      }
+    }
+  ],
+  "links": [],
+  "setupPhases": [
+    {
+      "kind": "occ_channel_partition",
+      "name": "apply_p27_core_channels",
+      "type": "core",
+      "serialRef": "targets",
+      "partitionSize": 16,
+      "channelBase": 1,
+      "expectedRevision": 0,
+      "chunkSize": 128,
+      "batchPauseMs": 0
+    },
+    {
+      "kind": "occ_channel_partition",
+      "name": "apply_p27_trigger_source_channels",
+      "type": "triggerSource",
+      "serialRef": "sync_p27_main",
+      "partitionSize": 16,
+      "channelBase": 1,
+      "expectedRevision": 0,
+      "chunkSize": 128,
+      "batchPauseMs": 0
+    },
+    {
+      "kind": "wait_ticks",
+      "name": "wait_p27_channel_edge_expand",
+      "ticks": 8
+    }
+  ],
+  "drive": {
+    "totalTicks": 240,
+    "steps": [
+      {
+        "templateRef": "sync_square_wave",
+        "sourceGroup": "sync_p27_main",
+        "serialFormat": "range"
+      }
+    ]
+  }
+}

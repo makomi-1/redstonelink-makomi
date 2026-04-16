@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "description": "x43 mixed channel off 逐 tick 专项，只校验频道模式在 directBatching=off 且 batchWindowTicks=0 时的 single-core 组合仲裁结果；全窗口批打包验证由 1024->1024 延迟覆盖率专项承担。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false",
+      "server.emitterEdgeMode": "rising",
+      "crosschunk.directBatching": "off"
+    }
+  },
+  "entries": [
+    {
+      "entryId": "x43_window0",
+      "caseId": "mixed_samechunk_channel_off_combinations_tick_assert",
+      "parameters": {
+        "dispatchBatchWindowTicks": 0
+      },
+      "serverConfigOverrides": {
+        "crosschunk.dispatch.batchWindowTicks": 0
+      }
+    }
+  ]
+}

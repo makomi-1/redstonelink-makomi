@@ -176,19 +176,17 @@ public final class ActivateCommandRegistry {
 		int crossChunkHandled = 0;
 		ServerPlayer commandPlayer = source.getEntity() instanceof ServerPlayer serverPlayer ? serverPlayer : null;
 		for (long sourceSerial : sourceSerials) {
-			Set<Long> linkedTargets = savedData.getLinkedCoresByTriggerSource(sourceSerial);
-			if (linkedTargets.isEmpty()) {
-				continue;
-			}
-			sourcesWithLinks++;
 			LinkedTargetDispatchService.DispatchSummary summary = LinkedTargetDispatchService.dispatchActivation(
 				serverLevel,
 				LinkNodeType.TRIGGER_SOURCE,
 				sourceSerial,
 				LinkNodeType.CORE,
-				linkedTargets,
 				mode
 			);
+			if (summary.totalTargets() == 0) {
+				continue;
+			}
+			sourcesWithLinks++;
 			if (summary.handledCount() > 0) {
 				sourcesHandled++;
 			}

@@ -8,7 +8,6 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
 import com.makomi.data.NodeSnapshotQueryService;
-import java.util.Set;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -89,24 +88,21 @@ public class SyncLinkerItem extends LinkerItem {
 		LinkItemData.setSyncLinkerSignalStrength(stack, nextSignalStrength);
 		savedData.putTriggerSourceReplaySyncSnapshot(serial, EventMeta.now(level), nextSignalStrength);
 
-		Set<Long> linkedTargets = savedData.getLinkedCoresByTriggerSource(serial);
 		LinkItemData.setLinkedSerials(
 			stack,
 			NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial).visibleTargetSet()
 		);
-		if (linkedTargets.isEmpty()) {
-			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));
-			return;
-		}
-
 		LinkedTargetDispatchService.DispatchSummary dispatchSummary = LinkedTargetDispatchService.dispatchSyncSignal(
 			serverLevel,
 			LinkNodeType.TRIGGER_SOURCE,
 			serial,
 			LinkNodeType.CORE,
-			linkedTargets,
 			nextSignalStrength
 		);
+		if (dispatchSummary.totalTargets() == 0) {
+			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));
+			return;
+		}
 		if (dispatchSummary.handledCount() == 0) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.no_reachable_targets"));
 			return;

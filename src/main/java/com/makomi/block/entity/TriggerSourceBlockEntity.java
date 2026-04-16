@@ -3,11 +3,9 @@ package com.makomi.block.entity;
 import com.makomi.advancement.RedstoneLinkAdvancementService;
 import com.makomi.data.LinkDispatchFilterService;
 import com.makomi.data.LinkNodeType;
-import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
 import com.makomi.util.SignalStrengths;
 import com.makomi.config.RedstoneLinkConfig;
-import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -115,20 +113,12 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 			return;
 		}
 
-		LinkSavedData savedData = LinkSavedData.get(serverLevel);
-		Set<Long> linkedTargets = savedData.getLinkedCoresByTriggerSource(sourceSerial);
-		if (linkedTargets.isEmpty()) {
-			sendPlayerMessage(player, Component.translatable("message.redstonelink.target_not_set"));
-			return;
-		}
-
 		LinkedTargetDispatchService.DispatchSummary dispatchSummary = dispatchMode == DispatchMode.ACTIVATION
 			? LinkedTargetDispatchService.dispatchActivation(
 				serverLevel,
 				getLinkNodeType(),
 				sourceSerial,
 				getTargetNodeType(),
-				linkedTargets,
 				getTriggerActivationMode()
 			)
 			: LinkedTargetDispatchService.dispatchSyncSignal(
@@ -137,11 +127,15 @@ public abstract class TriggerSourceBlockEntity extends PairableNodeBlockEntity {
 				sourceSerial,
 				worldPosition,
 				getTargetNodeType(),
-				linkedTargets,
 				signalStrength,
 				previousSyncSnapshot,
 				eventMeta
 			);
+
+		if (dispatchSummary.totalTargets() == 0) {
+			sendPlayerMessage(player, Component.translatable("message.redstonelink.target_not_set"));
+			return;
+		}
 
 		if (dispatchSummary.handledCount() == 0) {
 			sendPlayerMessage(player, Component.translatable("message.redstonelink.no_reachable_targets"));

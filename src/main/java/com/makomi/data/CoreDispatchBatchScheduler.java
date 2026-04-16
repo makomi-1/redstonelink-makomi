@@ -380,8 +380,14 @@ public final class CoreDispatchBatchScheduler {
 	}
 
 	private static long resolveCurrentTick(MinecraftServer server, ActivatableTargetBlockEntity targetBlockEntity) {
-		if (server != null && server.overworld() != null) {
-			return Math.max(0L, server.overworld().getGameTime());
+		if (server != null) {
+			try {
+				if (server.overworld() != null) {
+					return Math.max(0L, server.overworld().getGameTime());
+				}
+			} catch (RuntimeException ignored) {
+				// 测试中的 dummy server 可能未完整初始化；此时回退到目标实体 level 即可。
+			}
 		}
 		if (targetBlockEntity != null && targetBlockEntity.getLevel() != null) {
 			return Math.max(0L, targetBlockEntity.getLevel().getGameTime());

@@ -33,6 +33,7 @@
     "cases/performance/p18/sync_1024_to_1024_core_banded16.json",
     "cases/performance/p19/mixed_1024_to_1024_core_banded16.json",
     "cases/performance/p25/mixed_1024_to_1024_topology_mutation_batches.json",
-    "cases/performance/p26/sync_1024_to_1024_core_banded16_min_cover_nodeset_filters.json"
+    "cases/performance/p26/sync_1024_to_1024_core_banded16_min_cover_nodeset_filters.json",
+    "cases/performance/p27/sync_1024_to_1024_core_channel_banded16_equivalent.json"
   ]
 }

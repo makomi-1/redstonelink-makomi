@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "description": "1024->1024 sync 对比专项：复用 P18 序号模式基线，与等价 64 频道分块的频道模式重压基线做同口径对照。",
+  "defaults": {
+    "benchAction": "RunCase",
+    "matrixPath": "../matrix-performance-heavy.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false",
+      "crosschunk.dispatch.batchWindowTicks": "0"
+    }
+  },
+  "entries": [
+    {
+      "entryId": "p18_sync_1024_to_1024_serial_compare",
+      "caseId": "sync_1024_to_1024_core_banded16"
+    },
+    {
+      "entryId": "p27_sync_1024_to_1024_channel_compare",
+      "caseId": "sync_1024_to_1024_core_channel_banded16_equivalent"
+    }
+  ]
+}

@@ -2,6 +2,7 @@ package com.makomi;
 
 import com.makomi.command.ModCommands;
 import com.makomi.command.argument.ModCommandArgumentTypes;
+import com.makomi.data.ChannelDispatchScheduler;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CoreDispatchBatchScheduler;
 import com.makomi.data.CrossChunkDispatchService;
@@ -62,6 +63,7 @@ public class RedstoneLink implements ModInitializer {
 			InputPlaybackService.register();
 		}
 		CrossChunkDispatchService.register();
+		ChannelDispatchScheduler.register();
 		CoreDispatchBatchScheduler.register();
 		LOGGER.info("RedstoneLink initialized");
 	}

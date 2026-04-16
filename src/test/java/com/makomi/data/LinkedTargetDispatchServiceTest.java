@@ -260,6 +260,40 @@ class LinkedTargetDispatchServiceTest {
 		);
 	}
 
+	/**
+	 * 频道模式 loaded direct 只有在 `directBatching!=off` 时才应进入频道中间层。
+	 */
+	@Test
+	void shouldStageLoadedTargetsIntoChannelBucketShouldSkipChannelSchedulerWhenDirectBatchingOff() {
+		assertFalse(
+			LinkedTargetDispatchService.shouldStageLoadedTargetsIntoChannelBucket(
+				LinkNodeType.TRIGGER_SOURCE,
+				LinkNodeType.CORE,
+				LinkConnectionMode.CHANNEL,
+				7L,
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.OFF
+			)
+		);
+		assertTrue(
+			LinkedTargetDispatchService.shouldStageLoadedTargetsIntoChannelBucket(
+				LinkNodeType.TRIGGER_SOURCE,
+				LinkNodeType.CORE,
+				LinkConnectionMode.CHANNEL,
+				7L,
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
+			)
+		);
+		assertFalse(
+			LinkedTargetDispatchService.shouldStageLoadedTargetsIntoChannelBucket(
+				LinkNodeType.TRIGGER_SOURCE,
+				LinkNodeType.CORE,
+				LinkConnectionMode.CHANNEL,
+				0L,
+				RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT
+			)
+		);
+	}
+
 	private static TranslatableContents requireTranslatable(Component component) {
 		assertTrue(component.getContents() instanceof TranslatableContents);
 		return (TranslatableContents) component.getContents();
