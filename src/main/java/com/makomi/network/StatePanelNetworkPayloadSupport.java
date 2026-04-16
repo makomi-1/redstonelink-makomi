@@ -15,6 +15,9 @@ final class StatePanelNetworkPayloadSupport {
 	private static final int DISPLAY_TEXT_MAX_LENGTH = 96;
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
 	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
+	private static final int RECORDING_TITLE_MAX_LENGTH = 96;
+	private static final int RECORDING_FILE_NAME_MAX_LENGTH = 160;
+	private static final int RECORDING_EXPORT_CHUNK_MAX_BYTES = 32768;
 
 	private StatePanelNetworkPayloadSupport() {
 	}
@@ -167,6 +170,106 @@ final class StatePanelNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码录制开始请求。
+	 */
+	static void encodeRecordingStartPayload(
+		FriendlyByteBuf buffer,
+		String title,
+		int sampleEveryTicks,
+		int capacityPerNode,
+		boolean autoOpenWeb
+	) {
+		buffer.writeUtf(title == null ? "" : title, RECORDING_TITLE_MAX_LENGTH);
+		buffer.writeVarInt(Math.max(0, sampleEveryTicks));
+		buffer.writeVarInt(Math.max(0, capacityPerNode));
+		buffer.writeBoolean(autoOpenWeb);
+	}
+
+	/**
+	 * 解码录制开始请求。
+	 */
+	static DecodedRecordingStartPayload decodeRecordingStartPayload(FriendlyByteBuf buffer) {
+		return new DecodedRecordingStartPayload(
+			buffer.readUtf(RECORDING_TITLE_MAX_LENGTH),
+			Math.max(0, buffer.readVarInt()),
+			Math.max(0, buffer.readVarInt()),
+			buffer.readBoolean()
+		);
+	}
+
+	/**
+	 * 编码录制会话状态回执。
+	 */
+	static void encodeRecordingSessionPayload(
+		FriendlyByteBuf buffer,
+		boolean active,
+		String title,
+		int sampleEveryTicks,
+		int capacityPerNode,
+		boolean autoOpenWeb,
+		int subscriptionCount,
+		int mountedCount,
+		long startedTick
+	) {
+		buffer.writeBoolean(active);
+		buffer.writeUtf(title == null ? "" : title, RECORDING_TITLE_MAX_LENGTH);
+		buffer.writeVarInt(Math.max(0, sampleEveryTicks));
+		buffer.writeVarInt(Math.max(0, capacityPerNode));
+		buffer.writeBoolean(autoOpenWeb);
+		buffer.writeVarInt(Math.max(0, subscriptionCount));
+		buffer.writeVarInt(Math.max(0, mountedCount));
+		buffer.writeLong(Math.max(0L, startedTick));
+	}
+
+	/**
+	 * 解码录制会话状态回执。
+	 */
+	static DecodedRecordingSessionPayload decodeRecordingSessionPayload(FriendlyByteBuf buffer) {
+		return new DecodedRecordingSessionPayload(
+			buffer.readBoolean(),
+			buffer.readUtf(RECORDING_TITLE_MAX_LENGTH),
+			Math.max(0, buffer.readVarInt()),
+			Math.max(0, buffer.readVarInt()),
+			buffer.readBoolean(),
+			Math.max(0, buffer.readVarInt()),
+			Math.max(0, buffer.readVarInt()),
+			Math.max(0L, buffer.readLong())
+		);
+	}
+
+	/**
+	 * 编码录制结果分块。
+	 */
+	static void encodeRecordingExportChunkPayload(
+		FriendlyByteBuf buffer,
+		String fileName,
+		int chunkIndex,
+		int totalChunks,
+		boolean autoOpenWeb,
+		byte[] chunkBytes
+	) {
+		byte[] normalizedChunkBytes = chunkBytes == null ? new byte[0] : chunkBytes;
+		buffer.writeUtf(fileName == null ? "" : fileName, RECORDING_FILE_NAME_MAX_LENGTH);
+		buffer.writeVarInt(Math.max(0, chunkIndex));
+		buffer.writeVarInt(Math.max(0, totalChunks));
+		buffer.writeBoolean(autoOpenWeb);
+		buffer.writeByteArray(normalizedChunkBytes);
+	}
+
+	/**
+	 * 解码录制结果分块。
+	 */
+	static DecodedRecordingExportChunkPayload decodeRecordingExportChunkPayload(FriendlyByteBuf buffer) {
+		return new DecodedRecordingExportChunkPayload(
+			buffer.readUtf(RECORDING_FILE_NAME_MAX_LENGTH),
+			Math.max(0, buffer.readVarInt()),
+			Math.max(0, buffer.readVarInt()),
+			buffer.readBoolean(),
+			buffer.readByteArray(RECORDING_EXPORT_CHUNK_MAX_BYTES)
+		);
+	}
+
+	/**
 	 * 读取状态面板批量输入沿用的统一长度上限。
 	 */
 	private static int resolveMaxInputLength() {
@@ -189,5 +292,38 @@ final class StatePanelNetworkPayloadSupport {
 	 * 反馈回执解码结果。
 	 */
 	record DecodedFeedbackPayload(boolean success, String messageKey, List<String> messageArgs) {
+	}
+
+	/**
+	 * 录制开始请求解码结果。
+	 */
+	record DecodedRecordingStartPayload(String title, int sampleEveryTicks, int capacityPerNode, boolean autoOpenWeb) {
+	}
+
+	/**
+	 * 录制会话状态解码结果。
+	 */
+	record DecodedRecordingSessionPayload(
+		boolean active,
+		String title,
+		int sampleEveryTicks,
+		int capacityPerNode,
+		boolean autoOpenWeb,
+		int subscriptionCount,
+		int mountedCount,
+		long startedTick
+	) {
+	}
+
+	/**
+	 * 录制结果分块解码结果。
+	 */
+	record DecodedRecordingExportChunkPayload(
+		String fileName,
+		int chunkIndex,
+		int totalChunks,
+		boolean autoOpenWeb,
+		byte[] chunkBytes
+	) {
 	}
 }

@@ -60,3 +60,6 @@ skills
 .trae/rules/*
 docs_dev\~$审查日志与测试记录.xlsx
 readme0.md
+webapp/node_modules/
+webapp/dist/
+webapp/*.tsbuildinfo

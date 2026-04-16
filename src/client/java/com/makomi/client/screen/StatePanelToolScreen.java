@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -142,7 +143,7 @@ public class StatePanelToolScreen extends Screen {
 			createThemedButton(REFRESH, layout.actionButtonX(1), layout.actionY(), layout.actionButtonWidth(), button -> requestRefresh())
 		);
 		recordButton = addRenderableWidget(
-			createThemedButton(RECORD, layout.actionButtonX(2), layout.actionY(), layout.actionButtonWidth(), button -> requestRecord())
+			createThemedButton(RECORD, layout.actionButtonX(2), layout.actionY(), layout.actionButtonWidth(), button -> openRecordingScreen())
 		);
 
 		cleanAllButton = addRenderableWidget(
@@ -294,12 +295,13 @@ public class StatePanelToolScreen extends Screen {
 		ClientPlayNetworking.send(new StatePanelNetwork.RefreshStatePanelPayload());
 	}
 
-	private void requestRecord() {
-		ClientPlayNetworking.send(new StatePanelNetwork.RecordStatePanelPayload());
-	}
-
 	private void requestCleanAll() {
 		ClientPlayNetworking.send(new StatePanelNetwork.CleanAllStatePanelPayload());
+	}
+
+	private void openRecordingScreen() {
+		Minecraft minecraft = Minecraft.getInstance();
+		minecraft.setScreen(new StatePanelRecordingScreen(this, exportSubscriptionsForRecording()));
 	}
 
 	private void removeAtVisibleRow(int visibleRow) {
@@ -336,6 +338,19 @@ public class StatePanelToolScreen extends Screen {
 		}
 		entries.sort(entryComparator());
 		normalizeScrollOffset();
+	}
+
+	/**
+	 * 导出当前状态面板订阅，用于切入录制 GUI 时展示录制范围预览。
+	 */
+	private List<StatePanelNetwork.SubscriptionEntryPayload> exportSubscriptionsForRecording() {
+		if (!entries.isEmpty()) {
+			return entries
+				.stream()
+				.map(entry -> new StatePanelNetwork.SubscriptionEntryPayload(entry.nodeType(), entry.serial(), entry.displayText()))
+				.toList();
+		}
+		return List.copyOf(initialSubscriptions);
 	}
 
 	/**

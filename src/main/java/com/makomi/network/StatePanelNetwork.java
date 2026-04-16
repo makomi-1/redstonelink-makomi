@@ -122,6 +122,89 @@ public final class StatePanelNetwork {
 	}
 
 	/**
+	 * 客户端查询当前录制会话状态的 C2S 请求。
+	 */
+	public record QueryStatePanelRecordingPayload() implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<QueryStatePanelRecordingPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "query_state_panel_recording")
+		);
+		public static final StreamCodec<FriendlyByteBuf, QueryStatePanelRecordingPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> {
+			},
+			buffer -> new QueryStatePanelRecordingPayload()
+		);
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 客户端开始录制的 C2S 请求。
+	 */
+	public record StartStatePanelRecordingPayload(
+		String title,
+		int sampleEveryTicks,
+		int capacityPerNode,
+		boolean autoOpenWeb
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<StartStatePanelRecordingPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "start_state_panel_recording")
+		);
+		public static final StreamCodec<FriendlyByteBuf, StartStatePanelRecordingPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeRecordingStartPayload(
+				buffer,
+				payload.title(),
+				payload.sampleEveryTicks(),
+				payload.capacityPerNode(),
+				payload.autoOpenWeb()
+			),
+			buffer -> {
+				StatePanelNetworkPayloadSupport.DecodedRecordingStartPayload decoded = StatePanelNetworkPayloadSupport.decodeRecordingStartPayload(
+					buffer
+				);
+				return new StartStatePanelRecordingPayload(
+					decoded.title(),
+					decoded.sampleEveryTicks(),
+					decoded.capacityPerNode(),
+					decoded.autoOpenWeb()
+				);
+			}
+		);
+
+		public StartStatePanelRecordingPayload {
+			title = title == null ? "" : title;
+			sampleEveryTicks = Math.max(0, sampleEveryTicks);
+			capacityPerNode = Math.max(0, capacityPerNode);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 客户端结束录制的 C2S 请求。
+	 */
+	public record StopStatePanelRecordingPayload() implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<StopStatePanelRecordingPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "stop_state_panel_recording")
+		);
+		public static final StreamCodec<FriendlyByteBuf, StopStatePanelRecordingPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> {
+			},
+			buffer -> new StopStatePanelRecordingPayload()
+		);
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 客户端删除单条订阅的 C2S 请求。
 	 */
 	public record RemoveStatePanelSerialPayload(String nodeTypeToken, long serial) implements CustomPacketPayload {
@@ -231,6 +314,120 @@ public final class StatePanelNetwork {
 		public StatePanelFeedbackPayload {
 			messageKey = messageKey == null ? "" : messageKey;
 			messageArgs = List.copyOf(messageArgs == null ? List.of() : messageArgs);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端返回的录制会话状态回执。
+	 */
+	public record StatePanelRecordingSessionPayload(
+		boolean active,
+		String title,
+		int sampleEveryTicks,
+		int capacityPerNode,
+		boolean autoOpenWeb,
+		int subscriptionCount,
+		int mountedCount,
+		long startedTick
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<StatePanelRecordingSessionPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_recording_session")
+		);
+		public static final StreamCodec<FriendlyByteBuf, StatePanelRecordingSessionPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeRecordingSessionPayload(
+				buffer,
+				payload.active(),
+				payload.title(),
+				payload.sampleEveryTicks(),
+				payload.capacityPerNode(),
+				payload.autoOpenWeb(),
+				payload.subscriptionCount(),
+				payload.mountedCount(),
+				payload.startedTick()
+			),
+			buffer -> {
+				StatePanelNetworkPayloadSupport.DecodedRecordingSessionPayload decoded = StatePanelNetworkPayloadSupport.decodeRecordingSessionPayload(
+					buffer
+				);
+				return new StatePanelRecordingSessionPayload(
+					decoded.active(),
+					decoded.title(),
+					decoded.sampleEveryTicks(),
+					decoded.capacityPerNode(),
+					decoded.autoOpenWeb(),
+					decoded.subscriptionCount(),
+					decoded.mountedCount(),
+					decoded.startedTick()
+				);
+			}
+		);
+
+		public StatePanelRecordingSessionPayload {
+			title = title == null ? "" : title;
+			sampleEveryTicks = Math.max(0, sampleEveryTicks);
+			capacityPerNode = Math.max(0, capacityPerNode);
+			subscriptionCount = Math.max(0, subscriptionCount);
+			mountedCount = Math.max(0, mountedCount);
+			startedTick = Math.max(0L, startedTick);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端返回的录制结果分块。
+	 */
+	public record StatePanelRecordingExportChunkPayload(
+		String fileName,
+		int chunkIndex,
+		int totalChunks,
+		boolean autoOpenWeb,
+		byte[] chunkBytes
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<StatePanelRecordingExportChunkPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_recording_export_chunk")
+		);
+		public static final StreamCodec<FriendlyByteBuf, StatePanelRecordingExportChunkPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeRecordingExportChunkPayload(
+				buffer,
+				payload.fileName(),
+				payload.chunkIndex(),
+				payload.totalChunks(),
+				payload.autoOpenWeb(),
+				payload.chunkBytes()
+			),
+			buffer -> {
+				StatePanelNetworkPayloadSupport.DecodedRecordingExportChunkPayload decoded = StatePanelNetworkPayloadSupport.decodeRecordingExportChunkPayload(
+					buffer
+				);
+				return new StatePanelRecordingExportChunkPayload(
+					decoded.fileName(),
+					decoded.chunkIndex(),
+					decoded.totalChunks(),
+					decoded.autoOpenWeb(),
+					decoded.chunkBytes()
+				);
+			}
+		);
+
+		public StatePanelRecordingExportChunkPayload {
+			fileName = fileName == null ? "" : fileName;
+			chunkIndex = Math.max(0, chunkIndex);
+			totalChunks = Math.max(0, totalChunks);
+			chunkBytes = chunkBytes == null ? new byte[0] : chunkBytes.clone();
+		}
+
+		@Override
+		public byte[] chunkBytes() {
+			return chunkBytes.clone();
 		}
 
 		@Override

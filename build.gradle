@@ -88,8 +88,53 @@ dependencies {
 
 }
 
+def webappDir = file("webapp")
+def webappSourceDir = file("webapp/src")
+def webappPackageJson = file("webapp/package.json")
+def webappPackageLock = file("webapp/package-lock.json")
+def webappEntryHtml = file("webapp/index.html")
+def webappTsConfig = file("webapp/tsconfig.json")
+def webappViteConfig = file("webapp/vite.config.ts")
+def webappOutputDir = layout.buildDirectory.dir("generated/redstonelink-webapp")
+def npmCommand = System.getProperty("os.name").toLowerCase().contains("windows") ? "npm.cmd" : "npm"
+
+tasks.register("npmInstallWebapp", Exec) {
+	group = "build setup"
+	description = "Install dependencies for the embedded RedstoneLink webapp."
+	workingDir = webappDir
+	commandLine npmCommand, "ci"
+	inputs.file(webappPackageJson)
+	inputs.file(webappPackageLock)
+	outputs.dir(file("webapp/node_modules"))
+	onlyIf {
+		webappDir.exists()
+	}
+}
+
+tasks.register("buildWebapp", Exec) {
+	group = "build"
+	description = "Build the embedded RedstoneLink webapp into generated resources."
+	dependsOn(tasks.named("npmInstallWebapp"))
+	workingDir = webappDir
+	commandLine npmCommand, "run", "build"
+	inputs.file(webappPackageJson)
+	inputs.file(webappPackageLock)
+	inputs.file(webappEntryHtml)
+	inputs.file(webappTsConfig)
+	inputs.file(webappViteConfig)
+	inputs.dir(webappSourceDir)
+	outputs.dir(webappOutputDir)
+	doFirst {
+		environment "REDSTONELINK_WEBAPP_OUT_DIR", webappOutputDir.get().asFile.absolutePath
+	}
+	onlyIf {
+		webappDir.exists()
+	}
+}
+
 processResources {
 	filteringCharset = "UTF-8"
+	dependsOn(tasks.named("buildWebapp"))
 
 	def modMetadata = [
 		version: project.version,
@@ -105,6 +150,10 @@ processResources {
 
 	filesMatching("fabric.mod.json") {
 		expand modMetadata
+	}
+
+	from(webappOutputDir) {
+		into "assets/redstonelink/webapp"
 	}
 }
 

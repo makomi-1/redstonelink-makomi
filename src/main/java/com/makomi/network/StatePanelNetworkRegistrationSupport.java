@@ -36,6 +36,18 @@ final class StatePanelNetworkRegistrationSupport {
 			StatePanelNetwork.RefreshStatePanelPayload.CODEC
 		);
 		PayloadTypeRegistry.playC2S().register(
+			StatePanelNetwork.QueryStatePanelRecordingPayload.TYPE,
+			StatePanelNetwork.QueryStatePanelRecordingPayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
+			StatePanelNetwork.StartStatePanelRecordingPayload.TYPE,
+			StatePanelNetwork.StartStatePanelRecordingPayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
+			StatePanelNetwork.StopStatePanelRecordingPayload.TYPE,
+			StatePanelNetwork.StopStatePanelRecordingPayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
 			StatePanelNetwork.RemoveStatePanelSerialPayload.TYPE,
 			StatePanelNetwork.RemoveStatePanelSerialPayload.CODEC
 		);
@@ -54,6 +66,14 @@ final class StatePanelNetworkRegistrationSupport {
 		PayloadTypeRegistry.playS2C().register(
 			StatePanelNetwork.StatePanelFeedbackPayload.TYPE,
 			StatePanelNetwork.StatePanelFeedbackPayload.CODEC
+		);
+		PayloadTypeRegistry.playS2C().register(
+			StatePanelNetwork.StatePanelRecordingSessionPayload.TYPE,
+			StatePanelNetwork.StatePanelRecordingSessionPayload.CODEC
+		);
+		PayloadTypeRegistry.playS2C().register(
+			StatePanelNetwork.StatePanelRecordingExportChunkPayload.TYPE,
+			StatePanelNetwork.StatePanelRecordingExportChunkPayload.CODEC
 		);
 	}
 
@@ -74,6 +94,27 @@ final class StatePanelNetworkRegistrationSupport {
 				return;
 			}
 			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleRefresh(player));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.QueryStatePanelRecordingPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleQueryRecordingSession(player));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.StartStatePanelRecordingPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleStartRecording(player, payload));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.StopStatePanelRecordingPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleStopRecording(player));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.RemoveStatePanelSerialPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();

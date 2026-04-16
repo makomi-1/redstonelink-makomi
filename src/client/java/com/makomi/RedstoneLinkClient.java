@@ -14,6 +14,7 @@ import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.render.QuickLinkOutlineRenderer;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
+import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.QuickLinkNetwork;
@@ -21,6 +22,7 @@ import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.context.CommandContext;
+import java.net.URI;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
@@ -28,6 +30,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
@@ -60,7 +63,8 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerBlockEntityRenderers();
 		registerHudRenderers();
 		registerClientKeyBindings();
-		registerClientDisplayCommands();
+		registerClientCommands();
+		registerClientLifecycleHooks();
 		registerPairingScreenOpeners();
 		registerPairingPacketReceivers();
 		registerBenchCommandClientHooks();
@@ -276,10 +280,11 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	/**
 	 * 注册客户端独立命令根：
 	 * <p>
-	 * `/rlclient display far_overlay occluded|see_through` 仅影响本地显示配置，不依赖服务端命令树。
+	 * `/rlclient display far_overlay occluded|see_through` 仅影响本地显示配置，`/rlclient web open`
+	 * 则用于打开本地离线网页工具，两者都不依赖服务端命令树。
 	 * </p>
 	 */
-	private static void registerClientDisplayCommands() {
+	private static void registerClientCommands() {
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
 			ClientCommandManager
 				.literal(CLIENT_DISPLAY_COMMAND_ROOT)
@@ -301,7 +306,23 @@ public class RedstoneLinkClient implements ClientModInitializer {
 								)
 						)
 				)
+				.then(
+					ClientCommandManager
+						.literal("web")
+						.then(
+							ClientCommandManager
+								.literal("open")
+								.executes(RedstoneLinkClient::executeOpenWebApp)
+						)
+				)
 		));
+	}
+
+	/**
+	 * 注册客户端生命周期钩子，用于在退出时关闭本地网页桥接服务。
+	 */
+	private static void registerClientLifecycleHooks() {
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> LocalWebAppBridgeService.stop());
 	}
 
 	/**
@@ -319,6 +340,24 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		);
 		context.getSource().sendFeedback(Component.translatable("message.redstonelink.display.far_overlay.updated", modeLabel));
 		return Command.SINGLE_SUCCESS;
+	}
+
+	/**
+	 * 打开本地离线网页工具首页。
+	 */
+	private static int executeOpenWebApp(CommandContext<FabricClientCommandSource> context) {
+		try {
+			URI homePageUri = LocalWebAppBridgeService.openHomePage();
+			context.getSource().sendFeedback(Component.translatable("message.redstonelink.web.opened", homePageUri.toString()));
+			return Command.SINGLE_SUCCESS;
+		} catch (RuntimeException exception) {
+			String reason = exception.getMessage() == null || exception.getMessage().isBlank()
+				? exception.getClass().getSimpleName()
+				: exception.getMessage();
+			RedstoneLink.LOGGER.warn("打开本地网页工具失败", exception);
+			context.getSource().sendFeedback(Component.translatable("message.redstonelink.web.open_failed", reason));
+			return 0;
+		}
 	}
 
 	/**

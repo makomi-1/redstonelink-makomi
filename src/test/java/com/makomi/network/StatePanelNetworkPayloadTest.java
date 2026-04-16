@@ -1,5 +1,6 @@
 package com.makomi.network;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -131,6 +132,82 @@ class StatePanelNetworkPayloadTest {
 	}
 
 	/**
+	 * 录制开始请求编解码应保留标题、采样参数与自动打开网页开关。
+	 */
+	@Test
+	void recordingStartPayloadCodecRoundTripShouldPreserveFields() {
+		StatePanelNetwork.StartStatePanelRecordingPayload original = new StatePanelNetwork.StartStatePanelRecordingPayload(
+			"test-recording",
+			2,
+			128,
+			true
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		StatePanelNetwork.StartStatePanelRecordingPayload.CODEC.encode(buffer, original);
+		StatePanelNetwork.StartStatePanelRecordingPayload decoded = StatePanelNetwork.StartStatePanelRecordingPayload.CODEC.decode(buffer);
+
+		assertEquals(original.title(), decoded.title());
+		assertEquals(original.sampleEveryTicks(), decoded.sampleEveryTicks());
+		assertEquals(original.capacityPerNode(), decoded.capacityPerNode());
+		assertEquals(original.autoOpenWeb(), decoded.autoOpenWeb());
+	}
+
+	/**
+	 * 录制会话状态回执编解码应保留运行态摘要字段。
+	 */
+	@Test
+	void recordingSessionPayloadCodecRoundTripShouldPreserveFields() {
+		StatePanelNetwork.StatePanelRecordingSessionPayload original = new StatePanelNetwork.StatePanelRecordingSessionPayload(
+			true,
+			"test-recording",
+			3,
+			256,
+			false,
+			12,
+			7,
+			1024L
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		StatePanelNetwork.StatePanelRecordingSessionPayload.CODEC.encode(buffer, original);
+		StatePanelNetwork.StatePanelRecordingSessionPayload decoded = StatePanelNetwork.StatePanelRecordingSessionPayload.CODEC.decode(buffer);
+
+		assertEquals(original.active(), decoded.active());
+		assertEquals(original.title(), decoded.title());
+		assertEquals(original.sampleEveryTicks(), decoded.sampleEveryTicks());
+		assertEquals(original.capacityPerNode(), decoded.capacityPerNode());
+		assertEquals(original.autoOpenWeb(), decoded.autoOpenWeb());
+		assertEquals(original.subscriptionCount(), decoded.subscriptionCount());
+		assertEquals(original.mountedCount(), decoded.mountedCount());
+		assertEquals(original.startedTick(), decoded.startedTick());
+	}
+
+	/**
+	 * 录制结果分块编解码应保留文件名、分块索引与二进制内容。
+	 */
+	@Test
+	void recordingExportChunkPayloadCodecRoundTripShouldPreserveFields() {
+		StatePanelNetwork.StatePanelRecordingExportChunkPayload original = new StatePanelNetwork.StatePanelRecordingExportChunkPayload(
+			"recording-1-test.json.gz",
+			1,
+			3,
+			true,
+			new byte[] { 1, 2, 3, 4 }
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		StatePanelNetwork.StatePanelRecordingExportChunkPayload.CODEC.encode(buffer, original);
+		StatePanelNetwork.StatePanelRecordingExportChunkPayload decoded = StatePanelNetwork.StatePanelRecordingExportChunkPayload.CODEC.decode(buffer);
+
+		assertEquals(original.fileName(), decoded.fileName());
+		assertEquals(original.chunkIndex(), decoded.chunkIndex());
+		assertEquals(original.totalChunks(), decoded.totalChunks());
+		assertEquals(original.autoOpenWeb(), decoded.autoOpenWeb());
+		assertArrayEquals(new byte[] { 1, 2, 3, 4 }, decoded.chunkBytes());
+	}
+
+	/**
 	 * 订阅请求在解包阶段应拒绝超过显式上限的序号表达式。
 	 */
 	@Test
@@ -155,5 +232,21 @@ class StatePanelNetworkPayloadTest {
 		buffer.writeVarInt(0);
 
 		assertThrows(RuntimeException.class, () -> StatePanelNetwork.StatePanelFeedbackPayload.CODEC.decode(buffer));
+	}
+
+	/**
+	 * 录制结果分块在解包阶段应拒绝超过显式上限的文件名。
+	 */
+	@Test
+	void recordingExportChunkPayloadCodecShouldRejectTooLongFileName() {
+		String tooLongFileName = "a".repeat(161);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeUtf(tooLongFileName);
+		buffer.writeVarInt(0);
+		buffer.writeVarInt(1);
+		buffer.writeBoolean(true);
+		buffer.writeByteArray(new byte[] { 1 });
+
+		assertThrows(RuntimeException.class, () -> StatePanelNetwork.StatePanelRecordingExportChunkPayload.CODEC.decode(buffer));
 	}
 }

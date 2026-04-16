@@ -12,6 +12,7 @@ import com.makomi.data.LinkNodeLifecycleDispatchEvents;
 import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.NodeStateTraceService;
 import com.makomi.data.PairableItemAggregateMenuNormalizationService;
+import com.makomi.data.StatePanelRecordingSessionService;
 import com.makomi.data.input.InputPlaybackService;
 import com.makomi.network.BenchCommandNetwork;
 import com.makomi.network.LinkFilterNetwork;
@@ -56,9 +57,8 @@ public class RedstoneLink implements ModInitializer {
 		LinkNodeRetireEvents.register();
 		PairableItemAggregateMenuNormalizationService.register();
 		LinkDispatchFilterService.register();
-		if (RedstoneLinkConfig.command().nodeTraceEnabled()) {
-			NodeStateTraceService.register();
-		}
+		NodeStateTraceService.register();
+		StatePanelRecordingSessionService.register();
 		if (RedstoneLinkConfig.command().inputEnabled()) {
 			InputPlaybackService.register();
 		}

@@ -46,7 +46,7 @@ Mods that modify vanilla `chunk loading` or `item interaction` may introduce con
 -  ☑️Add Send/receive filters
 -  ❌Add recording and playback support to the status panel
 -  ☑️Support custom node aliases
--  ❌Expand channel matching
+-  ☑️Expand channel matching
 -  ☑️Improve the UI
 -  ❌Migrate to version 26.1+
 -  ❌Add a visual network analyzer

@@ -11,6 +11,8 @@ import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.data.QuickLinkOperationFeedback;
+import com.makomi.data.StatePanelRecordingSessionService;
+import com.makomi.data.StatePanelRecordingSessionService.ExportBundle;
 import com.makomi.data.StatePanelToolData;
 import com.makomi.item.StatePanelToolItem;
 import com.makomi.util.SerialParseUtil;
@@ -30,6 +32,7 @@ import net.minecraft.world.item.ItemStack;
  */
 final class StatePanelNetworkServerHandlerSupport {
 	private static final Map<UUID, Long> LAST_REFRESH_TICK_BY_PLAYER = new HashMap<>();
+	private static final int RECORDING_EXPORT_CHUNK_BYTES = 24576;
 
 	private StatePanelNetworkServerHandlerSupport() {
 	}
@@ -184,6 +187,42 @@ final class StatePanelNetworkServerHandlerSupport {
 	}
 
 	/**
+	 * 查询当前录制会话状态。
+	 */
+	static void handleQueryRecordingSession(ServerPlayer player) {
+		sendRecordingSession(player, StatePanelRecordingSessionService.querySession(player));
+	}
+
+	/**
+	 * 处理开始录制请求。
+	 */
+	static void handleStartRecording(ServerPlayer player, StatePanelNetwork.StartStatePanelRecordingPayload payload) {
+		StatePanelRecordingSessionService.StartResult startResult = StatePanelRecordingSessionService.start(
+			player,
+			new StatePanelRecordingSessionService.StartRequest(
+				payload.title(),
+				payload.sampleEveryTicks(),
+				payload.capacityPerNode(),
+				payload.autoOpenWeb()
+			)
+		);
+		sendRecordingSession(player, startResult.sessionSnapshot());
+		sendFeedback(player, startResult.feedback());
+	}
+
+	/**
+	 * 处理结束录制请求。
+	 */
+	static void handleStopRecording(ServerPlayer player) {
+		StatePanelRecordingSessionService.StopResult stopResult = StatePanelRecordingSessionService.stop(player);
+		sendRecordingSession(player, stopResult.sessionSnapshot());
+		if (stopResult.exportBundle() != null) {
+			sendRecordingExport(player, stopResult.exportBundle());
+		}
+		sendFeedback(player, stopResult.feedback());
+	}
+
+	/**
 	 * 处理删除单条订阅请求。
 	 */
 	static void handleRemove(ServerPlayer player, StatePanelNetwork.RemoveStatePanelSerialPayload payload) {
@@ -287,6 +326,59 @@ final class StatePanelNetworkServerHandlerSupport {
 			player,
 			new StatePanelNetwork.StatePanelFeedbackPayload(feedback.success(), feedback.messageKey(), feedback.messageArgs())
 		);
+	}
+
+	/**
+	 * 发送录制会话状态。
+	 */
+	private static void sendRecordingSession(
+		ServerPlayer player,
+		StatePanelRecordingSessionService.SessionSnapshot sessionSnapshot
+	) {
+		StatePanelRecordingSessionService.SessionSnapshot snapshot = sessionSnapshot == null
+			? StatePanelRecordingSessionService.SessionSnapshot.inactive(0)
+			: sessionSnapshot;
+		ServerPlayNetworking.send(
+			player,
+			new StatePanelNetwork.StatePanelRecordingSessionPayload(
+				snapshot.active(),
+				snapshot.title(),
+				snapshot.sampleEveryTicks(),
+				snapshot.capacityPerNode(),
+				snapshot.autoOpenWeb(),
+				snapshot.subscriptionCount(),
+				snapshot.mountedCount(),
+				snapshot.startedTick()
+			)
+		);
+	}
+
+	/**
+	 * 分块发送录制结果，避免单包体积过大。
+	 */
+	private static void sendRecordingExport(ServerPlayer player, ExportBundle exportBundle) {
+		byte[] compressedBytes = exportBundle == null ? null : exportBundle.compressedBytes();
+		if (player == null || exportBundle == null || compressedBytes == null || compressedBytes.length <= 0) {
+			return;
+		}
+		int totalChunks = Math.max(1, (compressedBytes.length + RECORDING_EXPORT_CHUNK_BYTES - 1) / RECORDING_EXPORT_CHUNK_BYTES);
+		for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+			int startOffset = chunkIndex * RECORDING_EXPORT_CHUNK_BYTES;
+			int endOffset = Math.min(compressedBytes.length, startOffset + RECORDING_EXPORT_CHUNK_BYTES);
+			int chunkLength = Math.max(0, endOffset - startOffset);
+			byte[] chunkBytes = new byte[chunkLength];
+			System.arraycopy(compressedBytes, startOffset, chunkBytes, 0, chunkLength);
+			ServerPlayNetworking.send(
+				player,
+				new StatePanelNetwork.StatePanelRecordingExportChunkPayload(
+					exportBundle.fileName(),
+					chunkIndex,
+					totalChunks,
+					exportBundle.autoOpenWeb(),
+					chunkBytes
+				)
+			);
+		}
 	}
 
 	/**
