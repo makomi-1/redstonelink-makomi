@@ -16,6 +16,7 @@ final class StatePanelNetworkPayloadSupport {
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
 	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
 	private static final int RECORDING_TITLE_MAX_LENGTH = 96;
+	private static final int RECORDING_NODE_KEY_MAX_LENGTH = 64;
 	private static final int RECORDING_FILE_NAME_MAX_LENGTH = 160;
 	private static final int RECORDING_EXPORT_CHUNK_MAX_BYTES = 32768;
 
@@ -177,23 +178,43 @@ final class StatePanelNetworkPayloadSupport {
 		String title,
 		int sampleEveryTicks,
 		int capacityPerNode,
-		boolean autoOpenWeb
+		int durationTicks,
+		boolean autoOpenWeb,
+		List<String> selectedNodeKeys
 	) {
 		buffer.writeUtf(title == null ? "" : title, RECORDING_TITLE_MAX_LENGTH);
 		buffer.writeVarInt(Math.max(0, sampleEveryTicks));
 		buffer.writeVarInt(Math.max(0, capacityPerNode));
+		buffer.writeVarInt(Math.max(0, durationTicks));
 		buffer.writeBoolean(autoOpenWeb);
+		List<String> normalizedNodeKeys = selectedNodeKeys == null ? List.of() : List.copyOf(selectedNodeKeys);
+		buffer.writeVarInt(normalizedNodeKeys.size());
+		for (String nodeKey : normalizedNodeKeys) {
+			buffer.writeUtf(nodeKey == null ? "" : nodeKey, RECORDING_NODE_KEY_MAX_LENGTH);
+		}
 	}
 
 	/**
 	 * 解码录制开始请求。
 	 */
 	static DecodedRecordingStartPayload decodeRecordingStartPayload(FriendlyByteBuf buffer) {
+		String title = buffer.readUtf(RECORDING_TITLE_MAX_LENGTH);
+		int sampleEveryTicks = Math.max(0, buffer.readVarInt());
+		int capacityPerNode = Math.max(0, buffer.readVarInt());
+		int durationTicks = Math.max(0, buffer.readVarInt());
+		boolean autoOpenWeb = buffer.readBoolean();
+		int selectedNodeKeyCount = Math.max(0, buffer.readVarInt());
+		List<String> selectedNodeKeys = new ArrayList<>(selectedNodeKeyCount);
+		for (int index = 0; index < selectedNodeKeyCount; index++) {
+			selectedNodeKeys.add(buffer.readUtf(RECORDING_NODE_KEY_MAX_LENGTH));
+		}
 		return new DecodedRecordingStartPayload(
-			buffer.readUtf(RECORDING_TITLE_MAX_LENGTH),
-			Math.max(0, buffer.readVarInt()),
-			Math.max(0, buffer.readVarInt()),
-			buffer.readBoolean()
+			title,
+			sampleEveryTicks,
+			capacityPerNode,
+			durationTicks,
+			autoOpenWeb,
+			List.copyOf(selectedNodeKeys)
 		);
 	}
 
@@ -206,18 +227,26 @@ final class StatePanelNetworkPayloadSupport {
 		String title,
 		int sampleEveryTicks,
 		int capacityPerNode,
+		int durationTicks,
 		boolean autoOpenWeb,
 		int subscriptionCount,
 		int mountedCount,
+		List<String> selectedNodeKeys,
 		long startedTick
 	) {
 		buffer.writeBoolean(active);
 		buffer.writeUtf(title == null ? "" : title, RECORDING_TITLE_MAX_LENGTH);
 		buffer.writeVarInt(Math.max(0, sampleEveryTicks));
 		buffer.writeVarInt(Math.max(0, capacityPerNode));
+		buffer.writeVarInt(Math.max(0, durationTicks));
 		buffer.writeBoolean(autoOpenWeb);
 		buffer.writeVarInt(Math.max(0, subscriptionCount));
 		buffer.writeVarInt(Math.max(0, mountedCount));
+		List<String> normalizedNodeKeys = selectedNodeKeys == null ? List.of() : List.copyOf(selectedNodeKeys);
+		buffer.writeVarInt(normalizedNodeKeys.size());
+		for (String nodeKey : normalizedNodeKeys) {
+			buffer.writeUtf(nodeKey == null ? "" : nodeKey, RECORDING_NODE_KEY_MAX_LENGTH);
+		}
 		buffer.writeLong(Math.max(0L, startedTick));
 	}
 
@@ -225,14 +254,29 @@ final class StatePanelNetworkPayloadSupport {
 	 * 解码录制会话状态回执。
 	 */
 	static DecodedRecordingSessionPayload decodeRecordingSessionPayload(FriendlyByteBuf buffer) {
+		boolean active = buffer.readBoolean();
+		String title = buffer.readUtf(RECORDING_TITLE_MAX_LENGTH);
+		int sampleEveryTicks = Math.max(0, buffer.readVarInt());
+		int capacityPerNode = Math.max(0, buffer.readVarInt());
+		int durationTicks = Math.max(0, buffer.readVarInt());
+		boolean autoOpenWeb = buffer.readBoolean();
+		int subscriptionCount = Math.max(0, buffer.readVarInt());
+		int mountedCount = Math.max(0, buffer.readVarInt());
+		int selectedNodeKeyCount = Math.max(0, buffer.readVarInt());
+		List<String> selectedNodeKeys = new ArrayList<>(selectedNodeKeyCount);
+		for (int index = 0; index < selectedNodeKeyCount; index++) {
+			selectedNodeKeys.add(buffer.readUtf(RECORDING_NODE_KEY_MAX_LENGTH));
+		}
 		return new DecodedRecordingSessionPayload(
-			buffer.readBoolean(),
-			buffer.readUtf(RECORDING_TITLE_MAX_LENGTH),
-			Math.max(0, buffer.readVarInt()),
-			Math.max(0, buffer.readVarInt()),
-			buffer.readBoolean(),
-			Math.max(0, buffer.readVarInt()),
-			Math.max(0, buffer.readVarInt()),
+			active,
+			title,
+			sampleEveryTicks,
+			capacityPerNode,
+			durationTicks,
+			autoOpenWeb,
+			subscriptionCount,
+			mountedCount,
+			List.copyOf(selectedNodeKeys),
 			Math.max(0L, buffer.readLong())
 		);
 	}
@@ -297,7 +341,14 @@ final class StatePanelNetworkPayloadSupport {
 	/**
 	 * 录制开始请求解码结果。
 	 */
-	record DecodedRecordingStartPayload(String title, int sampleEveryTicks, int capacityPerNode, boolean autoOpenWeb) {
+	record DecodedRecordingStartPayload(
+		String title,
+		int sampleEveryTicks,
+		int capacityPerNode,
+		int durationTicks,
+		boolean autoOpenWeb,
+		List<String> selectedNodeKeys
+	) {
 	}
 
 	/**
@@ -308,9 +359,11 @@ final class StatePanelNetworkPayloadSupport {
 		String title,
 		int sampleEveryTicks,
 		int capacityPerNode,
+		int durationTicks,
 		boolean autoOpenWeb,
 		int subscriptionCount,
 		int mountedCount,
+		List<String> selectedNodeKeys,
 		long startedTick
 	) {
 	}

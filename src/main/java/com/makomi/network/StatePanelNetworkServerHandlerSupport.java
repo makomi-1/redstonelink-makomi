@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -203,7 +204,9 @@ final class StatePanelNetworkServerHandlerSupport {
 				payload.title(),
 				payload.sampleEveryTicks(),
 				payload.capacityPerNode(),
-				payload.autoOpenWeb()
+				payload.durationTicks(),
+				payload.autoOpenWeb(),
+				payload.selectedNodeKeys()
 			)
 		);
 		sendRecordingSession(player, startResult.sessionSnapshot());
@@ -220,6 +223,27 @@ final class StatePanelNetworkServerHandlerSupport {
 			sendRecordingExport(player, stopResult.exportBundle());
 		}
 		sendFeedback(player, stopResult.feedback());
+	}
+
+	/**
+	 * 处理服务端 tick 上到期的自动结束录制。
+	 */
+	static void handleAutoStopTick(MinecraftServer server) {
+		for (StatePanelRecordingSessionService.AutoStopOutcome autoStopOutcome : StatePanelRecordingSessionService.processDueAutoStops(server)) {
+			if (autoStopOutcome == null || autoStopOutcome.ownerPlayerId() == null) {
+				continue;
+			}
+			ServerPlayer player = server.getPlayerList().getPlayer(autoStopOutcome.ownerPlayerId());
+			if (player == null) {
+				continue;
+			}
+			StatePanelRecordingSessionService.StopResult stopResult = autoStopOutcome.stopResult();
+			sendRecordingSession(player, stopResult.sessionSnapshot());
+			if (stopResult.exportBundle() != null) {
+				sendRecordingExport(player, stopResult.exportBundle());
+			}
+			sendFeedback(player, stopResult.feedback());
+		}
 	}
 
 	/**
@@ -345,9 +369,11 @@ final class StatePanelNetworkServerHandlerSupport {
 				snapshot.title(),
 				snapshot.sampleEveryTicks(),
 				snapshot.capacityPerNode(),
+				snapshot.durationTicks(),
 				snapshot.autoOpenWeb(),
 				snapshot.subscriptionCount(),
 				snapshot.mountedCount(),
+				snapshot.selectedNodeKeys(),
 				snapshot.startedTick()
 			)
 		);

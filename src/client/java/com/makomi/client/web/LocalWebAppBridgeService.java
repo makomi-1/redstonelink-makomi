@@ -78,16 +78,33 @@ public final class LocalWebAppBridgeService {
 	}
 
 	/**
+	 * 打开 recording 独立曲线查看页。
+	 *
+	 * @return 已打开的 recording 页面地址
+	 */
+	public static URI openRecordingPage() {
+		BridgeRuntime current = resolveRuntime();
+		URI recordingPageUri = current.baseUri().resolve("./?page=recording");
+		Util.getPlatform().openUri(recordingPageUri);
+		return recordingPageUri;
+	}
+
+	/**
 	 * 打开指定本地资产条目的网页查看页。
 	 */
 	public static URI openAssetEntry(LocalWebAssetKind assetKind, String fileName) {
 		BridgeRuntime current = resolveRuntime();
 		LocalWebAssetKind resolvedAssetKind = assetKind == null ? LocalWebAssetKind.RECORDING : assetKind;
 		String normalizedFileName = fileName == null ? "" : fileName.trim();
-		String entryUri = "./?kind=%s&name=%s".formatted(
-			urlEncode(resolvedAssetKind.token()),
-			urlEncode(normalizedFileName)
-		);
+		String entryUri = resolvedAssetKind == LocalWebAssetKind.RECORDING
+			? "./?page=recording&kind=%s&name=%s".formatted(
+				urlEncode(resolvedAssetKind.token()),
+				urlEncode(normalizedFileName)
+			)
+			: "./?page=home&kind=%s&name=%s".formatted(
+				urlEncode(resolvedAssetKind.token()),
+				urlEncode(normalizedFileName)
+			);
 		URI targetUri = current.baseUri().resolve(entryUri);
 		Util.getPlatform().openUri(targetUri);
 		return targetUri;

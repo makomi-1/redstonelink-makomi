@@ -9,9 +9,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -43,6 +45,8 @@ public final class StatePanelRecordingSessionService {
 	public static final int DEFAULT_SAMPLE_EVERY_TICKS = 2;
 	/** 默认单节点容量。 */
 	public static final int DEFAULT_CAPACITY_PER_NODE = 200;
+	/** 默认录制时长；`0` 表示不启用自动结束。 */
+	public static final int DEFAULT_DURATION_TICKS = 0;
 
 	private static final Map<MinecraftServer, Map<UUID, ActiveSession>> ACTIVE_SESSIONS_BY_SERVER = new IdentityHashMap<>();
 
@@ -108,8 +112,22 @@ public final class StatePanelRecordingSessionService {
 			);
 		}
 
-		StartRequest normalizedRequest = request == null ? new StartRequest("", DEFAULT_SAMPLE_EVERY_TICKS, DEFAULT_CAPACITY_PER_NODE, true) : request;
-		List<MountedNode> mountedNodes = mountRecordableNodes(player, subscriptions, normalizedRequest);
+		StartRequest normalizedRequest = request == null
+			? new StartRequest("", DEFAULT_SAMPLE_EVERY_TICKS, DEFAULT_CAPACITY_PER_NODE, DEFAULT_DURATION_TICKS, true, List.of())
+			: request;
+		List<StatePanelToolData.SubscriptionEntry> selectedSubscriptions = filterSelectedSubscriptions(
+			subscriptions,
+			normalizedRequest.selectedNodeKeys()
+		);
+		if (selectedSubscriptions.isEmpty()) {
+			return new StartResult(
+				false,
+				QuickLinkOperationFeedback.failure("message.redstonelink.state_panel.recording.no_selection"),
+				SessionSnapshot.inactive(subscriptions.size())
+			);
+		}
+		List<String> selectedNodeKeys = collectNodeKeys(selectedSubscriptions);
+		List<MountedNode> mountedNodes = mountRecordableNodes(player, selectedSubscriptions, normalizedRequest);
 		if (mountedNodes.isEmpty()) {
 			return new StartResult(
 				false,
@@ -124,8 +142,10 @@ public final class StatePanelRecordingSessionService {
 			player.getUUID(),
 			normalizedRequest,
 			subscriptions.size(),
+			selectedNodeKeys,
 			List.copyOf(mountedNodes),
-			startedTick
+			startedTick,
+			resolveAutoStopTick(startedTick, normalizedRequest.durationTicks())
 		);
 		state(player.getServer()).put(player.getUUID(), activeSession);
 		return new StartResult(
@@ -133,7 +153,7 @@ public final class StatePanelRecordingSessionService {
 			QuickLinkOperationFeedback.success(
 				"message.redstonelink.state_panel.recording.start.done",
 				Integer.toString(activeSession.mountedNodes().size()),
-				Integer.toString(activeSession.subscriptionCount())
+				Integer.toString(activeSession.selectedNodeKeys().size())
 			),
 			activeSession.toSnapshot()
 		);
@@ -188,6 +208,45 @@ public final class StatePanelRecordingSessionService {
 		} finally {
 			unmountAll(player.getServer(), activeSession.mountedNodes());
 		}
+	}
+
+	/**
+	 * 处理本 tick 到期的自动结束录制会话。
+	 */
+	public static List<AutoStopOutcome> processDueAutoStops(MinecraftServer server) {
+		if (server == null) {
+			return List.of();
+		}
+		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.get(server);
+		if (sessionMap == null || sessionMap.isEmpty()) {
+			return List.of();
+		}
+		List<UUID> duePlayerIds = new ArrayList<>();
+		for (Map.Entry<UUID, ActiveSession> entry : sessionMap.entrySet()) {
+			ActiveSession activeSession = entry.getValue();
+			if (activeSession == null || activeSession.autoStopTick() <= 0L) {
+				continue;
+			}
+			ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+			if (player == null) {
+				continue;
+			}
+			if (player.serverLevel().getGameTime() >= activeSession.autoStopTick()) {
+				duePlayerIds.add(entry.getKey());
+			}
+		}
+		if (duePlayerIds.isEmpty()) {
+			return List.of();
+		}
+		List<AutoStopOutcome> outcomes = new ArrayList<>(duePlayerIds.size());
+		for (UUID playerId : duePlayerIds) {
+			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+			if (player == null) {
+				continue;
+			}
+			outcomes.add(new AutoStopOutcome(playerId, stop(player)));
+		}
+		return List.copyOf(outcomes);
 	}
 
 	private static StatePanelRecordingBundle buildRecordingBundle(ServerPlayer player, ActiveSession activeSession, long endedTick) {
@@ -251,7 +310,7 @@ public final class StatePanelRecordingSessionService {
 	}
 
 	/**
-	 * 根据当前订阅列表挂载全部可录制节点。
+	 * 根据当前选中的订阅列表挂载可录制节点。
 	 */
 	private static List<MountedNode> mountRecordableNodes(
 		ServerPlayer player,
@@ -285,6 +344,46 @@ public final class StatePanelRecordingSessionService {
 			mountedNodes.add(new MountedNode(subscription.nodeType(), subscription.serial(), resolution.get().traceKind()));
 		}
 		return List.copyOf(mountedNodes);
+	}
+
+	/**
+	 * 从当前真实订阅列表中过滤出本次请求选中的节点。
+	 */
+	private static List<StatePanelToolData.SubscriptionEntry> filterSelectedSubscriptions(
+		List<StatePanelToolData.SubscriptionEntry> subscriptions,
+		List<String> selectedNodeKeys
+	) {
+		if (subscriptions == null || subscriptions.isEmpty() || selectedNodeKeys == null || selectedNodeKeys.isEmpty()) {
+			return List.of();
+		}
+		Set<String> selectedNodeKeySet = new LinkedHashSet<>(selectedNodeKeys);
+		List<StatePanelToolData.SubscriptionEntry> selectedSubscriptions = new ArrayList<>();
+		for (StatePanelToolData.SubscriptionEntry subscription : subscriptions) {
+			if (subscription == null || subscription.serial() <= 0L) {
+				continue;
+			}
+			if (selectedNodeKeySet.contains(nodeKey(subscription.nodeType(), subscription.serial()))) {
+				selectedSubscriptions.add(subscription);
+			}
+		}
+		return List.copyOf(selectedSubscriptions);
+	}
+
+	/**
+	 * 将订阅条目稳定转换为节点 key 列表，便于 GUI 与会话快照复用。
+	 */
+	private static List<String> collectNodeKeys(List<StatePanelToolData.SubscriptionEntry> subscriptions) {
+		if (subscriptions == null || subscriptions.isEmpty()) {
+			return List.of();
+		}
+		Set<String> nodeKeys = new LinkedHashSet<>();
+		for (StatePanelToolData.SubscriptionEntry subscription : subscriptions) {
+			if (subscription == null || subscription.serial() <= 0L) {
+				continue;
+			}
+			nodeKeys.add(nodeKey(subscription.nodeType(), subscription.serial()));
+		}
+		return List.copyOf(nodeKeys);
 	}
 
 	private static void clearPlayerSession(ServerPlayer player) {
@@ -352,14 +451,30 @@ public final class StatePanelRecordingSessionService {
 		return LinkNodeSemantics.toSemanticName(nodeType) + ":" + Math.max(0L, serial);
 	}
 
+	private static long resolveAutoStopTick(long startedTick, int durationTicks) {
+		if (durationTicks <= 0) {
+			return 0L;
+		}
+		return Math.max(0L, startedTick) + durationTicks;
+	}
+
 	/**
 	 * 录制会话开始请求。
 	 */
-	public record StartRequest(String title, int sampleEveryTicks, int capacityPerNode, boolean autoOpenWeb) {
+	public record StartRequest(
+		String title,
+		int sampleEveryTicks,
+		int capacityPerNode,
+		int durationTicks,
+		boolean autoOpenWeb,
+		List<String> selectedNodeKeys
+	) {
 		public StartRequest {
 			title = normalizeTitle(title);
 			sampleEveryTicks = Math.max(MIN_SAMPLE_EVERY_TICKS, Math.min(MAX_SAMPLE_EVERY_TICKS, sampleEveryTicks));
 			capacityPerNode = Math.max(MIN_CAPACITY_PER_NODE, Math.min(MAX_CAPACITY_PER_NODE, capacityPerNode));
+			durationTicks = Math.max(0, durationTicks);
+			selectedNodeKeys = normalizeSelectedNodeKeys(selectedNodeKeys);
 		}
 
 		private static String normalizeTitle(String rawTitle) {
@@ -368,6 +483,23 @@ public final class StatePanelRecordingSessionService {
 			}
 			String normalized = rawTitle.trim();
 			return normalized.isEmpty() ? "State Panel Recording" : normalized;
+		}
+
+		private static List<String> normalizeSelectedNodeKeys(List<String> rawNodeKeys) {
+			if (rawNodeKeys == null || rawNodeKeys.isEmpty()) {
+				return List.of();
+			}
+			Set<String> normalizedNodeKeys = new LinkedHashSet<>();
+			for (String rawNodeKey : rawNodeKeys) {
+				if (rawNodeKey == null) {
+					continue;
+				}
+				String normalizedNodeKey = rawNodeKey.trim();
+				if (!normalizedNodeKey.isEmpty()) {
+					normalizedNodeKeys.add(normalizedNodeKey);
+				}
+			}
+			return List.copyOf(normalizedNodeKeys);
 		}
 	}
 
@@ -379,17 +511,21 @@ public final class StatePanelRecordingSessionService {
 		String title,
 		int sampleEveryTicks,
 		int capacityPerNode,
+		int durationTicks,
 		boolean autoOpenWeb,
 		int subscriptionCount,
 		int mountedCount,
+		List<String> selectedNodeKeys,
 		long startedTick
 	) {
 		public SessionSnapshot {
 			title = title == null ? "" : title.trim();
 			sampleEveryTicks = Math.max(MIN_SAMPLE_EVERY_TICKS, sampleEveryTicks);
 			capacityPerNode = Math.max(0, capacityPerNode);
+			durationTicks = Math.max(0, durationTicks);
 			subscriptionCount = Math.max(0, subscriptionCount);
 			mountedCount = Math.max(0, mountedCount);
+			selectedNodeKeys = selectedNodeKeys == null ? List.of() : List.copyOf(selectedNodeKeys);
 			startedTick = Math.max(0L, startedTick);
 		}
 
@@ -402,9 +538,11 @@ public final class StatePanelRecordingSessionService {
 				"",
 				DEFAULT_SAMPLE_EVERY_TICKS,
 				DEFAULT_CAPACITY_PER_NODE,
+				DEFAULT_DURATION_TICKS,
 				true,
 				subscriptionCount,
 				0,
+				List.of(),
 				0L
 			);
 		}
@@ -436,6 +574,17 @@ public final class StatePanelRecordingSessionService {
 	}
 
 	/**
+	 * 自动结束录制的服务端处理结果。
+	 */
+	public record AutoStopOutcome(UUID ownerPlayerId, StopResult stopResult) {
+		public AutoStopOutcome {
+			stopResult = stopResult == null
+				? new StopResult(false, QuickLinkOperationFeedback.failure("message.redstonelink.state_panel.recording.stop.not_active"), SessionSnapshot.inactive(0), null)
+				: stopResult;
+		}
+	}
+
+	/**
 	 * 已挂载到 trace 服务的节点引用。
 	 */
 	private record MountedNode(LinkNodeType nodeType, long serial, TraceNodeKind traceKind) {
@@ -449,8 +598,10 @@ public final class StatePanelRecordingSessionService {
 		UUID ownerPlayerId,
 		StartRequest request,
 		int subscriptionCount,
+		List<String> selectedNodeKeys,
 		List<MountedNode> mountedNodes,
-		long startedTick
+		long startedTick,
+		long autoStopTick
 	) {
 		private SessionSnapshot toSnapshot() {
 			return new SessionSnapshot(
@@ -458,9 +609,11 @@ public final class StatePanelRecordingSessionService {
 				request.title(),
 				request.sampleEveryTicks(),
 				request.capacityPerNode(),
+				request.durationTicks(),
 				request.autoOpenWeb(),
 				subscriptionCount,
 				mountedNodes.size(),
+				selectedNodeKeys,
 				startedTick
 			);
 		}

@@ -51,7 +51,7 @@ public class StatePanelToolScreen extends Screen {
 	);
 
 	/** 面板主体默认宽度。 */
-	private static final int PANEL_WIDTH = 500;
+	private static final int PANEL_WIDTH = 548;
 	private static final int VISIBLE_ROWS = 8;
 	private static final int ROW_HEIGHT = 20;
 	private static final int INPUT_HEIGHT = 20;
@@ -67,7 +67,7 @@ public class StatePanelToolScreen extends Screen {
 	private static final int INPUT_TOP_OFFSET = 24;
 	private static final int HEADER_TOP_EXTRA_OFFSET = 2;
 	private static final int REMOVE_BUTTON_GAP = 6;
-	private static final int COLUMN_GAP = 6;
+	private static final int COLUMN_GAP = 4;
 	private static final int BACKGROUND_HORIZONTAL_PADDING = 14;
 	private static final int BACKGROUND_TOP_PADDING = 18;
 	private static final int BACKGROUND_BOTTOM_PADDING = 24;
@@ -81,11 +81,11 @@ public class StatePanelToolScreen extends Screen {
 	private static final int STATUS_ERROR_TEXT_COLOR = 0xFFFFC1C1;
 
 	private static final int LIST_LEFT_PADDING = 4;
-	private static final int COL_TYPE_W = 116;
-	private static final int COL_SERIAL_W = 156;
+	private static final int COL_TYPE_W = 108;
+	private static final int COL_SERIAL_W = 140;
 	private static final int MIN_COL_TYPE_W = 72;
 	private static final int MIN_COL_SERIAL_W = 96;
-	private static final int MIN_COL_STATUS_W = 64;
+	private static final int MIN_COL_STATUS_W = 96;
 
 	private final List<StatePanelNetwork.SubscriptionEntryPayload> initialSubscriptions;
 	private final List<StatePanelNetwork.StatePanelSnapshotEntry> entries = new ArrayList<>();

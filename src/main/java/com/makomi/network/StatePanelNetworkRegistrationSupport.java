@@ -1,5 +1,6 @@
 package com.makomi.network;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,6 +18,7 @@ final class StatePanelNetworkRegistrationSupport {
 	static void register() {
 		registerPayloadTypes();
 		registerServerReceivers();
+		ServerTickEvents.END_SERVER_TICK.register(StatePanelNetworkServerHandlerSupport::handleAutoStopTick);
 	}
 
 	/**

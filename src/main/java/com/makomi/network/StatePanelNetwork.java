@@ -147,7 +147,9 @@ public final class StatePanelNetwork {
 		String title,
 		int sampleEveryTicks,
 		int capacityPerNode,
-		boolean autoOpenWeb
+		int durationTicks,
+		boolean autoOpenWeb,
+		List<String> selectedNodeKeys
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StartStatePanelRecordingPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "start_state_panel_recording")
@@ -158,7 +160,9 @@ public final class StatePanelNetwork {
 				payload.title(),
 				payload.sampleEveryTicks(),
 				payload.capacityPerNode(),
-				payload.autoOpenWeb()
+				payload.durationTicks(),
+				payload.autoOpenWeb(),
+				payload.selectedNodeKeys()
 			),
 			buffer -> {
 				StatePanelNetworkPayloadSupport.DecodedRecordingStartPayload decoded = StatePanelNetworkPayloadSupport.decodeRecordingStartPayload(
@@ -168,7 +172,9 @@ public final class StatePanelNetwork {
 					decoded.title(),
 					decoded.sampleEveryTicks(),
 					decoded.capacityPerNode(),
-					decoded.autoOpenWeb()
+					decoded.durationTicks(),
+					decoded.autoOpenWeb(),
+					decoded.selectedNodeKeys()
 				);
 			}
 		);
@@ -177,6 +183,8 @@ public final class StatePanelNetwork {
 			title = title == null ? "" : title;
 			sampleEveryTicks = Math.max(0, sampleEveryTicks);
 			capacityPerNode = Math.max(0, capacityPerNode);
+			durationTicks = Math.max(0, durationTicks);
+			selectedNodeKeys = selectedNodeKeys == null ? List.of() : List.copyOf(selectedNodeKeys);
 		}
 
 		@Override
@@ -330,9 +338,11 @@ public final class StatePanelNetwork {
 		String title,
 		int sampleEveryTicks,
 		int capacityPerNode,
+		int durationTicks,
 		boolean autoOpenWeb,
 		int subscriptionCount,
 		int mountedCount,
+		List<String> selectedNodeKeys,
 		long startedTick
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StatePanelRecordingSessionPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -345,9 +355,11 @@ public final class StatePanelNetwork {
 				payload.title(),
 				payload.sampleEveryTicks(),
 				payload.capacityPerNode(),
+				payload.durationTicks(),
 				payload.autoOpenWeb(),
 				payload.subscriptionCount(),
 				payload.mountedCount(),
+				payload.selectedNodeKeys(),
 				payload.startedTick()
 			),
 			buffer -> {
@@ -359,9 +371,11 @@ public final class StatePanelNetwork {
 					decoded.title(),
 					decoded.sampleEveryTicks(),
 					decoded.capacityPerNode(),
+					decoded.durationTicks(),
 					decoded.autoOpenWeb(),
 					decoded.subscriptionCount(),
 					decoded.mountedCount(),
+					decoded.selectedNodeKeys(),
 					decoded.startedTick()
 				);
 			}
@@ -371,8 +385,10 @@ public final class StatePanelNetwork {
 			title = title == null ? "" : title;
 			sampleEveryTicks = Math.max(0, sampleEveryTicks);
 			capacityPerNode = Math.max(0, capacityPerNode);
+			durationTicks = Math.max(0, durationTicks);
 			subscriptionCount = Math.max(0, subscriptionCount);
 			mountedCount = Math.max(0, mountedCount);
+			selectedNodeKeys = selectedNodeKeys == null ? List.of() : List.copyOf(selectedNodeKeys);
 			startedTick = Math.max(0L, startedTick);
 		}
 

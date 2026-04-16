@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import RecordingViewer from './components/RecordingViewer';
+import { parseRecordingBundle } from './recordingTypes';
 
 type BridgePingPayload = {
   status: string;
@@ -48,58 +50,13 @@ type StorageEntryPayload = {
   textContent: string;
 };
 
-type RecordingManifest = {
-  recordingId: string;
-  title: string;
-  startedTick: number;
-  endedTick: number;
-  sampleEveryTicks: number;
-  nodeCount: number;
-  sampleCount: number;
-  formatVersion: number;
-};
+type AppPage = 'home' | 'recording';
 
-type RecordingNodeInfo = {
-  nodeKey: string;
-  type: string;
-  serial: number;
-  displayText: string;
-  traceKind: string;
-  allocated: boolean;
-  retired: boolean;
-  online: boolean;
-};
-
-type RecordingSample = {
-  tick: number;
-  online: boolean;
-  active: boolean;
-  inputPower: number;
-  outputPower: number;
-};
-
-type RecordingSeries = {
-  nodeKey: string;
-  samples: RecordingSample[];
-};
-
-type RecordingMarker = {
-  tick: number;
-  label: string;
-};
-
-type RecordingBundle = {
-  kind: string;
-  manifest: RecordingManifest;
-  nodes: RecordingNodeInfo[];
-  series: RecordingSeries[];
-  markers: RecordingMarker[];
-};
-
-type InitialSelection = {
+type AppLocation = {
+  page: AppPage;
   kind: string;
   fileName: string;
-} | null;
+};
 
 function formatStartedAt(epochMillis: number): string {
   if (!Number.isFinite(epochMillis) || epochMillis <= 0) {
@@ -125,56 +82,170 @@ function buildEntryKey(kind: string, fileName: string): string {
   return `${kind}:${fileName}`;
 }
 
-function readInitialSelection(): InitialSelection {
+function parseAppLocation(): AppLocation {
   if (typeof window === 'undefined') {
-    return null;
+    return {
+      page: 'home',
+      kind: '',
+      fileName: '',
+    };
   }
   const params = new URLSearchParams(window.location.search);
-  const kind = params.get('kind');
-  const fileName = params.get('name');
-  if (!kind || !fileName) {
-    return null;
-  }
+  const page = params.get('page') === 'recording' ? 'recording' : 'home';
+  const fileName = params.get('name') ?? '';
+  const kind = params.get('kind') ?? (page === 'recording' && fileName ? 'recording' : '');
   return {
+    page,
     kind,
     fileName,
   };
 }
 
-function parseRecordingBundle(entry: StorageEntryPayload | null): RecordingBundle | null {
-  if (!entry || entry.kind !== 'recording') {
-    return null;
+function buildAppHref(location: AppLocation): string {
+  const params = new URLSearchParams();
+  if (location.page !== 'home') {
+    params.set('page', location.page);
   }
-  try {
-    const parsed = JSON.parse(entry.textContent) as Partial<RecordingBundle>;
-    if (
-      parsed.kind !== 'recordingBundle' ||
-      !parsed.manifest ||
-      !Array.isArray(parsed.nodes) ||
-      !Array.isArray(parsed.series) ||
-      !Array.isArray(parsed.markers)
-    ) {
-      return null;
-    }
-    return parsed as RecordingBundle;
-  } catch {
-    return null;
+  if (location.kind) {
+    params.set('kind', location.kind);
   }
+  if (location.fileName) {
+    params.set('name', location.fileName);
+  }
+  const search = params.toString();
+  return search ? `./?${search}` : './';
 }
 
+function findStorageEntry(
+  storageIndex: StorageIndexPayload | null,
+  kind: string,
+  fileName: string,
+): StorageEntrySummary | null {
+  if (!storageIndex || !kind || !fileName) {
+    return null;
+  }
+  return (
+    storageIndex.categories
+      .flatMap((category) => category.entries)
+      .find((entry) => entry.kind === kind && entry.fileName === fileName) ?? null
+  );
+}
+
+/**
+ * 网页主入口。
+ * <p>
+ * 当前入口承载两个页面：
+ * </p>
+ * <ul>
+ * <li>首页：本地资产入口与只读预览</li>
+ * <li>recording 页：独立录制曲线查看与指定文件加载</li>
+ * </ul>
+ */
 export default function App() {
-  const initialSelection = readInitialSelection();
+  const [appLocation, setAppLocation] = useState<AppLocation>(() => parseAppLocation());
   const [bridgePayload, setBridgePayload] = useState<BridgePingPayload | null>(null);
   const [bridgeError, setBridgeError] = useState<string>('');
   const [bridgeLoading, setBridgeLoading] = useState(true);
   const [storageIndex, setStorageIndex] = useState<StorageIndexPayload | null>(null);
   const [storageError, setStorageError] = useState<string>('');
   const [storageLoading, setStorageLoading] = useState(true);
-  const [selectedEntryKey, setSelectedEntryKey] = useState<string>('');
-  const [selectedEntry, setSelectedEntry] = useState<StorageEntryPayload | null>(null);
-  const [entryError, setEntryError] = useState<string>('');
-  const [entryLoading, setEntryLoading] = useState(false);
-  const [selectedRecordingNodeKey, setSelectedRecordingNodeKey] = useState<string>('');
+  const [homeSelectedEntryKey, setHomeSelectedEntryKey] = useState<string>('');
+  const [homeSelectedEntry, setHomeSelectedEntry] = useState<StorageEntryPayload | null>(null);
+  const [homeEntryError, setHomeEntryError] = useState<string>('');
+  const [homeEntryLoading, setHomeEntryLoading] = useState(false);
+  const [recordingSelectedEntryKey, setRecordingSelectedEntryKey] = useState<string>('');
+  const [recordingSelectedEntry, setRecordingSelectedEntry] =
+    useState<StorageEntryPayload | null>(null);
+  const [recordingEntryError, setRecordingEntryError] = useState<string>('');
+  const [recordingEntryLoading, setRecordingEntryLoading] = useState(false);
+
+  const totalEntryCount =
+    storageIndex?.categories.reduce((total, category) => total + category.entryCount, 0) ?? 0;
+  const bridgeStateLabel = bridgeLoading ? '连接中' : bridgeError ? '未连接' : '已连接';
+  const bridgeStateClassName = bridgeLoading
+    ? 'status-pill is-waiting'
+    : bridgeError
+      ? 'status-pill is-error'
+      : 'status-pill is-ready';
+  const allEntries = useMemo(
+    () => storageIndex?.categories.flatMap((category) => category.entries) ?? [],
+    [storageIndex],
+  );
+  const recordingEntries = useMemo(
+    () =>
+      storageIndex?.categories.find((category) => category.kind === 'recording')?.entries ??
+      [],
+    [storageIndex],
+  );
+  const recordingBundle =
+    recordingSelectedEntry == null
+      ? null
+      : parseRecordingBundle(recordingSelectedEntry.textContent, recordingSelectedEntry.kind);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setAppLocation(parseAppLocation());
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('popstate', handlePopState);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('popstate', handlePopState);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    void loadBridgeStatus();
+    void loadStorageIndex();
+  }, []);
+
+  useEffect(() => {
+    if (!storageIndex || appLocation.page !== 'home') {
+      return;
+    }
+    const targetEntry =
+      appLocation.kind && appLocation.fileName
+        ? findStorageEntry(storageIndex, appLocation.kind, appLocation.fileName)
+        : null;
+    if (targetEntry) {
+      const targetKey = buildEntryKey(targetEntry.kind, targetEntry.fileName);
+      if (targetKey !== homeSelectedEntryKey) {
+        void loadHomeEntry(targetEntry.kind, targetEntry.fileName);
+      }
+      return;
+    }
+    if (!homeSelectedEntryKey) {
+      const firstEntry = allEntries[0];
+      if (firstEntry) {
+        void loadHomeEntry(firstEntry.kind, firstEntry.fileName);
+      }
+    }
+  }, [allEntries, appLocation, homeSelectedEntryKey, storageIndex]);
+
+  useEffect(() => {
+    if (!storageIndex || appLocation.page !== 'recording') {
+      return;
+    }
+    if (appLocation.kind === 'recording' && appLocation.fileName) {
+      const targetEntry = findStorageEntry(storageIndex, 'recording', appLocation.fileName);
+      if (!targetEntry) {
+        setRecordingSelectedEntry(null);
+        setRecordingSelectedEntryKey('');
+        setRecordingEntryError(`未找到指定 recording 文件：${appLocation.fileName}`);
+        return;
+      }
+      const targetKey = buildEntryKey(targetEntry.kind, targetEntry.fileName);
+      if (targetKey !== recordingSelectedEntryKey) {
+        void loadRecordingEntry(targetEntry.fileName);
+      }
+      return;
+    }
+    setRecordingSelectedEntry(null);
+    setRecordingSelectedEntryKey('');
+    setRecordingEntryError('');
+  }, [appLocation, recordingSelectedEntryKey, storageIndex]);
 
   async function loadBridgeStatus() {
     try {
@@ -195,30 +266,6 @@ export default function App() {
     }
   }
 
-  async function loadStorageEntry(kind: string, fileName: string) {
-    try {
-      setEntryLoading(true);
-      setSelectedEntryKey(buildEntryKey(kind, fileName));
-      const response = await fetch(
-        `./api/storage/entry?kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(fileName)}`,
-        {
-          cache: 'no-store',
-        },
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const payload = (await response.json()) as StorageEntryPayload;
-      setSelectedEntry(payload);
-      setEntryError('');
-    } catch (error) {
-      setEntryError(error instanceof Error ? error.message : 'unknown error');
-      setSelectedEntry(null);
-    } finally {
-      setEntryLoading(false);
-    }
-  }
-
   async function loadStorageIndex() {
     try {
       setStorageLoading(true);
@@ -231,37 +278,6 @@ export default function App() {
       const payload = (await response.json()) as StorageIndexPayload;
       setStorageIndex(payload);
       setStorageError('');
-
-      const hasSelectedEntry = payload.categories.some((category) =>
-        category.entries.some((entry) => buildEntryKey(entry.kind, entry.fileName) === selectedEntryKey),
-      );
-      if (selectedEntry && hasSelectedEntry) {
-        void loadStorageEntry(selectedEntry.kind, selectedEntry.fileName);
-        return;
-      }
-
-      if (initialSelection) {
-        const targetEntry = payload.categories
-          .flatMap((category) => category.entries)
-          .find(
-            (entry) =>
-              entry.kind === initialSelection.kind &&
-              entry.fileName === initialSelection.fileName,
-          );
-        if (targetEntry) {
-          void loadStorageEntry(targetEntry.kind, targetEntry.fileName);
-          return;
-        }
-      }
-
-      const firstEntry = payload.categories.flatMap((category) => category.entries)[0];
-      if (firstEntry) {
-        void loadStorageEntry(firstEntry.kind, firstEntry.fileName);
-        return;
-      }
-      setSelectedEntry(null);
-      setSelectedEntryKey('');
-      setEntryError('');
     } catch (error) {
       setStorageError(error instanceof Error ? error.message : 'unknown error');
       setStorageIndex(null);
@@ -270,50 +286,216 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    void loadBridgeStatus();
-    void loadStorageIndex();
-  }, []);
+  async function fetchStorageEntry(kind: string, fileName: string): Promise<StorageEntryPayload> {
+    const response = await fetch(
+      `./api/storage/entry?kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(fileName)}`,
+      {
+        cache: 'no-store',
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return (await response.json()) as StorageEntryPayload;
+  }
 
-  useEffect(() => {
-    const recordingBundle = parseRecordingBundle(selectedEntry);
-    if (!recordingBundle) {
-      setSelectedRecordingNodeKey('');
+  async function loadHomeEntry(kind: string, fileName: string) {
+    try {
+      setHomeEntryLoading(true);
+      setHomeEntryError('');
+      setHomeSelectedEntryKey(buildEntryKey(kind, fileName));
+      const payload = await fetchStorageEntry(kind, fileName);
+      setHomeSelectedEntry(payload);
+    } catch (error) {
+      setHomeEntryError(error instanceof Error ? error.message : 'unknown error');
+      setHomeSelectedEntry(null);
+    } finally {
+      setHomeEntryLoading(false);
+    }
+  }
+
+  async function loadRecordingEntry(fileName: string) {
+    try {
+      setRecordingEntryLoading(true);
+      setRecordingEntryError('');
+      setRecordingSelectedEntryKey(buildEntryKey('recording', fileName));
+      const payload = await fetchStorageEntry('recording', fileName);
+      setRecordingSelectedEntry(payload);
+    } catch (error) {
+      setRecordingEntryError(error instanceof Error ? error.message : 'unknown error');
+      setRecordingSelectedEntry(null);
+    } finally {
+      setRecordingEntryLoading(false);
+    }
+  }
+
+  function syncAppLocation(nextLocation: AppLocation, mode: 'push' | 'replace') {
+    if (typeof window !== 'undefined') {
+      const nextHref = buildAppHref(nextLocation);
+      if (mode === 'push') {
+        window.history.pushState({}, '', nextHref);
+      } else {
+        window.history.replaceState({}, '', nextHref);
+      }
+    }
+    setAppLocation(nextLocation);
+  }
+
+  function handleHomeEntryClick(entry: StorageEntrySummary) {
+    if (entry.kind === 'recording') {
+      syncAppLocation(
+        {
+          page: 'recording',
+          kind: 'recording',
+          fileName: entry.fileName,
+        },
+        'push',
+      );
       return;
     }
-    if (
-      recordingBundle.nodes.some((node) => node.nodeKey === selectedRecordingNodeKey)
-    ) {
-      return;
-    }
-    setSelectedRecordingNodeKey(recordingBundle.nodes[0]?.nodeKey ?? '');
-  }, [selectedEntry]);
+    syncAppLocation(
+      {
+        page: 'home',
+        kind: entry.kind,
+        fileName: entry.fileName,
+      },
+      'replace',
+    );
+  }
 
-  const bridgeStateLabel = bridgeLoading ? '连接中' : bridgeError ? '未连接' : '已连接';
-  const bridgeStateClassName = bridgeLoading
-    ? 'status-pill is-waiting'
-    : bridgeError
-      ? 'status-pill is-error'
-      : 'status-pill is-ready';
-  const totalEntryCount =
-    storageIndex?.categories.reduce((total, category) => total + category.entryCount, 0) ?? 0;
+  function handleRecordingFileChange(fileName: string) {
+    syncAppLocation(
+      {
+        page: 'recording',
+        kind: fileName ? 'recording' : '',
+        fileName,
+      },
+      'replace',
+    );
+  }
 
-  const recordingBundle = parseRecordingBundle(selectedEntry);
-  const selectedRecordingNode = recordingBundle?.nodes.find(
-    (node) => node.nodeKey === selectedRecordingNodeKey,
-  );
-  const selectedRecordingSeries =
-    recordingBundle?.series.find((series) => series.nodeKey === selectedRecordingNodeKey) ?? null;
+  return appLocation.page === 'recording' ? (
+    <main className="app-shell recording-page-shell">
+      <section className="recording-page-header info-card">
+        <div className="recording-page-header-row">
+          <button
+            type="button"
+            className="action-button"
+            onClick={() =>
+              syncAppLocation(
+                {
+                  page: 'home',
+                  kind: '',
+                  fileName: '',
+                },
+                'push',
+              )
+            }
+          >
+            返回首页
+          </button>
+          <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
+        </div>
+        <div className="recording-page-title-wrap">
+          <p className="eyebrow">Dedicated Recording Viewer</p>
+          <h1>录制曲线查看</h1>
+          <p className="hero-text">
+            当前页面只负责 recording bundle 主查看。可直接加载指定 recording 文件，并使用滚轮、拖拽和快捷键操作时间窗。
+          </p>
+        </div>
+        <div className="recording-file-toolbar">
+          <label className="recording-file-field">
+            <span>加载 recording 文件</span>
+            <select
+              className="recording-file-select"
+              value={appLocation.page === 'recording' ? appLocation.fileName : ''}
+              onChange={(event) => handleRecordingFileChange(event.target.value)}
+            >
+              <option value="">请选择本地 recording 文件</option>
+              {recordingEntries.map((entry) => (
+                <option key={buildEntryKey(entry.kind, entry.fileName)} value={entry.fileName}>
+                  {entry.fileName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="action-button" onClick={() => void loadStorageIndex()}>
+            刷新索引
+          </button>
+        </div>
+        {recordingSelectedEntry ? (
+          <dl className="recording-file-meta">
+            <div>
+              <dt>File</dt>
+              <dd>{recordingSelectedEntry.fileName}</dd>
+            </div>
+            <div>
+              <dt>Relative Path</dt>
+              <dd>{recordingSelectedEntry.relativePath}</dd>
+            </div>
+            <div>
+              <dt>File Size</dt>
+              <dd>{formatBytes(recordingSelectedEntry.sizeBytes)}</dd>
+            </div>
+            <div>
+              <dt>Last Modified</dt>
+              <dd>{formatStartedAt(recordingSelectedEntry.lastModifiedEpochMillis)}</dd>
+            </div>
+          </dl>
+        ) : null}
+        {storageError ? <p className="error-text">无法读取 `./api/storage/index`：{storageError}</p> : null}
+        {bridgeError ? <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p> : null}
+      </section>
 
-  return (
+      <section className="recording-page-main">
+        {storageLoading ? <p className="empty-state">正在扫描本地 recording 资产...</p> : null}
+        {!storageLoading && recordingEntries.length === 0 ? (
+          <article className="info-card recording-empty-card">
+            <p className="empty-state">当前本地资产仓还没有 recording 文件。</p>
+          </article>
+        ) : null}
+        {!storageLoading &&
+        recordingEntries.length > 0 &&
+        !appLocation.fileName &&
+        !recordingEntryLoading ? (
+          <article className="info-card recording-empty-card">
+            <p className="empty-state">请先在上方选择一个 recording 文件再开始查看曲线。</p>
+          </article>
+        ) : null}
+        {recordingEntryLoading ? (
+          <article className="info-card recording-empty-card">
+            <p className="empty-state">正在读取 recording 文件...</p>
+          </article>
+        ) : null}
+        {recordingEntryError ? (
+          <article className="info-card recording-empty-card">
+            <p className="error-text">无法读取当前 recording：{recordingEntryError}</p>
+          </article>
+        ) : null}
+        {recordingSelectedEntry && !recordingBundle && !recordingEntryError ? (
+          <article className="info-card recording-empty-card">
+            <p className="error-text">当前文件不是合法的 recording bundle。</p>
+          </article>
+        ) : null}
+        {recordingBundle ? (
+          <article className="info-card recording-viewer-card">
+            <RecordingViewer recordingBundle={recordingBundle} />
+            <details className="raw-preview-panel">
+              <summary>原始 JSON</summary>
+              <pre className="code-block">{recordingSelectedEntry?.textContent}</pre>
+            </details>
+          </article>
+        ) : null}
+      </section>
+    </main>
+  ) : (
     <main className="app-shell">
       <section className="hero-panel">
         <div className="hero-copy">
           <p className="eyebrow">Embedded Offline Tooling</p>
           <h1>RedstoneLink Web Tools</h1>
           <p className="hero-text">
-            当前页面处于网页前端主处理架构的 <strong>P2</strong>。
-            这里已经能读取本地 recording bundle，并支持从游戏内录制流程直接跳转到对应结果页。
+            当前首页保留本地资产入口与只读预览；recording 资产会直接切到独立曲线页，避免把曲线查看挤在小面板里。
           </p>
         </div>
         <div className="hero-orbit" aria-hidden="true">
@@ -389,14 +571,14 @@ export default function App() {
 
         <article className="info-card">
           <header className="card-header">
-            <span className="section-tag">Next</span>
-            <h2>P2 当前边界</h2>
+            <span className="section-tag">Recording</span>
+            <h2>独立曲线页</h2>
           </header>
           <ul className="feature-list">
-            <li>已打通状态面板录制 GUI 到本地 recording bundle 的结果导出链路</li>
-            <li>网页端当前聚焦录制结果查看，不包含 P3 拓扑图分析器</li>
-            <li>录制结果支持通过 `kind=recording&name=...` 直接定位</li>
-            <li>P3 将接 serial 模式只读网络分析器</li>
+            <li>recording 资产点击后会直接切到独立曲线查看页</li>
+            <li>曲线页内部可主动选择并加载指定 recording 文件</li>
+            <li>时间窗操作改为滚轮、拖拽、双击和快捷键</li>
+            <li>首页继续保留为离线资产入口与只读预览</li>
           </ul>
         </article>
       </section>
@@ -428,13 +610,13 @@ export default function App() {
                 <ul className="asset-list">
                   {category.entries.map((entry) => {
                     const isSelected =
-                      selectedEntryKey === buildEntryKey(entry.kind, entry.fileName);
+                      homeSelectedEntryKey === buildEntryKey(entry.kind, entry.fileName);
                     return (
                       <li key={buildEntryKey(entry.kind, entry.fileName)}>
                         <button
                           type="button"
                           className={`asset-button${isSelected ? ' is-selected' : ''}`}
-                          onClick={() => void loadStorageEntry(entry.kind, entry.fileName)}
+                          onClick={() => handleHomeEntryClick(entry)}
                         >
                           <span className="asset-name">{entry.fileName}</span>
                           <span className="asset-meta">
@@ -453,182 +635,52 @@ export default function App() {
 
         <article className="info-card preview-panel">
           <header className="card-header">
-            <span className="section-tag">
-              {recordingBundle ? 'Recording Viewer' : 'Readonly Preview'}
-            </span>
-            <h2>{recordingBundle ? '录制结果查看' : '资产内容预览'}</h2>
+            <span className="section-tag">Readonly Preview</span>
+            <h2>资产内容预览</h2>
           </header>
-          {entryLoading ? <p className="empty-state">正在读取资产内容...</p> : null}
-          {entryError ? <p className="error-text">无法读取当前资产：{entryError}</p> : null}
-          {!entryLoading && !entryError && !selectedEntry ? (
+          {homeEntryLoading ? <p className="empty-state">正在读取资产内容...</p> : null}
+          {homeEntryError ? <p className="error-text">无法读取当前资产：{homeEntryError}</p> : null}
+          {!homeEntryLoading && !homeEntryError && !homeSelectedEntry ? (
             <p className="empty-state">请从左侧选择一个资产条目。</p>
           ) : null}
-          {selectedEntry ? (
+          {homeSelectedEntry ? (
             <>
               <dl className="preview-meta">
                 <div>
                   <dt>Kind</dt>
-                  <dd>{selectedEntry.kind}</dd>
+                  <dd>{homeSelectedEntry.kind}</dd>
                 </div>
                 <div>
                   <dt>Label</dt>
-                  <dd>{selectedEntry.label}</dd>
+                  <dd>{homeSelectedEntry.label}</dd>
                 </div>
                 <div>
                   <dt>Relative Path</dt>
-                  <dd>{selectedEntry.relativePath}</dd>
+                  <dd>{homeSelectedEntry.relativePath}</dd>
                 </div>
                 <div>
                   <dt>Encoding</dt>
-                  <dd>{selectedEntry.contentEncoding}</dd>
+                  <dd>{homeSelectedEntry.contentEncoding}</dd>
                 </div>
                 <div>
                   <dt>File Size</dt>
-                  <dd>{formatBytes(selectedEntry.sizeBytes)}</dd>
+                  <dd>{formatBytes(homeSelectedEntry.sizeBytes)}</dd>
                 </div>
                 <div>
                   <dt>Last Modified</dt>
-                  <dd>{formatStartedAt(selectedEntry.lastModifiedEpochMillis)}</dd>
+                  <dd>{formatStartedAt(homeSelectedEntry.lastModifiedEpochMillis)}</dd>
                 </div>
               </dl>
 
-              {recordingBundle ? (
-                <section className="recording-view">
-                  <div className="recording-summary-grid">
-                    <article className="recording-summary-card">
-                      <span className="section-tag">Manifest</span>
-                      <h3>{recordingBundle.manifest.title}</h3>
-                      <dl className="recording-meta-grid">
-                        <div>
-                          <dt>Format</dt>
-                          <dd>{recordingBundle.manifest.formatVersion}</dd>
-                        </div>
-                        <div>
-                          <dt>Sample Every</dt>
-                          <dd>{recordingBundle.manifest.sampleEveryTicks} ticks</dd>
-                        </div>
-                        <div>
-                          <dt>Started</dt>
-                          <dd>{recordingBundle.manifest.startedTick}</dd>
-                        </div>
-                        <div>
-                          <dt>Ended</dt>
-                          <dd>{recordingBundle.manifest.endedTick}</dd>
-                        </div>
-                        <div>
-                          <dt>Nodes</dt>
-                          <dd>{recordingBundle.manifest.nodeCount}</dd>
-                        </div>
-                        <div>
-                          <dt>Samples</dt>
-                          <dd>{recordingBundle.manifest.sampleCount}</dd>
-                        </div>
-                      </dl>
-                    </article>
-
-                    <article className="recording-summary-card">
-                      <span className="section-tag">Markers</span>
-                      <h3>录制标记</h3>
-                      {recordingBundle.markers.length === 0 ? (
-                        <p className="empty-state">当前没有额外标记。</p>
-                      ) : (
-                        <ul className="marker-list">
-                          {recordingBundle.markers.map((marker) => (
-                            <li key={`${marker.tick}-${marker.label}`}>
-                              <span className="marker-tick">Tick {marker.tick}</span>
-                              <span className="marker-label">{marker.label}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </article>
-                  </div>
-
-                  <section className="recording-node-section">
-                    <div className="recording-node-list">
-                      <div className="recording-section-header">
-                        <span className="section-tag">Nodes</span>
-                        <h3>录制节点</h3>
-                      </div>
-                      {recordingBundle.nodes.map((node) => {
-                        const isSelected = node.nodeKey === selectedRecordingNodeKey;
-                        return (
-                          <button
-                            key={node.nodeKey}
-                            type="button"
-                            className={`recording-node-button${isSelected ? ' is-selected' : ''}`}
-                            onClick={() => setSelectedRecordingNodeKey(node.nodeKey)}
-                          >
-                            <span className="recording-node-title">{node.displayText}</span>
-                            <span className="recording-node-meta">
-                              {node.type} #{node.serial} · {node.traceKind}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="recording-series-panel">
-                      <div className="recording-section-header">
-                        <span className="section-tag">Series</span>
-                        <h3>{selectedRecordingNode?.displayText ?? '节点样本'}</h3>
-                      </div>
-                      {selectedRecordingNode ? (
-                        <dl className="recording-meta-grid">
-                          <div>
-                            <dt>Node Key</dt>
-                            <dd>{selectedRecordingNode.nodeKey}</dd>
-                          </div>
-                          <div>
-                            <dt>Online</dt>
-                            <dd>{selectedRecordingNode.online ? 'yes' : 'no'}</dd>
-                          </div>
-                          <div>
-                            <dt>Allocated</dt>
-                            <dd>{selectedRecordingNode.allocated ? 'yes' : 'no'}</dd>
-                          </div>
-                          <div>
-                            <dt>Retired</dt>
-                            <dd>{selectedRecordingNode.retired ? 'yes' : 'no'}</dd>
-                          </div>
-                        </dl>
-                      ) : null}
-                      {!selectedRecordingSeries ? (
-                        <p className="empty-state">当前节点暂无样本。</p>
-                      ) : (
-                        <div className="sample-table-wrap">
-                          <table className="sample-table">
-                            <thead>
-                              <tr>
-                                <th>Tick</th>
-                                <th>Online</th>
-                                <th>Active</th>
-                                <th>Input</th>
-                                <th>Output</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedRecordingSeries.samples.map((sample) => (
-                                <tr key={`${selectedRecordingSeries.nodeKey}-${sample.tick}`}>
-                                  <td>{sample.tick}</td>
-                                  <td>{sample.online ? 'yes' : 'no'}</td>
-                                  <td>{sample.active ? 'yes' : 'no'}</td>
-                                  <td>{sample.inputPower}</td>
-                                  <td>{sample.outputPower}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                </section>
+              {homeSelectedEntry.kind === 'recording' ? (
+                <p className="empty-state">
+                  recording 资产已迁移到独立曲线页查看。请从左侧再次点击对应 recording 文件进入专用页面。
+                </p>
               ) : null}
 
-              <details className="raw-preview-panel" open={!recordingBundle}>
-                <summary>{recordingBundle ? '原始 JSON' : '资产文本内容'}</summary>
-                <pre className="code-block">{selectedEntry.textContent}</pre>
+              <details className="raw-preview-panel" open={homeSelectedEntry.kind !== 'recording'}>
+                <summary>资产文本内容</summary>
+                <pre className="code-block">{homeSelectedEntry.textContent}</pre>
               </details>
             </>
           ) : null}

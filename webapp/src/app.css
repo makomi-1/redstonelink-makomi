@@ -1,4 +1,5 @@
 :root {
+  --recording-node-list-width: 192px;
   color: #f9f1eb;
   background:
     radial-gradient(circle at top, rgba(255, 176, 122, 0.18), transparent 34%),
@@ -474,7 +475,7 @@ body {
 
 .recording-node-section {
   display: grid;
-  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
+  grid-template-columns: var(--recording-node-list-width) minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -523,6 +524,12 @@ body {
   background: rgba(255, 147, 104, 0.08);
 }
 
+.recording-node-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.44;
+  transform: none;
+}
+
 .recording-node-button.is-selected {
   border-color: rgba(255, 189, 150, 0.54);
   background: rgba(255, 147, 104, 0.14);
@@ -537,10 +544,282 @@ body {
   font-size: 0.88rem;
 }
 
-.sample-table-wrap {
-  overflow: auto;
+.recording-selection-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.recording-selection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 214, 191, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.recording-selection-name {
+  color: #fff2e8;
+  font-size: 0.9rem;
+}
+
+.recording-legend-stroke {
+  display: inline-block;
+  width: 22px;
+  border-top: 3px solid #fff;
+}
+
+.recording-legend-stroke.is-dashed {
+  border-top-style: dashed;
+}
+
+.recording-page-shell {
+  padding-top: 24px;
+}
+
+.recording-page-header {
+  max-width: 1380px;
+  margin: 0 auto 18px;
+}
+
+.recording-page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recording-page-title-wrap {
+  margin-top: 18px;
+}
+
+.recording-page-title-wrap h1 {
+  margin: 14px 0 0;
+  font-size: clamp(2.2rem, 3vw, 3.6rem);
+}
+
+.recording-file-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.recording-file-field {
+  display: grid;
+  gap: 8px;
+  min-width: min(100%, 420px);
+}
+
+.recording-file-field span {
+  color: #c7af9c;
+  font-size: 0.84rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.recording-file-select {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 214, 191, 0.16);
+  border-radius: 14px;
+  background: rgba(8, 16, 24, 0.62);
+  color: #fff4eb;
+  font: inherit;
+}
+
+.recording-file-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin: 18px 0 0;
+}
+
+.recording-file-meta div {
+  min-width: 0;
+}
+
+.recording-file-meta dt {
+  margin-bottom: 6px;
+  color: #c7af9c;
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.recording-file-meta dd {
+  margin: 0;
+  color: #fff2e8;
+  word-break: break-all;
+}
+
+.recording-page-main {
+  position: relative;
+  z-index: 1;
+  max-width: 1380px;
+  margin: 0 auto;
+}
+
+.recording-empty-card,
+.recording-viewer-card {
+  min-height: 220px;
+}
+
+.recording-toolbar-block {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.recording-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-toolbar-label {
+  min-width: 68px;
+  color: #c7af9c;
+  font-size: 0.84rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metric-chip {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 214, 191, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #f7eadf;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.metric-chip:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 214, 191, 0.3);
+  background: rgba(255, 147, 104, 0.08);
+}
+
+.metric-chip.is-active {
+  border-color: rgba(255, 189, 150, 0.54);
+  background: rgba(255, 147, 104, 0.16);
+  color: #fff4eb;
+}
+
+.metric-chip:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
+.chart-window-hint {
+  margin: 14px 0 0;
+  color: #d8c3b4;
+  font-size: 0.9rem;
+}
+
+.chart-interaction-hint {
+  margin: 14px 0 0;
+  color: #c7af9c;
+  font-size: 0.92rem;
+}
+
+.recording-chart-card {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(255, 214, 191, 0.12);
+  border-radius: 16px;
+  background: rgba(8, 16, 24, 0.46);
+}
+
+.recording-chart-interaction-shell {
+  position: relative;
+  width: 100%;
+  min-height: 420px;
+  outline: none;
+}
+
+.recording-chart-interaction-shell:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 189, 150, 0.42);
+  border-radius: 12px;
+}
+
+.recording-chart-host {
+  width: 100%;
+  min-height: 420px;
+}
+
+.recording-chart-host.is-empty {
+  visibility: hidden;
+}
+
+.recording-chart-host .u-wrap {
+  font-family: "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+}
+
+.recording-chart-host .u-over,
+.recording-chart-host .u-under {
+  border-radius: 12px;
+}
+
+.recording-chart-empty-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.recording-chart-empty-overlay .empty-state {
+  margin: 0;
+}
+
+.sample-table-panel {
+  margin-top: 16px;
   border-radius: 16px;
   border: 1px solid rgba(255, 214, 191, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sample-table-panel summary {
+  padding: 14px 16px;
+  cursor: pointer;
+  color: #ffcca6;
+  font-weight: 700;
+}
+
+.sample-table-panel[open] .sample-table-wrap {
+  border-top: 1px solid rgba(255, 214, 191, 0.08);
+}
+
+.sample-table-wrap {
+  overflow: auto;
+  border-radius: 0 0 16px 16px;
+}
+
+.sample-table-panel .sample-table {
+  margin-top: 0;
 }
 
 .sample-table {
@@ -622,6 +901,10 @@ body {
   .recording-node-section {
     grid-template-columns: 1fr;
   }
+
+  .recording-file-meta {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -645,5 +928,14 @@ body {
 
   .recording-meta-grid {
     grid-template-columns: 1fr;
+  }
+
+  .recording-file-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .recording-page-header-row,
+  .recording-file-toolbar {
+    align-items: stretch;
   }
 }

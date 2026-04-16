@@ -140,7 +140,9 @@ class StatePanelNetworkPayloadTest {
 			"test-recording",
 			2,
 			128,
-			true
+			40,
+			true,
+			List.of("triggerSource:12", "core:18")
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -150,7 +152,9 @@ class StatePanelNetworkPayloadTest {
 		assertEquals(original.title(), decoded.title());
 		assertEquals(original.sampleEveryTicks(), decoded.sampleEveryTicks());
 		assertEquals(original.capacityPerNode(), decoded.capacityPerNode());
+		assertEquals(original.durationTicks(), decoded.durationTicks());
 		assertEquals(original.autoOpenWeb(), decoded.autoOpenWeb());
+		assertEquals(original.selectedNodeKeys(), decoded.selectedNodeKeys());
 	}
 
 	/**
@@ -163,9 +167,11 @@ class StatePanelNetworkPayloadTest {
 			"test-recording",
 			3,
 			256,
+			60,
 			false,
 			12,
 			7,
+			List.of("triggerSource:12", "core:18"),
 			1024L
 		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -177,9 +183,11 @@ class StatePanelNetworkPayloadTest {
 		assertEquals(original.title(), decoded.title());
 		assertEquals(original.sampleEveryTicks(), decoded.sampleEveryTicks());
 		assertEquals(original.capacityPerNode(), decoded.capacityPerNode());
+		assertEquals(original.durationTicks(), decoded.durationTicks());
 		assertEquals(original.autoOpenWeb(), decoded.autoOpenWeb());
 		assertEquals(original.subscriptionCount(), decoded.subscriptionCount());
 		assertEquals(original.mountedCount(), decoded.mountedCount());
+		assertEquals(original.selectedNodeKeys(), decoded.selectedNodeKeys());
 		assertEquals(original.startedTick(), decoded.startedTick());
 	}
 
