@@ -7,6 +7,7 @@ import ReactFlow, {
   type Edge,
   type Node,
   type ReactFlowInstance,
+  type XYPosition,
   useEdgesState,
   useNodesState,
 } from 'reactflow';
@@ -29,16 +30,75 @@ import {
   serializeGraphDraft,
 } from '../graphTypes';
 
-const TRIGGER_SOURCE_X = 80;
-const CORE_X = 430;
-const LANE_START_Y = 64;
-const LANE_GAP_Y = 92;
-const NODE_CENTER_OFFSET_X = 116;
-const NODE_CENTER_OFFSET_Y = 30;
+const GRAPH_NODE_WIDTH = 232;
+const GRAPH_NODE_HEIGHT = 60;
+const AUTO_LAYOUT_START_X = 72;
+const AUTO_LAYOUT_START_Y = 64;
+const COMPONENT_LAYER_GAP_X = 336;
+const COMPONENT_LANE_COLUMN_GAP_X = 48;
+const COMPONENT_NODE_GAP_Y = 92;
+const COMPONENT_BLOCK_GAP_X = 132;
+const COMPONENT_BLOCK_GAP_Y = 148;
+const AUTO_LAYOUT_MAX_ROW_WIDTH = 1960;
+const COMPONENT_LANE_MIN_ROW_COUNT = 3;
+const COMPONENT_LANE_MAX_ROW_COUNT = 7;
+const SHARED_CORE_GROUP_MIN_SOURCE_COUNT = 1;
+const SHARED_CORE_GROUP_MIN_CORE_COUNT = 2;
+const NODE_CENTER_OFFSET_X = GRAPH_NODE_WIDTH / 2;
+const NODE_CENTER_OFFSET_Y = GRAPH_NODE_HEIGHT / 2;
 
-type GraphFlowNode = Node<{ label: JSX.Element }>;
+type GraphFlowNode = Node<{ label: JSX.Element; canvasNodeKey: string }>;
 type SavePhase = 'idle' | 'saving' | 'conflict' | 'error';
 type GraphEditMode = 'view' | 'add' | 'remove' | 'replace';
+type GraphSearchTypeFilter = 'all' | GraphNodeTypeToken;
+type DraftEdgeDiffState = 'base' | 'added' | 'removed';
+type GraphCanvasActualNode = {
+  kind: 'actual';
+  nodeKey: string;
+  graphNode: GraphNodeInfo;
+};
+type GraphCanvasAggregateNode = {
+  kind: 'aggregate';
+  nodeKey: string;
+  signatureKey: string;
+  sourceNodeKeys: string[];
+  sourceSerials: number[];
+  coreNodeKeys: string[];
+  coreSerials: number[];
+  coreCount: number;
+  anchorCoreSerial: number;
+  expanded: boolean;
+};
+type GraphCanvasNodeInfo = GraphCanvasActualNode | GraphCanvasAggregateNode;
+type GraphCanvasEdgeInfo = {
+  edgeKey: string;
+  sourceNodeKey: string;
+  targetNodeKey: string;
+  kind: 'actual' | 'aggregate';
+  diffState: DraftEdgeDiffState;
+  label: string;
+};
+type GraphLayoutComponent = {
+  width: number;
+  height: number;
+  positions: Map<string, XYPosition>;
+  anchorNode: GraphCanvasNodeInfo | null;
+};
+type GraphCanvasView = {
+  canvasNodes: GraphCanvasNodeInfo[];
+  canvasEdges: GraphCanvasEdgeInfo[];
+  layoutEdges: GraphCanvasEdgeInfo[];
+  hiddenActualEdgeKeys: Set<string>;
+  visibleActualNodeKeys: Set<string>;
+  isolatedTriggerSourceNodes: GraphNodeInfo[];
+  isolatedCoreNodes: GraphNodeInfo[];
+  aggregateNodes: GraphCanvasAggregateNode[];
+};
+type GraphDraftDiff = {
+  changedNodeKeys: Set<string>;
+  addedEdgeKeys: Set<string>;
+  removedEdges: GraphSnapshotBundle['edges'];
+};
 
 type GraphViewerProps = {
   graphBundle: GraphSnapshotBundle;
@@ -58,13 +118,45 @@ function buildNodeLabel(node: GraphNodeInfo): JSX.Element {
   );
 }
 
-function matchesSearch(node: GraphNodeInfo, query: string): boolean {
-  if (!query) {
-    return true;
+function buildAggregateNodeLabel(aggregateNode: GraphCanvasAggregateNode): JSX.Element {
+  return (
+    <div className="graph-node-label">
+      <span className="graph-node-eyebrow">aggregate</span>
+      <strong className="graph-node-title">
+        {aggregateNode.expanded
+          ? `${aggregateNode.coreCount} grouped cores`
+          : `+${aggregateNode.coreCount} grouped cores`}
+      </strong>
+      <span className="graph-node-meta">
+        {aggregateNode.sourceSerials.length} triggerSources ·{' '}
+        {aggregateNode.expanded ? '已展开，仅展开节点' : '点击展开节点'}
+      </span>
+    </div>
+  );
+}
+
+function formatSearchTypeLabel(searchTypeFilter: GraphSearchTypeFilter): string {
+  if (searchTypeFilter === 'all') {
+    return '全部';
   }
+  return searchTypeFilter;
+}
+
+function buildSearchResultLabel(node: GraphNodeInfo): string {
+  return `${node.type} #${node.serial} · ${node.displayText}`;
+}
+
+function matchesSearchType(
+  node: GraphNodeInfo,
+  searchTypeFilter: GraphSearchTypeFilter,
+): boolean {
+  return searchTypeFilter === 'all' || node.type === searchTypeFilter;
+}
+
+function matchesSearch(node: GraphNodeInfo, query: string): boolean {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
-    return true;
+    return false;
   }
   return [
     node.nodeKey,
@@ -84,99 +176,801 @@ function buildNodeStyle(
   matchedNodeKeys: Set<string>,
   selectedEditSourceNodeKeys: Set<string>,
   selectedEditTargetNodeKeys: Set<string>,
+  draftChangedNodeKeys: Set<string>,
 ): React.CSSProperties {
   const selected = selectedNodeKey === node.nodeKey;
   const matched = matchedNodeKeys.has(node.nodeKey);
   const dimmed = hasSearch && !matched;
   const selectedAsSource = selectedEditSourceNodeKeys.has(node.nodeKey);
   const selectedAsTarget = selectedEditTargetNodeKeys.has(node.nodeKey);
+  const draftChanged = draftChangedNodeKeys.has(node.nodeKey);
   const accent = node.type === 'triggerSource' ? '#ffb894' : '#8cd5ff';
   const baseBackground =
     node.type === 'triggerSource'
       ? 'rgba(255, 165, 122, 0.12)'
       : 'rgba(95, 196, 255, 0.12)';
   const selectionAccent = selectedAsSource
-    ? '#ff8a4f'
-    : selectedAsTarget
-      ? '#5dd4ff'
-      : accent;
+      ? '#ff8a4f'
+      : selectedAsTarget
+        ? '#5dd4ff'
+        : accent;
+  const borderColor =
+    selected || selectedAsSource || selectedAsTarget
+      ? selectionAccent
+      : draftChanged
+        ? '#8ef0b8'
+        : 'rgba(255, 214, 191, 0.22)';
   return {
-    minWidth: 232,
+    minWidth: GRAPH_NODE_WIDTH,
     borderRadius: 16,
-    border: `1px solid ${selected || selectedAsSource || selectedAsTarget ? selectionAccent : 'rgba(255, 214, 191, 0.22)'}`,
-    background: baseBackground,
+    border: `1px solid ${borderColor}`,
+    background: draftChanged
+      ? `linear-gradient(180deg, rgba(142, 240, 184, 0.16), rgba(142, 240, 184, 0.07)), ${baseBackground}`
+      : baseBackground,
     boxShadow:
       selected || selectedAsSource || selectedAsTarget
         ? `0 0 0 1px ${selectionAccent} inset, 0 12px 24px rgba(6, 10, 18, 0.24)`
+        : draftChanged
+          ? '0 0 0 1px rgba(142, 240, 184, 0.4) inset'
         : 'none',
     color: '#fff4eb',
     opacity: dimmed ? 0.34 : 1,
   };
 }
 
-function buildEdgeStyle(hasSearch: boolean, matchedNodeKeys: Set<string>, edge: Edge): Edge {
+function buildAggregateNodeStyle(
+  aggregateNode: GraphCanvasAggregateNode,
+  selectedNodeKey: string,
+  hasSearch: boolean,
+  matchedNodeKeys: Set<string>,
+): React.CSSProperties {
+  const selected = selectedNodeKey === aggregateNode.nodeKey;
+  const expanded = aggregateNode.expanded;
+  const matched =
+    aggregateNode.sourceNodeKeys.some((nodeKey) => matchedNodeKeys.has(nodeKey)) ||
+    aggregateNode.coreNodeKeys.some((nodeKey) => matchedNodeKeys.has(nodeKey));
+  const dimmed = hasSearch && !matched;
+  const borderColor =
+    selected || expanded ? '#8ad8ff' : 'rgba(140, 213, 255, 0.42)';
+  return {
+    minWidth: GRAPH_NODE_WIDTH,
+    borderRadius: 16,
+    border: `1px ${expanded ? 'solid' : 'dashed'} ${borderColor}`,
+    background:
+      'linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08))',
+    boxShadow: selected || expanded
+      ? '0 0 0 1px rgba(140, 213, 255, 0.5) inset, 0 12px 24px rgba(6, 10, 18, 0.22)'
+      : '0 0 0 1px rgba(140, 213, 255, 0.16) inset',
+    color: '#effbff',
+    opacity: dimmed ? 0.3 : 1,
+  };
+}
+
+function buildEdgeStyle(
+  hasSearch: boolean,
+  matchedNodeKeys: Set<string>,
+  edge: Edge,
+  diffState: DraftEdgeDiffState,
+): Edge {
   const matched = matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
+  const edgeOpacity =
+    hasSearch && !matched
+      ? 0.2
+      : diffState === 'removed'
+        ? 0.72
+        : diffState === 'added'
+          ? 0.96
+          : 0.88;
   return {
     ...edge,
     style: {
-      stroke: '#ffc296',
-      strokeWidth: 2.2,
-      opacity: hasSearch && !matched ? 0.2 : 0.88,
+      stroke: diffState === 'base' ? '#ffc296' : '#8ef0b8',
+      strokeWidth: diffState === 'base' ? 2.2 : 2.6,
+      strokeDasharray: diffState === 'removed' ? '8 5' : undefined,
+      opacity: edgeOpacity,
     },
   };
 }
 
-function buildAutoLayoutNodes(
-  nodes: GraphNodeInfo[],
+function buildAggregateEdgeStyle(
+  hasSearch: boolean,
+  matchedNodeKeys: Set<string>,
+  edge: Edge,
+): Edge {
+  const matched = matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
+  return {
+    ...edge,
+    style: {
+      stroke: '#8ad8ff',
+      strokeWidth: 2.1,
+      strokeDasharray: '10 5',
+      opacity: hasSearch && !matched ? 0.22 : 0.76,
+    },
+  };
+}
+
+function compareNodeType(left: GraphNodeTypeToken, right: GraphNodeTypeToken): number {
+  if (left === right) {
+    return 0;
+  }
+  return left === 'triggerSource' ? -1 : 1;
+}
+
+function toggleStringSelection(currentValues: string[], targetValue: string): string[] {
+  if (currentValues.includes(targetValue)) {
+    return currentValues.filter((value) => value !== targetValue);
+  }
+  return [...currentValues, targetValue].sort((left, right) => left.localeCompare(right));
+}
+
+function compareGraphNodeIdentity(left: GraphNodeInfo, right: GraphNodeInfo): number {
+  if (left.serial !== right.serial) {
+    return left.serial - right.serial;
+  }
+  const typeOrder = compareNodeType(left.type, right.type);
+  if (typeOrder !== 0) {
+    return typeOrder;
+  }
+  return left.nodeKey.localeCompare(right.nodeKey);
+}
+
+function buildAggregateNodeKey(signatureKey: string): string {
+  return `aggregate:${signatureKey}`;
+}
+
+function resolveCanvasNodeLaneType(node: GraphCanvasNodeInfo): GraphNodeTypeToken {
+  return node.kind === 'actual' ? node.graphNode.type : 'core';
+}
+
+function resolveCanvasNodeSortSerial(node: GraphCanvasNodeInfo): number {
+  if (node.kind === 'actual') {
+    return node.graphNode.serial;
+  }
+  return node.anchorCoreSerial;
+}
+
+function compareCanvasNodeIdentity(left: GraphCanvasNodeInfo, right: GraphCanvasNodeInfo): number {
+  const serialOrder = resolveCanvasNodeSortSerial(left) - resolveCanvasNodeSortSerial(right);
+  if (serialOrder !== 0) {
+    return serialOrder;
+  }
+  const laneOrder = compareNodeType(resolveCanvasNodeLaneType(left), resolveCanvasNodeLaneType(right));
+  if (laneOrder !== 0) {
+    return laneOrder;
+  }
+  if (left.kind !== right.kind) {
+    return left.kind === 'aggregate' ? -1 : 1;
+  }
+  return left.nodeKey.localeCompare(right.nodeKey);
+}
+
+function buildEdgeCountByNodeKey(graphBundle: GraphSnapshotBundle): Map<string, number> {
+  const edgeCountByNodeKey = new Map<string, number>(
+    graphBundle.nodes.map((node) => [node.nodeKey, 0]),
+  );
+  graphBundle.edges.forEach((edge) => {
+    edgeCountByNodeKey.set(edge.sourceNodeKey, (edgeCountByNodeKey.get(edge.sourceNodeKey) ?? 0) + 1);
+    edgeCountByNodeKey.set(edge.targetNodeKey, (edgeCountByNodeKey.get(edge.targetNodeKey) ?? 0) + 1);
+  });
+  return edgeCountByNodeKey;
+}
+
+function buildTargetSourcesByNodeKey(graphBundle: GraphSnapshotBundle): Map<string, GraphNodeInfo[]> {
+  const nodeByKey = new Map(graphBundle.nodes.map((node) => [node.nodeKey, node] as const));
+  const sourcesByTargetNodeKey = new Map<string, GraphNodeInfo[]>();
+  graphBundle.edges.forEach((edge) => {
+    const sourceNode = nodeByKey.get(edge.sourceNodeKey);
+    if (sourceNode == null || sourceNode.type !== 'triggerSource') {
+      return;
+    }
+    const currentSources = sourcesByTargetNodeKey.get(edge.targetNodeKey) ?? [];
+    currentSources.push(sourceNode);
+    sourcesByTargetNodeKey.set(edge.targetNodeKey, currentSources);
+  });
+  sourcesByTargetNodeKey.forEach((sources, targetNodeKey) => {
+    sourcesByTargetNodeKey.set(
+      targetNodeKey,
+      [...sources].sort(compareGraphNodeIdentity),
+    );
+  });
+  return sourcesByTargetNodeKey;
+}
+
+function buildGraphCanvasView(
+  effectiveGraphBundle: GraphSnapshotBundle,
+  forcedVisibleNodeKeys: Set<string>,
+  expandedAggregateNodeKeys: Set<string>,
+): GraphCanvasView {
+  const originalEdgeCountByNodeKey = buildEdgeCountByNodeKey(effectiveGraphBundle);
+  const targetSourcesByNodeKey = buildTargetSourcesByNodeKey(effectiveGraphBundle);
+  const aggregateNodes: GraphCanvasAggregateNode[] = [];
+  const sharedCoreGroupsBySignature = new Map<
+    string,
+    {
+      sourceNodes: GraphNodeInfo[];
+      coreNodes: GraphNodeInfo[];
+    }
+  >();
+  effectiveGraphBundle.nodes
+    .filter((node) => node.type === 'core')
+    .sort(compareGraphNodeIdentity)
+    .forEach((coreNode) => {
+      const sourceNodes = targetSourcesByNodeKey.get(coreNode.nodeKey) ?? [];
+      if (sourceNodes.length < SHARED_CORE_GROUP_MIN_SOURCE_COUNT) {
+        return;
+      }
+      const signatureKey = sourceNodes.map((sourceNode) => sourceNode.nodeKey).join('|');
+      const currentGroup = sharedCoreGroupsBySignature.get(signatureKey);
+      if (currentGroup == null) {
+        sharedCoreGroupsBySignature.set(signatureKey, {
+          sourceNodes,
+          coreNodes: [coreNode],
+        });
+        return;
+      }
+      currentGroup.coreNodes.push(coreNode);
+    });
+
+  const expandedAggregateCoreNodeKeys = new Set<string>();
+  const hiddenActualEdgeKeys = new Set<string>();
+  sharedCoreGroupsBySignature.forEach((group, signatureKey) => {
+    if (group.coreNodes.length < SHARED_CORE_GROUP_MIN_CORE_COUNT) {
+      return;
+    }
+    const sourceNodes = [...group.sourceNodes].sort(compareGraphNodeIdentity);
+    const coreNodes = [...group.coreNodes].sort(compareGraphNodeIdentity);
+    const aggregateNodeKey = buildAggregateNodeKey(signatureKey);
+    const expanded =
+      expandedAggregateNodeKeys.has(aggregateNodeKey) ||
+      coreNodes.some((coreNode) => forcedVisibleNodeKeys.has(coreNode.nodeKey));
+    const aggregateNode: GraphCanvasAggregateNode = {
+      kind: 'aggregate',
+      nodeKey: aggregateNodeKey,
+      signatureKey,
+      sourceNodeKeys: sourceNodes.map((node) => node.nodeKey),
+      sourceSerials: sourceNodes.map((node) => node.serial),
+      coreNodeKeys: coreNodes.map((node) => node.nodeKey),
+      coreSerials: coreNodes.map((node) => node.serial),
+      coreCount: coreNodes.length,
+      anchorCoreSerial: coreNodes[0]?.serial ?? 0,
+      expanded,
+    };
+    aggregateNodes.push(aggregateNode);
+    aggregateNode.sourceNodeKeys.forEach((sourceNodeKey) => {
+      aggregateNode.coreNodeKeys.forEach((coreNodeKey) => {
+        hiddenActualEdgeKeys.add(`${sourceNodeKey}->${coreNodeKey}`);
+      });
+    });
+    if (expanded) {
+      aggregateNode.coreNodeKeys.forEach((nodeKey) => expandedAggregateCoreNodeKeys.add(nodeKey));
+    }
+  });
+
+  const phaseVisibleActualEdges = effectiveGraphBundle.edges.filter(
+    (edge) => !hiddenActualEdgeKeys.has(edge.edgeKey),
+  );
+  const phaseVisibleActualEdgeCountByNodeKey = new Map<string, number>();
+  phaseVisibleActualEdges.forEach((edge) => {
+    phaseVisibleActualEdgeCountByNodeKey.set(
+      edge.sourceNodeKey,
+      (phaseVisibleActualEdgeCountByNodeKey.get(edge.sourceNodeKey) ?? 0) + 1,
+    );
+    phaseVisibleActualEdgeCountByNodeKey.set(
+      edge.targetNodeKey,
+      (phaseVisibleActualEdgeCountByNodeKey.get(edge.targetNodeKey) ?? 0) + 1,
+    );
+  });
+  const phaseVisibleActualNodeKeys = new Set<string>();
+  effectiveGraphBundle.nodes.forEach((node) => {
+    if (
+      (phaseVisibleActualEdgeCountByNodeKey.get(node.nodeKey) ?? 0) > 0 ||
+      forcedVisibleNodeKeys.has(node.nodeKey)
+    ) {
+      phaseVisibleActualNodeKeys.add(node.nodeKey);
+    }
+  });
+  aggregateNodes.forEach((aggregateNode) => {
+    aggregateNode.sourceNodeKeys.forEach((sourceNodeKey) => {
+      phaseVisibleActualNodeKeys.add(sourceNodeKey);
+    });
+    if (aggregateNode.expanded) {
+      aggregateNode.coreNodeKeys.forEach((coreNodeKey) => {
+        phaseVisibleActualNodeKeys.add(coreNodeKey);
+      });
+    }
+  });
+
+  const phaseCanvasNodes: GraphCanvasNodeInfo[] = [
+    ...effectiveGraphBundle.nodes
+      .filter((node) => phaseVisibleActualNodeKeys.has(node.nodeKey))
+      .map((node) => ({
+        kind: 'actual' as const,
+        nodeKey: node.nodeKey,
+        graphNode: node,
+      })),
+    ...aggregateNodes,
+  ].sort(compareCanvasNodeIdentity);
+  const phaseCanvasEdges: GraphCanvasEdgeInfo[] = [
+    ...phaseVisibleActualEdges
+      .filter(
+        (edge) =>
+          phaseVisibleActualNodeKeys.has(edge.sourceNodeKey) &&
+          phaseVisibleActualNodeKeys.has(edge.targetNodeKey),
+      )
+      .map((edge) => ({
+        edgeKey: edge.edgeKey,
+        sourceNodeKey: edge.sourceNodeKey,
+        targetNodeKey: edge.targetNodeKey,
+        kind: 'actual' as const,
+        diffState: 'base' as DraftEdgeDiffState,
+        label: edge.kind,
+      })),
+  ];
+  aggregateNodes.forEach((aggregateNode) => {
+    aggregateNode.sourceNodeKeys.forEach((sourceNodeKey) => {
+      phaseCanvasEdges.push({
+        edgeKey: `aggregate-edge:${sourceNodeKey}:${aggregateNode.nodeKey}`,
+        sourceNodeKey,
+        targetNodeKey: aggregateNode.nodeKey,
+        kind: 'aggregate',
+        diffState: 'base',
+        label: aggregateNode.expanded ? 'group' : `+${aggregateNode.coreCount}`,
+      });
+    });
+  });
+  const visibleCanvasNodeKeys = new Set<string>();
+  phaseCanvasEdges.forEach((edge) => {
+    visibleCanvasNodeKeys.add(edge.sourceNodeKey);
+    visibleCanvasNodeKeys.add(edge.targetNodeKey);
+  });
+  aggregateNodes.forEach((aggregateNode) => {
+    if (!aggregateNode.expanded) {
+      return;
+    }
+    visibleCanvasNodeKeys.add(aggregateNode.nodeKey);
+    aggregateNode.coreNodeKeys.forEach((coreNodeKey) => {
+      visibleCanvasNodeKeys.add(coreNodeKey);
+    });
+  });
+
+  const visibleActualNodeKeys = new Set<string>();
+  const canvasNodes: GraphCanvasNodeInfo[] = [
+    ...effectiveGraphBundle.nodes
+      .filter(
+        (node) => visibleCanvasNodeKeys.has(node.nodeKey) || forcedVisibleNodeKeys.has(node.nodeKey),
+      )
+      .map((node) => ({
+        kind: 'actual' as const,
+        nodeKey: node.nodeKey,
+        graphNode: node,
+      })),
+    ...aggregateNodes.filter(
+      (aggregateNode) =>
+        visibleCanvasNodeKeys.has(aggregateNode.nodeKey) ||
+        forcedVisibleNodeKeys.has(aggregateNode.nodeKey),
+    ),
+  ].sort(compareCanvasNodeIdentity);
+  canvasNodes.forEach((node) => {
+    if (node.kind === 'actual') {
+      visibleActualNodeKeys.add(node.nodeKey);
+    }
+  });
+
+  const canvasNodeKeySet = new Set(canvasNodes.map((node) => node.nodeKey));
+  const canvasEdges: GraphCanvasEdgeInfo[] = phaseCanvasEdges.filter(
+    (edge) =>
+      canvasNodeKeySet.has(edge.sourceNodeKey) && canvasNodeKeySet.has(edge.targetNodeKey),
+  );
+  const layoutEdges = [...canvasEdges];
+  aggregateNodes.forEach((aggregateNode) => {
+    if (!aggregateNode.expanded || !canvasNodeKeySet.has(aggregateNode.nodeKey)) {
+      return;
+    }
+    aggregateNode.coreNodeKeys.forEach((coreNodeKey) => {
+      if (!canvasNodeKeySet.has(coreNodeKey)) {
+        return;
+      }
+      layoutEdges.push({
+        edgeKey: `aggregate-layout:${aggregateNode.nodeKey}:${coreNodeKey}`,
+        sourceNodeKey: aggregateNode.nodeKey,
+        targetNodeKey: coreNodeKey,
+        kind: 'aggregate',
+        diffState: 'base',
+        label: '',
+      });
+    });
+  });
+
+  return {
+    canvasNodes,
+    canvasEdges,
+    layoutEdges,
+    hiddenActualEdgeKeys,
+    visibleActualNodeKeys,
+    isolatedTriggerSourceNodes: effectiveGraphBundle.nodes
+      .filter(
+        (node) =>
+          node.type === 'triggerSource' &&
+          (originalEdgeCountByNodeKey.get(node.nodeKey) ?? 0) === 0,
+      )
+      .sort(compareGraphNodeIdentity),
+    isolatedCoreNodes: effectiveGraphBundle.nodes
+      .filter(
+        (node) =>
+          node.type === 'core' &&
+          (originalEdgeCountByNodeKey.get(node.nodeKey) ?? 0) === 0,
+      )
+      .sort(compareGraphNodeIdentity),
+    aggregateNodes: canvasNodes.filter(
+      (node): node is GraphCanvasAggregateNode => node.kind === 'aggregate',
+    ),
+  };
+}
+
+function buildCanvasAdjacency(
+  nodes: GraphCanvasNodeInfo[],
+  edges: GraphCanvasEdgeInfo[],
+): Map<string, Set<string>> {
+  const adjacency = new Map<string, Set<string>>(
+    nodes.map((node) => [node.nodeKey, new Set<string>()]),
+  );
+  edges.forEach((edge) => {
+    const sourceAdjacency = adjacency.get(edge.sourceNodeKey);
+    const targetAdjacency = adjacency.get(edge.targetNodeKey);
+    if (sourceAdjacency == null || targetAdjacency == null) {
+      return;
+    }
+    sourceAdjacency.add(edge.targetNodeKey);
+    targetAdjacency.add(edge.sourceNodeKey);
+  });
+  return adjacency;
+}
+
+/**
+ * 按无向连通关系拆分图，用于把互不相连的局部网络分成独立布局块。
+ */
+function collectConnectedComponents(
+  nodes: GraphCanvasNodeInfo[],
+  edges: GraphCanvasEdgeInfo[],
+): GraphCanvasNodeInfo[][] {
+  const adjacency = buildCanvasAdjacency(nodes, edges);
+  const nodeByKey = new Map(nodes.map((node) => [node.nodeKey, node] as const));
+  const visitedNodeKeys = new Set<string>();
+  const components: GraphCanvasNodeInfo[][] = [];
+  const orderedSeedNodes = [...nodes].sort(compareCanvasNodeIdentity);
+
+  orderedSeedNodes.forEach((seedNode) => {
+    if (visitedNodeKeys.has(seedNode.nodeKey)) {
+      return;
+    }
+    const queue = [seedNode.nodeKey];
+    const componentNodes: GraphCanvasNodeInfo[] = [];
+    visitedNodeKeys.add(seedNode.nodeKey);
+    while (queue.length > 0) {
+      const currentNodeKey = queue.shift();
+      if (currentNodeKey == null) {
+        continue;
+      }
+      const currentNode = nodeByKey.get(currentNodeKey);
+      if (currentNode != null) {
+        componentNodes.push(currentNode);
+      }
+      const neighborNodeKeys = Array.from(adjacency.get(currentNodeKey) ?? []).sort();
+      neighborNodeKeys.forEach((neighborNodeKey) => {
+        if (visitedNodeKeys.has(neighborNodeKey)) {
+          return;
+        }
+        visitedNodeKeys.add(neighborNodeKey);
+        queue.push(neighborNodeKey);
+      });
+    }
+    componentNodes.sort(compareCanvasNodeIdentity);
+    components.push(componentNodes);
+  });
+
+  return components.sort((left, right) => {
+    const leftAnchor = left[0];
+    const rightAnchor = right[0];
+    if (leftAnchor == null || rightAnchor == null) {
+      return left.length - right.length;
+    }
+    const anchorOrder = compareCanvasNodeIdentity(leftAnchor, rightAnchor);
+    if (anchorOrder !== 0) {
+      return anchorOrder;
+    }
+    return left.length - right.length;
+  });
+}
+
+/**
+ * 通过多列分组提升横向利用率，避免展开后整块拓扑被拉成单列长条。
+ */
+function resolveLaneRowCount(nodeCount: number): number {
+  if (nodeCount <= 0) {
+    return 0;
+  }
+  return Math.min(
+    nodeCount,
+    Math.max(
+      COMPONENT_LANE_MIN_ROW_COUNT,
+      Math.min(
+        COMPONENT_LANE_MAX_ROW_COUNT,
+        Math.ceil(Math.sqrt(nodeCount * 1.35)),
+      ),
+    ),
+  );
+}
+
+function buildLaneLayout(nodes: GraphCanvasNodeInfo[]): GraphLayoutComponent {
+  const positions = new Map<string, XYPosition>();
+  if (nodes.length === 0) {
+    return {
+      width: 0,
+      height: 0,
+      positions,
+      anchorNode: null,
+    };
+  }
+  const rowCount = resolveLaneRowCount(nodes.length);
+  const columnCount = Math.ceil(nodes.length / rowCount);
+  const columnSpanX = GRAPH_NODE_WIDTH + COMPONENT_LANE_COLUMN_GAP_X;
+  nodes.forEach((node, index) => {
+    const columnIndex = Math.floor(index / rowCount);
+    const rowIndex = index % rowCount;
+    positions.set(node.nodeKey, {
+      x: columnIndex * columnSpanX,
+      y: rowIndex * COMPONENT_NODE_GAP_Y,
+    });
+  });
+  return {
+    width: GRAPH_NODE_WIDTH + Math.max(0, columnCount - 1) * columnSpanX,
+    height: GRAPH_NODE_HEIGHT + Math.max(0, rowCount - 1) * COMPONENT_NODE_GAP_Y,
+    positions,
+    anchorNode: nodes[0] ?? null,
+  };
+}
+
+function resolveNodeAnchorStats(connectedOrders: number[]): {
+  averageOrder: number;
+  minimumOrder: number;
+} {
+  if (connectedOrders.length === 0) {
+    return {
+      averageOrder: Number.MAX_SAFE_INTEGER,
+      minimumOrder: Number.MAX_SAFE_INTEGER,
+    };
+  }
+  return {
+    averageOrder:
+      connectedOrders.reduce((totalOrder, currentOrder) => totalOrder + currentOrder, 0) /
+      connectedOrders.length,
+    minimumOrder: Math.min(...connectedOrders),
+  };
+}
+
+function buildComponentLayout(
+  componentNodes: GraphCanvasNodeInfo[],
+  componentEdges: GraphCanvasEdgeInfo[],
+): GraphLayoutComponent {
+  const triggerSourceNodes = componentNodes
+    .filter((node) => resolveCanvasNodeLaneType(node) === 'triggerSource')
+    .sort(compareCanvasNodeIdentity);
+  const sourceOrderByNodeKey = new Map(
+    triggerSourceNodes.map((node, index) => [node.nodeKey, index] as const),
+  );
+  const connectedSourceOrdersByNodeKey = new Map<string, number[]>();
+  componentEdges.forEach((edge) => {
+    const directSourceOrder = sourceOrderByNodeKey.get(edge.sourceNodeKey);
+    const inheritedSourceOrders =
+      directSourceOrder == null ? connectedSourceOrdersByNodeKey.get(edge.sourceNodeKey) ?? [] : [];
+    const nextSourceOrders =
+      directSourceOrder == null ? inheritedSourceOrders : [directSourceOrder, ...inheritedSourceOrders];
+    if (nextSourceOrders.length === 0) {
+      return;
+    }
+    const currentOrders = connectedSourceOrdersByNodeKey.get(edge.targetNodeKey) ?? [];
+    connectedSourceOrdersByNodeKey.set(edge.targetNodeKey, [...currentOrders, ...nextSourceOrders]);
+  });
+  const coreNodes = componentNodes
+    .filter((node) => resolveCanvasNodeLaneType(node) === 'core')
+    .sort((left, right) => {
+      const leftAnchorStats = resolveNodeAnchorStats(
+        connectedSourceOrdersByNodeKey.get(left.nodeKey) ?? [],
+      );
+      const rightAnchorStats = resolveNodeAnchorStats(
+        connectedSourceOrdersByNodeKey.get(right.nodeKey) ?? [],
+      );
+      if (leftAnchorStats.averageOrder !== rightAnchorStats.averageOrder) {
+        return leftAnchorStats.averageOrder - rightAnchorStats.averageOrder;
+      }
+      if (leftAnchorStats.minimumOrder !== rightAnchorStats.minimumOrder) {
+        return leftAnchorStats.minimumOrder - rightAnchorStats.minimumOrder;
+      }
+      return compareCanvasNodeIdentity(left, right);
+    });
+  const triggerSourceLaneLayout = buildLaneLayout(triggerSourceNodes);
+  const coreLaneLayout = buildLaneLayout(coreNodes);
+  const laneHeight = Math.max(triggerSourceLaneLayout.height, coreLaneLayout.height, GRAPH_NODE_HEIGHT);
+  const triggerSourceOffsetY =
+    triggerSourceLaneLayout.height === 0 ? 0 : (laneHeight - triggerSourceLaneLayout.height) / 2;
+  const coreOffsetY = coreLaneLayout.height === 0 ? 0 : (laneHeight - coreLaneLayout.height) / 2;
+  const hasDualLayer = triggerSourceNodes.length > 0 && coreNodes.length > 0;
+  const coreX = hasDualLayer ? triggerSourceLaneLayout.width + COMPONENT_LAYER_GAP_X : 0;
+  const positions = new Map<string, XYPosition>();
+
+  triggerSourceLaneLayout.positions.forEach((position, nodeKey) => {
+    positions.set(nodeKey, {
+      x: position.x,
+      y: triggerSourceOffsetY + position.y,
+    });
+  });
+  coreLaneLayout.positions.forEach((position, nodeKey) => {
+    positions.set(nodeKey, {
+      x: coreX + position.x,
+      y: coreOffsetY + position.y,
+    });
+  });
+
+  return {
+    width: hasDualLayer
+      ? triggerSourceLaneLayout.width + COMPONENT_LAYER_GAP_X + coreLaneLayout.width
+      : Math.max(triggerSourceLaneLayout.width, coreLaneLayout.width, GRAPH_NODE_WIDTH),
+    height: laneHeight,
+    positions,
+    anchorNode: componentNodes[0] ?? null,
+  };
+}
+
+/**
+ * 将多个连通分量按块流式铺排到画布上，避免整张图被挤成全局两列。
+ */
+function buildAutoLayoutPositions(
+  canvasNodes: GraphCanvasNodeInfo[],
+  layoutEdges: GraphCanvasEdgeInfo[],
+): Map<string, XYPosition> {
+  const positionByNodeKey = new Map<string, XYPosition>();
+  let currentX = AUTO_LAYOUT_START_X;
+  let currentY = AUTO_LAYOUT_START_Y;
+  let currentRowHeight = 0;
+
+  collectConnectedComponents(canvasNodes, layoutEdges)
+    .map((componentNodes) => {
+      const componentNodeKeys = new Set(componentNodes.map((node) => node.nodeKey));
+      const componentEdges = layoutEdges.filter(
+        (edge) =>
+          componentNodeKeys.has(edge.sourceNodeKey) && componentNodeKeys.has(edge.targetNodeKey),
+      );
+      return buildComponentLayout(componentNodes, componentEdges);
+    })
+    .sort((left, right) => {
+      if (left.anchorNode == null || right.anchorNode == null) {
+        return left.width - right.width;
+      }
+      return compareCanvasNodeIdentity(left.anchorNode, right.anchorNode);
+    })
+    .forEach((component) => {
+      const needsWrap =
+        currentX > AUTO_LAYOUT_START_X &&
+        currentX + component.width > AUTO_LAYOUT_MAX_ROW_WIDTH;
+      if (needsWrap) {
+        currentX = AUTO_LAYOUT_START_X;
+        currentY += currentRowHeight + COMPONENT_BLOCK_GAP_Y;
+        currentRowHeight = 0;
+      }
+      component.positions.forEach((position, nodeKey) => {
+        positionByNodeKey.set(nodeKey, {
+          x: currentX + position.x,
+          y: currentY + position.y,
+        });
+      });
+      currentX += component.width + COMPONENT_BLOCK_GAP_X;
+      currentRowHeight = Math.max(currentRowHeight, component.height);
+    });
+
+  return positionByNodeKey;
+}
+
+function buildGraphFlowNodes(
+  canvasNodes: GraphCanvasNodeInfo[],
+  positionByNodeKey: Map<string, XYPosition>,
   selectedNodeKey: string,
   hasSearch: boolean,
   matchedNodeKeys: Set<string>,
   selectedEditSourceNodeKeys: Set<string>,
   selectedEditTargetNodeKeys: Set<string>,
+  draftChangedNodeKeys: Set<string>,
 ): GraphFlowNode[] {
-  let triggerSourceIndex = 0;
-  let coreIndex = 0;
-  return nodes.map((node) => {
-    const rowIndex = node.type === 'triggerSource' ? triggerSourceIndex++ : coreIndex++;
+  return canvasNodes.map((canvasNode) => {
+    const nodeKey = canvasNode.nodeKey;
     return {
-      id: node.nodeKey,
-      position: {
-        x: node.type === 'triggerSource' ? TRIGGER_SOURCE_X : CORE_X,
-        y: LANE_START_Y + rowIndex * LANE_GAP_Y,
-      },
+      id: nodeKey,
+      position:
+        positionByNodeKey.get(nodeKey) ?? {
+          x: AUTO_LAYOUT_START_X,
+          y: AUTO_LAYOUT_START_Y,
+        },
       data: {
-        label: buildNodeLabel(node),
+        label:
+          canvasNode.kind === 'aggregate'
+            ? buildAggregateNodeLabel(canvasNode)
+            : buildNodeLabel(canvasNode.graphNode),
+        canvasNodeKey: nodeKey,
       },
       draggable: true,
       selectable: true,
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
-      style: buildNodeStyle(
-        node,
-        selectedNodeKey,
-        hasSearch,
-        matchedNodeKeys,
-        selectedEditSourceNodeKeys,
-        selectedEditTargetNodeKeys,
-      ),
+      style:
+        canvasNode.kind === 'aggregate'
+          ? buildAggregateNodeStyle(
+              canvasNode,
+              selectedNodeKey,
+              hasSearch,
+              matchedNodeKeys,
+            )
+          : buildNodeStyle(
+              canvasNode.graphNode,
+              selectedNodeKey,
+              hasSearch,
+              matchedNodeKeys,
+              selectedEditSourceNodeKeys,
+              selectedEditTargetNodeKeys,
+              draftChangedNodeKeys,
+            ),
     };
   });
 }
 
 function buildEdges(
-  graphBundle: GraphSnapshotBundle,
+  baseGraphBundle: GraphSnapshotBundle,
+  effectiveGraphBundle: GraphSnapshotBundle,
   hasSearch: boolean,
   matchedNodeKeys: Set<string>,
+  draftDiff: GraphDraftDiff,
+  graphCanvasView: GraphCanvasView,
 ): Edge[] {
-  return graphBundle.edges.map((edge) =>
-    buildEdgeStyle(hasSearch, matchedNodeKeys, {
+  const edges: Edge[] = graphCanvasView.canvasEdges.map((edge) => {
+    const baseEdge: Edge = {
       id: edge.edgeKey,
       source: edge.sourceNodeKey,
       target: edge.targetNodeKey,
       animated: false,
-      label: edge.kind,
-    }),
-  );
+      label: edge.label,
+    };
+    if (edge.kind === 'aggregate') {
+      return buildAggregateEdgeStyle(hasSearch, matchedNodeKeys, baseEdge);
+    }
+    return buildEdgeStyle(
+      hasSearch,
+      matchedNodeKeys,
+      baseEdge,
+      draftDiff.addedEdgeKeys.has(edge.edgeKey) ? 'added' : 'base',
+    );
+  });
+  draftDiff.removedEdges
+    .filter(
+      (edge) =>
+        !graphCanvasView.hiddenActualEdgeKeys.has(edge.edgeKey) &&
+        graphCanvasView.visibleActualNodeKeys.has(edge.sourceNodeKey) &&
+        graphCanvasView.visibleActualNodeKeys.has(edge.targetNodeKey),
+    )
+    .forEach((edge) => {
+      edges.push(
+        buildEdgeStyle(
+          hasSearch,
+          matchedNodeKeys,
+          {
+            id: `removed:${edge.edgeKey}`,
+            source: edge.sourceNodeKey,
+            target: edge.targetNodeKey,
+            animated: false,
+            label: edge.kind,
+          },
+          'removed',
+        ),
+      );
+    });
+  return edges;
 }
 
 function buildDraftFileName(graphFileName: string, snapshotId: string): string {
@@ -450,6 +1244,61 @@ function applyDraftToGraph(
   };
 }
 
+function buildDraftDiff(
+  baseGraphBundle: GraphSnapshotBundle,
+  effectiveGraphBundle: GraphSnapshotBundle,
+  graphDraft: GraphDraft,
+): GraphDraftDiff {
+  const changedNodeKeys = new Set<string>();
+  graphDraft.operations.forEach((operation) => {
+    if (operation.type === 'RenameNodeAlias') {
+      changedNodeKeys.add(createGraphNodeKey(operation.nodeType, operation.serial));
+      return;
+    }
+    const sourceNodeKey = createGraphNodeKey('triggerSource', operation.triggerSourceSerial);
+    changedNodeKeys.add(sourceNodeKey);
+    const baseTargets = resolveBaseTargetSerials(baseGraphBundle, operation.triggerSourceSerial);
+    const nextTargets = resolveEffectiveTargetSerials(
+      baseGraphBundle,
+      graphDraft,
+      operation.triggerSourceSerial,
+    );
+    normalizeTargetSerials([...baseTargets, ...nextTargets]).forEach((targetSerial) => {
+      changedNodeKeys.add(createGraphNodeKey('core', targetSerial));
+    });
+  });
+
+  const baseEdgeMap = new Map(baseGraphBundle.edges.map((edge) => [edge.edgeKey, edge] as const));
+  const effectiveEdgeMap = new Map(
+    effectiveGraphBundle.edges.map((edge) => [edge.edgeKey, edge] as const),
+  );
+  const addedEdgeKeys = new Set<string>();
+  effectiveEdgeMap.forEach((_, edgeKey) => {
+    if (!baseEdgeMap.has(edgeKey)) {
+      addedEdgeKeys.add(edgeKey);
+    }
+  });
+  const removedEdges = baseGraphBundle.edges.filter((edge) => !effectiveEdgeMap.has(edge.edgeKey));
+  removedEdges.forEach((edge) => {
+    changedNodeKeys.add(edge.sourceNodeKey);
+    changedNodeKeys.add(edge.targetNodeKey);
+  });
+  addedEdgeKeys.forEach((edgeKey) => {
+    const addedEdge = effectiveEdgeMap.get(edgeKey);
+    if (!addedEdge) {
+      return;
+    }
+    changedNodeKeys.add(addedEdge.sourceNodeKey);
+    changedNodeKeys.add(addedEdge.targetNodeKey);
+  });
+
+  return {
+    changedNodeKeys,
+    addedEdgeKeys,
+    removedEdges,
+  };
+}
+
 function applyUpdatedNodeStates(
   graphBundle: GraphSnapshotBundle,
   graphWriteResponse: GraphWriteResponse,
@@ -550,11 +1399,21 @@ export default function GraphViewer({
   const [draftPersistError, setDraftPersistError] = useState('');
   const [savePhase, setSavePhase] = useState<SavePhase>('idle');
   const [saveMessage, setSaveMessage] = useState('');
-  const [searchText, setSearchText] = useState('');
+  const [searchDraftText, setSearchDraftText] = useState('');
+  const [appliedSearchText, setAppliedSearchText] = useState('');
+  const [searchDraftTypeFilter, setSearchDraftTypeFilter] =
+    useState<GraphSearchTypeFilter>('all');
+  const [appliedSearchTypeFilter, setAppliedSearchTypeFilter] =
+    useState<GraphSearchTypeFilter>('all');
   const [selectedNodeKey, setSelectedNodeKey] = useState<string>('');
   const [editMode, setEditMode] = useState<GraphEditMode>('view');
   const [selectedEditSourceSerials, setSelectedEditSourceSerials] = useState<number[]>([]);
   const [selectedEditTargetSerials, setSelectedEditTargetSerials] = useState<number[]>([]);
+  const [expandedAggregateNodeKeys, setExpandedAggregateNodeKeys] = useState<string[]>([]);
+  const [pinnedIsolatedNodeKeys, setPinnedIsolatedNodeKeys] = useState<string[]>([]);
+  const [pendingFocusNodeKey, setPendingFocusNodeKey] = useState('');
+  const [pendingStructureLayoutReset, setPendingStructureLayoutReset] = useState(false);
+  const [pendingStructureViewportFit, setPendingStructureViewportFit] = useState(false);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -567,22 +1426,29 @@ export default function GraphViewer({
     () => applyDraftToGraph(baseGraphBundle, graphDraft),
     [baseGraphBundle, graphDraft],
   );
+  const draftDiff = useMemo(
+    () => buildDraftDiff(baseGraphBundle, effectiveGraphBundle, graphDraft),
+    [baseGraphBundle, effectiveGraphBundle, graphDraft],
+  );
   const nodeByKey = useMemo(
     () => new Map(effectiveGraphBundle.nodes.map((node) => [node.nodeKey, node])),
     [effectiveGraphBundle.nodes],
   );
-  const edgeCountByNodeKey = useMemo(() => {
-    const counts = new Map<string, number>();
-    effectiveGraphBundle.edges.forEach((edge) => {
-      counts.set(edge.sourceNodeKey, (counts.get(edge.sourceNodeKey) ?? 0) + 1);
-      counts.set(edge.targetNodeKey, (counts.get(edge.targetNodeKey) ?? 0) + 1);
-    });
-    return counts;
-  }, [effectiveGraphBundle.edges]);
-  const hasSearch = searchText.trim().length > 0;
+  const edgeCountByNodeKey = useMemo(
+    () => buildEdgeCountByNodeKey(effectiveGraphBundle),
+    [effectiveGraphBundle],
+  );
+  const hasSearch = appliedSearchText.trim().length > 0;
   const matchedNodes = useMemo(
-    () => effectiveGraphBundle.nodes.filter((node) => matchesSearch(node, searchText)),
-    [effectiveGraphBundle.nodes, searchText],
+    () =>
+      hasSearch
+        ? effectiveGraphBundle.nodes.filter(
+            (node) =>
+              matchesSearchType(node, appliedSearchTypeFilter) &&
+              matchesSearch(node, appliedSearchText),
+          )
+        : [],
+    [appliedSearchText, appliedSearchTypeFilter, effectiveGraphBundle.nodes, hasSearch],
   );
   const matchedNodeKeys = useMemo(
     () => new Set(matchedNodes.map((node) => node.nodeKey)),
@@ -618,6 +1484,76 @@ export default function GraphViewer({
   const selectedTriggerSourceTargetNodes = selectedTriggerSourceTargets
     .map((serial) => nodeByKey.get(createGraphNodeKey('core', serial)) ?? null)
     .filter((node): node is GraphNodeInfo => node != null);
+  const selectedNodeHasNonPinnedVisibilityReason = useMemo(() => {
+    if (!selectedNodeKey || !nodeByKey.has(selectedNodeKey)) {
+      return false;
+    }
+    return (
+      (edgeCountByNodeKey.get(selectedNodeKey) ?? 0) > 0 ||
+      matchedNodeKeys.has(selectedNodeKey) ||
+      draftDiff.changedNodeKeys.has(selectedNodeKey) ||
+      selectedEditSourceNodeKeys.has(selectedNodeKey) ||
+      selectedEditTargetNodeKeys.has(selectedNodeKey)
+    );
+  }, [
+    draftDiff.changedNodeKeys,
+    edgeCountByNodeKey,
+    matchedNodeKeys,
+    nodeByKey,
+    selectedEditSourceNodeKeys,
+    selectedEditTargetNodeKeys,
+    selectedNodeKey,
+  ]);
+  const forcedVisibleNodeKeys = useMemo(() => {
+    const nextKeys = new Set<string>();
+    if (selectedNodeKey) {
+      nextKeys.add(selectedNodeKey);
+    }
+    pinnedIsolatedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    matchedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    draftDiff.changedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    selectedEditSourceNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    selectedEditTargetNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    return nextKeys;
+  }, [
+    draftDiff.changedNodeKeys,
+    matchedNodeKeys,
+    nodeByKey,
+    pinnedIsolatedNodeKeys,
+    selectedEditSourceNodeKeys,
+    selectedEditTargetNodeKeys,
+    selectedNodeKey,
+  ]);
+  const expandedAggregateNodeKeySet = useMemo(
+    () => new Set(expandedAggregateNodeKeys),
+    [expandedAggregateNodeKeys],
+  );
+  const graphCanvasView = useMemo(
+    () =>
+      buildGraphCanvasView(
+        effectiveGraphBundle,
+        forcedVisibleNodeKeys,
+        expandedAggregateNodeKeySet,
+      ),
+    [
+      effectiveGraphBundle,
+      expandedAggregateNodeKeySet,
+      forcedVisibleNodeKeys,
+    ],
+  );
+  const autoLayoutPositions = useMemo(
+    () => buildAutoLayoutPositions(graphCanvasView.canvasNodes, graphCanvasView.layoutEdges),
+    [graphCanvasView.canvasNodes, graphCanvasView.layoutEdges],
+  );
+  const pinnedIsolatedNodeCount = useMemo(
+    () =>
+      pinnedIsolatedNodeKeys.filter((nodeKey) => (edgeCountByNodeKey.get(nodeKey) ?? 0) === 0).length,
+    [edgeCountByNodeKey, pinnedIsolatedNodeKeys],
+  );
+  const hasCanvasNodes = graphCanvasView.canvasNodes.length > 0;
+  const hasPendingSearchChanges =
+    searchDraftText !== appliedSearchText ||
+    searchDraftTypeFilter !== appliedSearchTypeFilter;
   const canApplyBatchEdit =
     editMode === 'replace'
       ? selectedEditSourceSerials.length > 0
@@ -652,6 +1588,9 @@ export default function GraphViewer({
     setEditMode('view');
     setSelectedEditSourceSerials([]);
     setSelectedEditTargetSerials([]);
+    setExpandedAggregateNodeKeys([]);
+    setPinnedIsolatedNodeKeys([]);
+    setPendingFocusNodeKey('');
     setBaseGraphBundle(graphBundle);
     setGraphDraft(createInitialGraphDraft(graphBundle));
     loadDraft(draftFileName)
@@ -689,47 +1628,77 @@ export default function GraphViewer({
     if (draftLoading) {
       return;
     }
-    const initialNodeKey = effectiveGraphBundle.nodes[0]?.nodeKey ?? '';
+    const initialNodeKey =
+      graphCanvasView.canvasNodes.find((node) => node.kind === 'actual')?.nodeKey ??
+      effectiveGraphBundle.nodes[0]?.nodeKey ??
+      '';
     setSelectedNodeKey(initialNodeKey);
     setNodes(
-      buildAutoLayoutNodes(
-        effectiveGraphBundle.nodes,
+      buildGraphFlowNodes(
+        graphCanvasView.canvasNodes,
+        autoLayoutPositions,
         initialNodeKey,
         false,
         new Set<string>(),
         new Set<string>(),
         new Set<string>(),
+        new Set<string>(),
       ),
     );
-    setEdges(buildEdges(effectiveGraphBundle, false, new Set<string>()));
+    setEdges(
+      buildEdges(
+        baseGraphBundle,
+        effectiveGraphBundle,
+        false,
+        new Set<string>(),
+        draftDiff,
+        graphCanvasView,
+      ),
+    );
   }, [draftLoading, graphBundle.snapshotId, setEdges, setNodes]);
 
   useEffect(() => {
+    const shouldResetPositions = pendingStructureLayoutReset;
     setNodes((currentNodes) => {
-      const positionByNodeKey = new Map(
-        currentNodes.map((node) => [node.id, node.position] as const),
+      const existingPositionByNodeKey = new Map(
+        shouldResetPositions ? [] : currentNodes.map((node) => [node.id, node.position] as const),
       );
-      return effectiveGraphBundle.nodes.map((node) => {
-        const existingPosition = positionByNodeKey.get(node.nodeKey);
-        const autoLayoutNode = buildAutoLayoutNodes(
-          [node],
-          selectedNodeKey,
-          hasSearch,
-          matchedNodeKeys,
-          selectedEditSourceNodeKeys,
-          selectedEditTargetNodeKeys,
-        )[0];
-        return {
-          ...autoLayoutNode,
-          position: existingPosition ?? autoLayoutNode.position,
-        };
-      });
+      return buildGraphFlowNodes(
+        graphCanvasView.canvasNodes,
+        autoLayoutPositions,
+        selectedNodeKey,
+        hasSearch,
+        matchedNodeKeys,
+        selectedEditSourceNodeKeys,
+        selectedEditTargetNodeKeys,
+        draftDiff.changedNodeKeys,
+      ).map((node) => ({
+        ...node,
+        position: existingPositionByNodeKey.get(node.id) ?? node.position,
+      }));
     });
-    setEdges(buildEdges(effectiveGraphBundle, hasSearch, matchedNodeKeys));
+    setEdges(
+      buildEdges(
+        baseGraphBundle,
+        effectiveGraphBundle,
+        hasSearch,
+        matchedNodeKeys,
+        draftDiff,
+        graphCanvasView,
+      ),
+    );
+    if (shouldResetPositions) {
+      setPendingStructureLayoutReset(false);
+    }
   }, [
+    autoLayoutPositions,
+    baseGraphBundle,
+    draftDiff,
     effectiveGraphBundle,
+    graphCanvasView,
     hasSearch,
     matchedNodeKeys,
+    pendingStructureLayoutReset,
     selectedNodeKey,
     selectedEditSourceNodeKeys,
     selectedEditTargetNodeKeys,
@@ -738,7 +1707,7 @@ export default function GraphViewer({
   ]);
 
   useEffect(() => {
-    if (draftLoading || !reactFlowInstance || effectiveGraphBundle.nodes.length === 0) {
+    if (draftLoading || !reactFlowInstance || graphCanvasView.canvasNodes.length === 0) {
       return;
     }
     // 等待画布容器完成本轮布局后再归位，避免首帧父容器尺寸尚未稳定导致图层不可见。
@@ -750,10 +1719,51 @@ export default function GraphViewer({
     };
   }, [
     draftLoading,
-    effectiveGraphBundle.nodes.length,
+    graphCanvasView.canvasNodes.length,
     graphBundle.snapshotId,
     reactFlowInstance,
   ]);
+
+  useEffect(() => {
+    if (
+      draftLoading ||
+      pendingStructureLayoutReset ||
+      !pendingStructureViewportFit ||
+      !reactFlowInstance ||
+      nodes.length === 0
+    ) {
+      return;
+    }
+    const frameId = window.requestAnimationFrame(() => {
+      reactFlowInstance.fitView({ padding: 0.18, duration: 260 });
+      setPendingStructureViewportFit(false);
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    draftLoading,
+    nodes,
+    pendingStructureLayoutReset,
+    pendingStructureViewportFit,
+    reactFlowInstance,
+  ]);
+
+  useEffect(() => {
+    if (!pendingFocusNodeKey || !reactFlowInstance) {
+      return;
+    }
+    const currentNode = nodes.find((node) => node.id === pendingFocusNodeKey);
+    if (!currentNode) {
+      return;
+    }
+    reactFlowInstance.setCenter(
+      currentNode.position.x + NODE_CENTER_OFFSET_X,
+      currentNode.position.y + NODE_CENTER_OFFSET_Y,
+      { zoom: 1.12, duration: 260 },
+    );
+    setPendingFocusNodeKey('');
+  }, [nodes, pendingFocusNodeKey, reactFlowInstance]);
 
   useEffect(() => {
     if (onDirtyStateChange) {
@@ -798,26 +1808,38 @@ export default function GraphViewer({
 
   function focusNode(nodeKey: string) {
     setSelectedNodeKey(nodeKey);
-    const currentNode = nodes.find((node) => node.id === nodeKey);
-    if (!currentNode || !reactFlowInstance) {
-      return;
-    }
-    reactFlowInstance.setCenter(
-      currentNode.position.x + NODE_CENTER_OFFSET_X,
-      currentNode.position.y + NODE_CENTER_OFFSET_Y,
-      { zoom: 1.12, duration: 260 },
-    );
+    setPendingFocusNodeKey(nodeKey);
+  }
+
+  function requestStructureLayoutRefresh() {
+    setPendingFocusNodeKey('');
+    setPendingStructureLayoutReset(true);
+    setPendingStructureViewportFit(true);
+  }
+
+  function handleApplySearch() {
+    setAppliedSearchText(searchDraftText);
+    setAppliedSearchTypeFilter(searchDraftTypeFilter);
+  }
+
+  function handleClearSearch() {
+    setSearchDraftText('');
+    setAppliedSearchText('');
+    setSearchDraftTypeFilter('all');
+    setAppliedSearchTypeFilter('all');
   }
 
   function handleAutoLayout() {
     setNodes(
-      buildAutoLayoutNodes(
-        effectiveGraphBundle.nodes,
+      buildGraphFlowNodes(
+        graphCanvasView.canvasNodes,
+        autoLayoutPositions,
         selectedNodeKey,
         hasSearch,
         matchedNodeKeys,
         selectedEditSourceNodeKeys,
         selectedEditTargetNodeKeys,
+        draftDiff.changedNodeKeys,
       ),
     );
     window.requestAnimationFrame(() => {
@@ -838,13 +1860,23 @@ export default function GraphViewer({
     setSelectedEditTargetSerials([]);
   }
 
-  function handleGraphNodeClick(nodeKey: string) {
-    setSelectedNodeKey(nodeKey);
-    if (editMode === 'view') {
+  function handleToggleExpandedAggregateNode(nodeKey: string) {
+    setExpandedAggregateNodeKeys((currentValues) => toggleStringSelection(currentValues, nodeKey));
+  }
+
+  function handleCanvasNodeClick(nodeKey: string) {
+    if (nodeKey.startsWith('aggregate:')) {
+      setSelectedNodeKey(nodeKey);
+      handleToggleExpandedAggregateNode(nodeKey);
+      requestStructureLayoutRefresh();
       return;
     }
     const clickedNode = nodeByKey.get(nodeKey);
     if (!clickedNode) {
+      return;
+    }
+    setSelectedNodeKey(nodeKey);
+    if (editMode === 'view') {
       return;
     }
     if (clickedNode.type === 'triggerSource') {
@@ -856,6 +1888,40 @@ export default function GraphViewer({
     setSelectedEditTargetSerials((currentValues) =>
       toggleNumberSelection(currentValues, clickedNode.serial),
     );
+  }
+
+  function handleCanvasNodeDoubleClick(nodeKey: string) {
+    if (nodeKey.startsWith('aggregate:')) {
+      focusNode(nodeKey);
+      return;
+    }
+    focusNode(nodeKey);
+  }
+
+  function handleRevealIsolatedNode(nodeKey: string) {
+    setPinnedIsolatedNodeKeys((currentValues) =>
+      currentValues.includes(nodeKey)
+        ? currentValues
+        : [...currentValues, nodeKey].sort((left, right) => left.localeCompare(right)),
+    );
+    focusNode(nodeKey);
+  }
+
+  function handleClearPinnedIsolatedNodes() {
+    // 清空临时显示时，同时回收仅依赖该集合保活的孤立节点选中态。
+    if (
+      selectedNodeKey &&
+      pinnedIsolatedNodeKeys.includes(selectedNodeKey) &&
+      !selectedNodeHasNonPinnedVisibilityReason
+    ) {
+      setSelectedNodeKey('');
+      setPendingFocusNodeKey('');
+    }
+    setPinnedIsolatedNodeKeys([]);
+  }
+
+  function handleGraphNodeClick(nodeKey: string) {
+    handleCanvasNodeClick(nodeKey);
   }
 
   function handleAliasChange(nodeType: GraphNodeTypeToken, serial: number, alias: string) {
@@ -933,16 +1999,69 @@ export default function GraphViewer({
     <section className="graph-viewer">
       <div className="graph-toolbar-block">
         <div className="graph-toolbar-row">
-          <label className="recording-file-field graph-search-field">
-            <span>搜索节点</span>
-            <input
-              className="graph-search-input"
-              type="text"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="按别名、序号、nodeKey、连接模式搜索"
-            />
-          </label>
+          <div className="graph-search-panel">
+            <label className="recording-file-field graph-search-field">
+              <span>搜索节点</span>
+              <input
+                className="graph-search-input"
+                type="text"
+                value={searchDraftText}
+                onChange={(event) => setSearchDraftText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleApplySearch();
+                  }
+                }}
+                placeholder="按别名、序号、nodeKey、连接模式搜索"
+              />
+            </label>
+            <div className="graph-search-filter-row">
+              <span className="graph-search-filter-label">类型</span>
+              <div className="chip-group">
+                {(['all', 'triggerSource', 'core'] as GraphSearchTypeFilter[]).map(
+                  (filterValue) => (
+                    <button
+                      key={filterValue}
+                      type="button"
+                      className={`metric-chip${searchDraftTypeFilter === filterValue ? ' is-active' : ''}`}
+                      onClick={() => setSearchDraftTypeFilter(filterValue)}
+                    >
+                      {formatSearchTypeLabel(filterValue)}
+                    </button>
+                  ),
+                )}
+              </div>
+            </div>
+            <div className="graph-search-filter-row">
+              <span className="graph-search-filter-label">
+                {hasPendingSearchChanges ? '搜索条件未应用' : '搜索条件已应用'}
+              </span>
+              <div className="graph-editor-actions">
+                <button
+                  type="button"
+                  className="action-button"
+                  onClick={handleApplySearch}
+                  disabled={!hasPendingSearchChanges}
+                >
+                  应用搜索
+                </button>
+                <button
+                  type="button"
+                  className="action-button"
+                  onClick={handleClearSearch}
+                  disabled={
+                    searchDraftText.length === 0 &&
+                    appliedSearchText.length === 0 &&
+                    searchDraftTypeFilter === 'all' &&
+                    appliedSearchTypeFilter === 'all'
+                  }
+                >
+                  清空搜索
+                </button>
+              </div>
+            </div>
+          </div>
           <div className="graph-editor-actions">
             <span className={statusClassName}>{statusText}</span>
             <button type="button" className="action-button" onClick={handleAutoLayout}>
@@ -975,6 +2094,8 @@ export default function GraphViewer({
         </div>
         <p className="chart-interaction-hint">
           鼠标滚轮缩放，拖动画布平移，拖拽节点只影响本地布局；双击节点会聚焦到该节点。
+          点击聚合块，可展开或收起对应的局部 core 集合。
+          搜索条件会在回车或点击“应用搜索”后刷新画布。
           {formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。
         </p>
         {saveMessage ? <p className="graph-editor-message">{saveMessage}</p> : null}
@@ -994,7 +2115,7 @@ export default function GraphViewer({
                   className={`graph-search-chip${selectedNodeKey === node.nodeKey ? ' is-selected' : ''}`}
                   onClick={() => focusNode(node.nodeKey)}
                 >
-                  {node.displayText}
+                  {buildSearchResultLabel(node)}
                 </button>
               ))
             )}
@@ -1015,8 +2136,16 @@ export default function GraphViewer({
                 <dd>{effectiveGraphBundle.stats.nodeCount}</dd>
               </div>
               <div>
+                <dt>Canvas</dt>
+                <dd>{graphCanvasView.canvasNodes.length}</dd>
+              </div>
+              <div>
                 <dt>Edges</dt>
                 <dd>{effectiveGraphBundle.edges.length}</dd>
+              </div>
+              <div>
+                <dt>Groups</dt>
+                <dd>{graphCanvasView.aggregateNodes.length}</dd>
               </div>
               <div>
                 <dt>Revision</dt>
@@ -1030,9 +2159,13 @@ export default function GraphViewer({
                 <p className="empty-state">正在加载 graph draft...</p>
               </div>
             ) : null}
-            {effectiveGraphBundle.nodes.length === 0 ? (
+            {!draftLoading && !hasCanvasNodes ? (
               <div className="graph-empty-overlay">
-                <p className="empty-state">当前图快照没有可展示节点。</p>
+                <p className="empty-state">
+                  {effectiveGraphBundle.nodes.length === 0
+                    ? '当前图快照没有可展示节点。'
+                    : '当前主画布没有默认可展示的拓扑块，可在右侧孤立节点池中选择节点。'}
+                </p>
               </div>
             ) : null}
             <ReactFlow
@@ -1041,7 +2174,7 @@ export default function GraphViewer({
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onNodeClick={(_, node) => handleGraphNodeClick(String(node.id))}
-              onNodeDoubleClick={(_, node) => focusNode(node.id)}
+              onNodeDoubleClick={(_, node) => handleCanvasNodeDoubleClick(String(node.id))}
               onPaneClick={() => setSelectedNodeKey('')}
               onInit={setReactFlowInstance}
               fitView
@@ -1060,7 +2193,9 @@ export default function GraphViewer({
                 nodeColor={(node) =>
                   String(node.id).startsWith('triggerSource:')
                     ? 'rgba(255, 181, 140, 0.82)'
-                    : 'rgba(140, 213, 255, 0.82)'
+                    : String(node.id).startsWith('aggregate:')
+                      ? 'rgba(140, 213, 255, 0.86)'
+                      : 'rgba(108, 230, 255, 0.8)'
                 }
                 maskColor="rgba(10, 12, 18, 0.28)"
               />
@@ -1074,6 +2209,75 @@ export default function GraphViewer({
             <span className="section-tag">Details</span>
             <h2>节点详情与编辑</h2>
           </header>
+          <section className="graph-isolated-panel">
+            <div className="graph-isolated-panel-header">
+              <div>
+                <strong>孤立节点池</strong>
+                <p className="graph-batch-editor-caption">
+                  默认不进入主画布。点击后会临时拉回画布并聚焦；搜索、草稿差异和编辑选择也会强制显示。
+                </p>
+              </div>
+              <div className="graph-isolated-panel-actions">
+                <span className="graph-isolated-panel-count">
+                  当前临时显示 {pinnedIsolatedNodeCount} 个
+                </span>
+                <button
+                  type="button"
+                  className="action-button"
+                  disabled={pinnedIsolatedNodeCount === 0}
+                  onClick={handleClearPinnedIsolatedNodes}
+                >
+                  清空临时显示
+                </button>
+              </div>
+            </div>
+            <div className="graph-batch-selection-grid">
+              <section className="graph-target-editor">
+                <div className="graph-target-editor-header">
+                  <strong>Isolated TriggerSources</strong>
+                  <span>数量 {graphCanvasView.isolatedTriggerSourceNodes.length}</span>
+                </div>
+                <div className="graph-target-list">
+                  {graphCanvasView.isolatedTriggerSourceNodes.length === 0 ? (
+                    <p className="empty-state">当前没有孤立的 triggerSource。</p>
+                  ) : (
+                    graphCanvasView.isolatedTriggerSourceNodes.map((isolatedNode) => (
+                      <button
+                        key={isolatedNode.nodeKey}
+                        type="button"
+                        className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? ' is-selected' : ''}`}
+                        onClick={() => handleRevealIsolatedNode(isolatedNode.nodeKey)}
+                      >
+                        {isolatedNode.displayText}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </section>
+              <section className="graph-target-editor">
+                <div className="graph-target-editor-header">
+                  <strong>Isolated Cores</strong>
+                  <span>数量 {graphCanvasView.isolatedCoreNodes.length}</span>
+                </div>
+                <div className="graph-target-list">
+                  {graphCanvasView.isolatedCoreNodes.length === 0 ? (
+                    <p className="empty-state">当前没有孤立的 core。</p>
+                  ) : (
+                    graphCanvasView.isolatedCoreNodes.map((isolatedNode) => (
+                      <button
+                        key={isolatedNode.nodeKey}
+                        type="button"
+                        className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? ' is-selected' : ''}`}
+                        onClick={() => handleRevealIsolatedNode(isolatedNode.nodeKey)}
+                      >
+                        {isolatedNode.displayText}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </section>
+            </div>
+          </section>
           {editMode !== 'view' ? (
             <section className="graph-batch-editor">
               <div className="graph-batch-editor-header">

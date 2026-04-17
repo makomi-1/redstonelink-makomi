@@ -127,7 +127,11 @@ public final class StatePanelNetworkClientHandlerSupport {
 	 * 将服务端分块导出的 graph snapshot 重组成客户端本地资产。
 	 */
 	private static void applyGraphExportChunk(StatePanelNetwork.StatePanelGraphExportChunkPayload payload) {
-		if (payload == null || payload.totalChunks() <= 0 || payload.fileName().isBlank()) {
+		if (payload == null || payload.fileName().isBlank()) {
+			return;
+		}
+		if (payload.totalChunks() <= 0) {
+			applyCachedGraphExport(payload);
 			return;
 		}
 		PendingRecordingExport pendingRecordingExport = PENDING_GRAPH_EXPORTS.compute(
@@ -158,6 +162,26 @@ public final class StatePanelNetworkClientHandlerSupport {
 				RedstoneLink.LOGGER.warn("客户端打开 graph 网页失败: file={}", payload.fileName(), exception);
 				applyFeedback(false, "message.redstonelink.web.open_failed", List.of(exception.getMessage() == null ? "open_failed" : exception.getMessage()));
 			}
+		}
+	}
+
+	/**
+	 * 命中 graph revision 复用时，直接打开本地已有 graph 文件。
+	 */
+	private static void applyCachedGraphExport(StatePanelNetwork.StatePanelGraphExportChunkPayload payload) {
+		try {
+			LocalWebAssetRepository repository = LocalWebAssetRepository.createDefault();
+			LocalWebAssetRepository.StorageEntryContent entryContent = repository.readEntry(LocalWebAssetKind.GRAPH, payload.fileName());
+			if (entryContent == null) {
+				applyFeedback(false, "message.redstonelink.graph.export.write_failed", List.of(payload.fileName()));
+				return;
+			}
+			if (payload.autoOpenWeb()) {
+				LocalWebAppBridgeService.openAssetEntry(LocalWebAssetKind.GRAPH, payload.fileName());
+			}
+		} catch (IOException | RuntimeException exception) {
+			RedstoneLink.LOGGER.warn("客户端复用 graph snapshot 失败: file={}", payload.fileName(), exception);
+			applyFeedback(false, "message.redstonelink.web.open_failed", List.of(exception.getMessage() == null ? "open_failed" : exception.getMessage()));
 		}
 	}
 

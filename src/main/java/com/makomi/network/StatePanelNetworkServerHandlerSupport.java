@@ -444,7 +444,23 @@ final class StatePanelNetworkServerHandlerSupport {
 	 */
 	private static void sendGraphExport(ServerPlayer player, GraphSnapshotExportService.ExportBundle exportBundle) {
 		byte[] compressedBytes = exportBundle == null ? null : exportBundle.compressedBytes();
-		if (player == null || exportBundle == null || compressedBytes == null || compressedBytes.length <= 0) {
+		if (player == null || exportBundle == null) {
+			return;
+		}
+		if (exportBundle.reusedExisting()) {
+			ServerPlayNetworking.send(
+				player,
+				new StatePanelNetwork.StatePanelGraphExportChunkPayload(
+					exportBundle.fileName(),
+					0,
+					0,
+					true,
+					new byte[0]
+				)
+			);
+			return;
+		}
+		if (compressedBytes == null || compressedBytes.length <= 0) {
 			return;
 		}
 		int totalChunks = Math.max(1, (compressedBytes.length + GRAPH_EXPORT_CHUNK_BYTES - 1) / GRAPH_EXPORT_CHUNK_BYTES);

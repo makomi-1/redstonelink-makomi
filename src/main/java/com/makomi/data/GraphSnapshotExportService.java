@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -19,6 +20,7 @@ import net.minecraft.server.level.ServerPlayer;
  */
 public final class GraphSnapshotExportService {
 	private static final String MODE_SERIAL = "serial";
+	private static final Map<UUID, CachedGraphExport> EXPORT_CACHE = new ConcurrentHashMap<>();
 
 	private GraphSnapshotExportService() {
 	}
@@ -27,8 +29,26 @@ public final class GraphSnapshotExportService {
 	 * 导出当前玩家可见的 serial 图快照，并附带压缩字节与文件名。
 	 */
 	public static ExportBundle exportVisibleSerialGraph(ServerPlayer player) throws IOException {
+		if (player != null) {
+			ServerLevel level = player.serverLevel();
+			LinkSavedData savedData = LinkSavedData.get(level);
+			long currentGraphRevision = savedData.graphRevision();
+			CachedGraphExport cachedGraphExport = EXPORT_CACHE.get(player.getUUID());
+			if (cachedGraphExport != null && cachedGraphExport.graphRevision() == currentGraphRevision) {
+				return cachedGraphExport.toReusedBundle();
+			}
+		}
 		GraphSnapshotBundle bundle = buildVisibleSerialGraph(player);
-		return new ExportBundle(bundle, GraphSnapshotJsonSupport.buildFileName(bundle), GraphSnapshotJsonSupport.toCompressedJsonBytes(bundle));
+		ExportBundle exportBundle = new ExportBundle(
+			bundle,
+			GraphSnapshotJsonSupport.buildFileName(bundle),
+			GraphSnapshotJsonSupport.toCompressedJsonBytes(bundle),
+			false
+		);
+		if (player != null) {
+			EXPORT_CACHE.put(player.getUUID(), new CachedGraphExport(bundle.graphRevision(), exportBundle));
+		}
+		return exportBundle;
 	}
 
 	/**
@@ -208,7 +228,11 @@ public final class GraphSnapshotExportService {
 	/**
 	 * 图快照导出结果。
 	 */
-	public record ExportBundle(GraphSnapshotBundle bundle, String fileName, byte[] compressedBytes) {
+	public record ExportBundle(GraphSnapshotBundle bundle, String fileName, byte[] compressedBytes, boolean reusedExisting) {
+		public ExportBundle(GraphSnapshotBundle bundle, String fileName, byte[] compressedBytes) {
+			this(bundle, fileName, compressedBytes, false);
+		}
+
 		public ExportBundle {
 			bundle = bundle == null ? emptyBundle() : bundle;
 			fileName = fileName == null ? GraphSnapshotJsonSupport.buildFileName(bundle) : fileName;
@@ -218,6 +242,27 @@ public final class GraphSnapshotExportService {
 		@Override
 		public byte[] compressedBytes() {
 			return compressedBytes.clone();
+		}
+	}
+
+	/**
+	 * 当前玩家的 graph 导出缓存。
+	 */
+	private record CachedGraphExport(long graphRevision, ExportBundle exportBundle) {
+		private CachedGraphExport {
+			graphRevision = Math.max(0L, graphRevision);
+			exportBundle = exportBundle == null
+				? new ExportBundle(emptyBundle(), GraphSnapshotJsonSupport.buildFileName(emptyBundle()), new byte[0], false)
+				: exportBundle;
+		}
+
+		private ExportBundle toReusedBundle() {
+			return new ExportBundle(
+				exportBundle.bundle(),
+				exportBundle.fileName(),
+				exportBundle.compressedBytes(),
+				true
+			);
 		}
 	}
 }
