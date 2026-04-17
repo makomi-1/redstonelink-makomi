@@ -5,8 +5,8 @@ import com.makomi.data.NodeRuntimeProbe.ProbeResolution;
 import com.makomi.data.NodeRuntimeProbe.TraceNodeKind;
 import com.makomi.item.StatePanelToolItem;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,9 +28,9 @@ import net.minecraft.world.item.ItemStack;
  * 该服务负责把“状态面板订阅列表”编排为一个短生命周期的录制会话：
  * </p>
  * <ul>
- * <li>开始时解析当前可录制节点并挂载 trace</li>
+ * <li>开始时解析当前可录制节点并建立会话内独立采样缓冲</li>
  * <li>运行中按玩家维度维护唯一活动会话</li>
- * <li>结束时导出 recording bundle 并释放挂载</li>
+ * <li>结束时导出 recording bundle 并释放会话内样本</li>
  * </ul>
  */
 public final class StatePanelRecordingSessionService {
@@ -54,9 +55,10 @@ public final class StatePanelRecordingSessionService {
 	}
 
 	/**
-	 * 注册会话生命周期清理钩子。
+	 * 注册会话生命周期清理与录制专用采样钩子。
 	 */
 	public static void register() {
+		ServerTickEvents.END_SERVER_TICK.register(StatePanelRecordingSessionService::onEndServerTick);
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> clearPlayerSession(handler.player));
 		ServerLifecycleEvents.SERVER_STOPPED.register(StatePanelRecordingSessionService::clearServerState);
 	}
@@ -152,7 +154,7 @@ public final class StatePanelRecordingSessionService {
 			true,
 			QuickLinkOperationFeedback.success(
 				"message.redstonelink.state_panel.recording.start.done",
-				Integer.toString(activeSession.mountedNodes().size()),
+				Integer.toString(activeSession.mountedNodeCount()),
 				Integer.toString(activeSession.selectedNodeKeys().size())
 			),
 			activeSession.toSnapshot()
@@ -205,8 +207,6 @@ public final class StatePanelRecordingSessionService {
 				SessionSnapshot.inactive(currentSubscriptionCount(player)),
 				null
 			);
-		} finally {
-			unmountAll(player.getServer(), activeSession.mountedNodes());
 		}
 	}
 
@@ -249,32 +249,36 @@ public final class StatePanelRecordingSessionService {
 		return List.copyOf(outcomes);
 	}
 
+	/**
+	 * 在 recording 专用晚相位按会话配置补采当前 tick 样本。
+	 * <p>
+	 * 该钩子故意不复用全局 trace ring buffer，而是直接写入 recording 会话私有缓冲，
+	 * 以避免 bench/trace 口径与 recording 导出口径被强绑定。
+	 * </p>
+	 */
+	private static void onEndServerTick(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.get(server);
+		if (sessionMap == null || sessionMap.isEmpty()) {
+			return;
+		}
+		long nowTick = resolveServerTick(server);
+		for (ActiveSession activeSession : sessionMap.values()) {
+			if (activeSession == null) {
+				continue;
+			}
+			activeSession.captureDueSamples(server, nowTick);
+		}
+	}
+
 	private static StatePanelRecordingBundle buildRecordingBundle(ServerPlayer player, ActiveSession activeSession, long endedTick) {
-		List<StatePanelRecordingBundle.RecordedNodeInfo> nodes = new ArrayList<>(activeSession.mountedNodes().size());
-		List<StatePanelRecordingBundle.NodeSeries> series = new ArrayList<>(activeSession.mountedNodes().size());
+		List<StatePanelRecordingBundle.RecordedNodeInfo> nodes = new ArrayList<>(activeSession.mountedNodeCount());
+		List<StatePanelRecordingBundle.NodeSeries> series = new ArrayList<>(activeSession.mountedNodeCount());
 		int sampleCount = 0;
 		for (MountedNode mountedNode : activeSession.mountedNodes()) {
-			List<NodeRuntimeSnapshot> recordedSamples = new ArrayList<>(
-				NodeStateTraceService.readSamples(
-					player.getServer(),
-					mountedNode.nodeType(),
-					mountedNode.serial(),
-					activeSession.request().capacityPerNode()
-				)
-			);
-			Collections.reverse(recordedSamples);
-			List<StatePanelRecordingBundle.RecordedSample> outputSamples = new ArrayList<>(recordedSamples.size());
-			for (NodeRuntimeSnapshot recordedSample : recordedSamples) {
-				outputSamples.add(
-					new StatePanelRecordingBundle.RecordedSample(
-						recordedSample.sampleTick(),
-						recordedSample.online(),
-						recordedSample.active(),
-						recordedSample.inputPower(),
-						recordedSample.outputPower()
-					)
-				);
-			}
+			List<StatePanelRecordingBundle.RecordedSample> outputSamples = mountedNode.readRecordedSamples();
 			NodeIdentitySnapshot identitySnapshot = NodeIdentitySnapshot.resolve(player.serverLevel(), mountedNode.nodeType(), mountedNode.serial());
 			nodes.add(
 				new StatePanelRecordingBundle.RecordedNodeInfo(
@@ -333,15 +337,16 @@ public final class StatePanelRecordingSessionService {
 			if (resolution.isEmpty()) {
 				continue;
 			}
-			NodeStateTraceService.mount(
-				player.getServer(),
-				subscription.nodeType(),
-				subscription.serial(),
-				resolution.get().traceKind(),
-				request.sampleEveryTicks(),
-				request.capacityPerNode()
+			mountedNodes.add(
+				new MountedNode(
+					subscription.nodeType(),
+					subscription.serial(),
+					resolution.get().traceKind(),
+					resolution.get().snapshot(),
+					request.capacityPerNode(),
+					request.sampleEveryTicks()
+				)
 			);
-			mountedNodes.add(new MountedNode(subscription.nodeType(), subscription.serial(), resolution.get().traceKind()));
 		}
 		return List.copyOf(mountedNodes);
 	}
@@ -394,29 +399,11 @@ public final class StatePanelRecordingSessionService {
 		if (sessionMap == null) {
 			return;
 		}
-		ActiveSession activeSession = sessionMap.remove(player.getUUID());
-		if (activeSession != null) {
-			unmountAll(player.getServer(), activeSession.mountedNodes());
-		}
+		sessionMap.remove(player.getUUID());
 	}
 
 	private static void clearServerState(MinecraftServer server) {
-		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.remove(server);
-		if (sessionMap == null || sessionMap.isEmpty()) {
-			return;
-		}
-		for (ActiveSession activeSession : sessionMap.values()) {
-			unmountAll(server, activeSession.mountedNodes());
-		}
-	}
-
-	private static void unmountAll(MinecraftServer server, List<MountedNode> mountedNodes) {
-		if (server == null || mountedNodes == null || mountedNodes.isEmpty()) {
-			return;
-		}
-		for (MountedNode mountedNode : mountedNodes) {
-			NodeStateTraceService.unmount(server, mountedNode.nodeType(), mountedNode.serial());
-		}
+		ACTIVE_SESSIONS_BY_SERVER.remove(server);
 	}
 
 	private static ActiveSession activeSession(ServerPlayer player) {
@@ -456,6 +443,13 @@ public final class StatePanelRecordingSessionService {
 			return 0L;
 		}
 		return Math.max(0L, startedTick) + durationTicks;
+	}
+
+	private static long resolveServerTick(MinecraftServer server) {
+		if (server == null || server.overworld() == null) {
+			return 0L;
+		}
+		return Math.max(0L, server.overworld().getGameTime());
 	}
 
 	/**
@@ -585,24 +579,148 @@ public final class StatePanelRecordingSessionService {
 	}
 
 	/**
-	 * 已挂载到 trace 服务的节点引用。
+	 * recording 会话中的单节点采样状态。
 	 */
-	private record MountedNode(LinkNodeType nodeType, long serial, TraceNodeKind traceKind) {
+	private static final class MountedNode {
+		private final LinkNodeType nodeType;
+		private final long serial;
+		private final TraceNodeKind traceKind;
+		private final RecordingSampleBuffer sampleBuffer;
+		private long nextSampleTick;
+
+		private MountedNode(
+			LinkNodeType nodeType,
+			long serial,
+			TraceNodeKind traceKind,
+			NodeRuntimeSnapshot initialSnapshot,
+			int capacity,
+			int sampleEveryTicks
+		) {
+			this.nodeType = nodeType == null ? LinkNodeType.CORE : nodeType;
+			this.serial = Math.max(0L, serial);
+			this.traceKind = traceKind == null ? TraceNodeKind.CORE : traceKind;
+			this.sampleBuffer = new RecordingSampleBuffer(capacity);
+			this.sampleBuffer.append(initialSnapshot);
+			this.nextSampleTick = Math.max(0L, initialSnapshot == null ? 0L : initialSnapshot.sampleTick())
+				+ Math.max(1, sampleEveryTicks);
+		}
+
+		private LinkNodeType nodeType() {
+			return nodeType;
+		}
+
+		private long serial() {
+			return serial;
+		}
+
+		private TraceNodeKind traceKind() {
+			return traceKind;
+		}
+
+		/**
+		 * 若当前 tick 到达采样点，则写入一条新的 recording 样本。
+		 */
+		private void captureIfDue(MinecraftServer server, int sampleEveryTicks, long nowTick) {
+			if (nowTick < nextSampleTick) {
+				return;
+			}
+			NodeRuntimeSnapshot snapshot = NodeRuntimeProbe.snapshot(server, nodeType, serial, traceKind);
+			sampleBuffer.append(snapshot);
+			nextSampleTick = Math.max(0L, snapshot.sampleTick()) + Math.max(1, sampleEveryTicks);
+		}
+
+		private List<StatePanelRecordingBundle.RecordedSample> readRecordedSamples() {
+			List<NodeRuntimeSnapshot> snapshots = sampleBuffer.readChronological();
+			List<StatePanelRecordingBundle.RecordedSample> recordedSamples = new ArrayList<>(snapshots.size());
+			for (NodeRuntimeSnapshot snapshot : snapshots) {
+				recordedSamples.add(
+					new StatePanelRecordingBundle.RecordedSample(
+						snapshot.sampleTick(),
+						snapshot.online(),
+						snapshot.active(),
+						snapshot.inputPower(),
+						snapshot.outputPower()
+					)
+				);
+			}
+			return List.copyOf(recordedSamples);
+		}
 	}
 
 	/**
 	 * 活动录制会话。
 	 */
-	private record ActiveSession(
-		String recordingId,
-		UUID ownerPlayerId,
-		StartRequest request,
-		int subscriptionCount,
-		List<String> selectedNodeKeys,
-		List<MountedNode> mountedNodes,
-		long startedTick,
-		long autoStopTick
-	) {
+	private static final class ActiveSession {
+		private final String recordingId;
+		private final UUID ownerPlayerId;
+		private final StartRequest request;
+		private final int subscriptionCount;
+		private final List<String> selectedNodeKeys;
+		private final List<MountedNode> mountedNodes;
+		private final long startedTick;
+		private final long autoStopTick;
+
+		private ActiveSession(
+			String recordingId,
+			UUID ownerPlayerId,
+			StartRequest request,
+			int subscriptionCount,
+			List<String> selectedNodeKeys,
+			List<MountedNode> mountedNodes,
+			long startedTick,
+			long autoStopTick
+		) {
+			this.recordingId = recordingId == null ? "" : recordingId;
+			this.ownerPlayerId = ownerPlayerId;
+			this.request = request;
+			this.subscriptionCount = Math.max(0, subscriptionCount);
+			this.selectedNodeKeys = selectedNodeKeys == null ? List.of() : List.copyOf(selectedNodeKeys);
+			this.mountedNodes = mountedNodes == null ? List.of() : List.copyOf(mountedNodes);
+			this.startedTick = Math.max(0L, startedTick);
+			this.autoStopTick = Math.max(0L, autoStopTick);
+		}
+
+		private String recordingId() {
+			return recordingId;
+		}
+
+		private UUID ownerPlayerId() {
+			return ownerPlayerId;
+		}
+
+		private StartRequest request() {
+			return request;
+		}
+
+		private List<String> selectedNodeKeys() {
+			return selectedNodeKeys;
+		}
+
+		private List<MountedNode> mountedNodes() {
+			return mountedNodes;
+		}
+
+		private long startedTick() {
+			return startedTick;
+		}
+
+		private long autoStopTick() {
+			return autoStopTick;
+		}
+
+		private int mountedNodeCount() {
+			return mountedNodes.size();
+		}
+
+		/**
+		 * 按会话采样周期写入当前 tick 的 recording 专用样本。
+		 */
+		private void captureDueSamples(MinecraftServer server, long nowTick) {
+			for (MountedNode mountedNode : mountedNodes) {
+				mountedNode.captureIfDue(server, request.sampleEveryTicks(), nowTick);
+			}
+		}
+
 		private SessionSnapshot toSnapshot() {
 			return new SessionSnapshot(
 				true,
@@ -612,10 +730,36 @@ public final class StatePanelRecordingSessionService {
 				request.durationTicks(),
 				request.autoOpenWeb(),
 				subscriptionCount,
-				mountedNodes.size(),
+				mountedNodeCount(),
 				selectedNodeKeys,
 				startedTick
 			);
+		}
+	}
+
+	/**
+	 * recording 会话私有 ring buffer。
+	 */
+	private static final class RecordingSampleBuffer {
+		private final ArrayDeque<NodeRuntimeSnapshot> chronologicalSnapshots = new ArrayDeque<>();
+		private final int capacity;
+
+		private RecordingSampleBuffer(int capacity) {
+			this.capacity = Math.max(1, capacity);
+		}
+
+		private void append(NodeRuntimeSnapshot snapshot) {
+			if (snapshot == null) {
+				return;
+			}
+			if (chronologicalSnapshots.size() >= capacity) {
+				chronologicalSnapshots.removeFirst();
+			}
+			chronologicalSnapshots.addLast(snapshot);
+		}
+
+		private List<NodeRuntimeSnapshot> readChronological() {
+			return List.copyOf(chronologicalSnapshots);
 		}
 	}
 }

@@ -44,7 +44,6 @@ public class RedstoneLink implements ModInitializer {
 		BenchCommandNetwork.register();
 		PairingNetwork.register();
 		QuickLinkNetwork.register();
-		StatePanelNetwork.register();
 		LinkFilterNetwork.register();
 		ModBlocks.register();
 		ModBlockEntities.register();
@@ -58,13 +57,15 @@ public class RedstoneLink implements ModInitializer {
 		PairableItemAggregateMenuNormalizationService.register();
 		LinkDispatchFilterService.register();
 		NodeStateTraceService.register();
-		StatePanelRecordingSessionService.register();
 		if (RedstoneLinkConfig.command().inputEnabled()) {
 			InputPlaybackService.register();
 		}
 		CrossChunkDispatchService.register();
 		ChannelDispatchScheduler.register();
 		CoreDispatchBatchScheduler.register();
+		// recording 采样需要晚于输入投递与 scheduler flush；auto-stop 再通过网络层晚于 recording 采样。
+		StatePanelRecordingSessionService.register();
+		StatePanelNetwork.register();
 		LOGGER.info("RedstoneLink initialized");
 	}
 }
