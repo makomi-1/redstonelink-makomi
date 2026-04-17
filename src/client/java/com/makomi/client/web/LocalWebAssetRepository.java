@@ -155,6 +155,23 @@ public final class LocalWebAssetRepository {
 	}
 
 	/**
+	 * 删除单条本地资产。
+	 */
+	public void deleteAsset(LocalWebAssetKind assetKind, String fileName) throws IOException {
+		Objects.requireNonNull(assetKind, "assetKind");
+		ensureInitialized();
+		if (!isSafeAssetFileName(fileName) || !fileName.endsWith(assetKind.fileExtension())) {
+			throw new IOException("unsafe asset file name: " + fileName);
+		}
+		Path assetDirectory = assetKind.resolveDirectory(rootPath).toAbsolutePath().normalize();
+		Path assetPath = assetDirectory.resolve(fileName).toAbsolutePath().normalize();
+		if (!assetPath.startsWith(assetDirectory)) {
+			throw new IOException("asset path escaped target directory: " + fileName);
+		}
+		Files.deleteIfExists(assetPath);
+	}
+
+	/**
 	 * 校验资产文件名是否安全，阻断目录穿越和绝对路径。
 	 */
 	static boolean isSafeAssetFileName(String fileName) {
@@ -356,24 +373,43 @@ public final class LocalWebAssetRepository {
 			  "mode": "serial",
 			  "graphRevision": 3,
 			  "generatedAtTick": 2048,
+			  "viewerPlayerId": "sample-player",
 			  "nodes": [
 			    {
 			      "nodeKey": "triggerSource:12",
 			      "type": "triggerSource",
 			      "serial": 12,
 			      "alias": "样例来源",
-			      "displayText": "triggerSource 12",
+			      "displayText": "样例来源(#12)",
+			      "allocated": true,
+			      "retired": false,
 			      "online": true,
-			      "active": true
+			      "active": true,
+			      "inputPower": 15,
+			      "outputPower": 15,
+			      "connectionMode": "serial",
+			      "channel": 0,
+			      "sourceRevision": 3,
+			      "coreRevision": 0,
+			      "capabilityFlags": ["outbound", "readonly"]
 			    },
 			    {
 			      "nodeKey": "core:88",
 			      "type": "core",
 			      "serial": 88,
 			      "alias": "样例核心",
-			      "displayText": "core 88",
+			      "displayText": "样例核心(#88)",
+			      "allocated": true,
+			      "retired": false,
 			      "online": true,
-			      "active": false
+			      "active": false,
+			      "inputPower": 15,
+			      "outputPower": 0,
+			      "connectionMode": "serial",
+			      "channel": 0,
+			      "sourceRevision": 0,
+			      "coreRevision": 2,
+			      "capabilityFlags": ["inbound", "readonly"]
 			    }
 			  ],
 			  "edges": [
@@ -383,12 +419,17 @@ public final class LocalWebAssetRepository {
 			      "targetNodeKey": "core:88",
 			      "kind": "serial",
 			      "readable": true,
-			      "editable": true
+			      "editable": false
 			    }
 			  ],
 			  "stats": {
 			    "nodeCount": 2,
-			    "edgeCount": 1
+			    "edgeCount": 1,
+			    "triggerSourceCount": 1,
+			    "coreCount": 1,
+			    "onlineNodeCount": 2,
+			    "activeNodeCount": 1,
+			    "maskedSourceCount": 0
 			  }
 			}
 			""";

@@ -216,6 +216,42 @@ class StatePanelNetworkPayloadTest {
 	}
 
 	/**
+	 * graph 保存请求编解码应保留 requestId 与请求 JSON。
+	 */
+	@Test
+	void graphWriteRequestPayloadCodecRoundTripShouldPreserveFields() {
+		StatePanelNetwork.SubmitGraphWritePayload original = new StatePanelNetwork.SubmitGraphWritePayload(
+			"graph-save-1",
+			"{\"mode\":\"serial\",\"operations\":[]}"
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		StatePanelNetwork.SubmitGraphWritePayload.CODEC.encode(buffer, original);
+		StatePanelNetwork.SubmitGraphWritePayload decoded = StatePanelNetwork.SubmitGraphWritePayload.CODEC.decode(buffer);
+
+		assertEquals(original.requestId(), decoded.requestId());
+		assertEquals(original.requestJson(), decoded.requestJson());
+	}
+
+	/**
+	 * graph 保存结果编解码应保留 requestId 与响应 JSON。
+	 */
+	@Test
+	void graphWriteResultPayloadCodecRoundTripShouldPreserveFields() {
+		StatePanelNetwork.GraphWriteResultPayload original = new StatePanelNetwork.GraphWriteResultPayload(
+			"graph-save-1",
+			"{\"status\":\"ok\",\"result\":\"applied\"}"
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		StatePanelNetwork.GraphWriteResultPayload.CODEC.encode(buffer, original);
+		StatePanelNetwork.GraphWriteResultPayload decoded = StatePanelNetwork.GraphWriteResultPayload.CODEC.decode(buffer);
+
+		assertEquals(original.requestId(), decoded.requestId());
+		assertEquals(original.responseJson(), decoded.responseJson());
+	}
+
+	/**
 	 * 订阅请求在解包阶段应拒绝超过显式上限的序号表达式。
 	 */
 	@Test
@@ -256,5 +292,18 @@ class StatePanelNetworkPayloadTest {
 		buffer.writeByteArray(new byte[] { 1 });
 
 		assertThrows(RuntimeException.class, () -> StatePanelNetwork.StatePanelRecordingExportChunkPayload.CODEC.decode(buffer));
+	}
+
+	/**
+	 * graph 保存请求在解包阶段应拒绝超过显式上限的请求 JSON。
+	 */
+	@Test
+	void graphWriteRequestPayloadCodecShouldRejectTooLongRequestJson() {
+		String tooLongJson = "a".repeat(16385);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		buffer.writeUtf("graph-save-1");
+		buffer.writeUtf(tooLongJson);
+
+		assertThrows(RuntimeException.class, () -> StatePanelNetwork.SubmitGraphWritePayload.CODEC.decode(buffer));
 	}
 }

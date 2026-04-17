@@ -6,6 +6,7 @@ import com.makomi.client.screen.StatePanelToolScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.client.web.LocalWebAssetKind;
 import com.makomi.client.web.LocalWebAssetRepository;
+import com.makomi.client.web.LocalWebGraphSaveRpc;
 import com.makomi.network.StatePanelNetwork;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -21,6 +22,7 @@ import net.minecraft.network.chat.Component;
  */
 public final class StatePanelNetworkClientHandlerSupport {
 	private static final Map<String, PendingRecordingExport> PENDING_RECORDING_EXPORTS = new HashMap<>();
+	private static final Map<String, PendingRecordingExport> PENDING_GRAPH_EXPORTS = new HashMap<>();
 
 	private StatePanelNetworkClientHandlerSupport() {
 	}
@@ -43,6 +45,12 @@ public final class StatePanelNetworkClientHandlerSupport {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(StatePanelNetwork.StatePanelRecordingExportChunkPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> applyRecordingExportChunk(payload));
+		});
+		ClientPlayNetworking.registerGlobalReceiver(StatePanelNetwork.StatePanelGraphExportChunkPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> applyGraphExportChunk(payload));
+		});
+		ClientPlayNetworking.registerGlobalReceiver(StatePanelNetwork.GraphWriteResultPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> LocalWebGraphSaveRpc.completeResponse(payload.requestId(), payload.responseJson()));
 		});
 	}
 
@@ -110,6 +118,44 @@ public final class StatePanelNetworkClientHandlerSupport {
 				LocalWebAppBridgeService.openAssetEntry(LocalWebAssetKind.RECORDING, payload.fileName());
 			} catch (RuntimeException exception) {
 				RedstoneLink.LOGGER.warn("客户端打开 recording 网页失败: file={}", payload.fileName(), exception);
+				applyFeedback(false, "message.redstonelink.web.open_failed", List.of(exception.getMessage() == null ? "open_failed" : exception.getMessage()));
+			}
+		}
+	}
+
+	/**
+	 * 将服务端分块导出的 graph snapshot 重组成客户端本地资产。
+	 */
+	private static void applyGraphExportChunk(StatePanelNetwork.StatePanelGraphExportChunkPayload payload) {
+		if (payload == null || payload.totalChunks() <= 0 || payload.fileName().isBlank()) {
+			return;
+		}
+		PendingRecordingExport pendingRecordingExport = PENDING_GRAPH_EXPORTS.compute(
+			payload.fileName(),
+			(fileName, current) -> current != null && current.totalChunks() == payload.totalChunks()
+				? current
+				: new PendingRecordingExport(payload.totalChunks(), payload.autoOpenWeb())
+		);
+		pendingRecordingExport.acceptChunk(payload.chunkIndex(), payload.chunkBytes());
+		if (!pendingRecordingExport.complete()) {
+			return;
+		}
+
+		PENDING_GRAPH_EXPORTS.remove(payload.fileName());
+		try {
+			LocalWebAssetRepository repository = LocalWebAssetRepository.createDefault();
+			repository.writeAssetBytes(LocalWebAssetKind.GRAPH, payload.fileName(), pendingRecordingExport.joinBytes());
+			applyFeedback(true, "message.redstonelink.graph.export.saved", List.of(payload.fileName()));
+		} catch (IOException | RuntimeException exception) {
+			RedstoneLink.LOGGER.warn("客户端写入 graph snapshot 失败: file={}", payload.fileName(), exception);
+			applyFeedback(false, "message.redstonelink.graph.export.write_failed", List.of(payload.fileName()));
+			return;
+		}
+		if (pendingRecordingExport.autoOpenWeb()) {
+			try {
+				LocalWebAppBridgeService.openAssetEntry(LocalWebAssetKind.GRAPH, payload.fileName());
+			} catch (RuntimeException exception) {
+				RedstoneLink.LOGGER.warn("客户端打开 graph 网页失败: file={}", payload.fileName(), exception);
 				applyFeedback(false, "message.redstonelink.web.open_failed", List.of(exception.getMessage() == null ? "open_failed" : exception.getMessage()));
 			}
 		}

@@ -58,6 +58,14 @@ final class StatePanelNetworkRegistrationSupport {
 			StatePanelNetwork.RecordStatePanelPayload.CODEC
 		);
 		PayloadTypeRegistry.playC2S().register(
+			StatePanelNetwork.ExportStatePanelGraphPayload.TYPE,
+			StatePanelNetwork.ExportStatePanelGraphPayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
+			StatePanelNetwork.SubmitGraphWritePayload.TYPE,
+			StatePanelNetwork.SubmitGraphWritePayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
 			StatePanelNetwork.CleanAllStatePanelPayload.TYPE,
 			StatePanelNetwork.CleanAllStatePanelPayload.CODEC
 		);
@@ -76,6 +84,14 @@ final class StatePanelNetworkRegistrationSupport {
 		PayloadTypeRegistry.playS2C().register(
 			StatePanelNetwork.StatePanelRecordingExportChunkPayload.TYPE,
 			StatePanelNetwork.StatePanelRecordingExportChunkPayload.CODEC
+		);
+		PayloadTypeRegistry.playS2C().register(
+			StatePanelNetwork.StatePanelGraphExportChunkPayload.TYPE,
+			StatePanelNetwork.StatePanelGraphExportChunkPayload.CODEC
+		);
+		PayloadTypeRegistry.playS2C().register(
+			StatePanelNetwork.GraphWriteResultPayload.TYPE,
+			StatePanelNetwork.GraphWriteResultPayload.CODEC
 		);
 	}
 
@@ -131,6 +147,20 @@ final class StatePanelNetworkRegistrationSupport {
 				return;
 			}
 			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleRecord(player));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.ExportStatePanelGraphPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleExportGraph(player));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.SubmitGraphWritePayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleSubmitGraphWrite(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.CleanAllStatePanelPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();

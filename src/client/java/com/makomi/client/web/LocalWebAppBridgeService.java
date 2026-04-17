@@ -27,20 +27,24 @@ import org.slf4j.LoggerFactory;
 /**
  * 本地网页桥接服务。
  * <p>
- * 当前已推进到 `P1`，职责包括：
+ * 当前已推进到 `P4`，职责包括：
  * </p>
  * <ul>
  * <li>从 Jar/classpath 提供离线网页静态资源</li>
  * <li>提供桥接状态接口 `/api/ping`</li>
  * <li>提供本地资产索引与单条资产读取接口</li>
+ * <li>支持 recording / graph 独立页面入口</li>
+ * <li>提供 graph draft 本地落盘与显式保存 RPC</li>
  * </ul>
  */
 public final class LocalWebAppBridgeService {
 	private static final Logger LOGGER = LoggerFactory.getLogger(RedstoneLink.MOD_ID + "/client-web");
 	private static final String WEBAPP_RESOURCE_ROOT = "assets/" + RedstoneLink.MOD_ID + "/webapp";
 	private static final String HOME_PAGE_RESOURCE = "index.html";
-	private static final String BRIDGE_VERSION = "p1";
+	private static final String BRIDGE_VERSION = "p4";
 	private static final LocalWebAssetRepository ASSET_REPOSITORY = LocalWebAssetRepository.createDefault();
+	private static final int GRAPH_SAVE_REQUEST_MAX_BYTES = 32768;
+	private static final int GRAPH_DRAFT_REQUEST_MAX_BYTES = 262144;
 	private static volatile BridgeRuntime runtime;
 
 	private LocalWebAppBridgeService() {
@@ -90,21 +94,38 @@ public final class LocalWebAppBridgeService {
 	}
 
 	/**
+	 * 打开 graph 独立拓扑分析页。
+	 *
+	 * @return 已打开的 graph 页面地址
+	 */
+	public static URI openGraphPage() {
+		BridgeRuntime current = resolveRuntime();
+		URI graphPageUri = current.baseUri().resolve("./?page=graph");
+		Util.getPlatform().openUri(graphPageUri);
+		return graphPageUri;
+	}
+
+	/**
 	 * 打开指定本地资产条目的网页查看页。
 	 */
 	public static URI openAssetEntry(LocalWebAssetKind assetKind, String fileName) {
 		BridgeRuntime current = resolveRuntime();
 		LocalWebAssetKind resolvedAssetKind = assetKind == null ? LocalWebAssetKind.RECORDING : assetKind;
 		String normalizedFileName = fileName == null ? "" : fileName.trim();
-		String entryUri = resolvedAssetKind == LocalWebAssetKind.RECORDING
-			? "./?page=recording&kind=%s&name=%s".formatted(
-				urlEncode(resolvedAssetKind.token()),
-				urlEncode(normalizedFileName)
-			)
-			: "./?page=home&kind=%s&name=%s".formatted(
+		String entryUri = switch (resolvedAssetKind) {
+			case RECORDING -> "./?page=recording&kind=%s&name=%s".formatted(
 				urlEncode(resolvedAssetKind.token()),
 				urlEncode(normalizedFileName)
 			);
+			case GRAPH -> "./?page=graph&kind=%s&name=%s".formatted(
+				urlEncode(resolvedAssetKind.token()),
+				urlEncode(normalizedFileName)
+			);
+			default -> "./?page=home&kind=%s&name=%s".formatted(
+				urlEncode(resolvedAssetKind.token()),
+				urlEncode(normalizedFileName)
+			);
+		};
 		URI targetUri = current.baseUri().resolve(entryUri);
 		Util.getPlatform().openUri(targetUri);
 		return targetUri;
@@ -153,6 +174,8 @@ public final class LocalWebAppBridgeService {
 			httpServer.createContext("/api/ping", LocalWebAppBridgeService::handlePingRequest);
 			httpServer.createContext("/api/storage/index", LocalWebAppBridgeService::handleStorageIndexRequest);
 			httpServer.createContext("/api/storage/entry", LocalWebAppBridgeService::handleStorageEntryRequest);
+			httpServer.createContext("/api/graph/save", LocalWebAppBridgeService::handleGraphSaveRequest);
+			httpServer.createContext("/api/graph/draft", LocalWebAppBridgeService::handleGraphDraftRequest);
 			httpServer.createContext("/", LocalWebAppBridgeService::handleStaticRequest);
 			httpServer.start();
 			URI baseUri = URI.create("http://127.0.0.1:" + httpServer.getAddress().getPort() + "/");
@@ -173,7 +196,7 @@ public final class LocalWebAppBridgeService {
 	 * 处理最小桥接验链接口，供网页端确认本地离线容器已生效。
 	 */
 	private static void handlePingRequest(HttpExchange exchange) throws IOException {
-		if (!isAllowedMethod(exchange)) {
+		if (!isReadMethod(exchange)) {
 			sendJsonResponse(exchange, 405, LocalWebJsonSupport.buildErrorPayload("Method Not Allowed"));
 			return;
 		}
@@ -191,7 +214,7 @@ public final class LocalWebAppBridgeService {
 	 * 返回本地资产目录索引，供网页端列出 recordings/graphs/drafts/layouts 四类资产。
 	 */
 	private static void handleStorageIndexRequest(HttpExchange exchange) throws IOException {
-		if (!isAllowedMethod(exchange)) {
+		if (!isReadMethod(exchange)) {
 			sendJsonResponse(exchange, 405, LocalWebJsonSupport.buildErrorPayload("Method Not Allowed"));
 			return;
 		}
@@ -208,7 +231,7 @@ public final class LocalWebAppBridgeService {
 	 * 返回单条本地资产内容预览。
 	 */
 	private static void handleStorageEntryRequest(HttpExchange exchange) throws IOException {
-		if (!isAllowedMethod(exchange)) {
+		if (!isReadMethod(exchange)) {
 			sendJsonResponse(exchange, 405, LocalWebJsonSupport.buildErrorPayload("Method Not Allowed"));
 			return;
 		}
@@ -233,10 +256,68 @@ public final class LocalWebAppBridgeService {
 	}
 
 	/**
+	 * 接收网页端的 graph 显式保存请求，并同步等待服务端保存结果。
+	 */
+	private static void handleGraphSaveRequest(HttpExchange exchange) throws IOException {
+		if (!isWriteMethod(exchange, "POST")) {
+			sendJsonResponse(exchange, 405, LocalWebJsonSupport.buildErrorPayload("Method Not Allowed"));
+			return;
+		}
+		try {
+			String requestJson = readRequestBodyUtf8(exchange, GRAPH_SAVE_REQUEST_MAX_BYTES);
+			if (requestJson.isBlank()) {
+				sendJsonResponse(exchange, 400, LocalWebJsonSupport.buildErrorPayload("Graph save request body is empty."));
+				return;
+			}
+			String responseJson = LocalWebGraphSaveRpc.submitAndAwait(requestJson);
+			sendJsonResponse(exchange, 200, responseJson == null || responseJson.isBlank()
+				? LocalWebJsonSupport.buildErrorPayload("Empty graph save response.")
+				: responseJson);
+		} catch (IOException exception) {
+			sendJsonResponse(exchange, 400, LocalWebJsonSupport.buildErrorPayload(exception.getMessage()));
+		} catch (RuntimeException exception) {
+			LOGGER.warn("处理 graph save 请求失败", exception);
+			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload("Failed to process graph save request."));
+		}
+	}
+
+	/**
+	 * 写入或删除 graph draft 本地文件。
+	 */
+	private static void handleGraphDraftRequest(HttpExchange exchange) throws IOException {
+		Map<String, String> queryParameters = parseQueryParameters(exchange.getRequestURI());
+		String fileName = queryParameters.get("name");
+		if (fileName == null || fileName.isBlank()) {
+			sendJsonResponse(exchange, 400, LocalWebJsonSupport.buildErrorPayload("Query parameter `name` is required."));
+			return;
+		}
+		try {
+			String requestMethod = exchange.getRequestMethod();
+			if ("POST".equalsIgnoreCase(requestMethod)) {
+				String draftJson = readRequestBodyUtf8(exchange, GRAPH_DRAFT_REQUEST_MAX_BYTES);
+				ASSET_REPOSITORY.writeAssetText(LocalWebAssetKind.DRAFT, fileName, draftJson);
+				sendJsonResponse(exchange, 200, LocalWebJsonSupport.buildOkPayload());
+				return;
+			}
+			if ("DELETE".equalsIgnoreCase(requestMethod)) {
+				ASSET_REPOSITORY.deleteAsset(LocalWebAssetKind.DRAFT, fileName);
+				sendJsonResponse(exchange, 200, LocalWebJsonSupport.buildOkPayload());
+				return;
+			}
+			sendJsonResponse(exchange, 405, LocalWebJsonSupport.buildErrorPayload("Method Not Allowed"));
+		} catch (IOException exception) {
+			sendJsonResponse(exchange, 400, LocalWebJsonSupport.buildErrorPayload(exception.getMessage()));
+		} catch (RuntimeException exception) {
+			LOGGER.warn("写入 graph draft 失败: file={}", fileName, exception);
+			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload("Failed to write graph draft."));
+		}
+	}
+
+	/**
 	 * 提供 Jar 内网页资源；若命中 SPA 路由则统一回退到 `index.html`。
 	 */
 	private static void handleStaticRequest(HttpExchange exchange) throws IOException {
-		if (!isAllowedMethod(exchange)) {
+		if (!isReadMethod(exchange)) {
 			sendTextResponse(exchange, 405, "text/plain; charset=utf-8", "Method Not Allowed");
 			return;
 		}
@@ -327,9 +408,33 @@ public final class LocalWebAppBridgeService {
 		}
 	}
 
-	private static boolean isAllowedMethod(HttpExchange exchange) {
+	private static boolean isReadMethod(HttpExchange exchange) {
 		String requestMethod = exchange.getRequestMethod();
 		return "GET".equalsIgnoreCase(requestMethod) || "HEAD".equalsIgnoreCase(requestMethod);
+	}
+
+	private static boolean isWriteMethod(HttpExchange exchange, String expectedMethod) {
+		if (exchange == null || expectedMethod == null || expectedMethod.isBlank()) {
+			return false;
+		}
+		return expectedMethod.equalsIgnoreCase(exchange.getRequestMethod());
+	}
+
+	/**
+	 * 以 UTF-8 读取请求体，并施加显式体积上限。
+	 */
+	private static String readRequestBodyUtf8(HttpExchange exchange, int maxBytes) throws IOException {
+		if (exchange == null) {
+			throw new IOException("Missing exchange context.");
+		}
+		int safeMaxBytes = Math.max(1, maxBytes);
+		try (InputStream inputStream = exchange.getRequestBody()) {
+			byte[] requestBytes = inputStream.readAllBytes();
+			if (requestBytes.length > safeMaxBytes) {
+				throw new IOException("Request body is too large.");
+			}
+			return new String(requestBytes, StandardCharsets.UTF_8);
+		}
 	}
 
 	private static void sendBinaryResponse(HttpExchange exchange, int statusCode, String contentType, byte[] body) throws IOException {

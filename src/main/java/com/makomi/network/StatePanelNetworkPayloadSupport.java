@@ -19,6 +19,10 @@ final class StatePanelNetworkPayloadSupport {
 	private static final int RECORDING_NODE_KEY_MAX_LENGTH = 64;
 	private static final int RECORDING_FILE_NAME_MAX_LENGTH = 160;
 	private static final int RECORDING_EXPORT_CHUNK_MAX_BYTES = 32768;
+	private static final int GRAPH_FILE_NAME_MAX_LENGTH = 160;
+	private static final int GRAPH_EXPORT_CHUNK_MAX_BYTES = 32768;
+	private static final int GRAPH_SAVE_REQUEST_ID_MAX_LENGTH = 64;
+	private static final int GRAPH_SAVE_JSON_MAX_LENGTH = 16384;
 
 	private StatePanelNetworkPayloadSupport() {
 	}
@@ -314,6 +318,74 @@ final class StatePanelNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码图快照结果分块。
+	 */
+	static void encodeGraphExportChunkPayload(
+		FriendlyByteBuf buffer,
+		String fileName,
+		int chunkIndex,
+		int totalChunks,
+		boolean autoOpenWeb,
+		byte[] chunkBytes
+	) {
+		byte[] normalizedChunkBytes = chunkBytes == null ? new byte[0] : chunkBytes;
+		buffer.writeUtf(fileName == null ? "" : fileName, GRAPH_FILE_NAME_MAX_LENGTH);
+		buffer.writeVarInt(Math.max(0, chunkIndex));
+		buffer.writeVarInt(Math.max(0, totalChunks));
+		buffer.writeBoolean(autoOpenWeb);
+		buffer.writeByteArray(normalizedChunkBytes);
+	}
+
+	/**
+	 * 解码图快照结果分块。
+	 */
+	static DecodedGraphExportChunkPayload decodeGraphExportChunkPayload(FriendlyByteBuf buffer) {
+		return new DecodedGraphExportChunkPayload(
+			buffer.readUtf(GRAPH_FILE_NAME_MAX_LENGTH),
+			Math.max(0, buffer.readVarInt()),
+			Math.max(0, buffer.readVarInt()),
+			buffer.readBoolean(),
+			buffer.readByteArray(GRAPH_EXPORT_CHUNK_MAX_BYTES)
+		);
+	}
+
+	/**
+	 * 编码 graph 保存请求。
+	 */
+	static void encodeGraphWriteRequestPayload(FriendlyByteBuf buffer, String requestId, String requestJson) {
+		buffer.writeUtf(requestId == null ? "" : requestId, GRAPH_SAVE_REQUEST_ID_MAX_LENGTH);
+		buffer.writeUtf(requestJson == null ? "" : requestJson, GRAPH_SAVE_JSON_MAX_LENGTH);
+	}
+
+	/**
+	 * 解码 graph 保存请求。
+	 */
+	static DecodedGraphWriteRequestPayload decodeGraphWriteRequestPayload(FriendlyByteBuf buffer) {
+		return new DecodedGraphWriteRequestPayload(
+			buffer.readUtf(GRAPH_SAVE_REQUEST_ID_MAX_LENGTH),
+			buffer.readUtf(GRAPH_SAVE_JSON_MAX_LENGTH)
+		);
+	}
+
+	/**
+	 * 编码 graph 保存结果。
+	 */
+	static void encodeGraphWriteResultPayload(FriendlyByteBuf buffer, String requestId, String responseJson) {
+		buffer.writeUtf(requestId == null ? "" : requestId, GRAPH_SAVE_REQUEST_ID_MAX_LENGTH);
+		buffer.writeUtf(responseJson == null ? "" : responseJson, GRAPH_SAVE_JSON_MAX_LENGTH);
+	}
+
+	/**
+	 * 解码 graph 保存结果。
+	 */
+	static DecodedGraphWriteResultPayload decodeGraphWriteResultPayload(FriendlyByteBuf buffer) {
+		return new DecodedGraphWriteResultPayload(
+			buffer.readUtf(GRAPH_SAVE_REQUEST_ID_MAX_LENGTH),
+			buffer.readUtf(GRAPH_SAVE_JSON_MAX_LENGTH)
+		);
+	}
+
+	/**
 	 * 读取状态面板批量输入沿用的统一长度上限。
 	 */
 	private static int resolveMaxInputLength() {
@@ -378,5 +450,29 @@ final class StatePanelNetworkPayloadSupport {
 		boolean autoOpenWeb,
 		byte[] chunkBytes
 	) {
+	}
+
+	/**
+	 * 图快照结果分块解码结果。
+	 */
+	record DecodedGraphExportChunkPayload(
+		String fileName,
+		int chunkIndex,
+		int totalChunks,
+		boolean autoOpenWeb,
+		byte[] chunkBytes
+	) {
+	}
+
+	/**
+	 * graph 保存请求解码结果。
+	 */
+	record DecodedGraphWriteRequestPayload(String requestId, String requestJson) {
+	}
+
+	/**
+	 * graph 保存结果解码结果。
+	 */
+	record DecodedGraphWriteResultPayload(String requestId, String responseJson) {
 	}
 }

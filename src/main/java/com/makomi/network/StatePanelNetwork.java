@@ -258,6 +258,57 @@ public final class StatePanelNetwork {
 	}
 
 	/**
+	 * 客户端请求导出当前可见图快照。
+	 */
+	public record ExportStatePanelGraphPayload() implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<ExportStatePanelGraphPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "export_state_panel_graph")
+		);
+		public static final StreamCodec<FriendlyByteBuf, ExportStatePanelGraphPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> {
+			},
+			buffer -> new ExportStatePanelGraphPayload()
+		);
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 客户端提交 graph 显式保存请求。
+	 */
+	public record SubmitGraphWritePayload(String requestId, String requestJson) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<SubmitGraphWritePayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_graph_write")
+		);
+		public static final StreamCodec<FriendlyByteBuf, SubmitGraphWritePayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphWriteRequestPayload(
+				buffer,
+				payload.requestId(),
+				payload.requestJson()
+			),
+			buffer -> {
+				StatePanelNetworkPayloadSupport.DecodedGraphWriteRequestPayload decoded = StatePanelNetworkPayloadSupport.decodeGraphWriteRequestPayload(
+					buffer
+				);
+				return new SubmitGraphWritePayload(decoded.requestId(), decoded.requestJson());
+			}
+		);
+
+		public SubmitGraphWritePayload {
+			requestId = requestId == null ? "" : requestId;
+			requestJson = requestJson == null ? "" : requestJson;
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 客户端清空全部订阅的 C2S 请求。
 	 */
 	public record CleanAllStatePanelPayload() implements CustomPacketPayload {
@@ -444,6 +495,92 @@ public final class StatePanelNetwork {
 		@Override
 		public byte[] chunkBytes() {
 			return chunkBytes.clone();
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端返回的图快照结果分块。
+	 */
+	public record StatePanelGraphExportChunkPayload(
+		String fileName,
+		int chunkIndex,
+		int totalChunks,
+		boolean autoOpenWeb,
+		byte[] chunkBytes
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<StatePanelGraphExportChunkPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_graph_export_chunk")
+		);
+		public static final StreamCodec<FriendlyByteBuf, StatePanelGraphExportChunkPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphExportChunkPayload(
+				buffer,
+				payload.fileName(),
+				payload.chunkIndex(),
+				payload.totalChunks(),
+				payload.autoOpenWeb(),
+				payload.chunkBytes()
+			),
+			buffer -> {
+				StatePanelNetworkPayloadSupport.DecodedGraphExportChunkPayload decoded = StatePanelNetworkPayloadSupport.decodeGraphExportChunkPayload(
+					buffer
+				);
+				return new StatePanelGraphExportChunkPayload(
+					decoded.fileName(),
+					decoded.chunkIndex(),
+					decoded.totalChunks(),
+					decoded.autoOpenWeb(),
+					decoded.chunkBytes()
+				);
+			}
+		);
+
+		public StatePanelGraphExportChunkPayload {
+			fileName = fileName == null ? "" : fileName;
+			chunkIndex = Math.max(0, chunkIndex);
+			totalChunks = Math.max(0, totalChunks);
+			chunkBytes = chunkBytes == null ? new byte[0] : chunkBytes.clone();
+		}
+
+		@Override
+		public byte[] chunkBytes() {
+			return chunkBytes.clone();
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端返回的 graph 保存结果。
+	 */
+	public record GraphWriteResultPayload(String requestId, String responseJson) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<GraphWriteResultPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "graph_write_result")
+		);
+		public static final StreamCodec<FriendlyByteBuf, GraphWriteResultPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphWriteResultPayload(
+				buffer,
+				payload.requestId(),
+				payload.responseJson()
+			),
+			buffer -> {
+				StatePanelNetworkPayloadSupport.DecodedGraphWriteResultPayload decoded = StatePanelNetworkPayloadSupport.decodeGraphWriteResultPayload(
+					buffer
+				);
+				return new GraphWriteResultPayload(decoded.requestId(), decoded.responseJson());
+			}
+		);
+
+		public GraphWriteResultPayload {
+			requestId = requestId == null ? "" : requestId;
+			responseJson = responseJson == null ? "" : responseJson;
 		}
 
 		@Override

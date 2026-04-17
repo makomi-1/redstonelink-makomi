@@ -3,6 +3,8 @@ package com.makomi.network;
 import com.makomi.advancement.RedstoneLinkAdvancementService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CurrentLinksPrivacyService;
+import com.makomi.data.GraphSnapshotExportService;
+import com.makomi.data.GraphWriteService;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeIdentitySnapshot;
@@ -16,6 +18,7 @@ import com.makomi.data.StatePanelRecordingSessionService.ExportBundle;
 import com.makomi.data.StatePanelToolData;
 import com.makomi.item.StatePanelToolItem;
 import com.makomi.util.SerialParseUtil;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +37,7 @@ import net.minecraft.world.item.ItemStack;
 final class StatePanelNetworkServerHandlerSupport {
 	private static final Map<UUID, Long> LAST_REFRESH_TICK_BY_PLAYER = new HashMap<>();
 	private static final int RECORDING_EXPORT_CHUNK_BYTES = 24576;
+	private static final int GRAPH_EXPORT_CHUNK_BYTES = 24576;
 
 	private StatePanelNetworkServerHandlerSupport() {
 	}
@@ -284,6 +288,34 @@ final class StatePanelNetworkServerHandlerSupport {
 	}
 
 	/**
+	 * 导出当前玩家可见的 serial 图快照。
+	 */
+	static void handleExportGraph(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+		try {
+			GraphSnapshotExportService.ExportBundle exportBundle = GraphSnapshotExportService.exportVisibleSerialGraph(player);
+			sendGraphExport(player, exportBundle);
+			sendFeedback(player, QuickLinkOperationFeedback.success("message.redstonelink.graph.export.done", exportBundle.fileName()));
+		} catch (IOException | RuntimeException exception) {
+			com.makomi.RedstoneLink.LOGGER.warn("导出图快照失败: player={}", player.getScoreboardName(), exception);
+			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.graph.export.failed"));
+		}
+	}
+
+	/**
+	 * 处理网页 graph 显式保存请求。
+	 */
+	static void handleSubmitGraphWrite(ServerPlayer player, StatePanelNetwork.SubmitGraphWritePayload payload) {
+		if (player == null || payload == null || payload.requestId().isBlank()) {
+			return;
+		}
+		String responseJson = GraphWriteService.submit(player, payload.requestJson());
+		ServerPlayNetworking.send(player, new StatePanelNetwork.GraphWriteResultPayload(payload.requestId(), responseJson));
+	}
+
+	/**
 	 * 处理清空全部订阅请求。
 	 */
 	static void handleCleanAll(ServerPlayer player) {
@@ -401,6 +433,34 @@ final class StatePanelNetworkServerHandlerSupport {
 					chunkIndex,
 					totalChunks,
 					exportBundle.autoOpenWeb(),
+					chunkBytes
+				)
+			);
+		}
+	}
+
+	/**
+	 * 分块发送图快照结果，避免单包体积过大。
+	 */
+	private static void sendGraphExport(ServerPlayer player, GraphSnapshotExportService.ExportBundle exportBundle) {
+		byte[] compressedBytes = exportBundle == null ? null : exportBundle.compressedBytes();
+		if (player == null || exportBundle == null || compressedBytes == null || compressedBytes.length <= 0) {
+			return;
+		}
+		int totalChunks = Math.max(1, (compressedBytes.length + GRAPH_EXPORT_CHUNK_BYTES - 1) / GRAPH_EXPORT_CHUNK_BYTES);
+		for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+			int startOffset = chunkIndex * GRAPH_EXPORT_CHUNK_BYTES;
+			int endOffset = Math.min(compressedBytes.length, startOffset + GRAPH_EXPORT_CHUNK_BYTES);
+			int chunkLength = Math.max(0, endOffset - startOffset);
+			byte[] chunkBytes = new byte[chunkLength];
+			System.arraycopy(compressedBytes, startOffset, chunkBytes, 0, chunkLength);
+			ServerPlayNetworking.send(
+				player,
+				new StatePanelNetwork.StatePanelGraphExportChunkPayload(
+					exportBundle.fileName(),
+					chunkIndex,
+					totalChunks,
+					true,
 					chunkBytes
 				)
 			);

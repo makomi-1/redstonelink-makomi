@@ -670,6 +670,337 @@ body {
   min-height: 220px;
 }
 
+.graph-page-shell {
+  padding-top: 24px;
+}
+
+.graph-viewer-card {
+  min-height: 320px;
+}
+
+.graph-viewer {
+  display: grid;
+  gap: 18px;
+}
+
+.graph-toolbar-block {
+  display: grid;
+  gap: 12px;
+}
+
+.graph-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.graph-search-field {
+  min-width: min(100%, 460px);
+}
+
+.graph-search-input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 214, 191, 0.16);
+  border-radius: 14px;
+  background: rgba(8, 16, 24, 0.62);
+  color: #fff4eb;
+  font: inherit;
+}
+
+.graph-search-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.graph-search-chip {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 214, 191, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #fff4eb;
+  font: inherit;
+  cursor: pointer;
+}
+
+.graph-search-chip.is-selected {
+  border-color: rgba(255, 189, 150, 0.54);
+  background: rgba(255, 147, 104, 0.14);
+}
+
+.graph-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.graph-editor-message {
+  margin: 0;
+  color: #ffe6d0;
+}
+
+.graph-batch-editor {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid rgba(255, 214, 191, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.graph-batch-editor-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.graph-batch-editor-header span,
+.graph-batch-editor-caption {
+  margin: 0;
+  color: #ccb5a6;
+  font-size: 0.88rem;
+}
+
+.graph-batch-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.graph-batch-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.graph-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 18px;
+}
+
+.graph-canvas-card,
+.graph-detail-card {
+  padding: 16px;
+  border: 1px solid rgba(255, 214, 191, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.graph-canvas-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.graph-canvas-header h3,
+.graph-detail-hero h3 {
+  margin: 12px 0 0;
+}
+
+.graph-inline-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+}
+
+.graph-inline-stats div {
+  min-width: 74px;
+}
+
+.graph-inline-stats dt {
+  margin-bottom: 6px;
+  color: #c7af9c;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.graph-inline-stats dd {
+  margin: 0;
+  color: #fff2e8;
+  font-weight: 700;
+}
+
+.graph-canvas {
+  position: relative;
+  height: clamp(680px, 72vh, 920px);
+  min-height: 680px;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 214, 191, 0.08);
+  background:
+    radial-gradient(circle at top, rgba(255, 173, 122, 0.09), transparent 32%),
+    linear-gradient(180deg, rgba(8, 14, 22, 0.88), rgba(12, 10, 16, 0.92));
+}
+
+.graph-canvas .react-flow {
+  background: transparent;
+}
+
+.graph-canvas .react-flow__node-default {
+  padding: 10px 12px;
+  font-family: "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+}
+
+.graph-canvas .react-flow__controls,
+.graph-canvas .react-flow__minimap {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.graph-empty-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.graph-detail-card .card-header {
+  margin-bottom: 14px;
+}
+
+.graph-detail-hero {
+  margin-bottom: 14px;
+}
+
+.graph-detail-caption {
+  margin: 10px 0 0;
+  color: #ccb5a6;
+  word-break: break-all;
+}
+
+.graph-detail-grid {
+  margin-bottom: 18px;
+}
+
+.graph-editor-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.graph-editor-field span {
+  color: #c7af9c;
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.graph-editor-input {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 214, 191, 0.16);
+  border-radius: 14px;
+  background: rgba(8, 16, 24, 0.62);
+  color: #fff4eb;
+  font: inherit;
+}
+
+.graph-target-editor {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.graph-target-editor-header {
+  display: grid;
+  gap: 6px;
+}
+
+.graph-target-editor-header span {
+  color: #ccb5a6;
+  font-size: 0.88rem;
+}
+
+.graph-target-list {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.graph-target-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 214, 191, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.graph-target-chip {
+  width: 100%;
+  color: #fff2e8;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.graph-flag-block {
+  display: grid;
+  gap: 12px;
+}
+
+.graph-flag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.graph-flag-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 214, 191, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #fff2e8;
+  font-size: 0.88rem;
+}
+
+.graph-node-label {
+  display: grid;
+  gap: 6px;
+}
+
+.graph-node-eyebrow {
+  color: #ffcca6;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.graph-node-title {
+  font-size: 0.98rem;
+}
+
+.graph-node-meta {
+  color: #d8c3b4;
+  font-size: 0.82rem;
+}
+
 .recording-toolbar-block {
   display: grid;
   gap: 12px;
@@ -898,7 +1229,12 @@ body {
   }
 
   .recording-summary-grid,
-  .recording-node-section {
+  .recording-node-section,
+  .graph-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .graph-batch-selection-grid {
     grid-template-columns: 1fr;
   }
 

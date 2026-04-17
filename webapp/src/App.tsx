@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import GraphViewer from './components/GraphViewer';
 import RecordingViewer from './components/RecordingViewer';
+import { parseGraphSnapshotBundle } from './graphTypes';
 import { parseRecordingBundle } from './recordingTypes';
 
 type BridgePingPayload = {
@@ -50,7 +52,7 @@ type StorageEntryPayload = {
   textContent: string;
 };
 
-type AppPage = 'home' | 'recording';
+type AppPage = 'home' | 'recording' | 'graph';
 
 type AppLocation = {
   page: AppPage;
@@ -91,9 +93,16 @@ function parseAppLocation(): AppLocation {
     };
   }
   const params = new URLSearchParams(window.location.search);
-  const page = params.get('page') === 'recording' ? 'recording' : 'home';
+  const pageParam = params.get('page');
+  const page: AppPage = pageParam === 'recording' || pageParam === 'graph' ? pageParam : 'home';
   const fileName = params.get('name') ?? '';
-  const kind = params.get('kind') ?? (page === 'recording' && fileName ? 'recording' : '');
+  const kind =
+    params.get('kind') ??
+    (page === 'recording' && fileName
+      ? 'recording'
+      : page === 'graph' && fileName
+        ? 'graph'
+        : '');
   return {
     page,
     kind,
@@ -134,15 +143,17 @@ function findStorageEntry(
 /**
  * 网页主入口。
  * <p>
- * 当前入口承载两个页面：
+ * 当前入口承载三个页面：
  * </p>
  * <ul>
  * <li>首页：本地资产入口与只读预览</li>
- * <li>recording 页：独立录制曲线查看与指定文件加载</li>
+ * <li>recording 页：独立录制曲线查看</li>
+ * <li>graph 页：独立 serial 拓扑分析</li>
  * </ul>
  */
 export default function App() {
   const [appLocation, setAppLocation] = useState<AppLocation>(() => parseAppLocation());
+  const [graphPageDirty, setGraphPageDirty] = useState(false);
   const [bridgePayload, setBridgePayload] = useState<BridgePingPayload | null>(null);
   const [bridgeError, setBridgeError] = useState<string>('');
   const [bridgeLoading, setBridgeLoading] = useState(true);
@@ -158,6 +169,10 @@ export default function App() {
     useState<StorageEntryPayload | null>(null);
   const [recordingEntryError, setRecordingEntryError] = useState<string>('');
   const [recordingEntryLoading, setRecordingEntryLoading] = useState(false);
+  const [graphSelectedEntryKey, setGraphSelectedEntryKey] = useState<string>('');
+  const [graphSelectedEntry, setGraphSelectedEntry] = useState<StorageEntryPayload | null>(null);
+  const [graphEntryError, setGraphEntryError] = useState<string>('');
+  const [graphEntryLoading, setGraphEntryLoading] = useState(false);
 
   const totalEntryCount =
     storageIndex?.categories.reduce((total, category) => total + category.entryCount, 0) ?? 0;
@@ -173,14 +188,24 @@ export default function App() {
   );
   const recordingEntries = useMemo(
     () =>
-      storageIndex?.categories.find((category) => category.kind === 'recording')?.entries ??
-      [],
+      storageIndex?.categories.find((category) => category.kind === 'recording')?.entries ?? [],
+    [storageIndex],
+  );
+  const graphEntries = useMemo(
+    () => storageIndex?.categories.find((category) => category.kind === 'graph')?.entries ?? [],
     [storageIndex],
   );
   const recordingBundle =
     recordingSelectedEntry == null
       ? null
       : parseRecordingBundle(recordingSelectedEntry.textContent, recordingSelectedEntry.kind);
+  const graphBundle = useMemo(
+    () =>
+      graphSelectedEntry == null
+        ? null
+        : parseGraphSnapshotBundle(graphSelectedEntry.textContent, graphSelectedEntry.kind),
+    [graphSelectedEntry?.kind, graphSelectedEntry?.textContent],
+  );
 
   useEffect(() => {
     const handlePopState = () => {
@@ -200,6 +225,12 @@ export default function App() {
     void loadBridgeStatus();
     void loadStorageIndex();
   }, []);
+
+  useEffect(() => {
+    if (appLocation.page !== 'graph') {
+      setGraphPageDirty(false);
+    }
+  }, [appLocation.page]);
 
   useEffect(() => {
     if (!storageIndex || appLocation.page !== 'home') {
@@ -246,6 +277,29 @@ export default function App() {
     setRecordingSelectedEntryKey('');
     setRecordingEntryError('');
   }, [appLocation, recordingSelectedEntryKey, storageIndex]);
+
+  useEffect(() => {
+    if (!storageIndex || appLocation.page !== 'graph') {
+      return;
+    }
+    if (appLocation.kind === 'graph' && appLocation.fileName) {
+      const targetEntry = findStorageEntry(storageIndex, 'graph', appLocation.fileName);
+      if (!targetEntry) {
+        setGraphSelectedEntry(null);
+        setGraphSelectedEntryKey('');
+        setGraphEntryError(`未找到指定 graph 文件：${appLocation.fileName}`);
+        return;
+      }
+      const targetKey = buildEntryKey(targetEntry.kind, targetEntry.fileName);
+      if (targetKey !== graphSelectedEntryKey) {
+        void loadGraphEntry(targetEntry.fileName);
+      }
+      return;
+    }
+    setGraphSelectedEntry(null);
+    setGraphSelectedEntryKey('');
+    setGraphEntryError('');
+  }, [appLocation, graphSelectedEntryKey, storageIndex]);
 
   async function loadBridgeStatus() {
     try {
@@ -329,6 +383,21 @@ export default function App() {
     }
   }
 
+  async function loadGraphEntry(fileName: string) {
+    try {
+      setGraphEntryLoading(true);
+      setGraphEntryError('');
+      setGraphSelectedEntryKey(buildEntryKey('graph', fileName));
+      const payload = await fetchStorageEntry('graph', fileName);
+      setGraphSelectedEntry(payload);
+    } catch (error) {
+      setGraphEntryError(error instanceof Error ? error.message : 'unknown error');
+      setGraphSelectedEntry(null);
+    } finally {
+      setGraphEntryLoading(false);
+    }
+  }
+
   function syncAppLocation(nextLocation: AppLocation, mode: 'push' | 'replace') {
     if (typeof window !== 'undefined') {
       const nextHref = buildAppHref(nextLocation);
@@ -347,6 +416,17 @@ export default function App() {
         {
           page: 'recording',
           kind: 'recording',
+          fileName: entry.fileName,
+        },
+        'push',
+      );
+      return;
+    }
+    if (entry.kind === 'graph') {
+      syncAppLocation(
+        {
+          page: 'graph',
+          kind: 'graph',
           fileName: entry.fileName,
         },
         'push',
@@ -374,128 +454,265 @@ export default function App() {
     );
   }
 
-  return appLocation.page === 'recording' ? (
-    <main className="app-shell recording-page-shell">
-      <section className="recording-page-header info-card">
-        <div className="recording-page-header-row">
-          <button
-            type="button"
-            className="action-button"
-            onClick={() =>
-              syncAppLocation(
-                {
-                  page: 'home',
-                  kind: '',
-                  fileName: '',
-                },
-                'push',
-              )
-            }
-          >
-            返回首页
-          </button>
-          <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
-        </div>
-        <div className="recording-page-title-wrap">
-          <p className="eyebrow">Dedicated Recording Viewer</p>
-          <h1>录制曲线查看</h1>
-          <p className="hero-text">
-            当前页面只负责 recording bundle 主查看。可直接加载指定 recording 文件，并使用滚轮、拖拽和快捷键操作时间窗。
-          </p>
-        </div>
-        <div className="recording-file-toolbar">
-          <label className="recording-file-field">
-            <span>加载 recording 文件</span>
-            <select
-              className="recording-file-select"
-              value={appLocation.page === 'recording' ? appLocation.fileName : ''}
-              onChange={(event) => handleRecordingFileChange(event.target.value)}
-            >
-              <option value="">请选择本地 recording 文件</option>
-              {recordingEntries.map((entry) => (
-                <option key={buildEntryKey(entry.kind, entry.fileName)} value={entry.fileName}>
-                  {entry.fileName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className="action-button" onClick={() => void loadStorageIndex()}>
-            刷新索引
-          </button>
-        </div>
-        {recordingSelectedEntry ? (
-          <dl className="recording-file-meta">
-            <div>
-              <dt>File</dt>
-              <dd>{recordingSelectedEntry.fileName}</dd>
-            </div>
-            <div>
-              <dt>Relative Path</dt>
-              <dd>{recordingSelectedEntry.relativePath}</dd>
-            </div>
-            <div>
-              <dt>File Size</dt>
-              <dd>{formatBytes(recordingSelectedEntry.sizeBytes)}</dd>
-            </div>
-            <div>
-              <dt>Last Modified</dt>
-              <dd>{formatStartedAt(recordingSelectedEntry.lastModifiedEpochMillis)}</dd>
-            </div>
-          </dl>
-        ) : null}
-        {storageError ? <p className="error-text">无法读取 `./api/storage/index`：{storageError}</p> : null}
-        {bridgeError ? <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p> : null}
-      </section>
+  function handleGraphFileChange(fileName: string) {
+    if (graphPageDirty && typeof window !== 'undefined') {
+      const confirmed = window.confirm('当前 graph 页面有未保存修改，切换文件会丢失本地草稿，是否继续？');
+      if (!confirmed) {
+        return;
+      }
+    }
+    syncAppLocation(
+      {
+        page: 'graph',
+        kind: fileName ? 'graph' : '',
+        fileName,
+      },
+      'replace',
+    );
+  }
 
-      <section className="recording-page-main">
-        {storageLoading ? <p className="empty-state">正在扫描本地 recording 资产...</p> : null}
-        {!storageLoading && recordingEntries.length === 0 ? (
-          <article className="info-card recording-empty-card">
-            <p className="empty-state">当前本地资产仓还没有 recording 文件。</p>
-          </article>
-        ) : null}
-        {!storageLoading &&
-        recordingEntries.length > 0 &&
-        !appLocation.fileName &&
-        !recordingEntryLoading ? (
-          <article className="info-card recording-empty-card">
-            <p className="empty-state">请先在上方选择一个 recording 文件再开始查看曲线。</p>
-          </article>
-        ) : null}
-        {recordingEntryLoading ? (
-          <article className="info-card recording-empty-card">
-            <p className="empty-state">正在读取 recording 文件...</p>
-          </article>
-        ) : null}
-        {recordingEntryError ? (
-          <article className="info-card recording-empty-card">
-            <p className="error-text">无法读取当前 recording：{recordingEntryError}</p>
-          </article>
-        ) : null}
-        {recordingSelectedEntry && !recordingBundle && !recordingEntryError ? (
-          <article className="info-card recording-empty-card">
-            <p className="error-text">当前文件不是合法的 recording bundle。</p>
-          </article>
-        ) : null}
-        {recordingBundle ? (
-          <article className="info-card recording-viewer-card">
-            <RecordingViewer recordingBundle={recordingBundle} />
-            <details className="raw-preview-panel">
-              <summary>原始 JSON</summary>
-              <pre className="code-block">{recordingSelectedEntry?.textContent}</pre>
-            </details>
-          </article>
-        ) : null}
-      </section>
-    </main>
-  ) : (
+  function goHome() {
+    if (appLocation.page === 'graph' && graphPageDirty && typeof window !== 'undefined') {
+      const confirmed = window.confirm('当前 graph 页面有未保存修改，返回首页会丢失本地草稿，是否继续？');
+      if (!confirmed) {
+        return;
+      }
+    }
+    syncAppLocation(
+      {
+        page: 'home',
+        kind: '',
+        fileName: '',
+      },
+      'push',
+    );
+  }
+
+  if (appLocation.page === 'recording') {
+    return (
+      <main className="app-shell recording-page-shell">
+        <section className="recording-page-header info-card">
+          <div className="recording-page-header-row">
+            <button type="button" className="action-button" onClick={goHome}>
+              返回首页
+            </button>
+            <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
+          </div>
+          <div className="recording-page-title-wrap">
+            <p className="eyebrow">Dedicated Recording Viewer</p>
+            <h1>录制曲线查看</h1>
+            <p className="hero-text">
+              当前页面只负责 recording bundle 主查看。可直接加载指定 recording 文件，并使用滚轮、拖拽和快捷键操作时间窗。
+            </p>
+          </div>
+          <div className="recording-file-toolbar">
+            <label className="recording-file-field">
+              <span>加载 recording 文件</span>
+              <select
+                className="recording-file-select"
+                value={appLocation.page === 'recording' ? appLocation.fileName : ''}
+                onChange={(event) => handleRecordingFileChange(event.target.value)}
+              >
+                <option value="">请选择本地 recording 文件</option>
+                {recordingEntries.map((entry) => (
+                  <option key={buildEntryKey(entry.kind, entry.fileName)} value={entry.fileName}>
+                    {entry.fileName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="action-button" onClick={() => void loadStorageIndex()}>
+              刷新索引
+            </button>
+          </div>
+          {recordingSelectedEntry ? (
+            <dl className="recording-file-meta">
+              <div>
+                <dt>File</dt>
+                <dd>{recordingSelectedEntry.fileName}</dd>
+              </div>
+              <div>
+                <dt>Relative Path</dt>
+                <dd>{recordingSelectedEntry.relativePath}</dd>
+              </div>
+              <div>
+                <dt>File Size</dt>
+                <dd>{formatBytes(recordingSelectedEntry.sizeBytes)}</dd>
+              </div>
+              <div>
+                <dt>Last Modified</dt>
+                <dd>{formatStartedAt(recordingSelectedEntry.lastModifiedEpochMillis)}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {storageError ? (
+            <p className="error-text">无法读取 `./api/storage/index`：{storageError}</p>
+          ) : null}
+          {bridgeError ? <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p> : null}
+        </section>
+
+        <section className="recording-page-main">
+          {storageLoading ? <p className="empty-state">正在扫描本地 recording 资产...</p> : null}
+          {!storageLoading && recordingEntries.length === 0 ? (
+            <article className="info-card recording-empty-card">
+              <p className="empty-state">当前本地资产仓还没有 recording 文件。</p>
+            </article>
+          ) : null}
+          {!storageLoading &&
+          recordingEntries.length > 0 &&
+          !appLocation.fileName &&
+          !recordingEntryLoading ? (
+            <article className="info-card recording-empty-card">
+              <p className="empty-state">请先在上方选择一个 recording 文件再开始查看曲线。</p>
+            </article>
+          ) : null}
+          {recordingEntryLoading ? (
+            <article className="info-card recording-empty-card">
+              <p className="empty-state">正在读取 recording 文件...</p>
+            </article>
+          ) : null}
+          {recordingEntryError ? (
+            <article className="info-card recording-empty-card">
+              <p className="error-text">无法读取当前 recording：{recordingEntryError}</p>
+            </article>
+          ) : null}
+          {recordingSelectedEntry && !recordingBundle && !recordingEntryError ? (
+            <article className="info-card recording-empty-card">
+              <p className="error-text">当前文件不是合法的 recording bundle。</p>
+            </article>
+          ) : null}
+          {recordingBundle ? (
+            <article className="info-card recording-viewer-card">
+              <RecordingViewer recordingBundle={recordingBundle} />
+              <details className="raw-preview-panel">
+                <summary>原始 JSON</summary>
+                <pre className="code-block">{recordingSelectedEntry?.textContent}</pre>
+              </details>
+            </article>
+          ) : null}
+        </section>
+      </main>
+    );
+  }
+
+  if (appLocation.page === 'graph') {
+    return (
+      <main className="app-shell graph-page-shell">
+        <section className="recording-page-header info-card">
+          <div className="recording-page-header-row">
+            <button type="button" className="action-button" onClick={goHome}>
+              返回首页
+            </button>
+            <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
+          </div>
+          <div className="recording-page-title-wrap">
+            <p className="eyebrow">Dedicated Graph Analyzer</p>
+            <h1>serial 拓扑分析</h1>
+            <p className="hero-text">
+              当前页面只负责 graph snapshot 主查看。可直接加载指定 graph 文件，也可以先在游戏里执行
+              <code> /rlclient web graph </code>
+              导出并自动打开最新快照。
+            </p>
+          </div>
+          <div className="recording-file-toolbar">
+            <label className="recording-file-field">
+              <span>加载 graph 文件</span>
+              <select
+                className="recording-file-select"
+                value={appLocation.page === 'graph' ? appLocation.fileName : ''}
+                onChange={(event) => handleGraphFileChange(event.target.value)}
+              >
+                <option value="">请选择本地 graph 文件</option>
+                {graphEntries.map((entry) => (
+                  <option key={buildEntryKey(entry.kind, entry.fileName)} value={entry.fileName}>
+                    {entry.fileName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="action-button" onClick={() => void loadStorageIndex()}>
+              刷新索引
+            </button>
+          </div>
+          {graphSelectedEntry ? (
+            <dl className="recording-file-meta">
+              <div>
+                <dt>File</dt>
+                <dd>{graphSelectedEntry.fileName}</dd>
+              </div>
+              <div>
+                <dt>Relative Path</dt>
+                <dd>{graphSelectedEntry.relativePath}</dd>
+              </div>
+              <div>
+                <dt>File Size</dt>
+                <dd>{formatBytes(graphSelectedEntry.sizeBytes)}</dd>
+              </div>
+              <div>
+                <dt>Last Modified</dt>
+                <dd>{formatStartedAt(graphSelectedEntry.lastModifiedEpochMillis)}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {storageError ? (
+            <p className="error-text">无法读取 `./api/storage/index`：{storageError}</p>
+          ) : null}
+          {bridgeError ? <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p> : null}
+        </section>
+
+        <section className="recording-page-main">
+          {storageLoading ? <p className="empty-state">正在扫描本地 graph 资产...</p> : null}
+          {!storageLoading && graphEntries.length === 0 ? (
+            <article className="info-card recording-empty-card">
+              <p className="empty-state">当前本地资产仓还没有 graph 文件。</p>
+            </article>
+          ) : null}
+          {!storageLoading && graphEntries.length > 0 && !appLocation.fileName && !graphEntryLoading ? (
+            <article className="info-card recording-empty-card">
+              <p className="empty-state">请先在上方选择一个 graph 文件再开始查看拓扑。</p>
+            </article>
+          ) : null}
+          {graphEntryLoading ? (
+            <article className="info-card recording-empty-card">
+              <p className="empty-state">正在读取 graph 文件...</p>
+            </article>
+          ) : null}
+          {graphEntryError ? (
+            <article className="info-card recording-empty-card">
+              <p className="error-text">无法读取当前 graph：{graphEntryError}</p>
+            </article>
+          ) : null}
+          {graphSelectedEntry && !graphBundle && !graphEntryError ? (
+            <article className="info-card recording-empty-card">
+              <p className="error-text">当前文件不是合法的 graph snapshot bundle。</p>
+            </article>
+          ) : null}
+          {graphBundle ? (
+            <article className="info-card graph-viewer-card">
+              <GraphViewer
+                graphBundle={graphBundle}
+                graphFileName={graphSelectedEntry?.fileName ?? ''}
+                onDirtyStateChange={setGraphPageDirty}
+              />
+              <details className="raw-preview-panel">
+                <summary>原始 JSON</summary>
+                <pre className="code-block">{graphSelectedEntry?.textContent}</pre>
+              </details>
+            </article>
+          ) : null}
+        </section>
+      </main>
+    );
+  }
+
+  return (
     <main className="app-shell">
       <section className="hero-panel">
         <div className="hero-copy">
           <p className="eyebrow">Embedded Offline Tooling</p>
           <h1>RedstoneLink Web Tools</h1>
           <p className="hero-text">
-            当前首页保留本地资产入口与只读预览；recording 资产会直接切到独立曲线页，避免把曲线查看挤在小面板里。
+            首页继续作为离线资产入口；recording 和 graph 资产都会直接切换到独立页面主查看，避免把分析界面塞进小预览面板里。
           </p>
         </div>
         <div className="hero-orbit" aria-hidden="true">
@@ -571,14 +788,14 @@ export default function App() {
 
         <article className="info-card">
           <header className="card-header">
-            <span className="section-tag">Recording</span>
-            <h2>独立曲线页</h2>
+            <span className="section-tag">Dedicated Views</span>
+            <h2>独立主查看页</h2>
           </header>
           <ul className="feature-list">
-            <li>recording 资产点击后会直接切到独立曲线查看页</li>
-            <li>曲线页内部可主动选择并加载指定 recording 文件</li>
-            <li>时间窗操作改为滚轮、拖拽、双击和快捷键</li>
-            <li>首页继续保留为离线资产入口与只读预览</li>
+            <li>recording 资产点击后直接切到独立曲线查看页</li>
+            <li>graph 资产点击后直接切到独立拓扑分析页</li>
+            <li>图页支持搜索、缩放、平移、重新布局与节点详情</li>
+            <li>可先在游戏里执行 `/rlclient web graph` 导出当前可见 serial 图快照</li>
           </ul>
         </article>
       </section>
@@ -678,7 +895,16 @@ export default function App() {
                 </p>
               ) : null}
 
-              <details className="raw-preview-panel" open={homeSelectedEntry.kind !== 'recording'}>
+              {homeSelectedEntry.kind === 'graph' ? (
+                <p className="empty-state">
+                  graph 资产已迁移到独立拓扑页查看。请从左侧再次点击对应 graph 文件进入专用页面。
+                </p>
+              ) : null}
+
+              <details
+                className="raw-preview-panel"
+                open={homeSelectedEntry.kind !== 'recording' && homeSelectedEntry.kind !== 'graph'}
+              >
                 <summary>资产文本内容</summary>
                 <pre className="code-block">{homeSelectedEntry.textContent}</pre>
               </details>

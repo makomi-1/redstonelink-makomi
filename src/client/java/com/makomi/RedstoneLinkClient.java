@@ -18,6 +18,7 @@ import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.QuickLinkNetwork;
+import com.makomi.network.StatePanelNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
 import com.mojang.brigadier.Command;
@@ -278,13 +279,14 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	}
 
 	/**
-	 * 注册客户端独立命令根：
-	 * <p>
-	 * `/rlclient display far_overlay occluded|see_through` 仅影响本地显示配置，`/rlclient web open`
-	 * 则用于打开本地离线网页工具，两者都不依赖服务端命令树。
-	 * </p>
-	 */
-	private static void registerClientCommands() {
+ * 注册客户端独立命令根：
+ * <p>
+ * `/rlclient display far_overlay occluded|see_through` 仅影响本地显示配置；
+ * `/rlclient web open` 用于打开本地离线网页工具；
+ * `/rlclient web graph` 用于请求导出当前可见 serial 图快照。
+ * </p>
+ */
+private static void registerClientCommands() {
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
 			ClientCommandManager
 				.literal(CLIENT_DISPLAY_COMMAND_ROOT)
@@ -313,6 +315,21 @@ public class RedstoneLinkClient implements ClientModInitializer {
 							ClientCommandManager
 								.literal("open")
 								.executes(RedstoneLinkClient::executeOpenWebApp)
+						)
+						.then(
+							ClientCommandManager
+								.literal("graph")
+								.executes(RedstoneLinkClient::executeExportGraphSnapshot)
+								.then(
+									ClientCommandManager
+										.literal("open")
+										.executes(RedstoneLinkClient::executeOpenGraphPage)
+								)
+								.then(
+									ClientCommandManager
+										.literal("export")
+										.executes(RedstoneLinkClient::executeExportGraphSnapshot)
+								)
 						)
 				)
 		));
@@ -358,6 +375,38 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			context.getSource().sendFeedback(Component.translatable("message.redstonelink.web.open_failed", reason));
 			return 0;
 		}
+	}
+
+	/**
+	 * 打开本地 graph 独立拓扑分析页。
+	 */
+	private static int executeOpenGraphPage(CommandContext<FabricClientCommandSource> context) {
+		try {
+			URI graphPageUri = LocalWebAppBridgeService.openGraphPage();
+			context.getSource().sendFeedback(Component.translatable("message.redstonelink.web.opened", graphPageUri.toString()));
+			return Command.SINGLE_SUCCESS;
+		} catch (RuntimeException exception) {
+			String reason = exception.getMessage() == null || exception.getMessage().isBlank()
+				? exception.getClass().getSimpleName()
+				: exception.getMessage();
+			RedstoneLink.LOGGER.warn("打开本地图快照网页失败", exception);
+			context.getSource().sendFeedback(Component.translatable("message.redstonelink.web.open_failed", reason));
+			return 0;
+		}
+	}
+
+	/**
+	 * 请求服务端导出当前玩家可见的 serial 图快照。
+	 */
+	private static int executeExportGraphSnapshot(CommandContext<FabricClientCommandSource> context) {
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.player == null || minecraft.getConnection() == null) {
+			context.getSource().sendFeedback(Component.translatable("message.redstonelink.graph.export.no_connection"));
+			return 0;
+		}
+		ClientPlayNetworking.send(new StatePanelNetwork.ExportStatePanelGraphPayload());
+		context.getSource().sendFeedback(Component.translatable("message.redstonelink.graph.export.requested"));
+		return Command.SINGLE_SUCCESS;
 	}
 
 	/**

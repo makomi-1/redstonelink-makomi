@@ -97,6 +97,13 @@ public final class LocalWebJsonSupport {
 		return builder.toString();
 	}
 
+	/**
+	 * 构建最小成功返回体。
+	 */
+	public static String buildOkPayload() {
+		return "{\"status\":\"ok\"}";
+	}
+
 	private static void appendCategorySummary(StringBuilder builder, StorageCategorySummary categorySummary) {
 		builder.append('{');
 		builder.append("\"kind\":");
