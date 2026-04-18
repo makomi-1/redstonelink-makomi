@@ -417,6 +417,13 @@ function buildChannelHubNodeKey(channel: number): string {
   return `channelHub:${Math.max(0, Math.trunc(channel))}`;
 }
 
+function buildChannelCanvasEdgeKey(
+  sourceNodeKey: string,
+  targetNodeKey: string,
+): string {
+  return `channel-edge:${sourceNodeKey}:${targetNodeKey}`;
+}
+
 function resolveCanvasNodeLaneType(
   node: GraphCanvasNodeInfo,
 ): GraphCanvasLaneType {
@@ -464,6 +471,69 @@ function compareCanvasNodeIdentity(
     return orderByKind[left.kind] - orderByKind[right.kind];
   }
   return left.nodeKey.localeCompare(right.nodeKey);
+}
+
+/**
+ * 聚合块除了显式展开，还需要根据最终进入画布的成员节点推断视觉展开态，
+ * 否则成员已出现但聚合块文案仍显示“未展开”。
+ */
+function resolveVisualExpandedAggregateNodes(
+  aggregateNodes: GraphCanvasAggregateNode[],
+  visibleCanvasNodeKeys: Set<string>,
+): GraphCanvasAggregateNode[] {
+  return aggregateNodes.map((aggregateNode) => {
+    const visuallyExpanded =
+      aggregateNode.expanded ||
+      aggregateNode.memberNodeKeys.some((memberNodeKey) =>
+        visibleCanvasNodeKeys.has(memberNodeKey),
+      );
+    if (visuallyExpanded === aggregateNode.expanded) {
+      return aggregateNode;
+    }
+    return {
+      ...aggregateNode,
+      expanded: visuallyExpanded,
+    };
+  });
+}
+
+/**
+ * 统一收敛聚合块的最终显示口径：
+ * 先按边和强制显示集合确定候选可见节点，再补上视觉展开态对应的聚合块与成员。
+ */
+function resolveCanvasAggregateVisibility(
+  aggregateNodes: GraphCanvasAggregateNode[],
+  phaseCanvasEdges: GraphCanvasEdgeInfo[],
+  forcedVisibleNodeKeys: Set<string>,
+  promoteVisibleMembersToExpanded = true,
+): {
+  aggregateNodes: GraphCanvasAggregateNode[];
+  visibleCanvasNodeKeys: Set<string>;
+} {
+  const visibleCanvasNodeKeys = new Set<string>();
+  phaseCanvasEdges.forEach((edge) => {
+    visibleCanvasNodeKeys.add(edge.sourceNodeKey);
+    visibleCanvasNodeKeys.add(edge.targetNodeKey);
+  });
+  forcedVisibleNodeKeys.forEach((nodeKey) => {
+    visibleCanvasNodeKeys.add(nodeKey);
+  });
+  const resolvedAggregateNodes = promoteVisibleMembersToExpanded
+    ? resolveVisualExpandedAggregateNodes(aggregateNodes, visibleCanvasNodeKeys)
+    : aggregateNodes;
+  resolvedAggregateNodes.forEach((aggregateNode) => {
+    if (!aggregateNode.expanded) {
+      return;
+    }
+    visibleCanvasNodeKeys.add(aggregateNode.nodeKey);
+    aggregateNode.memberNodeKeys.forEach((memberNodeKey) => {
+      visibleCanvasNodeKeys.add(memberNodeKey);
+    });
+  });
+  return {
+    aggregateNodes: resolvedAggregateNodes,
+    visibleCanvasNodeKeys,
+  };
 }
 
 export function buildEdgeCountByNodeKey(
@@ -546,7 +616,18 @@ function buildSerialGraphCanvasView(
     buildTargetSourcesByNodeKey(effectiveGraphBundle);
   const sourceTargetsByNodeKey =
     buildSourceTargetsByNodeKey(effectiveGraphBundle);
-  const aggregateNodes: GraphCanvasAggregateNode[] = [];
+  const actualCanvasNodes: GraphCanvasNodeInfo[] = effectiveGraphBundle.nodes.map(
+    (node) => ({
+      kind: "actual",
+      nodeKey: node.nodeKey,
+      graphNode: node,
+    }),
+  );
+  const actualNodeByKey = new Map(
+    effectiveGraphBundle.nodes.map((node) => [node.nodeKey, node] as const),
+  );
+  const coreAggregateNodes: GraphCanvasAggregateNode[] = [];
+  const triggerSourceAggregateNodes: GraphCanvasAggregateNode[] = [];
   const sharedCoreGroupsBySignature = new Map<
     string,
     {
@@ -577,7 +658,6 @@ function buildSerialGraphCanvasView(
     });
 
   const hiddenActualEdgeKeys = new Set<string>();
-  const aggregatedCoreNodeKeys = new Set<string>();
   sharedCoreGroupsBySignature.forEach((group, signatureKey) => {
     if (group.coreNodes.length < SHARED_CORE_GROUP_MIN_CORE_COUNT) {
       return;
@@ -605,10 +685,7 @@ function buildSerialGraphCanvasView(
       anchorSerial: coreNodes[0]?.serial ?? 0,
       expanded,
     };
-    aggregateNodes.push(aggregateNode);
-    aggregateNode.coreNodeKeys.forEach((nodeKey) =>
-      aggregatedCoreNodeKeys.add(nodeKey),
-    );
+    coreAggregateNodes.push(aggregateNode);
     aggregateNode.sourceNodeKeys.forEach((sourceNodeKey) => {
       aggregateNode.coreNodeKeys.forEach((coreNodeKey) => {
         hiddenActualEdgeKeys.add(`${sourceNodeKey}->${coreNodeKey}`);
@@ -616,43 +693,89 @@ function buildSerialGraphCanvasView(
     });
   });
 
+  const phaseOneVisibleActualEdges = effectiveGraphBundle.edges.filter(
+    (edge) => !hiddenActualEdgeKeys.has(edge.edgeKey),
+  );
+  const phaseOneCanvasEdges: GraphCanvasEdgeInfo[] = [
+    ...phaseOneVisibleActualEdges.map((edge) => ({
+      edgeKey: edge.edgeKey,
+      sourceNodeKey: edge.sourceNodeKey,
+      targetNodeKey: edge.targetNodeKey,
+      kind: "actual" as const,
+      diffState: "base" as DraftEdgeDiffState,
+    })),
+  ];
+  coreAggregateNodes.forEach((aggregateNode) => {
+    aggregateNode.connectedNodeKeys.forEach((sourceNodeKey) => {
+      phaseOneCanvasEdges.push({
+        edgeKey: `aggregate-edge:${sourceNodeKey}:${aggregateNode.nodeKey}`,
+        sourceNodeKey,
+        targetNodeKey: aggregateNode.nodeKey,
+        kind: "aggregate",
+        diffState: "base",
+      });
+    });
+  });
+  const phaseOneCanvasNodeByKey = new Map<string, GraphCanvasNodeInfo>([
+    ...actualCanvasNodes.map((node) => [node.nodeKey, node] as const),
+    ...coreAggregateNodes.map((node) => [node.nodeKey, node] as const),
+  ]);
+  const phaseOneConnectedTargetKeysBySourceNodeKey = new Map<
+    string,
+    Set<string>
+  >();
+  phaseOneCanvasEdges.forEach((edge) => {
+    const sourceNode = actualNodeByKey.get(edge.sourceNodeKey);
+    if (sourceNode == null || sourceNode.type !== "triggerSource") {
+      return;
+    }
+    const currentTargetKeys =
+      phaseOneConnectedTargetKeysBySourceNodeKey.get(sourceNode.nodeKey) ??
+      new Set<string>();
+    currentTargetKeys.add(edge.targetNodeKey);
+    phaseOneConnectedTargetKeysBySourceNodeKey.set(
+      sourceNode.nodeKey,
+      currentTargetKeys,
+    );
+  });
+
   const sharedTriggerSourceGroupsBySignature = new Map<
     string,
     {
       sourceNodes: GraphNodeInfo[];
-      coreNodes: GraphNodeInfo[];
+      connectedNodeKeys: string[];
     }
   >();
   effectiveGraphBundle.nodes
     .filter((node) => node.type === "triggerSource")
     .sort(compareGraphNodeIdentity)
     .forEach((sourceNode) => {
-      const coreNodes = sourceTargetsByNodeKey.get(sourceNode.nodeKey) ?? [];
-      if (coreNodes.length < SHARED_TRIGGER_SOURCE_GROUP_MIN_TARGET_COUNT) {
-        return;
-      }
+      const connectedCanvasNodes = Array.from(
+        phaseOneConnectedTargetKeysBySourceNodeKey.get(sourceNode.nodeKey) ?? [],
+      )
+        .map((nodeKey) => phaseOneCanvasNodeByKey.get(nodeKey) ?? null)
+        .filter((node): node is GraphCanvasNodeInfo => node != null)
+        .sort(compareCanvasNodeIdentity);
       if (
-        coreNodes.some((coreNode) =>
-          aggregatedCoreNodeKeys.has(coreNode.nodeKey),
-        )
+        connectedCanvasNodes.length < SHARED_TRIGGER_SOURCE_GROUP_MIN_TARGET_COUNT
       ) {
         return;
       }
-      const signatureKey = coreNodes
-        .map((coreNode) => coreNode.nodeKey)
-        .join("|");
+      const connectedNodeKeys = connectedCanvasNodes.map((node) => node.nodeKey);
+      const signatureKey = connectedNodeKeys.join("|");
       const currentGroup =
         sharedTriggerSourceGroupsBySignature.get(signatureKey);
       if (currentGroup == null) {
         sharedTriggerSourceGroupsBySignature.set(signatureKey, {
           sourceNodes: [sourceNode],
-          coreNodes,
+          connectedNodeKeys,
         });
         return;
       }
       currentGroup.sourceNodes.push(sourceNode);
     });
 
+  const hiddenPhaseTwoCanvasEdgeKeys = new Set<string>();
   sharedTriggerSourceGroupsBySignature.forEach((group, signatureKey) => {
     if (
       group.sourceNodes.length < SHARED_TRIGGER_SOURCE_GROUP_MIN_SOURCE_COUNT
@@ -660,7 +783,31 @@ function buildSerialGraphCanvasView(
       return;
     }
     const sourceNodes = [...group.sourceNodes].sort(compareGraphNodeIdentity);
-    const coreNodes = [...group.coreNodes].sort(compareGraphNodeIdentity);
+    const connectedCanvasNodes = group.connectedNodeKeys
+      .map((nodeKey) => phaseOneCanvasNodeByKey.get(nodeKey) ?? null)
+      .filter((node): node is GraphCanvasNodeInfo => node != null)
+      .sort(compareCanvasNodeIdentity);
+    if (
+      connectedCanvasNodes.length < SHARED_TRIGGER_SOURCE_GROUP_MIN_TARGET_COUNT
+    ) {
+      return;
+    }
+    const coreNodesByKey = new Map<string, GraphNodeInfo>();
+    sourceNodes.forEach((sourceNode) => {
+      const coreNodes = sourceTargetsByNodeKey.get(sourceNode.nodeKey) ?? [];
+      coreNodes.forEach((coreNode) => {
+        coreNodesByKey.set(coreNode.nodeKey, coreNode);
+        hiddenActualEdgeKeys.add(`${sourceNode.nodeKey}->${coreNode.nodeKey}`);
+      });
+      connectedCanvasNodes.forEach((connectedCanvasNode) => {
+        hiddenPhaseTwoCanvasEdgeKeys.add(
+          `${sourceNode.nodeKey}->${connectedCanvasNode.nodeKey}`,
+        );
+      });
+    });
+    const coreNodes = Array.from(coreNodesByKey.values()).sort(
+      compareGraphNodeIdentity,
+    );
     const aggregateNodeKey = buildAggregateNodeKey(
       "triggerSource",
       signatureKey,
@@ -681,134 +828,46 @@ function buildSerialGraphCanvasView(
       coreSerials: coreNodes.map((node) => node.serial),
       memberNodeKeys: sourceNodes.map((node) => node.nodeKey),
       memberSerials: sourceNodes.map((node) => node.serial),
-      connectedNodeKeys: coreNodes.map((node) => node.nodeKey),
+      connectedNodeKeys: connectedCanvasNodes.map((node) => node.nodeKey),
       connectedSerials: coreNodes.map((node) => node.serial),
       memberCount: sourceNodes.length,
       anchorSerial: sourceNodes[0]?.serial ?? 0,
       expanded,
     };
-    aggregateNodes.push(aggregateNode);
-    aggregateNode.sourceNodeKeys.forEach((sourceNodeKey) => {
-      aggregateNode.coreNodeKeys.forEach((coreNodeKey) => {
-        hiddenActualEdgeKeys.add(`${sourceNodeKey}->${coreNodeKey}`);
-      });
-    });
+    triggerSourceAggregateNodes.push(aggregateNode);
   });
 
-  const phaseVisibleActualEdges = effectiveGraphBundle.edges.filter(
-    (edge) => !hiddenActualEdgeKeys.has(edge.edgeKey),
+  const phaseCanvasEdges: GraphCanvasEdgeInfo[] = phaseOneCanvasEdges.filter(
+    (edge) =>
+      !hiddenPhaseTwoCanvasEdgeKeys.has(
+        `${edge.sourceNodeKey}->${edge.targetNodeKey}`,
+      ),
   );
-  const phaseVisibleActualEdgeCountByNodeKey = new Map<string, number>();
-  phaseVisibleActualEdges.forEach((edge) => {
-    phaseVisibleActualEdgeCountByNodeKey.set(
-      edge.sourceNodeKey,
-      (phaseVisibleActualEdgeCountByNodeKey.get(edge.sourceNodeKey) ?? 0) + 1,
-    );
-    phaseVisibleActualEdgeCountByNodeKey.set(
-      edge.targetNodeKey,
-      (phaseVisibleActualEdgeCountByNodeKey.get(edge.targetNodeKey) ?? 0) + 1,
-    );
-  });
-  const phaseVisibleActualNodeKeys = new Set<string>();
-  effectiveGraphBundle.nodes.forEach((node) => {
-    if (
-      (phaseVisibleActualEdgeCountByNodeKey.get(node.nodeKey) ?? 0) > 0 ||
-      forcedVisibleNodeKeys.has(node.nodeKey)
-    ) {
-      phaseVisibleActualNodeKeys.add(node.nodeKey);
-    }
-  });
-  aggregateNodes.forEach((aggregateNode) => {
+  triggerSourceAggregateNodes.forEach((aggregateNode) => {
     aggregateNode.connectedNodeKeys.forEach((connectedNodeKey) => {
-      phaseVisibleActualNodeKeys.add(connectedNodeKey);
-    });
-    if (aggregateNode.expanded) {
-      aggregateNode.memberNodeKeys.forEach((memberNodeKey) => {
-        phaseVisibleActualNodeKeys.add(memberNodeKey);
-      });
-    }
-  });
-
-  const phaseCanvasNodes: GraphCanvasNodeInfo[] = [
-    ...effectiveGraphBundle.nodes
-      .filter((node) => phaseVisibleActualNodeKeys.has(node.nodeKey))
-      .map((node) => ({
-        kind: "actual" as const,
-        nodeKey: node.nodeKey,
-        graphNode: node,
-      })),
-    ...aggregateNodes,
-  ].sort(compareCanvasNodeIdentity);
-  const phaseCanvasEdges: GraphCanvasEdgeInfo[] = [
-    ...phaseVisibleActualEdges
-      .filter(
-        (edge) =>
-          phaseVisibleActualNodeKeys.has(edge.sourceNodeKey) &&
-          phaseVisibleActualNodeKeys.has(edge.targetNodeKey),
-      )
-      .map((edge) => ({
-        edgeKey: edge.edgeKey,
-        sourceNodeKey: edge.sourceNodeKey,
-        targetNodeKey: edge.targetNodeKey,
-        kind: "actual" as const,
-        diffState: "base" as DraftEdgeDiffState,
-      })),
-  ];
-  aggregateNodes.forEach((aggregateNode) => {
-    if (aggregateNode.aggregateRole === "core") {
-      aggregateNode.connectedNodeKeys.forEach((sourceNodeKey) => {
-        phaseCanvasEdges.push({
-          edgeKey: `aggregate-edge:${sourceNodeKey}:${aggregateNode.nodeKey}`,
-          sourceNodeKey,
-          targetNodeKey: aggregateNode.nodeKey,
-          kind: "aggregate",
-          diffState: "base",
-        });
-      });
-      return;
-    }
-    aggregateNode.connectedNodeKeys.forEach((coreNodeKey) => {
       phaseCanvasEdges.push({
-        edgeKey: `aggregate-edge:${aggregateNode.nodeKey}:${coreNodeKey}`,
+        edgeKey: `aggregate-edge:${aggregateNode.nodeKey}:${connectedNodeKey}`,
         sourceNodeKey: aggregateNode.nodeKey,
-        targetNodeKey: coreNodeKey,
+        targetNodeKey: connectedNodeKey,
         kind: "aggregate",
         diffState: "base",
       });
     });
   });
-  const visibleCanvasNodeKeys = new Set<string>();
-  phaseCanvasEdges.forEach((edge) => {
-    visibleCanvasNodeKeys.add(edge.sourceNodeKey);
-    visibleCanvasNodeKeys.add(edge.targetNodeKey);
-  });
-  aggregateNodes.forEach((aggregateNode) => {
-    if (!aggregateNode.expanded) {
-      return;
-    }
-    visibleCanvasNodeKeys.add(aggregateNode.nodeKey);
-    aggregateNode.memberNodeKeys.forEach((memberNodeKey) => {
-      visibleCanvasNodeKeys.add(memberNodeKey);
-    });
-  });
+  const {
+    aggregateNodes,
+    visibleCanvasNodeKeys,
+  } = resolveCanvasAggregateVisibility(
+    [...coreAggregateNodes, ...triggerSourceAggregateNodes],
+    phaseCanvasEdges,
+    forcedVisibleNodeKeys,
+  );
 
   const visibleActualNodeKeys = new Set<string>();
   const canvasNodes: GraphCanvasNodeInfo[] = [
-    ...effectiveGraphBundle.nodes
-      .filter(
-        (node) =>
-          visibleCanvasNodeKeys.has(node.nodeKey) ||
-          forcedVisibleNodeKeys.has(node.nodeKey),
-      )
-      .map((node) => ({
-        kind: "actual" as const,
-        nodeKey: node.nodeKey,
-        graphNode: node,
-      })),
-    ...aggregateNodes.filter(
-      (aggregateNode) =>
-        visibleCanvasNodeKeys.has(aggregateNode.nodeKey) ||
-        forcedVisibleNodeKeys.has(aggregateNode.nodeKey),
+    ...actualCanvasNodes.filter((node) => visibleCanvasNodeKeys.has(node.nodeKey)),
+    ...aggregateNodes.filter((aggregateNode) =>
+      visibleCanvasNodeKeys.has(aggregateNode.nodeKey),
     ),
   ].sort(compareCanvasNodeIdentity);
   canvasNodes.forEach((node) => {
@@ -875,6 +934,8 @@ function buildSerialGraphCanvasView(
 
 function buildChannelGraphCanvasView(
   effectiveGraphBundle: GraphSnapshotBundle,
+  forcedVisibleNodeKeys: Set<string>,
+  expandedAggregateNodeKeys: Set<string>,
 ): GraphCanvasView {
   const channelMemberNodes = effectiveGraphBundle.nodes
     .filter((node) => node.connectionMode === "channel" && node.channel > 0)
@@ -930,6 +991,9 @@ function buildChannelGraphCanvasView(
       };
     });
 
+  const actualNodeByKey = new Map(
+    channelMemberNodes.map((node) => [node.nodeKey, node] as const),
+  );
   const actualCanvasNodes: GraphCanvasNodeInfo[] = channelMemberNodes.map(
     (node) => ({
       kind: "actual",
@@ -937,15 +1001,14 @@ function buildChannelGraphCanvasView(
       graphNode: node,
     }),
   );
-  const canvasNodes: GraphCanvasNodeInfo[] = [
-    ...actualCanvasNodes,
-    ...channelHubNodes,
-  ].sort(compareCanvasNodeIdentity);
-  const canvasEdges: GraphCanvasEdgeInfo[] = [];
+  const baseCanvasEdges: GraphCanvasEdgeInfo[] = [];
   channelHubNodes.forEach((channelHubNode) => {
     channelHubNode.sourceNodeKeys.forEach((sourceNodeKey) => {
-      canvasEdges.push({
-        edgeKey: `channel-edge:${sourceNodeKey}:${channelHubNode.nodeKey}`,
+      baseCanvasEdges.push({
+        edgeKey: buildChannelCanvasEdgeKey(
+          sourceNodeKey,
+          channelHubNode.nodeKey,
+        ),
         sourceNodeKey,
         targetNodeKey: channelHubNode.nodeKey,
         kind: "channel",
@@ -953,8 +1016,11 @@ function buildChannelGraphCanvasView(
       });
     });
     channelHubNode.coreNodeKeys.forEach((coreNodeKey) => {
-      canvasEdges.push({
-        edgeKey: `channel-edge:${channelHubNode.nodeKey}:${coreNodeKey}`,
+      baseCanvasEdges.push({
+        edgeKey: buildChannelCanvasEdgeKey(
+          channelHubNode.nodeKey,
+          coreNodeKey,
+        ),
         sourceNodeKey: channelHubNode.nodeKey,
         targetNodeKey: coreNodeKey,
         kind: "channel",
@@ -962,21 +1028,205 @@ function buildChannelGraphCanvasView(
       });
     });
   });
-  const visibleActualNodeKeys = new Set(
-    actualCanvasNodes.map((node) => node.nodeKey),
+
+  const aggregateNodes: GraphCanvasAggregateNode[] = [];
+  const hiddenActualEdgeKeys = new Set<string>();
+
+  channelHubNodes.forEach((channelHubNode) => {
+    if (
+      channelHubNode.sourceSerials.length <
+        SHARED_CORE_GROUP_MIN_SOURCE_COUNT ||
+      channelHubNode.coreSerials.length < SHARED_CORE_GROUP_MIN_CORE_COUNT
+    ) {
+      return;
+    }
+    const coreNodes = channelHubNode.coreNodeKeys
+      .map((nodeKey) => actualNodeByKey.get(nodeKey) ?? null)
+      .filter((node): node is GraphNodeInfo => node != null)
+      .sort(compareGraphNodeIdentity);
+    if (coreNodes.length < SHARED_CORE_GROUP_MIN_CORE_COUNT) {
+      return;
+    }
+    const sourceNodes = channelHubNode.sourceNodeKeys
+      .map((nodeKey) => actualNodeByKey.get(nodeKey) ?? null)
+      .filter((node): node is GraphNodeInfo => node != null)
+      .sort(compareGraphNodeIdentity);
+    const aggregateNodeKey = buildAggregateNodeKey(
+      "core",
+      channelHubNode.nodeKey,
+    );
+    const expanded = expandedAggregateNodeKeys.has(aggregateNodeKey);
+    aggregateNodes.push({
+      kind: "aggregate",
+      aggregateRole: "core",
+      nodeKey: aggregateNodeKey,
+      signatureKey: channelHubNode.nodeKey,
+      sourceNodeKeys: sourceNodes.map((node) => node.nodeKey),
+      sourceSerials: sourceNodes.map((node) => node.serial),
+      coreNodeKeys: coreNodes.map((node) => node.nodeKey),
+      coreSerials: coreNodes.map((node) => node.serial),
+      memberNodeKeys: coreNodes.map((node) => node.nodeKey),
+      memberSerials: coreNodes.map((node) => node.serial),
+      connectedNodeKeys: [channelHubNode.nodeKey],
+      connectedSerials: sourceNodes.map((node) => node.serial),
+      memberCount: coreNodes.length,
+      anchorSerial: coreNodes[0]?.serial ?? 0,
+      expanded,
+    });
+    coreNodes.forEach((coreNode) => {
+      hiddenActualEdgeKeys.add(
+        buildChannelCanvasEdgeKey(channelHubNode.nodeKey, coreNode.nodeKey),
+      );
+    });
+  });
+
+  channelHubNodes.forEach((channelHubNode) => {
+    if (
+      channelHubNode.coreSerials.length <
+        SHARED_TRIGGER_SOURCE_GROUP_MIN_TARGET_COUNT ||
+      channelHubNode.sourceSerials.length <
+        SHARED_TRIGGER_SOURCE_GROUP_MIN_SOURCE_COUNT
+    ) {
+      return;
+    }
+    const sourceNodes = channelHubNode.sourceNodeKeys
+      .map((nodeKey) => actualNodeByKey.get(nodeKey) ?? null)
+      .filter((node): node is GraphNodeInfo => node != null)
+      .sort(compareGraphNodeIdentity);
+    if (sourceNodes.length < SHARED_TRIGGER_SOURCE_GROUP_MIN_SOURCE_COUNT) {
+      return;
+    }
+    const coreNodes = channelHubNode.coreNodeKeys
+      .map((nodeKey) => actualNodeByKey.get(nodeKey) ?? null)
+      .filter((node): node is GraphNodeInfo => node != null)
+      .sort(compareGraphNodeIdentity);
+    const aggregateNodeKey = buildAggregateNodeKey(
+      "triggerSource",
+      channelHubNode.nodeKey,
+    );
+    const expanded = expandedAggregateNodeKeys.has(aggregateNodeKey);
+    aggregateNodes.push({
+      kind: "aggregate",
+      aggregateRole: "triggerSource",
+      nodeKey: aggregateNodeKey,
+      signatureKey: channelHubNode.nodeKey,
+      sourceNodeKeys: sourceNodes.map((node) => node.nodeKey),
+      sourceSerials: sourceNodes.map((node) => node.serial),
+      coreNodeKeys: coreNodes.map((node) => node.nodeKey),
+      coreSerials: coreNodes.map((node) => node.serial),
+      memberNodeKeys: sourceNodes.map((node) => node.nodeKey),
+      memberSerials: sourceNodes.map((node) => node.serial),
+      connectedNodeKeys: [channelHubNode.nodeKey],
+      connectedSerials: coreNodes.map((node) => node.serial),
+      memberCount: sourceNodes.length,
+      anchorSerial: sourceNodes[0]?.serial ?? 0,
+      expanded,
+    });
+    sourceNodes.forEach((sourceNode) => {
+      hiddenActualEdgeKeys.add(
+        buildChannelCanvasEdgeKey(sourceNode.nodeKey, channelHubNode.nodeKey),
+      );
+    });
+  });
+
+  const phaseCanvasEdges = baseCanvasEdges.filter(
+    (edge) => !hiddenActualEdgeKeys.has(edge.edgeKey),
   );
+  aggregateNodes.forEach((aggregateNode) => {
+    if (aggregateNode.aggregateRole === "core") {
+      aggregateNode.connectedNodeKeys.forEach((connectedNodeKey) => {
+        phaseCanvasEdges.push({
+          edgeKey: `aggregate-edge:${connectedNodeKey}:${aggregateNode.nodeKey}`,
+          sourceNodeKey: connectedNodeKey,
+          targetNodeKey: aggregateNode.nodeKey,
+          kind: "aggregate",
+          diffState: "base",
+        });
+      });
+      return;
+    }
+    aggregateNode.connectedNodeKeys.forEach((connectedNodeKey) => {
+      phaseCanvasEdges.push({
+        edgeKey: `aggregate-edge:${aggregateNode.nodeKey}:${connectedNodeKey}`,
+        sourceNodeKey: aggregateNode.nodeKey,
+        targetNodeKey: connectedNodeKey,
+        kind: "aggregate",
+        diffState: "base",
+      });
+    });
+  });
+
+  const {
+    aggregateNodes: resolvedAggregateNodes,
+    visibleCanvasNodeKeys,
+  } = resolveCanvasAggregateVisibility(
+    aggregateNodes,
+    phaseCanvasEdges,
+    forcedVisibleNodeKeys,
+    false,
+  );
+
+  const visibleActualNodeKeys = new Set<string>();
+  const canvasNodes: GraphCanvasNodeInfo[] = [
+    ...actualCanvasNodes.filter(
+      (node) => visibleCanvasNodeKeys.has(node.nodeKey),
+    ),
+    ...channelHubNodes.filter(
+      (node) => visibleCanvasNodeKeys.has(node.nodeKey),
+    ),
+    ...resolvedAggregateNodes.filter((node) =>
+      visibleCanvasNodeKeys.has(node.nodeKey),
+    ),
+  ].sort(compareCanvasNodeIdentity);
+  canvasNodes.forEach((node) => {
+    if (node.kind === "actual") {
+      visibleActualNodeKeys.add(node.nodeKey);
+    }
+  });
+
+  const canvasNodeKeySet = new Set(canvasNodes.map((node) => node.nodeKey));
+  const canvasEdges = phaseCanvasEdges.filter(
+    (edge) =>
+      canvasNodeKeySet.has(edge.sourceNodeKey) &&
+      canvasNodeKeySet.has(edge.targetNodeKey),
+  );
+  const layoutEdges = [...canvasEdges];
+  resolvedAggregateNodes.forEach((aggregateNode) => {
+    if (
+      !aggregateNode.expanded ||
+      !canvasNodeKeySet.has(aggregateNode.nodeKey)
+    ) {
+      return;
+    }
+    aggregateNode.memberNodeKeys.forEach((memberNodeKey) => {
+      if (!canvasNodeKeySet.has(memberNodeKey)) {
+        return;
+      }
+      layoutEdges.push({
+        edgeKey: `aggregate-layout:${aggregateNode.nodeKey}:${memberNodeKey}`,
+        sourceNodeKey: aggregateNode.nodeKey,
+        targetNodeKey: memberNodeKey,
+        kind: "aggregate",
+        diffState: "base",
+      });
+    });
+  });
 
   return {
     displayMode: "channel",
     canvasNodes,
     canvasEdges,
-    layoutEdges: [...canvasEdges],
-    hiddenActualEdgeKeys: new Set<string>(),
+    layoutEdges,
+    hiddenActualEdgeKeys,
     visibleActualNodeKeys,
     isolatedTriggerSourceNodes: [],
     isolatedCoreNodes: [],
-    aggregateNodes: [],
-    channelHubNodes,
+    aggregateNodes: canvasNodes.filter(
+      (node): node is GraphCanvasAggregateNode => node.kind === "aggregate",
+    ),
+    channelHubNodes: canvasNodes.filter(
+      (node): node is GraphCanvasChannelHubNode => node.kind === "channelHub",
+    ),
   };
 }
 
@@ -987,7 +1237,11 @@ export function buildGraphCanvasView(
   displayMode: GraphDisplayMode,
 ): GraphCanvasView {
   return displayMode === "channel"
-    ? buildChannelGraphCanvasView(effectiveGraphBundle)
+    ? buildChannelGraphCanvasView(
+        effectiveGraphBundle,
+        forcedVisibleNodeKeys,
+        expandedAggregateNodeKeys,
+      )
     : buildSerialGraphCanvasView(
         effectiveGraphBundle,
         forcedVisibleNodeKeys,

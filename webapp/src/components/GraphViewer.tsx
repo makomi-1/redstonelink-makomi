@@ -26,7 +26,6 @@ import {
   buildGraphFlowNodes,
   graphNodeTypes,
   sameAggregateOutlineFlowNodes,
-  toggleStringSelection,
 } from "./graphViewer/canvas";
 import {
   applyBatchEditToDraft,
@@ -70,6 +69,37 @@ type GraphViewerProps = {
   graphFileName: string;
   onDirtyStateChange?: (dirty: boolean) => void;
 };
+
+function formatCanvasNodeDisplayText(canvasNode: GraphCanvasNodeInfo): string {
+  if (canvasNode.kind === "actual") {
+    return canvasNode.graphNode.displayText;
+  }
+  if (canvasNode.kind === "channelHub") {
+    return `channel #${canvasNode.channel}`;
+  }
+  return canvasNode.aggregateRole === "core"
+    ? `${canvasNode.memberCount} grouped cores`
+    : `${canvasNode.memberCount} grouped triggerSources`;
+}
+
+function resolveDefaultSelectedNodeKey(
+  canvasNodes: GraphCanvasNodeInfo[],
+  displayMode: GraphDisplayMode,
+): string {
+  if (displayMode === "channel") {
+    return (
+      canvasNodes.find((node) => node.kind === "channelHub")?.nodeKey ??
+      canvasNodes.find((node) => node.kind === "aggregate")?.nodeKey ??
+      canvasNodes.find((node) => node.kind === "actual")?.nodeKey ??
+      ""
+    );
+  }
+  return (
+    canvasNodes.find((node) => node.kind === "actual")?.nodeKey ??
+    canvasNodes[0]?.nodeKey ??
+    ""
+  );
+}
 
 export default function GraphViewer({
   graphBundle,
@@ -276,6 +306,35 @@ export default function GraphViewer({
       forcedVisibleNodeKeys,
     ],
   );
+  const matchedCanvasNodeKeys = useMemo(() => {
+    const nextKeys = new Set(matchedNodeKeys);
+    graphCanvasView.channelHubNodes.forEach((channelHubNode) => {
+      if (
+        channelHubNode.memberNodeKeys.some((nodeKey) =>
+          matchedNodeKeys.has(nodeKey),
+        )
+      ) {
+        nextKeys.add(channelHubNode.nodeKey);
+      }
+    });
+    graphCanvasView.aggregateNodes.forEach((aggregateNode) => {
+      if (
+        aggregateNode.sourceNodeKeys.some((nodeKey) =>
+          matchedNodeKeys.has(nodeKey),
+        ) ||
+        aggregateNode.coreNodeKeys.some((nodeKey) =>
+          matchedNodeKeys.has(nodeKey),
+        )
+      ) {
+        nextKeys.add(aggregateNode.nodeKey);
+      }
+    });
+    return nextKeys;
+  }, [
+    graphCanvasView.aggregateNodes,
+    graphCanvasView.channelHubNodes,
+    matchedNodeKeys,
+  ]);
   const selectedCanvasNode = useMemo(
     () =>
       selectedNodeKey
@@ -284,6 +343,15 @@ export default function GraphViewer({
           ) ?? null)
         : null,
     [graphCanvasView.canvasNodes, selectedNodeKey],
+  );
+  const canvasNodeByKey = useMemo(
+    () =>
+      new Map(
+        graphCanvasView.canvasNodes.map(
+          (node) => [node.nodeKey, node] as const,
+        ),
+      ),
+    [graphCanvasView.canvasNodes],
   );
   const selectedAggregateNode =
     selectedCanvasNode?.kind === "aggregate" ? selectedCanvasNode : null;
@@ -337,12 +405,12 @@ export default function GraphViewer({
         .filter((node): node is GraphNodeInfo => node != null),
     [nodeByKey, selectedChannelHubNode],
   );
-  const selectedAggregateConnectedNodes = useMemo(
+  const selectedAggregateConnectedCanvasNodes = useMemo(
     () =>
       (selectedAggregateNode?.connectedNodeKeys ?? [])
-        .map((nodeKey) => nodeByKey.get(nodeKey) ?? null)
-        .filter((node): node is GraphNodeInfo => node != null),
-    [nodeByKey, selectedAggregateNode],
+        .map((nodeKey) => canvasNodeByKey.get(nodeKey) ?? null)
+        .filter((node): node is GraphCanvasNodeInfo => node != null),
+    [canvasNodeByKey, selectedAggregateNode],
   );
   const selectedAggregateMemberNodes = useMemo(
     () =>
@@ -496,11 +564,10 @@ export default function GraphViewer({
     if (draftLoading) {
       return;
     }
-    const initialNodeKey =
-      graphCanvasView.canvasNodes.find((node) => node.kind === "actual")
-        ?.nodeKey ??
-      effectiveGraphBundle.nodes[0]?.nodeKey ??
-      "";
+    const initialNodeKey = resolveDefaultSelectedNodeKey(
+      graphCanvasView.canvasNodes,
+      displayMode,
+    );
     setSelectedNodeKey(initialNodeKey);
     setNodes(
       buildGraphFlowNodes(
@@ -537,15 +604,14 @@ export default function GraphViewer({
     if (selectedNodeKey && canvasNodeKeySet.has(selectedNodeKey)) {
       return;
     }
-    const nextSelectedNodeKey =
-      graphCanvasView.canvasNodes.find((node) => node.kind === "actual")
-        ?.nodeKey ??
-      graphCanvasView.canvasNodes[0]?.nodeKey ??
-      "";
+    const nextSelectedNodeKey = resolveDefaultSelectedNodeKey(
+      graphCanvasView.canvasNodes,
+      displayMode,
+    );
     if (selectedNodeKey !== nextSelectedNodeKey) {
       setSelectedNodeKey(nextSelectedNodeKey);
     }
-  }, [draftLoading, graphCanvasView.canvasNodes, selectedNodeKey]);
+  }, [displayMode, draftLoading, graphCanvasView.canvasNodes, selectedNodeKey]);
 
   useEffect(() => {
     if (draftLoading || aggregateOutlineSuspended) {
@@ -599,7 +665,7 @@ export default function GraphViewer({
         baseGraphBundle,
         effectiveGraphBundle,
         hasSearch,
-        matchedNodeKeys,
+        matchedCanvasNodeKeys,
         draftDiff,
         graphCanvasView,
       ),
@@ -615,6 +681,7 @@ export default function GraphViewer({
     effectiveGraphBundle,
     graphCanvasView,
     hasSearch,
+    matchedCanvasNodeKeys,
     matchedNodeKeys,
     pendingStructureLayoutReset,
     selectedNodeKey,
@@ -1108,6 +1175,7 @@ export default function GraphViewer({
     if (nextDisplayMode === displayMode) {
       return;
     }
+    setSelectedNodeKey("");
     setDisplayMode(nextDisplayMode);
     setActiveSidebarPanel("details");
     setPendingAggregateFocusNodeKey("");
@@ -1140,17 +1208,39 @@ export default function GraphViewer({
     resetBatchSelectionState();
   }
 
-  function handleToggleExpandedAggregateNode(nodeKey: string) {
-    setExpandedAggregateNodeKeys((currentValues) =>
-      toggleStringSelection(currentValues, nodeKey),
-    );
+  function handleSetExpandedAggregateNode(
+    nodeKey: string,
+    expanded: boolean,
+  ) {
+    setExpandedAggregateNodeKeys((currentValues) => {
+      const exists = currentValues.includes(nodeKey);
+      if (expanded) {
+        return exists
+          ? currentValues
+          : [...currentValues, nodeKey].sort((left, right) =>
+              left.localeCompare(right),
+            );
+      }
+      return exists
+        ? currentValues.filter((value) => value !== nodeKey)
+        : currentValues;
+    });
   }
 
   function handleCanvasNodeClick(nodeKey: string) {
     if (nodeKey.startsWith("aggregate:")) {
+      const currentAggregateNode = graphCanvasView.aggregateNodes.find(
+        (aggregateNode) => aggregateNode.nodeKey === nodeKey,
+      );
+      const willExpand = !(currentAggregateNode?.expanded ?? false);
       setSelectedNodeKey(nodeKey);
-      const willExpand = !expandedAggregateNodeKeySet.has(nodeKey);
-      handleToggleExpandedAggregateNode(nodeKey);
+      if (
+        !willExpand &&
+        currentAggregateNode?.memberNodeKeys.includes(selectedNodeKey)
+      ) {
+        setPendingFocusNodeKey("");
+      }
+      handleSetExpandedAggregateNode(nodeKey, willExpand);
       requestStructureLayoutRefresh(
         willExpand
           ? {
@@ -1343,7 +1433,7 @@ export default function GraphViewer({
                     handleApplySearch();
                   }
                 }}
-                placeholder="按别名、序号、nodeKey、连接模式、频道搜索"
+                placeholder="按别名、显示名、nodeKey 搜索；序号用 #12，频道用 channel:3"
               />
             </label>
             <div className="graph-search-filter-row">
@@ -1444,7 +1534,7 @@ export default function GraphViewer({
           搜索条件会在回车或点击“应用搜索”后刷新画布。
           {displayMode === "serial"
             ? "点击聚合块，可展开或收起对应的局部 core 集合。"
-            : "频道模式通过虚拟 channelHub 展示 triggerSource -> channelHub -> core 的两级连接。"}
+            : "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。"}
           {canEditCurrentView
             ? `${formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。`
             : "当前频道视图仅负责显示，不接入网页保存编辑。"}
@@ -1507,11 +1597,13 @@ export default function GraphViewer({
                 </dd>
               </div>
               <div>
-                <dt>{displayMode === "serial" ? "Groups" : "Channels"}</dt>
+                <dt>
+                  {displayMode === "serial" ? "Groups" : "Channels / Groups"}
+                </dt>
                 <dd>
                   {displayMode === "serial"
                     ? graphCanvasView.aggregateNodes.length
-                    : graphCanvasView.channelHubNodes.length}
+                    : `${graphCanvasView.channelHubNodes.length} / ${graphCanvasView.aggregateNodes.length}`}
                 </dd>
               </div>
               <div>
@@ -1535,7 +1627,8 @@ export default function GraphViewer({
               <span className="graph-legend-swatch is-core" />
               core
             </span>
-            {displayMode === "serial" ? (
+            {displayMode === "serial" ||
+            graphCanvasView.aggregateNodes.length > 0 ? (
               <>
                 <span className="graph-legend-item">
                   <span className="graph-legend-swatch is-aggregate" />
@@ -1950,8 +2043,8 @@ export default function GraphViewer({
                     <dd>{selectedCanvasNode.memberCount}</dd>
                   </div>
                   <div>
-                    <dt>Connected Nodes</dt>
-                    <dd>{selectedCanvasNode.connectedSerials.length}</dd>
+                    <dt>Connected Canvas Nodes</dt>
+                    <dd>{selectedCanvasNode.connectedNodeKeys.length}</dd>
                   </div>
                   <div>
                     <dt>Expanded</dt>
@@ -1972,22 +2065,27 @@ export default function GraphViewer({
                   <section className="graph-target-editor">
                     <div className="graph-target-editor-header">
                       <strong>Connected Nodes</strong>
-                      <span>与该聚合块保持可见关系的真实节点。</span>
+                      <span>
+                        与该聚合块保持可见关系的连接对象；频道模式下这里会显示
+                        channelHub。
+                      </span>
                     </div>
                     <div className="graph-target-list">
-                      {selectedAggregateConnectedNodes.length === 0 ? (
+                      {selectedAggregateConnectedCanvasNodes.length === 0 ? (
                         <p className="empty-state">当前没有已连接节点。</p>
                       ) : (
-                        selectedAggregateConnectedNodes.map((graphNode) => (
-                          <button
-                            key={graphNode.nodeKey}
-                            type="button"
-                            className="graph-target-item graph-target-chip"
-                            onClick={() => focusNode(graphNode.nodeKey)}
-                          >
-                            {graphNode.displayText}
-                          </button>
-                        ))
+                        selectedAggregateConnectedCanvasNodes.map(
+                          (canvasNode) => (
+                            <button
+                              key={canvasNode.nodeKey}
+                              type="button"
+                              className="graph-target-item graph-target-chip"
+                              onClick={() => focusNode(canvasNode.nodeKey)}
+                            >
+                              {formatCanvasNodeDisplayText(canvasNode)}
+                            </button>
+                          ),
+                        )
                       )}
                     </div>
                   </section>

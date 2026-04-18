@@ -1,6 +1,22 @@
 import type { GraphNodeInfo } from '../../graphTypes';
 import type { GraphSearchTypeFilter } from './types';
 
+function normalizeSearchValue(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function buildExactSearchTerms(node: GraphNodeInfo): string[] {
+  const terms = [node.nodeKey, node.displayText, node.alias];
+  terms.push(String(node.serial));
+  terms.push(`#${node.serial}`);
+  terms.push(`serial:${node.serial}`);
+  if (node.channel > 0) {
+    terms.push(`channel:${node.channel}`);
+  }
+  terms.push(`mode:${node.connectionMode}`);
+  return terms;
+}
+
 export function formatSearchTypeLabel(searchTypeFilter: GraphSearchTypeFilter): string {
   if (searchTypeFilter === 'all') {
     return '全部';
@@ -20,17 +36,11 @@ export function matchesSearchType(
 }
 
 export function matchesSearch(node: GraphNodeInfo, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) {
     return false;
   }
-  return [
-    node.nodeKey,
-    node.displayText,
-    node.alias,
-    node.type,
-    node.connectionMode,
-    String(node.serial),
-    String(node.channel),
-  ].some((value) => value.toLowerCase().includes(normalizedQuery));
+  return buildExactSearchTerms(node).some(
+    (value) => normalizeSearchValue(value) === normalizedQuery,
+  );
 }

@@ -1,0 +1,35 @@
+# graph聚合展开态与triggerSource聚合修复
+
+生成时间：2026-04-18 19:18:54
+文件名：2026-04-18_191854_graph聚合展开态与triggerSource聚合修复.md
+
+## 1. 功能与语义、架构设计（关键方法和入口）
+
+- 本轮新增了“视觉展开态”收敛逻辑，`resolveVisualExpandedAggregateNodes` 会根据最终进入画布的成员节点反推聚合块是否应视为已展开，`resolveCanvasAggregateVisibility` 再统一补齐聚合块本体与成员的最终可见集合，避免“成员已出现但聚合块仍显示未展开”。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L473) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L497)
+- `buildSerialGraphCanvasView` 现在改成两阶段视图裁剪：第一阶段先生成 `core` 聚合与可见边，第二阶段再基于第一阶段可见连接图构造 `triggerSource` 聚合，因此 `triggerSource` 聚合可以连接到真实 `core` 或 `core aggregate`，不会再被“真实边先被 core 聚合吃掉”直接跳过。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L601) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L689) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L735) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L833)
+- `buildChannelGraphCanvasView` 复用了同一套最终可见性收敛逻辑，因此频道模式下聚合块标签、包围框和成员出现状态现在使用同一口径，不再出现“看起来未展开，实际成员已经在画布上”的分裂状态。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L876) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L1125) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L1152)
+- 语义对齐上，本轮仅调整前端画布视图层的聚合与裁剪顺序，未改 snapshot、draft、服务端真值，也未引入 `com.makomi.api.v1.*` 依赖。代码入口仍由前端视图构建链路触发。代码参考：[GraphViewer.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/GraphViewer.tsx#L256) [GraphViewer.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/GraphViewer.tsx#L278)
+
+## 2. 关键数据结构和算法性能分析
+
+- serial 路径新增了 `phaseOneCanvasNodeByKey`、`phaseOneConnectedTargetKeysBySourceNodeKey`、`hiddenPhaseTwoCanvasEdgeKeys` 等局部索引结构，用空间换取分阶段聚合判定，避免第二阶段再反复扫整图推断每个 `triggerSource` 的可见目标。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L712) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L716) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L771)
+- 第二阶段 `triggerSource` 聚合的真实 `core` 集合通过 `Map<string, GraphNodeInfo>` 去重并排序，既保留了“聚合文案按真实 core 数量统计”的信息，又避免同一 `core` 被多个成员来源重复计数。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L788) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L801)
+- 最终可见性收敛把 serial 和 channel 的聚合显示逻辑共用到一个辅助函数中，复杂度主要仍是节点/边线性遍历叠加局部排序，避免了两套近似重复逻辑继续分叉。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L497) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L850) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L1152)
+
+## 3. 数据流或调用链
+
+- `GraphViewer` 先根据选中节点、搜索命中、草稿差异等构造 `forcedVisibleNodeKeys`，随后把当前显示模式和展开状态交给 `buildGraphCanvasView`。代码参考：[GraphViewer.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/GraphViewer.tsx#L256) [GraphViewer.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/GraphViewer.tsx#L278)
+- 在 serial 模式中，数据流变成“真实图边 -> core 聚合替代 -> 第一阶段可见连接图 -> triggerSource 聚合 -> 最终可见节点/边 -> layoutEdges”，因此第二阶段聚合依赖的是前一阶段已经替代后的连接关系，而不再直接回看原始 incident edge。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L689) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L735) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L833) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L850)
+- 在 channel 模式中，数据流变成“channel hub 基础边 -> 两类聚合边替代 -> 统一可见性收敛 -> 画布节点/边/布局边”，从而让频道模式聚合块和序号模式聚合块在最终表现层共享一套判定口径。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L945) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L1125) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L1152)
+
+## 4. 安全、性能、兼容性、扩展性风险分析与建议
+
+- 兼容性方面，本轮只改前端视图层，不改真实 `triggerSource -> core` 保存语义，因此不会影响存档结构、快照真值和服务端判定；风险主要集中在画布可见性推断口径变化。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L601) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L876)
+- 性能方面，超大图下第二阶段仍需对每个 `triggerSource` 的可见目标做一次排序和签名计算；当前实现已经避免了重复扫真实边，但如果后续继续扩大节点规模，建议把“source -> visible target signature”做成可复用缓存，减少同一帧内重复排序。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L716) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L746) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L779)
+- 扩展性方面，把“视觉展开态”抽成公共辅助函数后，后续如果再增加新的显示模式或新的聚合块类型，可以复用同一套最终显示收敛逻辑，降低模式间行为漂移。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L497) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L1152)
+
+## 5. 并发冲突审查（共享状态、读改写覆盖、重入/线程边界、风险等级与建议）
+
+- 本轮改动全部位于前端纯函数构建链路，使用的 `Map`、`Set`、数组都限定在单次 `buildGraphCanvasView` 调用内部，没有模块级共享可变状态，线程安全风险低。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L497) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L601) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L876)
+- React 侧的重算入口仍由 `forcedVisibleNodeKeys`、显示模式和聚合展开集合驱动，属于同线程的派生计算，不存在跨线程写冲突；剩余风险主要是大图下频繁切换搜索或选中态时的重算成本，而不是并发覆盖。代码参考：[GraphViewer.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/GraphViewer.tsx#L256) [GraphViewer.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/GraphViewer.tsx#L276) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L850)
+- 结论：并发冲突风险等级为低，当前无需额外锁或状态隔离；若后续把图构建搬到 worker，再补充一次“序列化输入快照 + 只读输出”的边界审查即可。代码参考：[canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L850) [canvas.tsx](/d:/OpenProjects/RedstoneLink/rl-release-no-mixin/webapp/src/components/graphViewer/canvas.tsx#L1152)
