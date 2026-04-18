@@ -193,6 +193,8 @@ export default function GraphViewer({
   const pendingSelectionNodeKeysRef = useRef<string[]>([]);
   const finalizeSelectionFrameRef = useRef<number | null>(null);
   const aggregateOutlineSuspendDepthRef = useRef(0);
+  const suppressAutoViewportFitRef = useRef(false);
+  const releaseAutoViewportFitFrameRef = useRef<number | null>(null);
 
   const draftFileName = useMemo(
     () => buildDraftFileName(graphFileName, graphBundle.snapshotId),
@@ -224,7 +226,9 @@ export default function GraphViewer({
         ? effectiveGraphBundle.nodes.filter(
             (node) => node.connectionMode === "channel" && node.channel > 0,
           )
-        : effectiveGraphBundle.nodes,
+        : effectiveGraphBundle.nodes.filter(
+            (node) => node.connectionMode === "serial",
+          ),
     [displayMode, effectiveGraphBundle.nodes],
   );
   const hasSearch = appliedSearchText.trim().length > 0;
@@ -749,7 +753,8 @@ export default function GraphViewer({
     if (
       draftLoading ||
       !reactFlowInstance ||
-      graphCanvasView.canvasNodes.length === 0
+      graphCanvasView.canvasNodes.length === 0 ||
+      suppressAutoViewportFitRef.current
     ) {
       return;
     }
@@ -772,9 +777,13 @@ export default function GraphViewer({
       draftLoading ||
       pendingStructureLayoutReset ||
       !pendingStructureViewportFit ||
+      suppressAutoViewportFitRef.current ||
       !reactFlowInstance ||
       nodes.length === 0
     ) {
+      if (pendingStructureViewportFit && suppressAutoViewportFitRef.current) {
+        setPendingStructureViewportFit(false);
+      }
       return;
     }
     const frameId = window.requestAnimationFrame(() => {
@@ -808,6 +817,7 @@ export default function GraphViewer({
         aggregateNode.expanded,
     );
     if (!expandedAggregateNode) {
+      releaseAutoViewportFitSuppression();
       setPendingAggregateFocusNodeKey("");
       return;
     }
@@ -816,6 +826,7 @@ export default function GraphViewer({
       ...expandedAggregateNode.memberNodeKeys,
     ].filter((nodeId) => nodes.some((node) => node.id === nodeId));
     if (targetNodeIds.length === 0) {
+      releaseAutoViewportFitSuppression();
       setPendingAggregateFocusNodeKey("");
       return;
     }
@@ -827,6 +838,7 @@ export default function GraphViewer({
         maxZoom: 1.22,
         duration: 260,
       });
+      releaseAutoViewportFitSuppression();
       setPendingAggregateFocusNodeKey("");
     });
     return () => {
@@ -854,6 +866,7 @@ export default function GraphViewer({
       currentNode.position.y + NODE_CENTER_OFFSET_Y,
       { zoom: 1.12, duration: 260 },
     );
+    releaseAutoViewportFitSuppression();
     setPendingFocusNodeKey("");
   }, [nodes, pendingFocusNodeKey, reactFlowInstance]);
 
@@ -876,7 +889,11 @@ export default function GraphViewer({
       if (finalizeSelectionFrameRef.current != null) {
         window.cancelAnimationFrame(finalizeSelectionFrameRef.current);
       }
+      if (releaseAutoViewportFitFrameRef.current != null) {
+        window.cancelAnimationFrame(releaseAutoViewportFitFrameRef.current);
+      }
       aggregateOutlineSuspendDepthRef.current = 0;
+      suppressAutoViewportFitRef.current = false;
     };
   }, []);
 
@@ -913,6 +930,7 @@ export default function GraphViewer({
   }, [draftFileName, draftLoading, graphDraft]);
 
   function focusNode(nodeKey: string) {
+    suppressAutoViewportFitForContextFocus();
     setSelectedNodeKey(nodeKey);
     setPendingFocusNodeKey(nodeKey);
   }
@@ -921,6 +939,9 @@ export default function GraphViewer({
     focusAggregateNodeKey?: string;
     fitViewport?: boolean;
   }) {
+    if (options?.focusAggregateNodeKey) {
+      suppressAutoViewportFitForContextFocus();
+    }
     setPendingFocusNodeKey("");
     setPendingAggregateFocusNodeKey(options?.focusAggregateNodeKey ?? "");
     setPendingStructureLayoutReset(true);
@@ -1174,6 +1195,30 @@ export default function GraphViewer({
     setUndoableGraphDraft(graphDraft);
     setGraphDraft(nextDraft);
     return true;
+  }
+
+  /**
+   * 上下文聚焦应优先于整图自动归位；开启后，本轮自动 fitView 会被显式跳过。
+   */
+  function suppressAutoViewportFitForContextFocus() {
+    suppressAutoViewportFitRef.current = true;
+    if (releaseAutoViewportFitFrameRef.current != null) {
+      window.cancelAnimationFrame(releaseAutoViewportFitFrameRef.current);
+      releaseAutoViewportFitFrameRef.current = null;
+    }
+  }
+
+  /**
+   * 在上下文聚焦完成后的下一帧释放自动归位抑制，避免后续真正需要的整图归位被长期屏蔽。
+   */
+  function releaseAutoViewportFitSuppression() {
+    if (releaseAutoViewportFitFrameRef.current != null) {
+      window.cancelAnimationFrame(releaseAutoViewportFitFrameRef.current);
+    }
+    releaseAutoViewportFitFrameRef.current = window.requestAnimationFrame(() => {
+      suppressAutoViewportFitRef.current = false;
+      releaseAutoViewportFitFrameRef.current = null;
+    });
   }
 
   function handleUndoDraft() {

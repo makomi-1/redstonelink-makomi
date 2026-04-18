@@ -586,13 +586,34 @@ function buildSerialGraphCanvasView(
   forcedVisibleNodeKeys: Set<string>,
   expandedAggregateNodeKeys: Set<string>,
 ): GraphCanvasView {
+  const serialNodes = effectiveGraphBundle.nodes.filter(
+    (node) => node.connectionMode === "serial",
+  );
+  const serialNodeKeySet = new Set(serialNodes.map((node) => node.nodeKey));
+  const serialEdges = effectiveGraphBundle.edges.filter(
+    (edge) =>
+      serialNodeKeySet.has(edge.sourceNodeKey) &&
+      serialNodeKeySet.has(edge.targetNodeKey),
+  );
+  const serialGraphBundle: GraphSnapshotBundle = {
+    ...effectiveGraphBundle,
+    nodes: serialNodes,
+    edges: serialEdges,
+    stats: {
+      ...effectiveGraphBundle.stats,
+      nodeCount: serialNodes.length,
+      edgeCount: serialEdges.length,
+      triggerSourceCount: serialNodes.filter(
+        (node) => node.type === "triggerSource",
+      ).length,
+      coreCount: serialNodes.filter((node) => node.type === "core").length,
+    },
+  };
   const originalEdgeCountByNodeKey =
-    buildEdgeCountByNodeKey(effectiveGraphBundle);
-  const targetSourcesByNodeKey =
-    buildTargetSourcesByNodeKey(effectiveGraphBundle);
-  const sourceTargetsByNodeKey =
-    buildSourceTargetsByNodeKey(effectiveGraphBundle);
-  const actualCanvasNodes: GraphCanvasNodeInfo[] = effectiveGraphBundle.nodes.map(
+    buildEdgeCountByNodeKey(serialGraphBundle);
+  const targetSourcesByNodeKey = buildTargetSourcesByNodeKey(serialGraphBundle);
+  const sourceTargetsByNodeKey = buildSourceTargetsByNodeKey(serialGraphBundle);
+  const actualCanvasNodes: GraphCanvasNodeInfo[] = serialGraphBundle.nodes.map(
     (node) => ({
       kind: "actual",
       nodeKey: node.nodeKey,
@@ -600,7 +621,7 @@ function buildSerialGraphCanvasView(
     }),
   );
   const actualNodeByKey = new Map(
-    effectiveGraphBundle.nodes.map((node) => [node.nodeKey, node] as const),
+    serialGraphBundle.nodes.map((node) => [node.nodeKey, node] as const),
   );
   const coreAggregateNodes: GraphCanvasAggregateNode[] = [];
   const triggerSourceAggregateNodes: GraphCanvasAggregateNode[] = [];
@@ -611,7 +632,7 @@ function buildSerialGraphCanvasView(
       coreNodes: GraphNodeInfo[];
     }
   >();
-  effectiveGraphBundle.nodes
+  serialGraphBundle.nodes
     .filter((node) => node.type === "core")
     .sort(compareGraphNodeIdentity)
     .forEach((coreNode) => {
@@ -669,7 +690,7 @@ function buildSerialGraphCanvasView(
     });
   });
 
-  const phaseOneVisibleActualEdges = effectiveGraphBundle.edges.filter(
+  const phaseOneVisibleActualEdges = serialGraphBundle.edges.filter(
     (edge) => !hiddenActualEdgeKeys.has(edge.edgeKey),
   );
   const phaseOneCanvasEdges: GraphCanvasEdgeInfo[] = [
@@ -722,7 +743,7 @@ function buildSerialGraphCanvasView(
       connectedNodeKeys: string[];
     }
   >();
-  effectiveGraphBundle.nodes
+  serialGraphBundle.nodes
     .filter((node) => node.type === "triggerSource")
     .sort(compareGraphNodeIdentity)
     .forEach((sourceNode) => {
@@ -887,14 +908,14 @@ function buildSerialGraphCanvasView(
     layoutEdges,
     hiddenActualEdgeKeys,
     visibleActualNodeKeys,
-    isolatedTriggerSourceNodes: effectiveGraphBundle.nodes
+    isolatedTriggerSourceNodes: serialGraphBundle.nodes
       .filter(
         (node) =>
           node.type === "triggerSource" &&
           (originalEdgeCountByNodeKey.get(node.nodeKey) ?? 0) === 0,
       )
       .sort(compareGraphNodeIdentity),
-    isolatedCoreNodes: effectiveGraphBundle.nodes
+    isolatedCoreNodes: serialGraphBundle.nodes
       .filter(
         (node) =>
           node.type === "core" &&
