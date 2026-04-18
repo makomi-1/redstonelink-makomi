@@ -3,6 +3,7 @@ package com.makomi.registry;
 import com.makomi.RedstoneLink;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.data.LinkFilterKind;
+import com.makomi.item.GraphVisualEditorItem;
 import com.makomi.item.LinkerItem;
 import com.makomi.item.LinkFilterBlockItem;
 import com.makomi.item.PairableBlockItem;
@@ -143,6 +144,11 @@ public final class ModItems {
 	public static final Item QUICK_LINK_TOOL = register(
 		"quick_link_tool",
 		new QuickLinkToolItem(new Item.Properties().stacksTo(1))
+	);
+
+	public static final Item GRAPH_VISUAL_EDITOR = register(
+		"graph_visual_editor",
+		new GraphVisualEditorItem(new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item REDSTONELINK_STATUS_PANEL = register(

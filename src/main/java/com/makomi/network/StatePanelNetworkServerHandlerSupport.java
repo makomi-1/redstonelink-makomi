@@ -37,7 +37,6 @@ import net.minecraft.world.item.ItemStack;
 final class StatePanelNetworkServerHandlerSupport {
 	private static final Map<UUID, Long> LAST_REFRESH_TICK_BY_PLAYER = new HashMap<>();
 	private static final int RECORDING_EXPORT_CHUNK_BYTES = 24576;
-	private static final int GRAPH_EXPORT_CHUNK_BYTES = 24576;
 
 	private StatePanelNetworkServerHandlerSupport() {
 	}
@@ -296,8 +295,11 @@ final class StatePanelNetworkServerHandlerSupport {
 		}
 		try {
 			boolean forceTransfer = payload != null && payload.forceTransfer();
-			GraphSnapshotExportService.ExportBundle exportBundle = GraphSnapshotExportService.exportVisibleSerialGraph(player, forceTransfer);
-			sendGraphExport(player, exportBundle);
+			GraphSnapshotExportService.ExportBundle exportBundle = GraphExportNetworkSupport.exportVisibleSerialGraph(
+				player,
+				forceTransfer,
+				true
+			);
 			sendFeedback(player, QuickLinkOperationFeedback.success("message.redstonelink.graph.export.done", exportBundle.fileName()));
 		} catch (IOException | RuntimeException exception) {
 			com.makomi.RedstoneLink.LOGGER.warn("导出图快照失败: player={}", player.getScoreboardName(), exception);
@@ -434,50 +436,6 @@ final class StatePanelNetworkServerHandlerSupport {
 					chunkIndex,
 					totalChunks,
 					exportBundle.autoOpenWeb(),
-					chunkBytes
-				)
-			);
-		}
-	}
-
-	/**
-	 * 分块发送图快照结果，避免单包体积过大。
-	 */
-	private static void sendGraphExport(ServerPlayer player, GraphSnapshotExportService.ExportBundle exportBundle) {
-		byte[] compressedBytes = exportBundle == null ? null : exportBundle.compressedBytes();
-		if (player == null || exportBundle == null) {
-			return;
-		}
-		if (exportBundle.reusedExisting()) {
-			ServerPlayNetworking.send(
-				player,
-				new StatePanelNetwork.StatePanelGraphExportChunkPayload(
-					exportBundle.fileName(),
-					0,
-					0,
-					true,
-					new byte[0]
-				)
-			);
-			return;
-		}
-		if (compressedBytes == null || compressedBytes.length <= 0) {
-			return;
-		}
-		int totalChunks = Math.max(1, (compressedBytes.length + GRAPH_EXPORT_CHUNK_BYTES - 1) / GRAPH_EXPORT_CHUNK_BYTES);
-		for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-			int startOffset = chunkIndex * GRAPH_EXPORT_CHUNK_BYTES;
-			int endOffset = Math.min(compressedBytes.length, startOffset + GRAPH_EXPORT_CHUNK_BYTES);
-			int chunkLength = Math.max(0, endOffset - startOffset);
-			byte[] chunkBytes = new byte[chunkLength];
-			System.arraycopy(compressedBytes, startOffset, chunkBytes, 0, chunkLength);
-			ServerPlayNetworking.send(
-				player,
-				new StatePanelNetwork.StatePanelGraphExportChunkPayload(
-					exportBundle.fileName(),
-					chunkIndex,
-					totalChunks,
-					true,
 					chunkBytes
 				)
 			);

@@ -24,6 +24,7 @@ class RecipeResourceLayoutTest {
 	private static final Path RECIPE_DIR = Path.of("src/main/resources/data/redstonelink/recipe");
 	private static final Path NON_STANDARD_RECIPES_DIR = Path.of("src/main/resources/data/redstonelink/recipes");
 	private static final Set<String> EXPECTED_RECIPE_FILES = Set.of(
+		"graph_visual_editor.json",
 		"link_pulse_emitter.json",
 		"link_push_button.json",
 		"link_receive_filter.json",
@@ -55,7 +56,7 @@ class RecipeResourceLayoutTest {
 
 		Set<String> actualFiles = listJsonFileNames(RECIPE_DIR);
 
-		assertEquals(EXPECTED_RECIPE_FILES, actualFiles, "运行时配方文件清单必须与约定的 20 个文件一致");
+		assertEquals(EXPECTED_RECIPE_FILES, actualFiles, "运行时配方文件清单必须与约定的 21 个文件一致");
 	}
 
 	/**

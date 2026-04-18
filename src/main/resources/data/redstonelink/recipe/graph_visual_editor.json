@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "C": {
+      "item": "redstonelink:redstone_link_component"
+    },
+    "G": {
+      "item": "minecraft:glass_pane"
+    },
+    "Q": {
+      "item": "redstonelink:quick_link_tool"
+    }
+  },
+  "pattern": [
+    " G ",
+    "GCG",
+    " Q "
+  ],
+  "result": {
+    "count": 1,
+    "id": "redstonelink:graph_visual_editor"
+  }
+}
