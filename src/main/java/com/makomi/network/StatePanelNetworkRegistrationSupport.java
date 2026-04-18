@@ -153,7 +153,7 @@ final class StatePanelNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleExportGraph(player));
+			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleExportGraph(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.SubmitGraphWritePayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();

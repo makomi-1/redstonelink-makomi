@@ -8,10 +8,6 @@ export type GraphNodeInfo = {
   displayText: string;
   allocated: boolean;
   retired: boolean;
-  online: boolean;
-  active: boolean;
-  inputPower: number;
-  outputPower: number;
   connectionMode: string;
   channel: number;
   sourceRevision: number;
@@ -33,8 +29,6 @@ export type GraphStats = {
   edgeCount: number;
   triggerSourceCount: number;
   coreCount: number;
-  onlineNodeCount: number;
-  activeNodeCount: number;
   maskedSourceCount: number;
 };
 
@@ -45,6 +39,7 @@ export type GraphSnapshotBundle = {
   graphRevision: number;
   generatedAtTick: number;
   viewerPlayerId: string;
+  structureChecksum: string;
   nodes: GraphNodeInfo[];
   edges: GraphEdgeInfo[];
   stats: GraphStats;
@@ -285,10 +280,6 @@ export function parseGraphSnapshotBundle(
           displayText: normalizeText(record.displayText, normalizeText(record.nodeKey)),
           allocated: normalizeBoolean(record.allocated),
           retired: normalizeBoolean(record.retired),
-          online: normalizeBoolean(record.online),
-          active: normalizeBoolean(record.active),
-          inputPower: normalizeNumber(record.inputPower),
-          outputPower: normalizeNumber(record.outputPower),
           connectionMode: normalizeText(record.connectionMode, 'serial'),
           channel: normalizeNumber(record.channel),
           sourceRevision: normalizeNumber(record.sourceRevision),
@@ -330,6 +321,7 @@ export function parseGraphSnapshotBundle(
       graphRevision: normalizeNumber(parsed.graphRevision),
       generatedAtTick: normalizeNumber(parsed.generatedAtTick),
       viewerPlayerId: normalizeText(parsed.viewerPlayerId, 'unknown'),
+      structureChecksum: normalizeText(parsed.structureChecksum, 'graph'),
       nodes,
       edges,
       stats: {
@@ -340,12 +332,6 @@ export function parseGraphSnapshotBundle(
         ),
         coreCount: normalizeNumber(
           statsRecord.coreCount ?? nodes.filter((node) => node.type === 'core').length,
-        ),
-        onlineNodeCount: normalizeNumber(
-          statsRecord.onlineNodeCount ?? nodes.filter((node) => node.online).length,
-        ),
-        activeNodeCount: normalizeNumber(
-          statsRecord.activeNodeCount ?? nodes.filter((node) => node.active).length,
         ),
         maskedSourceCount: normalizeNumber(statsRecord.maskedSourceCount),
       },

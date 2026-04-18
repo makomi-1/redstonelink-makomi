@@ -833,6 +833,55 @@ body {
   margin-bottom: 12px;
 }
 
+.graph-canvas-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 214, 191, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #ecd8ca;
+  font-size: 0.84rem;
+}
+
+.graph-legend-swatch {
+  width: 18px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.graph-legend-swatch.is-trigger-source {
+  border-color: rgba(255, 181, 140, 0.76);
+  background: rgba(255, 181, 140, 0.22);
+}
+
+.graph-legend-swatch.is-core {
+  border-color: rgba(108, 230, 255, 0.82);
+  background: rgba(108, 230, 255, 0.2);
+}
+
+.graph-legend-swatch.is-aggregate {
+  border-color: rgba(140, 213, 255, 0.82);
+  border-style: dashed;
+  background: rgba(140, 213, 255, 0.08);
+}
+
+.graph-legend-swatch.is-aggregate-outline {
+  border-color: rgba(151, 226, 255, 0.68);
+  border-style: dashed;
+  background: rgba(107, 198, 255, 0.12);
+}
+
 .graph-canvas-header h3,
 .graph-detail-hero h3 {
   margin: 12px 0 0;
@@ -868,6 +917,7 @@ body {
   height: clamp(680px, 72vh, 920px);
   min-height: 680px;
   overflow: hidden;
+  overscroll-behavior: contain;
   border-radius: 16px;
   border: 1px solid rgba(255, 214, 191, 0.08);
   background:
@@ -882,6 +932,23 @@ body {
 .graph-canvas .react-flow__node-default {
   padding: 10px 12px;
   font-family: "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+}
+
+.graph-canvas .react-flow__node-aggregateOutline {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.graph-aggregate-outline-node {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed rgba(151, 226, 255, 0.58);
+  border-radius: 28px;
+  background: rgba(107, 198, 255, 0.045);
+  contain: layout paint;
+  pointer-events: none;
 }
 
 .graph-canvas .react-flow__controls,
@@ -902,7 +969,35 @@ body {
 }
 
 .graph-detail-card .card-header {
-  margin-bottom: 14px;
+  margin-bottom: 0;
+}
+
+.graph-detail-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.graph-detail-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.graph-detail-tabs {
+  justify-content: flex-start;
+}
+
+.graph-detail-section {
+  display: grid;
+  gap: 16px;
+}
+
+.graph-detail-empty {
+  margin: 0;
+  padding: 14px 0;
 }
 
 .graph-detail-hero {
@@ -1019,15 +1114,8 @@ body {
   gap: 6px;
 }
 
-.graph-node-eyebrow {
-  color: #ffcca6;
-  font-size: 0.74rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.graph-node-eyebrow.is-summary {
-  color: #b6ffd0;
+.graph-node-label.is-compact {
+  gap: 0;
 }
 
 .graph-node-title {
@@ -1037,10 +1125,6 @@ body {
 .graph-node-meta {
   color: #d8c3b4;
   font-size: 0.82rem;
-}
-
-.graph-node-meta.is-summary {
-  color: #c9f6d9;
 }
 
 .graph-isolated-panel {

@@ -374,6 +374,7 @@ public final class LocalWebAssetRepository {
 			  "graphRevision": 3,
 			  "generatedAtTick": 2048,
 			  "viewerPlayerId": "sample-player",
+			  "structureChecksum": "samplechecksum0001",
 			  "nodes": [
 			    {
 			      "nodeKey": "triggerSource:12",
@@ -383,10 +384,6 @@ public final class LocalWebAssetRepository {
 			      "displayText": "样例来源(#12)",
 			      "allocated": true,
 			      "retired": false,
-			      "online": true,
-			      "active": true,
-			      "inputPower": 15,
-			      "outputPower": 15,
 			      "connectionMode": "serial",
 			      "channel": 0,
 			      "sourceRevision": 3,
@@ -401,10 +398,6 @@ public final class LocalWebAssetRepository {
 			      "displayText": "样例核心(#88)",
 			      "allocated": true,
 			      "retired": false,
-			      "online": true,
-			      "active": false,
-			      "inputPower": 15,
-			      "outputPower": 0,
 			      "connectionMode": "serial",
 			      "channel": 0,
 			      "sourceRevision": 0,
@@ -427,8 +420,6 @@ public final class LocalWebAssetRepository {
 			    "edgeCount": 1,
 			    "triggerSourceCount": 1,
 			    "coreCount": 1,
-			    "onlineNodeCount": 2,
-			    "activeNodeCount": 1,
 			    "maskedSourceCount": 0
 			  }
 			}

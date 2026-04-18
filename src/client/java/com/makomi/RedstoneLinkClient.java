@@ -404,7 +404,7 @@ private static void registerClientCommands() {
 			context.getSource().sendFeedback(Component.translatable("message.redstonelink.graph.export.no_connection"));
 			return 0;
 		}
-		ClientPlayNetworking.send(new StatePanelNetwork.ExportStatePanelGraphPayload());
+		ClientPlayNetworking.send(new StatePanelNetwork.ExportStatePanelGraphPayload(false));
 		context.getSource().sendFeedback(Component.translatable("message.redstonelink.graph.export.requested"));
 		return Command.SINGLE_SUCCESS;
 	}

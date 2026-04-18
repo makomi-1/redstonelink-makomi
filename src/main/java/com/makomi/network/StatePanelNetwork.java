@@ -260,15 +260,18 @@ public final class StatePanelNetwork {
 	/**
 	 * 客户端请求导出当前可见图快照。
 	 */
-	public record ExportStatePanelGraphPayload() implements CustomPacketPayload {
+	public record ExportStatePanelGraphPayload(boolean forceTransfer) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ExportStatePanelGraphPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "export_state_panel_graph")
 		);
 		public static final StreamCodec<FriendlyByteBuf, ExportStatePanelGraphPayload> CODEC = CustomPacketPayload.codec(
-			(payload, buffer) -> {
-			},
-			buffer -> new ExportStatePanelGraphPayload()
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeExportGraphPayload(buffer, payload.forceTransfer()),
+			buffer -> new ExportStatePanelGraphPayload(StatePanelNetworkPayloadSupport.decodeExportGraphPayload(buffer).forceTransfer())
 		);
+
+		public ExportStatePanelGraphPayload() {
+			this(false);
+		}
 
 		@Override
 		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {

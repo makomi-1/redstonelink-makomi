@@ -216,6 +216,21 @@ class StatePanelNetworkPayloadTest {
 	}
 
 	/**
+	 * graph 导出请求编解码应保留强制重传标记。
+	 */
+	@Test
+	void exportGraphPayloadCodecRoundTripShouldPreserveForceTransfer() {
+		StatePanelNetwork.ExportStatePanelGraphPayload original = new StatePanelNetwork.ExportStatePanelGraphPayload(true);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		StatePanelNetwork.ExportStatePanelGraphPayload.CODEC.encode(buffer, original);
+		StatePanelNetwork.ExportStatePanelGraphPayload decoded = StatePanelNetwork.ExportStatePanelGraphPayload.CODEC.decode(buffer);
+
+		assertEquals(original.forceTransfer(), decoded.forceTransfer());
+		assertEquals(StatePanelNetwork.ExportStatePanelGraphPayload.TYPE, decoded.type());
+	}
+
+	/**
 	 * graph 保存请求编解码应保留 requestId 与请求 JSON。
 	 */
 	@Test

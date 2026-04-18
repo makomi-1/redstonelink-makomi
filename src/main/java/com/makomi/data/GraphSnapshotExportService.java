@@ -28,25 +28,27 @@ public final class GraphSnapshotExportService {
 	/**
 	 * 导出当前玩家可见的 serial 图快照，并附带压缩字节与文件名。
 	 */
-	public static ExportBundle exportVisibleSerialGraph(ServerPlayer player) throws IOException {
+	public static ExportBundle exportVisibleSerialGraph(ServerPlayer player, boolean forceTransfer) throws IOException {
+		GraphSnapshotBundle bundle = buildVisibleSerialGraph(player);
+		String fileName = GraphSnapshotJsonSupport.buildFileName(bundle);
 		if (player != null) {
-			ServerLevel level = player.serverLevel();
-			LinkSavedData savedData = LinkSavedData.get(level);
-			long currentGraphRevision = savedData.graphRevision();
-			CachedGraphExport cachedGraphExport = EXPORT_CACHE.get(player.getUUID());
-			if (cachedGraphExport != null && cachedGraphExport.graphRevision() == currentGraphRevision) {
-				return cachedGraphExport.toReusedBundle();
+			UUID playerId = player.getUUID();
+			if (!forceTransfer) {
+				CachedGraphExport cachedGraphExport = EXPORT_CACHE.get(playerId);
+				if (cachedGraphExport != null && cachedGraphExport.matches(fileName)) {
+					return cachedGraphExport.toReusedBundle(bundle);
+				}
+				GraphExportDedupeSavedData dedupeSavedData = GraphExportDedupeSavedData.get(player.serverLevel());
+				if (dedupeSavedData.contains(playerId, bundle.structureChecksum(), fileName)) {
+					return new ExportBundle(bundle, fileName, new byte[0], true);
+				}
 			}
 		}
-		GraphSnapshotBundle bundle = buildVisibleSerialGraph(player);
-		ExportBundle exportBundle = new ExportBundle(
-			bundle,
-			GraphSnapshotJsonSupport.buildFileName(bundle),
-			GraphSnapshotJsonSupport.toCompressedJsonBytes(bundle),
-			false
-		);
+		ExportBundle exportBundle = new ExportBundle(bundle, fileName, GraphSnapshotJsonSupport.toCompressedJsonBytes(bundle), false);
 		if (player != null) {
-			EXPORT_CACHE.put(player.getUUID(), new CachedGraphExport(bundle.graphRevision(), exportBundle));
+			UUID playerId = player.getUUID();
+			EXPORT_CACHE.put(playerId, new CachedGraphExport(fileName, exportBundle));
+			GraphExportDedupeSavedData.get(player.serverLevel()).remember(playerId, bundle.structureChecksum(), fileName);
 		}
 		return exportBundle;
 	}
@@ -62,7 +64,6 @@ public final class GraphSnapshotExportService {
 		LinkSavedData savedData = LinkSavedData.get(level);
 		long generatedAtTick = level.getGameTime();
 		long graphRevision = savedData.graphRevision();
-		String snapshotId = buildSnapshotId(generatedAtTick, player.getUUID());
 		Map<String, GraphSnapshotBundle.GraphNodeInfo> nodesByKey = new LinkedHashMap<>();
 		Set<GraphSnapshotBundle.GraphEdgeInfo> edgeSet = new LinkedHashSet<>();
 		int maskedSourceCount = 0;
@@ -125,44 +126,48 @@ public final class GraphSnapshotExportService {
 
 		int triggerSourceCount = 0;
 		int coreCount = 0;
-		int onlineNodeCount = 0;
-		int activeNodeCount = 0;
 		for (GraphSnapshotBundle.GraphNodeInfo node : nodes) {
 			if (node.nodeType() == LinkNodeType.TRIGGER_SOURCE) {
 				triggerSourceCount++;
 			} else {
 				coreCount++;
 			}
-			if (node.online()) {
-				onlineNodeCount++;
-			}
-			if (node.active()) {
-				activeNodeCount++;
-			}
 		}
-
-		return new GraphSnapshotBundle(
-			snapshotId,
+		GraphSnapshotBundle.GraphStats stats = new GraphSnapshotBundle.GraphStats(
+			nodes.size(),
+			edges.size(),
+			triggerSourceCount,
+			coreCount,
+			maskedSourceCount
+		);
+		String viewerPlayerId = player.getUUID().toString();
+		GraphSnapshotBundle provisionalBundle = new GraphSnapshotBundle(
+			"graph-pending",
 			MODE_SERIAL,
 			graphRevision,
 			generatedAtTick,
-			player.getUUID().toString(),
+			viewerPlayerId,
+			"",
 			nodes,
 			edges,
-			new GraphSnapshotBundle.GraphStats(
-				nodes.size(),
-				edges.size(),
-				triggerSourceCount,
-				coreCount,
-				onlineNodeCount,
-				activeNodeCount,
-				maskedSourceCount
-			)
+			stats
+		);
+		String structureChecksum = GraphSnapshotJsonSupport.buildStructureChecksum(provisionalBundle);
+		return new GraphSnapshotBundle(
+			buildSnapshotId(graphRevision, structureChecksum),
+			MODE_SERIAL,
+			graphRevision,
+			generatedAtTick,
+			viewerPlayerId,
+			structureChecksum,
+			nodes,
+			edges,
+			stats
 		);
 	}
 
 	private static GraphSnapshotBundle emptyBundle() {
-		return new GraphSnapshotBundle("graph-empty", MODE_SERIAL, 0L, 0L, "unknown", List.of(), List.of(), null);
+		return new GraphSnapshotBundle("graph-empty", MODE_SERIAL, 0L, 0L, "unknown", "empty", List.of(), List.of(), null);
 	}
 
 	/**
@@ -175,7 +180,6 @@ public final class GraphSnapshotExportService {
 		long serial
 	) {
 		NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(level, nodeType, serial);
-		NodeRuntimeSnapshot runtimeSnapshot = NodeSnapshotQueryService.resolveRuntimeSnapshot(level.getServer(), nodeType, serial).orElse(null);
 		String alias = NodeAliasServerSupport.resolveAlias(level, nodeType, serial).orElse("");
 		LinkConnectionMode connectionMode = savedData.getConnectionMode(nodeType, serial);
 		return new GraphSnapshotBundle.GraphNodeInfo(
@@ -186,10 +190,6 @@ public final class GraphSnapshotExportService {
 			NodeAliasDisplayUtil.formatDisplayText(alias, serial),
 			identity.allocated(),
 			identity.retired(),
-			runtimeSnapshot != null ? runtimeSnapshot.online() : identity.online(),
-			runtimeSnapshot != null && runtimeSnapshot.active(),
-			runtimeSnapshot == null ? 0 : runtimeSnapshot.inputPower(),
-			runtimeSnapshot == null ? 0 : runtimeSnapshot.outputPower(),
 			connectionMode.token(),
 			savedData.getChannel(nodeType, serial),
 			savedData.sourceRevision(nodeType, serial),
@@ -219,10 +219,10 @@ public final class GraphSnapshotExportService {
 		return LinkNodeSemantics.toSemanticName(nodeType) + ":" + Math.max(0L, serial);
 	}
 
-	private static String buildSnapshotId(long generatedAtTick, UUID playerId) {
-		String rawPlayerId = playerId == null ? "player" : playerId.toString().replace("-", "");
-		String suffix = rawPlayerId.length() <= 8 ? rawPlayerId : rawPlayerId.substring(0, 8);
-		return "serial-%d-%s".formatted(Math.max(0L, generatedAtTick), suffix);
+	private static String buildSnapshotId(long graphRevision, String structureChecksum) {
+		String normalizedChecksum = structureChecksum == null ? "graph" : structureChecksum.trim();
+		String suffix = normalizedChecksum.length() <= 12 ? normalizedChecksum : normalizedChecksum.substring(0, 12);
+		return "serial-r%d-%s".formatted(Math.max(0L, graphRevision), suffix);
 	}
 
 	/**
@@ -248,19 +248,23 @@ public final class GraphSnapshotExportService {
 	/**
 	 * 当前玩家的 graph 导出缓存。
 	 */
-	private record CachedGraphExport(long graphRevision, ExportBundle exportBundle) {
+	private record CachedGraphExport(String fileName, ExportBundle exportBundle) {
 		private CachedGraphExport {
-			graphRevision = Math.max(0L, graphRevision);
+			fileName = fileName == null ? GraphSnapshotJsonSupport.buildFileName(emptyBundle()) : fileName;
 			exportBundle = exportBundle == null
 				? new ExportBundle(emptyBundle(), GraphSnapshotJsonSupport.buildFileName(emptyBundle()), new byte[0], false)
 				: exportBundle;
 		}
 
-		private ExportBundle toReusedBundle() {
+		private boolean matches(String expectedFileName) {
+			return fileName.equals(expectedFileName);
+		}
+
+		private ExportBundle toReusedBundle(GraphSnapshotBundle bundle) {
 			return new ExportBundle(
-				exportBundle.bundle(),
-				exportBundle.fileName(),
-				exportBundle.compressedBytes(),
+				bundle == null ? exportBundle.bundle() : bundle,
+				fileName,
+				new byte[0],
 				true
 			);
 		}

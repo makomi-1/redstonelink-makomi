@@ -290,12 +290,13 @@ final class StatePanelNetworkServerHandlerSupport {
 	/**
 	 * 导出当前玩家可见的 serial 图快照。
 	 */
-	static void handleExportGraph(ServerPlayer player) {
+	static void handleExportGraph(ServerPlayer player, StatePanelNetwork.ExportStatePanelGraphPayload payload) {
 		if (player == null) {
 			return;
 		}
 		try {
-			GraphSnapshotExportService.ExportBundle exportBundle = GraphSnapshotExportService.exportVisibleSerialGraph(player);
+			boolean forceTransfer = payload != null && payload.forceTransfer();
+			GraphSnapshotExportService.ExportBundle exportBundle = GraphSnapshotExportService.exportVisibleSerialGraph(player, forceTransfer);
 			sendGraphExport(player, exportBundle);
 			sendFeedback(player, QuickLinkOperationFeedback.success("message.redstonelink.graph.export.done", exportBundle.fileName()));
 		} catch (IOException | RuntimeException exception) {

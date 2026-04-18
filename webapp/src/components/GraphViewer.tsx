@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
   MiniMap,
   Position,
+  SelectionMode,
   type Edge,
   type Node,
+  type NodeChange,
+  type NodeProps,
   type ReactFlowInstance,
   type XYPosition,
   useEdgesState,
@@ -34,23 +37,35 @@ const GRAPH_NODE_WIDTH = 232;
 const GRAPH_NODE_HEIGHT = 60;
 const AUTO_LAYOUT_START_X = 72;
 const AUTO_LAYOUT_START_Y = 64;
-const COMPONENT_LAYER_GAP_X = 336;
-const COMPONENT_LANE_COLUMN_GAP_X = 48;
-const COMPONENT_NODE_GAP_Y = 92;
-const COMPONENT_BLOCK_GAP_X = 132;
-const COMPONENT_BLOCK_GAP_Y = 148;
+const COMPONENT_LAYER_GAP_X = 364;
+const COMPONENT_LANE_COLUMN_GAP_X = 70;
+const COMPONENT_NODE_GAP_Y = 104;
+const COMPONENT_BLOCK_GAP_X = 156;
+const COMPONENT_BLOCK_GAP_Y = 172;
 const AUTO_LAYOUT_MAX_ROW_WIDTH = 1960;
 const COMPONENT_LANE_MIN_ROW_COUNT = 3;
 const COMPONENT_LANE_MAX_ROW_COUNT = 7;
+const LANE_JITTER_X = 18;
+const LANE_JITTER_Y = 14;
+const LANE_COLUMN_STAGGER_Y = 14;
+const COMPONENT_STAGGER_X = 18;
+const COMPONENT_STAGGER_Y = 22;
 const SHARED_CORE_GROUP_MIN_SOURCE_COUNT = 1;
 const SHARED_CORE_GROUP_MIN_CORE_COUNT = 2;
 const NODE_CENTER_OFFSET_X = GRAPH_NODE_WIDTH / 2;
 const NODE_CENTER_OFFSET_Y = GRAPH_NODE_HEIGHT / 2;
+const AGGREGATE_OUTLINE_PADDING_X = 28;
+const AGGREGATE_OUTLINE_PADDING_Y = 28;
 
-type GraphFlowNode = Node<{ label: JSX.Element; canvasNodeKey: string }>;
+type GraphFlowNodeData = {
+  label?: JSX.Element;
+  canvasNodeKey: string;
+};
+type GraphFlowNode = Node<GraphFlowNodeData>;
 type SavePhase = 'idle' | 'saving' | 'conflict' | 'error';
 type GraphEditMode = 'view' | 'add' | 'remove' | 'replace';
 type GraphSearchTypeFilter = 'all' | GraphNodeTypeToken;
+type GraphSidebarPanel = 'details' | 'isolated' | 'batch';
 type DraftEdgeDiffState = 'base' | 'added' | 'removed';
 type GraphCanvasActualNode = {
   kind: 'actual';
@@ -76,7 +91,6 @@ type GraphCanvasEdgeInfo = {
   targetNodeKey: string;
   kind: 'actual' | 'aggregate';
   diffState: DraftEdgeDiffState;
-  label: string;
 };
 type GraphLayoutComponent = {
   width: number;
@@ -106,14 +120,18 @@ type GraphViewerProps = {
   onDirtyStateChange?: (dirty: boolean) => void;
 };
 
+function AggregateOutlineNode(_: NodeProps<GraphFlowNodeData>): JSX.Element {
+  return <div className="graph-aggregate-outline-node" />;
+}
+
+const graphNodeTypes = {
+  aggregateOutline: AggregateOutlineNode,
+};
+
 function buildNodeLabel(node: GraphNodeInfo): JSX.Element {
   return (
-    <div className="graph-node-label">
-      <span className="graph-node-eyebrow">{node.type}</span>
+    <div className="graph-node-label is-compact">
       <strong className="graph-node-title">{node.displayText}</strong>
-      <span className="graph-node-meta">
-        #{node.serial} · {node.online ? 'online' : 'offline'} · {node.active ? 'active' : 'idle'}
-      </span>
     </div>
   );
 }
@@ -121,7 +139,6 @@ function buildNodeLabel(node: GraphNodeInfo): JSX.Element {
 function buildAggregateNodeLabel(aggregateNode: GraphCanvasAggregateNode): JSX.Element {
   return (
     <div className="graph-node-label">
-      <span className="graph-node-eyebrow">aggregate</span>
       <strong className="graph-node-title">
         {aggregateNode.expanded
           ? `${aggregateNode.coreCount} grouped cores`
@@ -144,6 +161,77 @@ function formatSearchTypeLabel(searchTypeFilter: GraphSearchTypeFilter): string 
 
 function buildSearchResultLabel(node: GraphNodeInfo): string {
   return `${node.type} #${node.serial} · ${node.displayText}`;
+}
+
+function buildAggregateOutlineFlowNodes(
+  aggregateNodes: GraphCanvasAggregateNode[],
+  positionedNodes: GraphFlowNode[],
+): GraphFlowNode[] {
+  const positionedNodeByKey = new Map(
+    positionedNodes.map((node) => [String(node.id), node] as const),
+  );
+  return aggregateNodes.flatMap((aggregateNode) => {
+    if (!aggregateNode.expanded) {
+      return [];
+    }
+    const memberNodes = [
+      positionedNodeByKey.get(aggregateNode.nodeKey),
+      ...aggregateNode.coreNodeKeys.map((nodeKey) => positionedNodeByKey.get(nodeKey)),
+    ].filter((node): node is GraphFlowNode => node != null);
+    if (memberNodes.length <= 1) {
+      return [];
+    }
+    const minX =
+      Math.min(...memberNodes.map((node) => node.position.x)) - AGGREGATE_OUTLINE_PADDING_X;
+    const minY =
+      Math.min(...memberNodes.map((node) => node.position.y)) - AGGREGATE_OUTLINE_PADDING_Y;
+    const maxX =
+      Math.max(...memberNodes.map((node) => node.position.x + GRAPH_NODE_WIDTH)) +
+      AGGREGATE_OUTLINE_PADDING_X;
+    const maxY =
+      Math.max(...memberNodes.map((node) => node.position.y + GRAPH_NODE_HEIGHT)) +
+      AGGREGATE_OUTLINE_PADDING_Y;
+    return [
+      {
+        id: `aggregate-outline:${aggregateNode.nodeKey}`,
+        type: 'aggregateOutline',
+        position: {
+          x: minX,
+          y: minY,
+        },
+        data: {
+          canvasNodeKey: aggregateNode.nodeKey,
+        },
+        draggable: false,
+        selectable: false,
+        focusable: false,
+        style: {
+          width: maxX - minX,
+          height: maxY - minY,
+          pointerEvents: 'none',
+        },
+      },
+    ];
+  });
+}
+
+function sameAggregateOutlineFlowNodes(left: GraphFlowNode[], right: GraphFlowNode[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((leftNode, index) => {
+    const rightNode = right[index];
+    if (!rightNode) {
+      return false;
+    }
+    return (
+      String(leftNode.id) === String(rightNode.id) &&
+      leftNode.position.x === rightNode.position.x &&
+      leftNode.position.y === rightNode.position.y &&
+      Number(leftNode.style?.width ?? 0) === Number(rightNode.style?.width ?? 0) &&
+      Number(leftNode.style?.height ?? 0) === Number(rightNode.style?.height ?? 0)
+    );
+  });
 }
 
 function matchesSearchType(
@@ -503,7 +591,6 @@ function buildGraphCanvasView(
         targetNodeKey: edge.targetNodeKey,
         kind: 'actual' as const,
         diffState: 'base' as DraftEdgeDiffState,
-        label: edge.kind,
       })),
   ];
   aggregateNodes.forEach((aggregateNode) => {
@@ -514,7 +601,6 @@ function buildGraphCanvasView(
         targetNodeKey: aggregateNode.nodeKey,
         kind: 'aggregate',
         diffState: 'base',
-        label: aggregateNode.expanded ? 'group' : `+${aggregateNode.coreCount}`,
       });
     });
   });
@@ -576,7 +662,6 @@ function buildGraphCanvasView(
         targetNodeKey: coreNodeKey,
         kind: 'aggregate',
         diffState: 'base',
-        label: '',
       });
     });
   });
@@ -701,13 +786,80 @@ function resolveLaneRowCount(nodeCount: number): number {
   );
 }
 
-function buildLaneLayout(nodes: GraphCanvasNodeInfo[]): GraphLayoutComponent {
-  const positions = new Map<string, XYPosition>();
+/**
+ * 为布局生成稳定但不完全规则的偏移，减少边在长段上的完全重叠。
+ */
+function hashLayoutKey(layoutKey: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < layoutKey.length; index++) {
+    hash ^= layoutKey.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function resolveLaneJitter(nodeKey: string, columnIndex: number, rowIndex: number): XYPosition {
+  const hash = hashLayoutKey(`${nodeKey}:${columnIndex}:${rowIndex}`);
+  const driftX = (hash % (LANE_JITTER_X * 2 + 1)) - LANE_JITTER_X;
+  const driftY = (((hash >>> 8) % (LANE_JITTER_Y * 2 + 1)) - LANE_JITTER_Y);
+  const columnStaggerY = columnIndex % 2 === 0 ? 0 : LANE_COLUMN_STAGGER_Y;
+  const rowBiasY = rowIndex % 2 === 0 ? -4 : 6;
+  return {
+    x: driftX,
+    y: driftY + columnStaggerY + rowBiasY,
+  };
+}
+
+function normalizeLayoutPositions(
+  rawPositions: Map<string, XYPosition>,
+): Pick<GraphLayoutComponent, 'positions' | 'width' | 'height'> {
+  if (rawPositions.size === 0) {
+    return {
+      width: 0,
+      height: 0,
+      positions: new Map<string, XYPosition>(),
+    };
+  }
+  const positionValues = Array.from(rawPositions.values());
+  const minX = Math.min(...positionValues.map((position) => position.x));
+  const minY = Math.min(...positionValues.map((position) => position.y));
+  const normalizedPositions = new Map<string, XYPosition>();
+  let maxX = 0;
+  let maxY = 0;
+  rawPositions.forEach((position, nodeKey) => {
+    const normalizedPosition = {
+      x: position.x - minX,
+      y: position.y - minY,
+    };
+    normalizedPositions.set(nodeKey, normalizedPosition);
+    maxX = Math.max(maxX, normalizedPosition.x);
+    maxY = Math.max(maxY, normalizedPosition.y);
+  });
+  return {
+    width: GRAPH_NODE_WIDTH + maxX,
+    height: GRAPH_NODE_HEIGHT + maxY,
+    positions: normalizedPositions,
+  };
+}
+
+function resolveComponentOffset(nodeKey: string, componentIndex: number): XYPosition {
+  const hash = hashLayoutKey(`${nodeKey}:component:${componentIndex}`);
+  return {
+    x: (hash % 3) * COMPONENT_STAGGER_X,
+    y: ((hash >>> 7) % 3) * COMPONENT_STAGGER_Y,
+  };
+}
+
+function buildLaneLayout(
+  nodes: GraphCanvasNodeInfo[],
+  allowJitter = true,
+): GraphLayoutComponent {
+  const rawPositions = new Map<string, XYPosition>();
   if (nodes.length === 0) {
     return {
       width: 0,
       height: 0,
-      positions,
+      positions: rawPositions,
       anchorNode: null,
     };
   }
@@ -717,15 +869,25 @@ function buildLaneLayout(nodes: GraphCanvasNodeInfo[]): GraphLayoutComponent {
   nodes.forEach((node, index) => {
     const columnIndex = Math.floor(index / rowCount);
     const rowIndex = index % rowCount;
-    positions.set(node.nodeKey, {
-      x: columnIndex * columnSpanX,
-      y: rowIndex * COMPONENT_NODE_GAP_Y,
+    const laneJitter = allowJitter
+      ? resolveLaneJitter(node.nodeKey, columnIndex, rowIndex)
+      : { x: 0, y: 0 };
+    rawPositions.set(node.nodeKey, {
+      x: columnIndex * columnSpanX + laneJitter.x,
+      y: rowIndex * COMPONENT_NODE_GAP_Y + laneJitter.y,
     });
   });
+  const normalizedLayout = normalizeLayoutPositions(rawPositions);
   return {
-    width: GRAPH_NODE_WIDTH + Math.max(0, columnCount - 1) * columnSpanX,
-    height: GRAPH_NODE_HEIGHT + Math.max(0, rowCount - 1) * COMPONENT_NODE_GAP_Y,
-    positions,
+    width: Math.max(
+      GRAPH_NODE_WIDTH + Math.max(0, columnCount - 1) * columnSpanX,
+      normalizedLayout.width,
+    ),
+    height: Math.max(
+      GRAPH_NODE_HEIGHT + Math.max(0, rowCount - 1) * COMPONENT_NODE_GAP_Y,
+      normalizedLayout.height,
+    ),
+    positions: normalizedLayout.positions,
     anchorNode: nodes[0] ?? null,
   };
 }
@@ -752,6 +914,9 @@ function buildComponentLayout(
   componentNodes: GraphCanvasNodeInfo[],
   componentEdges: GraphCanvasEdgeInfo[],
 ): GraphLayoutComponent {
+  const hasExpandedAggregateNode = componentNodes.some(
+    (node) => node.kind === 'aggregate' && node.expanded,
+  );
   const triggerSourceNodes = componentNodes
     .filter((node) => resolveCanvasNodeLaneType(node) === 'triggerSource')
     .sort(compareCanvasNodeIdentity);
@@ -789,7 +954,7 @@ function buildComponentLayout(
       return compareCanvasNodeIdentity(left, right);
     });
   const triggerSourceLaneLayout = buildLaneLayout(triggerSourceNodes);
-  const coreLaneLayout = buildLaneLayout(coreNodes);
+  const coreLaneLayout = buildLaneLayout(coreNodes, !hasExpandedAggregateNode);
   const laneHeight = Math.max(triggerSourceLaneLayout.height, coreLaneLayout.height, GRAPH_NODE_HEIGHT);
   const triggerSourceOffsetY =
     triggerSourceLaneLayout.height === 0 ? 0 : (laneHeight - triggerSourceLaneLayout.height) / 2;
@@ -848,7 +1013,7 @@ function buildAutoLayoutPositions(
       }
       return compareCanvasNodeIdentity(left.anchorNode, right.anchorNode);
     })
-    .forEach((component) => {
+    .forEach((component, componentIndex) => {
       const needsWrap =
         currentX > AUTO_LAYOUT_START_X &&
         currentX + component.width > AUTO_LAYOUT_MAX_ROW_WIDTH;
@@ -857,14 +1022,18 @@ function buildAutoLayoutPositions(
         currentY += currentRowHeight + COMPONENT_BLOCK_GAP_Y;
         currentRowHeight = 0;
       }
+      const componentOffset = resolveComponentOffset(
+        component.anchorNode?.nodeKey ?? `component:${componentIndex}`,
+        componentIndex,
+      );
       component.positions.forEach((position, nodeKey) => {
         positionByNodeKey.set(nodeKey, {
-          x: currentX + position.x,
-          y: currentY + position.y,
+          x: currentX + componentOffset.x + position.x,
+          y: currentY + componentOffset.y + position.y,
         });
       });
-      currentX += component.width + COMPONENT_BLOCK_GAP_X;
-      currentRowHeight = Math.max(currentRowHeight, component.height);
+      currentX += component.width + componentOffset.x + COMPONENT_BLOCK_GAP_X;
+      currentRowHeight = Math.max(currentRowHeight, component.height + componentOffset.y);
     });
 
   return positionByNodeKey;
@@ -873,6 +1042,7 @@ function buildAutoLayoutPositions(
 function buildGraphFlowNodes(
   canvasNodes: GraphCanvasNodeInfo[],
   positionByNodeKey: Map<string, XYPosition>,
+  editMode: GraphEditMode,
   selectedNodeKey: string,
   hasSearch: boolean,
   matchedNodeKeys: Set<string>,
@@ -897,7 +1067,7 @@ function buildGraphFlowNodes(
         canvasNodeKey: nodeKey,
       },
       draggable: true,
-      selectable: true,
+      selectable: canvasNode.kind === 'actual' && editMode !== 'view',
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       style:
@@ -935,7 +1105,6 @@ function buildEdges(
       source: edge.sourceNodeKey,
       target: edge.targetNodeKey,
       animated: false,
-      label: edge.label,
     };
     if (edge.kind === 'aggregate') {
       return buildAggregateEdgeStyle(hasSearch, matchedNodeKeys, baseEdge);
@@ -964,7 +1133,6 @@ function buildEdges(
             source: edge.sourceNodeKey,
             target: edge.targetNodeKey,
             animated: false,
-            label: edge.kind,
           },
           'removed',
         ),
@@ -978,6 +1146,10 @@ function buildDraftFileName(graphFileName: string, snapshotId: string): string {
     ? graphFileName.replace(/\.json\.gz$/i, '')
     : snapshotId;
   return `draft-${normalizedBaseName}.json`;
+}
+
+function sameGraphDraft(left: GraphDraft, right: GraphDraft): boolean {
+  return serializeGraphDraft(left) === serializeGraphDraft(right);
 }
 
 function normalizeAlias(rawAlias: string): string {
@@ -1003,13 +1175,6 @@ function sameNumberArray(left: number[], right: number[]): boolean {
     return false;
   }
   return left.every((value, index) => value === right[index]);
-}
-
-function toggleNumberSelection(currentValues: number[], targetValue: number): number[] {
-  if (currentValues.includes(targetValue)) {
-    return currentValues.filter((value) => value !== targetValue);
-  }
-  return [...currentValues, targetValue].sort((left, right) => left - right);
 }
 
 function formatEditModeLabel(editMode: GraphEditMode): string {
@@ -1406,17 +1571,28 @@ export default function GraphViewer({
   const [appliedSearchTypeFilter, setAppliedSearchTypeFilter] =
     useState<GraphSearchTypeFilter>('all');
   const [selectedNodeKey, setSelectedNodeKey] = useState<string>('');
+  const [activeSidebarPanel, setActiveSidebarPanel] = useState<GraphSidebarPanel>('details');
   const [editMode, setEditMode] = useState<GraphEditMode>('view');
   const [selectedEditSourceSerials, setSelectedEditSourceSerials] = useState<number[]>([]);
   const [selectedEditTargetSerials, setSelectedEditTargetSerials] = useState<number[]>([]);
+  const [undoableGraphDraft, setUndoableGraphDraft] = useState<GraphDraft | null>(null);
   const [expandedAggregateNodeKeys, setExpandedAggregateNodeKeys] = useState<string[]>([]);
   const [pinnedIsolatedNodeKeys, setPinnedIsolatedNodeKeys] = useState<string[]>([]);
+  const [pendingAggregateFocusNodeKey, setPendingAggregateFocusNodeKey] = useState('');
   const [pendingFocusNodeKey, setPendingFocusNodeKey] = useState('');
   const [pendingStructureLayoutReset, setPendingStructureLayoutReset] = useState(false);
   const [pendingStructureViewportFit, setPendingStructureViewportFit] = useState(false);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [aggregateOutlineNodes, setAggregateOutlineNodes] = useState<GraphFlowNode[]>([]);
+  const [aggregateOutlineSuspended, setAggregateOutlineSuspended] = useState(false);
+  const suspendCanvasSelectionSyncRef = useRef(false);
+  const resumeCanvasSelectionSyncFrameRef = useRef<number | null>(null);
+  const selectionPreviewActiveRef = useRef(false);
+  const pendingSelectionNodeKeysRef = useRef<string[]>([]);
+  const finalizeSelectionFrameRef = useRef<number | null>(null);
+  const aggregateOutlineSuspendDepthRef = useRef(0);
 
   const draftFileName = useMemo(
     () => buildDraftFileName(graphFileName, graphBundle.snapshotId),
@@ -1491,17 +1667,13 @@ export default function GraphViewer({
     return (
       (edgeCountByNodeKey.get(selectedNodeKey) ?? 0) > 0 ||
       matchedNodeKeys.has(selectedNodeKey) ||
-      draftDiff.changedNodeKeys.has(selectedNodeKey) ||
-      selectedEditSourceNodeKeys.has(selectedNodeKey) ||
-      selectedEditTargetNodeKeys.has(selectedNodeKey)
+      draftDiff.changedNodeKeys.has(selectedNodeKey)
     );
   }, [
     draftDiff.changedNodeKeys,
     edgeCountByNodeKey,
     matchedNodeKeys,
     nodeByKey,
-    selectedEditSourceNodeKeys,
-    selectedEditTargetNodeKeys,
     selectedNodeKey,
   ]);
   const forcedVisibleNodeKeys = useMemo(() => {
@@ -1512,16 +1684,12 @@ export default function GraphViewer({
     pinnedIsolatedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     matchedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     draftDiff.changedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
-    selectedEditSourceNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
-    selectedEditTargetNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     return nextKeys;
   }, [
     draftDiff.changedNodeKeys,
     matchedNodeKeys,
     nodeByKey,
     pinnedIsolatedNodeKeys,
-    selectedEditSourceNodeKeys,
-    selectedEditTargetNodeKeys,
     selectedNodeKey,
   ]);
   const expandedAggregateNodeKeySet = useMemo(
@@ -1551,6 +1719,10 @@ export default function GraphViewer({
     [edgeCountByNodeKey, pinnedIsolatedNodeKeys],
   );
   const hasCanvasNodes = graphCanvasView.canvasNodes.length > 0;
+  const displayNodes = useMemo(
+    () => (aggregateOutlineSuspended ? nodes : [...aggregateOutlineNodes, ...nodes]),
+    [aggregateOutlineNodes, aggregateOutlineSuspended, nodes],
+  );
   const hasPendingSearchChanges =
     searchDraftText !== appliedSearchText ||
     searchDraftTypeFilter !== appliedSearchTypeFilter;
@@ -1585,12 +1757,18 @@ export default function GraphViewer({
     setDraftError('');
     setSavePhase('idle');
     setSaveMessage('');
+    setActiveSidebarPanel('details');
     setEditMode('view');
     setSelectedEditSourceSerials([]);
     setSelectedEditTargetSerials([]);
+    setUndoableGraphDraft(null);
     setExpandedAggregateNodeKeys([]);
     setPinnedIsolatedNodeKeys([]);
+    setPendingAggregateFocusNodeKey('');
     setPendingFocusNodeKey('');
+    setAggregateOutlineNodes([]);
+    aggregateOutlineSuspendDepthRef.current = 0;
+    setAggregateOutlineSuspended(false);
     setBaseGraphBundle(graphBundle);
     setGraphDraft(createInitialGraphDraft(graphBundle));
     loadDraft(draftFileName)
@@ -1637,6 +1815,7 @@ export default function GraphViewer({
       buildGraphFlowNodes(
         graphCanvasView.canvasNodes,
         autoLayoutPositions,
+        editMode,
         initialNodeKey,
         false,
         new Set<string>(),
@@ -1658,14 +1837,28 @@ export default function GraphViewer({
   }, [draftLoading, graphBundle.snapshotId, setEdges, setNodes]);
 
   useEffect(() => {
+    if (draftLoading || aggregateOutlineSuspended) {
+      return;
+    }
+    const nextOutlineNodes = buildAggregateOutlineFlowNodes(graphCanvasView.aggregateNodes, nodes);
+    setAggregateOutlineNodes((currentNodes) =>
+      sameAggregateOutlineFlowNodes(currentNodes, nextOutlineNodes) ? currentNodes : nextOutlineNodes,
+    );
+  }, [aggregateOutlineSuspended, draftLoading, graphCanvasView.aggregateNodes, nodes]);
+
+  useEffect(() => {
     const shouldResetPositions = pendingStructureLayoutReset;
     setNodes((currentNodes) => {
       const existingPositionByNodeKey = new Map(
         shouldResetPositions ? [] : currentNodes.map((node) => [node.id, node.position] as const),
       );
+      const existingSelectedByNodeKey = new Map(
+        currentNodes.map((node) => [node.id, Boolean(node.selected)] as const),
+      );
       return buildGraphFlowNodes(
         graphCanvasView.canvasNodes,
         autoLayoutPositions,
+        editMode,
         selectedNodeKey,
         hasSearch,
         matchedNodeKeys,
@@ -1675,6 +1868,7 @@ export default function GraphViewer({
       ).map((node) => ({
         ...node,
         position: existingPositionByNodeKey.get(node.id) ?? node.position,
+        selected: existingSelectedByNodeKey.get(node.id) ?? false,
       }));
     });
     setEdges(
@@ -1694,6 +1888,7 @@ export default function GraphViewer({
     autoLayoutPositions,
     baseGraphBundle,
     draftDiff,
+    editMode,
     effectiveGraphBundle,
     graphCanvasView,
     hasSearch,
@@ -1750,6 +1945,54 @@ export default function GraphViewer({
   ]);
 
   useEffect(() => {
+    if (
+      draftLoading ||
+      pendingStructureLayoutReset ||
+      !pendingAggregateFocusNodeKey ||
+      !reactFlowInstance ||
+      nodes.length === 0
+    ) {
+      return;
+    }
+    const expandedAggregateNode = graphCanvasView.aggregateNodes.find(
+      (aggregateNode) =>
+        aggregateNode.nodeKey === pendingAggregateFocusNodeKey && aggregateNode.expanded,
+    );
+    if (!expandedAggregateNode) {
+      setPendingAggregateFocusNodeKey('');
+      return;
+    }
+    const targetNodeIds = [
+      expandedAggregateNode.nodeKey,
+      ...expandedAggregateNode.coreNodeKeys,
+    ].filter((nodeId) => nodes.some((node) => node.id === nodeId));
+    if (targetNodeIds.length === 0) {
+      setPendingAggregateFocusNodeKey('');
+      return;
+    }
+    const frameId = window.requestAnimationFrame(() => {
+      reactFlowInstance.fitView({
+        nodes: targetNodeIds.map((nodeId) => ({ id: nodeId })),
+        padding: 0.28,
+        minZoom: 0.72,
+        maxZoom: 1.22,
+        duration: 260,
+      });
+      setPendingAggregateFocusNodeKey('');
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    draftLoading,
+    graphCanvasView.aggregateNodes,
+    nodes,
+    pendingAggregateFocusNodeKey,
+    pendingStructureLayoutReset,
+    reactFlowInstance,
+  ]);
+
+  useEffect(() => {
     if (!pendingFocusNodeKey || !reactFlowInstance) {
       return;
     }
@@ -1775,6 +2018,18 @@ export default function GraphViewer({
       }
     };
   }, [graphDraft.dirty, onDirtyStateChange]);
+
+  useEffect(() => {
+    return () => {
+      if (resumeCanvasSelectionSyncFrameRef.current != null) {
+        window.cancelAnimationFrame(resumeCanvasSelectionSyncFrameRef.current);
+      }
+      if (finalizeSelectionFrameRef.current != null) {
+        window.cancelAnimationFrame(finalizeSelectionFrameRef.current);
+      }
+      aggregateOutlineSuspendDepthRef.current = 0;
+    };
+  }, []);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -1811,10 +2066,247 @@ export default function GraphViewer({
     setPendingFocusNodeKey(nodeKey);
   }
 
-  function requestStructureLayoutRefresh() {
+  function requestStructureLayoutRefresh(options?: {
+    focusAggregateNodeKey?: string;
+    fitViewport?: boolean;
+  }) {
     setPendingFocusNodeKey('');
+    setPendingAggregateFocusNodeKey(options?.focusAggregateNodeKey ?? '');
     setPendingStructureLayoutReset(true);
-    setPendingStructureViewportFit(true);
+    setPendingStructureViewportFit(options?.fitViewport ?? true);
+  }
+
+  function clearSelectionPreviewState() {
+    selectionPreviewActiveRef.current = false;
+    pendingSelectionNodeKeysRef.current = [];
+    if (finalizeSelectionFrameRef.current != null) {
+      window.cancelAnimationFrame(finalizeSelectionFrameRef.current);
+      finalizeSelectionFrameRef.current = null;
+    }
+  }
+
+  /**
+   * 包围框只在静止态展示，拖拽热路径里先临时移除，结束后再按最终位置恢复。
+   */
+  function suspendAggregateOutlineRendering() {
+    aggregateOutlineSuspendDepthRef.current += 1;
+    if (aggregateOutlineSuspendDepthRef.current === 1) {
+      setAggregateOutlineSuspended(true);
+    }
+  }
+
+  /**
+   * 成对恢复包围框渲染，避免节点拖拽和选中组拖拽事件重叠时提前恢复。
+   */
+  function resumeAggregateOutlineRendering() {
+    if (aggregateOutlineSuspendDepthRef.current === 0) {
+      setAggregateOutlineSuspended(false);
+      return;
+    }
+    aggregateOutlineSuspendDepthRef.current -= 1;
+    if (aggregateOutlineSuspendDepthRef.current === 0) {
+      setAggregateOutlineSuspended(false);
+    }
+  }
+
+  function resolveSelectableActualNodeKeys(nodeKeys: Iterable<string>): string[] {
+    const nextNodeKeys = new Set<string>();
+    for (const nodeKey of nodeKeys) {
+      if (!nodeByKey.has(nodeKey)) {
+        continue;
+      }
+      nextNodeKeys.add(nodeKey);
+    }
+    return [...nextNodeKeys].sort((left, right) => left.localeCompare(right));
+  }
+
+  /**
+   * 只从 ReactFlow 当前节点状态里提取真实 triggerSource/core 选区，过滤聚合块与包围盒等辅助节点。
+   */
+  function collectSelectableActualNodeKeysFromCanvasNodes(
+    canvasNodes: Pick<GraphFlowNode, 'id' | 'selected'>[],
+  ): string[] {
+    return resolveSelectableActualNodeKeys(
+      canvasNodes
+        .filter((canvasNode) => Boolean(canvasNode.selected))
+        .map((canvasNode) => String(canvasNode.id)),
+    );
+  }
+
+  /**
+   * 框选预览阶段直接消费 ReactFlow 的 select 增量，避免展开块存在时再依赖 onSelectionChange 猜选区。
+   */
+  function applySelectionPreviewNodeChanges(changes: NodeChange[]) {
+    if (!selectionPreviewActiveRef.current) {
+      return;
+    }
+    const nextNodeKeySet = new Set(pendingSelectionNodeKeysRef.current);
+    let changed = false;
+    changes.forEach((change) => {
+      if (change.type !== 'select') {
+        return;
+      }
+      const nodeKey = String(change.id);
+      if (!nodeByKey.has(nodeKey)) {
+        return;
+      }
+      changed = true;
+      if (change.selected) {
+        nextNodeKeySet.add(nodeKey);
+        return;
+      }
+      nextNodeKeySet.delete(nodeKey);
+    });
+    if (!changed) {
+      return;
+    }
+    pendingSelectionNodeKeysRef.current = [...nextNodeKeySet].sort((left, right) =>
+      left.localeCompare(right),
+    );
+  }
+
+  /**
+   * 将最终确认的真实节点集合写回 ReactFlow 受控 selected，避免拖框预览态直接污染业务高亮。
+   */
+  function applyCanvasSelectedNodeKeys(nodeKeys: Iterable<string>) {
+    const selectedNodeKeySet = new Set(resolveSelectableActualNodeKeys(nodeKeys));
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => {
+        const nextSelected = selectedNodeKeySet.has(String(node.id));
+        return Boolean(node.selected) === nextSelected
+          ? node
+          : {
+              ...node,
+              selected: nextSelected,
+            };
+      }),
+    );
+  }
+
+  /**
+   * 拦截浏览器默认的中键自动滚屏，让中键只作用于 graph 画布内部平移。
+   */
+  function handleCanvasMiddleMouseEvent(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.button !== 1) {
+      return;
+    }
+    event.preventDefault();
+  }
+
+  /**
+   * 程序化清空选区时，短暂忽略 ReactFlow 回流的旧选中事件，避免清空后立即被重新写回。
+   */
+  function temporarilySuspendCanvasSelectionSync() {
+    suspendCanvasSelectionSyncRef.current = true;
+    if (resumeCanvasSelectionSyncFrameRef.current != null) {
+      window.cancelAnimationFrame(resumeCanvasSelectionSyncFrameRef.current);
+    }
+    resumeCanvasSelectionSyncFrameRef.current = window.requestAnimationFrame(() => {
+      resumeCanvasSelectionSyncFrameRef.current = window.requestAnimationFrame(() => {
+        suspendCanvasSelectionSyncRef.current = false;
+        resumeCanvasSelectionSyncFrameRef.current = null;
+      });
+    });
+  }
+
+  /**
+   * 清空选择时要同时拦住内部选中变更，否则旧选区会把批量编辑集合重新写回。
+   */
+  function handleCanvasNodesChange(changes: NodeChange[]) {
+    if (selectionPreviewActiveRef.current) {
+      applySelectionPreviewNodeChanges(changes);
+    }
+    if (!suspendCanvasSelectionSyncRef.current && !selectionPreviewActiveRef.current) {
+      onNodesChange(changes);
+      return;
+    }
+    const filteredChanges = changes.filter((change) => change.type !== 'select');
+    if (filteredChanges.length === 0) {
+      return;
+    }
+    onNodesChange(filteredChanges);
+  }
+
+  /**
+   * 将 ReactFlow 的当前框选结果同步为批量编辑集合，仅保留真实 triggerSource/core 节点。
+   */
+  function applyBatchSelectionFromNodeKeys(nodeKeys: Iterable<string>) {
+    const nextSourceSerials = new Set<number>();
+    const nextTargetSerials = new Set<number>();
+    for (const nodeKey of nodeKeys) {
+      const graphNode = nodeByKey.get(nodeKey);
+      if (!graphNode) {
+        continue;
+      }
+      if (graphNode.type === 'triggerSource') {
+        nextSourceSerials.add(graphNode.serial);
+        continue;
+      }
+      nextTargetSerials.add(graphNode.serial);
+    }
+    const normalizedSourceSerials = [...nextSourceSerials].sort((left, right) => left - right);
+    const normalizedTargetSerials = [...nextTargetSerials].sort((left, right) => left - right);
+    setSelectedEditSourceSerials((currentValues) =>
+      sameNumberArray(currentValues, normalizedSourceSerials)
+        ? currentValues
+        : normalizedSourceSerials,
+    );
+    setSelectedEditTargetSerials((currentValues) =>
+      sameNumberArray(currentValues, normalizedTargetSerials)
+        ? currentValues
+        : normalizedTargetSerials,
+    );
+  }
+
+  function handleSelectionPreviewStart() {
+    if (editMode === 'view') {
+      return;
+    }
+    clearSelectionPreviewState();
+    selectionPreviewActiveRef.current = true;
+    pendingSelectionNodeKeysRef.current = collectSelectableActualNodeKeysFromCanvasNodes(nodes);
+  }
+
+  function handleSelectionPreviewEnd() {
+    if (editMode === 'view') {
+      return;
+    }
+    if (!selectionPreviewActiveRef.current) {
+      return;
+    }
+    if (finalizeSelectionFrameRef.current != null) {
+      window.cancelAnimationFrame(finalizeSelectionFrameRef.current);
+    }
+    finalizeSelectionFrameRef.current = window.requestAnimationFrame(() => {
+      const finalNodeKeys = [...pendingSelectionNodeKeysRef.current];
+      selectionPreviewActiveRef.current = false;
+      finalizeSelectionFrameRef.current = null;
+      pendingSelectionNodeKeysRef.current = [];
+      applyCanvasSelectedNodeKeys(finalNodeKeys);
+      applyBatchSelectionFromNodeKeys(finalNodeKeys);
+    });
+  }
+
+  function applyLocalDraftChange(nextDraft: GraphDraft): boolean {
+    if (sameGraphDraft(graphDraft, nextDraft)) {
+      return false;
+    }
+    setUndoableGraphDraft(graphDraft);
+    setGraphDraft(nextDraft);
+    return true;
+  }
+
+  function handleUndoDraft() {
+    if (!undoableGraphDraft) {
+      return;
+    }
+    setDraftPersistError('');
+    if (savePhase === 'error' || savePhase === 'conflict') {
+      setSavePhase('idle');
+    }
+    setGraphDraft(undoableGraphDraft);
+    setUndoableGraphDraft(null);
+    setSaveMessage('已撤回最近一步本地草稿。');
   }
 
   function handleApplySearch() {
@@ -1830,18 +2322,26 @@ export default function GraphViewer({
   }
 
   function handleAutoLayout() {
-    setNodes(
-      buildGraphFlowNodes(
+    setPendingAggregateFocusNodeKey('');
+    setNodes((currentNodes) => {
+      const existingSelectedByNodeKey = new Map(
+        currentNodes.map((node) => [node.id, Boolean(node.selected)] as const),
+      );
+      return buildGraphFlowNodes(
         graphCanvasView.canvasNodes,
         autoLayoutPositions,
+        editMode,
         selectedNodeKey,
         hasSearch,
         matchedNodeKeys,
         selectedEditSourceNodeKeys,
         selectedEditTargetNodeKeys,
         draftDiff.changedNodeKeys,
-      ),
-    );
+      ).map((node) => ({
+        ...node,
+        selected: existingSelectedByNodeKey.get(node.id) ?? false,
+      }));
+    });
     window.requestAnimationFrame(() => {
       reactFlowInstance?.fitView({ padding: 0.18, duration: 260 });
     });
@@ -1850,14 +2350,25 @@ export default function GraphViewer({
   function handleEditModeChange(nextEditMode: GraphEditMode) {
     setEditMode(nextEditMode);
     if (nextEditMode === 'view') {
+      clearSelectionPreviewState();
+      temporarilySuspendCanvasSelectionSync();
       setSelectedEditSourceSerials([]);
       setSelectedEditTargetSerials([]);
+      applyCanvasSelectedNodeKeys([]);
+      setActiveSidebarPanel((currentPanel) =>
+        currentPanel === 'batch' ? 'details' : currentPanel,
+      );
+      return;
     }
+    setActiveSidebarPanel('batch');
   }
 
   function handleClearBatchSelection() {
+    clearSelectionPreviewState();
+    temporarilySuspendCanvasSelectionSync();
     setSelectedEditSourceSerials([]);
     setSelectedEditTargetSerials([]);
+    applyCanvasSelectedNodeKeys([]);
   }
 
   function handleToggleExpandedAggregateNode(nodeKey: string) {
@@ -1867,27 +2378,26 @@ export default function GraphViewer({
   function handleCanvasNodeClick(nodeKey: string) {
     if (nodeKey.startsWith('aggregate:')) {
       setSelectedNodeKey(nodeKey);
+      const willExpand = !expandedAggregateNodeKeySet.has(nodeKey);
       handleToggleExpandedAggregateNode(nodeKey);
-      requestStructureLayoutRefresh();
+      requestStructureLayoutRefresh(
+        willExpand
+          ? {
+              focusAggregateNodeKey: nodeKey,
+              fitViewport: false,
+            }
+          : undefined,
+      );
       return;
     }
-    const clickedNode = nodeByKey.get(nodeKey);
-    if (!clickedNode) {
+    if (!nodeByKey.has(nodeKey)) {
       return;
     }
     setSelectedNodeKey(nodeKey);
     if (editMode === 'view') {
+      setActiveSidebarPanel('details');
       return;
     }
-    if (clickedNode.type === 'triggerSource') {
-      setSelectedEditSourceSerials((currentValues) =>
-        toggleNumberSelection(currentValues, clickedNode.serial),
-      );
-      return;
-    }
-    setSelectedEditTargetSerials((currentValues) =>
-      toggleNumberSelection(currentValues, clickedNode.serial),
-    );
   }
 
   function handleCanvasNodeDoubleClick(nodeKey: string) {
@@ -1929,8 +2439,8 @@ export default function GraphViewer({
     if (savePhase === 'error' || savePhase === 'conflict') {
       setSavePhase('idle');
     }
-    setGraphDraft((currentDraft) =>
-      upsertAliasDraft(currentDraft, baseGraphBundle, nodeType, serial, alias),
+    applyLocalDraftChange(
+      upsertAliasDraft(graphDraft, baseGraphBundle, nodeType, serial, alias),
     );
   }
 
@@ -1942,18 +2452,20 @@ export default function GraphViewer({
     if (savePhase === 'error' || savePhase === 'conflict') {
       setSavePhase('idle');
     }
-    setGraphDraft((currentDraft) =>
-      applyBatchEditToDraft(
-        currentDraft,
-        baseGraphBundle,
-        editMode,
-        selectedEditSourceSerials,
-        selectedEditTargetSerials,
-      ),
+    const nextDraft = applyBatchEditToDraft(
+      graphDraft,
+      baseGraphBundle,
+      editMode,
+      selectedEditSourceSerials,
+      selectedEditTargetSerials,
     );
-    setSaveMessage(
-      `已将 ${formatEditModeLabel(editMode)} 操作写入本地草稿，点击 Save 后才会回传游戏真值。`,
-    );
+    if (
+      applyLocalDraftChange(nextDraft)
+    ) {
+      setSaveMessage(
+        `已将 ${formatEditModeLabel(editMode)} 操作写入本地草稿，点击 Save 后才会回传游戏真值。`,
+      );
+    }
   }
 
   async function handleSave() {
@@ -1987,6 +2499,7 @@ export default function GraphViewer({
       );
       setBaseGraphBundle(nextBaseGraphBundle);
       setGraphDraft(createInitialGraphDraft(nextBaseGraphBundle));
+      setUndoableGraphDraft(null);
       setSavePhase('idle');
       setSaveMessage(graphWriteResponse.message || '已保存。');
     } catch (error) {
@@ -2064,6 +2577,14 @@ export default function GraphViewer({
           </div>
           <div className="graph-editor-actions">
             <span className={statusClassName}>{statusText}</span>
+            <button
+              type="button"
+              className="action-button"
+              disabled={undoableGraphDraft == null}
+              onClick={handleUndoDraft}
+            >
+              撤回一步草稿
+            </button>
             <button type="button" className="action-button" onClick={handleAutoLayout}>
               重新布局
             </button>
@@ -2153,7 +2674,29 @@ export default function GraphViewer({
               </div>
             </dl>
           </div>
-          <div className="graph-canvas">
+          <div className="graph-canvas-legend" aria-label="graph legend">
+            <span className="graph-legend-item">
+              <span className="graph-legend-swatch is-trigger-source" />
+              triggerSource
+            </span>
+            <span className="graph-legend-item">
+              <span className="graph-legend-swatch is-core" />
+              core
+            </span>
+            <span className="graph-legend-item">
+              <span className="graph-legend-swatch is-aggregate" />
+              aggregate
+            </span>
+            <span className="graph-legend-item">
+              <span className="graph-legend-swatch is-aggregate-outline" />
+              expanded aggregate area
+            </span>
+          </div>
+          <div
+            className="graph-canvas"
+            onMouseDownCapture={handleCanvasMiddleMouseEvent}
+            onAuxClick={handleCanvasMiddleMouseEvent}
+          >
             {draftLoading ? (
               <div className="graph-empty-overlay">
                 <p className="empty-state">正在加载 graph draft...</p>
@@ -2169,21 +2712,45 @@ export default function GraphViewer({
               </div>
             ) : null}
             <ReactFlow
-              nodes={nodes}
+              nodes={displayNodes}
               edges={edges}
-              onNodesChange={onNodesChange}
+              onNodesChange={handleCanvasNodesChange}
               onEdgesChange={onEdgesChange}
               onNodeClick={(_, node) => handleGraphNodeClick(String(node.id))}
               onNodeDoubleClick={(_, node) => handleCanvasNodeDoubleClick(String(node.id))}
               onPaneClick={() => setSelectedNodeKey('')}
+              onSelectionChange={({ nodes: selectedNodes }) => {
+                if (editMode === 'view' || suspendCanvasSelectionSyncRef.current) {
+                  return;
+                }
+                if (selectionPreviewActiveRef.current) {
+                  return;
+                }
+                const selectedNodeKeys = resolveSelectableActualNodeKeys(
+                  selectedNodes.map((selectedNode) => String(selectedNode.id)),
+                );
+                applyBatchSelectionFromNodeKeys(selectedNodeKeys);
+              }}
+              onSelectionStart={handleSelectionPreviewStart}
+              onSelectionEnd={handleSelectionPreviewEnd}
+              onNodeDragStart={suspendAggregateOutlineRendering}
+              onNodeDragStop={resumeAggregateOutlineRendering}
+              onSelectionDragStart={suspendAggregateOutlineRendering}
+              onSelectionDragStop={resumeAggregateOutlineRendering}
+              onMoveStart={suspendAggregateOutlineRendering}
+              onMoveEnd={resumeAggregateOutlineRendering}
               onInit={setReactFlowInstance}
+              nodeTypes={graphNodeTypes}
               fitView
               fitViewOptions={{ padding: 0.18 }}
               minZoom={0.2}
               maxZoom={2.2}
               nodesConnectable={false}
-              elementsSelectable
-              panOnDrag
+              elementsSelectable={editMode !== 'view'}
+              selectionOnDrag={editMode !== 'view'}
+              selectionMode={SelectionMode.Full}
+              multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
+              panOnDrag={[1]}
               zoomOnScroll
             >
               <Background color="rgba(255, 214, 191, 0.12)" gap={24} size={1} />
@@ -2191,7 +2758,9 @@ export default function GraphViewer({
                 pannable
                 zoomable
                 nodeColor={(node) =>
-                  String(node.id).startsWith('triggerSource:')
+                  String(node.id).startsWith('aggregate-outline:')
+                    ? 'transparent'
+                    : String(node.id).startsWith('triggerSource:')
                     ? 'rgba(255, 181, 140, 0.82)'
                     : String(node.id).startsWith('aggregate:')
                       ? 'rgba(140, 213, 255, 0.86)'
@@ -2205,112 +2774,72 @@ export default function GraphViewer({
         </div>
 
         <aside className="graph-detail-card">
-          <header className="card-header">
-            <span className="section-tag">Details</span>
-            <h2>节点详情与编辑</h2>
-          </header>
-          <section className="graph-isolated-panel">
-            <div className="graph-isolated-panel-header">
-              <div>
-                <strong>孤立节点池</strong>
-                <p className="graph-batch-editor-caption">
-                  默认不进入主画布。点击后会临时拉回画布并聚焦；搜索、草稿差异和编辑选择也会强制显示。
-                </p>
-              </div>
-              <div className="graph-isolated-panel-actions">
-                <span className="graph-isolated-panel-count">
-                  当前临时显示 {pinnedIsolatedNodeCount} 个
-                </span>
+          <header className="card-header graph-detail-card-header">
+            <div>
+              <span className="section-tag">Details</span>
+              <h2>节点详情与编辑</h2>
+            </div>
+            <div className="chip-group graph-detail-tabs">
+              {(
+                [
+                  ['details', '详情'],
+                  ['isolated', '孤立节点池'],
+                  ['batch', '批量编辑'],
+                ] as [GraphSidebarPanel, string][]
+              ).map(([panelKey, panelLabel]) => (
                 <button
+                  key={panelKey}
                   type="button"
-                  className="action-button"
-                  disabled={pinnedIsolatedNodeCount === 0}
-                  onClick={handleClearPinnedIsolatedNodes}
+                  className={`metric-chip${activeSidebarPanel === panelKey ? ' is-active' : ''}`}
+                  onClick={() => setActiveSidebarPanel(panelKey)}
                 >
-                  清空临时显示
+                  {panelLabel}
                 </button>
-              </div>
+              ))}
             </div>
-            <div className="graph-batch-selection-grid">
-              <section className="graph-target-editor">
-                <div className="graph-target-editor-header">
-                  <strong>Isolated TriggerSources</strong>
-                  <span>数量 {graphCanvasView.isolatedTriggerSourceNodes.length}</span>
+          </header>
+
+          {activeSidebarPanel === 'isolated' ? (
+            <section className="graph-isolated-panel">
+              <div className="graph-isolated-panel-header">
+                <div>
+                  <strong>孤立节点池</strong>
+                  <p className="graph-batch-editor-caption">
+                    默认不进入主画布。点击后会临时拉回画布并聚焦；搜索、草稿差异和编辑选择也会强制显示。
+                  </p>
                 </div>
-                <div className="graph-target-list">
-                  {graphCanvasView.isolatedTriggerSourceNodes.length === 0 ? (
-                    <p className="empty-state">当前没有孤立的 triggerSource。</p>
-                  ) : (
-                    graphCanvasView.isolatedTriggerSourceNodes.map((isolatedNode) => (
-                      <button
-                        key={isolatedNode.nodeKey}
-                        type="button"
-                        className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? ' is-selected' : ''}`}
-                        onClick={() => handleRevealIsolatedNode(isolatedNode.nodeKey)}
-                      >
-                        {isolatedNode.displayText}
-                      </button>
-                    ))
-                  )}
+                <div className="graph-isolated-panel-actions">
+                  <span className="graph-isolated-panel-count">
+                    当前临时显示 {pinnedIsolatedNodeCount} 个
+                  </span>
+                  <button
+                    type="button"
+                    className="action-button"
+                    disabled={pinnedIsolatedNodeCount === 0}
+                    onClick={handleClearPinnedIsolatedNodes}
+                  >
+                    清空临时显示
+                  </button>
                 </div>
-              </section>
-              <section className="graph-target-editor">
-                <div className="graph-target-editor-header">
-                  <strong>Isolated Cores</strong>
-                  <span>数量 {graphCanvasView.isolatedCoreNodes.length}</span>
-                </div>
-                <div className="graph-target-list">
-                  {graphCanvasView.isolatedCoreNodes.length === 0 ? (
-                    <p className="empty-state">当前没有孤立的 core。</p>
-                  ) : (
-                    graphCanvasView.isolatedCoreNodes.map((isolatedNode) => (
-                      <button
-                        key={isolatedNode.nodeKey}
-                        type="button"
-                        className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? ' is-selected' : ''}`}
-                        onClick={() => handleRevealIsolatedNode(isolatedNode.nodeKey)}
-                      >
-                        {isolatedNode.displayText}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
-          </section>
-          {editMode !== 'view' ? (
-            <section className="graph-batch-editor">
-              <div className="graph-batch-editor-header">
-                <strong>{formatEditModeLabel(editMode)} 批量拓扑编辑</strong>
-                <span>
-                  已选来源 {selectedEditSourceSerials.length} 个 / 目标 {selectedEditTargetSerials.length}{' '}
-                  个
-                </span>
               </div>
-              <p className="graph-batch-editor-caption">{formatEditModeInstruction(editMode)}</p>
-              {editMode === 'replace' ? (
-                <p className="graph-batch-editor-caption">
-                  `replace` 模式允许来源集合为空目标，应用后可直接清空这些 triggerSource 的全部连接。
-                </p>
-              ) : null}
               <div className="graph-batch-selection-grid">
                 <section className="graph-target-editor">
                   <div className="graph-target-editor-header">
-                    <strong>Selected TriggerSources</strong>
-                    <span>点击图中的 triggerSource 可加入或移出本次批量编辑。</span>
+                    <strong>Isolated TriggerSources</strong>
+                    <span>数量 {graphCanvasView.isolatedTriggerSourceNodes.length}</span>
                   </div>
                   <div className="graph-target-list">
-                    {selectedEditSourceNodes.length === 0 ? (
-                      <p className="empty-state">当前还没有选中来源节点。</p>
+                    {graphCanvasView.isolatedTriggerSourceNodes.length === 0 ? (
+                      <p className="empty-state">当前没有孤立的 triggerSource。</p>
                     ) : (
-                      selectedEditSourceNodes.map((sourceNode) => (
+                      graphCanvasView.isolatedTriggerSourceNodes.map((isolatedNode) => (
                         <button
-                          key={sourceNode.nodeKey}
+                          key={isolatedNode.nodeKey}
                           type="button"
-                          className="graph-target-item graph-target-chip"
-                          onClick={() => focusNode(sourceNode.nodeKey)}
+                          className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? ' is-selected' : ''}`}
+                          onClick={() => handleRevealIsolatedNode(isolatedNode.nodeKey)}
                         >
-                          {sourceNode.displayText}
+                          {isolatedNode.displayText}
                         </button>
                       ))
                     )}
@@ -2318,155 +2847,222 @@ export default function GraphViewer({
                 </section>
                 <section className="graph-target-editor">
                   <div className="graph-target-editor-header">
-                    <strong>Selected Cores</strong>
-                    <span>点击图中的 core 可加入或移出目标集合。</span>
+                    <strong>Isolated Cores</strong>
+                    <span>数量 {graphCanvasView.isolatedCoreNodes.length}</span>
                   </div>
                   <div className="graph-target-list">
-                    {selectedEditTargetNodes.length === 0 ? (
-                      <p className="empty-state">当前还没有选中目标节点。</p>
+                    {graphCanvasView.isolatedCoreNodes.length === 0 ? (
+                      <p className="empty-state">当前没有孤立的 core。</p>
                     ) : (
-                      selectedEditTargetNodes.map((targetNode) => (
+                      graphCanvasView.isolatedCoreNodes.map((isolatedNode) => (
                         <button
-                          key={targetNode.nodeKey}
+                          key={isolatedNode.nodeKey}
                           type="button"
-                          className="graph-target-item graph-target-chip"
-                          onClick={() => focusNode(targetNode.nodeKey)}
+                          className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? ' is-selected' : ''}`}
+                          onClick={() => handleRevealIsolatedNode(isolatedNode.nodeKey)}
                         >
-                          {targetNode.displayText}
+                          {isolatedNode.displayText}
                         </button>
                       ))
                     )}
                   </div>
                 </section>
-              </div>
-              <div className="graph-batch-action-row">
-                <button type="button" className="action-button" onClick={handleClearBatchSelection}>
-                  清空选择
-                </button>
-                <button
-                  type="button"
-                  className="action-button"
-                  disabled={!canApplyBatchEdit}
-                  onClick={handleApplyBatchEdit}
-                >
-                  应用到草稿
-                </button>
               </div>
             </section>
           ) : null}
-          {!selectedNode ? (
-            <p className="empty-state">
-              点击图中的一个节点后，这里会显示其运行态、revision，以及第一版可编辑字段。
-            </p>
-          ) : (
-            <>
-              <div className="graph-detail-hero">
-                <p className="eyebrow">{selectedNode.type}</p>
-                <h3>{selectedNode.displayText}</h3>
-                <p className="graph-detail-caption">{selectedNode.nodeKey}</p>
-              </div>
-              <label className="graph-editor-field">
-                <span>Alias</span>
-                <input
-                  className="graph-editor-input"
-                  type="text"
-                  value={selectedNode.alias}
-                  onChange={(event) =>
-                    handleAliasChange(selectedNode.type, selectedNode.serial, event.target.value)
-                  }
-                  placeholder="输入节点别名，留空则清空"
-                />
-              </label>
-              <dl className="preview-meta graph-detail-grid">
-                <div>
-                  <dt>Serial</dt>
-                  <dd>{selectedNode.serial}</dd>
+
+          {activeSidebarPanel === 'batch' ? (
+            editMode !== 'view' ? (
+              <section className="graph-batch-editor">
+                <div className="graph-batch-editor-header">
+                  <strong>{formatEditModeLabel(editMode)} 批量拓扑编辑</strong>
+                  <span>
+                    已选来源 {selectedEditSourceSerials.length} 个 / 目标 {selectedEditTargetSerials.length}{' '}
+                    个
+                  </span>
                 </div>
-                <div>
-                  <dt>Online</dt>
-                  <dd>{selectedNode.online ? 'true' : 'false'}</dd>
+                <p className="graph-batch-editor-caption">{formatEditModeInstruction(editMode)}</p>
+                {editMode === 'replace' ? (
+                  <p className="graph-batch-editor-caption">
+                    `replace` 模式允许来源集合为空目标，应用后可直接清空这些 triggerSource 的全部连接。
+                  </p>
+                ) : null}
+                <div className="graph-batch-selection-grid">
+                  <section className="graph-target-editor">
+                    <div className="graph-target-editor-header">
+                      <strong>Selected TriggerSources</strong>
+                      <span>点击或框选 triggerSource，`Ctrl/Shift` 可追加多选。</span>
+                    </div>
+                    <div className="graph-target-list">
+                      {selectedEditSourceNodes.length === 0 ? (
+                        <p className="empty-state">当前还没有选中来源节点。</p>
+                      ) : (
+                        selectedEditSourceNodes.map((sourceNode) => (
+                          <button
+                            key={sourceNode.nodeKey}
+                            type="button"
+                            className="graph-target-item graph-target-chip"
+                            onClick={() => focusNode(sourceNode.nodeKey)}
+                          >
+                            {sourceNode.displayText}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                  <section className="graph-target-editor">
+                    <div className="graph-target-editor-header">
+                      <strong>Selected Cores</strong>
+                      <span>点击或框选 core，`Ctrl/Shift` 可追加多选。</span>
+                    </div>
+                    <div className="graph-target-list">
+                      {selectedEditTargetNodes.length === 0 ? (
+                        <p className="empty-state">当前还没有选中目标节点。</p>
+                      ) : (
+                        selectedEditTargetNodes.map((targetNode) => (
+                          <button
+                            key={targetNode.nodeKey}
+                            type="button"
+                            className="graph-target-item graph-target-chip"
+                            onClick={() => focusNode(targetNode.nodeKey)}
+                          >
+                            {targetNode.displayText}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </section>
                 </div>
-                <div>
-                  <dt>Active</dt>
-                  <dd>{selectedNode.active ? 'true' : 'false'}</dd>
+                <div className="graph-batch-action-row">
+                  <button
+                    type="button"
+                    className="action-button"
+                    onClick={handleClearBatchSelection}
+                  >
+                    清空选择
+                  </button>
+                  <button
+                    type="button"
+                    className="action-button"
+                    disabled={!canApplyBatchEdit}
+                    onClick={handleApplyBatchEdit}
+                  >
+                    应用到草稿
+                  </button>
                 </div>
-                <div>
-                  <dt>Input Power</dt>
-                  <dd>{selectedNode.inputPower}</dd>
+              </section>
+            ) : (
+              <p className="empty-state graph-detail-empty">
+                当前是查看模式。切换到 `add`、`remove` 或 `replace` 后，这里会显示批量编辑面板。
+              </p>
+            )
+          ) : null}
+
+          {activeSidebarPanel === 'details' ? (
+            !selectedNode ? (
+              <p className="empty-state graph-detail-empty">
+                点击图中的一个节点后，这里会显示其结构字段、revision，以及第一版可编辑字段。
+              </p>
+            ) : (
+              <div className="graph-detail-section">
+                <div className="graph-detail-hero">
+                  <p className="eyebrow">{selectedNode.type}</p>
+                  <h3>{selectedNode.displayText}</h3>
+                  <p className="graph-detail-caption">{selectedNode.nodeKey}</p>
                 </div>
-                <div>
-                  <dt>Output Power</dt>
-                  <dd>{selectedNode.outputPower}</dd>
-                </div>
-                <div>
-                  <dt>Connection Mode</dt>
-                  <dd>{selectedNode.connectionMode}</dd>
-                </div>
-                <div>
-                  <dt>Channel</dt>
-                  <dd>{selectedNode.channel}</dd>
-                </div>
-                <div>
-                  <dt>Source Revision</dt>
-                  <dd>{selectedNode.sourceRevision}</dd>
-                </div>
-                <div>
-                  <dt>Core Revision</dt>
-                  <dd>{selectedNode.coreRevision}</dd>
-                </div>
-                <div>
-                  <dt>Allocated</dt>
-                  <dd>{selectedNode.allocated ? 'true' : 'false'}</dd>
-                </div>
-                <div>
-                  <dt>Retired</dt>
-                  <dd>{selectedNode.retired ? 'true' : 'false'}</dd>
-                </div>
-                <div>
-                  <dt>Incident Edges</dt>
-                  <dd>{edgeCountByNodeKey.get(selectedNode.nodeKey) ?? 0}</dd>
-                </div>
-              </dl>
-              {selectedNode.type === 'triggerSource' ? (
-                <section className="graph-target-editor">
-                  <div className="graph-target-editor-header">
-                    <strong>Current Target Cores</strong>
-                    <span>这里展示当前草稿视角下的有效目标集合；批量编辑请使用上方模式工具栏。</span>
+                <label className="graph-editor-field">
+                  <span>Alias</span>
+                  <input
+                    className="graph-editor-input"
+                    type="text"
+                    value={selectedNode.alias}
+                    onChange={(event) =>
+                      handleAliasChange(selectedNode.type, selectedNode.serial, event.target.value)
+                    }
+                    placeholder="输入节点别名，留空则清空"
+                  />
+                </label>
+                <dl className="preview-meta graph-detail-grid">
+                  <div>
+                    <dt>Serial</dt>
+                    <dd>{selectedNode.serial}</dd>
                   </div>
-                  <div className="graph-target-list">
-                    {selectedTriggerSourceTargetNodes.length === 0 ? (
-                      <p className="empty-state">当前 triggerSource 在草稿视角下没有目标 core。</p>
+                  <div>
+                    <dt>Connection Mode</dt>
+                    <dd>{selectedNode.connectionMode}</dd>
+                  </div>
+                  <div>
+                    <dt>Channel</dt>
+                    <dd>{selectedNode.channel}</dd>
+                  </div>
+                  <div>
+                    <dt>Source Revision</dt>
+                    <dd>{selectedNode.sourceRevision}</dd>
+                  </div>
+                  <div>
+                    <dt>Core Revision</dt>
+                    <dd>{selectedNode.coreRevision}</dd>
+                  </div>
+                  <div>
+                    <dt>Allocated</dt>
+                    <dd>{selectedNode.allocated ? 'true' : 'false'}</dd>
+                  </div>
+                  <div>
+                    <dt>Retired</dt>
+                    <dd>{selectedNode.retired ? 'true' : 'false'}</dd>
+                  </div>
+                  <div>
+                    <dt>Incident Edges</dt>
+                    <dd>{edgeCountByNodeKey.get(selectedNode.nodeKey) ?? 0}</dd>
+                  </div>
+                  <div>
+                    <dt>Structure Checksum</dt>
+                    <dd>{effectiveGraphBundle.structureChecksum.slice(0, 12)}</dd>
+                  </div>
+                </dl>
+                {selectedNode.type === 'triggerSource' ? (
+                  <section className="graph-target-editor">
+                    <div className="graph-target-editor-header">
+                      <strong>Current Target Cores</strong>
+                      <span>
+                        这里展示当前草稿视角下的有效目标集合；批量编辑请使用右侧批量编辑页签。
+                      </span>
+                    </div>
+                    <div className="graph-target-list">
+                      {selectedTriggerSourceTargetNodes.length === 0 ? (
+                        <p className="empty-state">当前 triggerSource 在草稿视角下没有目标 core。</p>
+                      ) : (
+                        selectedTriggerSourceTargetNodes.map((coreNode) => (
+                          <button
+                            key={coreNode.nodeKey}
+                            type="button"
+                            className="graph-target-item graph-target-chip"
+                            onClick={() => focusNode(coreNode.nodeKey)}
+                          >
+                            {coreNode.displayText}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+                <div className="graph-flag-block">
+                  <strong>Capability Flags</strong>
+                  <div className="graph-flag-list">
+                    {selectedNode.capabilityFlags.length === 0 ? (
+                      <span className="graph-flag-chip">-</span>
                     ) : (
-                      selectedTriggerSourceTargetNodes.map((coreNode) => (
-                        <button
-                          key={coreNode.nodeKey}
-                          type="button"
-                          className="graph-target-item graph-target-chip"
-                          onClick={() => focusNode(coreNode.nodeKey)}
-                        >
-                          {coreNode.displayText}
-                        </button>
+                      selectedNode.capabilityFlags.map((flag) => (
+                        <span key={flag} className="graph-flag-chip">
+                          {flag}
+                        </span>
                       ))
                     )}
                   </div>
-                </section>
-              ) : null}
-              <div className="graph-flag-block">
-                <strong>Capability Flags</strong>
-                <div className="graph-flag-list">
-                  {selectedNode.capabilityFlags.length === 0 ? (
-                    <span className="graph-flag-chip">-</span>
-                  ) : (
-                    selectedNode.capabilityFlags.map((flag) => (
-                      <span key={flag} className="graph-flag-chip">
-                        {flag}
-                      </span>
-                    ))
-                  )}
                 </div>
               </div>
-            </>
-          )}
+            )
+          ) : null}
         </aside>
       </div>
     </section>

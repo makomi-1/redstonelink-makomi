@@ -350,6 +350,20 @@ final class StatePanelNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码 graph 导出请求。
+	 */
+	static void encodeExportGraphPayload(FriendlyByteBuf buffer, boolean forceTransfer) {
+		buffer.writeBoolean(forceTransfer);
+	}
+
+	/**
+	 * 解码 graph 导出请求。
+	 */
+	static DecodedExportGraphPayload decodeExportGraphPayload(FriendlyByteBuf buffer) {
+		return new DecodedExportGraphPayload(buffer.readBoolean());
+	}
+
+	/**
 	 * 编码 graph 保存请求。
 	 */
 	static void encodeGraphWriteRequestPayload(FriendlyByteBuf buffer, String requestId, String requestJson) {
@@ -462,6 +476,12 @@ final class StatePanelNetworkPayloadSupport {
 		boolean autoOpenWeb,
 		byte[] chunkBytes
 	) {
+	}
+
+	/**
+	 * graph 导出请求解码结果。
+	 */
+	record DecodedExportGraphPayload(boolean forceTransfer) {
 	}
 
 	/**

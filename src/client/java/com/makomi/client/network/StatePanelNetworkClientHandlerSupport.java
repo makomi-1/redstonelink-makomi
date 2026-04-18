@@ -11,8 +11,10 @@ import com.makomi.network.StatePanelNetwork;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -23,6 +25,7 @@ import net.minecraft.network.chat.Component;
 public final class StatePanelNetworkClientHandlerSupport {
 	private static final Map<String, PendingRecordingExport> PENDING_RECORDING_EXPORTS = new HashMap<>();
 	private static final Map<String, PendingRecordingExport> PENDING_GRAPH_EXPORTS = new HashMap<>();
+	private static final Set<String> PENDING_GRAPH_FORCE_TRANSFERS = new HashSet<>();
 
 	private StatePanelNetworkClientHandlerSupport() {
 	}
@@ -134,6 +137,7 @@ public final class StatePanelNetworkClientHandlerSupport {
 			applyCachedGraphExport(payload);
 			return;
 		}
+		PENDING_GRAPH_FORCE_TRANSFERS.remove(payload.fileName());
 		PendingRecordingExport pendingRecordingExport = PENDING_GRAPH_EXPORTS.compute(
 			payload.fileName(),
 			(fileName, current) -> current != null && current.totalChunks() == payload.totalChunks()
@@ -173,16 +177,28 @@ public final class StatePanelNetworkClientHandlerSupport {
 			LocalWebAssetRepository repository = LocalWebAssetRepository.createDefault();
 			LocalWebAssetRepository.StorageEntryContent entryContent = repository.readEntry(LocalWebAssetKind.GRAPH, payload.fileName());
 			if (entryContent == null) {
-				applyFeedback(false, "message.redstonelink.graph.export.write_failed", List.of(payload.fileName()));
+				requestForcedGraphTransfer(payload.fileName());
 				return;
 			}
+			PENDING_GRAPH_FORCE_TRANSFERS.remove(payload.fileName());
 			if (payload.autoOpenWeb()) {
 				LocalWebAppBridgeService.openAssetEntry(LocalWebAssetKind.GRAPH, payload.fileName());
 			}
 		} catch (IOException | RuntimeException exception) {
 			RedstoneLink.LOGGER.warn("客户端复用 graph snapshot 失败: file={}", payload.fileName(), exception);
-			applyFeedback(false, "message.redstonelink.web.open_failed", List.of(exception.getMessage() == null ? "open_failed" : exception.getMessage()));
+			requestForcedGraphTransfer(payload.fileName());
 		}
+	}
+
+	/**
+	 * 本地 graph 文件缺失时，自动回源请求一次强制重传，避免跨重启复用链路卡死。
+	 */
+	private static void requestForcedGraphTransfer(String fileName) {
+		if (!PENDING_GRAPH_FORCE_TRANSFERS.add(fileName)) {
+			applyFeedback(false, "message.redstonelink.graph.export.write_failed", List.of(fileName));
+			return;
+		}
+		ClientPlayNetworking.send(new StatePanelNetwork.ExportStatePanelGraphPayload(true));
 	}
 
 	/**

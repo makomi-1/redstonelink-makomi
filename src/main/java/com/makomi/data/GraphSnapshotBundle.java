@@ -14,6 +14,7 @@ public record GraphSnapshotBundle(
 	long graphRevision,
 	long generatedAtTick,
 	String viewerPlayerId,
+	String structureChecksum,
 	List<GraphNodeInfo> nodes,
 	List<GraphEdgeInfo> edges,
 	GraphStats stats
@@ -24,9 +25,10 @@ public record GraphSnapshotBundle(
 		graphRevision = Math.max(0L, graphRevision);
 		generatedAtTick = Math.max(0L, generatedAtTick);
 		viewerPlayerId = normalizeText(viewerPlayerId, "unknown");
+		structureChecksum = normalizeText(structureChecksum, "graph");
 		nodes = List.copyOf(nodes == null ? List.of() : nodes);
 		edges = List.copyOf(edges == null ? List.of() : edges);
-		stats = stats == null ? new GraphStats(0, 0, 0, 0, 0, 0, 0) : stats;
+		stats = stats == null ? new GraphStats(0, 0, 0, 0, 0) : stats;
 	}
 
 	/**
@@ -40,10 +42,6 @@ public record GraphSnapshotBundle(
 		String displayText,
 		boolean allocated,
 		boolean retired,
-		boolean online,
-		boolean active,
-		int inputPower,
-		int outputPower,
 		String connectionMode,
 		long channel,
 		long sourceRevision,
@@ -56,8 +54,6 @@ public record GraphSnapshotBundle(
 			serial = Math.max(0L, serial);
 			alias = normalizeOptionalText(alias);
 			displayText = normalizeText(displayText, NodeAliasDisplayUtil.formatDisplayText(alias, serial));
-			inputPower = clampRedstonePower(inputPower);
-			outputPower = clampRedstonePower(outputPower);
 			connectionMode = normalizeText(connectionMode, LinkConnectionMode.SERIAL.token());
 			channel = Math.max(0L, channel);
 			sourceRevision = Math.max(0L, sourceRevision);
@@ -93,8 +89,6 @@ public record GraphSnapshotBundle(
 		int edgeCount,
 		int triggerSourceCount,
 		int coreCount,
-		int onlineNodeCount,
-		int activeNodeCount,
 		int maskedSourceCount
 	) {
 		public GraphStats {
@@ -102,8 +96,6 @@ public record GraphSnapshotBundle(
 			edgeCount = Math.max(0, edgeCount);
 			triggerSourceCount = Math.max(0, triggerSourceCount);
 			coreCount = Math.max(0, coreCount);
-			onlineNodeCount = Math.max(0, onlineNodeCount);
-			activeNodeCount = Math.max(0, activeNodeCount);
 			maskedSourceCount = Math.max(0, maskedSourceCount);
 		}
 	}
@@ -118,9 +110,5 @@ public record GraphSnapshotBundle(
 
 	private static String normalizeOptionalText(String rawText) {
 		return rawText == null ? "" : rawText.trim();
-	}
-
-	private static int clampRedstonePower(int power) {
-		return Math.max(0, Math.min(15, power));
 	}
 }
