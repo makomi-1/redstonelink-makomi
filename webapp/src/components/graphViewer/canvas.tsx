@@ -198,8 +198,6 @@ function buildNodeStyle(
   draftChangedNodeKeys: Set<string>,
 ): CSSProperties {
   const selected = selectedNodeKey === node.nodeKey;
-  const matched = matchedNodeKeys.has(node.nodeKey);
-  const dimmed = hasSearch && !matched;
   const selectedAsSource = selectedEditSourceNodeKeys.has(node.nodeKey);
   const selectedAsTarget = selectedEditTargetNodeKeys.has(node.nodeKey);
   const draftChanged = draftChangedNodeKeys.has(node.nodeKey);
@@ -233,7 +231,7 @@ function buildNodeStyle(
           ? "0 0 0 1px rgba(142, 240, 184, 0.4) inset"
           : "none",
     color: "#fff4eb",
-    opacity: dimmed ? 0.34 : 1,
+    opacity: 1,
   };
 }
 
@@ -245,12 +243,6 @@ function buildAggregateNodeStyle(
 ): CSSProperties {
   const selected = selectedNodeKey === aggregateNode.nodeKey;
   const expanded = aggregateNode.expanded;
-  const matched =
-    aggregateNode.sourceNodeKeys.some((nodeKey) =>
-      matchedNodeKeys.has(nodeKey),
-    ) ||
-    aggregateNode.coreNodeKeys.some((nodeKey) => matchedNodeKeys.has(nodeKey));
-  const dimmed = hasSearch && !matched;
   const borderColor =
     selected || expanded ? "#8ad8ff" : "rgba(140, 213, 255, 0.42)";
   return {
@@ -264,7 +256,7 @@ function buildAggregateNodeStyle(
         ? "0 0 0 1px rgba(140, 213, 255, 0.5) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
         : "0 0 0 1px rgba(140, 213, 255, 0.16) inset",
     color: "#effbff",
-    opacity: dimmed ? 0.3 : 1,
+    opacity: 1,
   };
 }
 
@@ -275,10 +267,6 @@ function buildChannelHubNodeStyle(
   matchedNodeKeys: Set<string>,
 ): CSSProperties {
   const selected = selectedNodeKey === channelHubNode.nodeKey;
-  const matched = channelHubNode.memberNodeKeys.some((nodeKey) =>
-    matchedNodeKeys.has(nodeKey),
-  );
-  const dimmed = hasSearch && !matched;
   const borderColor = selected ? "#efd88b" : "rgba(239, 216, 139, 0.56)";
   return {
     minWidth: GRAPH_NODE_WIDTH,
@@ -290,7 +278,7 @@ function buildChannelHubNodeStyle(
       ? "0 0 0 1px rgba(239, 216, 139, 0.56) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
       : "0 0 0 1px rgba(239, 216, 139, 0.18) inset",
     color: "#fff7df",
-    opacity: dimmed ? 0.3 : 1,
+    opacity: 1,
   };
 }
 
@@ -300,16 +288,8 @@ function buildEdgeStyle(
   edge: Edge,
   diffState: DraftEdgeDiffState,
 ): Edge {
-  const matched =
-    matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
   const edgeOpacity =
-    hasSearch && !matched
-      ? 0.2
-      : diffState === "removed"
-        ? 0.72
-        : diffState === "added"
-          ? 0.96
-          : 0.88;
+    diffState === "removed" ? 0.72 : diffState === "added" ? 0.96 : 0.88;
   return {
     ...edge,
     style: {
@@ -326,15 +306,13 @@ function buildAggregateEdgeStyle(
   matchedNodeKeys: Set<string>,
   edge: Edge,
 ): Edge {
-  const matched =
-    matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
   return {
     ...edge,
     style: {
       stroke: "#8ad8ff",
       strokeWidth: 2.1,
       strokeDasharray: "10 5",
-      opacity: hasSearch && !matched ? 0.22 : 0.76,
+      opacity: 0.76,
     },
   };
 }
@@ -344,14 +322,12 @@ function buildChannelEdgeStyle(
   matchedNodeKeys: Set<string>,
   edge: Edge,
 ): Edge {
-  const matched =
-    matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
   return {
     ...edge,
     style: {
       stroke: "#efd88b",
       strokeWidth: 2.2,
-      opacity: hasSearch && !matched ? 0.22 : 0.82,
+      opacity: 0.82,
     },
   };
 }

@@ -51,6 +51,8 @@ export type GraphUpdatedNodeState = {
   serial: number;
   alias: string;
   displayText: string;
+  connectionMode: string;
+  channel: number;
   sourceRevision: number;
   coreRevision: number;
 };
@@ -69,9 +71,19 @@ export type ReplaceTriggerSourceTargetsOperation = {
   targetCoreSerials: number[];
 };
 
+export type SetNodeChannelOperation = {
+  type: 'SetNodeChannel';
+  nodeType: GraphNodeTypeToken;
+  serial: number;
+  expectedSourceRevision: number;
+  expectedCoreRevision: number;
+  channel: number;
+};
+
 export type GraphWriteOperation =
   | RenameNodeAliasOperation
-  | ReplaceTriggerSourceTargetsOperation;
+  | ReplaceTriggerSourceTargetsOperation
+  | SetNodeChannelOperation;
 
 export type GraphDraft = {
   draftId: string;
@@ -160,6 +172,16 @@ function normalizeGraphWriteOperation(value: unknown): GraphWriteOperation | nul
       targetCoreSerials: Array.from(new Set(targetCoreSerials)),
     };
   }
+  if (record.type === 'SetNodeChannel' && isGraphNodeTypeToken(record.nodeType)) {
+    return {
+      type: 'SetNodeChannel',
+      nodeType: record.nodeType,
+      serial: normalizeNumber(record.serial),
+      expectedSourceRevision: normalizeNumber(record.expectedSourceRevision),
+      expectedCoreRevision: normalizeNumber(record.expectedCoreRevision),
+      channel: normalizeNumber(record.channel),
+    };
+  }
   return null;
 }
 
@@ -216,6 +238,8 @@ export function parseGraphWriteResponse(payload: unknown): GraphWriteResponse {
               serial: normalizeNumber(nodeRecord.serial),
               alias: normalizeText(nodeRecord.alias),
               displayText: normalizeText(nodeRecord.displayText, normalizeText(nodeRecord.nodeKey)),
+              connectionMode: normalizeText(nodeRecord.connectionMode, 'serial'),
+              channel: normalizeNumber(nodeRecord.channel),
               sourceRevision: normalizeNumber(nodeRecord.sourceRevision),
               coreRevision: normalizeNumber(nodeRecord.coreRevision),
             },

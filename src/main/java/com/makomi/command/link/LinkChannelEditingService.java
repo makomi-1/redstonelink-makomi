@@ -35,7 +35,7 @@ public final class LinkChannelEditingService {
 		boolean hasLimitedBypassPermission,
 		boolean hasProtectedBypassPermission
 	) {
-		if (level == null || editedType == null || !LinkSavedDataChannelSupport.isValidChannel(channel)) {
+		if (level == null || editedType == null || channel < 0L) {
 			return PreparationResult.failure(
 				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.invalid_channel")
 			);
@@ -75,7 +75,7 @@ public final class LinkChannelEditingService {
 				triggerSourceSerial,
 				editedType,
 				editedSerial,
-				LinkConnectionMode.CHANNEL,
+				channel > 0L ? LinkConnectionMode.CHANNEL : LinkConnectionMode.SERIAL,
 				channel
 			);
 			LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplaceResolvedTargets(
@@ -104,7 +104,9 @@ public final class LinkChannelEditingService {
 
 		LinkConnectionMode currentMode = savedData.getConnectionMode(editedType, editedSerial);
 		long currentChannel = savedData.getChannel(editedType, editedSerial);
-		boolean channelChanged = currentMode != LinkConnectionMode.CHANNEL || currentChannel != channel;
+		boolean channelChanged = channel > 0L
+			? currentMode != LinkConnectionMode.CHANNEL || currentChannel != channel
+			: currentMode != LinkConnectionMode.SERIAL || currentChannel != 0L;
 		if (channelChanged && totalCommandCost <= 0) {
 			totalCommandCost = 1;
 		}
@@ -131,7 +133,11 @@ public final class LinkChannelEditingService {
 			return new ApplyResult(0, 0);
 		}
 		LinkSavedData savedData = LinkSavedData.get(plan.level());
-		LinkSavedDataChannelSupport.putChannelConfig(savedData, plan.editedType(), plan.editedSerial(), plan.channel());
+		if (plan.channel() > 0L) {
+			LinkSavedDataChannelSupport.putChannelConfig(savedData, plan.editedType(), plan.editedSerial(), plan.channel());
+		} else {
+			LinkSavedDataChannelSupport.clearChannelConfig(savedData, plan.editedType(), plan.editedSerial());
+		}
 		LinkCommandSupport.BatchLinkSnapshotSyncCollector batchSyncCollector = new LinkCommandSupport.BatchLinkSnapshotSyncCollector(
 			plan.level()
 		);

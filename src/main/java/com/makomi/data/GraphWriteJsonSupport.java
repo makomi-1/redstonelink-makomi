@@ -23,8 +23,10 @@ import java.util.Map;
  */
 public final class GraphWriteJsonSupport {
 	private static final String MODE_SERIAL = "serial";
+	private static final String MODE_CHANNEL = "channel";
 	private static final String TYPE_RENAME_NODE_ALIAS = "RenameNodeAlias";
 	private static final String TYPE_REPLACE_TRIGGER_SOURCE_TARGETS = "ReplaceTriggerSourceTargets";
+	private static final String TYPE_SET_NODE_CHANNEL = "SetNodeChannel";
 
 	private GraphWriteJsonSupport() {
 	}
@@ -59,6 +61,7 @@ public final class GraphWriteJsonSupport {
 				switch (type) {
 					case TYPE_RENAME_NODE_ALIAS -> operations.add(parseRenameNodeAlias(operationObject));
 					case TYPE_REPLACE_TRIGGER_SOURCE_TARGETS -> operations.add(parseReplaceTriggerSourceTargets(operationObject));
+					case TYPE_SET_NODE_CHANNEL -> operations.add(parseSetNodeChannel(operationObject));
 					default -> {
 						return ParseResult.failure(
 							buildRejectedResponse(
@@ -155,6 +158,10 @@ public final class GraphWriteJsonSupport {
 			builder.append(',');
 			appendQuotedField(builder, "displayText", nodeState.displayText());
 			builder.append(',');
+			appendQuotedField(builder, "connectionMode", nodeState.connectionMode());
+			builder.append(',');
+			appendNumberField(builder, "channel", nodeState.channel());
+			builder.append(',');
 			appendNumberField(builder, "sourceRevision", nodeState.sourceRevision());
 			builder.append(',');
 			appendNumberField(builder, "coreRevision", nodeState.coreRevision());
@@ -184,6 +191,15 @@ public final class GraphWriteJsonSupport {
 			targetCoreSerials.add(Math.max(0L, targetSerialElement.getAsLong()));
 		}
 		return new ReplaceTriggerSourceTargetsOperation(triggerSourceSerial, expectedSourceRevision, targetCoreSerials);
+	}
+
+	private static SetNodeChannelOperation parseSetNodeChannel(JsonObject operationObject) {
+		LinkNodeType nodeType = LinkNodeSemantics.tryParseCanonicalType(readString(operationObject, "nodeType", "")).orElse(null);
+		long serial = readLong(operationObject, "serial");
+		long expectedSourceRevision = readLong(operationObject, "expectedSourceRevision");
+		long expectedCoreRevision = readLong(operationObject, "expectedCoreRevision");
+		long channel = readLong(operationObject, "channel");
+		return new SetNodeChannelOperation(nodeType, serial, expectedSourceRevision, expectedCoreRevision, channel);
 	}
 
 	private static String readString(JsonObject object, String memberName, String fallback) {
@@ -292,6 +308,9 @@ public final class GraphWriteJsonSupport {
 			draftId = normalizeText(draftId, "draft");
 			baseSnapshotId = normalizeText(baseSnapshotId, "graph");
 			mode = normalizeText(mode, MODE_SERIAL).toLowerCase(Locale.ROOT);
+			if (!MODE_SERIAL.equals(mode) && !MODE_CHANNEL.equals(mode)) {
+				mode = MODE_SERIAL;
+			}
 			baseGraphRevision = Math.max(0L, baseGraphRevision);
 			operations = List.copyOf(operations == null ? List.of() : operations);
 		}
@@ -300,7 +319,7 @@ public final class GraphWriteJsonSupport {
 	/**
 	 * graph 保存结构化操作。
 	 */
-	public sealed interface GraphWriteOperation permits RenameNodeAliasOperation, ReplaceTriggerSourceTargetsOperation {
+	public sealed interface GraphWriteOperation permits RenameNodeAliasOperation, ReplaceTriggerSourceTargetsOperation, SetNodeChannelOperation {
 		String type();
 	}
 
@@ -365,6 +384,36 @@ public final class GraphWriteJsonSupport {
 	}
 
 	/**
+	 * 节点频道覆盖操作。
+	 */
+	public record SetNodeChannelOperation(
+		LinkNodeType nodeType,
+		long serial,
+		long expectedSourceRevision,
+		long expectedCoreRevision,
+		long channel
+	) implements GraphWriteOperation {
+		@Override
+		public String type() {
+			return TYPE_SET_NODE_CHANNEL;
+		}
+
+		public SetNodeChannelOperation {
+			nodeType = nodeType == LinkNodeType.TRIGGER_SOURCE
+				? LinkNodeType.TRIGGER_SOURCE
+				: nodeType == LinkNodeType.CORE ? LinkNodeType.CORE : null;
+			serial = Math.max(0L, serial);
+			expectedSourceRevision = Math.max(0L, expectedSourceRevision);
+			expectedCoreRevision = Math.max(0L, expectedCoreRevision);
+			channel = Math.max(0L, channel);
+		}
+
+		public String nodeKey() {
+			return LinkNodeSemantics.toSemanticName(nodeType) + ":" + serial;
+		}
+	}
+
+	/**
 	 * 保存后需要返回给网页端的节点最新状态。
 	 */
 	public record UpdatedNodeState(
@@ -373,6 +422,8 @@ public final class GraphWriteJsonSupport {
 		long serial,
 		String alias,
 		String displayText,
+		String connectionMode,
+		long channel,
 		long sourceRevision,
 		long coreRevision
 	) {
@@ -382,6 +433,8 @@ public final class GraphWriteJsonSupport {
 			serial = Math.max(0L, serial);
 			alias = alias == null ? "" : alias.trim();
 			displayText = normalizeText(displayText, NodeAliasDisplayUtil.formatDisplayText(alias, serial));
+			connectionMode = normalizeText(connectionMode, LinkConnectionMode.SERIAL.token());
+			channel = Math.max(0L, channel);
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
 		}

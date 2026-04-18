@@ -29,6 +29,7 @@ import {
 } from "./graphViewer/canvas";
 import {
   applyBatchEditToDraft,
+  applyChannelEditToDraft,
   applyDraftToGraph,
   applyUpdatedNodeStates,
   buildDraftDiff,
@@ -37,7 +38,6 @@ import {
   formatEditModeLabel,
   loadDraft,
   persistDraft,
-  resolveEffectiveTargetSerials,
   sameGraphDraft,
   sameNumberArray,
   submitGraphSave,
@@ -101,6 +101,29 @@ function resolveDefaultSelectedNodeKey(
   );
 }
 
+function parseChannelBatchValue(value: string): number | null {
+  if (!value.trim()) {
+    return null;
+  }
+  const parsedValue = Number(value);
+  return Number.isInteger(parsedValue) && parsedValue >= 0 ? parsedValue : null;
+}
+
+function resolveCurrentTargetSerials(
+  graphBundle: GraphSnapshotBundle,
+  triggerSourceSerial: number,
+): number[] {
+  const sourceNodeKey = createGraphNodeKey("triggerSource", triggerSourceSerial);
+  return graphBundle.edges
+    .filter((edge) => edge.sourceNodeKey === sourceNodeKey)
+    .map((edge) => {
+      const matched = edge.targetNodeKey.match(/^core:(\d+)$/);
+      return matched == null ? 0 : Number(matched[1]);
+    })
+    .filter((serial) => serial > 0)
+    .sort((left, right) => left - right);
+}
+
 export default function GraphViewer({
   graphBundle,
   graphFileName,
@@ -137,6 +160,9 @@ export default function GraphViewer({
   const [selectedEditTargetSerials, setSelectedEditTargetSerials] = useState<
     number[]
   >([]);
+  const [selectedEditChannelNodeKeys, setSelectedEditChannelNodeKeys] =
+    useState<string[]>([]);
+  const [channelBatchDraftValue, setChannelBatchDraftValue] = useState("0");
   const [undoableGraphDraft, setUndoableGraphDraft] =
     useState<GraphDraft | null>(null);
   const [expandedAggregateNodeKeys, setExpandedAggregateNodeKeys] = useState<
@@ -182,8 +208,7 @@ export default function GraphViewer({
   );
   const activeContentMode =
     displayMode === "serial" ? serialContentMode : channelContentMode;
-  const canEditCurrentView =
-    displayMode === "serial" && activeContentMode === "topology";
+  const canEditCurrentView = activeContentMode === "topology";
   const nodeByKey = useMemo(
     () =>
       new Map(effectiveGraphBundle.nodes.map((node) => [node.nodeKey, node])),
@@ -218,23 +243,39 @@ export default function GraphViewer({
     () => new Set(matchedNodes.map((node) => node.nodeKey)),
     [matchedNodes],
   );
+  const parsedChannelBatchValue = useMemo(
+    () => parseChannelBatchValue(channelBatchDraftValue),
+    [channelBatchDraftValue],
+  );
   const selectedEditSourceNodeKeys = useMemo(
     () =>
-      new Set(
-        selectedEditSourceSerials.map((serial) =>
-          createGraphNodeKey("triggerSource", serial),
-        ),
-      ),
-    [selectedEditSourceSerials],
+      displayMode === "channel"
+        ? new Set(
+            selectedEditChannelNodeKeys.filter(
+              (nodeKey) => nodeByKey.get(nodeKey)?.type === "triggerSource",
+            ),
+          )
+        : new Set(
+            selectedEditSourceSerials.map((serial) =>
+              createGraphNodeKey("triggerSource", serial),
+            ),
+          ),
+    [displayMode, nodeByKey, selectedEditChannelNodeKeys, selectedEditSourceSerials],
   );
   const selectedEditTargetNodeKeys = useMemo(
     () =>
-      new Set(
-        selectedEditTargetSerials.map((serial) =>
-          createGraphNodeKey("core", serial),
-        ),
-      ),
-    [selectedEditTargetSerials],
+      displayMode === "channel"
+        ? new Set(
+            selectedEditChannelNodeKeys.filter(
+              (nodeKey) => nodeByKey.get(nodeKey)?.type === "core",
+            ),
+          )
+        : new Set(
+            selectedEditTargetSerials.map((serial) =>
+              createGraphNodeKey("core", serial),
+            ),
+          ),
+    [displayMode, nodeByKey, selectedEditChannelNodeKeys, selectedEditTargetSerials],
   );
   const selectedEditSourceNodes = useMemo(
     () =>
@@ -254,6 +295,13 @@ export default function GraphViewer({
         )
         .filter((node): node is GraphNodeInfo => node != null),
     [nodeByKey, selectedEditTargetSerials],
+  );
+  const selectedEditChannelNodes = useMemo(
+    () =>
+      selectedEditChannelNodeKeys
+        .map((nodeKey) => nodeByKey.get(nodeKey) ?? null)
+        .filter((node): node is GraphNodeInfo => node != null),
+    [nodeByKey, selectedEditChannelNodeKeys],
   );
   const selectedNodeHasNonPinnedVisibilityReason = useMemo(() => {
     if (!selectedNodeKey || !nodeByKey.has(selectedNodeKey)) {
@@ -359,11 +407,7 @@ export default function GraphViewer({
     selectedCanvasNode?.kind === "actual" ? selectedCanvasNode.graphNode : null;
   const selectedTriggerSourceTargets =
     canEditCurrentView && selectedNode?.type === "triggerSource"
-      ? resolveEffectiveTargetSerials(
-          baseGraphBundle,
-          graphDraft,
-          selectedNode.serial,
-        )
+      ? resolveCurrentTargetSerials(effectiveGraphBundle, selectedNode.serial)
       : [];
   const selectedTriggerSourceTargetNodes = selectedTriggerSourceTargets
     .map((serial) => nodeByKey.get(createGraphNodeKey("core", serial)) ?? null)
@@ -448,19 +492,27 @@ export default function GraphViewer({
             ["isolated", "孤立节点池"],
             ["batch", "批量编辑"],
           ]
-        : [["details", "详情"]],
+        : [
+            ["details", "详情"],
+            ["batch", "批量编辑"],
+          ],
     [displayMode],
   );
   const hasPendingSearchChanges =
     searchDraftText !== appliedSearchText ||
     searchDraftTypeFilter !== appliedSearchTypeFilter;
   const canApplyBatchEdit =
-    canEditCurrentView && editMode === "replace"
-      ? selectedEditSourceSerials.length > 0
-      : canEditCurrentView &&
-        editMode !== "view" &&
-        selectedEditSourceSerials.length > 0 &&
-        selectedEditTargetSerials.length > 0;
+    displayMode === "channel"
+      ? canEditCurrentView &&
+        editMode === "replace" &&
+        selectedEditChannelNodeKeys.length > 0 &&
+        parsedChannelBatchValue != null
+      : canEditCurrentView && editMode === "replace"
+        ? selectedEditSourceSerials.length > 0
+        : canEditCurrentView &&
+          editMode !== "view" &&
+          selectedEditSourceSerials.length > 0 &&
+          selectedEditTargetSerials.length > 0;
   const statusClassName =
     savePhase === "saving"
       ? "status-pill is-waiting"
@@ -476,13 +528,9 @@ export default function GraphViewer({
         ? "保存冲突"
         : savePhase === "error"
           ? "保存失败"
-          : displayMode === "channel" && graphDraft.dirty
-            ? "serial草稿未保存"
-            : displayMode === "channel"
-              ? "频道只读"
-              : graphDraft.dirty
-                ? "未保存"
-                : "已同步";
+          : graphDraft.dirty
+            ? "未保存"
+            : "已同步";
   const canvasSectionTag =
     displayMode === "serial" ? "Serial View" : "Channel View";
   const canvasTitle =
@@ -491,6 +539,10 @@ export default function GraphViewer({
   const activeContentLabel =
     activeContentMode === "topology" ? "拓扑" : activeContentMode;
   const selectionEnabled = canEditCurrentView && editMode !== "view";
+  const availableEditModes =
+    displayMode === "serial"
+      ? (["view", "add", "remove", "replace"] as GraphEditMode[])
+      : (["view", "replace"] as GraphEditMode[]);
 
   useEffect(() => {
     let disposed = false;
@@ -505,6 +557,8 @@ export default function GraphViewer({
     setEditMode("view");
     setSelectedEditSourceSerials([]);
     setSelectedEditTargetSerials([]);
+    setSelectedEditChannelNodeKeys([]);
+    setChannelBatchDraftValue("0");
     setUndoableGraphDraft(null);
     setExpandedAggregateNodeKeys([]);
     setPinnedIsolatedNodeKeys([]);
@@ -1042,6 +1096,16 @@ export default function GraphViewer({
    * 将 ReactFlow 的当前框选结果同步为批量编辑集合，仅保留真实 triggerSource/core 节点。
    */
   function applyBatchSelectionFromNodeKeys(nodeKeys: Iterable<string>) {
+    if (displayMode === "channel") {
+      const normalizedNodeKeys = resolveSelectableActualNodeKeys(nodeKeys);
+      setSelectedEditChannelNodeKeys((currentValues) =>
+        currentValues.length === normalizedNodeKeys.length &&
+        currentValues.every((value, index) => value === normalizedNodeKeys[index])
+          ? currentValues
+          : normalizedNodeKeys,
+      );
+      return;
+    }
     const nextSourceSerials = new Set<number>();
     const nextTargetSerials = new Set<number>();
     for (const nodeKey of nodeKeys) {
@@ -1126,8 +1190,16 @@ export default function GraphViewer({
   }
 
   function handleApplySearch() {
+    const nextMatchedNode = searchableNodes.find(
+      (node) =>
+        matchesSearchType(node, searchDraftTypeFilter) &&
+        matchesSearch(node, searchDraftText),
+    );
     setAppliedSearchText(searchDraftText);
     setAppliedSearchTypeFilter(searchDraftTypeFilter);
+    if (nextMatchedNode) {
+      focusNode(nextMatchedNode.nodeKey);
+    }
   }
 
   function handleClearSearch() {
@@ -1168,6 +1240,7 @@ export default function GraphViewer({
     temporarilySuspendCanvasSelectionSync();
     setSelectedEditSourceSerials([]);
     setSelectedEditTargetSerials([]);
+    setSelectedEditChannelNodeKeys([]);
     applyCanvasSelectedNodeKeys([]);
   }
 
@@ -1183,14 +1256,24 @@ export default function GraphViewer({
     requestStructureLayoutRefresh({
       fitViewport: true,
     });
-    if (nextDisplayMode === "channel") {
+    if (
+      nextDisplayMode === "channel" &&
+      (editMode === "add" || editMode === "remove")
+    ) {
       setEditMode("view");
-      resetBatchSelectionState();
     }
+    resetBatchSelectionState();
   }
 
   function handleEditModeChange(nextEditMode: GraphEditMode) {
     if (!canEditCurrentView && nextEditMode !== "view") {
+      return;
+    }
+    if (
+      displayMode === "channel" &&
+      nextEditMode !== "view" &&
+      nextEditMode !== "replace"
+    ) {
       return;
     }
     setEditMode(nextEditMode);
@@ -1327,16 +1410,26 @@ export default function GraphViewer({
     if (savePhase === "error" || savePhase === "conflict") {
       setSavePhase("idle");
     }
-    const nextDraft = applyBatchEditToDraft(
-      graphDraft,
-      baseGraphBundle,
-      editMode,
-      selectedEditSourceSerials,
-      selectedEditTargetSerials,
-    );
+    const nextDraft =
+      displayMode === "channel"
+        ? applyChannelEditToDraft(
+            graphDraft,
+            baseGraphBundle,
+            selectedEditChannelNodeKeys,
+            parsedChannelBatchValue ?? 0,
+          )
+        : applyBatchEditToDraft(
+            graphDraft,
+            baseGraphBundle,
+            editMode,
+            selectedEditSourceSerials,
+            selectedEditTargetSerials,
+          );
     if (applyLocalDraftChange(nextDraft)) {
       setSaveMessage(
-        `已将 ${formatEditModeLabel(editMode)} 操作写入本地草稿，点击 Save 后才会回传游戏真值。`,
+        displayMode === "channel"
+          ? `已将频道覆盖写入本地草稿，点击 Save 后才会回传游戏真值。`
+          : `已将 ${formatEditModeLabel(editMode)} 操作写入本地草稿，点击 Save 后才会回传游戏真值。`,
       );
     }
   }
@@ -1348,7 +1441,7 @@ export default function GraphViewer({
     setSavePhase("saving");
     setSaveMessage("");
     try {
-      const graphWriteResponse = await submitGraphSave(graphDraft);
+      const graphWriteResponse = await submitGraphSave(graphDraft, displayMode);
       if (graphWriteResponse.status === "error") {
         setSavePhase("error");
         setSaveMessage(graphWriteResponse.message || "graph 保存请求失败。");
@@ -1511,22 +1604,20 @@ export default function GraphViewer({
         </div>
         <div className="recording-toolbar-row">
           <span className="chart-toolbar-label">
-            编辑模式{canEditCurrentView ? "" : "（当前视图只读）"}
+            编辑模式{canEditCurrentView ? "" : "（当前内容不可编辑）"}
           </span>
           <div className="chip-group">
-            {(["view", "add", "remove", "replace"] as GraphEditMode[]).map(
-              (modeValue) => (
-                <button
-                  key={modeValue}
-                  type="button"
-                  className={`metric-chip${editMode === modeValue ? " is-active" : ""}`}
-                  onClick={() => handleEditModeChange(modeValue)}
-                  disabled={!canEditCurrentView && modeValue !== "view"}
-                >
-                  {formatEditModeLabel(modeValue)}
-                </button>
-              ),
-            )}
+            {availableEditModes.map((modeValue) => (
+              <button
+                key={modeValue}
+                type="button"
+                className={`metric-chip${editMode === modeValue ? " is-active" : ""}`}
+                onClick={() => handleEditModeChange(modeValue)}
+                disabled={!canEditCurrentView && modeValue !== "view"}
+              >
+                {formatEditModeLabel(modeValue)}
+              </button>
+            ))}
           </div>
         </div>
         <p className="chart-interaction-hint">
@@ -1536,8 +1627,10 @@ export default function GraphViewer({
             ? "点击聚合块，可展开或收起对应的局部 core 集合。"
             : "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。"}
           {canEditCurrentView
-            ? `${formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。`
-            : "当前频道视图仅负责显示，不接入网页保存编辑。"}
+            ? displayMode === "channel"
+              ? "先框选或点选一个或多个节点，再输入频道号并应用到草稿；输入 0 表示移出频道。网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。"
+              : `${formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。`
+            : "当前内容模式不接入网页保存编辑。"}
         </p>
         {saveMessage ? (
           <p className="graph-editor-message">{saveMessage}</p>
@@ -1837,93 +1930,162 @@ export default function GraphViewer({
 
           {activeSidebarPanel === "batch" ? (
             canEditCurrentView && editMode !== "view" ? (
-              <section className="graph-batch-editor">
-                <div className="graph-batch-editor-header">
-                  <strong>{formatEditModeLabel(editMode)} 批量拓扑编辑</strong>
-                  <span>
-                    已选来源 {selectedEditSourceSerials.length} 个 / 目标{" "}
-                    {selectedEditTargetSerials.length} 个
-                  </span>
-                </div>
-                <p className="graph-batch-editor-caption">
-                  {formatEditModeInstruction(editMode)}
-                </p>
-                {editMode === "replace" ? (
+              displayMode === "channel" ? (
+                <section className="graph-batch-editor">
+                  <div className="graph-batch-editor-header">
+                    <strong>频道覆盖编辑</strong>
+                    <span>已选节点 {selectedEditChannelNodeKeys.length} 个</span>
+                  </div>
                   <p className="graph-batch-editor-caption">
-                    `replace` 模式允许来源集合为空目标，应用后可直接清空这些
-                    triggerSource 的全部连接。
+                    在频道模式下，批量编辑按“节点到频道号”的覆盖语义处理；输入
+                    `0` 表示移出频道。
                   </p>
-                ) : null}
-                <div className="graph-batch-selection-grid">
-                  <section className="graph-target-editor">
-                    <div className="graph-target-editor-header">
-                      <strong>Selected TriggerSources</strong>
-                      <span>
-                        点击或框选 triggerSource，`Ctrl/Shift` 可追加多选。
-                      </span>
-                    </div>
-                    <div className="graph-target-list">
-                      {selectedEditSourceNodes.length === 0 ? (
-                        <p className="empty-state">当前还没有选中来源节点。</p>
-                      ) : (
-                        selectedEditSourceNodes.map((sourceNode) => (
-                          <button
-                            key={sourceNode.nodeKey}
-                            type="button"
-                            className="graph-target-item graph-target-chip"
-                            onClick={() => focusNode(sourceNode.nodeKey)}
-                          >
-                            {sourceNode.displayText}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </section>
-                  <section className="graph-target-editor">
-                    <div className="graph-target-editor-header">
-                      <strong>Selected Cores</strong>
-                      <span>点击或框选 core，`Ctrl/Shift` 可追加多选。</span>
-                    </div>
-                    <div className="graph-target-list">
-                      {selectedEditTargetNodes.length === 0 ? (
-                        <p className="empty-state">当前还没有选中目标节点。</p>
-                      ) : (
-                        selectedEditTargetNodes.map((targetNode) => (
-                          <button
-                            key={targetNode.nodeKey}
-                            type="button"
-                            className="graph-target-item graph-target-chip"
-                            onClick={() => focusNode(targetNode.nodeKey)}
-                          >
-                            {targetNode.displayText}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </section>
-                </div>
-                <div className="graph-batch-action-row">
-                  <button
-                    type="button"
-                    className="action-button"
-                    onClick={handleClearBatchSelection}
-                  >
-                    清空选择
-                  </button>
-                  <button
-                    type="button"
-                    className="action-button"
-                    disabled={!canApplyBatchEdit}
-                    onClick={handleApplyBatchEdit}
-                  >
-                    应用到草稿
-                  </button>
-                </div>
-              </section>
+                  <label className="graph-editor-field">
+                    <span>目标频道号</span>
+                    <input
+                      className="graph-editor-input"
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={channelBatchDraftValue}
+                      onChange={(event) =>
+                        setChannelBatchDraftValue(event.target.value)
+                      }
+                      placeholder="输入 >= 0 的整数"
+                    />
+                  </label>
+                  <div className="graph-batch-selection-grid">
+                    <section className="graph-target-editor">
+                      <div className="graph-target-editor-header">
+                        <strong>Selected Nodes</strong>
+                        <span>
+                          点击或框选 triggerSource/core，`Ctrl/Shift` 可追加多选。
+                        </span>
+                      </div>
+                      <div className="graph-target-list">
+                        {selectedEditChannelNodes.length === 0 ? (
+                          <p className="empty-state">当前还没有选中节点。</p>
+                        ) : (
+                          selectedEditChannelNodes.map((graphNode) => (
+                            <button
+                              key={graphNode.nodeKey}
+                              type="button"
+                              className="graph-target-item graph-target-chip"
+                              onClick={() => focusNode(graphNode.nodeKey)}
+                            >
+                              {graphNode.displayText}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                  <div className="graph-batch-action-row">
+                    <button
+                      type="button"
+                      className="action-button"
+                      onClick={handleClearBatchSelection}
+                    >
+                      清空选择
+                    </button>
+                    <button
+                      type="button"
+                      className="action-button"
+                      disabled={!canApplyBatchEdit}
+                      onClick={handleApplyBatchEdit}
+                    >
+                      应用到草稿
+                    </button>
+                  </div>
+                </section>
+              ) : (
+                <section className="graph-batch-editor">
+                  <div className="graph-batch-editor-header">
+                    <strong>{formatEditModeLabel(editMode)} 批量拓扑编辑</strong>
+                    <span>
+                      已选来源 {selectedEditSourceSerials.length} 个 / 目标{" "}
+                      {selectedEditTargetSerials.length} 个
+                    </span>
+                  </div>
+                  <p className="graph-batch-editor-caption">
+                    {formatEditModeInstruction(editMode)}
+                  </p>
+                  {editMode === "replace" ? (
+                    <p className="graph-batch-editor-caption">
+                      `replace` 模式允许来源集合为空目标，应用后可直接清空这些
+                      triggerSource 的全部连接。
+                    </p>
+                  ) : null}
+                  <div className="graph-batch-selection-grid">
+                    <section className="graph-target-editor">
+                      <div className="graph-target-editor-header">
+                        <strong>Selected TriggerSources</strong>
+                        <span>
+                          点击或框选 triggerSource，`Ctrl/Shift` 可追加多选。
+                        </span>
+                      </div>
+                      <div className="graph-target-list">
+                        {selectedEditSourceNodes.length === 0 ? (
+                          <p className="empty-state">当前还没有选中来源节点。</p>
+                        ) : (
+                          selectedEditSourceNodes.map((sourceNode) => (
+                            <button
+                              key={sourceNode.nodeKey}
+                              type="button"
+                              className="graph-target-item graph-target-chip"
+                              onClick={() => focusNode(sourceNode.nodeKey)}
+                            >
+                              {sourceNode.displayText}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </section>
+                    <section className="graph-target-editor">
+                      <div className="graph-target-editor-header">
+                        <strong>Selected Cores</strong>
+                        <span>点击或框选 core，`Ctrl/Shift` 可追加多选。</span>
+                      </div>
+                      <div className="graph-target-list">
+                        {selectedEditTargetNodes.length === 0 ? (
+                          <p className="empty-state">当前还没有选中目标节点。</p>
+                        ) : (
+                          selectedEditTargetNodes.map((targetNode) => (
+                            <button
+                              key={targetNode.nodeKey}
+                              type="button"
+                              className="graph-target-item graph-target-chip"
+                              onClick={() => focusNode(targetNode.nodeKey)}
+                            >
+                              {targetNode.displayText}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                  <div className="graph-batch-action-row">
+                    <button
+                      type="button"
+                      className="action-button"
+                      onClick={handleClearBatchSelection}
+                    >
+                      清空选择
+                    </button>
+                    <button
+                      type="button"
+                      className="action-button"
+                      disabled={!canApplyBatchEdit}
+                      onClick={handleApplyBatchEdit}
+                    >
+                      应用到草稿
+                    </button>
+                  </div>
+                </section>
+              )
             ) : (
               <p className="empty-state graph-detail-empty">
-                当前视图不支持批量编辑。切回序号模式并选择 `add`、`remove` 或
-                `replace` 后，这里会显示批量编辑面板。
+                当前视图还没有进入可编辑状态。切换到 `replace`，这里会显示批量编辑面板。
               </p>
             )
           ) : null}

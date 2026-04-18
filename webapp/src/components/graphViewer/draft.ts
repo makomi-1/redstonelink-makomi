@@ -6,6 +6,7 @@ import type {
   GraphWriteResponse,
   ReplaceTriggerSourceTargetsOperation,
   RenameNodeAliasOperation,
+  SetNodeChannelOperation,
 } from '../../graphTypes';
 import {
   createGraphNodeKey,
@@ -38,6 +39,10 @@ function normalizeTargetSerials(targetSerials: number[]): number[] {
         .filter((serial) => serial > 0),
     ),
   ).sort((left, right) => left - right);
+}
+
+function normalizeChannel(channel: number): number {
+  return Math.max(0, Math.trunc(channel));
 }
 
 function buildAliasOperationKey(nodeType: GraphNodeTypeToken, serial: number): string {
@@ -107,6 +112,13 @@ export function resolveEffectiveTargetSerials(
     : normalizeTargetSerials(replaceOperation.targetCoreSerials);
 }
 
+function resolveBaseChannel(graphBundle: GraphSnapshotBundle, nodeType: GraphNodeTypeToken, serial: number): number {
+  const baseNode = graphBundle.nodes.find(
+    (node) => node.type === nodeType && node.serial === serial,
+  );
+  return baseNode?.connectionMode === 'channel' ? normalizeChannel(baseNode.channel) : 0;
+}
+
 export function upsertAliasDraft(
   graphDraft: GraphDraft,
   graphBundle: GraphSnapshotBundle,
@@ -173,6 +185,42 @@ function upsertReplaceTargetsDraft(
   };
 }
 
+function upsertSetNodeChannelDraft(
+  graphDraft: GraphDraft,
+  graphBundle: GraphSnapshotBundle,
+  nodeType: GraphNodeTypeToken,
+  serial: number,
+  expectedSourceRevision: number,
+  expectedCoreRevision: number,
+  channel: number,
+): GraphDraft {
+  const normalizedChannel = normalizeChannel(channel);
+  const baseChannel = resolveBaseChannel(graphBundle, nodeType, serial);
+  const nextOperations = graphDraft.operations.filter(
+    (operation) =>
+      !(
+        operation.type === 'SetNodeChannel' &&
+        operation.nodeType === nodeType &&
+        operation.serial === serial
+      ),
+  );
+  if (normalizedChannel !== baseChannel) {
+    nextOperations.push({
+      type: 'SetNodeChannel',
+      nodeType,
+      serial,
+      expectedSourceRevision,
+      expectedCoreRevision,
+      channel: normalizedChannel,
+    });
+  }
+  return {
+    ...graphDraft,
+    dirty: nextOperations.length > 0,
+    operations: nextOperations,
+  };
+}
+
 /**
  * 将批量编辑模式折算为现有 replace 草稿操作。
  * <p>
@@ -215,34 +263,83 @@ export function applyBatchEditToDraft(
   return nextDraft;
 }
 
+export function applyChannelEditToDraft(
+  graphDraft: GraphDraft,
+  graphBundle: GraphSnapshotBundle,
+  nodeKeys: string[],
+  channel: number,
+): GraphDraft {
+  let nextDraft = graphDraft;
+  const normalizedNodeKeys = Array.from(new Set(nodeKeys)).sort((left, right) =>
+    left.localeCompare(right),
+  );
+  normalizedNodeKeys.forEach((nodeKey) => {
+    const node = graphBundle.nodes.find((candidate) => candidate.nodeKey === nodeKey);
+    if (!node) {
+      return;
+    }
+    nextDraft = upsertSetNodeChannelDraft(
+      nextDraft,
+      graphBundle,
+      node.type,
+      node.serial,
+      node.sourceRevision,
+      node.coreRevision,
+      channel,
+    );
+  });
+  return nextDraft;
+}
+
 export function applyDraftToGraph(
   graphBundle: GraphSnapshotBundle,
   graphDraft: GraphDraft,
 ): GraphSnapshotBundle {
   const aliasOverrides = new Map<string, RenameNodeAliasOperation>();
   const replaceOverrides = new Map<number, ReplaceTriggerSourceTargetsOperation>();
+  const channelOverrides = new Map<string, SetNodeChannelOperation>();
   graphDraft.operations.forEach((operation) => {
     if (operation.type === 'RenameNodeAlias') {
       aliasOverrides.set(buildAliasOperationKey(operation.nodeType, operation.serial), operation);
       return;
     }
-    replaceOverrides.set(operation.triggerSourceSerial, operation);
+    if (operation.type === 'ReplaceTriggerSourceTargets') {
+      replaceOverrides.set(operation.triggerSourceSerial, operation);
+      return;
+    }
+    channelOverrides.set(buildAliasOperationKey(operation.nodeType, operation.serial), operation);
   });
 
   const nodes = graphBundle.nodes.map((node) => {
     const aliasOverride = aliasOverrides.get(buildAliasOperationKey(node.type, node.serial));
-    if (aliasOverride == null) {
+    const channelOverride = channelOverrides.get(buildAliasOperationKey(node.type, node.serial));
+    const nextAlias = aliasOverride == null ? node.alias : normalizeAlias(aliasOverride.alias);
+    const nextChannel = channelOverride == null ? node.channel : normalizeChannel(channelOverride.channel);
+    const nextConnectionMode =
+      channelOverride == null ? node.connectionMode : nextChannel > 0 ? 'channel' : 'serial';
+    const nextDisplayText = nextAlias
+      ? `${nextAlias}(#${node.serial})`
+      : `${node.type}(#${node.serial})`;
+    if (
+      aliasOverride == null &&
+      channelOverride == null &&
+      nextAlias === node.alias &&
+      nextConnectionMode === node.connectionMode &&
+      nextChannel === node.channel &&
+      nextDisplayText === node.displayText
+    ) {
       return node;
     }
-    const nextAlias = normalizeAlias(aliasOverride.alias);
     return {
       ...node,
       alias: nextAlias,
-      displayText: nextAlias ? `${nextAlias}(#${node.serial})` : `${node.type}(#${node.serial})`,
+      displayText: nextDisplayText,
+      connectionMode: nextConnectionMode,
+      channel: nextChannel,
     };
   });
 
-  const edges: GraphSnapshotBundle['edges'] = [];
+  const explicitEdges: GraphSnapshotBundle['edges'] = [];
   const replacedSources = new Set<number>(Array.from(replaceOverrides.keys()));
   graphBundle.edges.forEach((edge) => {
     const matched = edge.sourceNodeKey.match(/^triggerSource:(\d+)$/);
@@ -250,13 +347,13 @@ export function applyDraftToGraph(
     if (replacedSources.has(sourceSerial)) {
       return;
     }
-    edges.push(edge);
+    explicitEdges.push(edge);
   });
   replaceOverrides.forEach((operation, triggerSourceSerial) => {
     operation.targetCoreSerials.forEach((targetCoreSerial) => {
       const sourceNodeKey = createGraphNodeKey('triggerSource', triggerSourceSerial);
       const targetNodeKey = createGraphNodeKey('core', targetCoreSerial);
-      edges.push({
+      explicitEdges.push({
         edgeKey: `${sourceNodeKey}->${targetNodeKey}`,
         sourceNodeKey,
         targetNodeKey,
@@ -266,6 +363,58 @@ export function applyDraftToGraph(
       });
     });
   });
+
+  const nodeByKey = new Map(nodes.map((node) => [node.nodeKey, node] as const));
+  const explicitTargetSerialsBySource = new Map<number, number[]>();
+  explicitEdges.forEach((edge) => {
+    const matched = edge.sourceNodeKey.match(/^triggerSource:(\d+)$/);
+    const sourceSerial = matched == null ? 0 : Number(matched[1]);
+    const targetMatched = edge.targetNodeKey.match(/^core:(\d+)$/);
+    const targetSerial = targetMatched == null ? 0 : Number(targetMatched[1]);
+    if (sourceSerial <= 0 || targetSerial <= 0) {
+      return;
+    }
+    const currentTargets = explicitTargetSerialsBySource.get(sourceSerial) ?? [];
+    currentTargets.push(targetSerial);
+    explicitTargetSerialsBySource.set(sourceSerial, currentTargets);
+  });
+
+  const channelCoreSerialsByChannel = new Map<number, number[]>();
+  nodes.forEach((node) => {
+    if (node.type !== 'core' || node.connectionMode !== 'channel' || node.channel <= 0) {
+      return;
+    }
+    const currentValues = channelCoreSerialsByChannel.get(node.channel) ?? [];
+    currentValues.push(node.serial);
+    channelCoreSerialsByChannel.set(node.channel, currentValues);
+  });
+
+  const edges: GraphSnapshotBundle['edges'] = [];
+  nodes
+    .filter((node) => node.type === 'triggerSource')
+    .forEach((sourceNode) => {
+      const nextTargetSerials =
+        sourceNode.connectionMode === 'channel' && sourceNode.channel > 0
+          ? normalizeTargetSerials(channelCoreSerialsByChannel.get(sourceNode.channel) ?? [])
+          : normalizeTargetSerials(
+              (explicitTargetSerialsBySource.get(sourceNode.serial) ?? []).filter((targetSerial) => {
+                const targetNode = nodeByKey.get(createGraphNodeKey('core', targetSerial));
+                return targetNode?.connectionMode !== 'channel';
+              }),
+            );
+      nextTargetSerials.forEach((targetCoreSerial) => {
+        const sourceNodeKey = createGraphNodeKey('triggerSource', sourceNode.serial);
+        const targetNodeKey = createGraphNodeKey('core', targetCoreSerial);
+        edges.push({
+          edgeKey: `${sourceNodeKey}->${targetNodeKey}`,
+          sourceNodeKey,
+          targetNodeKey,
+          kind: 'serial',
+          readable: true,
+          editable: true,
+        });
+      });
+    });
   edges.sort((left, right) =>
     `${left.sourceNodeKey}:${left.targetNodeKey}`.localeCompare(
       `${right.sourceNodeKey}:${right.targetNodeKey}`,
@@ -291,6 +440,10 @@ export function buildDraftDiff(
   const changedNodeKeys = new Set<string>();
   graphDraft.operations.forEach((operation) => {
     if (operation.type === 'RenameNodeAlias') {
+      changedNodeKeys.add(createGraphNodeKey(operation.nodeType, operation.serial));
+      return;
+    }
+    if (operation.type === 'SetNodeChannel') {
       changedNodeKeys.add(createGraphNodeKey(operation.nodeType, operation.serial));
       return;
     }
@@ -360,6 +513,8 @@ export function applyUpdatedNodeStates(
         ...node,
         alias: updatedNodeState.alias,
         displayText: updatedNodeState.displayText,
+        connectionMode: updatedNodeState.connectionMode,
+        channel: updatedNodeState.channel,
         sourceRevision: updatedNodeState.sourceRevision,
         coreRevision: updatedNodeState.coreRevision,
       };
@@ -406,7 +561,10 @@ export async function persistDraft(draftFileName: string, graphDraft: GraphDraft
   }
 }
 
-export async function submitGraphSave(graphDraft: GraphDraft): Promise<GraphWriteResponse> {
+export async function submitGraphSave(
+  graphDraft: GraphDraft,
+  requestMode: string,
+): Promise<GraphWriteResponse> {
   const response = await fetch('./api/graph/save', {
     method: 'POST',
     headers: {
@@ -415,7 +573,7 @@ export async function submitGraphSave(graphDraft: GraphDraft): Promise<GraphWrit
     body: JSON.stringify({
       draftId: graphDraft.draftId,
       baseSnapshotId: graphDraft.baseSnapshotId,
-      mode: graphDraft.mode,
+      mode: requestMode,
       baseGraphRevision: graphDraft.baseGraphRevision,
       operations: graphDraft.operations,
     }),
