@@ -1,6 +1,10 @@
-import type { ReactNode } from 'react';
-import type { Node, XYPosition } from 'reactflow';
-import type { GraphNodeInfo, GraphNodeTypeToken, GraphSnapshotBundle } from '../../graphTypes';
+import type { ReactNode } from "react";
+import type { Node, XYPosition } from "reactflow";
+import type {
+  GraphNodeInfo,
+  GraphNodeTypeToken,
+  GraphSnapshotBundle,
+} from "../../graphTypes";
 
 export const GRAPH_NODE_WIDTH = 232;
 export const GRAPH_NODE_HEIGHT = 60;
@@ -34,22 +38,24 @@ export type GraphFlowNodeData = {
 };
 
 export type GraphFlowNode = Node<GraphFlowNodeData>;
-export type SavePhase = 'idle' | 'saving' | 'conflict' | 'error';
-export type GraphEditMode = 'view' | 'add' | 'remove' | 'replace';
-export type GraphSearchTypeFilter = 'all' | GraphNodeTypeToken;
-export type GraphSidebarPanel = 'details' | 'isolated' | 'batch';
-export type DraftEdgeDiffState = 'base' | 'added' | 'removed';
+export type SavePhase = "idle" | "saving" | "conflict" | "error";
+export type GraphEditMode = "view" | "add" | "remove" | "replace";
+export type GraphDisplayMode = "serial" | "channel";
+export type GraphDisplayContentMode = "topology";
+export type GraphSearchTypeFilter = "all" | GraphNodeTypeToken;
+export type GraphSidebarPanel = "details" | "isolated" | "batch";
+export type DraftEdgeDiffState = "base" | "added" | "removed";
 
 export type GraphCanvasActualNode = {
-  kind: 'actual';
+  kind: "actual";
   nodeKey: string;
   graphNode: GraphNodeInfo;
 };
 
-export type GraphAggregateRole = 'core' | 'triggerSource';
+export type GraphAggregateRole = "core" | "triggerSource";
 
 export type GraphCanvasAggregateNode = {
-  kind: 'aggregate';
+  kind: "aggregate";
   aggregateRole: GraphAggregateRole;
   nodeKey: string;
   signatureKey: string;
@@ -66,13 +72,28 @@ export type GraphCanvasAggregateNode = {
   expanded: boolean;
 };
 
-export type GraphCanvasNodeInfo = GraphCanvasActualNode | GraphCanvasAggregateNode;
+export type GraphCanvasChannelHubNode = {
+  kind: "channelHub";
+  nodeKey: string;
+  channel: number;
+  sourceNodeKeys: string[];
+  sourceSerials: number[];
+  coreNodeKeys: string[];
+  coreSerials: number[];
+  memberNodeKeys: string[];
+  memberCount: number;
+};
+
+export type GraphCanvasNodeInfo =
+  | GraphCanvasActualNode
+  | GraphCanvasAggregateNode
+  | GraphCanvasChannelHubNode;
 
 export type GraphCanvasEdgeInfo = {
   edgeKey: string;
   sourceNodeKey: string;
   targetNodeKey: string;
-  kind: 'actual' | 'aggregate';
+  kind: "actual" | "aggregate" | "channel";
   diffState: DraftEdgeDiffState;
 };
 
@@ -84,6 +105,7 @@ export type GraphLayoutComponent = {
 };
 
 export type GraphCanvasView = {
+  displayMode: GraphDisplayMode;
   canvasNodes: GraphCanvasNodeInfo[];
   canvasEdges: GraphCanvasEdgeInfo[];
   layoutEdges: GraphCanvasEdgeInfo[];
@@ -92,10 +114,11 @@ export type GraphCanvasView = {
   isolatedTriggerSourceNodes: GraphNodeInfo[];
   isolatedCoreNodes: GraphNodeInfo[];
   aggregateNodes: GraphCanvasAggregateNode[];
+  channelHubNodes: GraphCanvasChannelHubNode[];
 };
 
 export type GraphDraftDiff = {
   changedNodeKeys: Set<string>;
   addedEdgeKeys: Set<string>;
-  removedEdges: GraphSnapshotBundle['edges'];
+  removedEdges: GraphSnapshotBundle["edges"];
 };

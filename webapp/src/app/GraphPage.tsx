@@ -1,8 +1,8 @@
-import GraphViewer from '../components/GraphViewer';
-import type { GraphSnapshotBundle } from '../graphTypes';
-import { buildEntryKey } from './location';
-import { formatBytes, formatStartedAt } from './format';
-import type { StorageEntryPayload, StorageEntrySummary } from './types';
+import GraphViewer from "../components/GraphViewer";
+import type { GraphSnapshotBundle } from "../graphTypes";
+import { buildEntryKey } from "./location";
+import { formatBytes, formatStartedAt } from "./format";
+import type { StorageEntryPayload, StorageEntrySummary } from "./types";
 
 type GraphPageProps = {
   bridgeError: string;
@@ -52,9 +52,10 @@ export default function GraphPage({
         </div>
         <div className="recording-page-title-wrap">
           <p className="eyebrow">Dedicated Graph Analyzer</p>
-          <h1>serial 拓扑分析</h1>
+          <h1>graph 拓扑分析</h1>
           <p className="hero-text">
-            当前页面只负责 graph snapshot 主查看。可直接加载指定 graph 文件，也可以先在游戏里执行
+            当前页面支持序号拓扑与频道拓扑两种显示模式。可直接加载指定 graph
+            文件，也可以先在游戏里执行
             <code> /rlclient web graph </code>
             导出并自动打开最新快照。
           </p>
@@ -69,13 +70,20 @@ export default function GraphPage({
             >
               <option value="">请选择本地 graph 文件</option>
               {graphEntries.map((entry) => (
-                <option key={buildEntryKey(entry.kind, entry.fileName)} value={entry.fileName}>
+                <option
+                  key={buildEntryKey(entry.kind, entry.fileName)}
+                  value={entry.fileName}
+                >
                   {entry.fileName}
                 </option>
               ))}
             </select>
           </label>
-          <button type="button" className="action-button" onClick={onRefreshStorageIndex}>
+          <button
+            type="button"
+            className="action-button"
+            onClick={onRefreshStorageIndex}
+          >
             刷新索引
           </button>
         </div>
@@ -95,26 +103,39 @@ export default function GraphPage({
             </div>
             <div>
               <dt>Last Modified</dt>
-              <dd>{formatStartedAt(graphSelectedEntry.lastModifiedEpochMillis)}</dd>
+              <dd>
+                {formatStartedAt(graphSelectedEntry.lastModifiedEpochMillis)}
+              </dd>
             </div>
           </dl>
         ) : null}
         {storageError ? (
-          <p className="error-text">无法读取 `./api/storage/index`：{storageError}</p>
+          <p className="error-text">
+            无法读取 `./api/storage/index`：{storageError}
+          </p>
         ) : null}
-        {bridgeError ? <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p> : null}
+        {bridgeError ? (
+          <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p>
+        ) : null}
       </section>
 
       <section className="recording-page-main">
-        {storageLoading ? <p className="empty-state">正在扫描本地 graph 资产...</p> : null}
+        {storageLoading ? (
+          <p className="empty-state">正在扫描本地 graph 资产...</p>
+        ) : null}
         {!storageLoading && graphEntries.length === 0 ? (
           <article className="info-card recording-empty-card">
             <p className="empty-state">当前本地资产仓还没有 graph 文件。</p>
           </article>
         ) : null}
-        {!storageLoading && graphEntries.length > 0 && !selectedFileName && !graphEntryLoading ? (
+        {!storageLoading &&
+        graphEntries.length > 0 &&
+        !selectedFileName &&
+        !graphEntryLoading ? (
           <article className="info-card recording-empty-card">
-            <p className="empty-state">请先在上方选择一个 graph 文件再开始查看拓扑。</p>
+            <p className="empty-state">
+              请先在上方选择一个 graph 文件再开始查看拓扑。
+            </p>
           </article>
         ) : null}
         {graphEntryLoading ? (
@@ -129,19 +150,23 @@ export default function GraphPage({
         ) : null}
         {graphSelectedEntry && !graphBundle && !graphEntryError ? (
           <article className="info-card recording-empty-card">
-            <p className="error-text">当前文件不是合法的 graph snapshot bundle。</p>
+            <p className="error-text">
+              当前文件不是合法的 graph snapshot bundle。
+            </p>
           </article>
         ) : null}
         {graphBundle ? (
           <article className="info-card graph-viewer-card">
             <GraphViewer
               graphBundle={graphBundle}
-              graphFileName={graphSelectedEntry?.fileName ?? ''}
+              graphFileName={graphSelectedEntry?.fileName ?? ""}
               onDirtyStateChange={onDirtyStateChange}
             />
             <details className="raw-preview-panel">
               <summary>原始 JSON</summary>
-              <pre className="code-block">{graphSelectedEntry?.textContent}</pre>
+              <pre className="code-block">
+                {graphSelectedEntry?.textContent}
+              </pre>
             </details>
           </article>
         ) : null}

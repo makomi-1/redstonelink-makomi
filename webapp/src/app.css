@@ -4,7 +4,8 @@
   background:
     radial-gradient(circle at top, rgba(255, 176, 122, 0.18), transparent 34%),
     linear-gradient(155deg, #2a1713 0%, #120f16 48%, #08131b 100%);
-  font-family: "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+  font-family:
+    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
   line-height: 1.5;
   font-weight: 400;
   text-rendering: optimizeLegibility;
@@ -129,7 +130,12 @@ body {
 .orbit-core {
   width: 96px;
   height: 96px;
-  background: radial-gradient(circle at 30% 30%, #ffe9c0, #ff8a55 55%, #7c180f 100%);
+  background: radial-gradient(
+    circle at 30% 30%,
+    #ffe9c0,
+    #ff8a55 55%,
+    #7c180f 100%
+  );
   box-shadow: 0 0 36px rgba(255, 136, 87, 0.48);
 }
 
@@ -695,6 +701,10 @@ body {
   gap: 12px;
 }
 
+.graph-submode-row {
+  margin-top: -2px;
+}
+
 .graph-search-panel {
   display: grid;
   flex: 1 1 520px;
@@ -870,6 +880,11 @@ body {
   background: rgba(108, 230, 255, 0.2);
 }
 
+.graph-legend-swatch.is-channel-hub {
+  border-color: rgba(239, 216, 139, 0.82);
+  background: rgba(239, 216, 139, 0.2);
+}
+
 .graph-legend-swatch.is-aggregate {
   border-color: rgba(140, 213, 255, 0.82);
   border-style: dashed;
@@ -931,7 +946,8 @@ body {
 
 .graph-canvas .react-flow__node-default {
   padding: 10px 12px;
-  font-family: "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+  font-family:
+    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
 }
 
 .graph-canvas .react-flow__node-aggregateOutline {
@@ -1258,7 +1274,8 @@ body {
 }
 
 .recording-chart-host .u-wrap {
-  font-family: "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+  font-family:
+    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
 }
 
 .recording-chart-host .u-over,

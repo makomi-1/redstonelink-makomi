@@ -1,22 +1,29 @@
-import type { CSSProperties } from 'react';
-import ReactFlow, { Position, type Edge, type NodeProps, type XYPosition } from 'reactflow';
+import type { CSSProperties } from "react";
+import {
+  Position,
+  type Edge,
+  type NodeProps,
+  type XYPosition,
+} from "reactflow";
 import type {
   GraphNodeInfo,
   GraphNodeTypeToken,
   GraphSnapshotBundle,
-} from '../../graphTypes';
+} from "../../graphTypes";
 import type {
   DraftEdgeDiffState,
   GraphCanvasAggregateNode,
+  GraphCanvasChannelHubNode,
   GraphCanvasEdgeInfo,
   GraphCanvasNodeInfo,
   GraphCanvasView,
+  GraphDisplayMode,
   GraphDraftDiff,
   GraphEditMode,
   GraphFlowNode,
   GraphFlowNodeData,
   GraphLayoutComponent,
-} from './types';
+} from "./types";
 import {
   AGGREGATE_OUTLINE_PADDING_X,
   AGGREGATE_OUTLINE_PADDING_Y,
@@ -41,7 +48,7 @@ import {
   SHARED_CORE_GROUP_MIN_SOURCE_COUNT,
   SHARED_TRIGGER_SOURCE_GROUP_MIN_SOURCE_COUNT,
   SHARED_TRIGGER_SOURCE_GROUP_MIN_TARGET_COUNT,
-} from './types';
+} from "./types";
 
 function AggregateOutlineNode(_: NodeProps<GraphFlowNodeData>): JSX.Element {
   return <div className="graph-aggregate-outline-node" />;
@@ -59,15 +66,15 @@ function buildNodeLabel(node: GraphNodeInfo): JSX.Element {
   );
 }
 
-function buildAggregateNodeLabel(aggregateNode: GraphCanvasAggregateNode): JSX.Element {
+function buildAggregateNodeLabel(
+  aggregateNode: GraphCanvasAggregateNode,
+): JSX.Element {
   const memberLabel =
-    aggregateNode.aggregateRole === 'core'
-      ? 'grouped cores'
-      : 'grouped triggerSources';
+    aggregateNode.aggregateRole === "core"
+      ? "grouped cores"
+      : "grouped triggerSources";
   const connectedLabel =
-    aggregateNode.aggregateRole === 'core'
-      ? 'triggerSources'
-      : 'cores';
+    aggregateNode.aggregateRole === "core" ? "triggerSources" : "cores";
   return (
     <div className="graph-node-label">
       <strong className="graph-node-title">
@@ -76,8 +83,24 @@ function buildAggregateNodeLabel(aggregateNode: GraphCanvasAggregateNode): JSX.E
           : `+${aggregateNode.memberCount} ${memberLabel}`}
       </strong>
       <span className="graph-node-meta">
-        {aggregateNode.connectedSerials.length} {connectedLabel} ·{' '}
-        {aggregateNode.expanded ? '已展开，仅展开节点' : '点击展开节点'}
+        {aggregateNode.connectedSerials.length} {connectedLabel} ·{" "}
+        {aggregateNode.expanded ? "已展开，仅展开节点" : "点击展开节点"}
+      </span>
+    </div>
+  );
+}
+
+function buildChannelHubNodeLabel(
+  channelHubNode: GraphCanvasChannelHubNode,
+): JSX.Element {
+  return (
+    <div className="graph-node-label">
+      <strong className="graph-node-title">
+        channel #{channelHubNode.channel}
+      </strong>
+      <span className="graph-node-meta">
+        {channelHubNode.sourceSerials.length} triggerSources ·{" "}
+        {channelHubNode.coreSerials.length} cores
       </span>
     </div>
   );
@@ -96,25 +119,31 @@ export function buildAggregateOutlineFlowNodes(
     }
     const memberNodes = [
       positionedNodeByKey.get(aggregateNode.nodeKey),
-      ...aggregateNode.memberNodeKeys.map((nodeKey) => positionedNodeByKey.get(nodeKey)),
+      ...aggregateNode.memberNodeKeys.map((nodeKey) =>
+        positionedNodeByKey.get(nodeKey),
+      ),
     ].filter((node): node is GraphFlowNode => node != null);
     if (memberNodes.length <= 1) {
       return [];
     }
     const minX =
-      Math.min(...memberNodes.map((node) => node.position.x)) - AGGREGATE_OUTLINE_PADDING_X;
-    const minY =
-      Math.min(...memberNodes.map((node) => node.position.y)) - AGGREGATE_OUTLINE_PADDING_Y;
-    const maxX =
-      Math.max(...memberNodes.map((node) => node.position.x + GRAPH_NODE_WIDTH)) +
+      Math.min(...memberNodes.map((node) => node.position.x)) -
       AGGREGATE_OUTLINE_PADDING_X;
-    const maxY =
-      Math.max(...memberNodes.map((node) => node.position.y + GRAPH_NODE_HEIGHT)) +
+    const minY =
+      Math.min(...memberNodes.map((node) => node.position.y)) -
       AGGREGATE_OUTLINE_PADDING_Y;
+    const maxX =
+      Math.max(
+        ...memberNodes.map((node) => node.position.x + GRAPH_NODE_WIDTH),
+      ) + AGGREGATE_OUTLINE_PADDING_X;
+    const maxY =
+      Math.max(
+        ...memberNodes.map((node) => node.position.y + GRAPH_NODE_HEIGHT),
+      ) + AGGREGATE_OUTLINE_PADDING_Y;
     return [
       {
         id: `aggregate-outline:${aggregateNode.nodeKey}`,
-        type: 'aggregateOutline',
+        type: "aggregateOutline",
         position: {
           x: minX,
           y: minY,
@@ -128,14 +157,17 @@ export function buildAggregateOutlineFlowNodes(
         style: {
           width: maxX - minX,
           height: maxY - minY,
-          pointerEvents: 'none',
+          pointerEvents: "none",
         },
       },
     ];
   });
 }
 
-export function sameAggregateOutlineFlowNodes(left: GraphFlowNode[], right: GraphFlowNode[]): boolean {
+export function sameAggregateOutlineFlowNodes(
+  left: GraphFlowNode[],
+  right: GraphFlowNode[],
+): boolean {
   if (left.length !== right.length) {
     return false;
   }
@@ -148,8 +180,10 @@ export function sameAggregateOutlineFlowNodes(left: GraphFlowNode[], right: Grap
       String(leftNode.id) === String(rightNode.id) &&
       leftNode.position.x === rightNode.position.x &&
       leftNode.position.y === rightNode.position.y &&
-      Number(leftNode.style?.width ?? 0) === Number(rightNode.style?.width ?? 0) &&
-      Number(leftNode.style?.height ?? 0) === Number(rightNode.style?.height ?? 0)
+      Number(leftNode.style?.width ?? 0) ===
+        Number(rightNode.style?.width ?? 0) &&
+      Number(leftNode.style?.height ?? 0) ===
+        Number(rightNode.style?.height ?? 0)
     );
   });
 }
@@ -169,22 +203,22 @@ function buildNodeStyle(
   const selectedAsSource = selectedEditSourceNodeKeys.has(node.nodeKey);
   const selectedAsTarget = selectedEditTargetNodeKeys.has(node.nodeKey);
   const draftChanged = draftChangedNodeKeys.has(node.nodeKey);
-  const accent = node.type === 'triggerSource' ? '#ffb894' : '#8cd5ff';
+  const accent = node.type === "triggerSource" ? "#ffb894" : "#8cd5ff";
   const baseBackground =
-    node.type === 'triggerSource'
-      ? 'rgba(255, 165, 122, 0.12)'
-      : 'rgba(95, 196, 255, 0.12)';
+    node.type === "triggerSource"
+      ? "rgba(255, 165, 122, 0.12)"
+      : "rgba(95, 196, 255, 0.12)";
   const selectionAccent = selectedAsSource
-    ? '#ff8a4f'
+    ? "#ff8a4f"
     : selectedAsTarget
-      ? '#5dd4ff'
+      ? "#5dd4ff"
       : accent;
   const borderColor =
     selected || selectedAsSource || selectedAsTarget
       ? selectionAccent
       : draftChanged
-        ? '#8ef0b8'
-        : 'rgba(255, 214, 191, 0.22)';
+        ? "#8ef0b8"
+        : "rgba(255, 214, 191, 0.22)";
   return {
     minWidth: GRAPH_NODE_WIDTH,
     borderRadius: 16,
@@ -196,9 +230,9 @@ function buildNodeStyle(
       selected || selectedAsSource || selectedAsTarget
         ? `0 0 0 1px ${selectionAccent} inset, 0 12px 24px rgba(6, 10, 18, 0.24)`
         : draftChanged
-          ? '0 0 0 1px rgba(142, 240, 184, 0.4) inset'
-          : 'none',
-    color: '#fff4eb',
+          ? "0 0 0 1px rgba(142, 240, 184, 0.4) inset"
+          : "none",
+    color: "#fff4eb",
     opacity: dimmed ? 0.34 : 1,
   };
 }
@@ -212,21 +246,50 @@ function buildAggregateNodeStyle(
   const selected = selectedNodeKey === aggregateNode.nodeKey;
   const expanded = aggregateNode.expanded;
   const matched =
-    aggregateNode.sourceNodeKeys.some((nodeKey) => matchedNodeKeys.has(nodeKey)) ||
+    aggregateNode.sourceNodeKeys.some((nodeKey) =>
+      matchedNodeKeys.has(nodeKey),
+    ) ||
     aggregateNode.coreNodeKeys.some((nodeKey) => matchedNodeKeys.has(nodeKey));
   const dimmed = hasSearch && !matched;
   const borderColor =
-    selected || expanded ? '#8ad8ff' : 'rgba(140, 213, 255, 0.42)';
+    selected || expanded ? "#8ad8ff" : "rgba(140, 213, 255, 0.42)";
   return {
     minWidth: GRAPH_NODE_WIDTH,
     borderRadius: 16,
-    border: `1px ${expanded ? 'solid' : 'dashed'} ${borderColor}`,
+    border: `1px ${expanded ? "solid" : "dashed"} ${borderColor}`,
     background:
-      'linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08))',
-    boxShadow: selected || expanded
-      ? '0 0 0 1px rgba(140, 213, 255, 0.5) inset, 0 12px 24px rgba(6, 10, 18, 0.22)'
-      : '0 0 0 1px rgba(140, 213, 255, 0.16) inset',
-    color: '#effbff',
+      "linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08))",
+    boxShadow:
+      selected || expanded
+        ? "0 0 0 1px rgba(140, 213, 255, 0.5) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
+        : "0 0 0 1px rgba(140, 213, 255, 0.16) inset",
+    color: "#effbff",
+    opacity: dimmed ? 0.3 : 1,
+  };
+}
+
+function buildChannelHubNodeStyle(
+  channelHubNode: GraphCanvasChannelHubNode,
+  selectedNodeKey: string,
+  hasSearch: boolean,
+  matchedNodeKeys: Set<string>,
+): CSSProperties {
+  const selected = selectedNodeKey === channelHubNode.nodeKey;
+  const matched = channelHubNode.memberNodeKeys.some((nodeKey) =>
+    matchedNodeKeys.has(nodeKey),
+  );
+  const dimmed = hasSearch && !matched;
+  const borderColor = selected ? "#efd88b" : "rgba(239, 216, 139, 0.56)";
+  return {
+    minWidth: GRAPH_NODE_WIDTH,
+    borderRadius: 18,
+    border: `1px solid ${borderColor}`,
+    background:
+      "linear-gradient(180deg, rgba(239, 216, 139, 0.2), rgba(156, 129, 56, 0.08))",
+    boxShadow: selected
+      ? "0 0 0 1px rgba(239, 216, 139, 0.56) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
+      : "0 0 0 1px rgba(239, 216, 139, 0.18) inset",
+    color: "#fff7df",
     opacity: dimmed ? 0.3 : 1,
   };
 }
@@ -237,21 +300,22 @@ function buildEdgeStyle(
   edge: Edge,
   diffState: DraftEdgeDiffState,
 ): Edge {
-  const matched = matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
+  const matched =
+    matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
   const edgeOpacity =
     hasSearch && !matched
       ? 0.2
-      : diffState === 'removed'
+      : diffState === "removed"
         ? 0.72
-        : diffState === 'added'
+        : diffState === "added"
           ? 0.96
           : 0.88;
   return {
     ...edge,
     style: {
-      stroke: diffState === 'base' ? '#ffc296' : '#8ef0b8',
-      strokeWidth: diffState === 'base' ? 2.2 : 2.6,
-      strokeDasharray: diffState === 'removed' ? '8 5' : undefined,
+      stroke: diffState === "base" ? "#ffc296" : "#8ef0b8",
+      strokeWidth: diffState === "base" ? 2.2 : 2.6,
+      strokeDasharray: diffState === "removed" ? "8 5" : undefined,
       opacity: edgeOpacity,
     },
   };
@@ -262,33 +326,76 @@ function buildAggregateEdgeStyle(
   matchedNodeKeys: Set<string>,
   edge: Edge,
 ): Edge {
-  const matched = matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
+  const matched =
+    matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
   return {
     ...edge,
     style: {
-      stroke: '#8ad8ff',
+      stroke: "#8ad8ff",
       strokeWidth: 2.1,
-      strokeDasharray: '10 5',
+      strokeDasharray: "10 5",
       opacity: hasSearch && !matched ? 0.22 : 0.76,
     },
   };
 }
 
-function compareNodeType(left: GraphNodeTypeToken, right: GraphNodeTypeToken): number {
+function buildChannelEdgeStyle(
+  hasSearch: boolean,
+  matchedNodeKeys: Set<string>,
+  edge: Edge,
+): Edge {
+  const matched =
+    matchedNodeKeys.has(edge.source) || matchedNodeKeys.has(edge.target);
+  return {
+    ...edge,
+    style: {
+      stroke: "#efd88b",
+      strokeWidth: 2.2,
+      opacity: hasSearch && !matched ? 0.22 : 0.82,
+    },
+  };
+}
+
+function compareNodeType(
+  left: GraphNodeTypeToken,
+  right: GraphNodeTypeToken,
+): number {
   if (left === right) {
     return 0;
   }
-  return left === 'triggerSource' ? -1 : 1;
+  return left === "triggerSource" ? -1 : 1;
 }
 
-export function toggleStringSelection(currentValues: string[], targetValue: string): string[] {
+type GraphCanvasLaneType = GraphNodeTypeToken | "channelHub";
+
+function compareCanvasLaneType(
+  left: GraphCanvasLaneType,
+  right: GraphCanvasLaneType,
+): number {
+  const orderByType: Record<GraphCanvasLaneType, number> = {
+    triggerSource: 0,
+    channelHub: 1,
+    core: 2,
+  };
+  return orderByType[left] - orderByType[right];
+}
+
+export function toggleStringSelection(
+  currentValues: string[],
+  targetValue: string,
+): string[] {
   if (currentValues.includes(targetValue)) {
     return currentValues.filter((value) => value !== targetValue);
   }
-  return [...currentValues, targetValue].sort((left, right) => left.localeCompare(right));
+  return [...currentValues, targetValue].sort((left, right) =>
+    left.localeCompare(right),
+  );
 }
 
-function compareGraphNodeIdentity(left: GraphNodeInfo, right: GraphNodeInfo): number {
+function compareGraphNodeIdentity(
+  left: GraphNodeInfo,
+  right: GraphNodeInfo,
+): number {
   if (left.serial !== right.serial) {
     return left.serial - right.serial;
   }
@@ -300,55 +407,94 @@ function compareGraphNodeIdentity(left: GraphNodeInfo, right: GraphNodeInfo): nu
 }
 
 function buildAggregateNodeKey(
-  aggregateRole: GraphCanvasAggregateNode['aggregateRole'],
+  aggregateRole: GraphCanvasAggregateNode["aggregateRole"],
   signatureKey: string,
 ): string {
   return `aggregate:${aggregateRole}:${signatureKey}`;
 }
 
-function resolveCanvasNodeLaneType(node: GraphCanvasNodeInfo): GraphNodeTypeToken {
-  return node.kind === 'actual' ? node.graphNode.type : node.aggregateRole;
+function buildChannelHubNodeKey(channel: number): string {
+  return `channelHub:${Math.max(0, Math.trunc(channel))}`;
+}
+
+function resolveCanvasNodeLaneType(
+  node: GraphCanvasNodeInfo,
+): GraphCanvasLaneType {
+  if (node.kind === "actual") {
+    return node.graphNode.type;
+  }
+  if (node.kind === "channelHub") {
+    return "channelHub";
+  }
+  return node.aggregateRole;
 }
 
 function resolveCanvasNodeSortSerial(node: GraphCanvasNodeInfo): number {
-  if (node.kind === 'actual') {
+  if (node.kind === "actual") {
     return node.graphNode.serial;
+  }
+  if (node.kind === "channelHub") {
+    return node.channel;
   }
   return node.anchorSerial;
 }
 
-function compareCanvasNodeIdentity(left: GraphCanvasNodeInfo, right: GraphCanvasNodeInfo): number {
-  const serialOrder = resolveCanvasNodeSortSerial(left) - resolveCanvasNodeSortSerial(right);
+function compareCanvasNodeIdentity(
+  left: GraphCanvasNodeInfo,
+  right: GraphCanvasNodeInfo,
+): number {
+  const serialOrder =
+    resolveCanvasNodeSortSerial(left) - resolveCanvasNodeSortSerial(right);
   if (serialOrder !== 0) {
     return serialOrder;
   }
-  const laneOrder = compareNodeType(resolveCanvasNodeLaneType(left), resolveCanvasNodeLaneType(right));
+  const laneOrder = compareCanvasLaneType(
+    resolveCanvasNodeLaneType(left),
+    resolveCanvasNodeLaneType(right),
+  );
   if (laneOrder !== 0) {
     return laneOrder;
   }
   if (left.kind !== right.kind) {
-    return left.kind === 'aggregate' ? -1 : 1;
+    const orderByKind: Record<GraphCanvasNodeInfo["kind"], number> = {
+      actual: 0,
+      channelHub: 1,
+      aggregate: 2,
+    };
+    return orderByKind[left.kind] - orderByKind[right.kind];
   }
   return left.nodeKey.localeCompare(right.nodeKey);
 }
 
-export function buildEdgeCountByNodeKey(graphBundle: GraphSnapshotBundle): Map<string, number> {
+export function buildEdgeCountByNodeKey(
+  graphBundle: GraphSnapshotBundle,
+): Map<string, number> {
   const edgeCountByNodeKey = new Map<string, number>(
     graphBundle.nodes.map((node) => [node.nodeKey, 0]),
   );
   graphBundle.edges.forEach((edge) => {
-    edgeCountByNodeKey.set(edge.sourceNodeKey, (edgeCountByNodeKey.get(edge.sourceNodeKey) ?? 0) + 1);
-    edgeCountByNodeKey.set(edge.targetNodeKey, (edgeCountByNodeKey.get(edge.targetNodeKey) ?? 0) + 1);
+    edgeCountByNodeKey.set(
+      edge.sourceNodeKey,
+      (edgeCountByNodeKey.get(edge.sourceNodeKey) ?? 0) + 1,
+    );
+    edgeCountByNodeKey.set(
+      edge.targetNodeKey,
+      (edgeCountByNodeKey.get(edge.targetNodeKey) ?? 0) + 1,
+    );
   });
   return edgeCountByNodeKey;
 }
 
-function buildTargetSourcesByNodeKey(graphBundle: GraphSnapshotBundle): Map<string, GraphNodeInfo[]> {
-  const nodeByKey = new Map(graphBundle.nodes.map((node) => [node.nodeKey, node] as const));
+function buildTargetSourcesByNodeKey(
+  graphBundle: GraphSnapshotBundle,
+): Map<string, GraphNodeInfo[]> {
+  const nodeByKey = new Map(
+    graphBundle.nodes.map((node) => [node.nodeKey, node] as const),
+  );
   const sourcesByTargetNodeKey = new Map<string, GraphNodeInfo[]>();
   graphBundle.edges.forEach((edge) => {
     const sourceNode = nodeByKey.get(edge.sourceNodeKey);
-    if (sourceNode == null || sourceNode.type !== 'triggerSource') {
+    if (sourceNode == null || sourceNode.type !== "triggerSource") {
       return;
     }
     const currentSources = sourcesByTargetNodeKey.get(edge.targetNodeKey) ?? [];
@@ -364,12 +510,16 @@ function buildTargetSourcesByNodeKey(graphBundle: GraphSnapshotBundle): Map<stri
   return sourcesByTargetNodeKey;
 }
 
-function buildSourceTargetsByNodeKey(graphBundle: GraphSnapshotBundle): Map<string, GraphNodeInfo[]> {
-  const nodeByKey = new Map(graphBundle.nodes.map((node) => [node.nodeKey, node] as const));
+function buildSourceTargetsByNodeKey(
+  graphBundle: GraphSnapshotBundle,
+): Map<string, GraphNodeInfo[]> {
+  const nodeByKey = new Map(
+    graphBundle.nodes.map((node) => [node.nodeKey, node] as const),
+  );
   const targetsBySourceNodeKey = new Map<string, GraphNodeInfo[]>();
   graphBundle.edges.forEach((edge) => {
     const targetNode = nodeByKey.get(edge.targetNodeKey);
-    if (targetNode == null || targetNode.type !== 'core') {
+    if (targetNode == null || targetNode.type !== "core") {
       return;
     }
     const currentTargets = targetsBySourceNodeKey.get(edge.sourceNodeKey) ?? [];
@@ -385,14 +535,17 @@ function buildSourceTargetsByNodeKey(graphBundle: GraphSnapshotBundle): Map<stri
   return targetsBySourceNodeKey;
 }
 
-export function buildGraphCanvasView(
+function buildSerialGraphCanvasView(
   effectiveGraphBundle: GraphSnapshotBundle,
   forcedVisibleNodeKeys: Set<string>,
   expandedAggregateNodeKeys: Set<string>,
 ): GraphCanvasView {
-  const originalEdgeCountByNodeKey = buildEdgeCountByNodeKey(effectiveGraphBundle);
-  const targetSourcesByNodeKey = buildTargetSourcesByNodeKey(effectiveGraphBundle);
-  const sourceTargetsByNodeKey = buildSourceTargetsByNodeKey(effectiveGraphBundle);
+  const originalEdgeCountByNodeKey =
+    buildEdgeCountByNodeKey(effectiveGraphBundle);
+  const targetSourcesByNodeKey =
+    buildTargetSourcesByNodeKey(effectiveGraphBundle);
+  const sourceTargetsByNodeKey =
+    buildSourceTargetsByNodeKey(effectiveGraphBundle);
   const aggregateNodes: GraphCanvasAggregateNode[] = [];
   const sharedCoreGroupsBySignature = new Map<
     string,
@@ -402,14 +555,16 @@ export function buildGraphCanvasView(
     }
   >();
   effectiveGraphBundle.nodes
-    .filter((node) => node.type === 'core')
+    .filter((node) => node.type === "core")
     .sort(compareGraphNodeIdentity)
     .forEach((coreNode) => {
       const sourceNodes = targetSourcesByNodeKey.get(coreNode.nodeKey) ?? [];
       if (sourceNodes.length < SHARED_CORE_GROUP_MIN_SOURCE_COUNT) {
         return;
       }
-      const signatureKey = sourceNodes.map((sourceNode) => sourceNode.nodeKey).join('|');
+      const signatureKey = sourceNodes
+        .map((sourceNode) => sourceNode.nodeKey)
+        .join("|");
       const currentGroup = sharedCoreGroupsBySignature.get(signatureKey);
       if (currentGroup == null) {
         sharedCoreGroupsBySignature.set(signatureKey, {
@@ -429,13 +584,13 @@ export function buildGraphCanvasView(
     }
     const sourceNodes = [...group.sourceNodes].sort(compareGraphNodeIdentity);
     const coreNodes = [...group.coreNodes].sort(compareGraphNodeIdentity);
-    const aggregateNodeKey = buildAggregateNodeKey('core', signatureKey);
+    const aggregateNodeKey = buildAggregateNodeKey("core", signatureKey);
     const expanded =
       expandedAggregateNodeKeys.has(aggregateNodeKey) ||
       coreNodes.some((coreNode) => forcedVisibleNodeKeys.has(coreNode.nodeKey));
     const aggregateNode: GraphCanvasAggregateNode = {
-      kind: 'aggregate',
-      aggregateRole: 'core',
+      kind: "aggregate",
+      aggregateRole: "core",
       nodeKey: aggregateNodeKey,
       signatureKey,
       sourceNodeKeys: sourceNodes.map((node) => node.nodeKey),
@@ -451,7 +606,9 @@ export function buildGraphCanvasView(
       expanded,
     };
     aggregateNodes.push(aggregateNode);
-    aggregateNode.coreNodeKeys.forEach((nodeKey) => aggregatedCoreNodeKeys.add(nodeKey));
+    aggregateNode.coreNodeKeys.forEach((nodeKey) =>
+      aggregatedCoreNodeKeys.add(nodeKey),
+    );
     aggregateNode.sourceNodeKeys.forEach((sourceNodeKey) => {
       aggregateNode.coreNodeKeys.forEach((coreNodeKey) => {
         hiddenActualEdgeKeys.add(`${sourceNodeKey}->${coreNodeKey}`);
@@ -467,18 +624,25 @@ export function buildGraphCanvasView(
     }
   >();
   effectiveGraphBundle.nodes
-    .filter((node) => node.type === 'triggerSource')
+    .filter((node) => node.type === "triggerSource")
     .sort(compareGraphNodeIdentity)
     .forEach((sourceNode) => {
       const coreNodes = sourceTargetsByNodeKey.get(sourceNode.nodeKey) ?? [];
       if (coreNodes.length < SHARED_TRIGGER_SOURCE_GROUP_MIN_TARGET_COUNT) {
         return;
       }
-      if (coreNodes.some((coreNode) => aggregatedCoreNodeKeys.has(coreNode.nodeKey))) {
+      if (
+        coreNodes.some((coreNode) =>
+          aggregatedCoreNodeKeys.has(coreNode.nodeKey),
+        )
+      ) {
         return;
       }
-      const signatureKey = coreNodes.map((coreNode) => coreNode.nodeKey).join('|');
-      const currentGroup = sharedTriggerSourceGroupsBySignature.get(signatureKey);
+      const signatureKey = coreNodes
+        .map((coreNode) => coreNode.nodeKey)
+        .join("|");
+      const currentGroup =
+        sharedTriggerSourceGroupsBySignature.get(signatureKey);
       if (currentGroup == null) {
         sharedTriggerSourceGroupsBySignature.set(signatureKey, {
           sourceNodes: [sourceNode],
@@ -490,18 +654,25 @@ export function buildGraphCanvasView(
     });
 
   sharedTriggerSourceGroupsBySignature.forEach((group, signatureKey) => {
-    if (group.sourceNodes.length < SHARED_TRIGGER_SOURCE_GROUP_MIN_SOURCE_COUNT) {
+    if (
+      group.sourceNodes.length < SHARED_TRIGGER_SOURCE_GROUP_MIN_SOURCE_COUNT
+    ) {
       return;
     }
     const sourceNodes = [...group.sourceNodes].sort(compareGraphNodeIdentity);
     const coreNodes = [...group.coreNodes].sort(compareGraphNodeIdentity);
-    const aggregateNodeKey = buildAggregateNodeKey('triggerSource', signatureKey);
+    const aggregateNodeKey = buildAggregateNodeKey(
+      "triggerSource",
+      signatureKey,
+    );
     const expanded =
       expandedAggregateNodeKeys.has(aggregateNodeKey) ||
-      sourceNodes.some((sourceNode) => forcedVisibleNodeKeys.has(sourceNode.nodeKey));
+      sourceNodes.some((sourceNode) =>
+        forcedVisibleNodeKeys.has(sourceNode.nodeKey),
+      );
     const aggregateNode: GraphCanvasAggregateNode = {
-      kind: 'aggregate',
-      aggregateRole: 'triggerSource',
+      kind: "aggregate",
+      aggregateRole: "triggerSource",
       nodeKey: aggregateNodeKey,
       signatureKey,
       sourceNodeKeys: sourceNodes.map((node) => node.nodeKey),
@@ -562,7 +733,7 @@ export function buildGraphCanvasView(
     ...effectiveGraphBundle.nodes
       .filter((node) => phaseVisibleActualNodeKeys.has(node.nodeKey))
       .map((node) => ({
-        kind: 'actual' as const,
+        kind: "actual" as const,
         nodeKey: node.nodeKey,
         graphNode: node,
       })),
@@ -579,19 +750,19 @@ export function buildGraphCanvasView(
         edgeKey: edge.edgeKey,
         sourceNodeKey: edge.sourceNodeKey,
         targetNodeKey: edge.targetNodeKey,
-        kind: 'actual' as const,
-        diffState: 'base' as DraftEdgeDiffState,
+        kind: "actual" as const,
+        diffState: "base" as DraftEdgeDiffState,
       })),
   ];
   aggregateNodes.forEach((aggregateNode) => {
-    if (aggregateNode.aggregateRole === 'core') {
+    if (aggregateNode.aggregateRole === "core") {
       aggregateNode.connectedNodeKeys.forEach((sourceNodeKey) => {
         phaseCanvasEdges.push({
           edgeKey: `aggregate-edge:${sourceNodeKey}:${aggregateNode.nodeKey}`,
           sourceNodeKey,
           targetNodeKey: aggregateNode.nodeKey,
-          kind: 'aggregate',
-          diffState: 'base',
+          kind: "aggregate",
+          diffState: "base",
         });
       });
       return;
@@ -601,8 +772,8 @@ export function buildGraphCanvasView(
         edgeKey: `aggregate-edge:${aggregateNode.nodeKey}:${coreNodeKey}`,
         sourceNodeKey: aggregateNode.nodeKey,
         targetNodeKey: coreNodeKey,
-        kind: 'aggregate',
-        diffState: 'base',
+        kind: "aggregate",
+        diffState: "base",
       });
     });
   });
@@ -625,10 +796,12 @@ export function buildGraphCanvasView(
   const canvasNodes: GraphCanvasNodeInfo[] = [
     ...effectiveGraphBundle.nodes
       .filter(
-        (node) => visibleCanvasNodeKeys.has(node.nodeKey) || forcedVisibleNodeKeys.has(node.nodeKey),
+        (node) =>
+          visibleCanvasNodeKeys.has(node.nodeKey) ||
+          forcedVisibleNodeKeys.has(node.nodeKey),
       )
       .map((node) => ({
-        kind: 'actual' as const,
+        kind: "actual" as const,
         nodeKey: node.nodeKey,
         graphNode: node,
       })),
@@ -639,7 +812,7 @@ export function buildGraphCanvasView(
     ),
   ].sort(compareCanvasNodeIdentity);
   canvasNodes.forEach((node) => {
-    if (node.kind === 'actual') {
+    if (node.kind === "actual") {
       visibleActualNodeKeys.add(node.nodeKey);
     }
   });
@@ -647,11 +820,15 @@ export function buildGraphCanvasView(
   const canvasNodeKeySet = new Set(canvasNodes.map((node) => node.nodeKey));
   const canvasEdges: GraphCanvasEdgeInfo[] = phaseCanvasEdges.filter(
     (edge) =>
-      canvasNodeKeySet.has(edge.sourceNodeKey) && canvasNodeKeySet.has(edge.targetNodeKey),
+      canvasNodeKeySet.has(edge.sourceNodeKey) &&
+      canvasNodeKeySet.has(edge.targetNodeKey),
   );
   const layoutEdges = [...canvasEdges];
   aggregateNodes.forEach((aggregateNode) => {
-    if (!aggregateNode.expanded || !canvasNodeKeySet.has(aggregateNode.nodeKey)) {
+    if (
+      !aggregateNode.expanded ||
+      !canvasNodeKeySet.has(aggregateNode.nodeKey)
+    ) {
       return;
     }
     aggregateNode.memberNodeKeys.forEach((memberNodeKey) => {
@@ -662,13 +839,14 @@ export function buildGraphCanvasView(
         edgeKey: `aggregate-layout:${aggregateNode.nodeKey}:${memberNodeKey}`,
         sourceNodeKey: aggregateNode.nodeKey,
         targetNodeKey: memberNodeKey,
-        kind: 'aggregate',
-        diffState: 'base',
+        kind: "aggregate",
+        diffState: "base",
       });
     });
   });
 
   return {
+    displayMode: "serial",
     canvasNodes,
     canvasEdges,
     layoutEdges,
@@ -677,21 +855,144 @@ export function buildGraphCanvasView(
     isolatedTriggerSourceNodes: effectiveGraphBundle.nodes
       .filter(
         (node) =>
-          node.type === 'triggerSource' &&
+          node.type === "triggerSource" &&
           (originalEdgeCountByNodeKey.get(node.nodeKey) ?? 0) === 0,
       )
       .sort(compareGraphNodeIdentity),
     isolatedCoreNodes: effectiveGraphBundle.nodes
       .filter(
         (node) =>
-          node.type === 'core' &&
+          node.type === "core" &&
           (originalEdgeCountByNodeKey.get(node.nodeKey) ?? 0) === 0,
       )
       .sort(compareGraphNodeIdentity),
     aggregateNodes: canvasNodes.filter(
-      (node): node is GraphCanvasAggregateNode => node.kind === 'aggregate',
+      (node): node is GraphCanvasAggregateNode => node.kind === "aggregate",
     ),
+    channelHubNodes: [],
   };
+}
+
+function buildChannelGraphCanvasView(
+  effectiveGraphBundle: GraphSnapshotBundle,
+): GraphCanvasView {
+  const channelMemberNodes = effectiveGraphBundle.nodes
+    .filter((node) => node.connectionMode === "channel" && node.channel > 0)
+    .sort((left, right) => {
+      if (left.channel !== right.channel) {
+        return left.channel - right.channel;
+      }
+      return compareGraphNodeIdentity(left, right);
+    });
+  const channelGroups = new Map<
+    number,
+    {
+      triggerSources: GraphNodeInfo[];
+      cores: GraphNodeInfo[];
+    }
+  >();
+  channelMemberNodes.forEach((node) => {
+    const currentGroup = channelGroups.get(node.channel) ?? {
+      triggerSources: [],
+      cores: [],
+    };
+    if (node.type === "triggerSource") {
+      currentGroup.triggerSources.push(node);
+    } else {
+      currentGroup.cores.push(node);
+    }
+    channelGroups.set(node.channel, currentGroup);
+  });
+
+  const channelHubNodes: GraphCanvasChannelHubNode[] = Array.from(
+    channelGroups.entries(),
+  )
+    .sort(([leftChannel], [rightChannel]) => leftChannel - rightChannel)
+    .map(([channel, group]) => {
+      const sortedTriggerSources = [...group.triggerSources].sort(
+        compareGraphNodeIdentity,
+      );
+      const sortedCores = [...group.cores].sort(compareGraphNodeIdentity);
+      const memberNodeKeys = [
+        ...sortedTriggerSources.map((node) => node.nodeKey),
+        ...sortedCores.map((node) => node.nodeKey),
+      ];
+      return {
+        kind: "channelHub",
+        nodeKey: buildChannelHubNodeKey(channel),
+        channel,
+        sourceNodeKeys: sortedTriggerSources.map((node) => node.nodeKey),
+        sourceSerials: sortedTriggerSources.map((node) => node.serial),
+        coreNodeKeys: sortedCores.map((node) => node.nodeKey),
+        coreSerials: sortedCores.map((node) => node.serial),
+        memberNodeKeys,
+        memberCount: memberNodeKeys.length,
+      };
+    });
+
+  const actualCanvasNodes: GraphCanvasNodeInfo[] = channelMemberNodes.map(
+    (node) => ({
+      kind: "actual",
+      nodeKey: node.nodeKey,
+      graphNode: node,
+    }),
+  );
+  const canvasNodes: GraphCanvasNodeInfo[] = [
+    ...actualCanvasNodes,
+    ...channelHubNodes,
+  ].sort(compareCanvasNodeIdentity);
+  const canvasEdges: GraphCanvasEdgeInfo[] = [];
+  channelHubNodes.forEach((channelHubNode) => {
+    channelHubNode.sourceNodeKeys.forEach((sourceNodeKey) => {
+      canvasEdges.push({
+        edgeKey: `channel-edge:${sourceNodeKey}:${channelHubNode.nodeKey}`,
+        sourceNodeKey,
+        targetNodeKey: channelHubNode.nodeKey,
+        kind: "channel",
+        diffState: "base",
+      });
+    });
+    channelHubNode.coreNodeKeys.forEach((coreNodeKey) => {
+      canvasEdges.push({
+        edgeKey: `channel-edge:${channelHubNode.nodeKey}:${coreNodeKey}`,
+        sourceNodeKey: channelHubNode.nodeKey,
+        targetNodeKey: coreNodeKey,
+        kind: "channel",
+        diffState: "base",
+      });
+    });
+  });
+  const visibleActualNodeKeys = new Set(
+    actualCanvasNodes.map((node) => node.nodeKey),
+  );
+
+  return {
+    displayMode: "channel",
+    canvasNodes,
+    canvasEdges,
+    layoutEdges: [...canvasEdges],
+    hiddenActualEdgeKeys: new Set<string>(),
+    visibleActualNodeKeys,
+    isolatedTriggerSourceNodes: [],
+    isolatedCoreNodes: [],
+    aggregateNodes: [],
+    channelHubNodes,
+  };
+}
+
+export function buildGraphCanvasView(
+  effectiveGraphBundle: GraphSnapshotBundle,
+  forcedVisibleNodeKeys: Set<string>,
+  expandedAggregateNodeKeys: Set<string>,
+  displayMode: GraphDisplayMode,
+): GraphCanvasView {
+  return displayMode === "channel"
+    ? buildChannelGraphCanvasView(effectiveGraphBundle)
+    : buildSerialGraphCanvasView(
+        effectiveGraphBundle,
+        forcedVisibleNodeKeys,
+        expandedAggregateNodeKeys,
+      );
 }
 
 function buildCanvasAdjacency(
@@ -742,7 +1043,9 @@ function collectConnectedComponents(
       if (currentNode != null) {
         componentNodes.push(currentNode);
       }
-      const neighborNodeKeys = Array.from(adjacency.get(currentNodeKey) ?? []).sort();
+      const neighborNodeKeys = Array.from(
+        adjacency.get(currentNodeKey) ?? [],
+      ).sort();
       neighborNodeKeys.forEach((neighborNodeKey) => {
         if (visitedNodeKeys.has(neighborNodeKey)) {
           return;
@@ -800,10 +1103,14 @@ function hashLayoutKey(layoutKey: string): number {
   return hash >>> 0;
 }
 
-function resolveLaneJitter(nodeKey: string, columnIndex: number, rowIndex: number): XYPosition {
+function resolveLaneJitter(
+  nodeKey: string,
+  columnIndex: number,
+  rowIndex: number,
+): XYPosition {
   const hash = hashLayoutKey(`${nodeKey}:${columnIndex}:${rowIndex}`);
   const driftX = (hash % (LANE_JITTER_X * 2 + 1)) - LANE_JITTER_X;
-  const driftY = (((hash >>> 8) % (LANE_JITTER_Y * 2 + 1)) - LANE_JITTER_Y);
+  const driftY = ((hash >>> 8) % (LANE_JITTER_Y * 2 + 1)) - LANE_JITTER_Y;
   const columnStaggerY = columnIndex % 2 === 0 ? 0 : LANE_COLUMN_STAGGER_Y;
   const rowBiasY = rowIndex % 2 === 0 ? -4 : 6;
   return {
@@ -814,7 +1121,7 @@ function resolveLaneJitter(nodeKey: string, columnIndex: number, rowIndex: numbe
 
 function normalizeLayoutPositions(
   rawPositions: Map<string, XYPosition>,
-): Pick<GraphLayoutComponent, 'positions' | 'width' | 'height'> {
+): Pick<GraphLayoutComponent, "positions" | "width" | "height"> {
   if (rawPositions.size === 0) {
     return {
       width: 0,
@@ -844,7 +1151,10 @@ function normalizeLayoutPositions(
   };
 }
 
-function resolveComponentOffset(nodeKey: string, componentIndex: number): XYPosition {
+function resolveComponentOffset(
+  nodeKey: string,
+  componentIndex: number,
+): XYPosition {
   const hash = hashLayoutKey(`${nodeKey}:component:${componentIndex}`);
   return {
     x: (hash % 3) * COMPONENT_STAGGER_X,
@@ -906,8 +1216,10 @@ function resolveNodeAnchorStats(connectedOrders: number[]): {
   }
   return {
     averageOrder:
-      connectedOrders.reduce((totalOrder, currentOrder) => totalOrder + currentOrder, 0) /
-      connectedOrders.length,
+      connectedOrders.reduce(
+        (totalOrder, currentOrder) => totalOrder + currentOrder,
+        0,
+      ) / connectedOrders.length,
     minimumOrder: Math.min(...connectedOrders),
   };
 }
@@ -917,11 +1229,82 @@ function buildComponentLayout(
   componentEdges: GraphCanvasEdgeInfo[],
 ): GraphLayoutComponent {
   const hasExpandedAggregateNode = componentNodes.some(
-    (node) => node.kind === 'aggregate' && node.expanded,
+    (node) => node.kind === "aggregate" && node.expanded,
   );
+  const compareChannelNodeOrder = (
+    left: GraphCanvasNodeInfo,
+    right: GraphCanvasNodeInfo,
+  ): number => {
+    const leftChannel =
+      left.kind === "actual"
+        ? left.graphNode.channel
+        : left.kind === "channelHub"
+          ? left.channel
+          : 0;
+    const rightChannel =
+      right.kind === "actual"
+        ? right.graphNode.channel
+        : right.kind === "channelHub"
+          ? right.channel
+          : 0;
+    if (leftChannel !== rightChannel) {
+      return leftChannel - rightChannel;
+    }
+    return compareCanvasNodeIdentity(left, right);
+  };
   const triggerSourceNodes = componentNodes
-    .filter((node) => resolveCanvasNodeLaneType(node) === 'triggerSource')
+    .filter((node) => resolveCanvasNodeLaneType(node) === "triggerSource")
     .sort(compareCanvasNodeIdentity);
+  const channelHubNodes = componentNodes
+    .filter(
+      (node): node is GraphCanvasChannelHubNode => node.kind === "channelHub",
+    )
+    .sort(compareChannelNodeOrder);
+  if (channelHubNodes.length > 0) {
+    const coreNodes = componentNodes
+      .filter((node) => resolveCanvasNodeLaneType(node) === "core")
+      .sort(compareChannelNodeOrder);
+    const laneLayouts = [
+      {
+        layout: buildLaneLayout(triggerSourceNodes, false),
+        nodes: triggerSourceNodes,
+      },
+      {
+        layout: buildLaneLayout(channelHubNodes, false),
+        nodes: channelHubNodes,
+      },
+      {
+        layout: buildLaneLayout(coreNodes, false),
+        nodes: coreNodes,
+      },
+    ].filter((lane) => lane.nodes.length > 0);
+    const laneHeight = Math.max(
+      ...laneLayouts.map((lane) => lane.layout.height),
+      GRAPH_NODE_HEIGHT,
+    );
+    const positions = new Map<string, XYPosition>();
+    let currentX = 0;
+    laneLayouts.forEach((lane, laneIndex) => {
+      const offsetY =
+        lane.layout.height === 0 ? 0 : (laneHeight - lane.layout.height) / 2;
+      lane.layout.positions.forEach((position, nodeKey) => {
+        positions.set(nodeKey, {
+          x: currentX + position.x,
+          y: offsetY + position.y,
+        });
+      });
+      currentX += lane.layout.width;
+      if (laneIndex < laneLayouts.length - 1) {
+        currentX += COMPONENT_LAYER_GAP_X;
+      }
+    });
+    return {
+      width: Math.max(currentX, GRAPH_NODE_WIDTH),
+      height: laneHeight,
+      positions,
+      anchorNode: componentNodes[0] ?? null,
+    };
+  }
   const sourceOrderByNodeKey = new Map(
     triggerSourceNodes.map((node, index) => [node.nodeKey, index] as const),
   );
@@ -929,17 +1312,25 @@ function buildComponentLayout(
   componentEdges.forEach((edge) => {
     const directSourceOrder = sourceOrderByNodeKey.get(edge.sourceNodeKey);
     const inheritedSourceOrders =
-      directSourceOrder == null ? connectedSourceOrdersByNodeKey.get(edge.sourceNodeKey) ?? [] : [];
+      directSourceOrder == null
+        ? (connectedSourceOrdersByNodeKey.get(edge.sourceNodeKey) ?? [])
+        : [];
     const nextSourceOrders =
-      directSourceOrder == null ? inheritedSourceOrders : [directSourceOrder, ...inheritedSourceOrders];
+      directSourceOrder == null
+        ? inheritedSourceOrders
+        : [directSourceOrder, ...inheritedSourceOrders];
     if (nextSourceOrders.length === 0) {
       return;
     }
-    const currentOrders = connectedSourceOrdersByNodeKey.get(edge.targetNodeKey) ?? [];
-    connectedSourceOrdersByNodeKey.set(edge.targetNodeKey, [...currentOrders, ...nextSourceOrders]);
+    const currentOrders =
+      connectedSourceOrdersByNodeKey.get(edge.targetNodeKey) ?? [];
+    connectedSourceOrdersByNodeKey.set(edge.targetNodeKey, [
+      ...currentOrders,
+      ...nextSourceOrders,
+    ]);
   });
   const coreNodes = componentNodes
-    .filter((node) => resolveCanvasNodeLaneType(node) === 'core')
+    .filter((node) => resolveCanvasNodeLaneType(node) === "core")
     .sort((left, right) => {
       const leftAnchorStats = resolveNodeAnchorStats(
         connectedSourceOrdersByNodeKey.get(left.nodeKey) ?? [],
@@ -957,12 +1348,21 @@ function buildComponentLayout(
     });
   const triggerSourceLaneLayout = buildLaneLayout(triggerSourceNodes);
   const coreLaneLayout = buildLaneLayout(coreNodes, !hasExpandedAggregateNode);
-  const laneHeight = Math.max(triggerSourceLaneLayout.height, coreLaneLayout.height, GRAPH_NODE_HEIGHT);
+  const laneHeight = Math.max(
+    triggerSourceLaneLayout.height,
+    coreLaneLayout.height,
+    GRAPH_NODE_HEIGHT,
+  );
   const triggerSourceOffsetY =
-    triggerSourceLaneLayout.height === 0 ? 0 : (laneHeight - triggerSourceLaneLayout.height) / 2;
-  const coreOffsetY = coreLaneLayout.height === 0 ? 0 : (laneHeight - coreLaneLayout.height) / 2;
+    triggerSourceLaneLayout.height === 0
+      ? 0
+      : (laneHeight - triggerSourceLaneLayout.height) / 2;
+  const coreOffsetY =
+    coreLaneLayout.height === 0 ? 0 : (laneHeight - coreLaneLayout.height) / 2;
   const hasDualLayer = triggerSourceNodes.length > 0 && coreNodes.length > 0;
-  const coreX = hasDualLayer ? triggerSourceLaneLayout.width + COMPONENT_LAYER_GAP_X : 0;
+  const coreX = hasDualLayer
+    ? triggerSourceLaneLayout.width + COMPONENT_LAYER_GAP_X
+    : 0;
   const positions = new Map<string, XYPosition>();
 
   triggerSourceLaneLayout.positions.forEach((position, nodeKey) => {
@@ -980,8 +1380,14 @@ function buildComponentLayout(
 
   return {
     width: hasDualLayer
-      ? triggerSourceLaneLayout.width + COMPONENT_LAYER_GAP_X + coreLaneLayout.width
-      : Math.max(triggerSourceLaneLayout.width, coreLaneLayout.width, GRAPH_NODE_WIDTH),
+      ? triggerSourceLaneLayout.width +
+        COMPONENT_LAYER_GAP_X +
+        coreLaneLayout.width
+      : Math.max(
+          triggerSourceLaneLayout.width,
+          coreLaneLayout.width,
+          GRAPH_NODE_WIDTH,
+        ),
     height: laneHeight,
     positions,
     anchorNode: componentNodes[0] ?? null,
@@ -1002,10 +1408,13 @@ export function buildAutoLayoutPositions(
 
   collectConnectedComponents(canvasNodes, layoutEdges)
     .map((componentNodes) => {
-      const componentNodeKeys = new Set(componentNodes.map((node) => node.nodeKey));
+      const componentNodeKeys = new Set(
+        componentNodes.map((node) => node.nodeKey),
+      );
       const componentEdges = layoutEdges.filter(
         (edge) =>
-          componentNodeKeys.has(edge.sourceNodeKey) && componentNodeKeys.has(edge.targetNodeKey),
+          componentNodeKeys.has(edge.sourceNodeKey) &&
+          componentNodeKeys.has(edge.targetNodeKey),
       );
       return buildComponentLayout(componentNodes, componentEdges);
     })
@@ -1035,7 +1444,10 @@ export function buildAutoLayoutPositions(
         });
       });
       currentX += component.width + componentOffset.x + COMPONENT_BLOCK_GAP_X;
-      currentRowHeight = Math.max(currentRowHeight, component.height + componentOffset.y);
+      currentRowHeight = Math.max(
+        currentRowHeight,
+        component.height + componentOffset.y,
+      );
     });
 
   return positionByNodeKey;
@@ -1056,39 +1468,47 @@ export function buildGraphFlowNodes(
     const nodeKey = canvasNode.nodeKey;
     return {
       id: nodeKey,
-      position:
-        positionByNodeKey.get(nodeKey) ?? {
-          x: AUTO_LAYOUT_START_X,
-          y: AUTO_LAYOUT_START_Y,
-        },
+      position: positionByNodeKey.get(nodeKey) ?? {
+        x: AUTO_LAYOUT_START_X,
+        y: AUTO_LAYOUT_START_Y,
+      },
       data: {
         label:
-          canvasNode.kind === 'aggregate'
+          canvasNode.kind === "aggregate"
             ? buildAggregateNodeLabel(canvasNode)
-            : buildNodeLabel(canvasNode.graphNode),
+            : canvasNode.kind === "channelHub"
+              ? buildChannelHubNodeLabel(canvasNode)
+              : buildNodeLabel(canvasNode.graphNode),
         canvasNodeKey: nodeKey,
       },
       draggable: true,
-      selectable: canvasNode.kind === 'actual' && editMode !== 'view',
+      selectable: canvasNode.kind === "actual" && editMode !== "view",
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       style:
-        canvasNode.kind === 'aggregate'
+        canvasNode.kind === "aggregate"
           ? buildAggregateNodeStyle(
               canvasNode,
               selectedNodeKey,
               hasSearch,
               matchedNodeKeys,
             )
-          : buildNodeStyle(
-              canvasNode.graphNode,
-              selectedNodeKey,
-              hasSearch,
-              matchedNodeKeys,
-              selectedEditSourceNodeKeys,
-              selectedEditTargetNodeKeys,
-              draftChangedNodeKeys,
-            ),
+          : canvasNode.kind === "channelHub"
+            ? buildChannelHubNodeStyle(
+                canvasNode,
+                selectedNodeKey,
+                hasSearch,
+                matchedNodeKeys,
+              )
+            : buildNodeStyle(
+                canvasNode.graphNode,
+                selectedNodeKey,
+                hasSearch,
+                matchedNodeKeys,
+                selectedEditSourceNodeKeys,
+                selectedEditTargetNodeKeys,
+                draftChangedNodeKeys,
+              ),
     };
   });
 }
@@ -1108,37 +1528,42 @@ export function buildEdges(
       target: edge.targetNodeKey,
       animated: false,
     };
-    if (edge.kind === 'aggregate') {
+    if (edge.kind === "aggregate") {
       return buildAggregateEdgeStyle(hasSearch, matchedNodeKeys, baseEdge);
+    }
+    if (edge.kind === "channel") {
+      return buildChannelEdgeStyle(hasSearch, matchedNodeKeys, baseEdge);
     }
     return buildEdgeStyle(
       hasSearch,
       matchedNodeKeys,
       baseEdge,
-      draftDiff.addedEdgeKeys.has(edge.edgeKey) ? 'added' : 'base',
+      draftDiff.addedEdgeKeys.has(edge.edgeKey) ? "added" : "base",
     );
   });
-  draftDiff.removedEdges
-    .filter(
-      (edge) =>
-        !graphCanvasView.hiddenActualEdgeKeys.has(edge.edgeKey) &&
-        graphCanvasView.visibleActualNodeKeys.has(edge.sourceNodeKey) &&
-        graphCanvasView.visibleActualNodeKeys.has(edge.targetNodeKey),
-    )
-    .forEach((edge) => {
-      edges.push(
-        buildEdgeStyle(
-          hasSearch,
-          matchedNodeKeys,
-          {
-            id: `removed:${edge.edgeKey}`,
-            source: edge.sourceNodeKey,
-            target: edge.targetNodeKey,
-            animated: false,
-          },
-          'removed',
-        ),
-      );
-    });
+  if (graphCanvasView.displayMode === "serial") {
+    draftDiff.removedEdges
+      .filter(
+        (edge) =>
+          !graphCanvasView.hiddenActualEdgeKeys.has(edge.edgeKey) &&
+          graphCanvasView.visibleActualNodeKeys.has(edge.sourceNodeKey) &&
+          graphCanvasView.visibleActualNodeKeys.has(edge.targetNodeKey),
+      )
+      .forEach((edge) => {
+        edges.push(
+          buildEdgeStyle(
+            hasSearch,
+            matchedNodeKeys,
+            {
+              id: `removed:${edge.edgeKey}`,
+              source: edge.sourceNodeKey,
+              target: edge.targetNodeKey,
+              animated: false,
+            },
+            "removed",
+          ),
+        );
+      });
+  }
   return edges;
 }
