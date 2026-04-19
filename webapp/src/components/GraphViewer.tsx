@@ -135,6 +135,29 @@ function resolveCurrentTargetSerials(
     .sort((left, right) => left - right);
 }
 
+/**
+ * 只提取会影响自动布局拓扑的稳定结构签名。
+ * <p>
+ * 这里刻意忽略选中态、搜索高亮和文案变化，只关注：
+ * 1. 当前进入画布的节点集合；
+ * 2. 布局时参与排布的边集合。
+ * </p>
+ */
+function buildCanvasStructureSignature(
+  canvasNodes: GraphCanvasNodeInfo[],
+  layoutEdges: { edgeKey: string }[],
+): string {
+  const nodeTokens = canvasNodes
+    .map((canvasNode) =>
+      canvasNode.kind === "aggregate"
+        ? `${canvasNode.nodeKey}:${canvasNode.expanded ? "1" : "0"}`
+        : canvasNode.nodeKey,
+    )
+    .sort();
+  const edgeTokens = layoutEdges.map((edge) => edge.edgeKey).sort();
+  return `${nodeTokens.join("|")}::${edgeTokens.join("|")}`;
+}
+
 export default function GraphViewer({
   graphBundle,
   graphFileName,
@@ -215,6 +238,7 @@ export default function GraphViewer({
   const suppressAutoViewportFitRef = useRef(false);
   const releaseAutoViewportFitFrameRef = useRef<number | null>(null);
   const previewRequestSequenceRef = useRef(0);
+  const previousCanvasStructureSignatureRef = useRef("");
 
   const draftFileName = useMemo(
     () => buildDraftFileName(graphFileName, graphBundle.snapshotId),
@@ -414,6 +438,14 @@ export default function GraphViewer({
       expandedAggregateNodeKeySet,
       forcedVisibleNodeKeys,
     ],
+  );
+  const canvasStructureSignature = useMemo(
+    () =>
+      buildCanvasStructureSignature(
+        graphCanvasView.canvasNodes,
+        graphCanvasView.layoutEdges,
+      ),
+    [graphCanvasView.canvasNodes, graphCanvasView.layoutEdges],
   );
   /**
    * 草稿变更只提升为画布节点高亮，不再参与聚合块自动展开判定。
@@ -688,6 +720,7 @@ export default function GraphViewer({
     setAggregateOutlineNodes([]);
     aggregateOutlineSuspendDepthRef.current = 0;
     setAggregateOutlineSuspended(false);
+    previousCanvasStructureSignatureRef.current = "";
     setBaseGraphBundle(graphBundle);
     setGraphDraft(createInitialGraphDraft(graphBundle));
     loadDraft(draftFileName)
@@ -817,7 +850,12 @@ export default function GraphViewer({
   ]);
 
   useEffect(() => {
-    const shouldResetPositions = pendingStructureLayoutReset;
+    const structureChanged =
+      previousCanvasStructureSignatureRef.current.length > 0 &&
+      previousCanvasStructureSignatureRef.current !== canvasStructureSignature;
+    const shouldResetPositions =
+      pendingStructureLayoutReset || structureChanged;
+    previousCanvasStructureSignatureRef.current = canvasStructureSignature;
     setNodes((currentNodes) => {
       const existingPositionByNodeKey = new Map(
         shouldResetPositions
@@ -854,11 +892,14 @@ export default function GraphViewer({
       ),
     );
     if (shouldResetPositions) {
-      setPendingStructureLayoutReset(false);
+      if (pendingStructureLayoutReset) {
+        setPendingStructureLayoutReset(false);
+      }
     }
   }, [
     autoLayoutPositions,
     baseGraphBundle,
+    canvasStructureSignature,
     draftDiff,
     editMode,
     effectiveGraphBundle,
