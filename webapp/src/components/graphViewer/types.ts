@@ -43,7 +43,7 @@ export type GraphEditMode = "view" | "add" | "remove" | "replace";
 export type GraphDisplayMode = "serial" | "channel";
 export type GraphDisplayContentMode = "topology";
 export type GraphSearchTypeFilter = "all" | GraphNodeTypeToken;
-export type GraphSidebarPanel = "details" | "isolated" | "batch";
+export type GraphSidebarPanel = "details" | "isolated" | "crossMode" | "batch";
 export type DraftEdgeDiffState = "base" | "added" | "removed";
 
 export type GraphCanvasActualNode = {

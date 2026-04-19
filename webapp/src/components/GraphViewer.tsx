@@ -98,6 +98,70 @@ function formatCompactGraphNodeDisplayText(node: GraphNodeInfo): string {
   return normalizedAlias ? `#${node.serial} (${normalizedAlias})` : `#${node.serial}`;
 }
 
+/**
+ * 将节点序号集合做去重和升序合并，避免跨模式应用后重复写入当前编辑上下文。
+ */
+function mergeUniqueSortedNumbers(
+  currentValues: number[],
+  nextValues: number[],
+): number[] {
+  return Array.from(new Set([...currentValues, ...nextValues])).sort(
+    (left, right) => left - right,
+  );
+}
+
+/**
+ * 字符串节点键统一按字典序去重排序，便于保持草稿态与 UI 选区稳定。
+ */
+function mergeUniqueSortedStrings(
+  currentValues: string[],
+  nextValues: string[],
+): string[] {
+  return Array.from(new Set([...currentValues, ...nextValues])).sort(
+    (left, right) => left.localeCompare(right),
+  );
+}
+
+/**
+ * 选区数组统一按稳定顺序比较，避免仅引用变化触发无意义回流。
+ */
+function sameStringArray(left: string[], right: string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+/**
+ * 自动聚焦统一遵循“哪一类节点更多就优先看哪一类”的规则；
+ * 若当前选中节点已属于优先集合，则继续沿用它，减少视角抖动。
+ */
+function resolveContextFocusNodeKey(
+  candidateNodes: GraphNodeInfo[],
+  preferredNodeKey: string,
+): string {
+  if (candidateNodes.length === 0) {
+    return preferredNodeKey;
+  }
+  const triggerSourceNodes = candidateNodes.filter(
+    (node) => node.type === "triggerSource",
+  );
+  const coreNodes = candidateNodes.filter((node) => node.type === "core");
+  const preferredNodes =
+    triggerSourceNodes.length === coreNodes.length
+      ? candidateNodes
+      : triggerSourceNodes.length > coreNodes.length
+        ? triggerSourceNodes
+        : coreNodes;
+  if (
+    preferredNodeKey &&
+    preferredNodes.some((node) => node.nodeKey === preferredNodeKey)
+  ) {
+    return preferredNodeKey;
+  }
+  return preferredNodes[0]?.nodeKey ?? preferredNodeKey;
+}
+
 function resolveDefaultSelectedNodeKey(
   canvasNodes: GraphCanvasNodeInfo[],
   displayMode: GraphDisplayMode,
@@ -192,6 +256,9 @@ export default function GraphViewer({
   >([]);
   const [selectedEditChannelNodeKeys, setSelectedEditChannelNodeKeys] =
     useState<string[]>([]);
+  const [selectedCrossModeNodeKeys, setSelectedCrossModeNodeKeys] = useState<
+    string[]
+  >([]);
   const [channelBatchDraftValue, setChannelBatchDraftValue] = useState("0");
   const [aliasDraftValue, setAliasDraftValue] = useState("");
   const [undoDraftHistory, setUndoDraftHistory] = useState<GraphDraft[]>([]);
@@ -245,6 +312,7 @@ export default function GraphViewer({
   const activeContentMode =
     displayMode === "serial" ? serialContentMode : channelContentMode;
   const canEditCurrentView = activeContentMode === "topology";
+  const selectionEnabled = canEditCurrentView && editMode !== "view";
   const nodeByKey = useMemo(
     () =>
       new Map(effectiveGraphBundle.nodes.map((node) => [node.nodeKey, node])),
@@ -341,42 +409,80 @@ export default function GraphViewer({
         .filter((node): node is GraphNodeInfo => node != null),
     [nodeByKey, selectedEditChannelNodeKeys],
   );
+  const storedEditContextNodes = useMemo(
+    () =>
+      displayMode === "channel"
+        ? selectedEditChannelNodes
+        : [...selectedEditSourceNodes, ...selectedEditTargetNodes],
+    [
+      displayMode,
+      selectedEditChannelNodes,
+      selectedEditSourceNodes,
+      selectedEditTargetNodes,
+    ],
+  );
+  const storedEditContextFocusNodeKey = useMemo(
+    () => resolveContextFocusNodeKey(storedEditContextNodes, selectedNodeKey),
+    [selectedNodeKey, storedEditContextNodes],
+  );
+  const activeEditSourceNodeKeys = useMemo(
+    () => (selectionEnabled ? selectedEditSourceNodeKeys : new Set<string>()),
+    [selectionEnabled, selectedEditSourceNodeKeys],
+  );
+  const activeEditTargetNodeKeys = useMemo(
+    () => (selectionEnabled ? selectedEditTargetNodeKeys : new Set<string>()),
+    [selectionEnabled, selectedEditTargetNodeKeys],
+  );
+  const storedEditSelectionNodeKeys = useMemo(() => {
+    const nextNodeKeySet = new Set<string>();
+    selectedEditSourceNodeKeys.forEach((nodeKey) => nextNodeKeySet.add(nodeKey));
+    selectedEditTargetNodeKeys.forEach((nodeKey) => nextNodeKeySet.add(nodeKey));
+    return [...nextNodeKeySet].sort((left, right) => left.localeCompare(right));
+  }, [selectedEditSourceNodeKeys, selectedEditTargetNodeKeys]);
+  const crossModeCandidateNodes = useMemo(
+    () =>
+      effectiveGraphBundle.nodes
+        .filter((node) =>
+          displayMode === "serial"
+            ? node.connectionMode === "channel" && node.channel > 0
+            : node.connectionMode === "serial",
+        )
+        .sort((left, right) => {
+          if (left.type !== right.type) {
+            return left.type.localeCompare(right.type);
+          }
+          return left.serial - right.serial;
+        }),
+    [displayMode, effectiveGraphBundle.nodes],
+  );
+  const crossModeCandidateNodeKeySet = useMemo(
+    () => new Set(crossModeCandidateNodes.map((node) => node.nodeKey)),
+    [crossModeCandidateNodes],
+  );
+  const crossModeTriggerSourceNodes = useMemo(
+    () =>
+      crossModeCandidateNodes.filter((node) => node.type === "triggerSource"),
+    [crossModeCandidateNodes],
+  );
+  const crossModeCoreNodes = useMemo(
+    () => crossModeCandidateNodes.filter((node) => node.type === "core"),
+    [crossModeCandidateNodes],
+  );
+  const selectedCrossModeNodes = useMemo(
+    () =>
+      selectedCrossModeNodeKeys
+        .map((nodeKey) => nodeByKey.get(nodeKey) ?? null)
+        .filter((node): node is GraphNodeInfo => node != null),
+    [nodeByKey, selectedCrossModeNodeKeys],
+  );
   /**
    * 批量应用后的上下文聚焦以“当前选区里哪类节点更多”为准；
    * 若数量相同，则退回当前选中节点或稳定顺序下的首个节点。
    */
-  const batchEditFocusNodeKey = useMemo(() => {
-    const candidateNodes =
-      displayMode === "channel"
-        ? selectedEditChannelNodes
-        : [...selectedEditSourceNodes, ...selectedEditTargetNodes];
-    if (candidateNodes.length === 0) {
-      return selectedNodeKey;
-    }
-    const triggerSourceNodes = candidateNodes.filter(
-      (node) => node.type === "triggerSource",
-    );
-    const coreNodes = candidateNodes.filter((node) => node.type === "core");
-    const preferredNodes =
-      triggerSourceNodes.length === coreNodes.length
-        ? candidateNodes
-        : triggerSourceNodes.length > coreNodes.length
-          ? triggerSourceNodes
-          : coreNodes;
-    if (
-      selectedNodeKey &&
-      preferredNodes.some((node) => node.nodeKey === selectedNodeKey)
-    ) {
-      return selectedNodeKey;
-    }
-    return preferredNodes[0]?.nodeKey ?? selectedNodeKey;
-  }, [
-    displayMode,
-    selectedEditChannelNodes,
-    selectedEditSourceNodes,
-    selectedEditTargetNodes,
-    selectedNodeKey,
-  ]);
+  const batchEditFocusNodeKey = useMemo(
+    () => resolveContextFocusNodeKey(storedEditContextNodes, selectedNodeKey),
+    [selectedNodeKey, storedEditContextNodes],
+  );
   const selectedNodeHasNonPinnedVisibilityReason = useMemo(() => {
     if (!selectedNodeKey || !nodeByKey.has(selectedNodeKey)) {
       return false;
@@ -401,14 +507,14 @@ export default function GraphViewer({
     const nextKeys = new Set<string>();
     pinnedIsolatedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     matchedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
-    selectedEditSourceNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
-    selectedEditTargetNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    activeEditSourceNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    activeEditTargetNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     return nextKeys;
   }, [
+    activeEditSourceNodeKeys,
+    activeEditTargetNodeKeys,
     matchedNodeKeys,
     pinnedIsolatedNodeKeys,
-    selectedEditSourceNodeKeys,
-    selectedEditTargetNodeKeys,
   ]);
   const forcedVisibleNodeKeys = useMemo(() => {
     const nextKeys = new Set(aggregateAutoExpandNodeKeys);
@@ -623,10 +729,12 @@ export default function GraphViewer({
         ? [
             ["details", "详情"],
             ["isolated", "孤立节点池"],
+            ["crossMode", "另一模式节点池"],
             ["batch", "批量编辑"],
           ]
         : [
             ["details", "详情"],
+            ["crossMode", "另一模式节点池"],
             ["batch", "批量编辑"],
           ],
     [displayMode],
@@ -646,6 +754,11 @@ export default function GraphViewer({
           editMode !== "view" &&
           selectedEditSourceSerials.length > 0 &&
           selectedEditTargetSerials.length > 0;
+  const canApplyCrossModeDraft =
+    selectedCrossModeNodeKeys.length > 0 &&
+    (displayMode === "serial"
+      ? true
+      : parsedChannelBatchValue != null && parsedChannelBatchValue > 0);
   const savePreview = savePreviewResponse?.preview ?? null;
   const previewBlocked =
     savePreviewPhase === "error" ||
@@ -698,6 +811,14 @@ export default function GraphViewer({
     : "当前内容模式不接入网页保存编辑。";
   const graphStaticHint =
     "鼠标滚轮缩放，拖动画布平移，拖拽节点只影响本地布局；双击节点会聚焦到该节点。搜索条件会在回车或点击“应用搜索”后刷新画布。";
+  const crossModePoolCaption =
+    displayMode === "serial"
+      ? "这里列出当前仍处于频道模式的节点。先选择要迁回序号模式的节点，点击“应用到草稿”后，它们才会回到当前序号模式并可继续编辑。"
+      : "这里列出当前仍处于序号模式的节点。先选择要迁入当前频道模式的节点，点击“应用到草稿”后，它们才会并入当前频道编辑上下文。";
+  const crossModeContinueHint =
+    displayMode === "serial"
+      ? "迁回 serial 只表示回到显式边模式，不会自动生成真实 triggerSource -> core 连接；应用后请在当前序号模式下继续使用 add/remove/replace 编辑真实边。"
+      : "频道模式同样需要先应用到草稿，再继续当前频道模式下的覆盖编辑。";
   const canvasSectionTag =
     displayMode === "serial" ? "Serial View" : "Channel View";
   const canvasTitle =
@@ -705,11 +826,32 @@ export default function GraphViewer({
   const graphModeLabel = displayMode === "serial" ? "序号模式" : "频道模式";
   const activeContentLabel =
     activeContentMode === "topology" ? "拓扑" : activeContentMode;
-  const selectionEnabled = canEditCurrentView && editMode !== "view";
   const availableEditModes =
     displayMode === "serial"
       ? (["view", "add", "remove", "replace"] as GraphEditMode[])
       : (["view", "replace"] as GraphEditMode[]);
+  const visibleCanvasNodeKeySet = useMemo(
+    () => new Set(nodes.map((node) => String(node.id))),
+    [nodes],
+  );
+  const desiredCanvasSelectionNodeKeys = useMemo(() => {
+    if (!selectionEnabled) {
+      return [];
+    }
+    const nextStoredNodeKeys =
+      displayMode === "channel"
+        ? selectedEditChannelNodeKeys
+        : storedEditSelectionNodeKeys;
+    return nextStoredNodeKeys.filter((nodeKey) =>
+      visibleCanvasNodeKeySet.has(nodeKey),
+    );
+  }, [
+    displayMode,
+    selectionEnabled,
+    selectedEditChannelNodeKeys,
+    storedEditSelectionNodeKeys,
+    visibleCanvasNodeKeySet,
+  ]);
 
   useEffect(() => {
     let disposed = false;
@@ -728,6 +870,7 @@ export default function GraphViewer({
     setSelectedEditSourceSerials([]);
     setSelectedEditTargetSerials([]);
     setSelectedEditChannelNodeKeys([]);
+    setSelectedCrossModeNodeKeys([]);
     setChannelBatchDraftValue("0");
     setAliasDraftValue("");
     setUndoDraftHistory([]);
@@ -785,6 +928,12 @@ export default function GraphViewer({
     }
     setActiveSidebarPanel("details");
   }, [activeSidebarPanel, availableSidebarPanels]);
+
+  useEffect(() => {
+    setSelectedCrossModeNodeKeys((currentValues) =>
+      currentValues.filter((nodeKey) => crossModeCandidateNodeKeySet.has(nodeKey)),
+    );
+  }, [crossModeCandidateNodeKeySet]);
 
   useEffect(() => {
     if (!canEditSelectedAlias || !selectedNode) {
@@ -890,8 +1039,8 @@ export default function GraphViewer({
         selectedNodeKey,
         hasSearch,
         matchedNodeKeys,
-        selectedEditSourceNodeKeys,
-        selectedEditTargetNodeKeys,
+        activeEditSourceNodeKeys,
+        activeEditTargetNodeKeys,
         draftChangedCanvasNodeKeys,
       ).map((node) => ({
         ...node,
@@ -928,11 +1077,21 @@ export default function GraphViewer({
     pendingStructureLayoutReset,
     selectedNodeKey,
     draftChangedCanvasNodeKeys,
-    selectedEditSourceNodeKeys,
-    selectedEditTargetNodeKeys,
+    activeEditSourceNodeKeys,
+    activeEditTargetNodeKeys,
     setEdges,
     setNodes,
   ]);
+
+  useEffect(() => {
+    const currentSelectedNodeKeys =
+      collectSelectableActualNodeKeysFromCanvasNodes(nodes);
+    if (sameStringArray(currentSelectedNodeKeys, desiredCanvasSelectionNodeKeys)) {
+      return;
+    }
+    temporarilySuspendCanvasSelectionSync();
+    applyCanvasSelectedNodeKeys(desiredCanvasSelectionNodeKeys);
+  }, [desiredCanvasSelectionNodeKeys, nodes]);
 
   useEffect(() => {
     if (
@@ -1324,17 +1483,22 @@ export default function GraphViewer({
     const selectedNodeKeySet = new Set(
       resolveSelectableActualNodeKeys(nodeKeys),
     );
-    setNodes((currentNodes) =>
-      currentNodes.map((node) => {
+    setNodes((currentNodes) => {
+      let changed = false;
+      const nextNodes = currentNodes.map((node) => {
         const nextSelected = selectedNodeKeySet.has(String(node.id));
+        if (Boolean(node.selected) !== nextSelected) {
+          changed = true;
+        }
         return Boolean(node.selected) === nextSelected
           ? node
           : {
               ...node,
               selected: nextSelected,
             };
-      }),
-    );
+      });
+      return changed ? nextNodes : currentNodes;
+    });
   }
 
   /**
@@ -1557,8 +1721,8 @@ export default function GraphViewer({
         selectedNodeKey,
         hasSearch,
         matchedNodeKeys,
-        selectedEditSourceNodeKeys,
-        selectedEditTargetNodeKeys,
+        activeEditSourceNodeKeys,
+        activeEditTargetNodeKeys,
         draftChangedCanvasNodeKeys,
       ).map((node) => ({
         ...node,
@@ -1577,6 +1741,10 @@ export default function GraphViewer({
     setSelectedEditTargetSerials([]);
     setSelectedEditChannelNodeKeys([]);
     applyCanvasSelectedNodeKeys([]);
+  }
+
+  function resetCrossModeSelectionState() {
+    setSelectedCrossModeNodeKeys([]);
   }
 
   function handleDisplayModeChange(nextDisplayMode: GraphDisplayMode) {
@@ -1598,6 +1766,7 @@ export default function GraphViewer({
       setEditMode("view");
     }
     resetBatchSelectionState();
+    resetCrossModeSelectionState();
   }
 
   function handleEditModeChange(nextEditMode: GraphEditMode) {
@@ -1620,10 +1789,28 @@ export default function GraphViewer({
       return;
     }
     setActiveSidebarPanel("batch");
+    if (storedEditContextNodes.length > 0) {
+      requestStructureLayoutRefresh({
+        fitViewport: false,
+        focusNodeKey: storedEditContextFocusNodeKey,
+      });
+    }
   }
 
   function handleClearBatchSelection() {
     resetBatchSelectionState();
+  }
+
+  function handleToggleCrossModeNode(nodeKey: string) {
+    setSelectedCrossModeNodeKeys((currentValues) =>
+      currentValues.includes(nodeKey)
+        ? currentValues.filter((currentNodeKey) => currentNodeKey !== nodeKey)
+        : mergeUniqueSortedStrings(currentValues, [nodeKey]),
+    );
+  }
+
+  function handleClearCrossModeSelection() {
+    resetCrossModeSelectionState();
   }
 
   function handleSetExpandedAggregateNode(
@@ -1781,6 +1968,60 @@ export default function GraphViewer({
           : `已将 ${formatEditModeLabel(editMode)} 操作写入本地草稿，点击 Save 后才会回传游戏真值。`,
       );
     }
+  }
+
+  function handleApplyCrossModeDraft() {
+    if (!canApplyCrossModeDraft) {
+      return;
+    }
+    setDraftPersistError("");
+    if (savePhase === "error" || savePhase === "conflict") {
+      setSavePhase("idle");
+    }
+    const nextChannel =
+      displayMode === "serial" ? 0 : (parsedChannelBatchValue ?? 0);
+    const focusNodeKey = resolveContextFocusNodeKey(
+      selectedCrossModeNodes,
+      selectedNodeKey,
+    );
+    const migratedSourceSerials = selectedCrossModeNodes
+      .filter((node) => node.type === "triggerSource")
+      .map((node) => node.serial);
+    const migratedCoreSerials = selectedCrossModeNodes
+      .filter((node) => node.type === "core")
+      .map((node) => node.serial);
+    const nextDraft = applyChannelEditToDraft(
+      graphDraft,
+      baseGraphBundle,
+      selectedCrossModeNodeKeys,
+      nextChannel,
+    );
+    if (!applyLocalDraftChange(nextDraft)) {
+      return;
+    }
+    if (displayMode === "serial") {
+      setSelectedEditSourceSerials((currentValues) =>
+        mergeUniqueSortedNumbers(currentValues, migratedSourceSerials),
+      );
+      setSelectedEditTargetSerials((currentValues) =>
+        mergeUniqueSortedNumbers(currentValues, migratedCoreSerials),
+      );
+      setSaveMessage(
+        `已将 ${selectedCrossModeNodeKeys.length} 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。`,
+      );
+    } else {
+      setSelectedEditChannelNodeKeys((currentValues) =>
+        mergeUniqueSortedStrings(currentValues, selectedCrossModeNodeKeys),
+      );
+      setSaveMessage(
+        `已将 ${selectedCrossModeNodeKeys.length} 个另一模式节点迁入频道 #${nextChannel} 的草稿；应用后才可继续当前频道模式下的覆盖编辑。`,
+      );
+    }
+    resetCrossModeSelectionState();
+    requestStructureLayoutRefresh({
+      fitViewport: false,
+      focusNodeKey: focusNodeKey,
+    });
   }
 
   async function handleSave() {
@@ -2306,6 +2547,115 @@ export default function GraphViewer({
                     )}
                   </div>
                 </section>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSidebarPanel === "crossMode" ? (
+            <section className="graph-isolated-panel">
+              <div className="graph-isolated-panel-header">
+                <div>
+                  <strong>另一模式节点池</strong>
+                  <p className="graph-batch-editor-caption">
+                    {crossModePoolCaption}
+                  </p>
+                  <p className="graph-batch-editor-caption">
+                    {crossModeContinueHint}
+                  </p>
+                </div>
+                <div className="graph-isolated-panel-actions">
+                  <span className="graph-isolated-panel-count">
+                    当前待应用 {selectedCrossModeNodeKeys.length} 个
+                  </span>
+                </div>
+              </div>
+              {displayMode === "channel" ? (
+                <label className="graph-editor-field">
+                  <span>迁入目标频道号</span>
+                  <input
+                    className="graph-editor-input"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={channelBatchDraftValue}
+                    onChange={(event) =>
+                      setChannelBatchDraftValue(event.target.value)
+                    }
+                    placeholder="输入 > 0 的整数"
+                  />
+                </label>
+              ) : null}
+              <div className="graph-batch-selection-grid">
+                <section className="graph-target-editor">
+                  <div className="graph-target-editor-header">
+                    <strong>Other-mode TriggerSources</strong>
+                    <span>数量 {crossModeTriggerSourceNodes.length}</span>
+                  </div>
+                  <div className="graph-target-list">
+                    {crossModeTriggerSourceNodes.length === 0 ? (
+                      <p className="empty-state">
+                        当前没有另一模式的 triggerSource。
+                      </p>
+                    ) : (
+                      crossModeTriggerSourceNodes.map((graphNode) => (
+                        <button
+                          key={graphNode.nodeKey}
+                          type="button"
+                          className={`graph-target-item graph-target-chip${selectedCrossModeNodeKeys.includes(graphNode.nodeKey) ? " is-selected" : ""}`}
+                          onClick={() =>
+                            handleToggleCrossModeNode(graphNode.nodeKey)
+                          }
+                        >
+                          {formatCompactGraphNodeDisplayText(graphNode)}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </section>
+                <section className="graph-target-editor">
+                  <div className="graph-target-editor-header">
+                    <strong>Other-mode Cores</strong>
+                    <span>数量 {crossModeCoreNodes.length}</span>
+                  </div>
+                  <div className="graph-target-list">
+                    {crossModeCoreNodes.length === 0 ? (
+                      <p className="empty-state">
+                        当前没有另一模式的 core。
+                      </p>
+                    ) : (
+                      crossModeCoreNodes.map((graphNode) => (
+                        <button
+                          key={graphNode.nodeKey}
+                          type="button"
+                          className={`graph-target-item graph-target-chip${selectedCrossModeNodeKeys.includes(graphNode.nodeKey) ? " is-selected" : ""}`}
+                          onClick={() =>
+                            handleToggleCrossModeNode(graphNode.nodeKey)
+                          }
+                        >
+                          {formatCompactGraphNodeDisplayText(graphNode)}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+              <div className="graph-batch-action-row">
+                <button
+                  type="button"
+                  className="action-button"
+                  onClick={handleClearCrossModeSelection}
+                  disabled={selectedCrossModeNodeKeys.length === 0}
+                >
+                  清空选择
+                </button>
+                <button
+                  type="button"
+                  className="action-button"
+                  disabled={!canApplyCrossModeDraft}
+                  onClick={handleApplyCrossModeDraft}
+                >
+                  应用到草稿
+                </button>
               </div>
             </section>
           ) : null}

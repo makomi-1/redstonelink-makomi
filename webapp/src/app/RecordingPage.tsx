@@ -47,15 +47,17 @@ export default function RecordingPage({
       data-theme={themeId}
     >
       <section className="recording-page-header info-card">
-        <div className="recording-page-header-row">
-          <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
-        </div>
-        <div className="recording-page-title-wrap">
-          <p className="eyebrow">Dedicated Recording Viewer</p>
-          <h1>录制曲线查看</h1>
-          <p className="hero-text">
-            当前页面只负责 recording bundle 主查看。可直接加载指定 recording 文件，并使用滚轮、拖拽和快捷键操作时间窗。
-          </p>
+        <div className="graph-page-header-top">
+          <div className="recording-page-title-wrap graph-page-title-wrap">
+            <h1>录制曲线查看</h1>
+            <p className="hero-text">
+              当前页面只负责 recording bundle 主查看。可直接加载指定 recording 文件，并使用滚轮、拖拽和快捷键操作时间窗。
+            </p>
+          </div>
+          <div className="graph-page-header-meta">
+            <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
+            <p className="eyebrow">Dedicated Recording Viewer</p>
+          </div>
         </div>
         <div className="recording-file-toolbar">
           <label className="recording-file-field">

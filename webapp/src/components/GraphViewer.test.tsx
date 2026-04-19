@@ -138,6 +138,22 @@ describe('GraphViewer', () => {
         alias: 'beta',
         displayText: 'beta(#2)',
       }),
+      createTestGraphNode({
+        type: 'triggerSource',
+        serial: 3,
+        alias: 'gamma',
+        displayText: 'gamma(#3)',
+        connectionMode: 'channel',
+        channel: 7,
+      }),
+      createTestGraphNode({
+        type: 'core',
+        serial: 4,
+        alias: 'delta',
+        displayText: 'delta(#4)',
+        connectionMode: 'channel',
+        channel: 7,
+      }),
     ],
     edges: [createTestGraphEdge({ sourceSerial: 1, targetSerial: 2 })],
   });
@@ -273,5 +289,126 @@ describe('GraphViewer', () => {
     );
     expect(screen.getByRole('button', { name: '撤回草稿' })).toBeDisabled();
     expect(screen.getByLabelText('Alias')).toHaveValue('saved-name');
+  });
+
+  it('可将另一模式节点应用到草稿并并入当前模式的后续编辑集合', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '覆盖' }));
+    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.click(screen.getByRole('button', { name: '#3 (gamma)' }));
+    await user.click(screen.getByRole('button', { name: '#4 (delta)' }));
+    await user.click(screen.getByRole('button', { name: '应用到草稿' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。',
+        ),
+      ).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole('button', { name: '批量编辑' }));
+
+    expect(screen.getAllByText('#3 (gamma)')).not.toHaveLength(0);
+    expect(screen.getAllByText('#4 (delta)')).not.toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('序号模式下跨模式迁回的节点切入编辑态后仍会进入当前画布上下文', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+      />,
+    );
+
+    expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('2');
+
+    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.click(screen.getByRole('button', { name: '#3 (gamma)' }));
+    await user.click(screen.getByRole('button', { name: '#4 (delta)' }));
+    await user.click(screen.getByRole('button', { name: '应用到草稿' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。',
+        ),
+      ).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole('button', { name: '追加' }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('4'),
+    );
+  });
+
+  it('频道模式在查看态应用另一模式节点后会恢复 triggerSource 聚合显示', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+    const channelGraphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 1,
+          alias: 'alpha',
+          displayText: 'alpha(#1)',
+        }),
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 2,
+          alias: 'beta',
+          displayText: 'beta(#2)',
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          alias: 'omega',
+          displayText: 'omega(#10)',
+          connectionMode: 'channel',
+          channel: 9,
+        }),
+      ],
+    });
+
+    render(
+      <GraphViewer
+        graphBundle={channelGraphBundle}
+        graphFileName="channel-graph.json"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '频道' }));
+    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.clear(screen.getByLabelText('迁入目标频道号'));
+    await user.type(screen.getByLabelText('迁入目标频道号'), '9');
+    await user.click(screen.getByRole('button', { name: '#1 (alpha)' }));
+    await user.click(screen.getByRole('button', { name: '#2 (beta)' }));
+    await user.click(screen.getByRole('button', { name: '应用到草稿' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          '已将 2 个另一模式节点迁入频道 #9 的草稿；应用后才可继续当前频道模式下的覆盖编辑。',
+        ),
+      ).toBeInTheDocument(),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('3'),
+    );
   });
 });
