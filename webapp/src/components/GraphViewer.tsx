@@ -93,6 +93,11 @@ function formatCanvasNodeDisplayText(canvasNode: GraphCanvasNodeInfo): string {
     : `${canvasNode.memberCount} grouped triggerSources`;
 }
 
+function formatCompactGraphNodeDisplayText(node: GraphNodeInfo): string {
+  const normalizedAlias = node.alias.trim();
+  return normalizedAlias ? `#${node.serial} (${normalizedAlias})` : `#${node.serial}`;
+}
+
 function resolveDefaultSelectedNodeKey(
   canvasNodes: GraphCanvasNodeInfo[],
   displayMode: GraphDisplayMode,
@@ -118,21 +123,6 @@ function parseChannelBatchValue(value: string): number | null {
   }
   const parsedValue = Number(value);
   return Number.isInteger(parsedValue) && parsedValue >= 0 ? parsedValue : null;
-}
-
-function resolveCurrentTargetSerials(
-  graphBundle: GraphSnapshotBundle,
-  triggerSourceSerial: number,
-): number[] {
-  const sourceNodeKey = createGraphNodeKey("triggerSource", triggerSourceSerial);
-  return graphBundle.edges
-    .filter((edge) => edge.sourceNodeKey === sourceNodeKey)
-    .map((edge) => {
-      const matched = edge.targetNodeKey.match(/^core:(\d+)$/);
-      return matched == null ? 0 : Number(matched[1]);
-    })
-    .filter((serial) => serial > 0)
-    .sort((left, right) => left - right);
 }
 
 /**
@@ -555,13 +545,6 @@ export default function GraphViewer({
   const hasPendingAliasDraft =
     canEditSelectedAlias &&
     normalizeAliasInput(aliasDraftValue) !== normalizeAliasInput(selectedNode.alias);
-  const selectedTriggerSourceTargets =
-    canEditCurrentView && selectedNode?.type === "triggerSource"
-      ? resolveCurrentTargetSerials(effectiveGraphBundle, selectedNode.serial)
-      : [];
-  const selectedTriggerSourceTargetNodes = selectedTriggerSourceTargets
-    .map((serial) => nodeByKey.get(createGraphNodeKey("core", serial)) ?? null)
-    .filter((node): node is GraphNodeInfo => node != null);
   const channelHubByChannel = useMemo(
     () =>
       new Map(
@@ -704,6 +687,17 @@ export default function GraphViewer({
           : graphDraft.dirty
             ? "未保存"
             : "已同步";
+  const graphModeHint =
+    displayMode === "serial"
+      ? "点击聚合块，可展开或收起对应的局部 core 集合。"
+      : "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。";
+  const graphEditHint = canEditCurrentView
+    ? displayMode === "channel"
+      ? "先框选或点选一个或多个节点，再输入频道号并应用到草稿；输入 0 表示移出频道。网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。"
+      : `${formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。`
+    : "当前内容模式不接入网页保存编辑。";
+  const graphStaticHint =
+    "鼠标滚轮缩放，拖动画布平移，拖拽节点只影响本地布局；双击节点会聚焦到该节点。搜索条件会在回车或点击“应用搜索”后刷新画布。";
   const canvasSectionTag =
     displayMode === "serial" ? "Serial View" : "Channel View";
   const canvasTitle =
@@ -1985,17 +1979,8 @@ export default function GraphViewer({
               ))}
             </div>
           </div>
-          <p className="chart-interaction-hint">
-            鼠标滚轮缩放，拖动画布平移，拖拽节点只影响本地布局；双击节点会聚焦到该节点。
-            搜索条件会在回车或点击“应用搜索”后刷新画布。
-            {displayMode === "serial"
-              ? "点击聚合块，可展开或收起对应的局部 core 集合。"
-              : "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。"}
-            {canEditCurrentView
-              ? displayMode === "channel"
-                ? "先框选或点选一个或多个节点，再输入频道号并应用到草稿；输入 0 表示移出频道。网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。"
-                : `${formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。`
-              : "当前内容模式不接入网页保存编辑。"}
+          <p className="chart-interaction-hint graph-dynamic-hint">
+            {graphModeHint} {graphEditHint}
           </p>
           {saveMessage ? (
             <p className="graph-editor-message">{saveMessage}</p>
@@ -2054,6 +2039,9 @@ export default function GraphViewer({
               )}
             </div>
           ) : null}
+          <p className="chart-interaction-hint graph-static-hint">
+            {graphStaticHint}
+          </p>
         </aside>
 
         <div className="graph-canvas-card">
@@ -2287,7 +2275,7 @@ export default function GraphViewer({
                               handleRevealIsolatedNode(isolatedNode.nodeKey)
                             }
                           >
-                            {isolatedNode.displayText}
+                            {formatCompactGraphNodeDisplayText(isolatedNode)}
                           </button>
                         ),
                       )
@@ -2312,7 +2300,7 @@ export default function GraphViewer({
                             handleRevealIsolatedNode(isolatedNode.nodeKey)
                           }
                         >
-                          {isolatedNode.displayText}
+                          {formatCompactGraphNodeDisplayText(isolatedNode)}
                         </button>
                       ))
                     )}
@@ -2367,7 +2355,7 @@ export default function GraphViewer({
                               className="graph-target-item graph-target-chip"
                               onClick={() => focusNode(graphNode.nodeKey)}
                             >
-                              {graphNode.displayText}
+                              {formatCompactGraphNodeDisplayText(graphNode)}
                             </button>
                           ))
                         )}
@@ -2429,7 +2417,7 @@ export default function GraphViewer({
                               className="graph-target-item graph-target-chip"
                               onClick={() => focusNode(sourceNode.nodeKey)}
                             >
-                              {sourceNode.displayText}
+                              {formatCompactGraphNodeDisplayText(sourceNode)}
                             </button>
                           ))
                         )}
@@ -2451,7 +2439,7 @@ export default function GraphViewer({
                               className="graph-target-item graph-target-chip"
                               onClick={() => focusNode(targetNode.nodeKey)}
                             >
-                              {targetNode.displayText}
+                              {formatCompactGraphNodeDisplayText(targetNode)}
                             </button>
                           ))
                         )}
@@ -2754,35 +2742,6 @@ export default function GraphViewer({
                     </dd>
                   </div>
                 </dl>
-                {canEditCurrentView &&
-                selectedCanvasNode.graphNode.type === "triggerSource" ? (
-                  <section className="graph-target-editor">
-                    <div className="graph-target-editor-header">
-                      <strong>Current Target Cores</strong>
-                      <span>
-                        这里展示当前草稿视角下的有效目标集合；批量编辑请使用右侧批量编辑页签。
-                      </span>
-                    </div>
-                    <div className="graph-target-list">
-                      {selectedTriggerSourceTargetNodes.length === 0 ? (
-                        <p className="empty-state">
-                          当前 triggerSource 在草稿视角下没有目标 core。
-                        </p>
-                      ) : (
-                        selectedTriggerSourceTargetNodes.map((coreNode) => (
-                          <button
-                            key={coreNode.nodeKey}
-                            type="button"
-                            className="graph-target-item graph-target-chip"
-                            onClick={() => focusNode(coreNode.nodeKey)}
-                          >
-                            {coreNode.displayText}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </section>
-                ) : null}
                 {displayMode === "channel" && selectedChannelHubNode ? (
                   <div className="graph-batch-selection-grid">
                     <section className="graph-target-editor">
@@ -2835,23 +2794,6 @@ export default function GraphViewer({
                     </section>
                   </div>
                 ) : null}
-                <div className="graph-flag-block">
-                  <strong>Capability Flags</strong>
-                  <div className="graph-flag-list">
-                    {selectedCanvasNode.graphNode.capabilityFlags.length ===
-                    0 ? (
-                      <span className="graph-flag-chip">-</span>
-                    ) : (
-                      selectedCanvasNode.graphNode.capabilityFlags.map(
-                        (flag) => (
-                          <span key={flag} className="graph-flag-chip">
-                            {flag}
-                          </span>
-                        ),
-                      )
-                    )}
-                  </div>
-                </div>
               </div>
             ) : null
           ) : null}

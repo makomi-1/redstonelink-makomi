@@ -140,10 +140,6 @@ export default function RecordingPage({
               recordingBundle={recordingBundle}
               themeId={themeId}
             />
-            <details className="raw-preview-panel">
-              <summary>原始 JSON</summary>
-              <pre className="code-block">{recordingSelectedEntry?.textContent}</pre>
-            </details>
           </article>
         ) : null}
       </section>

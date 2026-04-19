@@ -51,18 +51,20 @@ export default function GraphPage({
       data-theme={themeId}
     >
       <section className="recording-page-header info-card">
-        <div className="recording-page-header-row">
-          <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
-        </div>
-        <div className="recording-page-title-wrap">
-          <p className="eyebrow">Dedicated Graph Analyzer</p>
-          <h1>graph 拓扑分析</h1>
-          <p className="hero-text">
-            当前页面支持序号拓扑与频道拓扑两种显示模式。可直接加载指定 graph
-            文件，也可以先在游戏里执行
-            <code> /rlclient web graph </code>
-            导出并自动打开最新快照。
-          </p>
+        <div className="graph-page-header-top">
+          <div className="recording-page-title-wrap graph-page-title-wrap">
+            <h1>graph 拓扑分析</h1>
+            <p className="hero-text">
+              当前页面支持序号拓扑与频道拓扑两种显示模式。可直接加载指定 graph
+              文件，也可以先在游戏里执行
+              <code> /rlclient web graph </code>
+              导出并自动打开最新快照。
+            </p>
+          </div>
+          <div className="graph-page-header-meta">
+            <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
+            <p className="eyebrow">Dedicated Graph Analyzer</p>
+          </div>
         </div>
         <div className="recording-file-toolbar">
           <label className="recording-file-field">
@@ -170,12 +172,6 @@ export default function GraphPage({
               graphFileName={graphSelectedEntry?.fileName ?? ""}
               onDirtyStateChange={onDirtyStateChange}
             />
-            <details className="raw-preview-panel">
-              <summary>原始 JSON</summary>
-              <pre className="code-block">
-                {graphSelectedEntry?.textContent}
-              </pre>
-            </details>
           </article>
         ) : null}
         {!graphBundle && graphPageDirty ? null : null}

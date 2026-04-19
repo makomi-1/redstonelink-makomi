@@ -1160,13 +1160,41 @@ body {
   min-height: 120px;
 }
 
+.recording-page-shell .recording-page-header,
+.recording-page-shell .recording-page-main,
+.graph-page-shell .recording-page-header,
+.graph-page-shell .recording-page-main {
+  max-width: 1880px;
+}
+
 .graph-page-shell {
   padding-top: 12px;
 }
 
-.graph-page-shell .recording-page-header,
-.graph-page-shell .recording-page-main {
-  max-width: 1720px;
+.graph-page-header-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.graph-page-title-wrap {
+  flex: 1 1 720px;
+  margin-top: 0;
+}
+
+.graph-page-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.graph-page-header-meta .eyebrow {
+  margin: 0;
 }
 
 .graph-viewer-card {
@@ -1271,6 +1299,16 @@ body {
   color: var(--app-text-soft);
 }
 
+.graph-dynamic-hint,
+.graph-static-hint {
+  margin: 0;
+}
+
+.graph-static-hint {
+  padding-top: 10px;
+  border-top: 1px solid var(--app-divider);
+}
+
 .graph-save-preview {
   display: grid;
   gap: 8px;
@@ -1333,7 +1371,7 @@ body {
 .graph-workspace {
   display: grid;
   align-items: start;
-  grid-template-columns: 336px minmax(0, 1fr) minmax(320px, 360px);
+  grid-template-columns: 336px minmax(0, 1fr) minmax(400px, 460px);
   gap: 14px;
 }
 
@@ -1759,7 +1797,7 @@ body {
 
 .recording-chart-card {
   margin-top: 10px;
-  padding: 12px;
+  padding: 14px 16px;
   border: 1px solid var(--app-control-border);
   border-radius: 16px;
   background: var(--app-surface-chart);

@@ -59,7 +59,7 @@ describe('GraphPage', () => {
     expect(onGraphFileChange).toHaveBeenCalledWith('demo-graph.json');
   });
 
-  it('有合法 graphBundle 时会渲染 GraphViewer 与原始 JSON', () => {
+  it('有合法 graphBundle 时会渲染 GraphViewer，且不再显示原始 JSON', () => {
     const graphBundle = createTestGraphBundle({
       nodes: [createTestGraphNode({ type: 'triggerSource', serial: 1 })],
     });
@@ -94,7 +94,8 @@ describe('GraphPage', () => {
     expect(screen.getByTestId('graph-viewer')).toHaveTextContent(
       'graph-viewer:demo-graph.json',
     );
-    expect(screen.getByText('原始 JSON')).toBeInTheDocument();
-    expect(screen.getByText('{"kind":"graphSnapshotBundle"}')).toBeInTheDocument();
+    expect(screen.queryByText('原始 JSON')).not.toBeInTheDocument();
+    expect(screen.getByText('Dedicated Graph Analyzer')).toBeInTheDocument();
+    expect(screen.getByText('已连接')).toBeInTheDocument();
   });
 });
