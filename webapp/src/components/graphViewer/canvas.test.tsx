@@ -72,6 +72,34 @@ describe('graphViewer/canvas', () => {
     });
   });
 
+  it('buildGraphCanvasView 不会仅因选中成员可见就自动展开聚合块', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({ type: 'triggerSource', serial: 1 }),
+        createTestGraphNode({ type: 'core', serial: 10 }),
+        createTestGraphNode({ type: 'core', serial: 11 }),
+      ],
+      edges: [
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 10 }),
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 11 }),
+      ],
+    });
+
+    const canvasView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(['core:10']),
+      new Set<string>(),
+      'serial',
+      new Set<string>(),
+    );
+
+    expect(canvasView.aggregateNodes).toHaveLength(1);
+    expect(canvasView.aggregateNodes[0]?.expanded).toBe(false);
+    expect(canvasView.canvasNodes.map((node) => node.nodeKey)).toEqual(
+      expect.arrayContaining(['aggregate:core:triggerSource:1', 'core:10']),
+    );
+  });
+
   it('buildGraphCanvasView 在频道模式下会生成 channelHub 节点', () => {
     const graphBundle = createTestGraphBundle({
       nodes: [
@@ -190,6 +218,41 @@ describe('graphViewer/canvas', () => {
 
     expect(outlineNodes).toHaveLength(1);
     expect(sameAggregateOutlineFlowNodes(outlineNodes, [...outlineNodes])).toBe(true);
+  });
+
+  it('buildAutoLayoutPositions 会让已展开的 triggerSource 聚合块成员走整齐布局', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({ type: 'triggerSource', serial: 1 }),
+        createTestGraphNode({ type: 'triggerSource', serial: 2 }),
+        createTestGraphNode({ type: 'core', serial: 10 }),
+      ],
+      edges: [
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 10 }),
+        createTestGraphEdge({ sourceSerial: 2, targetSerial: 10 }),
+      ],
+    });
+    const collapsedView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(),
+      new Set<string>(),
+      'serial',
+    );
+    const expandedAggregateNodeKey = collapsedView.aggregateNodes[0]?.nodeKey ?? '';
+    const expandedView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(),
+      new Set<string>([expandedAggregateNodeKey]),
+      'serial',
+    );
+    const positionByNodeKey = buildAutoLayoutPositions(
+      expandedView.canvasNodes,
+      expandedView.layoutEdges,
+    );
+
+    expect(positionByNodeKey.get('triggerSource:1')?.x).toBe(
+      positionByNodeKey.get('triggerSource:2')?.x,
+    );
   });
 
   it('buildEdges 在序号模式下会补出被删除边的虚线预览', () => {

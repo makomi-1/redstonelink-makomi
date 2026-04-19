@@ -279,14 +279,13 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	}
 
 	/**
- * 注册客户端独立命令根：
- * <p>
- * `/rlclient display far_overlay occluded|see_through` 仅影响本地显示配置；
- * `/rlclient web open` 用于打开本地离线网页工具；
- * `/rlclient web graph` 用于请求导出当前可见 serial 图快照。
- * </p>
- */
-private static void registerClientCommands() {
+	 * 注册客户端独立命令根：
+	 * <p>
+	 * `/rlclient display far_overlay occluded|see_through` 仅影响本地显示配置；
+	 * `/rlclient web graph` 用于请求导出当前可见 serial 图快照，并支持打开 graph 页面。
+	 * </p>
+	 */
+	private static void registerClientCommands() {
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
 			ClientCommandManager
 				.literal(CLIENT_DISPLAY_COMMAND_ROOT)
@@ -311,11 +310,6 @@ private static void registerClientCommands() {
 				.then(
 					ClientCommandManager
 						.literal("web")
-						.then(
-							ClientCommandManager
-								.literal("open")
-								.executes(RedstoneLinkClient::executeOpenWebApp)
-						)
 						.then(
 							ClientCommandManager
 								.literal("graph")
@@ -357,24 +351,6 @@ private static void registerClientCommands() {
 		);
 		context.getSource().sendFeedback(Component.translatable("message.redstonelink.display.far_overlay.updated", modeLabel));
 		return Command.SINGLE_SUCCESS;
-	}
-
-	/**
-	 * 打开本地离线网页工具首页。
-	 */
-	private static int executeOpenWebApp(CommandContext<FabricClientCommandSource> context) {
-		try {
-			URI homePageUri = LocalWebAppBridgeService.openHomePage();
-			context.getSource().sendFeedback(Component.translatable("message.redstonelink.web.opened", homePageUri.toString()));
-			return Command.SINGLE_SUCCESS;
-		} catch (RuntimeException exception) {
-			String reason = exception.getMessage() == null || exception.getMessage().isBlank()
-				? exception.getClass().getSimpleName()
-				: exception.getMessage();
-			RedstoneLink.LOGGER.warn("打开本地网页工具失败", exception);
-			context.getSource().sendFeedback(Component.translatable("message.redstonelink.web.open_failed", reason));
-			return 0;
-		}
 	}
 
 	/**

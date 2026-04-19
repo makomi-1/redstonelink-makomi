@@ -403,11 +403,12 @@ export default function GraphViewer({
     nodeByKey,
     selectedNodeKey,
   ]);
-  const forcedVisibleNodeKeys = useMemo(() => {
+  /**
+   * 搜索、批量编辑和手动揭示孤立节点仍然需要自动撑开聚合块，
+   * 但当前选中节点只保留上下文可见性，不再直接驱动聚合块展开。
+   */
+  const aggregateAutoExpandNodeKeys = useMemo(() => {
     const nextKeys = new Set<string>();
-    if (selectedNodeKey) {
-      nextKeys.add(selectedNodeKey);
-    }
     pinnedIsolatedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     matchedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     selectedEditSourceNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
@@ -416,10 +417,16 @@ export default function GraphViewer({
   }, [
     matchedNodeKeys,
     pinnedIsolatedNodeKeys,
-    selectedNodeKey,
     selectedEditSourceNodeKeys,
     selectedEditTargetNodeKeys,
   ]);
+  const forcedVisibleNodeKeys = useMemo(() => {
+    const nextKeys = new Set(aggregateAutoExpandNodeKeys);
+    if (selectedNodeKey) {
+      nextKeys.add(selectedNodeKey);
+    }
+    return nextKeys;
+  }, [aggregateAutoExpandNodeKeys, selectedNodeKey]);
   const expandedAggregateNodeKeySet = useMemo(
     () => new Set(expandedAggregateNodeKeys),
     [expandedAggregateNodeKeys],
@@ -431,14 +438,31 @@ export default function GraphViewer({
         forcedVisibleNodeKeys,
         expandedAggregateNodeKeySet,
         displayMode,
+        aggregateAutoExpandNodeKeys,
       ),
     [
+      aggregateAutoExpandNodeKeys,
       displayMode,
       effectiveGraphBundle,
       expandedAggregateNodeKeySet,
       forcedVisibleNodeKeys,
     ],
   );
+
+  useEffect(() => {
+    const currentAggregateNodeKeySet = new Set(
+      graphCanvasView.aggregateNodes.map((aggregateNode) => aggregateNode.nodeKey),
+    );
+    setExpandedAggregateNodeKeys((currentValues) => {
+      const nextValues = currentValues.filter((nodeKey) =>
+        currentAggregateNodeKeySet.has(nodeKey),
+      );
+      return nextValues.length === currentValues.length
+        ? currentValues
+        : nextValues;
+    });
+  }, [graphCanvasView.aggregateNodes]);
+
   const canvasStructureSignature = useMemo(
     () =>
       buildCanvasStructureSignature(

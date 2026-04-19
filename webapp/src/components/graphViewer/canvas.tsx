@@ -418,11 +418,13 @@ function buildChannelCanvasEdgeKey(
   return `channel-edge:${sourceNodeKey}:${targetNodeKey}`;
 }
 
-function hasForcedVisibleAggregateMember(
+function hasAggregateAutoExpandMember(
   memberNodeKeys: string[],
-  forcedVisibleNodeKeys: Set<string>,
+  aggregateAutoExpandNodeKeys: Set<string>,
 ): boolean {
-  return memberNodeKeys.some((nodeKey) => forcedVisibleNodeKeys.has(nodeKey));
+  return memberNodeKeys.some((nodeKey) =>
+    aggregateAutoExpandNodeKeys.has(nodeKey),
+  );
 }
 
 function resolveCanvasNodeLaneType(
@@ -480,13 +482,13 @@ function compareCanvasNodeIdentity(
  */
 function resolveVisualExpandedAggregateNodes(
   aggregateNodes: GraphCanvasAggregateNode[],
-  visibleCanvasNodeKeys: Set<string>,
+  expansionVisibleNodeKeys: Set<string>,
 ): GraphCanvasAggregateNode[] {
   return aggregateNodes.map((aggregateNode) => {
     const visuallyExpanded =
       aggregateNode.expanded ||
       aggregateNode.memberNodeKeys.some((memberNodeKey) =>
-        visibleCanvasNodeKeys.has(memberNodeKey),
+        expansionVisibleNodeKeys.has(memberNodeKey),
       );
     if (visuallyExpanded === aggregateNode.expanded) {
       return aggregateNode;
@@ -506,6 +508,7 @@ function resolveCanvasAggregateVisibility(
   aggregateNodes: GraphCanvasAggregateNode[],
   phaseCanvasEdges: GraphCanvasEdgeInfo[],
   forcedVisibleNodeKeys: Set<string>,
+  aggregateAutoExpandNodeKeys: Set<string>,
   promoteVisibleMembersToExpanded = true,
 ): {
   aggregateNodes: GraphCanvasAggregateNode[];
@@ -516,11 +519,18 @@ function resolveCanvasAggregateVisibility(
     visibleCanvasNodeKeys.add(edge.sourceNodeKey);
     visibleCanvasNodeKeys.add(edge.targetNodeKey);
   });
+  const expansionVisibleNodeKeys = new Set(visibleCanvasNodeKeys);
+  aggregateAutoExpandNodeKeys.forEach((nodeKey) => {
+    expansionVisibleNodeKeys.add(nodeKey);
+  });
   forcedVisibleNodeKeys.forEach((nodeKey) => {
     visibleCanvasNodeKeys.add(nodeKey);
   });
   const resolvedAggregateNodes = promoteVisibleMembersToExpanded
-    ? resolveVisualExpandedAggregateNodes(aggregateNodes, visibleCanvasNodeKeys)
+    ? resolveVisualExpandedAggregateNodes(
+        aggregateNodes,
+        expansionVisibleNodeKeys,
+      )
     : aggregateNodes;
   resolvedAggregateNodes.forEach((aggregateNode) => {
     if (!aggregateNode.expanded) {
@@ -610,6 +620,7 @@ function buildSerialGraphCanvasView(
   effectiveGraphBundle: GraphSnapshotBundle,
   forcedVisibleNodeKeys: Set<string>,
   expandedAggregateNodeKeys: Set<string>,
+  aggregateAutoExpandNodeKeys: Set<string> = forcedVisibleNodeKeys,
 ): GraphCanvasView {
   const serialNodes = effectiveGraphBundle.nodes.filter(
     (node) => node.connectionMode === "serial",
@@ -689,9 +700,9 @@ function buildSerialGraphCanvasView(
     const aggregateNodeKey = buildAggregateNodeKey("core", signatureKey);
     const expanded =
       expandedAggregateNodeKeys.has(aggregateNodeKey) ||
-      hasForcedVisibleAggregateMember(
+      hasAggregateAutoExpandMember(
         coreNodes.map((coreNode) => coreNode.nodeKey),
-        forcedVisibleNodeKeys,
+        aggregateAutoExpandNodeKeys,
       );
     const aggregateNode: GraphCanvasAggregateNode = {
       kind: "aggregate",
@@ -839,9 +850,9 @@ function buildSerialGraphCanvasView(
     );
     const expanded =
       expandedAggregateNodeKeys.has(aggregateNodeKey) ||
-      hasForcedVisibleAggregateMember(
+      hasAggregateAutoExpandMember(
         sourceNodes.map((sourceNode) => sourceNode.nodeKey),
-        forcedVisibleNodeKeys,
+        aggregateAutoExpandNodeKeys,
       );
     const aggregateNode: GraphCanvasAggregateNode = {
       kind: "aggregate",
@@ -887,6 +898,7 @@ function buildSerialGraphCanvasView(
     [...coreAggregateNodes, ...triggerSourceAggregateNodes],
     phaseCanvasEdges,
     forcedVisibleNodeKeys,
+    aggregateAutoExpandNodeKeys,
   );
 
   const visibleActualNodeKeys = new Set<string>();
@@ -962,6 +974,7 @@ function buildChannelGraphCanvasView(
   effectiveGraphBundle: GraphSnapshotBundle,
   forcedVisibleNodeKeys: Set<string>,
   expandedAggregateNodeKeys: Set<string>,
+  aggregateAutoExpandNodeKeys: Set<string> = forcedVisibleNodeKeys,
 ): GraphCanvasView {
   const channelMemberNodes = effectiveGraphBundle.nodes
     .filter((node) => node.connectionMode === "channel" && node.channel > 0)
@@ -1078,9 +1091,9 @@ function buildChannelGraphCanvasView(
     );
     const expanded =
       expandedAggregateNodeKeys.has(aggregateNodeKey) ||
-      hasForcedVisibleAggregateMember(
+      hasAggregateAutoExpandMember(
         coreNodes.map((coreNode) => coreNode.nodeKey),
-        forcedVisibleNodeKeys,
+        aggregateAutoExpandNodeKeys,
       );
     aggregateNodes.push({
       kind: "aggregate",
@@ -1124,9 +1137,9 @@ function buildChannelGraphCanvasView(
     );
     const expanded =
       expandedAggregateNodeKeys.has(aggregateNodeKey) ||
-      hasForcedVisibleAggregateMember(
+      hasAggregateAutoExpandMember(
         sourceNodes.map((sourceNode) => sourceNode.nodeKey),
-        forcedVisibleNodeKeys,
+        aggregateAutoExpandNodeKeys,
       );
     aggregateNodes.push({
       kind: "aggregate",
@@ -1186,6 +1199,7 @@ function buildChannelGraphCanvasView(
     aggregateNodes,
     phaseCanvasEdges,
     forcedVisibleNodeKeys,
+    aggregateAutoExpandNodeKeys,
     false,
   );
 
@@ -1258,17 +1272,20 @@ export function buildGraphCanvasView(
   forcedVisibleNodeKeys: Set<string>,
   expandedAggregateNodeKeys: Set<string>,
   displayMode: GraphDisplayMode,
+  aggregateAutoExpandNodeKeys: Set<string> = forcedVisibleNodeKeys,
 ): GraphCanvasView {
   return displayMode === "channel"
     ? buildChannelGraphCanvasView(
         effectiveGraphBundle,
         forcedVisibleNodeKeys,
         expandedAggregateNodeKeys,
+        aggregateAutoExpandNodeKeys,
       )
     : buildSerialGraphCanvasView(
         effectiveGraphBundle,
         forcedVisibleNodeKeys,
         expandedAggregateNodeKeys,
+        aggregateAutoExpandNodeKeys,
       );
 }
 
@@ -1623,7 +1640,10 @@ function buildComponentLayout(
       }
       return compareCanvasNodeIdentity(left, right);
     });
-  const triggerSourceLaneLayout = buildLaneLayout(triggerSourceNodes);
+  const triggerSourceLaneLayout = buildLaneLayout(
+    triggerSourceNodes,
+    !hasExpandedAggregateNode,
+  );
   const coreLaneLayout = buildLaneLayout(coreNodes, !hasExpandedAggregateNode);
   const laneHeight = Math.max(
     triggerSourceLaneLayout.height,
