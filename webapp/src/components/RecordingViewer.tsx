@@ -13,19 +13,36 @@ import {
   resolveCombinedRecordingDomain,
   resolveDisplayTick,
 } from '../recordingTypes';
+import type { WebThemeId } from '../app/theme';
 
 const DEFAULT_VISIBLE_METRICS: RecordingMetricKey[] = ['inputPower', 'outputPower'];
 const MAX_SELECTED_RECORDING_NODES = 5;
 const RECORDING_NODE_COLORS = [
-  { inputColor: '#67d6ff', outputColor: '#a6ebff' },
-  { inputColor: '#ff9b6b', outputColor: '#ffd0ad' },
-  { inputColor: '#9fe06e', outputColor: '#ccefb2' },
-  { inputColor: '#c59cff', outputColor: '#e0c8ff' },
-  { inputColor: '#ffd45f', outputColor: '#ffebb0' },
+  {
+    inputColor: 'var(--recording-series-1-input)',
+    outputColor: 'var(--recording-series-1-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-2-input)',
+    outputColor: 'var(--recording-series-2-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-3-input)',
+    outputColor: 'var(--recording-series-3-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-4-input)',
+    outputColor: 'var(--recording-series-4-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-5-input)',
+    outputColor: 'var(--recording-series-5-output)',
+  },
 ] as const;
 
 type RecordingViewerProps = {
   recordingBundle: RecordingBundle;
+  themeId: WebThemeId;
 };
 
 /**
@@ -35,7 +52,10 @@ type RecordingViewerProps = {
  * 具体鼠标/滚轮/快捷键交互由图表组件完成。
  * </p>
  */
-export default function RecordingViewer({ recordingBundle }: RecordingViewerProps) {
+export default function RecordingViewer({
+  recordingBundle,
+  themeId,
+}: RecordingViewerProps) {
   const [selectedRecordingNodeKeys, setSelectedRecordingNodeKeys] = useState<string[]>([]);
   const [recordingXAxisMode, setRecordingXAxisMode] =
     useState<RecordingXAxisMode>('relative');
@@ -276,6 +296,7 @@ export default function RecordingViewer({ recordingBundle }: RecordingViewerProp
               setRecordingChartRenderMode={setRecordingChartRenderMode}
               recordingXAxisMode={recordingXAxisMode}
               setRecordingXAxisMode={setRecordingXAxisMode}
+              themeId={themeId}
               visibleRecordingMetrics={visibleRecordingMetrics}
               toggleMetric={toggleMetric}
               recordingWindow={activeRecordingWindow}
@@ -307,6 +328,7 @@ type RecordingSeriesPanelProps = {
   setRecordingChartRenderMode: (mode: RecordingChartRenderMode) => void;
   recordingXAxisMode: RecordingXAxisMode;
   setRecordingXAxisMode: (mode: RecordingXAxisMode) => void;
+  themeId: WebThemeId;
   visibleRecordingMetrics: RecordingMetricKey[];
   toggleMetric: (metric: RecordingMetricKey) => void;
   recordingWindow: RecordingChartWindow;
@@ -323,6 +345,7 @@ function RecordingSeriesPanel({
   setRecordingChartRenderMode,
   recordingXAxisMode,
   setRecordingXAxisMode,
+  themeId,
   visibleRecordingMetrics,
   toggleMetric,
   recordingWindow,
@@ -389,6 +412,7 @@ function RecordingSeriesPanel({
           startedTick={recordingBundle.manifest.startedTick}
           xMode={recordingXAxisMode}
           renderMode={recordingChartRenderMode}
+          themeId={themeId}
           visibleMetrics={visibleRecordingMetrics}
           xWindow={recordingWindow}
           fullDomain={fullRecordingDomain}

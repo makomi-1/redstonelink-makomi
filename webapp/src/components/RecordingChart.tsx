@@ -10,6 +10,7 @@ import {
   translateRecordingWindow,
   zoomRecordingWindowAt,
 } from '../recordingTypes';
+import type { WebThemeId } from '../app/theme';
 
 type RecordingSample = {
   tick: number;
@@ -22,6 +23,7 @@ type RecordingChartProps = {
   startedTick: number;
   xMode: RecordingXAxisMode;
   renderMode: RecordingChartRenderMode;
+  themeId: WebThemeId;
   visibleMetrics: RecordingMetricKey[];
   xWindow: RecordingChartWindow;
   fullDomain: RecordingChartWindow;
@@ -54,6 +56,7 @@ export default function RecordingChart({
   startedTick,
   xMode,
   renderMode,
+  themeId,
   visibleMetrics,
   xWindow,
   fullDomain,
@@ -123,6 +126,8 @@ export default function RecordingChart({
       return undefined;
     }
 
+    const axisStroke = resolveThemeColor('var(--recording-chart-axis)', host);
+    const gridStroke = resolveThemeColor('var(--recording-chart-grid)', host);
     const xValueSet = new Set<number>();
     for (const group of chartNodeSeriesGroups) {
       for (const sample of group.samples) {
@@ -162,7 +167,7 @@ export default function RecordingChart({
         data.push(inputValues);
         series.push({
           label: `${group.label} · Input`,
-          stroke: group.inputColor,
+          stroke: resolveThemeColor(group.inputColor, host),
           width: 2,
           ...(seriesPathBuilder ? { paths: seriesPathBuilder } : {}),
         });
@@ -172,7 +177,7 @@ export default function RecordingChart({
         data.push(outputValues);
         series.push({
           label: `${group.label} · Output`,
-          stroke: group.outputColor,
+          stroke: resolveThemeColor(group.outputColor, host),
           width: 2,
           dash: [10, 6],
           ...(seriesPathBuilder ? { paths: seriesPathBuilder } : {}),
@@ -204,16 +209,16 @@ export default function RecordingChart({
         axes: [
           {
             label: xMode === 'relative' ? 'Tick Δ' : 'Tick',
-            stroke: '#d9c2b0',
+            stroke: axisStroke,
             grid: {
-              stroke: 'rgba(255, 214, 191, 0.10)',
+              stroke: gridStroke,
             },
           },
           {
             label: 'Power',
-            stroke: '#d9c2b0',
+            stroke: axisStroke,
             grid: {
-              stroke: 'rgba(255, 214, 191, 0.10)',
+              stroke: gridStroke,
             },
           },
         ],
@@ -234,7 +239,15 @@ export default function RecordingChart({
       dragStateRef.current = null;
       plot.destroy();
     };
-  }, [chartNodeSeriesGroups, chartWidth, renderMode, startedTick, visibleMetrics, xMode]);
+  }, [
+    chartNodeSeriesGroups,
+    chartWidth,
+    renderMode,
+    startedTick,
+    themeId,
+    visibleMetrics,
+    xMode,
+  ]);
 
   useEffect(() => {
     plotRef.current?.setScale('x', normalizeWindow(xWindow));
@@ -416,4 +429,25 @@ function normalizeWindow(window: RecordingChartWindow): RecordingChartWindow {
     };
   }
   return window;
+}
+
+/**
+ * uPlot 运行在 canvas 上，不能直接消费 CSS 变量；
+ * 这里把 `var(--token)` 解析成当前主题下的真实颜色值。
+ */
+function resolveThemeColor(color: string, host: HTMLElement): string {
+  const normalizedColor = color.trim();
+  const variableMatch = /^var\((--[^),\s]+)(?:,\s*([^)]+))?\)$/.exec(
+    normalizedColor,
+  );
+  if (!variableMatch) {
+    return normalizedColor;
+  }
+  const themeRoot = host.closest('[data-theme]') as HTMLElement | null;
+  const computedStyle = getComputedStyle(themeRoot ?? host);
+  const resolvedColor = computedStyle.getPropertyValue(variableMatch[1]).trim();
+  if (resolvedColor.length > 0) {
+    return resolvedColor;
+  }
+  return variableMatch[2]?.trim() ?? normalizedColor;
 }

@@ -2190,7 +2190,7 @@ export default function GraphViewer({
               panOnDrag={[1]}
               zoomOnScroll
             >
-              <Background color="rgba(255, 214, 191, 0.12)" gap={24} size={1} />
+              <Background color="var(--graph-grid-color)" gap={24} size={1} />
               <MiniMap
                 pannable
                 zoomable
@@ -2198,14 +2198,14 @@ export default function GraphViewer({
                   String(node.id).startsWith("aggregate-outline:")
                     ? "transparent"
                     : String(node.id).startsWith("triggerSource:")
-                      ? "rgba(255, 181, 140, 0.82)"
+                      ? "var(--graph-minimap-trigger)"
                       : String(node.id).startsWith("channelHub:")
-                        ? "rgba(239, 216, 139, 0.9)"
+                        ? "var(--graph-minimap-channel)"
                         : String(node.id).startsWith("aggregate:")
-                          ? "rgba(140, 213, 255, 0.86)"
-                          : "rgba(108, 230, 255, 0.8)"
+                          ? "var(--graph-minimap-aggregate)"
+                          : "var(--graph-minimap-core)"
                 }
-                maskColor="rgba(10, 12, 18, 0.28)"
+                maskColor="var(--graph-minimap-mask)"
               />
               <Controls />
             </ReactFlow>

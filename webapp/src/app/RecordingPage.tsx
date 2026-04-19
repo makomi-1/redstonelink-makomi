@@ -1,14 +1,16 @@
 import RecordingViewer from '../components/RecordingViewer';
+import ThemeSwitcher from '../components/ThemeSwitcher';
 import type { RecordingBundle } from '../recordingTypes';
 import { buildEntryKey } from './location';
 import { formatBytes, formatStartedAt } from './format';
+import type { WebThemeId } from './theme';
 import type { StorageEntryPayload, StorageEntrySummary } from './types';
 
 type RecordingPageProps = {
   bridgeError: string;
   bridgeStateClassName: string;
   bridgeStateLabel: string;
-  goHome: () => void;
+  onThemeChange: (themeId: WebThemeId) => void;
   onRecordingFileChange: (fileName: string) => void;
   onRefreshStorageIndex: () => void;
   recordingBundle: RecordingBundle | null;
@@ -19,13 +21,14 @@ type RecordingPageProps = {
   selectedFileName: string;
   storageError: string;
   storageLoading: boolean;
+  themeId: WebThemeId;
 };
 
 export default function RecordingPage({
   bridgeError,
   bridgeStateClassName,
   bridgeStateLabel,
-  goHome,
+  onThemeChange,
   onRecordingFileChange,
   onRefreshStorageIndex,
   recordingBundle,
@@ -36,14 +39,15 @@ export default function RecordingPage({
   selectedFileName,
   storageError,
   storageLoading,
+  themeId,
 }: RecordingPageProps) {
   return (
-    <main className="app-shell recording-page-shell">
+    <main
+      className="app-shell recording-page-shell"
+      data-theme={themeId}
+    >
       <section className="recording-page-header info-card">
         <div className="recording-page-header-row">
-          <button type="button" className="action-button" onClick={goHome}>
-            返回首页
-          </button>
           <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
         </div>
         <div className="recording-page-title-wrap">
@@ -99,6 +103,13 @@ export default function RecordingPage({
         {bridgeError ? <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p> : null}
       </section>
 
+      <section className="info-card theme-preview-panel theme-preview-panel-wide">
+        <ThemeSwitcher
+          currentThemeId={themeId}
+          onThemeChange={onThemeChange}
+        />
+      </section>
+
       <section className="recording-page-main">
         {storageLoading ? <p className="empty-state">正在扫描本地 recording 资产...</p> : null}
         {!storageLoading && recordingEntries.length === 0 ? (
@@ -128,7 +139,10 @@ export default function RecordingPage({
         ) : null}
         {recordingBundle ? (
           <article className="info-card recording-viewer-card">
-            <RecordingViewer recordingBundle={recordingBundle} />
+            <RecordingViewer
+              recordingBundle={recordingBundle}
+              themeId={themeId}
+            />
             <details className="raw-preview-panel">
               <summary>原始 JSON</summary>
               <pre className="code-block">{recordingSelectedEntry?.textContent}</pre>

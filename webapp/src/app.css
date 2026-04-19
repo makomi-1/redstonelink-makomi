@@ -1,11 +1,5 @@
 :root {
   --recording-node-list-width: 192px;
-  color: #f9f1eb;
-  background:
-    radial-gradient(circle at top, rgba(255, 176, 122, 0.18), transparent 34%),
-    linear-gradient(155deg, #2a1713 0%, #120f16 48%, #08131b 100%);
-  font-family:
-    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
   line-height: 1.5;
   font-weight: 400;
   text-rendering: optimizeLegibility;
@@ -22,6 +16,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #0b1017;
 }
 
 #root {
@@ -29,10 +24,420 @@ body {
 }
 
 .app-shell {
+  --app-font-family:
+    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+  --app-text-primary: #f9f1eb;
+  --app-text-strong: #fff4eb;
+  --app-text-secondary: #d8c3b4;
+  --app-text-muted: #c7af9c;
+  --app-text-soft: #efd9ca;
+  --app-text-danger: #ffb9b9;
+  --app-text-accent: #ffcca6;
+  --app-code-text: #d8f0ff;
+  --app-page-background:
+    radial-gradient(circle at top, rgba(255, 176, 122, 0.18), transparent 34%),
+    linear-gradient(155deg, #2a1713 0%, #120f16 48%, #08131b 100%);
+  --app-orb-a: rgba(255, 132, 90, 0.24);
+  --app-orb-b: rgba(78, 185, 255, 0.14);
+  --app-card-border: rgba(255, 214, 191, 0.14);
+  --app-card-bg: rgba(18, 16, 21, 0.74);
+  --app-card-shadow: 0 24px 60px rgba(6, 8, 12, 0.34);
+  --app-divider: rgba(255, 214, 191, 0.1);
+  --app-surface-soft: rgba(255, 255, 255, 0.03);
+  --app-surface-soft-hover: rgba(255, 147, 104, 0.08);
+  --app-surface-soft-active: rgba(255, 147, 104, 0.14);
+  --app-surface-strong: rgba(8, 16, 24, 0.62);
+  --app-surface-panel: rgba(8, 16, 24, 0.42);
+  --app-surface-chart: rgba(8, 16, 24, 0.46);
+  --app-surface-code: rgba(8, 16, 24, 0.66);
+  --app-accent-bg: rgba(255, 147, 104, 0.12);
+  --app-accent-bg-strong: rgba(255, 147, 104, 0.16);
+  --app-accent-bg-hover: rgba(255, 147, 104, 0.2);
+  --app-accent-border: rgba(255, 189, 150, 0.54);
+  --app-control-border: rgba(255, 214, 191, 0.12);
+  --app-control-border-strong: rgba(255, 214, 191, 0.3);
+  --app-input-border: rgba(255, 214, 191, 0.16);
+  --app-focus-ring: rgba(255, 189, 150, 0.42);
+  --app-ready-bg: rgba(109, 224, 169, 0.14);
+  --app-ready-text: #8ff0b4;
+  --app-waiting-bg: rgba(255, 214, 109, 0.14);
+  --app-waiting-text: #ffe18d;
+  --app-error-bg: rgba(255, 122, 122, 0.16);
+  --app-error-text: #ffb1b1;
+  --graph-canvas-bg:
+    radial-gradient(circle at top, rgba(255, 173, 122, 0.09), transparent 32%),
+    linear-gradient(180deg, rgba(8, 14, 22, 0.88), rgba(12, 10, 16, 0.92));
+  --graph-canvas-border: rgba(255, 214, 191, 0.08);
+  --graph-outline-border: rgba(151, 226, 255, 0.58);
+  --graph-outline-bg: rgba(107, 198, 255, 0.045);
+  --graph-trigger-border: rgba(255, 181, 140, 0.76);
+  --graph-trigger-bg: rgba(255, 181, 140, 0.22);
+  --graph-core-border: rgba(108, 230, 255, 0.82);
+  --graph-core-bg: rgba(108, 230, 255, 0.2);
+  --graph-channel-border: rgba(239, 216, 139, 0.82);
+  --graph-channel-bg: rgba(239, 216, 139, 0.2);
+  --graph-aggregate-border: rgba(140, 213, 255, 0.82);
+  --graph-aggregate-bg: rgba(140, 213, 255, 0.08);
+  --graph-aggregate-outline-border: rgba(151, 226, 255, 0.68);
+  --graph-aggregate-outline-bg: rgba(107, 198, 255, 0.12);
+  --graph-node-trigger-accent: #ffb894;
+  --graph-node-core-accent: #8cd5ff;
+  --graph-node-trigger-surface: rgba(255, 165, 122, 0.12);
+  --graph-node-core-surface: rgba(95, 196, 255, 0.12);
+  --graph-node-source-selection: #ff8a4f;
+  --graph-node-target-selection: #5dd4ff;
+  --graph-node-draft-accent: #8ef0b8;
+  --graph-node-base-border: rgba(255, 214, 191, 0.22);
+  --graph-node-text: #fff4eb;
+  --graph-aggregate-accent: #8ad8ff;
+  --graph-aggregate-surface:
+    linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08));
+  --graph-channel-accent: #efd88b;
+  --graph-channel-surface:
+    linear-gradient(180deg, rgba(239, 216, 139, 0.2), rgba(156, 129, 56, 0.08));
+  --graph-edge-base: #ffc296;
+  --graph-edge-added: #8ef0b8;
+  --graph-edge-aggregate: #8ad8ff;
+  --graph-edge-channel: #efd88b;
+  --graph-grid-color: rgba(255, 214, 191, 0.12);
+  --graph-minimap-trigger: rgba(255, 181, 140, 0.82);
+  --graph-minimap-core: rgba(108, 230, 255, 0.8);
+  --graph-minimap-channel: rgba(239, 216, 139, 0.9);
+  --graph-minimap-aggregate: rgba(140, 213, 255, 0.86);
+  --graph-minimap-mask: rgba(10, 12, 18, 0.28);
+  --recording-chart-axis: #d9c2b0;
+  --recording-chart-grid: rgba(255, 214, 191, 0.1);
+  --recording-series-1-input: #67d6ff;
+  --recording-series-1-output: #a6ebff;
+  --recording-series-2-input: #ff9b6b;
+  --recording-series-2-output: #ffd0ad;
+  --recording-series-3-input: #9fe06e;
+  --recording-series-3-output: #ccefb2;
+  --recording-series-4-input: #c59cff;
+  --recording-series-4-output: #e0c8ff;
+  --recording-series-5-input: #ffd45f;
+  --recording-series-5-output: #ffebb0;
+  --graph-node-radius: 16px;
+  --graph-aggregate-node-radius: 16px;
+  --graph-channel-node-radius: 18px;
   position: relative;
   min-height: 100vh;
   overflow: hidden;
   padding: 32px 24px 56px;
+  color: var(--app-text-primary);
+  background: var(--app-page-background);
+  font-family: var(--app-font-family);
+}
+
+.app-shell[data-theme="future-command"] {
+  --app-font-family:
+    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+  --app-text-primary: #e6eefb;
+  --app-text-strong: #f8fbff;
+  --app-text-secondary: #9cb2d0;
+  --app-text-muted: #7e93b2;
+  --app-text-soft: #c8d7eb;
+  --app-text-danger: #ffafb9;
+  --app-text-accent: #ff7787;
+  --app-code-text: #92dcff;
+  --app-page-background:
+    radial-gradient(circle at top, rgba(66, 148, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 78% 14%, rgba(255, 96, 120, 0.1), transparent 24%),
+    linear-gradient(160deg, #08111f 0%, #0a1628 48%, #040b15 100%);
+  --app-orb-a: rgba(78, 152, 255, 0.18);
+  --app-orb-b: rgba(255, 85, 107, 0.12);
+  --app-card-border: rgba(157, 194, 241, 0.16);
+  --app-card-bg: rgba(8, 18, 34, 0.8);
+  --app-card-shadow: 0 24px 60px rgba(4, 10, 22, 0.42);
+  --app-divider: rgba(157, 194, 241, 0.12);
+  --app-surface-soft: rgba(255, 255, 255, 0.03);
+  --app-surface-soft-hover: rgba(74, 137, 255, 0.1);
+  --app-surface-soft-active: rgba(255, 96, 120, 0.12);
+  --app-surface-strong: rgba(8, 17, 31, 0.74);
+  --app-surface-panel: rgba(8, 17, 31, 0.5);
+  --app-surface-chart: rgba(8, 17, 31, 0.56);
+  --app-surface-code: rgba(5, 14, 28, 0.74);
+  --app-accent-bg: rgba(255, 96, 120, 0.12);
+  --app-accent-bg-strong: rgba(255, 96, 120, 0.16);
+  --app-accent-bg-hover: rgba(255, 96, 120, 0.22);
+  --app-accent-border: rgba(255, 126, 145, 0.48);
+  --app-control-border: rgba(157, 194, 241, 0.12);
+  --app-control-border-strong: rgba(102, 176, 255, 0.32);
+  --app-input-border: rgba(157, 194, 241, 0.18);
+  --app-focus-ring: rgba(102, 176, 255, 0.28);
+  --app-ready-bg: rgba(109, 224, 169, 0.14);
+  --app-ready-text: #8ff0b4;
+  --app-waiting-bg: rgba(255, 214, 109, 0.12);
+  --app-waiting-text: #ffe18d;
+  --app-error-bg: rgba(255, 96, 120, 0.16);
+  --app-error-text: #ffb6c1;
+  --graph-canvas-bg:
+    radial-gradient(circle at top, rgba(79, 155, 255, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(5, 14, 28, 0.92), rgba(7, 14, 26, 0.96));
+  --graph-canvas-border: rgba(157, 194, 241, 0.1);
+  --graph-outline-border: rgba(121, 210, 255, 0.58);
+  --graph-outline-bg: rgba(84, 164, 255, 0.06);
+  --graph-trigger-border: rgba(255, 120, 140, 0.82);
+  --graph-trigger-bg: rgba(255, 120, 140, 0.18);
+  --graph-core-border: rgba(116, 220, 255, 0.82);
+  --graph-core-bg: rgba(116, 220, 255, 0.16);
+  --graph-channel-border: rgba(207, 229, 255, 0.76);
+  --graph-channel-bg: rgba(207, 229, 255, 0.12);
+  --graph-aggregate-border: rgba(127, 207, 255, 0.8);
+  --graph-aggregate-bg: rgba(127, 207, 255, 0.08);
+  --graph-aggregate-outline-border: rgba(127, 207, 255, 0.66);
+  --graph-aggregate-outline-bg: rgba(84, 164, 255, 0.14);
+  --graph-node-trigger-accent: #ff8394;
+  --graph-node-core-accent: #8bdeff;
+  --graph-node-trigger-surface: rgba(255, 120, 140, 0.1);
+  --graph-node-core-surface: rgba(116, 220, 255, 0.1);
+  --graph-node-source-selection: #ff667a;
+  --graph-node-target-selection: #64d9ff;
+  --graph-node-draft-accent: #8ef0b8;
+  --graph-node-base-border: rgba(157, 194, 241, 0.22);
+  --graph-node-text: #f5f9ff;
+  --graph-aggregate-accent: #79d2ff;
+  --graph-aggregate-surface:
+    linear-gradient(180deg, rgba(85, 173, 255, 0.16), rgba(59, 112, 198, 0.08));
+  --graph-channel-accent: #d7ecff;
+  --graph-channel-surface:
+    linear-gradient(180deg, rgba(213, 233, 255, 0.18), rgba(92, 130, 180, 0.08));
+  --graph-edge-base: #8fc9ff;
+  --graph-edge-added: #8ef0b8;
+  --graph-edge-aggregate: #79d2ff;
+  --graph-edge-channel: #d7ecff;
+  --graph-grid-color: rgba(157, 194, 241, 0.12);
+  --graph-minimap-trigger: rgba(255, 120, 140, 0.84);
+  --graph-minimap-core: rgba(116, 220, 255, 0.82);
+  --graph-minimap-channel: rgba(207, 229, 255, 0.82);
+  --graph-minimap-aggregate: rgba(127, 207, 255, 0.82);
+  --graph-minimap-mask: rgba(4, 10, 20, 0.32);
+  --recording-chart-axis: #9ab3d3;
+  --recording-chart-grid: rgba(157, 194, 241, 0.12);
+  --recording-series-1-input: #64d9ff;
+  --recording-series-1-output: #b6efff;
+  --recording-series-2-input: #ff7187;
+  --recording-series-2-output: #ffc2cb;
+  --recording-series-3-input: #8fe8b6;
+  --recording-series-3-output: #c9f5db;
+  --recording-series-4-input: #ab9fff;
+  --recording-series-4-output: #ddd5ff;
+  --recording-series-5-input: #d6eaff;
+  --recording-series-5-output: #f3f8ff;
+  --graph-node-radius: 0px;
+  --graph-aggregate-node-radius: 0px;
+  --graph-channel-node-radius: 0px;
+}
+
+.app-shell[data-theme="future-command"] .info-card,
+.app-shell[data-theme="future-command"] .theme-option,
+.app-shell[data-theme="future-command"] .recording-summary-card,
+.app-shell[data-theme="future-command"] .recording-node-list,
+.app-shell[data-theme="future-command"] .recording-series-panel,
+.app-shell[data-theme="future-command"] .graph-canvas-card,
+.app-shell[data-theme="future-command"] .graph-detail-card,
+.app-shell[data-theme="future-command"] .graph-save-preview,
+.app-shell[data-theme="future-command"] .graph-batch-editor,
+.app-shell[data-theme="future-command"] .recording-chart-card,
+.app-shell[data-theme="future-command"] .sample-table-panel,
+.app-shell[data-theme="future-command"] .raw-preview-panel,
+.app-shell[data-theme="future-command"] .code-block {
+  border-radius: 0;
+}
+
+.app-shell[data-theme="future-command"] .eyebrow,
+.app-shell[data-theme="future-command"] .section-tag,
+.app-shell[data-theme="future-command"] .status-pill,
+.app-shell[data-theme="future-command"] .action-button,
+.app-shell[data-theme="future-command"] .graph-search-chip,
+.app-shell[data-theme="future-command"] .metric-chip,
+.app-shell[data-theme="future-command"] .graph-legend-item,
+.app-shell[data-theme="future-command"] .recording-selection-legend {
+  border-radius: 0;
+}
+
+.app-shell[data-theme="future-command"] .recording-file-select,
+.app-shell[data-theme="future-command"] .graph-search-input,
+.app-shell[data-theme="future-command"] .graph-editor-input,
+.app-shell[data-theme="future-command"] .recording-node-button,
+.app-shell[data-theme="future-command"] .graph-target-item,
+.app-shell[data-theme="future-command"] .graph-target-chip,
+.app-shell[data-theme="future-command"] .graph-canvas,
+.app-shell[data-theme="future-command"] .graph-legend-swatch,
+.app-shell[data-theme="future-command"] .graph-aggregate-outline-node {
+  border-radius: 0;
+}
+
+.app-shell[data-theme="lab-minimal"] {
+  --app-font-family:
+    "Segoe UI Variable Text", "Bahnschrift", "Microsoft YaHei UI", sans-serif;
+  --app-text-primary: #1c3242;
+  --app-text-strong: #112636;
+  --app-text-secondary: #587487;
+  --app-text-muted: #738ea0;
+  --app-text-soft: #365468;
+  --app-text-danger: #c54b4b;
+  --app-text-accent: #1f6feb;
+  --app-code-text: #225274;
+  --app-page-background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.16), transparent 30%),
+    linear-gradient(180deg, #fbfdff 0%, #edf3f8 58%, #e6eef5 100%);
+  --app-orb-a: rgba(56, 189, 248, 0.16);
+  --app-orb-b: rgba(59, 130, 246, 0.12);
+  --app-card-border: rgba(42, 90, 130, 0.12);
+  --app-card-bg: rgba(255, 255, 255, 0.82);
+  --app-card-shadow: 0 24px 56px rgba(91, 132, 165, 0.16);
+  --app-divider: rgba(42, 90, 130, 0.1);
+  --app-surface-soft: rgba(255, 255, 255, 0.72);
+  --app-surface-soft-hover: rgba(59, 130, 246, 0.06);
+  --app-surface-soft-active: rgba(59, 130, 246, 0.1);
+  --app-surface-strong: rgba(242, 248, 253, 0.96);
+  --app-surface-panel: rgba(247, 250, 253, 0.9);
+  --app-surface-chart: rgba(241, 247, 252, 0.95);
+  --app-surface-code: rgba(242, 248, 252, 0.92);
+  --app-accent-bg: rgba(59, 130, 246, 0.08);
+  --app-accent-bg-strong: rgba(59, 130, 246, 0.12);
+  --app-accent-bg-hover: rgba(59, 130, 246, 0.16);
+  --app-accent-border: rgba(59, 130, 246, 0.34);
+  --app-control-border: rgba(42, 90, 130, 0.12);
+  --app-control-border-strong: rgba(59, 130, 246, 0.28);
+  --app-input-border: rgba(62, 112, 160, 0.16);
+  --app-focus-ring: rgba(59, 130, 246, 0.28);
+  --app-ready-bg: rgba(22, 163, 74, 0.12);
+  --app-ready-text: #15803d;
+  --app-waiting-bg: rgba(245, 158, 11, 0.12);
+  --app-waiting-text: #b45309;
+  --app-error-bg: rgba(239, 68, 68, 0.1);
+  --app-error-text: #c24141;
+  --graph-canvas-bg:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.1), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(237, 244, 250, 0.94));
+  --graph-canvas-border: rgba(48, 91, 129, 0.14);
+  --graph-outline-border: rgba(37, 99, 235, 0.34);
+  --graph-outline-bg: rgba(59, 130, 246, 0.08);
+  --graph-trigger-border: rgba(249, 115, 22, 0.62);
+  --graph-trigger-bg: rgba(249, 115, 22, 0.16);
+  --graph-core-border: rgba(37, 99, 235, 0.56);
+  --graph-core-bg: rgba(59, 130, 246, 0.16);
+  --graph-channel-border: rgba(245, 158, 11, 0.56);
+  --graph-channel-bg: rgba(245, 158, 11, 0.16);
+  --graph-aggregate-border: rgba(56, 189, 248, 0.58);
+  --graph-aggregate-bg: rgba(56, 189, 248, 0.1);
+  --graph-aggregate-outline-border: rgba(96, 165, 250, 0.54);
+  --graph-aggregate-outline-bg: rgba(59, 130, 246, 0.1);
+  --graph-node-trigger-accent: #ea580c;
+  --graph-node-core-accent: #2563eb;
+  --graph-node-trigger-surface: rgba(249, 115, 22, 0.09);
+  --graph-node-core-surface: rgba(59, 130, 246, 0.1);
+  --graph-node-source-selection: #ef4444;
+  --graph-node-target-selection: #1d4ed8;
+  --graph-node-draft-accent: #16a34a;
+  --graph-node-base-border: rgba(83, 108, 128, 0.24);
+  --graph-node-text: #10283a;
+  --graph-aggregate-accent: #38bdf8;
+  --graph-aggregate-surface:
+    linear-gradient(180deg, rgba(147, 197, 253, 0.28), rgba(191, 219, 254, 0.12));
+  --graph-channel-accent: #f59e0b;
+  --graph-channel-surface:
+    linear-gradient(180deg, rgba(253, 224, 71, 0.24), rgba(245, 158, 11, 0.08));
+  --graph-edge-base: #f97316;
+  --graph-edge-added: #16a34a;
+  --graph-edge-aggregate: #38bdf8;
+  --graph-edge-channel: #f59e0b;
+  --graph-grid-color: rgba(62, 112, 160, 0.16);
+  --graph-minimap-trigger: rgba(249, 115, 22, 0.72);
+  --graph-minimap-core: rgba(37, 99, 235, 0.72);
+  --graph-minimap-channel: rgba(245, 158, 11, 0.74);
+  --graph-minimap-aggregate: rgba(56, 189, 248, 0.74);
+  --graph-minimap-mask: rgba(228, 237, 245, 0.54);
+  --recording-chart-axis: #577488;
+  --recording-chart-grid: rgba(74, 110, 138, 0.12);
+}
+
+.app-shell[data-theme="industrial-tech"] {
+  --app-font-family:
+    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+  --app-text-primary: #2b3137;
+  --app-text-strong: #191f25;
+  --app-text-secondary: #616e78;
+  --app-text-muted: #7a8791;
+  --app-text-soft: #44515b;
+  --app-text-danger: #c44738;
+  --app-text-accent: #d26a1c;
+  --app-code-text: #24516a;
+  --app-page-background:
+    radial-gradient(circle at top, rgba(36, 132, 222, 0.12), transparent 34%),
+    linear-gradient(165deg, #f4f0ea 0%, #ebe6de 54%, #e4ebf1 100%);
+  --app-orb-a: rgba(255, 135, 56, 0.16);
+  --app-orb-b: rgba(42, 146, 235, 0.12);
+  --app-card-border: rgba(77, 87, 96, 0.14);
+  --app-card-bg: rgba(250, 247, 242, 0.84);
+  --app-card-shadow: 0 24px 56px rgba(79, 90, 101, 0.16);
+  --app-divider: rgba(77, 87, 96, 0.12);
+  --app-surface-soft: rgba(255, 255, 255, 0.56);
+  --app-surface-soft-hover: rgba(210, 106, 28, 0.08);
+  --app-surface-soft-active: rgba(210, 106, 28, 0.12);
+  --app-surface-strong: rgba(244, 241, 236, 0.96);
+  --app-surface-panel: rgba(240, 238, 233, 0.9);
+  --app-surface-chart: rgba(236, 239, 242, 0.92);
+  --app-surface-code: rgba(236, 239, 242, 0.94);
+  --app-accent-bg: rgba(210, 106, 28, 0.08);
+  --app-accent-bg-strong: rgba(210, 106, 28, 0.12);
+  --app-accent-bg-hover: rgba(210, 106, 28, 0.16);
+  --app-accent-border: rgba(210, 106, 28, 0.32);
+  --app-control-border: rgba(92, 99, 108, 0.14);
+  --app-control-border-strong: rgba(36, 132, 222, 0.24);
+  --app-input-border: rgba(92, 99, 108, 0.16);
+  --app-focus-ring: rgba(36, 132, 222, 0.28);
+  --app-ready-bg: rgba(22, 163, 74, 0.12);
+  --app-ready-text: #157347;
+  --app-waiting-bg: rgba(217, 119, 6, 0.12);
+  --app-waiting-text: #b45309;
+  --app-error-bg: rgba(220, 38, 38, 0.1);
+  --app-error-text: #b91c1c;
+  --graph-canvas-bg:
+    radial-gradient(circle at top, rgba(255, 150, 80, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(247, 244, 238, 0.96), rgba(231, 237, 242, 0.92));
+  --graph-canvas-border: rgba(92, 99, 108, 0.12);
+  --graph-outline-border: rgba(36, 132, 222, 0.34);
+  --graph-outline-bg: rgba(36, 132, 222, 0.08);
+  --graph-trigger-border: rgba(210, 106, 28, 0.58);
+  --graph-trigger-bg: rgba(210, 106, 28, 0.15);
+  --graph-core-border: rgba(36, 132, 222, 0.54);
+  --graph-core-bg: rgba(36, 132, 222, 0.14);
+  --graph-channel-border: rgba(183, 138, 48, 0.52);
+  --graph-channel-bg: rgba(183, 138, 48, 0.16);
+  --graph-aggregate-border: rgba(71, 172, 229, 0.5);
+  --graph-aggregate-bg: rgba(71, 172, 229, 0.08);
+  --graph-aggregate-outline-border: rgba(36, 132, 222, 0.42);
+  --graph-aggregate-outline-bg: rgba(36, 132, 222, 0.08);
+  --graph-node-trigger-accent: #d26a1c;
+  --graph-node-core-accent: #2484de;
+  --graph-node-trigger-surface: rgba(210, 106, 28, 0.1);
+  --graph-node-core-surface: rgba(36, 132, 222, 0.1);
+  --graph-node-source-selection: #ea580c;
+  --graph-node-target-selection: #2563eb;
+  --graph-node-draft-accent: #16a34a;
+  --graph-node-base-border: rgba(97, 110, 120, 0.22);
+  --graph-node-text: #1b232b;
+  --graph-aggregate-accent: #47ace5;
+  --graph-aggregate-surface:
+    linear-gradient(180deg, rgba(125, 201, 240, 0.24), rgba(36, 132, 222, 0.08));
+  --graph-channel-accent: #b78a30;
+  --graph-channel-surface:
+    linear-gradient(180deg, rgba(248, 211, 140, 0.22), rgba(183, 138, 48, 0.08));
+  --graph-edge-base: #d26a1c;
+  --graph-edge-added: #16a34a;
+  --graph-edge-aggregate: #2484de;
+  --graph-edge-channel: #b78a30;
+  --graph-grid-color: rgba(92, 99, 108, 0.14);
+  --graph-minimap-trigger: rgba(210, 106, 28, 0.74);
+  --graph-minimap-core: rgba(36, 132, 222, 0.76);
+  --graph-minimap-channel: rgba(183, 138, 48, 0.76);
+  --graph-minimap-aggregate: rgba(71, 172, 229, 0.74);
+  --graph-minimap-mask: rgba(233, 235, 238, 0.54);
+  --recording-chart-axis: #6a747d;
+  --recording-chart-grid: rgba(92, 99, 108, 0.12);
 }
 
 .app-shell::before,
@@ -49,7 +454,7 @@ body {
   height: 240px;
   top: 28px;
   right: -40px;
-  background: rgba(255, 132, 90, 0.24);
+  background: var(--app-orb-a);
 }
 
 .app-shell::after {
@@ -57,17 +462,17 @@ body {
   height: 280px;
   bottom: -90px;
   left: -50px;
-  background: rgba(78, 185, 255, 0.14);
+  background: var(--app-orb-b);
 }
 
 .hero-panel,
 .info-card {
   position: relative;
   z-index: 1;
-  border: 1px solid rgba(255, 214, 191, 0.14);
-  background: rgba(18, 16, 21, 0.74);
+  border: 1px solid var(--app-card-border);
+  background: var(--app-card-bg);
   backdrop-filter: blur(14px);
-  box-shadow: 0 24px 60px rgba(6, 8, 12, 0.34);
+  box-shadow: var(--app-card-shadow);
 }
 
 .hero-panel {
@@ -88,8 +493,8 @@ body {
   min-height: 28px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(255, 147, 104, 0.16);
-  color: #ffcca6;
+  background: var(--app-accent-bg-strong);
+  color: var(--app-text-accent);
   font-size: 0.78rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -110,7 +515,7 @@ body {
 .hero-text {
   max-width: 40rem;
   margin: 16px 0 0;
-  color: #efd9ca;
+  color: var(--app-text-soft);
   font-size: 1.02rem;
 }
 
@@ -130,17 +535,13 @@ body {
 .orbit-core {
   width: 96px;
   height: 96px;
-  background: radial-gradient(
-    circle at 30% 30%,
-    #ffe9c0,
-    #ff8a55 55%,
-    #7c180f 100%
-  );
-  box-shadow: 0 0 36px rgba(255, 136, 87, 0.48);
+  background:
+    radial-gradient(circle at 30% 30%, #ffffff, var(--app-text-accent) 54%, var(--graph-edge-base) 100%);
+  box-shadow: 0 0 36px var(--app-accent-bg-hover);
 }
 
 .orbit-ring {
-  border: 1px solid rgba(255, 219, 194, 0.32);
+  border: 1px solid var(--app-card-border);
 }
 
 .orbit-ring-a {
@@ -179,6 +580,115 @@ body {
   margin-bottom: 18px;
 }
 
+.theme-preview-panel {
+  max-width: 1160px;
+  margin: 0 auto 18px;
+}
+
+.theme-preview-panel-wide {
+  max-width: 1380px;
+}
+
+.theme-switcher {
+  display: grid;
+  gap: 16px;
+}
+
+.theme-switcher-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.theme-switcher-header h2 {
+  margin: 12px 0 0;
+}
+
+.theme-switcher-caption {
+  max-width: 40rem;
+  margin: 0;
+  color: var(--app-text-secondary);
+}
+
+.theme-switcher-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.theme-option {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  padding: 18px 16px 16px;
+  border: 1px solid var(--app-control-border);
+  border-radius: 18px;
+  background: var(--app-surface-soft);
+  color: var(--app-text-strong);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.theme-option::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+}
+
+.theme-option--future-command::before {
+  background: linear-gradient(90deg, #f4f9ff, #4d9eff 58%, #ff697d);
+}
+
+.theme-option--lab-minimal::before {
+  background: linear-gradient(90deg, #ffffff, #6ab3ff);
+}
+
+.theme-option--industrial-tech::before {
+  background: linear-gradient(90deg, #ff8d41, #2793ea);
+}
+
+.theme-option:hover {
+  transform: translateY(-1px);
+  border-color: var(--app-control-border-strong);
+  background: var(--app-surface-soft-hover);
+}
+
+.theme-option.is-active {
+  border-color: var(--app-accent-border);
+  background: var(--app-surface-soft-active);
+  box-shadow: inset 0 0 0 1px var(--app-accent-border);
+}
+
+.theme-option-title {
+  margin-top: 8px;
+  font-weight: 700;
+}
+
+.theme-option-caption,
+.theme-option-palette {
+  color: var(--app-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.theme-option-palette {
+  color: var(--app-text-accent);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -190,18 +700,18 @@ body {
 }
 
 .status-pill.is-ready {
-  background: rgba(109, 224, 169, 0.14);
-  color: #8ff0b4;
+  background: var(--app-ready-bg);
+  color: var(--app-ready-text);
 }
 
 .status-pill.is-waiting {
-  background: rgba(255, 214, 109, 0.14);
-  color: #ffe18d;
+  background: var(--app-waiting-bg);
+  color: var(--app-waiting-text);
 }
 
 .status-pill.is-error {
-  background: rgba(255, 122, 122, 0.16);
-  color: #ffb1b1;
+  background: var(--app-error-bg);
+  color: var(--app-error-text);
 }
 
 .meta-grid {
@@ -221,7 +731,7 @@ body {
 
 .meta-grid dt {
   margin-bottom: 6px;
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.82rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -229,14 +739,14 @@ body {
 
 .meta-grid dd {
   margin: 0;
-  color: #fff2e8;
+  color: var(--app-text-strong);
   word-break: break-all;
 }
 
 .feature-list {
   margin: 0;
   padding-left: 18px;
-  color: #f3e5d9;
+  color: var(--app-text-primary);
 }
 
 .feature-list li + li {
@@ -252,10 +762,10 @@ body {
 .action-button {
   min-height: 40px;
   padding: 0 16px;
-  border: 1px solid rgba(255, 214, 191, 0.2);
+  border: 1px solid var(--app-control-border);
   border-radius: 999px;
-  background: rgba(255, 147, 104, 0.12);
-  color: #fff4eb;
+  background: var(--app-accent-bg);
+  color: var(--app-text-strong);
   font: inherit;
   cursor: pointer;
   transition:
@@ -266,8 +776,8 @@ body {
 
 .action-button:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 214, 191, 0.38);
-  background: rgba(255, 147, 104, 0.2);
+  border-color: var(--app-control-border-strong);
+  background: var(--app-accent-bg-hover);
 }
 
 .workspace-grid {
@@ -288,7 +798,7 @@ body {
 .asset-group + .asset-group {
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid rgba(255, 214, 191, 0.1);
+  border-top: 1px solid var(--app-divider);
 }
 
 .asset-group-header {
@@ -305,7 +815,7 @@ body {
 
 .asset-caption {
   margin: 6px 0 0;
-  color: #ccb5a6;
+  color: var(--app-text-secondary);
   font-size: 0.88rem;
 }
 
@@ -325,10 +835,10 @@ body {
   width: 100%;
   gap: 6px;
   padding: 14px;
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #fff4eb;
+  background: var(--app-surface-soft);
+  color: var(--app-text-strong);
   text-align: left;
   font: inherit;
   cursor: pointer;
@@ -340,14 +850,14 @@ body {
 
 .asset-button:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 214, 191, 0.3);
-  background: rgba(255, 147, 104, 0.08);
+  border-color: var(--app-control-border-strong);
+  background: var(--app-surface-soft-hover);
 }
 
 .asset-button.is-selected {
-  border-color: rgba(255, 189, 150, 0.54);
-  background: rgba(255, 147, 104, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(255, 204, 166, 0.08);
+  border-color: var(--app-accent-border);
+  background: var(--app-surface-soft-active);
+  box-shadow: inset 0 0 0 1px var(--app-accent-border);
 }
 
 .asset-name {
@@ -356,7 +866,7 @@ body {
 }
 
 .asset-meta {
-  color: #d8c3b4;
+  color: var(--app-text-secondary);
   font-size: 0.88rem;
 }
 
@@ -373,7 +883,7 @@ body {
 
 .preview-meta dt {
   margin-bottom: 6px;
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.82rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -381,7 +891,7 @@ body {
 
 .preview-meta dd {
   margin: 0;
-  color: #fff2e8;
+  color: var(--app-text-strong);
   word-break: break-all;
 }
 
@@ -390,8 +900,8 @@ body {
   min-height: 360px;
   padding: 18px;
   border-radius: 18px;
-  background: rgba(8, 16, 24, 0.66);
-  color: #d8f0ff;
+  background: var(--app-surface-code);
+  color: var(--app-code-text);
   overflow: auto;
   font-family: "Cascadia Code", "Consolas", monospace;
   font-size: 0.92rem;
@@ -401,12 +911,12 @@ body {
 }
 
 .empty-state {
-  color: #ccb5a6;
+  color: var(--app-text-secondary);
 }
 
 .error-text {
   margin: 18px 0 0;
-  color: #ffb9b9;
+  color: var(--app-text-danger);
 }
 
 .recording-view {
@@ -423,9 +933,9 @@ body {
 
 .recording-summary-card {
   padding: 16px;
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--app-surface-soft);
 }
 
 .recording-summary-card h3,
@@ -446,7 +956,7 @@ body {
 
 .recording-meta-grid dt {
   margin-bottom: 6px;
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.82rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -454,7 +964,7 @@ body {
 
 .recording-meta-grid dd {
   margin: 0;
-  color: #fff2e8;
+  color: var(--app-text-strong);
   word-break: break-all;
 }
 
@@ -471,12 +981,12 @@ body {
 .marker-tick {
   display: inline-block;
   min-width: 86px;
-  color: #ffcca6;
+  color: var(--app-text-accent);
   font-weight: 700;
 }
 
 .marker-label {
-  color: #fff2e8;
+  color: var(--app-text-strong);
 }
 
 .recording-node-section {
@@ -488,9 +998,9 @@ body {
 .recording-node-list,
 .recording-series-panel {
   padding: 16px;
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--app-surface-soft);
 }
 
 .recording-section-header {
@@ -507,10 +1017,10 @@ body {
   width: 100%;
   gap: 6px;
   padding: 12px 14px;
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
-  color: #fff4eb;
+  background: var(--app-surface-soft);
+  color: var(--app-text-strong);
   text-align: left;
   font: inherit;
   cursor: pointer;
@@ -526,8 +1036,8 @@ body {
 
 .recording-node-button:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 214, 191, 0.3);
-  background: rgba(255, 147, 104, 0.08);
+  border-color: var(--app-control-border-strong);
+  background: var(--app-surface-soft-hover);
 }
 
 .recording-node-button:disabled {
@@ -537,8 +1047,8 @@ body {
 }
 
 .recording-node-button.is-selected {
-  border-color: rgba(255, 189, 150, 0.54);
-  background: rgba(255, 147, 104, 0.14);
+  border-color: var(--app-accent-border);
+  background: var(--app-surface-soft-active);
 }
 
 .recording-node-title {
@@ -546,7 +1056,7 @@ body {
 }
 
 .recording-node-meta {
-  color: #d8c3b4;
+  color: var(--app-text-secondary);
   font-size: 0.88rem;
 }
 
@@ -563,20 +1073,20 @@ body {
   gap: 8px;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--app-surface-soft);
 }
 
 .recording-selection-name {
-  color: #fff2e8;
+  color: var(--app-text-strong);
   font-size: 0.9rem;
 }
 
 .recording-legend-stroke {
   display: inline-block;
   width: 22px;
-  border-top: 3px solid #fff;
+  border-top: 3px solid var(--app-text-strong);
 }
 
 .recording-legend-stroke.is-dashed {
@@ -623,7 +1133,7 @@ body {
 }
 
 .recording-file-field span {
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.84rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -632,10 +1142,10 @@ body {
 .recording-file-select {
   min-height: 44px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 214, 191, 0.16);
+  border: 1px solid var(--app-input-border);
   border-radius: 14px;
-  background: rgba(8, 16, 24, 0.62);
-  color: #fff4eb;
+  background: var(--app-surface-strong);
+  color: var(--app-text-strong);
   font: inherit;
 }
 
@@ -652,7 +1162,7 @@ body {
 
 .recording-file-meta dt {
   margin-bottom: 6px;
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.82rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -660,7 +1170,7 @@ body {
 
 .recording-file-meta dd {
   margin: 0;
-  color: #fff2e8;
+  color: var(--app-text-strong);
   word-break: break-all;
 }
 
@@ -728,7 +1238,7 @@ body {
 }
 
 .graph-search-filter-label {
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.82rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -737,10 +1247,10 @@ body {
 .graph-search-input {
   min-height: 44px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 214, 191, 0.16);
+  border: 1px solid var(--app-input-border);
   border-radius: 14px;
-  background: rgba(8, 16, 24, 0.62);
-  color: #fff4eb;
+  background: var(--app-surface-strong);
+  color: var(--app-text-strong);
   font: inherit;
 }
 
@@ -756,17 +1266,17 @@ body {
   align-items: center;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 214, 191, 0.14);
+  border: 1px solid var(--app-control-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #fff4eb;
+  background: var(--app-surface-soft);
+  color: var(--app-text-strong);
   font: inherit;
   cursor: pointer;
 }
 
 .graph-search-chip.is-selected {
-  border-color: rgba(255, 189, 150, 0.54);
-  background: rgba(255, 147, 104, 0.14);
+  border-color: var(--app-accent-border);
+  background: var(--app-surface-soft-active);
 }
 
 .graph-editor-actions {
@@ -779,16 +1289,16 @@ body {
 
 .graph-editor-message {
   margin: 0;
-  color: #ffe6d0;
+  color: var(--app-text-soft);
 }
 
 .graph-save-preview {
   display: grid;
   gap: 8px;
   padding: 12px 14px;
-  border: 1px solid rgba(255, 214, 191, 0.1);
+  border: 1px solid var(--app-divider);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--app-surface-soft);
 }
 
 .graph-save-preview-header {
@@ -808,9 +1318,9 @@ body {
   gap: 14px;
   margin-bottom: 18px;
   padding: 14px;
-  border: 1px solid rgba(255, 214, 191, 0.1);
+  border: 1px solid var(--app-divider);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--app-surface-soft);
 }
 
 .graph-batch-editor-header {
@@ -824,7 +1334,7 @@ body {
 .graph-batch-editor-header span,
 .graph-batch-editor-caption {
   margin: 0;
-  color: #ccb5a6;
+  color: var(--app-text-secondary);
   font-size: 0.88rem;
 }
 
@@ -850,9 +1360,9 @@ body {
 .graph-canvas-card,
 .graph-detail-card {
   padding: 16px;
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--app-surface-soft);
 }
 
 .graph-canvas-header {
@@ -877,10 +1387,10 @@ body {
   gap: 8px;
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 214, 191, 0.1);
+  border: 1px solid var(--app-divider);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #ecd8ca;
+  background: var(--app-surface-soft);
+  color: var(--app-text-primary);
   font-size: 0.84rem;
 }
 
@@ -892,30 +1402,30 @@ body {
 }
 
 .graph-legend-swatch.is-trigger-source {
-  border-color: rgba(255, 181, 140, 0.76);
-  background: rgba(255, 181, 140, 0.22);
+  border-color: var(--graph-trigger-border);
+  background: var(--graph-trigger-bg);
 }
 
 .graph-legend-swatch.is-core {
-  border-color: rgba(108, 230, 255, 0.82);
-  background: rgba(108, 230, 255, 0.2);
+  border-color: var(--graph-core-border);
+  background: var(--graph-core-bg);
 }
 
 .graph-legend-swatch.is-channel-hub {
-  border-color: rgba(239, 216, 139, 0.82);
-  background: rgba(239, 216, 139, 0.2);
+  border-color: var(--graph-channel-border);
+  background: var(--graph-channel-bg);
 }
 
 .graph-legend-swatch.is-aggregate {
-  border-color: rgba(140, 213, 255, 0.82);
+  border-color: var(--graph-aggregate-border);
   border-style: dashed;
-  background: rgba(140, 213, 255, 0.08);
+  background: var(--graph-aggregate-bg);
 }
 
 .graph-legend-swatch.is-aggregate-outline {
-  border-color: rgba(151, 226, 255, 0.68);
+  border-color: var(--graph-aggregate-outline-border);
   border-style: dashed;
-  background: rgba(107, 198, 255, 0.12);
+  background: var(--graph-aggregate-outline-bg);
 }
 
 .graph-canvas-header h3,
@@ -936,7 +1446,7 @@ body {
 
 .graph-inline-stats dt {
   margin-bottom: 6px;
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.78rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -944,7 +1454,7 @@ body {
 
 .graph-inline-stats dd {
   margin: 0;
-  color: #fff2e8;
+  color: var(--app-text-strong);
   font-weight: 700;
 }
 
@@ -955,10 +1465,8 @@ body {
   overflow: hidden;
   overscroll-behavior: contain;
   border-radius: 16px;
-  border: 1px solid rgba(255, 214, 191, 0.08);
-  background:
-    radial-gradient(circle at top, rgba(255, 173, 122, 0.09), transparent 32%),
-    linear-gradient(180deg, rgba(8, 14, 22, 0.88), rgba(12, 10, 16, 0.92));
+  border: 1px solid var(--graph-canvas-border);
+  background: var(--graph-canvas-bg);
 }
 
 .graph-canvas .react-flow {
@@ -967,8 +1475,7 @@ body {
 
 .graph-canvas .react-flow__node-default {
   padding: 10px 12px;
-  font-family:
-    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--app-font-family);
 }
 
 .graph-canvas .react-flow__node-aggregateOutline {
@@ -981,9 +1488,9 @@ body {
 .graph-aggregate-outline-node {
   width: 100%;
   height: 100%;
-  border: 1px dashed rgba(151, 226, 255, 0.58);
+  border: 1px dashed var(--graph-outline-border);
   border-radius: 28px;
-  background: rgba(107, 198, 255, 0.045);
+  background: var(--graph-outline-bg);
   contain: layout paint;
   pointer-events: none;
 }
@@ -1043,7 +1550,7 @@ body {
 
 .graph-detail-caption {
   margin: 10px 0 0;
-  color: #ccb5a6;
+  color: var(--app-text-secondary);
   word-break: break-all;
 }
 
@@ -1058,7 +1565,7 @@ body {
 }
 
 .graph-editor-field span {
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.82rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1067,10 +1574,10 @@ body {
 .graph-editor-input {
   min-height: 42px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 214, 191, 0.16);
+  border: 1px solid var(--app-input-border);
   border-radius: 14px;
-  background: rgba(8, 16, 24, 0.62);
-  color: #fff4eb;
+  background: var(--app-surface-strong);
+  color: var(--app-text-strong);
   font: inherit;
 }
 
@@ -1086,7 +1593,7 @@ body {
 }
 
 .graph-target-editor-header span {
-  color: #ccb5a6;
+  color: var(--app-text-secondary);
   font-size: 0.88rem;
 }
 
@@ -1104,20 +1611,20 @@ body {
   gap: 10px;
   min-height: 38px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 214, 191, 0.1);
+  border: 1px solid var(--app-divider);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--app-surface-soft);
 }
 
 .graph-target-item.is-selected,
 .graph-target-chip.is-selected {
-  border-color: rgba(255, 189, 150, 0.42);
-  background: rgba(255, 147, 104, 0.12);
+  border-color: var(--app-accent-border);
+  background: var(--app-surface-soft-active);
 }
 
 .graph-target-chip {
   width: 100%;
-  color: #fff2e8;
+  color: var(--app-text-strong);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -1139,10 +1646,10 @@ body {
   align-items: center;
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #fff2e8;
+  background: var(--app-surface-soft);
+  color: var(--app-text-strong);
   font-size: 0.88rem;
 }
 
@@ -1160,7 +1667,7 @@ body {
 }
 
 .graph-node-meta {
-  color: #d8c3b4;
+  color: var(--app-text-secondary);
   font-size: 0.82rem;
 }
 
@@ -1169,9 +1676,9 @@ body {
   gap: 14px;
   margin-bottom: 18px;
   padding: 14px;
-  border: 1px solid rgba(255, 214, 191, 0.1);
+  border: 1px solid var(--app-divider);
   border-radius: 16px;
-  background: rgba(8, 16, 24, 0.42);
+  background: var(--app-surface-panel);
 }
 
 .graph-isolated-panel-header {
@@ -1189,7 +1696,7 @@ body {
 }
 
 .graph-isolated-panel-count {
-  color: #ccb5a6;
+  color: var(--app-text-secondary);
   font-size: 0.84rem;
 }
 
@@ -1208,7 +1715,7 @@ body {
 
 .chart-toolbar-label {
   min-width: 68px;
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.84rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1223,10 +1730,10 @@ body {
 .metric-chip {
   min-height: 34px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 214, 191, 0.14);
+  border: 1px solid var(--app-control-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #f7eadf;
+  background: var(--app-surface-soft);
+  color: var(--app-text-primary);
   font: inherit;
   cursor: pointer;
   transition:
@@ -1238,14 +1745,14 @@ body {
 
 .metric-chip:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: rgba(255, 214, 191, 0.3);
-  background: rgba(255, 147, 104, 0.08);
+  border-color: var(--app-control-border-strong);
+  background: var(--app-surface-soft-hover);
 }
 
 .metric-chip.is-active {
-  border-color: rgba(255, 189, 150, 0.54);
-  background: rgba(255, 147, 104, 0.16);
-  color: #fff4eb;
+  border-color: var(--app-accent-border);
+  background: var(--app-surface-soft-active);
+  color: var(--app-text-strong);
 }
 
 .metric-chip:disabled {
@@ -1255,22 +1762,22 @@ body {
 
 .chart-window-hint {
   margin: 14px 0 0;
-  color: #d8c3b4;
+  color: var(--app-text-secondary);
   font-size: 0.9rem;
 }
 
 .chart-interaction-hint {
   margin: 14px 0 0;
-  color: #c7af9c;
+  color: var(--app-text-muted);
   font-size: 0.92rem;
 }
 
 .recording-chart-card {
   margin-top: 14px;
   padding: 14px;
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 16px;
-  background: rgba(8, 16, 24, 0.46);
+  background: var(--app-surface-chart);
 }
 
 .recording-chart-interaction-shell {
@@ -1281,7 +1788,7 @@ body {
 }
 
 .recording-chart-interaction-shell:focus-visible {
-  box-shadow: 0 0 0 2px rgba(255, 189, 150, 0.42);
+  box-shadow: 0 0 0 2px var(--app-focus-ring);
   border-radius: 12px;
 }
 
@@ -1295,8 +1802,7 @@ body {
 }
 
 .recording-chart-host .u-wrap {
-  font-family:
-    "Bahnschrift", "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--app-font-family);
 }
 
 .recording-chart-host .u-over,
@@ -1322,19 +1828,19 @@ body {
 .sample-table-panel {
   margin-top: 16px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 214, 191, 0.1);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--app-divider);
+  background: var(--app-surface-soft);
 }
 
 .sample-table-panel summary {
   padding: 14px 16px;
   cursor: pointer;
-  color: #ffcca6;
+  color: var(--app-text-accent);
   font-weight: 700;
 }
 
 .sample-table-panel[open] .sample-table-wrap {
-  border-top: 1px solid rgba(255, 214, 191, 0.08);
+  border-top: 1px solid var(--app-divider);
 }
 
 .sample-table-wrap {
@@ -1355,31 +1861,31 @@ body {
 .sample-table th,
 .sample-table td {
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(255, 214, 191, 0.08);
+  border-bottom: 1px solid var(--app-divider);
   text-align: left;
 }
 
 .sample-table th {
-  color: #ffcca6;
+  color: var(--app-text-accent);
   font-size: 0.82rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .sample-table td {
-  color: #fff2e8;
+  color: var(--app-text-strong);
 }
 
 .raw-preview-panel {
-  border: 1px solid rgba(255, 214, 191, 0.12);
+  border: 1px solid var(--app-control-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--app-surface-soft);
 }
 
 .raw-preview-panel summary {
   padding: 14px 16px;
   cursor: pointer;
-  color: #ffcca6;
+  color: var(--app-text-accent);
   font-weight: 700;
 }
 
@@ -1428,6 +1934,10 @@ body {
   }
 
   .graph-batch-selection-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-switcher-grid {
     grid-template-columns: 1fr;
   }
 

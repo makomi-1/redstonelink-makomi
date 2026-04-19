@@ -46,7 +46,7 @@ export type StorageEntryPayload = {
   textContent: string;
 };
 
-export type AppPage = 'home' | 'recording' | 'graph';
+export type AppPage = 'recording' | 'graph';
 
 export type AppLocation = {
   page: AppPage;

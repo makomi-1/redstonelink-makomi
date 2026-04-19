@@ -58,10 +58,17 @@ export const graphNodeTypes = {
   aggregateOutline: AggregateOutlineNode,
 };
 
+function buildCanvasNodeTitle(node: GraphNodeInfo): string {
+  const normalizedAlias = node.alias.trim();
+  return normalizedAlias
+    ? `#${node.serial} (${normalizedAlias})`
+    : `#${node.serial}`;
+}
+
 function buildNodeLabel(node: GraphNodeInfo): JSX.Element {
   return (
     <div className="graph-node-label is-compact">
-      <strong className="graph-node-title">{node.displayText}</strong>
+      <strong className="graph-node-title">{buildCanvasNodeTitle(node)}</strong>
     </div>
   );
 }
@@ -201,36 +208,39 @@ function buildNodeStyle(
   const selectedAsSource = selectedEditSourceNodeKeys.has(node.nodeKey);
   const selectedAsTarget = selectedEditTargetNodeKeys.has(node.nodeKey);
   const draftChanged = draftChangedNodeKeys.has(node.nodeKey);
-  const accent = node.type === "triggerSource" ? "#ffb894" : "#8cd5ff";
+  const accent =
+    node.type === "triggerSource"
+      ? "var(--graph-node-trigger-accent)"
+      : "var(--graph-node-core-accent)";
   const baseBackground =
     node.type === "triggerSource"
-      ? "rgba(255, 165, 122, 0.12)"
-      : "rgba(95, 196, 255, 0.12)";
+      ? "var(--graph-node-trigger-surface)"
+      : "var(--graph-node-core-surface)";
   const selectionAccent = selectedAsSource
-    ? "#ff8a4f"
+    ? "var(--graph-node-source-selection)"
     : selectedAsTarget
-      ? "#5dd4ff"
+      ? "var(--graph-node-target-selection)"
       : accent;
   const borderColor =
     selected || selectedAsSource || selectedAsTarget
       ? selectionAccent
       : draftChanged
-        ? "#8ef0b8"
-        : "rgba(255, 214, 191, 0.22)";
+        ? "var(--graph-node-draft-accent)"
+        : "var(--graph-node-base-border)";
   return {
     minWidth: GRAPH_NODE_WIDTH,
-    borderRadius: 16,
+    borderRadius: "var(--graph-node-radius)",
     border: `1px solid ${borderColor}`,
     background: draftChanged
-      ? `linear-gradient(180deg, rgba(142, 240, 184, 0.16), rgba(142, 240, 184, 0.07)), ${baseBackground}`
+      ? `linear-gradient(180deg, color-mix(in srgb, var(--graph-node-draft-accent) 18%, transparent), color-mix(in srgb, var(--graph-node-draft-accent) 7%, transparent)), ${baseBackground}`
       : baseBackground,
     boxShadow:
       selected || selectedAsSource || selectedAsTarget
         ? `0 0 0 1px ${selectionAccent} inset, 0 12px 24px rgba(6, 10, 18, 0.24)`
         : draftChanged
-          ? "0 0 0 1px rgba(142, 240, 184, 0.4) inset"
+          ? "0 0 0 1px color-mix(in srgb, var(--graph-node-draft-accent) 40%, transparent) inset"
           : "none",
-    color: "#fff4eb",
+    color: "var(--graph-node-text)",
     opacity: 1,
   };
 }
@@ -247,24 +257,24 @@ function buildAggregateNodeStyle(
   const draftChanged = draftChangedCanvasNodeKeys.has(aggregateNode.nodeKey);
   const borderColor =
     selected || expanded
-      ? "#8ad8ff"
+      ? "var(--graph-aggregate-accent)"
       : draftChanged
-        ? "#8ef0b8"
-        : "rgba(140, 213, 255, 0.42)";
+        ? "var(--graph-node-draft-accent)"
+        : "color-mix(in srgb, var(--graph-aggregate-accent) 42%, transparent)";
   return {
     minWidth: GRAPH_NODE_WIDTH,
-    borderRadius: 16,
+    borderRadius: "var(--graph-aggregate-node-radius)",
     border: `1px ${expanded ? "solid" : "dashed"} ${borderColor}`,
     background: draftChanged
-      ? "linear-gradient(180deg, rgba(142, 240, 184, 0.16), rgba(142, 240, 184, 0.07)), linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08))"
-      : "linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08))",
+      ? `linear-gradient(180deg, color-mix(in srgb, var(--graph-node-draft-accent) 16%, transparent), color-mix(in srgb, var(--graph-node-draft-accent) 7%, transparent)), var(--graph-aggregate-surface)`
+      : "var(--graph-aggregate-surface)",
     boxShadow:
       selected || expanded
-        ? "0 0 0 1px rgba(140, 213, 255, 0.5) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
+        ? "0 0 0 1px color-mix(in srgb, var(--graph-aggregate-accent) 50%, transparent) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
         : draftChanged
-          ? "0 0 0 1px rgba(142, 240, 184, 0.36) inset"
-        : "0 0 0 1px rgba(140, 213, 255, 0.16) inset",
-    color: "#effbff",
+          ? "0 0 0 1px color-mix(in srgb, var(--graph-node-draft-accent) 36%, transparent) inset"
+        : "0 0 0 1px color-mix(in srgb, var(--graph-aggregate-accent) 16%, transparent) inset",
+    color: "var(--graph-node-text)",
     opacity: 1,
   };
 }
@@ -279,23 +289,23 @@ function buildChannelHubNodeStyle(
   const selected = selectedNodeKey === channelHubNode.nodeKey;
   const draftChanged = draftChangedCanvasNodeKeys.has(channelHubNode.nodeKey);
   const borderColor = selected
-    ? "#efd88b"
+    ? "var(--graph-channel-accent)"
     : draftChanged
-      ? "#8ef0b8"
-      : "rgba(239, 216, 139, 0.56)";
+      ? "var(--graph-node-draft-accent)"
+      : "color-mix(in srgb, var(--graph-channel-accent) 56%, transparent)";
   return {
     minWidth: GRAPH_NODE_WIDTH,
-    borderRadius: 18,
+    borderRadius: "var(--graph-channel-node-radius)",
     border: `1px solid ${borderColor}`,
     background: draftChanged
-      ? "linear-gradient(180deg, rgba(142, 240, 184, 0.14), rgba(142, 240, 184, 0.05)), linear-gradient(180deg, rgba(239, 216, 139, 0.2), rgba(156, 129, 56, 0.08))"
-      : "linear-gradient(180deg, rgba(239, 216, 139, 0.2), rgba(156, 129, 56, 0.08))",
+      ? `linear-gradient(180deg, color-mix(in srgb, var(--graph-node-draft-accent) 14%, transparent), color-mix(in srgb, var(--graph-node-draft-accent) 5%, transparent)), var(--graph-channel-surface)`
+      : "var(--graph-channel-surface)",
     boxShadow: selected
-      ? "0 0 0 1px rgba(239, 216, 139, 0.56) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
+      ? "0 0 0 1px color-mix(in srgb, var(--graph-channel-accent) 56%, transparent) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
       : draftChanged
-        ? "0 0 0 1px rgba(142, 240, 184, 0.36) inset"
-      : "0 0 0 1px rgba(239, 216, 139, 0.18) inset",
-    color: "#fff7df",
+        ? "0 0 0 1px color-mix(in srgb, var(--graph-node-draft-accent) 36%, transparent) inset"
+      : "0 0 0 1px color-mix(in srgb, var(--graph-channel-accent) 18%, transparent) inset",
+    color: "var(--graph-node-text)",
     opacity: 1,
   };
 }
@@ -311,7 +321,10 @@ function buildEdgeStyle(
   return {
     ...edge,
     style: {
-      stroke: diffState === "base" ? "#ffc296" : "#8ef0b8",
+      stroke:
+        diffState === "base"
+          ? "var(--graph-edge-base)"
+          : "var(--graph-edge-added)",
       strokeWidth: diffState === "base" ? 2.2 : 2.6,
       strokeDasharray: diffState === "removed" ? "8 5" : undefined,
       opacity: edgeOpacity,
@@ -327,7 +340,7 @@ function buildAggregateEdgeStyle(
   return {
     ...edge,
     style: {
-      stroke: "#8ad8ff",
+      stroke: "var(--graph-edge-aggregate)",
       strokeWidth: 2.1,
       strokeDasharray: "10 5",
       opacity: 0.76,
@@ -343,7 +356,7 @@ function buildChannelEdgeStyle(
   return {
     ...edge,
     style: {
-      stroke: "#efd88b",
+      stroke: "var(--graph-edge-channel)",
       strokeWidth: 2.2,
       opacity: 0.82,
     },

@@ -1,14 +1,15 @@
 import GraphViewer from "../components/GraphViewer";
+import ThemeSwitcher from "../components/ThemeSwitcher";
 import type { GraphSnapshotBundle } from "../graphTypes";
 import { buildEntryKey } from "./location";
 import { formatBytes, formatStartedAt } from "./format";
+import type { WebThemeId } from "./theme";
 import type { StorageEntryPayload, StorageEntrySummary } from "./types";
 
 type GraphPageProps = {
   bridgeError: string;
   bridgeStateClassName: string;
   bridgeStateLabel: string;
-  goHome: () => void;
   graphBundle: GraphSnapshotBundle | null;
   graphEntryError: string;
   graphEntryLoading: boolean;
@@ -18,16 +19,17 @@ type GraphPageProps = {
   onDirtyStateChange: (dirty: boolean) => void;
   onGraphFileChange: (fileName: string) => void;
   onRefreshStorageIndex: () => void;
+  onThemeChange: (themeId: WebThemeId) => void;
   selectedFileName: string;
   storageError: string;
   storageLoading: boolean;
+  themeId: WebThemeId;
 };
 
 export default function GraphPage({
   bridgeError,
   bridgeStateClassName,
   bridgeStateLabel,
-  goHome,
   graphBundle,
   graphEntryError,
   graphEntryLoading,
@@ -37,17 +39,19 @@ export default function GraphPage({
   onDirtyStateChange,
   onGraphFileChange,
   onRefreshStorageIndex,
+  onThemeChange,
   selectedFileName,
   storageError,
   storageLoading,
+  themeId,
 }: GraphPageProps) {
   return (
-    <main className="app-shell graph-page-shell">
+    <main
+      className="app-shell graph-page-shell"
+      data-theme={themeId}
+    >
       <section className="recording-page-header info-card">
         <div className="recording-page-header-row">
-          <button type="button" className="action-button" onClick={goHome}>
-            返回首页
-          </button>
           <span className={bridgeStateClassName}>{bridgeStateLabel}</span>
         </div>
         <div className="recording-page-title-wrap">
@@ -117,6 +121,13 @@ export default function GraphPage({
         {bridgeError ? (
           <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p>
         ) : null}
+      </section>
+
+      <section className="info-card theme-preview-panel theme-preview-panel-wide">
+        <ThemeSwitcher
+          currentThemeId={themeId}
+          onThemeChange={onThemeChange}
+        />
       </section>
 
       <section className="recording-page-main">

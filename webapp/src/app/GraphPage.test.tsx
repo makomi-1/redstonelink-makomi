@@ -25,7 +25,6 @@ describe('GraphPage', () => {
         bridgeError=""
         bridgeStateClassName="status-pill is-ready"
         bridgeStateLabel="已连接"
-        goHome={vi.fn()}
         graphBundle={null}
         graphEntries={[
           createTestStorageEntrySummary({
@@ -40,9 +39,11 @@ describe('GraphPage', () => {
         onDirtyStateChange={vi.fn()}
         onGraphFileChange={onGraphFileChange}
         onRefreshStorageIndex={vi.fn()}
+        onThemeChange={vi.fn()}
         selectedFileName=""
         storageError=""
         storageLoading={false}
+        themeId="future-command"
       />,
     );
 
@@ -73,7 +74,6 @@ describe('GraphPage', () => {
         bridgeError=""
         bridgeStateClassName="status-pill is-ready"
         bridgeStateLabel="已连接"
-        goHome={vi.fn()}
         graphBundle={graphBundle}
         graphEntries={[]}
         graphEntryError=""
@@ -83,9 +83,11 @@ describe('GraphPage', () => {
         onDirtyStateChange={vi.fn()}
         onGraphFileChange={vi.fn()}
         onRefreshStorageIndex={vi.fn()}
+        onThemeChange={vi.fn()}
         selectedFileName="demo-graph.json"
         storageError=""
         storageLoading={false}
+        themeId="future-command"
       />,
     );
 
