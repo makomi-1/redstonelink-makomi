@@ -19,6 +19,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -42,19 +43,26 @@ public final class GraphWriteService {
 	 * 提交一次 graph 保存请求，并返回网页端可直接消费的 JSON。
 	 */
 	public static String submit(ServerPlayer player, String rawRequestJson) {
+		CommandSourceStack source = player == null ? null : player.createCommandSourceStack();
+		return submitInternal(source, player, rawRequestJson);
+	}
+
+	/**
+	 * 以通用命令源提交一次 graph 保存请求。
+	 */
+	public static String submit(CommandSourceStack source, String rawRequestJson) {
+		return submitInternal(source, source == null ? null : source.getPlayer(), rawRequestJson);
+	}
+
+	private static String submitInternal(CommandSourceStack source, ServerPlayer player, String rawRequestJson) {
 		try {
-			ResolvedRequestContext requestContext = resolveRequestContext(player, rawRequestJson);
-			PreparedPlan preparedPlan = preparePlan(
-				player,
-				requestContext.level(),
-				requestContext.savedData(),
-				requestContext.request()
-			);
+			ResolvedRequestContext requestContext = resolveRequestContext(source, player, rawRequestJson);
+			PreparedPlan preparedPlan = preparePlan(requestContext);
 			if (!preparedPlan.successful()) {
 				return preparedPlan.failureResponseJson();
 			}
 
-			acquireRateLimitsOrThrow(player, requestContext.savedData(), preparedPlan);
+			acquireRateLimitsOrThrow(requestContext.rateLimitSource(), requestContext.savedData(), preparedPlan);
 			List<UpdatedNodeState> updatedNodeStates = new ArrayList<>();
 			int appliedAliasCount = 0;
 			int appliedReplaceCount = 0;
@@ -149,19 +157,26 @@ public final class GraphWriteService {
 	 * 预检一次 graph 保存请求，并返回当前窗口下的保存可行性反馈。
 	 */
 	public static String preview(ServerPlayer player, String rawRequestJson) {
+		CommandSourceStack source = player == null ? null : player.createCommandSourceStack();
+		return previewInternal(source, player, rawRequestJson);
+	}
+
+	/**
+	 * 以通用命令源预检一次 graph 保存请求。
+	 */
+	public static String preview(CommandSourceStack source, String rawRequestJson) {
+		return previewInternal(source, source == null ? null : source.getPlayer(), rawRequestJson);
+	}
+
+	private static String previewInternal(CommandSourceStack source, ServerPlayer player, String rawRequestJson) {
 		try {
-			ResolvedRequestContext requestContext = resolveRequestContext(player, rawRequestJson);
-			PreparedPlan preparedPlan = preparePlan(
-				player,
-				requestContext.level(),
-				requestContext.savedData(),
-				requestContext.request()
-			);
+			ResolvedRequestContext requestContext = resolveRequestContext(source, player, rawRequestJson);
+			PreparedPlan preparedPlan = preparePlan(requestContext);
 			if (!preparedPlan.successful()) {
 				return preparedPlan.failureResponseJson();
 			}
 
-			PreviewState previewState = buildPreviewState(player, preparedPlan);
+			PreviewState previewState = buildPreviewState(requestContext.rateLimitSource(), preparedPlan);
 			return GraphWriteJsonSupport.buildPreviewResponse(
 				buildPreviewMessage(preparedPlan.costSummary(), previewState),
 				requestContext.savedData().graphRevision(),
@@ -175,14 +190,20 @@ public final class GraphWriteService {
 	/**
 	 * 统一解析并校验请求入口，确保 `submit` 与 `preview` 共用同一口径。
 	 */
-	private static ResolvedRequestContext resolveRequestContext(ServerPlayer player, String rawRequestJson) {
+	private static ResolvedRequestContext resolveRequestContext(
+		CommandSourceStack source,
+		ServerPlayer player,
+		String rawRequestJson
+	) {
 		ParseResult parseResult = GraphWriteJsonSupport.parseRequest(rawRequestJson);
 		if (!parseResult.successful()) {
 			throw new GraphWriteRejectedException(parseResult.failureResponseJson());
 		}
-		if (player == null) {
+		ServerLevel level = player != null ? player.serverLevel() : (source == null ? null : source.getLevel());
+		CommandSourceStack rateLimitSource = source != null ? source : (player == null ? null : player.createCommandSourceStack());
+		if (level == null) {
 			throw new GraphWriteRejectedException(
-				GraphWriteJsonSupport.buildRejectedResponse("no_player", "当前没有可用的玩家上下文。", 0L, List.of())
+				GraphWriteJsonSupport.buildRejectedResponse("no_player", "当前没有可用的玩家或命令源上下文。", 0L, List.of())
 			);
 		}
 
@@ -198,16 +219,24 @@ public final class GraphWriteService {
 			);
 		}
 
-		ServerLevel level = player.serverLevel();
-		return new ResolvedRequestContext(request, level, LinkSavedData.get(level));
+		return new ResolvedRequestContext(
+			request,
+			level,
+			LinkSavedData.get(level),
+			player,
+			rateLimitSource,
+			hasPermission(source, player, RedstoneLinkConfig.command().permissionLevel()),
+			hasPermission(source, player, RedstoneLinkConfig.command().otherPermissionLevel()),
+			hasPermission(source, player, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			hasPermission(source, player, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+		);
 	}
 
-	private static PreparedPlan preparePlan(
-		ServerPlayer player,
-		ServerLevel level,
-		LinkSavedData savedData,
-		GraphWriteRequest request
-	) {
+	private static PreparedPlan preparePlan(ResolvedRequestContext requestContext) {
+		ServerPlayer player = requestContext.player();
+		ServerLevel level = requestContext.level();
+		LinkSavedData savedData = requestContext.savedData();
+		GraphWriteRequest request = requestContext.request();
 		List<RenameNodeAliasOperation> aliasOperations = new ArrayList<>();
 		List<ReplaceTriggerSourceTargetsOperation> replaceOperations = new ArrayList<>();
 		List<SetNodeChannelOperation> channelOperations = new ArrayList<>();
@@ -229,12 +258,12 @@ public final class GraphWriteService {
 				GraphWriteJsonSupport.buildRejectedResponse("empty_operations", "当前没有可保存的修改。", savedData.graphRevision(), List.of())
 			);
 		}
-		if ((!replaceOperations.isEmpty() || !channelOperations.isEmpty()) && !player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+		if ((!replaceOperations.isEmpty() || !channelOperations.isEmpty()) && !requestContext.hasGraphEditPermission()) {
 			return PreparedPlan.failure(
 				GraphWriteJsonSupport.buildRejectedResponse("permission_denied", "当前没有保存图编辑的权限。", savedData.graphRevision(), List.of())
 			);
 		}
-		if (!aliasOperations.isEmpty() && !player.hasPermissions(RedstoneLinkConfig.command().otherPermissionLevel())) {
+		if (!aliasOperations.isEmpty() && !requestContext.hasAliasEditPermission()) {
 			return PreparedPlan.failure(
 				GraphWriteJsonSupport.buildRejectedResponse("permission_denied", "当前没有保存节点别名的权限。", savedData.graphRevision(), List.of())
 			);
@@ -263,7 +292,14 @@ public final class GraphWriteService {
 			return PreparedPlan.failure(aliasFailureResponseJson);
 		}
 
-		List<ValidatedReplaceOperation> validatedReplaceOperations = validateReplaceOperations(player, savedData, replaceOperations);
+		List<ValidatedReplaceOperation> validatedReplaceOperations = validateReplaceOperations(
+			level,
+			player,
+			savedData,
+			replaceOperations,
+			requestContext.hasLimitedBypassPermission(),
+			requestContext.hasProtectedBypassPermission()
+		);
 		if (validatedReplaceOperations == null) {
 			return PreparedPlan.failure(
 				GraphWriteJsonSupport.buildRejectedResponse("replace_invalid", "当前拓扑修改不合法，请检查 triggerSource 与目标 core 集合。", savedData.graphRevision(), List.of())
@@ -275,7 +311,14 @@ public final class GraphWriteService {
 			}
 		}
 
-		ValidatedChannelBatchOperation validatedChannelBatchOperation = validateChannelOperations(player, savedData, channelOperations);
+		ValidatedChannelBatchOperation validatedChannelBatchOperation = validateChannelOperations(
+			level,
+			player,
+			savedData,
+			channelOperations,
+			requestContext.hasLimitedBypassPermission(),
+			requestContext.hasProtectedBypassPermission()
+		);
 		if (validatedChannelBatchOperation == null && channelOperations != null && !channelOperations.isEmpty()) {
 			return PreparedPlan.failure(
 				GraphWriteJsonSupport.buildRejectedResponse("channel_invalid", "当前频道修改不合法，请检查节点类型、序号与频道号。", savedData.graphRevision(), List.of())
@@ -372,9 +415,12 @@ public final class GraphWriteService {
 	}
 
 	private static List<ValidatedReplaceOperation> validateReplaceOperations(
+		ServerLevel level,
 		ServerPlayer player,
 		LinkSavedData savedData,
-		List<ReplaceTriggerSourceTargetsOperation> replaceOperations
+		List<ReplaceTriggerSourceTargetsOperation> replaceOperations,
+		boolean hasLimitedBypassPermission,
+		boolean hasProtectedBypassPermission
 	) {
 		if (replaceOperations == null || replaceOperations.isEmpty()) {
 			return List.of();
@@ -386,10 +432,7 @@ public final class GraphWriteService {
 			}
 			uniqueOperations.put(replaceOperation.triggerSourceSerial(), replaceOperation);
 		}
-
 		List<ValidatedReplaceOperation> validatedReplaceOperations = new ArrayList<>(uniqueOperations.size());
-		boolean hasLimitedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
-		boolean hasProtectedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
 		for (ReplaceTriggerSourceTargetsOperation replaceOperation : uniqueOperations.values()) {
 			long currentSourceRevision = savedData.sourceRevision(LinkNodeType.TRIGGER_SOURCE, replaceOperation.triggerSourceSerial());
 			if (LinkOccSupport.isRevisionMismatch(replaceOperation.expectedSourceRevision(), currentSourceRevision)) {
@@ -403,7 +446,7 @@ public final class GraphWriteService {
 							savedData.graphRevision(),
 							List.of(
 								buildUpdatedNodeState(
-									player.serverLevel(),
+									level,
 									savedData,
 									LinkNodeType.TRIGGER_SOURCE,
 									replaceOperation.triggerSourceSerial()
@@ -417,7 +460,7 @@ public final class GraphWriteService {
 
 			Set<Long> nextTargets = new LinkedHashSet<>(replaceOperation.targetCoreSerials());
 			LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplace(
-				player.serverLevel(),
+				level,
 				player,
 				LinkNodeType.TRIGGER_SOURCE,
 				replaceOperation.triggerSourceSerial(),
@@ -455,9 +498,12 @@ public final class GraphWriteService {
 	}
 
 	private static ValidatedChannelBatchOperation validateChannelOperations(
+		ServerLevel level,
 		ServerPlayer player,
 		LinkSavedData savedData,
-		List<SetNodeChannelOperation> channelOperations
+		List<SetNodeChannelOperation> channelOperations,
+		boolean hasLimitedBypassPermission,
+		boolean hasProtectedBypassPermission
 	) {
 		if (channelOperations == null || channelOperations.isEmpty()) {
 			return null;
@@ -469,9 +515,6 @@ public final class GraphWriteService {
 			}
 			uniqueOperations.put(channelOperation.nodeKey(), channelOperation);
 		}
-
-		boolean hasLimitedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
-		boolean hasProtectedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
 		List<ChannelOverride> overrides = new ArrayList<>(uniqueOperations.size());
 		for (SetNodeChannelOperation channelOperation : uniqueOperations.values()) {
 			long expectedRevision = channelOperation.nodeType() == LinkNodeType.TRIGGER_SOURCE
@@ -494,7 +537,7 @@ public final class GraphWriteService {
 						savedData.graphRevision(),
 						List.of(
 							buildUpdatedNodeState(
-								player.serverLevel(),
+								level,
 								savedData,
 								channelOperation.nodeType(),
 								channelOperation.serial()
@@ -506,7 +549,7 @@ public final class GraphWriteService {
 			overrides.add(new ChannelOverride(channelOperation.nodeType(), channelOperation.serial(), channelOperation.channel()));
 		}
 		LinkChannelEditingService.BatchPreparationResult preparationResult = LinkChannelEditingService.prepareConfirmedBatchSetChannel(
-			player.serverLevel(),
+			level,
 			player,
 			overrides,
 			hasLimitedBypassPermission,
@@ -545,21 +588,21 @@ public final class GraphWriteService {
 	}
 
 	private static void acquireRateLimitsOrThrow(
-		ServerPlayer player,
+		CommandSourceStack rateLimitSource,
 		LinkSavedData savedData,
 		PreparedPlan preparedPlan
 	) {
-		if (player == null || preparedPlan == null) {
+		if (rateLimitSource == null || preparedPlan == null) {
 			return;
 		}
 		PreparedCostSummary costSummary = preparedPlan.costSummary();
 		RateLimitWindowState aliasRateLimitState = previewRateLimitState(
-			player,
+			rateLimitSource,
 			CommandRateLimitService.CommandGroup.OTHER,
 			costSummary.aliasCost()
 		);
 		RateLimitWindowState graphRateLimitState = previewRateLimitState(
-			player,
+			rateLimitSource,
 			CommandRateLimitService.CommandGroup.GRAPH_WRITE,
 			costSummary.graphCost()
 		);
@@ -570,7 +613,7 @@ public final class GraphWriteService {
 		if (
 			costSummary.aliasCost() > 0 &&
 			!CommandRateLimitService.tryAcquire(
-				player.createCommandSourceStack(),
+				rateLimitSource,
 				CommandRateLimitService.CommandGroup.OTHER,
 				costSummary.aliasCost()
 			)
@@ -578,14 +621,18 @@ public final class GraphWriteService {
 			throwRateLimitRejected(
 				savedData,
 				costSummary,
-				previewRateLimitState(player, CommandRateLimitService.CommandGroup.OTHER, costSummary.aliasCost()),
-				previewRateLimitState(player, CommandRateLimitService.CommandGroup.GRAPH_WRITE, costSummary.graphCost())
+				previewRateLimitState(rateLimitSource, CommandRateLimitService.CommandGroup.OTHER, costSummary.aliasCost()),
+				previewRateLimitState(
+					rateLimitSource,
+					CommandRateLimitService.CommandGroup.GRAPH_WRITE,
+					costSummary.graphCost()
+				)
 			);
 		}
 		if (
 			costSummary.graphCost() > 0 &&
 			!CommandRateLimitService.tryAcquire(
-				player.createCommandSourceStack(),
+				rateLimitSource,
 				CommandRateLimitService.CommandGroup.GRAPH_WRITE,
 				costSummary.graphCost()
 			)
@@ -593,8 +640,12 @@ public final class GraphWriteService {
 			throwRateLimitRejected(
 				savedData,
 				costSummary,
-				previewRateLimitState(player, CommandRateLimitService.CommandGroup.OTHER, costSummary.aliasCost()),
-				previewRateLimitState(player, CommandRateLimitService.CommandGroup.GRAPH_WRITE, costSummary.graphCost())
+				previewRateLimitState(rateLimitSource, CommandRateLimitService.CommandGroup.OTHER, costSummary.aliasCost()),
+				previewRateLimitState(
+					rateLimitSource,
+					CommandRateLimitService.CommandGroup.GRAPH_WRITE,
+					costSummary.graphCost()
+				)
 			);
 		}
 	}
@@ -729,15 +780,15 @@ public final class GraphWriteService {
 	/**
 	 * 预检当前草稿在别名限流组与 graph 专用限流组上的即时状态。
 	 */
-	private static PreviewState buildPreviewState(ServerPlayer player, PreparedPlan preparedPlan) {
+	private static PreviewState buildPreviewState(CommandSourceStack rateLimitSource, PreparedPlan preparedPlan) {
 		PreparedCostSummary costSummary = preparedPlan.costSummary();
 		RateLimitWindowState aliasRateLimitState = previewRateLimitState(
-			player,
+			rateLimitSource,
 			CommandRateLimitService.CommandGroup.OTHER,
 			costSummary.aliasCost()
 		);
 		RateLimitWindowState graphRateLimitState = previewRateLimitState(
-			player,
+			rateLimitSource,
 			CommandRateLimitService.CommandGroup.GRAPH_WRITE,
 			costSummary.graphCost()
 		);
@@ -759,15 +810,15 @@ public final class GraphWriteService {
 	 * 将 0 成本写入视为“天然允许”，其余场景走统一限流预检。
 	 */
 	private static RateLimitWindowState previewRateLimitState(
-		ServerPlayer player,
+		CommandSourceStack source,
 		CommandRateLimitService.CommandGroup commandGroup,
 		int cost
 	) {
-		if (player == null || commandGroup == null || cost <= 0) {
+		if (source == null || commandGroup == null || cost <= 0) {
 			return new RateLimitWindowState(true, false, 0L, Math.max(0, cost));
 		}
 		CommandRateLimitService.AcquirePreview preview = CommandRateLimitService.previewAcquire(
-			player.createCommandSourceStack(),
+			source,
 			commandGroup,
 			cost
 		);
@@ -848,6 +899,13 @@ public final class GraphWriteService {
 				costSummary.graphCost()
 			)
 		);
+	}
+
+	private static boolean hasPermission(CommandSourceStack source, ServerPlayer player, int permissionLevel) {
+		if (source != null) {
+			return source.hasPermission(permissionLevel);
+		}
+		return player != null && player.hasPermissions(permissionLevel);
 	}
 
 	private static int saturatingAdd(int left, int right) {
@@ -1037,7 +1095,17 @@ public final class GraphWriteService {
 	/**
 	 * 入口解析完成后的共享上下文。
 	 */
-	private record ResolvedRequestContext(GraphWriteRequest request, ServerLevel level, LinkSavedData savedData) {}
+	private record ResolvedRequestContext(
+		GraphWriteRequest request,
+		ServerLevel level,
+		LinkSavedData savedData,
+		ServerPlayer player,
+		CommandSourceStack rateLimitSource,
+		boolean hasGraphEditPermission,
+		boolean hasAliasEditPermission,
+		boolean hasLimitedBypassPermission,
+		boolean hasProtectedBypassPermission
+	) {}
 
 	/**
 	 * graph 保存拒绝异常，用于在统一入口中断并返回结构化 JSON。

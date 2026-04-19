@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
@@ -11,5 +11,13 @@ export default defineConfig({
     outDir: resolvedOutDir,
     emptyOutDir: true,
     sourcemap: true,
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    css: true,
+    restoreMocks: true,
+    clearMocks: true,
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 });

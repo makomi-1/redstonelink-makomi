@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -29,26 +31,42 @@ public final class GraphSnapshotExportService {
 	 * 导出当前玩家可见的 serial 图快照，并附带压缩字节与文件名。
 	 */
 	public static ExportBundle exportVisibleSerialGraph(ServerPlayer player, boolean forceTransfer) throws IOException {
-		GraphSnapshotBundle bundle = buildVisibleSerialGraph(player);
+		ViewerContext viewerContext = ViewerContext.fromPlayer(player);
+		return exportVisibleSerialGraph(viewerContext, forceTransfer);
+	}
+
+	/**
+	 * 导出当前命令源可见的 serial 图快照，并附带压缩字节与文件名。
+	 * <p>
+	 * benchmark mode 下允许控制台 / RCON 直接调用，因此这里不能再强依赖玩家实体。
+	 * </p>
+	 */
+	public static ExportBundle exportVisibleSerialGraph(CommandSourceStack source, boolean forceTransfer) throws IOException {
+		ViewerContext viewerContext = ViewerContext.fromSource(source);
+		return exportVisibleSerialGraph(viewerContext, forceTransfer);
+	}
+
+	private static ExportBundle exportVisibleSerialGraph(ViewerContext viewerContext, boolean forceTransfer) throws IOException {
+		GraphSnapshotBundle bundle = buildVisibleSerialGraph(viewerContext);
 		String fileName = GraphSnapshotJsonSupport.buildFileName(bundle);
-		if (player != null) {
-			UUID playerId = player.getUUID();
+		ServerLevel level = viewerContext.level();
+		UUID actorId = viewerContext.dedupeActorId();
+		if (level != null && actorId != null) {
 			if (!forceTransfer) {
-				CachedGraphExport cachedGraphExport = EXPORT_CACHE.get(playerId);
+				CachedGraphExport cachedGraphExport = EXPORT_CACHE.get(actorId);
 				if (cachedGraphExport != null && cachedGraphExport.matches(fileName)) {
 					return cachedGraphExport.toReusedBundle(bundle);
 				}
-				GraphExportDedupeSavedData dedupeSavedData = GraphExportDedupeSavedData.get(player.serverLevel());
-				if (dedupeSavedData.contains(playerId, bundle.structureChecksum(), fileName)) {
+				GraphExportDedupeSavedData dedupeSavedData = GraphExportDedupeSavedData.get(level);
+				if (dedupeSavedData.contains(actorId, bundle.structureChecksum(), fileName)) {
 					return new ExportBundle(bundle, fileName, new byte[0], true);
 				}
 			}
 		}
 		ExportBundle exportBundle = new ExportBundle(bundle, fileName, GraphSnapshotJsonSupport.toCompressedJsonBytes(bundle), false);
-		if (player != null) {
-			UUID playerId = player.getUUID();
-			EXPORT_CACHE.put(playerId, new CachedGraphExport(fileName, exportBundle));
-			GraphExportDedupeSavedData.get(player.serverLevel()).remember(playerId, bundle.structureChecksum(), fileName);
+		if (level != null && actorId != null) {
+			EXPORT_CACHE.put(actorId, new CachedGraphExport(fileName, exportBundle));
+			GraphExportDedupeSavedData.get(level).remember(actorId, bundle.structureChecksum(), fileName);
 		}
 		return exportBundle;
 	}
@@ -57,25 +75,42 @@ public final class GraphSnapshotExportService {
 	 * 构建当前玩家可见的 serial 图快照。
 	 */
 	public static GraphSnapshotBundle buildVisibleSerialGraph(ServerPlayer player) {
-		if (player == null) {
+		return buildVisibleSerialGraph(ViewerContext.fromPlayer(player));
+	}
+
+	/**
+	 * 构建当前命令源可见的 serial 图快照。
+	 */
+	public static GraphSnapshotBundle buildVisibleSerialGraph(CommandSourceStack source) {
+		return buildVisibleSerialGraph(ViewerContext.fromSource(source));
+	}
+
+	private static GraphSnapshotBundle buildVisibleSerialGraph(ViewerContext viewerContext) {
+		ServerLevel level = viewerContext.level();
+		if (level == null) {
 			return emptyBundle();
 		}
-		ServerLevel level = player.serverLevel();
 		LinkSavedData savedData = LinkSavedData.get(level);
 		long generatedAtTick = level.getGameTime();
 		long graphRevision = savedData.graphRevision();
 		Map<String, GraphSnapshotBundle.GraphNodeInfo> nodesByKey = new LinkedHashMap<>();
 		Set<GraphSnapshotBundle.GraphEdgeInfo> edgeSet = new LinkedHashSet<>();
 		int maskedSourceCount = 0;
+		boolean hasViewPermission = viewerContext.hasViewPermission();
 
 		for (long serial : sortedSerials(savedData.getActiveSerials(LinkNodeType.TRIGGER_SOURCE))) {
-			if (!CurrentLinksPrivacyService.canReadNodeState(player, LinkNodeType.TRIGGER_SOURCE, serial)) {
+			if (!CurrentLinksPrivacyService.canReadNodeState(level, LinkNodeType.TRIGGER_SOURCE, serial, hasViewPermission)) {
 				continue;
 			}
 			GraphSnapshotBundle.GraphNodeInfo sourceNode = buildNodeInfo(level, savedData, LinkNodeType.TRIGGER_SOURCE, serial);
 			nodesByKey.put(sourceNode.nodeKey(), sourceNode);
 
-			NodeLinksSnapshot linksSnapshot = NodeSnapshotQueryService.queryLinks(player, LinkNodeType.TRIGGER_SOURCE, serial);
+			NodeLinksSnapshot linksSnapshot = NodeSnapshotQueryService.queryLinks(
+				level,
+				LinkNodeType.TRIGGER_SOURCE,
+				serial,
+				hasViewPermission
+			);
 			if (linksSnapshot.masked()) {
 				maskedSourceCount++;
 			}
@@ -84,7 +119,7 @@ public final class GraphSnapshotExportService {
 				if (targetSerial <= 0L) {
 					continue;
 				}
-				if (!CurrentLinksPrivacyService.canReadNodeState(player, LinkNodeType.CORE, targetSerial)) {
+				if (!CurrentLinksPrivacyService.canReadNodeState(level, LinkNodeType.CORE, targetSerial, hasViewPermission)) {
 					continue;
 				}
 				GraphSnapshotBundle.GraphNodeInfo targetNode = nodesByKey.computeIfAbsent(
@@ -105,7 +140,7 @@ public final class GraphSnapshotExportService {
 		}
 
 		for (long serial : sortedSerials(savedData.getActiveSerials(LinkNodeType.CORE))) {
-			if (!CurrentLinksPrivacyService.canReadNodeState(player, LinkNodeType.CORE, serial)) {
+			if (!CurrentLinksPrivacyService.canReadNodeState(level, LinkNodeType.CORE, serial, hasViewPermission)) {
 				continue;
 			}
 			nodesByKey.computeIfAbsent(nodeKey(LinkNodeType.CORE, serial), ignored -> buildNodeInfo(level, savedData, LinkNodeType.CORE, serial));
@@ -140,7 +175,7 @@ public final class GraphSnapshotExportService {
 			coreCount,
 			maskedSourceCount
 		);
-		String viewerPlayerId = player.getUUID().toString();
+		String viewerPlayerId = viewerContext.viewerId();
 		GraphSnapshotBundle provisionalBundle = new GraphSnapshotBundle(
 			"graph-pending",
 			MODE_SERIAL,
@@ -267,6 +302,48 @@ public final class GraphSnapshotExportService {
 				new byte[0],
 				true
 			);
+		}
+	}
+
+	/**
+	 * graph 可见性与 dedupe 所需的最小查看者上下文。
+	 */
+	private record ViewerContext(ServerLevel level, boolean hasViewPermission, String viewerId, UUID dedupeActorId) {
+		private static ViewerContext fromPlayer(ServerPlayer player) {
+			if (player == null) {
+				return new ViewerContext(null, false, "unknown", null);
+			}
+			return new ViewerContext(
+				player.serverLevel(),
+				player.hasPermissions(com.makomi.config.RedstoneLinkConfig.privacy().viewPermissionLevel()),
+				player.getUUID().toString(),
+				player.getUUID()
+			);
+		}
+
+		private static ViewerContext fromSource(CommandSourceStack source) {
+			if (source == null) {
+				return new ViewerContext(null, false, "unknown", null);
+			}
+			ServerPlayer player = source.getPlayer();
+			if (player != null) {
+				return fromPlayer(player);
+			}
+			String principal = normalizePrincipal(source.getTextName());
+			UUID syntheticActorId = UUID.nameUUIDFromBytes(
+				("redstonelink:graph_export:" + principal).getBytes(StandardCharsets.UTF_8)
+			);
+			return new ViewerContext(
+				source.getLevel(),
+				source.hasPermission(com.makomi.config.RedstoneLinkConfig.privacy().viewPermissionLevel()),
+				"system:" + principal,
+				syntheticActorId
+			);
+		}
+
+		private static String normalizePrincipal(String rawPrincipal) {
+			String normalized = rawPrincipal == null ? "" : rawPrincipal.trim();
+			return normalized.isEmpty() ? "system" : normalized;
 		}
 	}
 }

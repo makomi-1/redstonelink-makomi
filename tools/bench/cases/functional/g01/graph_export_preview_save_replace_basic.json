@@ -1,0 +1,150 @@
+{
+  "id": "graph_export_preview_save_replace_basic",
+  "description": "验证 bench graph 的 export force/reuse、preview 与 save 主链路，并用 sync 行为校验保存后的真实连线生效。",
+  "layer": "G",
+  "scenarioId": "G01",
+  "arena": {
+    "clearFrom": [-8, 63, 780],
+    "clearTo": [24, 66, 792]
+  },
+  "targets": {
+    "id": "core_graph_bench",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 784],
+      "to": [13, 64, 784]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_graph_bench",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 784],
+        "to": [0, 64, 784]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_mixed",
+      "name": "mount_graph_bench_targets",
+      "serialIndexes": [0, 1],
+      "capacity": 96
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_graph_bench_constant_sync_without_link",
+      "serialRef": "sync_graph_bench",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_graph_bench_without_link",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "graph_bench_targets_should_stay_low_without_link",
+      "serialFormat": "mixed",
+      "serialIndexes": [0, 1],
+      "expectedCount": 2,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "graph_export_force_initial",
+      "command": "redstonelink bench graph export force",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_export",
+      "expectedRegexes": [
+        "outcome=exported",
+        "reusedExisting=false",
+        "nodeCount=3",
+        "edgeCount=0"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "graph_export_reuse_initial",
+      "command": "redstonelink bench graph export",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_export",
+      "expectedRegexes": [
+        "outcome=reused",
+        "reusedExisting=true",
+        "nodeCount=3",
+        "edgeCount=0"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "graph_preview_replace_targets",
+      "commandTemplate": "redstonelink bench graph preview triggerSource {{source:sync_graph_bench[0]}} core {{targets[0,1]:mixed}}",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_preview",
+      "expectedRegexes": [
+        "outcome=preview",
+        "requestedTargetCount=2",
+        "previewCanSave=true",
+        "previewGraphWriteUnitCount=1"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "graph_save_replace_targets",
+      "commandTemplate": "redstonelink bench graph save triggerSource {{source:sync_graph_bench[0]}} core {{targets[0,1]:mixed}}",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_save",
+      "expectedRegexes": [
+        "outcome=applied",
+        "requestedTargetCount=2",
+        "updatedNodeCount=3"
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_graph_bench_after_save",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "graph_bench_targets_should_replay_sync_after_save",
+      "serialFormat": "mixed",
+      "serialIndexes": [0, 1],
+      "expectedCount": 2,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "graph_export_force_after_save",
+      "command": "redstonelink bench graph export force",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_export",
+      "expectedRegexes": [
+        "outcome=exported",
+        "reusedExisting=false",
+        "nodeCount=3",
+        "edgeCount=2"
+      ]
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_graph_bench_sync_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_mixed",
+      "name": "unmount_graph_bench_targets",
+      "serialIndexes": [0, 1]
+    }
+  ]
+}

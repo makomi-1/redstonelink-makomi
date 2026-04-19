@@ -63,3 +63,5 @@ readme0.md
 webapp/node_modules/
 webapp/dist/
 webapp/*.tsbuildinfo
+webapp/test-results/
+webapp/playwright-report/
