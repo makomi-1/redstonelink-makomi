@@ -11,6 +11,7 @@ import com.makomi.data.GraphWriteJsonSupport.RenameNodeAliasOperation;
 import com.makomi.data.GraphWriteJsonSupport.ReplaceTriggerSourceTargetsOperation;
 import com.makomi.data.GraphWriteJsonSupport.SetNodeChannelOperation;
 import com.makomi.data.GraphWriteJsonSupport.UpdatedNodeState;
+import com.makomi.data.LinkSavedDataChannelSupport.ChannelOverride;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -101,18 +102,16 @@ public final class GraphWriteService {
 				}
 			}
 
-			for (ValidatedChannelOperation validatedChannelOperation : preparedPlan.validatedChannelOperations()) {
-				LinkChannelEditingService.applyPreparedSetChannel(validatedChannelOperation.plan());
-				appliedChannelCount++;
-				updatedNodeStates.add(
-					buildUpdatedNodeState(
-						level,
-						savedData,
-						validatedChannelOperation.plan().editedType(),
-						validatedChannelOperation.plan().editedSerial()
-					)
-				);
-				for (Long triggerSourceSerialValue : validatedChannelOperation.affectedTriggerSourceSerials()) {
+			ValidatedChannelBatchOperation validatedChannelBatchOperation = preparedPlan.validatedChannelBatchOperation();
+			if (validatedChannelBatchOperation != null && validatedChannelBatchOperation.plan() != null) {
+				LinkChannelEditingService.applyPreparedBatchSetChannel(validatedChannelBatchOperation.plan());
+				appliedChannelCount = validatedChannelBatchOperation.plan().changedChannelNodeCount();
+				for (ChannelOverride override : validatedChannelBatchOperation.plan().overrides()) {
+					updatedNodeStates.add(
+						buildUpdatedNodeState(level, savedData, override.nodeType(), override.serial())
+					);
+				}
+				for (Long triggerSourceSerialValue : validatedChannelBatchOperation.affectedTriggerSourceSerials()) {
 					long triggerSourceSerial = triggerSourceSerialValue == null ? 0L : triggerSourceSerialValue;
 					if (triggerSourceSerial <= 0L) {
 						continue;
@@ -121,7 +120,7 @@ public final class GraphWriteService {
 						buildUpdatedNodeState(level, savedData, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)
 					);
 				}
-				for (Long coreSerialValue : validatedChannelOperation.affectedCoreSerials()) {
+				for (Long coreSerialValue : validatedChannelBatchOperation.affectedCoreSerials()) {
 					long coreSerial = coreSerialValue == null ? 0L : coreSerialValue;
 					if (coreSerial <= 0L) {
 						continue;
@@ -214,23 +213,25 @@ public final class GraphWriteService {
 			}
 		}
 
-		List<ValidatedChannelOperation> validatedChannelOperations = validateChannelOperations(player, savedData, channelOperations);
-		if (validatedChannelOperations == null) {
+		ValidatedChannelBatchOperation validatedChannelBatchOperation = validateChannelOperations(player, savedData, channelOperations);
+		if (validatedChannelBatchOperation == null && channelOperations != null && !channelOperations.isEmpty()) {
 			return PreparedPlan.failure(
 				GraphWriteJsonSupport.buildRejectedResponse("channel_invalid", "当前频道修改不合法，请检查节点类型、序号与频道号。", savedData.graphRevision(), List.of())
 			);
 		}
-		for (ValidatedChannelOperation validatedChannelOperation : validatedChannelOperations) {
-			if (validatedChannelOperation.failureResponseJson() != null && !validatedChannelOperation.failureResponseJson().isBlank()) {
-				return PreparedPlan.failure(validatedChannelOperation.failureResponseJson());
-			}
+		if (
+			validatedChannelBatchOperation != null &&
+			validatedChannelBatchOperation.failureResponseJson() != null &&
+			!validatedChannelBatchOperation.failureResponseJson().isBlank()
+		) {
+			return PreparedPlan.failure(validatedChannelBatchOperation.failureResponseJson());
 		}
 
 		return PreparedPlan.success(
 			validatedAliasOperations,
 			validatedReplaceOperations,
-			validatedChannelOperations,
-			totalLinkCommandCost(validatedReplaceOperations, validatedChannelOperations)
+			validatedChannelBatchOperation,
+			totalLinkCommandCost(validatedReplaceOperations, validatedChannelBatchOperation)
 		);
 	}
 
@@ -387,13 +388,13 @@ public final class GraphWriteService {
 		return List.copyOf(validatedReplaceOperations);
 	}
 
-	private static List<ValidatedChannelOperation> validateChannelOperations(
+	private static ValidatedChannelBatchOperation validateChannelOperations(
 		ServerPlayer player,
 		LinkSavedData savedData,
 		List<SetNodeChannelOperation> channelOperations
 	) {
 		if (channelOperations == null || channelOperations.isEmpty()) {
-			return List.of();
+			return null;
 		}
 		Map<String, SetNodeChannelOperation> uniqueOperations = new LinkedHashMap<>();
 		for (SetNodeChannelOperation channelOperation : channelOperations) {
@@ -403,9 +404,9 @@ public final class GraphWriteService {
 			uniqueOperations.put(channelOperation.nodeKey(), channelOperation);
 		}
 
-		List<ValidatedChannelOperation> validatedChannelOperations = new ArrayList<>(uniqueOperations.size());
 		boolean hasLimitedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
 		boolean hasProtectedBypassPermission = player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
+		List<ChannelOverride> overrides = new ArrayList<>(uniqueOperations.size());
 		for (SetNodeChannelOperation channelOperation : uniqueOperations.values()) {
 			long expectedRevision = channelOperation.nodeType() == LinkNodeType.TRIGGER_SOURCE
 				? channelOperation.expectedSourceRevision()
@@ -420,70 +421,61 @@ public final class GraphWriteService {
 				String conflictMessage = channelOperation.nodeType() == LinkNodeType.TRIGGER_SOURCE
 					? "保存冲突：triggerSource %s 的连接已被其他操作更新，请重新导出 graph 文件后再试。"
 					: "保存冲突：core %s 的成员集合已被其他操作更新，请重新导出 graph 文件后再试。";
-				validatedChannelOperations.add(
-					ValidatedChannelOperation.failure(
-						GraphWriteJsonSupport.buildConflictResponse(
-							conflictReason,
-							conflictMessage.formatted(NodeAliasDisplayUtil.formatSerialToken(channelOperation.serial())),
-							savedData.graphRevision(),
-							List.of(
-								buildUpdatedNodeState(
-									player.serverLevel(),
-									savedData,
-									channelOperation.nodeType(),
-									channelOperation.serial()
-								)
+				return ValidatedChannelBatchOperation.failure(
+					GraphWriteJsonSupport.buildConflictResponse(
+						conflictReason,
+						conflictMessage.formatted(NodeAliasDisplayUtil.formatSerialToken(channelOperation.serial())),
+						savedData.graphRevision(),
+						List.of(
+							buildUpdatedNodeState(
+								player.serverLevel(),
+								savedData,
+								channelOperation.nodeType(),
+								channelOperation.serial()
 							)
 						)
 					)
 				);
-				continue;
 			}
-
-			LinkChannelEditingService.PreparationResult preparationResult = LinkChannelEditingService.prepareConfirmedSetChannel(
-				player.serverLevel(),
-				player,
-				channelOperation.nodeType(),
-				channelOperation.serial(),
-				channelOperation.channel(),
-				hasLimitedBypassPermission,
-				hasProtectedBypassPermission
-			);
-			if (!preparationResult.successful()) {
-				validatedChannelOperations.add(
-					ValidatedChannelOperation.failure(
-						GraphWriteJsonSupport.buildRejectedResponse(
-							"channel_rejected",
-							formatChannelOperationFeedback(preparationResult.feedbacks()),
-							savedData.graphRevision(),
-							List.of()
-						)
-					)
-				);
-				continue;
-			}
-
-			Set<Long> affectedTriggerSourceSerials = new LinkedHashSet<>();
-			Set<Long> affectedCoreSerials = new LinkedHashSet<>();
-			if (channelOperation.nodeType() == LinkNodeType.TRIGGER_SOURCE) {
-				affectedTriggerSourceSerials.add(channelOperation.serial());
-			} else {
-				affectedCoreSerials.add(channelOperation.serial());
-			}
-			for (LinkSetExecutionService.PreparedReplaceOperation preparedOperation : preparationResult.plan().preparedOperations()) {
-				affectedTriggerSourceSerials.add(preparedOperation.sourceSerial());
-				affectedCoreSerials.addAll(preparedOperation.previousTargets());
-				affectedCoreSerials.addAll(preparedOperation.targets());
-			}
-			validatedChannelOperations.add(
-				ValidatedChannelOperation.success(
-					preparationResult.plan(),
-					List.copyOf(affectedTriggerSourceSerials),
-					List.copyOf(affectedCoreSerials)
+			overrides.add(new ChannelOverride(channelOperation.nodeType(), channelOperation.serial(), channelOperation.channel()));
+		}
+		LinkChannelEditingService.BatchPreparationResult preparationResult = LinkChannelEditingService.prepareConfirmedBatchSetChannel(
+			player.serverLevel(),
+			player,
+			overrides,
+			hasLimitedBypassPermission,
+			hasProtectedBypassPermission
+		);
+		if (!preparationResult.successful()) {
+			return ValidatedChannelBatchOperation.failure(
+				GraphWriteJsonSupport.buildRejectedResponse(
+					"channel_rejected",
+					formatChannelOperationFeedback(preparationResult.feedbacks()),
+					savedData.graphRevision(),
+					List.of()
 				)
 			);
 		}
-		return List.copyOf(validatedChannelOperations);
+
+		Set<Long> affectedTriggerSourceSerials = new LinkedHashSet<>();
+		Set<Long> affectedCoreSerials = new LinkedHashSet<>();
+		for (ChannelOverride override : preparationResult.plan().overrides()) {
+			if (override.nodeType() == LinkNodeType.TRIGGER_SOURCE) {
+				affectedTriggerSourceSerials.add(override.serial());
+			} else {
+				affectedCoreSerials.add(override.serial());
+			}
+		}
+		for (LinkSetExecutionService.PreparedReplaceOperation preparedOperation : preparationResult.plan().preparedOperations()) {
+			affectedTriggerSourceSerials.add(preparedOperation.sourceSerial());
+			affectedCoreSerials.addAll(preparedOperation.previousTargets());
+			affectedCoreSerials.addAll(preparedOperation.targets());
+		}
+		return ValidatedChannelBatchOperation.success(
+			preparationResult.plan(),
+			List.copyOf(affectedTriggerSourceSerials),
+			List.copyOf(affectedCoreSerials)
+		);
 	}
 
 	private static void acquireRateLimitsOrThrow(
@@ -511,11 +503,14 @@ public final class GraphWriteService {
 				);
 			}
 		}
-		if (!preparedPlan.validatedReplaceOperations().isEmpty() || !preparedPlan.validatedChannelOperations().isEmpty()) {
+		if (
+			!preparedPlan.validatedReplaceOperations().isEmpty() ||
+			(preparedPlan.validatedChannelBatchOperation() != null && preparedPlan.validatedChannelBatchOperation().plan() != null)
+		) {
 			boolean linkAcquired = CommandRateLimitService.tryAcquire(
 				player.createCommandSourceStack(),
 				CommandRateLimitService.CommandGroup.LINK_RW,
-				Math.max(1, totalLinkCommandCost(preparedPlan.validatedReplaceOperations(), preparedPlan.validatedChannelOperations()))
+				Math.max(1, totalLinkCommandCost(preparedPlan.validatedReplaceOperations(), preparedPlan.validatedChannelBatchOperation()))
 			);
 			if (!linkAcquired) {
 				throw new GraphWriteRejectedException(
@@ -586,7 +581,7 @@ public final class GraphWriteService {
 
 	private static int totalLinkCommandCost(
 		List<ValidatedReplaceOperation> validatedReplaceOperations,
-		List<ValidatedChannelOperation> validatedChannelOperations
+		ValidatedChannelBatchOperation validatedChannelBatchOperation
 	) {
 		int totalCost = 0;
 		if (validatedReplaceOperations != null) {
@@ -597,13 +592,8 @@ public final class GraphWriteService {
 				totalCost = saturatingAdd(totalCost, validatedReplaceOperation.operation().commandCost());
 			}
 		}
-		if (validatedChannelOperations != null) {
-			for (ValidatedChannelOperation validatedChannelOperation : validatedChannelOperations) {
-				if (validatedChannelOperation == null || validatedChannelOperation.plan() == null) {
-					continue;
-				}
-				totalCost = saturatingAdd(totalCost, validatedChannelOperation.plan().totalCommandCost());
-			}
+		if (validatedChannelBatchOperation != null && validatedChannelBatchOperation.plan() != null) {
+			totalCost = saturatingAdd(totalCost, validatedChannelBatchOperation.plan().totalCommandCost());
 		}
 		return totalCost;
 	}
@@ -692,18 +682,18 @@ public final class GraphWriteService {
 	/**
 	 * 已校验的频道覆盖写入操作。
 	 */
-	private record ValidatedChannelOperation(
-		LinkChannelEditingService.PreparedChannelUpdate plan,
+	private record ValidatedChannelBatchOperation(
+		LinkChannelEditingService.PreparedChannelBatchUpdate plan,
 		List<Long> affectedTriggerSourceSerials,
 		List<Long> affectedCoreSerials,
 		String failureResponseJson
 	) {
-		private static ValidatedChannelOperation success(
-			LinkChannelEditingService.PreparedChannelUpdate plan,
+		private static ValidatedChannelBatchOperation success(
+			LinkChannelEditingService.PreparedChannelBatchUpdate plan,
 			List<Long> affectedTriggerSourceSerials,
 			List<Long> affectedCoreSerials
 		) {
-			return new ValidatedChannelOperation(
+			return new ValidatedChannelBatchOperation(
 				plan,
 				List.copyOf(affectedTriggerSourceSerials == null ? List.of() : affectedTriggerSourceSerials),
 				List.copyOf(affectedCoreSerials == null ? List.of() : affectedCoreSerials),
@@ -711,8 +701,8 @@ public final class GraphWriteService {
 			);
 		}
 
-		private static ValidatedChannelOperation failure(String failureResponseJson) {
-			return new ValidatedChannelOperation(null, List.of(), List.of(), failureResponseJson == null ? "" : failureResponseJson);
+		private static ValidatedChannelBatchOperation failure(String failureResponseJson) {
+			return new ValidatedChannelBatchOperation(null, List.of(), List.of(), failureResponseJson == null ? "" : failureResponseJson);
 		}
 	}
 
@@ -722,27 +712,27 @@ public final class GraphWriteService {
 	private record PreparedPlan(
 		List<ValidatedAliasOperation> validatedAliasOperations,
 		List<ValidatedReplaceOperation> validatedReplaceOperations,
-		List<ValidatedChannelOperation> validatedChannelOperations,
+		ValidatedChannelBatchOperation validatedChannelBatchOperation,
 		int totalCommandCost,
 		String failureResponseJson
 	) {
 		private static PreparedPlan success(
 			List<ValidatedAliasOperation> validatedAliasOperations,
 			List<ValidatedReplaceOperation> validatedReplaceOperations,
-			List<ValidatedChannelOperation> validatedChannelOperations,
+			ValidatedChannelBatchOperation validatedChannelBatchOperation,
 			int totalCommandCost
 		) {
 			return new PreparedPlan(
 				List.copyOf(validatedAliasOperations == null ? List.of() : validatedAliasOperations),
 				List.copyOf(validatedReplaceOperations == null ? List.of() : validatedReplaceOperations),
-				List.copyOf(validatedChannelOperations == null ? List.of() : validatedChannelOperations),
+				validatedChannelBatchOperation,
 				Math.max(0, totalCommandCost),
 				""
 			);
 		}
 
 		private static PreparedPlan failure(String failureResponseJson) {
-			return new PreparedPlan(List.of(), List.of(), List.of(), 0, failureResponseJson == null ? "" : failureResponseJson);
+			return new PreparedPlan(List.of(), List.of(), null, 0, failureResponseJson == null ? "" : failureResponseJson);
 		}
 
 		private boolean successful() {

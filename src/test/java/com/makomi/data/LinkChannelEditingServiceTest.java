@@ -6,11 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.command.link.LinkChannelEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
+import com.makomi.data.LinkSavedDataChannelSupport.ChannelOverride;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.SharedConstants;
@@ -123,6 +125,49 @@ class LinkChannelEditingServiceTest {
 		assertEquals(Set.of(501L, 502L), savedData.getLinkedCoresByTriggerSource(401L));
 		assertTrue(savedData.getLinkedCoresByTriggerSource(402L).isEmpty());
 		assertEquals(Set.of(401L), savedData.getLinkedTriggerSourcesByCore(501L));
+	}
+
+	/**
+	 * 同一批把多个 core 一起切进同一频道时，应按整批最终状态只生成一次去重后的来源重排计划。
+	 */
+	@Test
+	void batchCoreChannelUpdatesShouldResolveFinalChannelStateOnce(@TempDir Path tempDir) throws Exception {
+		ServerLevel level = createServerLevel(tempDir);
+		LinkSavedData savedData = LinkSavedData.get(level);
+
+		savedData.markSerialAllocated(LinkNodeType.TRIGGER_SOURCE, 601L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 701L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 702L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 703L);
+		LinkSavedDataChannelSupport.putChannelConfig(savedData, LinkNodeType.TRIGGER_SOURCE, 601L, 11L);
+		LinkSavedDataChannelSupport.putChannelConfig(savedData, LinkNodeType.CORE, 703L, 11L);
+
+		LinkChannelEditingService.BatchPreparationResult preparation = LinkChannelEditingService.prepareConfirmedBatchSetChannel(
+			level,
+			null,
+			List.of(
+				new ChannelOverride(LinkNodeType.CORE, 701L, 11L),
+				new ChannelOverride(LinkNodeType.CORE, 702L, 11L)
+			),
+			false,
+			false
+		);
+
+		assertTrue(preparation.successful());
+		assertTrue(preparation.plan().hasChanges());
+		assertEquals(2, preparation.plan().changedChannelNodeCount());
+		assertEquals(1, preparation.plan().changedTriggerSourceCount());
+		assertEquals(1, preparation.plan().preparedOperations().size());
+		assertEquals(Set.of(701L, 702L, 703L), preparation.plan().preparedOperations().get(0).targets());
+
+		LinkChannelEditingService.BatchApplyResult applyResult = LinkChannelEditingService.applyPreparedBatchSetChannel(preparation.plan());
+		assertEquals(1, applyResult.appliedOperationCount());
+		assertEquals(2, applyResult.changedChannelNodeCount());
+		assertEquals(LinkConnectionMode.CHANNEL, savedData.getConnectionMode(LinkNodeType.CORE, 701L));
+		assertEquals(LinkConnectionMode.CHANNEL, savedData.getConnectionMode(LinkNodeType.CORE, 702L));
+		assertEquals(11L, savedData.getChannel(LinkNodeType.CORE, 701L));
+		assertEquals(11L, savedData.getChannel(LinkNodeType.CORE, 702L));
+		assertEquals(Set.of(701L, 702L, 703L), savedData.getLinkedCoresByTriggerSource(601L));
 	}
 
 	/**

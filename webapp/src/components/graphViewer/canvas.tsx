@@ -240,20 +240,29 @@ function buildAggregateNodeStyle(
   selectedNodeKey: string,
   hasSearch: boolean,
   matchedNodeKeys: Set<string>,
+  draftChangedCanvasNodeKeys: Set<string>,
 ): CSSProperties {
   const selected = selectedNodeKey === aggregateNode.nodeKey;
   const expanded = aggregateNode.expanded;
+  const draftChanged = draftChangedCanvasNodeKeys.has(aggregateNode.nodeKey);
   const borderColor =
-    selected || expanded ? "#8ad8ff" : "rgba(140, 213, 255, 0.42)";
+    selected || expanded
+      ? "#8ad8ff"
+      : draftChanged
+        ? "#8ef0b8"
+        : "rgba(140, 213, 255, 0.42)";
   return {
     minWidth: GRAPH_NODE_WIDTH,
     borderRadius: 16,
     border: `1px ${expanded ? "solid" : "dashed"} ${borderColor}`,
-    background:
-      "linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08))",
+    background: draftChanged
+      ? "linear-gradient(180deg, rgba(142, 240, 184, 0.16), rgba(142, 240, 184, 0.07)), linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08))"
+      : "linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08))",
     boxShadow:
       selected || expanded
         ? "0 0 0 1px rgba(140, 213, 255, 0.5) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
+        : draftChanged
+          ? "0 0 0 1px rgba(142, 240, 184, 0.36) inset"
         : "0 0 0 1px rgba(140, 213, 255, 0.16) inset",
     color: "#effbff",
     opacity: 1,
@@ -265,17 +274,26 @@ function buildChannelHubNodeStyle(
   selectedNodeKey: string,
   hasSearch: boolean,
   matchedNodeKeys: Set<string>,
+  draftChangedCanvasNodeKeys: Set<string>,
 ): CSSProperties {
   const selected = selectedNodeKey === channelHubNode.nodeKey;
-  const borderColor = selected ? "#efd88b" : "rgba(239, 216, 139, 0.56)";
+  const draftChanged = draftChangedCanvasNodeKeys.has(channelHubNode.nodeKey);
+  const borderColor = selected
+    ? "#efd88b"
+    : draftChanged
+      ? "#8ef0b8"
+      : "rgba(239, 216, 139, 0.56)";
   return {
     minWidth: GRAPH_NODE_WIDTH,
     borderRadius: 18,
     border: `1px solid ${borderColor}`,
-    background:
-      "linear-gradient(180deg, rgba(239, 216, 139, 0.2), rgba(156, 129, 56, 0.08))",
+    background: draftChanged
+      ? "linear-gradient(180deg, rgba(142, 240, 184, 0.14), rgba(142, 240, 184, 0.05)), linear-gradient(180deg, rgba(239, 216, 139, 0.2), rgba(156, 129, 56, 0.08))"
+      : "linear-gradient(180deg, rgba(239, 216, 139, 0.2), rgba(156, 129, 56, 0.08))",
     boxShadow: selected
       ? "0 0 0 1px rgba(239, 216, 139, 0.56) inset, 0 12px 24px rgba(6, 10, 18, 0.22)"
+      : draftChanged
+        ? "0 0 0 1px rgba(142, 240, 184, 0.36) inset"
       : "0 0 0 1px rgba(239, 216, 139, 0.18) inset",
     color: "#fff7df",
     opacity: 1,
@@ -398,6 +416,13 @@ function buildChannelCanvasEdgeKey(
   targetNodeKey: string,
 ): string {
   return `channel-edge:${sourceNodeKey}:${targetNodeKey}`;
+}
+
+function hasForcedVisibleAggregateMember(
+  memberNodeKeys: string[],
+  forcedVisibleNodeKeys: Set<string>,
+): boolean {
+  return memberNodeKeys.some((nodeKey) => forcedVisibleNodeKeys.has(nodeKey));
 }
 
 function resolveCanvasNodeLaneType(
@@ -664,7 +689,10 @@ function buildSerialGraphCanvasView(
     const aggregateNodeKey = buildAggregateNodeKey("core", signatureKey);
     const expanded =
       expandedAggregateNodeKeys.has(aggregateNodeKey) ||
-      coreNodes.some((coreNode) => forcedVisibleNodeKeys.has(coreNode.nodeKey));
+      hasForcedVisibleAggregateMember(
+        coreNodes.map((coreNode) => coreNode.nodeKey),
+        forcedVisibleNodeKeys,
+      );
     const aggregateNode: GraphCanvasAggregateNode = {
       kind: "aggregate",
       aggregateRole: "core",
@@ -811,8 +839,9 @@ function buildSerialGraphCanvasView(
     );
     const expanded =
       expandedAggregateNodeKeys.has(aggregateNodeKey) ||
-      sourceNodes.some((sourceNode) =>
-        forcedVisibleNodeKeys.has(sourceNode.nodeKey),
+      hasForcedVisibleAggregateMember(
+        sourceNodes.map((sourceNode) => sourceNode.nodeKey),
+        forcedVisibleNodeKeys,
       );
     const aggregateNode: GraphCanvasAggregateNode = {
       kind: "aggregate",
@@ -1052,7 +1081,12 @@ function buildChannelGraphCanvasView(
       "core",
       channelHubNode.nodeKey,
     );
-    const expanded = expandedAggregateNodeKeys.has(aggregateNodeKey);
+    const expanded =
+      expandedAggregateNodeKeys.has(aggregateNodeKey) ||
+      hasForcedVisibleAggregateMember(
+        coreNodes.map((coreNode) => coreNode.nodeKey),
+        forcedVisibleNodeKeys,
+      );
     aggregateNodes.push({
       kind: "aggregate",
       aggregateRole: "core",
@@ -1101,7 +1135,12 @@ function buildChannelGraphCanvasView(
       "triggerSource",
       channelHubNode.nodeKey,
     );
-    const expanded = expandedAggregateNodeKeys.has(aggregateNodeKey);
+    const expanded =
+      expandedAggregateNodeKeys.has(aggregateNodeKey) ||
+      hasForcedVisibleAggregateMember(
+        sourceNodes.map((sourceNode) => sourceNode.nodeKey),
+        forcedVisibleNodeKeys,
+      );
     aggregateNodes.push({
       kind: "aggregate",
       aggregateRole: "triggerSource",
@@ -1713,7 +1752,7 @@ export function buildGraphFlowNodes(
   matchedNodeKeys: Set<string>,
   selectedEditSourceNodeKeys: Set<string>,
   selectedEditTargetNodeKeys: Set<string>,
-  draftChangedNodeKeys: Set<string>,
+  draftChangedCanvasNodeKeys: Set<string>,
 ): GraphFlowNode[] {
   return canvasNodes.map((canvasNode) => {
     const nodeKey = canvasNode.nodeKey;
@@ -1743,6 +1782,7 @@ export function buildGraphFlowNodes(
               selectedNodeKey,
               hasSearch,
               matchedNodeKeys,
+              draftChangedCanvasNodeKeys,
             )
           : canvasNode.kind === "channelHub"
             ? buildChannelHubNodeStyle(
@@ -1750,6 +1790,7 @@ export function buildGraphFlowNodes(
                 selectedNodeKey,
                 hasSearch,
                 matchedNodeKeys,
+                draftChangedCanvasNodeKeys,
               )
             : buildNodeStyle(
                 canvasNode.graphNode,
@@ -1758,7 +1799,7 @@ export function buildGraphFlowNodes(
                 matchedNodeKeys,
                 selectedEditSourceNodeKeys,
                 selectedEditTargetNodeKeys,
-                draftChangedNodeKeys,
+                draftChangedCanvasNodeKeys,
               ),
     };
   });

@@ -174,6 +174,8 @@ export default function GraphViewer({
   const [pendingAggregateFocusNodeKey, setPendingAggregateFocusNodeKey] =
     useState("");
   const [pendingFocusNodeKey, setPendingFocusNodeKey] = useState("");
+  const [pendingPostLayoutFocusNodeKey, setPendingPostLayoutFocusNodeKey] =
+    useState("");
   const [pendingStructureLayoutReset, setPendingStructureLayoutReset] =
     useState(false);
   const [pendingStructureViewportFit, setPendingStructureViewportFit] =
@@ -307,6 +309,42 @@ export default function GraphViewer({
         .filter((node): node is GraphNodeInfo => node != null),
     [nodeByKey, selectedEditChannelNodeKeys],
   );
+  /**
+   * 批量应用后的上下文聚焦以“当前选区里哪类节点更多”为准；
+   * 若数量相同，则退回当前选中节点或稳定顺序下的首个节点。
+   */
+  const batchEditFocusNodeKey = useMemo(() => {
+    const candidateNodes =
+      displayMode === "channel"
+        ? selectedEditChannelNodes
+        : [...selectedEditSourceNodes, ...selectedEditTargetNodes];
+    if (candidateNodes.length === 0) {
+      return selectedNodeKey;
+    }
+    const triggerSourceNodes = candidateNodes.filter(
+      (node) => node.type === "triggerSource",
+    );
+    const coreNodes = candidateNodes.filter((node) => node.type === "core");
+    const preferredNodes =
+      triggerSourceNodes.length === coreNodes.length
+        ? candidateNodes
+        : triggerSourceNodes.length > coreNodes.length
+          ? triggerSourceNodes
+          : coreNodes;
+    if (
+      selectedNodeKey &&
+      preferredNodes.some((node) => node.nodeKey === selectedNodeKey)
+    ) {
+      return selectedNodeKey;
+    }
+    return preferredNodes[0]?.nodeKey ?? selectedNodeKey;
+  }, [
+    displayMode,
+    selectedEditChannelNodes,
+    selectedEditSourceNodes,
+    selectedEditTargetNodes,
+    selectedNodeKey,
+  ]);
   const selectedNodeHasNonPinnedVisibilityReason = useMemo(() => {
     if (!selectedNodeKey || !nodeByKey.has(selectedNodeKey)) {
       return false;
@@ -330,14 +368,15 @@ export default function GraphViewer({
     }
     pinnedIsolatedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     matchedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
-    draftDiff.changedNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    selectedEditSourceNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
+    selectedEditTargetNodeKeys.forEach((nodeKey) => nextKeys.add(nodeKey));
     return nextKeys;
   }, [
-    draftDiff.changedNodeKeys,
     matchedNodeKeys,
-    nodeByKey,
     pinnedIsolatedNodeKeys,
     selectedNodeKey,
+    selectedEditSourceNodeKeys,
+    selectedEditTargetNodeKeys,
   ]);
   const expandedAggregateNodeKeySet = useMemo(
     () => new Set(expandedAggregateNodeKeys),
@@ -358,6 +397,35 @@ export default function GraphViewer({
       forcedVisibleNodeKeys,
     ],
   );
+  /**
+   * 草稿变更只提升为画布节点高亮，不再参与聚合块自动展开判定。
+   */
+  const draftChangedCanvasNodeKeys = useMemo(() => {
+    const nextKeys = new Set(draftDiff.changedNodeKeys);
+    graphCanvasView.channelHubNodes.forEach((channelHubNode) => {
+      if (
+        channelHubNode.memberNodeKeys.some((nodeKey) =>
+          draftDiff.changedNodeKeys.has(nodeKey),
+        )
+      ) {
+        nextKeys.add(channelHubNode.nodeKey);
+      }
+    });
+    graphCanvasView.aggregateNodes.forEach((aggregateNode) => {
+      if (
+        aggregateNode.memberNodeKeys.some((nodeKey) =>
+          draftDiff.changedNodeKeys.has(nodeKey),
+        )
+      ) {
+        nextKeys.add(aggregateNode.nodeKey);
+      }
+    });
+    return nextKeys;
+  }, [
+    draftDiff.changedNodeKeys,
+    graphCanvasView.aggregateNodes,
+    graphCanvasView.channelHubNodes,
+  ]);
   const matchedCanvasNodeKeys = useMemo(() => {
     const nextKeys = new Set(matchedNodeKeys);
     graphCanvasView.channelHubNodes.forEach((channelHubNode) => {
@@ -711,7 +779,7 @@ export default function GraphViewer({
         matchedNodeKeys,
         selectedEditSourceNodeKeys,
         selectedEditTargetNodeKeys,
-        draftDiff.changedNodeKeys,
+        draftChangedCanvasNodeKeys,
       ).map((node) => ({
         ...node,
         position: existingPositionByNodeKey.get(node.id) ?? node.position,
@@ -743,6 +811,7 @@ export default function GraphViewer({
     matchedNodeKeys,
     pendingStructureLayoutReset,
     selectedNodeKey,
+    draftChangedCanvasNodeKeys,
     selectedEditSourceNodeKeys,
     selectedEditTargetNodeKeys,
     setEdges,
@@ -854,6 +923,47 @@ export default function GraphViewer({
   ]);
 
   useEffect(() => {
+    /**
+     * 结构重排后的上下文聚焦必须等新坐标落位后再执行，
+     * 否则会提前跳到重排前的位置。
+     */
+    if (
+      draftLoading ||
+      pendingStructureLayoutReset ||
+      !pendingPostLayoutFocusNodeKey ||
+      !reactFlowInstance
+    ) {
+      return;
+    }
+    const currentNode = nodes.find(
+      (node) => node.id === pendingPostLayoutFocusNodeKey,
+    );
+    if (!currentNode) {
+      releaseAutoViewportFitSuppression();
+      setPendingPostLayoutFocusNodeKey("");
+      return;
+    }
+    const frameId = window.requestAnimationFrame(() => {
+      reactFlowInstance.setCenter(
+        currentNode.position.x + NODE_CENTER_OFFSET_X,
+        currentNode.position.y + NODE_CENTER_OFFSET_Y,
+        { zoom: 1.12, duration: 260 },
+      );
+      releaseAutoViewportFitSuppression();
+      setPendingPostLayoutFocusNodeKey("");
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    draftLoading,
+    nodes,
+    pendingPostLayoutFocusNodeKey,
+    pendingStructureLayoutReset,
+    reactFlowInstance,
+  ]);
+
+  useEffect(() => {
     if (!pendingFocusNodeKey || !reactFlowInstance) {
       return;
     }
@@ -937,13 +1047,15 @@ export default function GraphViewer({
 
   function requestStructureLayoutRefresh(options?: {
     focusAggregateNodeKey?: string;
+    focusNodeKey?: string;
     fitViewport?: boolean;
   }) {
-    if (options?.focusAggregateNodeKey) {
+    if (options?.focusAggregateNodeKey || options?.focusNodeKey) {
       suppressAutoViewportFitForContextFocus();
     }
     setPendingFocusNodeKey("");
     setPendingAggregateFocusNodeKey(options?.focusAggregateNodeKey ?? "");
+    setPendingPostLayoutFocusNodeKey(options?.focusNodeKey ?? "");
     setPendingStructureLayoutReset(true);
     setPendingStructureViewportFit(options?.fitViewport ?? true);
   }
@@ -1269,7 +1381,7 @@ export default function GraphViewer({
         matchedNodeKeys,
         selectedEditSourceNodeKeys,
         selectedEditTargetNodeKeys,
-        draftDiff.changedNodeKeys,
+        draftChangedCanvasNodeKeys,
       ).map((node) => ({
         ...node,
         selected: existingSelectedByNodeKey.get(node.id) ?? false,
@@ -1471,6 +1583,14 @@ export default function GraphViewer({
             selectedEditTargetSerials,
           );
     if (applyLocalDraftChange(nextDraft)) {
+      /**
+       * 批量编辑会直接改变画布拓扑；这里强制走一次结构重排，
+       * 同时保留当前编辑上下文，避免应用草稿后被整图自动归位打断。
+       */
+      requestStructureLayoutRefresh({
+        fitViewport: false,
+        focusNodeKey: batchEditFocusNodeKey,
+      });
       setSaveMessage(
         displayMode === "channel"
           ? `已将频道覆盖写入本地草稿，点击 Save 后才会回传游戏真值。`

@@ -2,6 +2,7 @@ package com.makomi.data;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -127,30 +128,44 @@ public final class LinkSavedDataChannelSupport {
 		if (data == null || triggerSourceSerial <= 0L) {
 			return Set.of();
 		}
-		LinkConnectionMode sourceMode = effectiveMode(
-			data,
-			LinkNodeType.TRIGGER_SOURCE,
-			triggerSourceSerial,
-			overrideType,
-			overrideSerial,
-			overrideMode
+		Map<String, ChannelOverride> overridesByNodeKey = indexOverrides(
+			Set.of(new ChannelOverride(overrideType, overrideSerial, overrideMode == LinkConnectionMode.CHANNEL ? overrideChannel : 0L))
 		);
-		long sourceChannel = effectiveChannel(
-			data,
-			LinkNodeType.TRIGGER_SOURCE,
-			triggerSourceSerial,
-			overrideType,
-			overrideSerial,
-			overrideMode,
-			overrideChannel
-		);
+		LinkConnectionMode sourceMode = effectiveMode(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, overridesByNodeKey);
+		long sourceChannel = effectiveChannel(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, overridesByNodeKey);
 		if (sourceMode == LinkConnectionMode.CHANNEL) {
 			if (!isValidChannel(sourceChannel)) {
 				return Set.of();
 			}
-			return collectEffectiveChannelCores(data, sourceChannel, overrideType, overrideSerial, overrideMode, overrideChannel);
+			return collectEffectiveChannelCores(data, sourceChannel, overridesByNodeKey);
 		}
-		return collectEffectiveSerialTargets(data, triggerSourceSerial, overrideType, overrideSerial, overrideMode);
+		return collectEffectiveSerialTargets(data, triggerSourceSerial, overridesByNodeKey);
+	}
+
+	/**
+	 * 在“多节点频道配置即将整体切换”的假设下，推导某个 triggerSource 应有的目标集合。
+	 * <p>
+	 * 该方法只读取当前真值与本次批量覆盖结果，不直接写回任何状态。
+	 * </p>
+	 */
+	public static Set<Long> resolveDesiredTargetsForTriggerSourceWithOverrides(
+		LinkSavedData data,
+		long triggerSourceSerial,
+		Iterable<ChannelOverride> overrides
+	) {
+		if (data == null || triggerSourceSerial <= 0L) {
+			return Set.of();
+		}
+		Map<String, ChannelOverride> overridesByNodeKey = indexOverrides(overrides);
+		LinkConnectionMode sourceMode = effectiveMode(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, overridesByNodeKey);
+		long sourceChannel = effectiveChannel(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, overridesByNodeKey);
+		if (sourceMode == LinkConnectionMode.CHANNEL) {
+			if (!isValidChannel(sourceChannel)) {
+				return Set.of();
+			}
+			return collectEffectiveChannelCores(data, sourceChannel, overridesByNodeKey);
+		}
+		return collectEffectiveSerialTargets(data, triggerSourceSerial, overridesByNodeKey);
 	}
 
 	/**
@@ -192,55 +207,29 @@ public final class LinkSavedDataChannelSupport {
 		}
 	}
 
-	private static LinkConnectionMode effectiveMode(
-		LinkSavedData data,
-		LinkNodeType type,
-		long serial,
-		LinkNodeType overrideType,
-		long overrideSerial,
-		LinkConnectionMode overrideMode
-	) {
-		if (type == overrideType && serial == overrideSerial) {
-			return overrideMode == null ? LinkConnectionMode.SERIAL : overrideMode;
+	private static LinkConnectionMode effectiveMode(LinkSavedData data, LinkNodeType type, long serial, Map<String, ChannelOverride> overridesByNodeKey) {
+		ChannelOverride override = overridesByNodeKey.get(buildOverrideNodeKey(type, serial));
+		if (override != null) {
+			return override.mode();
 		}
 		return getConnectionMode(data, type, serial);
 	}
 
-	private static long effectiveChannel(
-		LinkSavedData data,
-		LinkNodeType type,
-		long serial,
-		LinkNodeType overrideType,
-		long overrideSerial,
-		LinkConnectionMode overrideMode,
-		long overrideChannel
-	) {
-		if (type == overrideType && serial == overrideSerial) {
-			return overrideMode == LinkConnectionMode.CHANNEL && isValidChannel(overrideChannel) ? overrideChannel : 0L;
+	private static long effectiveChannel(LinkSavedData data, LinkNodeType type, long serial, Map<String, ChannelOverride> overridesByNodeKey) {
+		ChannelOverride override = overridesByNodeKey.get(buildOverrideNodeKey(type, serial));
+		if (override != null) {
+			return override.mode() == LinkConnectionMode.CHANNEL ? override.channel() : 0L;
 		}
 		return getChannel(data, type, serial);
 	}
 
-	private static Set<Long> collectEffectiveSerialTargets(
-		LinkSavedData data,
-		long triggerSourceSerial,
-		LinkNodeType overrideType,
-		long overrideSerial,
-		LinkConnectionMode overrideMode
-	) {
+	private static Set<Long> collectEffectiveSerialTargets(LinkSavedData data, long triggerSourceSerial, Map<String, ChannelOverride> overridesByNodeKey) {
 		Set<Long> desiredTargets = new HashSet<>();
 		for (Long coreSerial : data.getLinkedCoresByTriggerSource(triggerSourceSerial)) {
 			if (coreSerial == null || coreSerial <= 0L) {
 				continue;
 			}
-			LinkConnectionMode coreMode = effectiveMode(
-				data,
-				LinkNodeType.CORE,
-				coreSerial,
-				overrideType,
-				overrideSerial,
-				overrideMode
-			);
+			LinkConnectionMode coreMode = effectiveMode(data, LinkNodeType.CORE, coreSerial, overridesByNodeKey);
 			if (coreMode == LinkConnectionMode.SERIAL) {
 				desiredTargets.add(coreSerial);
 			}
@@ -248,24 +237,65 @@ public final class LinkSavedDataChannelSupport {
 		return desiredTargets.isEmpty() ? Set.of() : Set.copyOf(desiredTargets);
 	}
 
-	private static Set<Long> collectEffectiveChannelCores(
-		LinkSavedData data,
-		long channel,
-		LinkNodeType overrideType,
-		long overrideSerial,
-		LinkConnectionMode overrideMode,
-		long overrideChannel
-	) {
+	private static Set<Long> collectEffectiveChannelCores(LinkSavedData data, long channel, Map<String, ChannelOverride> overridesByNodeKey) {
 		Set<Long> desiredTargets = new HashSet<>(getChannelMembers(data, LinkNodeType.CORE, channel));
-		if (overrideType == LinkNodeType.CORE && overrideSerial > 0L) {
-			long currentChannel = getChannel(data, LinkNodeType.CORE, overrideSerial);
-			if (currentChannel == channel) {
-				desiredTargets.remove(overrideSerial);
+		for (ChannelOverride override : overridesByNodeKey.values()) {
+			if (override.nodeType() != LinkNodeType.CORE || override.serial() <= 0L) {
+				continue;
 			}
-			if (overrideMode == LinkConnectionMode.CHANNEL && overrideChannel == channel) {
-				desiredTargets.add(overrideSerial);
+			long currentChannel = getChannel(data, LinkNodeType.CORE, override.serial());
+			if (currentChannel == channel) {
+				desiredTargets.remove(override.serial());
+			}
+			if (override.mode() == LinkConnectionMode.CHANNEL && override.channel() == channel) {
+				desiredTargets.add(override.serial());
 			}
 		}
 		return desiredTargets.isEmpty() ? Set.of() : Set.copyOf(desiredTargets);
+	}
+
+	private static Map<String, ChannelOverride> indexOverrides(Iterable<ChannelOverride> overrides) {
+		if (overrides == null) {
+			return Map.of();
+		}
+		Map<String, ChannelOverride> overridesByNodeKey = new LinkedHashMap<>();
+		for (ChannelOverride override : overrides) {
+			if (override == null || !override.valid()) {
+				continue;
+			}
+			overridesByNodeKey.put(buildOverrideNodeKey(override.nodeType(), override.serial()), override);
+		}
+		return overridesByNodeKey.isEmpty() ? Map.of() : Map.copyOf(overridesByNodeKey);
+	}
+
+	private static String buildOverrideNodeKey(LinkNodeType type, long serial) {
+		return (type == LinkNodeType.TRIGGER_SOURCE ? "triggerSource" : "core") + ":" + Math.max(0L, serial);
+	}
+
+	/**
+	 * 批量频道覆盖中的单节点最终配置。
+	 */
+	public record ChannelOverride(LinkNodeType nodeType, long serial, long channel) {
+		public ChannelOverride {
+			nodeType = nodeType == LinkNodeType.TRIGGER_SOURCE
+				? LinkNodeType.TRIGGER_SOURCE
+				: nodeType == LinkNodeType.CORE ? LinkNodeType.CORE : null;
+			serial = Math.max(0L, serial);
+			channel = Math.max(0L, channel);
+		}
+
+		/**
+		 * @return 当前覆盖结果对应的连接模式
+		 */
+		public LinkConnectionMode mode() {
+			return isValidChannel(channel) ? LinkConnectionMode.CHANNEL : LinkConnectionMode.SERIAL;
+		}
+
+		/**
+		 * @return 当前覆盖是否指向有效节点
+		 */
+		public boolean valid() {
+			return nodeType != null && serial > 0L;
+		}
 	}
 }
