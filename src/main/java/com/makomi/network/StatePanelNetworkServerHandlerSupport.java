@@ -319,6 +319,17 @@ final class StatePanelNetworkServerHandlerSupport {
 	}
 
 	/**
+	 * 处理网页 graph 保存预检请求。
+	 */
+	static void handlePreviewGraphWrite(ServerPlayer player, StatePanelNetwork.PreviewGraphWritePayload payload) {
+		if (player == null || payload == null || payload.requestId().isBlank()) {
+			return;
+		}
+		String responseJson = GraphWriteService.preview(player, payload.requestJson());
+		ServerPlayNetworking.send(player, new StatePanelNetwork.GraphWriteResultPayload(payload.requestId(), responseJson));
+	}
+
+	/**
 	 * 处理清空全部订阅请求。
 	 */
 	static void handleCleanAll(ServerPlayer player) {

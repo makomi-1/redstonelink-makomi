@@ -44,10 +44,10 @@ Mods that modify vanilla `chunk loading` or `item interaction` may introduce con
 
 # Future Plans
 -  ☑️Add Send/receive filters
--  ❌Add recording and playback support to the status panel
+-  ☑️Add recording and playback support to the status panel
 -  ☑️Support custom node aliases
 -  ☑️Expand channel matching
 -  ☑️Improve the UI
 -  ❌Migrate to version 26.1+
--  ❌Add a visual network analyzer
+-  ☑️Add a visual network analyzer
 

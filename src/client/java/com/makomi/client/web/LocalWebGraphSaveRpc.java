@@ -34,17 +34,36 @@ public final class LocalWebGraphSaveRpc {
 	 * 提交 graph 保存请求，并同步等待服务端结果 JSON。
 	 */
 	public static String submitAndAwait(String requestJson) {
-		String requestId = "graph-save-" + UUID.randomUUID().toString().replace("-", "");
+		return sendAndAwait("graph-save-", requestJson, false);
+	}
+
+	/**
+	 * 提交 graph 保存预检请求，并同步等待服务端结果 JSON。
+	 */
+	public static String previewAndAwait(String requestJson) {
+		return sendAndAwait("graph-preview-", requestJson, true);
+	}
+
+	/**
+	 * 统一处理 graph 保存 / 预检的本地 RPC 往返。
+	 */
+	private static String sendAndAwait(String requestIdPrefix, String requestJson, boolean preview) {
+		String requestId = requestIdPrefix + UUID.randomUUID().toString().replace("-", "");
 		CompletableFuture<String> responseFuture = new CompletableFuture<>();
 		PENDING_RESPONSES.put(requestId, responseFuture);
+		String requestLabel = preview ? "graph preview" : "graph save";
 
 		Minecraft minecraft = Minecraft.getInstance();
 		minecraft.execute(() -> {
 			if (minecraft.getConnection() == null || minecraft.player == null) {
 				completeResponse(
 					requestId,
-					LocalWebJsonSupport.buildErrorPayload("No active game connection is available for graph save.")
+					LocalWebJsonSupport.buildErrorPayload("No active game connection is available for " + requestLabel + ".")
 				);
+				return;
+			}
+			if (preview) {
+				ClientPlayNetworking.send(new StatePanelNetwork.PreviewGraphWritePayload(requestId, requestJson));
 				return;
 			}
 			ClientPlayNetworking.send(new StatePanelNetwork.SubmitGraphWritePayload(requestId, requestJson));
@@ -54,11 +73,11 @@ public final class LocalWebGraphSaveRpc {
 			return responseFuture.get(DEFAULT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
-			return LocalWebJsonSupport.buildErrorPayload("Graph save request was interrupted.");
+			return LocalWebJsonSupport.buildErrorPayload("Graph " + (preview ? "preview" : "save") + " request was interrupted.");
 		} catch (ExecutionException exception) {
-			return LocalWebJsonSupport.buildErrorPayload("Graph save request failed.");
+			return LocalWebJsonSupport.buildErrorPayload("Graph " + (preview ? "preview" : "save") + " request failed.");
 		} catch (TimeoutException exception) {
-			return LocalWebJsonSupport.buildErrorPayload("Graph save request timed out.");
+			return LocalWebJsonSupport.buildErrorPayload("Graph " + (preview ? "preview" : "save") + " request timed out.");
 		} finally {
 			PENDING_RESPONSES.remove(requestId);
 		}

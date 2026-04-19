@@ -41,8 +41,24 @@ public final class CommandRateLimitService {
 	 */
 	public enum CommandGroup {
 		LINK_RW,
+		GRAPH_WRITE,
 		CROSSCHUNK,
 		OTHER
+	}
+
+	/**
+	 * 限流窗口只读预检结果。
+	 *
+	 * @param allowed 当前是否允许执行
+	 * @param hardBlocked 当前成本是否已超过单窗口容量，上层应提示拆分而不是等待
+	 * @param waitTicks 若为瞬时限流，距离再次满足条件还需等待的 tick 数
+	 * @param cost 本次请求成本
+	 */
+	public record AcquirePreview(boolean allowed, boolean hardBlocked, long waitTicks, int cost) {
+		public AcquirePreview {
+			waitTicks = Math.max(0L, waitTicks);
+			cost = Math.max(1, cost);
+		}
 	}
 
 	/**
@@ -78,6 +94,54 @@ public final class CommandRateLimitService {
 		long extraCost = (itemCount - 1L) / safeStepSize;
 		long resolved = (long) safeBaseCost + extraCost;
 		return (int) Math.max(1L, Math.min(Integer.MAX_VALUE, resolved));
+	}
+
+	/**
+	 * 只读预检本次请求在当前窗口下是否可执行，不消费额度。
+	 */
+	public static AcquirePreview previewAcquire(CommandSourceStack source, CommandGroup group, int cost) {
+		int normalizedCost = Math.max(1, cost);
+		if (source == null || group == null || !RedstoneLinkConfig.rateLimit().enabled()) {
+			return new AcquirePreview(true, false, 0L, normalizedCost);
+		}
+
+		int windowTicks = RedstoneLinkConfig.rateLimit().windowTicks();
+		long nowTick = source.getLevel().getGameTime();
+		int permissionLevel = resolvePermissionLevel(source);
+		ActorKey actorKey = resolveActorKey(source, permissionLevel);
+		ActorGroupKey actorGroupKey = new ActorGroupKey(actorKey, group);
+
+		int globalCapacity = RedstoneLinkConfig.rateLimit().globalCapacity();
+		WindowCounter globalCounter = GLOBAL_COUNTER;
+		int tierCapacity = RedstoneLinkConfig.rateLimit().tierCapacity(permissionLevel);
+		WindowCounter tierCounter = TIER_COUNTERS.get(permissionLevel);
+		int actorCapacity = RedstoneLinkConfig.rateLimit().actorCapacity(permissionLevel);
+		WindowCounter actorCounter = ACTOR_COUNTERS.get(actorKey);
+		int actorGroupCapacity = resolveActorGroupCapacity(permissionLevel, group);
+		WindowCounter actorGroupCounter = ACTOR_GROUP_COUNTERS.get(actorGroupKey);
+
+		if (
+			normalizedCost > globalCapacity ||
+			normalizedCost > tierCapacity ||
+			normalizedCost > actorCapacity ||
+			normalizedCost > actorGroupCapacity
+		) {
+			return new AcquirePreview(false, true, 0L, normalizedCost);
+		}
+
+		long waitTicks = 0L;
+		boolean allowed = true;
+		waitTicks = Math.max(waitTicks, previewCounterWaitTicks(globalCounter, nowTick, windowTicks, globalCapacity, normalizedCost));
+		waitTicks = Math.max(waitTicks, previewCounterWaitTicks(tierCounter, nowTick, windowTicks, tierCapacity, normalizedCost));
+		waitTicks = Math.max(waitTicks, previewCounterWaitTicks(actorCounter, nowTick, windowTicks, actorCapacity, normalizedCost));
+		waitTicks = Math.max(
+			waitTicks,
+			previewCounterWaitTicks(actorGroupCounter, nowTick, windowTicks, actorGroupCapacity, normalizedCost)
+		);
+		if (waitTicks > 0L) {
+			allowed = false;
+		}
+		return new AcquirePreview(allowed, false, waitTicks, normalizedCost);
 	}
 
 	/**
@@ -151,9 +215,23 @@ public final class CommandRateLimitService {
 	private static int resolveActorGroupCapacity(int permissionLevel, CommandGroup group) {
 		return switch (group) {
 			case LINK_RW -> RedstoneLinkConfig.rateLimit().actorLinkRwCapacity(permissionLevel);
+			case GRAPH_WRITE -> RedstoneLinkConfig.rateLimit().actorGraphWriteCapacity(permissionLevel);
 			case CROSSCHUNK -> RedstoneLinkConfig.rateLimit().actorCrossChunkCapacity(permissionLevel);
 			case OTHER -> RedstoneLinkConfig.rateLimit().actorOtherCapacity(permissionLevel);
 		};
+	}
+
+	private static long previewCounterWaitTicks(
+		WindowCounter counter,
+		long nowTick,
+		int windowTicks,
+		int capacity,
+		int cost
+	) {
+		if (counter == null || counter.canConsume(nowTick, windowTicks, capacity, cost)) {
+			return 0L;
+		}
+		return counter.waitTicksUntilAvailable(nowTick, windowTicks);
 	}
 
 	/**
@@ -290,6 +368,17 @@ public final class CommandRateLimitService {
 		 */
 		private boolean isInWindow(long nowTick, int windowTicks) {
 			return windowStartTick != Long.MIN_VALUE && nowTick - windowStartTick < windowTicks;
+		}
+
+		/**
+		 * 当前窗口若已满，返回距离窗口自然重置还需等待的 tick 数。
+		 */
+		private long waitTicksUntilAvailable(long nowTick, int windowTicks) {
+			if (!isInWindow(nowTick, windowTicks)) {
+				return 0L;
+			}
+			long waitTicks = windowStartTick + windowTicks - nowTick;
+			return Math.max(0L, waitTicks);
 		}
 	}
 }

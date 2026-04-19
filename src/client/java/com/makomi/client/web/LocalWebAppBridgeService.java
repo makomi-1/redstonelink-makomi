@@ -175,6 +175,7 @@ public final class LocalWebAppBridgeService {
 			httpServer.createContext("/api/storage/index", LocalWebAppBridgeService::handleStorageIndexRequest);
 			httpServer.createContext("/api/storage/entry", LocalWebAppBridgeService::handleStorageEntryRequest);
 			httpServer.createContext("/api/graph/save", LocalWebAppBridgeService::handleGraphSaveRequest);
+			httpServer.createContext("/api/graph/preview", LocalWebAppBridgeService::handleGraphPreviewRequest);
 			httpServer.createContext("/api/graph/draft", LocalWebAppBridgeService::handleGraphDraftRequest);
 			httpServer.createContext("/", LocalWebAppBridgeService::handleStaticRequest);
 			httpServer.start();
@@ -278,6 +279,32 @@ public final class LocalWebAppBridgeService {
 		} catch (RuntimeException exception) {
 			LOGGER.warn("处理 graph save 请求失败", exception);
 			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload("Failed to process graph save request."));
+		}
+	}
+
+	/**
+	 * 接收网页端的 graph 保存预检请求，并同步等待服务端预检结果。
+	 */
+	private static void handleGraphPreviewRequest(HttpExchange exchange) throws IOException {
+		if (!isWriteMethod(exchange, "POST")) {
+			sendJsonResponse(exchange, 405, LocalWebJsonSupport.buildErrorPayload("Method Not Allowed"));
+			return;
+		}
+		try {
+			String requestJson = readRequestBodyUtf8(exchange, GRAPH_SAVE_REQUEST_MAX_BYTES);
+			if (requestJson.isBlank()) {
+				sendJsonResponse(exchange, 400, LocalWebJsonSupport.buildErrorPayload("Graph preview request body is empty."));
+				return;
+			}
+			String responseJson = LocalWebGraphSaveRpc.previewAndAwait(requestJson);
+			sendJsonResponse(exchange, 200, responseJson == null || responseJson.isBlank()
+				? LocalWebJsonSupport.buildErrorPayload("Empty graph preview response.")
+				: responseJson);
+		} catch (IOException exception) {
+			sendJsonResponse(exchange, 400, LocalWebJsonSupport.buildErrorPayload(exception.getMessage()));
+		} catch (RuntimeException exception) {
+			LOGGER.warn("处理 graph preview 请求失败", exception);
+			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload("Failed to process graph preview request."));
 		}
 	}
 

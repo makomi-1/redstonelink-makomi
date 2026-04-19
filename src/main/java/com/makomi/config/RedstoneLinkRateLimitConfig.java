@@ -13,6 +13,8 @@ public record RedstoneLinkRateLimitConfig(
 	int actorStepPerLevel,
 	int actorGroupLinkRwBaseCapacity,
 	int actorGroupLinkRwStepPerLevel,
+	int actorGroupGraphWriteBaseCapacity,
+	int actorGroupGraphWriteStepPerLevel,
 	int actorGroupCrossChunkBaseCapacity,
 	int actorGroupCrossChunkStepPerLevel,
 	int actorGroupOtherBaseCapacity,
@@ -37,6 +39,13 @@ public record RedstoneLinkRateLimitConfig(
 	 */
 	public int actorLinkRwCapacity(int permissionLevel) {
 		return resolveCapacity(actorGroupLinkRwBaseCapacity, actorGroupLinkRwStepPerLevel, permissionLevel);
+	}
+
+	/**
+	 * 按权限等级计算 `graph` 保存组个体窗口容量。
+	 */
+	public int actorGraphWriteCapacity(int permissionLevel) {
+		return resolveCapacity(actorGroupGraphWriteBaseCapacity, actorGroupGraphWriteStepPerLevel, permissionLevel);
 	}
 
 	/**

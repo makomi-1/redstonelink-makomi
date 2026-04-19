@@ -511,12 +511,12 @@ export function applyUpdatedNodeStates(
       }
       return {
         ...node,
-        alias: updatedNodeState.alias,
-        displayText: updatedNodeState.displayText,
-        connectionMode: updatedNodeState.connectionMode,
-        channel: updatedNodeState.channel,
-        sourceRevision: updatedNodeState.sourceRevision,
-        coreRevision: updatedNodeState.coreRevision,
+        alias: updatedNodeState.alias ?? node.alias,
+        displayText: updatedNodeState.displayText ?? node.displayText,
+        connectionMode: updatedNodeState.connectionMode ?? node.connectionMode,
+        channel: updatedNodeState.channel ?? node.channel,
+        sourceRevision: updatedNodeState.sourceRevision ?? node.sourceRevision,
+        coreRevision: updatedNodeState.coreRevision ?? node.coreRevision,
       };
     }),
   };
@@ -570,14 +570,36 @@ export async function submitGraphSave(
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      draftId: graphDraft.draftId,
-      baseSnapshotId: graphDraft.baseSnapshotId,
-      mode: requestMode,
-      baseGraphRevision: graphDraft.baseGraphRevision,
-      operations: graphDraft.operations,
-    }),
+    body: buildGraphWriteRequestPayload(graphDraft, requestMode),
   });
   const payload = await response.json();
   return parseGraphWriteResponse(payload);
+}
+
+export async function previewGraphSave(
+  graphDraft: GraphDraft,
+  requestMode: string,
+): Promise<GraphWriteResponse> {
+  const response = await fetch('./api/graph/preview', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: buildGraphWriteRequestPayload(graphDraft, requestMode),
+  });
+  const payload = await response.json();
+  return parseGraphWriteResponse(payload);
+}
+
+function buildGraphWriteRequestPayload(
+  graphDraft: GraphDraft,
+  requestMode: string,
+): string {
+  return JSON.stringify({
+    draftId: graphDraft.draftId,
+    baseSnapshotId: graphDraft.baseSnapshotId,
+    mode: requestMode,
+    baseGraphRevision: graphDraft.baseGraphRevision,
+    operations: graphDraft.operations,
+  });
 }

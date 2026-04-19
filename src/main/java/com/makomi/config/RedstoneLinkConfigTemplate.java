@@ -129,6 +129,13 @@ final class RedstoneLinkConfigTemplate {
 			server.command.rateLimit.actorGroup.linkRw.baseCapacity=12
 			server.command.rateLimit.actorGroup.linkRw.stepPerLevel=8
 
+			# server.command.rateLimit.actorGroup.graphWrite.baseCapacity
+			# server.command.rateLimit.actorGroup.graphWrite.stepPerLevel
+			# zh: graph 网页保存组个体容量公式，面向批量 graph 事务；base 范围 1~200000，step 范围 0~200000。
+			# en: Actor-group formula for graph web-save batch transactions; base range 1~200000, step range 0~200000.
+			server.command.rateLimit.actorGroup.graphWrite.baseCapacity=24
+			server.command.rateLimit.actorGroup.graphWrite.stepPerLevel=16
+
 			# server.command.rateLimit.actorGroup.crosschunk.baseCapacity
 			# server.command.rateLimit.actorGroup.crosschunk.stepPerLevel
 			# zh: crosschunk 组个体容量公式，base 范围 1~200000，step 范围 0~200000。

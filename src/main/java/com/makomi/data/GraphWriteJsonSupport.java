@@ -88,7 +88,18 @@ public final class GraphWriteJsonSupport {
 		long graphRevision,
 		List<UpdatedNodeState> updatedNodes
 	) {
-		return buildResultResponse("applied", "applied", message, graphRevision, updatedNodes);
+		return buildResultResponse("applied", "applied", message, graphRevision, updatedNodes, null, true);
+	}
+
+	/**
+	 * 构建预检返回体。
+	 */
+	public static String buildPreviewResponse(
+		String message,
+		long graphRevision,
+		PreviewState previewState
+	) {
+		return buildResultResponse("preview", "preview", message, graphRevision, List.of(), previewState, false);
 	}
 
 	/**
@@ -100,7 +111,15 @@ public final class GraphWriteJsonSupport {
 		long graphRevision,
 		List<UpdatedNodeState> updatedNodes
 	) {
-		return buildResultResponse("conflict", normalizeText(reason, "conflict"), message, graphRevision, updatedNodes);
+		return buildResultResponse(
+			"conflict",
+			normalizeText(reason, "conflict"),
+			message,
+			graphRevision,
+			updatedNodes,
+			null,
+			false
+		);
 	}
 
 	/**
@@ -112,7 +131,15 @@ public final class GraphWriteJsonSupport {
 		long graphRevision,
 		List<UpdatedNodeState> updatedNodes
 	) {
-		return buildResultResponse("rejected", normalizeText(reason, "rejected"), message, graphRevision, updatedNodes);
+		return buildResultResponse(
+			"rejected",
+			normalizeText(reason, "rejected"),
+			message,
+			graphRevision,
+			updatedNodes,
+			null,
+			false
+		);
 	}
 
 	private static String buildResultResponse(
@@ -120,7 +147,9 @@ public final class GraphWriteJsonSupport {
 		String reason,
 		String message,
 		long graphRevision,
-		List<UpdatedNodeState> updatedNodes
+		List<UpdatedNodeState> updatedNodes,
+		PreviewState previewState,
+		boolean minimalUpdatedNodes
 	) {
 		StringBuilder builder = new StringBuilder(1024);
 		builder.append('{');
@@ -134,12 +163,40 @@ public final class GraphWriteJsonSupport {
 		builder.append(',');
 		appendNumberField(builder, "graphRevision", Math.max(0L, graphRevision));
 		builder.append(',');
-		appendUpdatedNodes(builder, updatedNodes);
+		appendUpdatedNodes(builder, updatedNodes, minimalUpdatedNodes);
+		if (previewState != null) {
+			builder.append(',');
+			appendPreviewState(builder, previewState);
+		}
 		builder.append('}');
 		return builder.toString();
 	}
 
-	private static void appendUpdatedNodes(StringBuilder builder, List<UpdatedNodeState> updatedNodes) {
+	private static void appendPreviewState(StringBuilder builder, PreviewState previewState) {
+		builder.append("\"preview\":{");
+		appendNumberField(builder, "aliasCost", previewState.aliasCost());
+		builder.append(',');
+		appendNumberField(builder, "graphCost", previewState.graphCost());
+		builder.append(',');
+		appendNumberField(builder, "graphWriteUnitCount", previewState.graphWriteUnitCount());
+		builder.append(',');
+		appendBooleanField(builder, "aliasAllowed", previewState.aliasAllowed());
+		builder.append(',');
+		appendBooleanField(builder, "graphAllowed", previewState.graphAllowed());
+		builder.append(',');
+		appendBooleanField(builder, "aliasHardBlocked", previewState.aliasHardBlocked());
+		builder.append(',');
+		appendBooleanField(builder, "graphHardBlocked", previewState.graphHardBlocked());
+		builder.append(',');
+		appendNumberField(builder, "aliasWaitTicks", previewState.aliasWaitTicks());
+		builder.append(',');
+		appendNumberField(builder, "graphWaitTicks", previewState.graphWaitTicks());
+		builder.append(',');
+		appendBooleanField(builder, "canSave", previewState.canSave());
+		builder.append('}');
+	}
+
+	private static void appendUpdatedNodes(StringBuilder builder, List<UpdatedNodeState> updatedNodes, boolean minimalUpdatedNodes) {
 		builder.append("\"updatedNodes\":[");
 		List<UpdatedNodeState> values = updatedNodes == null ? List.of() : List.copyOf(updatedNodes);
 		for (int index = 0; index < values.size(); index++) {
@@ -149,19 +206,23 @@ public final class GraphWriteJsonSupport {
 			UpdatedNodeState nodeState = values.get(index);
 			builder.append('{');
 			appendQuotedField(builder, "nodeKey", nodeState.nodeKey());
-			builder.append(',');
-			appendQuotedField(builder, "nodeType", LinkNodeSemantics.toSemanticName(nodeState.nodeType()));
-			builder.append(',');
-			appendNumberField(builder, "serial", nodeState.serial());
-			builder.append(',');
-			appendQuotedField(builder, "alias", nodeState.alias());
-			builder.append(',');
-			appendQuotedField(builder, "displayText", nodeState.displayText());
-			builder.append(',');
-			appendQuotedField(builder, "connectionMode", nodeState.connectionMode());
-			builder.append(',');
-			appendNumberField(builder, "channel", nodeState.channel());
-			builder.append(',');
+			if (!minimalUpdatedNodes) {
+				builder.append(',');
+				appendQuotedField(builder, "nodeType", LinkNodeSemantics.toSemanticName(nodeState.nodeType()));
+				builder.append(',');
+				appendNumberField(builder, "serial", nodeState.serial());
+				builder.append(',');
+				appendQuotedField(builder, "alias", nodeState.alias());
+				builder.append(',');
+				appendQuotedField(builder, "displayText", nodeState.displayText());
+				builder.append(',');
+				appendQuotedField(builder, "connectionMode", nodeState.connectionMode());
+				builder.append(',');
+				appendNumberField(builder, "channel", nodeState.channel());
+				builder.append(',');
+			} else {
+				builder.append(',');
+			}
 			appendNumberField(builder, "sourceRevision", nodeState.sourceRevision());
 			builder.append(',');
 			appendNumberField(builder, "coreRevision", nodeState.coreRevision());
@@ -254,6 +315,10 @@ public final class GraphWriteJsonSupport {
 
 	private static void appendNumberField(StringBuilder builder, String fieldName, long fieldValue) {
 		builder.append('"').append(fieldName).append("\":").append(Math.max(0L, fieldValue));
+	}
+
+	private static void appendBooleanField(StringBuilder builder, String fieldName, boolean fieldValue) {
+		builder.append('"').append(fieldName).append("\":").append(fieldValue);
 	}
 
 	private static void appendQuoted(StringBuilder builder, String rawValue) {
@@ -437,6 +502,30 @@ public final class GraphWriteJsonSupport {
 			channel = Math.max(0L, channel);
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
+		}
+	}
+
+	/**
+	 * graph 保存预检摘要。
+	 */
+	public record PreviewState(
+		int aliasCost,
+		int graphCost,
+		int graphWriteUnitCount,
+		boolean aliasAllowed,
+		boolean graphAllowed,
+		boolean aliasHardBlocked,
+		boolean graphHardBlocked,
+		long aliasWaitTicks,
+		long graphWaitTicks,
+		boolean canSave
+	) {
+		public PreviewState {
+			aliasCost = Math.max(0, aliasCost);
+			graphCost = Math.max(0, graphCost);
+			graphWriteUnitCount = Math.max(0, graphWriteUnitCount);
+			aliasWaitTicks = Math.max(0L, aliasWaitTicks);
+			graphWaitTicks = Math.max(0L, graphWaitTicks);
 		}
 	}
 }

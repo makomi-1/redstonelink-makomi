@@ -76,6 +76,8 @@ final class RedstoneLinkConfigParser {
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.rateLimit.actor.stepPerLevel", 16, 0, 200_000),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.rateLimit.actorGroup.linkRw.baseCapacity", 12, 1, 200_000),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.rateLimit.actorGroup.linkRw.stepPerLevel", 8, 0, 200_000),
+			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.rateLimit.actorGroup.graphWrite.baseCapacity", 24, 1, 200_000),
+			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.rateLimit.actorGroup.graphWrite.stepPerLevel", 16, 0, 200_000),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.rateLimit.actorGroup.crosschunk.baseCapacity", 4, 1, 200_000),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.rateLimit.actorGroup.crosschunk.stepPerLevel", 3, 0, 200_000),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.rateLimit.actorGroup.other.baseCapacity", 6, 1, 200_000),

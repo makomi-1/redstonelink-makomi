@@ -49,12 +49,12 @@ export type GraphUpdatedNodeState = {
   nodeKey: string;
   nodeType: GraphNodeTypeToken;
   serial: number;
-  alias: string;
-  displayText: string;
-  connectionMode: string;
-  channel: number;
-  sourceRevision: number;
-  coreRevision: number;
+  alias?: string;
+  displayText?: string;
+  connectionMode?: string;
+  channel?: number;
+  sourceRevision?: number;
+  coreRevision?: number;
 };
 
 export type RenameNodeAliasOperation = {
@@ -97,11 +97,25 @@ export type GraphDraft = {
 
 export type GraphWriteResponse = {
   status: 'ok' | 'error';
-  result: 'applied' | 'conflict' | 'rejected' | '';
+  result: 'applied' | 'conflict' | 'rejected' | 'preview' | '';
   reason: string;
   message: string;
   graphRevision: number;
   updatedNodes: GraphUpdatedNodeState[];
+  preview: GraphWritePreview | null;
+};
+
+export type GraphWritePreview = {
+  aliasCost: number;
+  graphCost: number;
+  graphWriteUnitCount: number;
+  aliasAllowed: boolean;
+  graphAllowed: boolean;
+  aliasHardBlocked: boolean;
+  graphHardBlocked: boolean;
+  aliasWaitTicks: number;
+  graphWaitTicks: number;
+  canSave: boolean;
 };
 
 function isGraphNodeTypeToken(value: unknown): value is GraphNodeTypeToken {
@@ -118,6 +132,24 @@ function normalizeNumber(value: unknown): number {
 
 function normalizeText(value: unknown, fallback = ''): string {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function tryParseGraphNodeKey(value: string): {
+  nodeType: GraphNodeTypeToken;
+  serial: number;
+} | null {
+  const matched = value.match(/^(triggerSource|core):(\d+)$/);
+  if (matched == null) {
+    return null;
+  }
+  const serial = Number(matched[2]);
+  if (!Number.isFinite(serial) || serial <= 0) {
+    return null;
+  }
+  return {
+    nodeType: matched[1] as GraphNodeTypeToken,
+    serial,
+  };
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -221,27 +253,69 @@ export function serializeGraphDraft(graphDraft: GraphDraft): string {
 
 export function parseGraphWriteResponse(payload: unknown): GraphWriteResponse {
   const record = payload == null || typeof payload !== 'object' ? {} : (payload as Record<string, unknown>);
+  const previewRecord =
+    record.preview != null && typeof record.preview === 'object'
+      ? (record.preview as Record<string, unknown>)
+      : null;
   const updatedNodes = Array.isArray(record.updatedNodes)
     ? record.updatedNodes
         .flatMap((nodeState) => {
           if (nodeState == null || typeof nodeState !== 'object') {
             return [];
           }
-          const nodeRecord = nodeState as Partial<GraphUpdatedNodeState>;
-          if (!isGraphNodeTypeToken(nodeRecord.nodeType) || typeof nodeRecord.nodeKey !== 'string') {
+          const nodeRecord = nodeState as Partial<GraphUpdatedNodeState> &
+            Record<string, unknown>;
+          const nodeKey = normalizeText(nodeRecord.nodeKey);
+          const parsedNodeKey = tryParseGraphNodeKey(nodeKey);
+          const nodeType = isGraphNodeTypeToken(nodeRecord.nodeType)
+            ? nodeRecord.nodeType
+            : parsedNodeKey?.nodeType;
+          const serial =
+            typeof nodeRecord.serial === 'number' && Number.isFinite(nodeRecord.serial)
+              ? normalizeNumber(nodeRecord.serial)
+              : parsedNodeKey?.serial ?? 0;
+          if (
+            !nodeKey ||
+            nodeType == null ||
+            serial <= 0
+          ) {
             return [];
           }
           return [
             {
-              nodeKey: normalizeText(nodeRecord.nodeKey),
-              nodeType: nodeRecord.nodeType,
-              serial: normalizeNumber(nodeRecord.serial),
-              alias: normalizeText(nodeRecord.alias),
-              displayText: normalizeText(nodeRecord.displayText, normalizeText(nodeRecord.nodeKey)),
-              connectionMode: normalizeText(nodeRecord.connectionMode, 'serial'),
-              channel: normalizeNumber(nodeRecord.channel),
-              sourceRevision: normalizeNumber(nodeRecord.sourceRevision),
-              coreRevision: normalizeNumber(nodeRecord.coreRevision),
+              nodeKey,
+              nodeType,
+              serial,
+              alias: Object.prototype.hasOwnProperty.call(nodeRecord, 'alias')
+                ? normalizeText(nodeRecord.alias)
+                : undefined,
+              displayText: Object.prototype.hasOwnProperty.call(
+                nodeRecord,
+                'displayText',
+              )
+                ? normalizeText(nodeRecord.displayText, nodeKey)
+                : undefined,
+              connectionMode: Object.prototype.hasOwnProperty.call(
+                nodeRecord,
+                'connectionMode',
+              )
+                ? normalizeText(nodeRecord.connectionMode, 'serial')
+                : undefined,
+              channel: Object.prototype.hasOwnProperty.call(nodeRecord, 'channel')
+                ? normalizeNumber(nodeRecord.channel)
+                : undefined,
+              sourceRevision: Object.prototype.hasOwnProperty.call(
+                nodeRecord,
+                'sourceRevision',
+              )
+                ? normalizeNumber(nodeRecord.sourceRevision)
+                : undefined,
+              coreRevision: Object.prototype.hasOwnProperty.call(
+                nodeRecord,
+                'coreRevision',
+              )
+                ? normalizeNumber(nodeRecord.coreRevision)
+                : undefined,
             },
           ];
         })
@@ -249,13 +323,30 @@ export function parseGraphWriteResponse(payload: unknown): GraphWriteResponse {
   return {
     status: record.status === 'error' ? 'error' : 'ok',
     result:
-      record.result === 'applied' || record.result === 'conflict' || record.result === 'rejected'
+      record.result === 'applied' ||
+      record.result === 'conflict' ||
+      record.result === 'rejected' ||
+      record.result === 'preview'
         ? record.result
         : '',
     reason: normalizeText(record.reason),
     message: normalizeText(record.message),
     graphRevision: normalizeNumber(record.graphRevision),
     updatedNodes,
+    preview: previewRecord
+      ? {
+          aliasCost: normalizeNumber(previewRecord.aliasCost),
+          graphCost: normalizeNumber(previewRecord.graphCost),
+          graphWriteUnitCount: normalizeNumber(previewRecord.graphWriteUnitCount),
+          aliasAllowed: normalizeBoolean(previewRecord.aliasAllowed),
+          graphAllowed: normalizeBoolean(previewRecord.graphAllowed),
+          aliasHardBlocked: normalizeBoolean(previewRecord.aliasHardBlocked),
+          graphHardBlocked: normalizeBoolean(previewRecord.graphHardBlocked),
+          aliasWaitTicks: normalizeNumber(previewRecord.aliasWaitTicks),
+          graphWaitTicks: normalizeNumber(previewRecord.graphWaitTicks),
+          canSave: normalizeBoolean(previewRecord.canSave),
+        }
+      : null,
   };
 }
 

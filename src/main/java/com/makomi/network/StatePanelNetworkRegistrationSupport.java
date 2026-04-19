@@ -66,6 +66,10 @@ final class StatePanelNetworkRegistrationSupport {
 			StatePanelNetwork.SubmitGraphWritePayload.CODEC
 		);
 		PayloadTypeRegistry.playC2S().register(
+			StatePanelNetwork.PreviewGraphWritePayload.TYPE,
+			StatePanelNetwork.PreviewGraphWritePayload.CODEC
+		);
+		PayloadTypeRegistry.playC2S().register(
 			StatePanelNetwork.CleanAllStatePanelPayload.TYPE,
 			StatePanelNetwork.CleanAllStatePanelPayload.CODEC
 		);
@@ -161,6 +165,13 @@ final class StatePanelNetworkRegistrationSupport {
 				return;
 			}
 			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleSubmitGraphWrite(player, payload));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.PreviewGraphWritePayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handlePreviewGraphWrite(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.CleanAllStatePanelPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();

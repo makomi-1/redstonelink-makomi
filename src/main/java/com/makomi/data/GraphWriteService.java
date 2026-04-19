@@ -7,6 +7,7 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.GraphWriteJsonSupport.GraphWriteOperation;
 import com.makomi.data.GraphWriteJsonSupport.GraphWriteRequest;
 import com.makomi.data.GraphWriteJsonSupport.ParseResult;
+import com.makomi.data.GraphWriteJsonSupport.PreviewState;
 import com.makomi.data.GraphWriteJsonSupport.RenameNodeAliasOperation;
 import com.makomi.data.GraphWriteJsonSupport.ReplaceTriggerSourceTargetsOperation;
 import com.makomi.data.GraphWriteJsonSupport.SetNodeChannelOperation;
@@ -42,53 +43,45 @@ public final class GraphWriteService {
 	 */
 	public static String submit(ServerPlayer player, String rawRequestJson) {
 		try {
-			ParseResult parseResult = GraphWriteJsonSupport.parseRequest(rawRequestJson);
-			if (!parseResult.successful()) {
-				return parseResult.failureResponseJson();
-			}
-			if (player == null) {
-				return GraphWriteJsonSupport.buildRejectedResponse("no_player", "当前没有可用的玩家上下文。", 0L, List.of());
-			}
-
-			GraphWriteRequest request = parseResult.request();
-			if (!"serial".equals(request.mode()) && !"channel".equals(request.mode())) {
-				return GraphWriteJsonSupport.buildRejectedResponse(
-					"unsupported_mode",
-					"当前仅支持 serial / channel 模式网页编辑保存。",
-					0L,
-					List.of()
-				);
-			}
-
-			ServerLevel level = player.serverLevel();
-			LinkSavedData savedData = LinkSavedData.get(level);
-			PreparedPlan preparedPlan = preparePlan(player, level, savedData, request);
+			ResolvedRequestContext requestContext = resolveRequestContext(player, rawRequestJson);
+			PreparedPlan preparedPlan = preparePlan(
+				player,
+				requestContext.level(),
+				requestContext.savedData(),
+				requestContext.request()
+			);
 			if (!preparedPlan.successful()) {
 				return preparedPlan.failureResponseJson();
 			}
 
-			acquireRateLimitsOrThrow(player, savedData, preparedPlan);
+			acquireRateLimitsOrThrow(player, requestContext.savedData(), preparedPlan);
 			List<UpdatedNodeState> updatedNodeStates = new ArrayList<>();
 			int appliedAliasCount = 0;
 			int appliedReplaceCount = 0;
 			int appliedChannelCount = 0;
 
 			for (ValidatedAliasOperation validatedAliasOperation : preparedPlan.validatedAliasOperations()) {
-				if (applyAliasOperation(level, validatedAliasOperation)) {
+				if (applyAliasOperation(requestContext.level(), validatedAliasOperation)) {
 					appliedAliasCount++;
 				}
 				updatedNodeStates.add(
-					buildUpdatedNodeState(level, savedData, validatedAliasOperation.nodeType(), validatedAliasOperation.serial())
+					buildAppliedUpdatedNodeState(
+						requestContext.savedData(),
+						validatedAliasOperation.nodeType(),
+						validatedAliasOperation.serial()
+					)
 				);
 			}
 
 			for (ValidatedReplaceOperation validatedReplaceOperation : preparedPlan.validatedReplaceOperations()) {
+				if (!validatedReplaceOperation.actualGraphWrite()) {
+					continue;
+				}
 				LinkSetExecutionService.applyPreparedReplace(validatedReplaceOperation.operation());
 				appliedReplaceCount++;
 				updatedNodeStates.add(
-					buildUpdatedNodeState(
-						level,
-						savedData,
+					buildAppliedUpdatedNodeState(
+						requestContext.savedData(),
 						LinkNodeType.TRIGGER_SOURCE,
 						validatedReplaceOperation.operation().sourceSerial()
 					)
@@ -98,17 +91,23 @@ public final class GraphWriteService {
 					if (targetSerial <= 0L) {
 						continue;
 					}
-					updatedNodeStates.add(buildUpdatedNodeState(level, savedData, LinkNodeType.CORE, targetSerial));
+					updatedNodeStates.add(
+						buildAppliedUpdatedNodeState(requestContext.savedData(), LinkNodeType.CORE, targetSerial)
+					);
 				}
 			}
 
 			ValidatedChannelBatchOperation validatedChannelBatchOperation = preparedPlan.validatedChannelBatchOperation();
-			if (validatedChannelBatchOperation != null && validatedChannelBatchOperation.plan() != null) {
+			if (
+				validatedChannelBatchOperation != null &&
+				validatedChannelBatchOperation.plan() != null &&
+				validatedChannelBatchOperation.plan().hasChanges()
+			) {
 				LinkChannelEditingService.applyPreparedBatchSetChannel(validatedChannelBatchOperation.plan());
 				appliedChannelCount = validatedChannelBatchOperation.plan().changedChannelNodeCount();
 				for (ChannelOverride override : validatedChannelBatchOperation.plan().overrides()) {
 					updatedNodeStates.add(
-						buildUpdatedNodeState(level, savedData, override.nodeType(), override.serial())
+						buildAppliedUpdatedNodeState(requestContext.savedData(), override.nodeType(), override.serial())
 					);
 				}
 				for (Long triggerSourceSerialValue : validatedChannelBatchOperation.affectedTriggerSourceSerials()) {
@@ -117,7 +116,11 @@ public final class GraphWriteService {
 						continue;
 					}
 					updatedNodeStates.add(
-						buildUpdatedNodeState(level, savedData, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial)
+						buildAppliedUpdatedNodeState(
+							requestContext.savedData(),
+							LinkNodeType.TRIGGER_SOURCE,
+							triggerSourceSerial
+						)
 					);
 				}
 				for (Long coreSerialValue : validatedChannelBatchOperation.affectedCoreSerials()) {
@@ -125,19 +128,78 @@ public final class GraphWriteService {
 					if (coreSerial <= 0L) {
 						continue;
 					}
-					updatedNodeStates.add(buildUpdatedNodeState(level, savedData, LinkNodeType.CORE, coreSerial));
+					updatedNodeStates.add(
+						buildAppliedUpdatedNodeState(requestContext.savedData(), LinkNodeType.CORE, coreSerial)
+					);
 				}
 			}
 
 			String message = buildAppliedMessage(appliedAliasCount, appliedReplaceCount, appliedChannelCount);
 			return GraphWriteJsonSupport.buildAppliedResponse(
 				message,
-				savedData.graphRevision(),
+				requestContext.savedData().graphRevision(),
 				GraphWriteJsonSupport.dedupeUpdatedNodes(updatedNodeStates)
 			);
 		} catch (GraphWriteRejectedException exception) {
 			return exception.responseJson();
 		}
+	}
+
+	/**
+	 * 预检一次 graph 保存请求，并返回当前窗口下的保存可行性反馈。
+	 */
+	public static String preview(ServerPlayer player, String rawRequestJson) {
+		try {
+			ResolvedRequestContext requestContext = resolveRequestContext(player, rawRequestJson);
+			PreparedPlan preparedPlan = preparePlan(
+				player,
+				requestContext.level(),
+				requestContext.savedData(),
+				requestContext.request()
+			);
+			if (!preparedPlan.successful()) {
+				return preparedPlan.failureResponseJson();
+			}
+
+			PreviewState previewState = buildPreviewState(player, preparedPlan);
+			return GraphWriteJsonSupport.buildPreviewResponse(
+				buildPreviewMessage(preparedPlan.costSummary(), previewState),
+				requestContext.savedData().graphRevision(),
+				previewState
+			);
+		} catch (GraphWriteRejectedException exception) {
+			return exception.responseJson();
+		}
+	}
+
+	/**
+	 * 统一解析并校验请求入口，确保 `submit` 与 `preview` 共用同一口径。
+	 */
+	private static ResolvedRequestContext resolveRequestContext(ServerPlayer player, String rawRequestJson) {
+		ParseResult parseResult = GraphWriteJsonSupport.parseRequest(rawRequestJson);
+		if (!parseResult.successful()) {
+			throw new GraphWriteRejectedException(parseResult.failureResponseJson());
+		}
+		if (player == null) {
+			throw new GraphWriteRejectedException(
+				GraphWriteJsonSupport.buildRejectedResponse("no_player", "当前没有可用的玩家上下文。", 0L, List.of())
+			);
+		}
+
+		GraphWriteRequest request = parseResult.request();
+		if (!"serial".equals(request.mode()) && !"channel".equals(request.mode())) {
+			throw new GraphWriteRejectedException(
+				GraphWriteJsonSupport.buildRejectedResponse(
+					"unsupported_mode",
+					"当前仅支持 serial / channel 模式网页编辑保存。",
+					0L,
+					List.of()
+				)
+			);
+		}
+
+		ServerLevel level = player.serverLevel();
+		return new ResolvedRequestContext(request, level, LinkSavedData.get(level));
 	}
 
 	private static PreparedPlan preparePlan(
@@ -231,7 +293,7 @@ public final class GraphWriteService {
 			validatedAliasOperations,
 			validatedReplaceOperations,
 			validatedChannelBatchOperation,
-			totalLinkCommandCost(validatedReplaceOperations, validatedChannelBatchOperation)
+			buildCostSummary(validatedAliasOperations, validatedReplaceOperations, validatedChannelBatchOperation)
 		);
 	}
 
@@ -378,10 +440,14 @@ public final class GraphWriteService {
 			}
 			Set<Long> affectedCoreSerials = new LinkedHashSet<>(preparationResult.operation().previousTargets());
 			affectedCoreSerials.addAll(preparationResult.operation().targets());
+			boolean actualGraphWrite =
+				!preparationResult.operation().previousTargets().equals(preparationResult.operation().targets()) ||
+				savedData.getConnectionMode(LinkNodeType.TRIGGER_SOURCE, replaceOperation.triggerSourceSerial()) != LinkConnectionMode.SERIAL;
 			validatedReplaceOperations.add(
 				ValidatedReplaceOperation.success(
 					preparationResult.operation(),
-					List.copyOf(affectedCoreSerials)
+					List.copyOf(affectedCoreSerials),
+					actualGraphWrite
 				)
 			);
 		}
@@ -486,42 +552,50 @@ public final class GraphWriteService {
 		if (player == null || preparedPlan == null) {
 			return;
 		}
-		if (!preparedPlan.validatedAliasOperations().isEmpty()) {
-			boolean aliasAcquired = CommandRateLimitService.tryAcquire(
+		PreparedCostSummary costSummary = preparedPlan.costSummary();
+		RateLimitWindowState aliasRateLimitState = previewRateLimitState(
+			player,
+			CommandRateLimitService.CommandGroup.OTHER,
+			costSummary.aliasCost()
+		);
+		RateLimitWindowState graphRateLimitState = previewRateLimitState(
+			player,
+			CommandRateLimitService.CommandGroup.GRAPH_WRITE,
+			costSummary.graphCost()
+		);
+		if (!aliasRateLimitState.allowed() || !graphRateLimitState.allowed()) {
+			throwRateLimitRejected(savedData, costSummary, aliasRateLimitState, graphRateLimitState);
+		}
+
+		if (
+			costSummary.aliasCost() > 0 &&
+			!CommandRateLimitService.tryAcquire(
 				player.createCommandSourceStack(),
 				CommandRateLimitService.CommandGroup.OTHER,
-				Math.max(1, preparedPlan.validatedAliasOperations().size())
+				costSummary.aliasCost()
+			)
+		) {
+			throwRateLimitRejected(
+				savedData,
+				costSummary,
+				previewRateLimitState(player, CommandRateLimitService.CommandGroup.OTHER, costSummary.aliasCost()),
+				previewRateLimitState(player, CommandRateLimitService.CommandGroup.GRAPH_WRITE, costSummary.graphCost())
 			);
-			if (!aliasAcquired) {
-				throw new GraphWriteRejectedException(
-					GraphWriteJsonSupport.buildRejectedResponse(
-						"rate_limit_exceeded",
-						"保存过于频繁，请稍后再试。",
-						savedData.graphRevision(),
-						List.of()
-					)
-				);
-			}
 		}
 		if (
-			!preparedPlan.validatedReplaceOperations().isEmpty() ||
-			(preparedPlan.validatedChannelBatchOperation() != null && preparedPlan.validatedChannelBatchOperation().plan() != null)
-		) {
-			boolean linkAcquired = CommandRateLimitService.tryAcquire(
+			costSummary.graphCost() > 0 &&
+			!CommandRateLimitService.tryAcquire(
 				player.createCommandSourceStack(),
-				CommandRateLimitService.CommandGroup.LINK_RW,
-				Math.max(1, totalLinkCommandCost(preparedPlan.validatedReplaceOperations(), preparedPlan.validatedChannelBatchOperation()))
+				CommandRateLimitService.CommandGroup.GRAPH_WRITE,
+				costSummary.graphCost()
+			)
+		) {
+			throwRateLimitRejected(
+				savedData,
+				costSummary,
+				previewRateLimitState(player, CommandRateLimitService.CommandGroup.OTHER, costSummary.aliasCost()),
+				previewRateLimitState(player, CommandRateLimitService.CommandGroup.GRAPH_WRITE, costSummary.graphCost())
 			);
-			if (!linkAcquired) {
-				throw new GraphWriteRejectedException(
-					GraphWriteJsonSupport.buildRejectedResponse(
-						"rate_limit_exceeded",
-						"保存过于频繁，请稍后再试。",
-						savedData.graphRevision(),
-						List.of()
-					)
-				);
-			}
 		}
 	}
 
@@ -579,6 +653,60 @@ public final class GraphWriteService {
 		);
 	}
 
+	/**
+	 * 保存成功回包只回传 OCC 所需的最小 revision 补丁，避免大批量编辑时响应体过大。
+	 */
+	private static UpdatedNodeState buildAppliedUpdatedNodeState(
+		LinkSavedData savedData,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		return new UpdatedNodeState(
+			LinkNodeSemantics.toSemanticName(nodeType) + ":" + Math.max(0L, serial),
+			nodeType,
+			serial,
+			"",
+			"",
+			"",
+			0L,
+			savedData.sourceRevision(nodeType, serial),
+			nodeType == LinkNodeType.CORE ? savedData.coreRevision(serial) : 0L
+		);
+	}
+
+	/**
+	 * 统一收口 graph 保存的专用计费摘要。
+	 */
+	private static PreparedCostSummary buildCostSummary(
+		List<ValidatedAliasOperation> validatedAliasOperations,
+		List<ValidatedReplaceOperation> validatedReplaceOperations,
+		ValidatedChannelBatchOperation validatedChannelBatchOperation
+	) {
+		int aliasCost = validatedAliasOperations == null ? 0 : Math.max(0, validatedAliasOperations.size());
+		int changedReplaceCount = 0;
+		if (validatedReplaceOperations != null) {
+			for (ValidatedReplaceOperation validatedReplaceOperation : validatedReplaceOperations) {
+				if (validatedReplaceOperation != null && validatedReplaceOperation.actualGraphWrite()) {
+					changedReplaceCount++;
+				}
+			}
+		}
+		int changedTriggerSourceCount = 0;
+		int changedChannelNodeCount = 0;
+		if (validatedChannelBatchOperation != null && validatedChannelBatchOperation.plan() != null) {
+			changedTriggerSourceCount = validatedChannelBatchOperation.plan().changedTriggerSourceCount();
+			changedChannelNodeCount = validatedChannelBatchOperation.plan().changedChannelNodeCount();
+		}
+		int graphWriteUnitCount = saturatingAdd(
+			changedReplaceCount,
+			saturatingAdd(changedTriggerSourceCount, changedChannelNodeCount)
+		);
+		int graphCost = graphWriteUnitCount > 0
+			? CommandRateLimitService.computeBatchCost(1, graphWriteUnitCount, 16)
+			: 0;
+		return new PreparedCostSummary(aliasCost, graphWriteUnitCount, graphCost, changedReplaceCount, changedChannelNodeCount);
+	}
+
 	private static int totalLinkCommandCost(
 		List<ValidatedReplaceOperation> validatedReplaceOperations,
 		ValidatedChannelBatchOperation validatedChannelBatchOperation
@@ -596,6 +724,130 @@ public final class GraphWriteService {
 			totalCost = saturatingAdd(totalCost, validatedChannelBatchOperation.plan().totalCommandCost());
 		}
 		return totalCost;
+	}
+
+	/**
+	 * 预检当前草稿在别名限流组与 graph 专用限流组上的即时状态。
+	 */
+	private static PreviewState buildPreviewState(ServerPlayer player, PreparedPlan preparedPlan) {
+		PreparedCostSummary costSummary = preparedPlan.costSummary();
+		RateLimitWindowState aliasRateLimitState = previewRateLimitState(
+			player,
+			CommandRateLimitService.CommandGroup.OTHER,
+			costSummary.aliasCost()
+		);
+		RateLimitWindowState graphRateLimitState = previewRateLimitState(
+			player,
+			CommandRateLimitService.CommandGroup.GRAPH_WRITE,
+			costSummary.graphCost()
+		);
+		return new PreviewState(
+			costSummary.aliasCost(),
+			costSummary.graphCost(),
+			costSummary.graphWriteUnitCount(),
+			aliasRateLimitState.allowed(),
+			graphRateLimitState.allowed(),
+			aliasRateLimitState.hardBlocked(),
+			graphRateLimitState.hardBlocked(),
+			aliasRateLimitState.waitTicks(),
+			graphRateLimitState.waitTicks(),
+			aliasRateLimitState.allowed() && graphRateLimitState.allowed()
+		);
+	}
+
+	/**
+	 * 将 0 成本写入视为“天然允许”，其余场景走统一限流预检。
+	 */
+	private static RateLimitWindowState previewRateLimitState(
+		ServerPlayer player,
+		CommandRateLimitService.CommandGroup commandGroup,
+		int cost
+	) {
+		if (player == null || commandGroup == null || cost <= 0) {
+			return new RateLimitWindowState(true, false, 0L, Math.max(0, cost));
+		}
+		CommandRateLimitService.AcquirePreview preview = CommandRateLimitService.previewAcquire(
+			player.createCommandSourceStack(),
+			commandGroup,
+			cost
+		);
+		return new RateLimitWindowState(preview.allowed(), preview.hardBlocked(), preview.waitTicks(), cost);
+	}
+
+	private static void throwRateLimitRejected(
+		LinkSavedData savedData,
+		PreparedCostSummary costSummary,
+		RateLimitWindowState aliasRateLimitState,
+		RateLimitWindowState graphRateLimitState
+	) {
+		throw new GraphWriteRejectedException(
+			GraphWriteJsonSupport.buildRejectedResponse(
+				"rate_limit_exceeded",
+				buildRateLimitMessage(costSummary, aliasRateLimitState, graphRateLimitState),
+				savedData.graphRevision(),
+				List.of()
+			)
+		);
+	}
+
+	/**
+	 * 保存预检与正式保存共用同一套提示口径，避免前后端出现“能预检但不能理解失败原因”的漂移。
+	 */
+	private static String buildRateLimitMessage(
+		PreparedCostSummary costSummary,
+		RateLimitWindowState aliasRateLimitState,
+		RateLimitWindowState graphRateLimitState
+	) {
+		if (graphRateLimitState.hardBlocked()) {
+			return "当前 graph 保存批量过大：graph 成本 %d，写单元 %d，已超出单窗口容量，请拆分后再保存。".formatted(
+				graphRateLimitState.cost(),
+				costSummary.graphWriteUnitCount()
+			);
+		}
+		if (aliasRateLimitState.hardBlocked()) {
+			return "当前别名保存批量过大：别名成本 %d，已超出单窗口容量，请拆分后再保存。".formatted(aliasRateLimitState.cost());
+		}
+		long waitTicks = Math.max(aliasRateLimitState.waitTicks(), graphRateLimitState.waitTicks());
+		if (waitTicks > 0L) {
+			return "保存过于频繁，预计还需等待 %d tick 后再试。当前别名成本 %d，graph 成本 %d（写单元 %d）。".formatted(
+				waitTicks,
+				costSummary.aliasCost(),
+				costSummary.graphCost(),
+				costSummary.graphWriteUnitCount()
+			);
+		}
+		return "保存过于频繁，请稍后再试。";
+	}
+
+	private static String buildPreviewMessage(PreparedCostSummary costSummary, PreviewState previewState) {
+		if (previewState == null) {
+			return "当前无法完成保存预检。";
+		}
+		if (previewState.canSave()) {
+			if (costSummary.aliasCost() <= 0 && costSummary.graphCost() <= 0) {
+				return "当前草稿没有实际写入成本，可直接保存。";
+			}
+			return "当前可保存：别名成本 %d，graph 成本 %d（写单元 %d）。".formatted(
+				costSummary.aliasCost(),
+				costSummary.graphCost(),
+				costSummary.graphWriteUnitCount()
+			);
+		}
+		return buildRateLimitMessage(
+			costSummary,
+			new RateLimitWindowState(
+				previewState.aliasAllowed(),
+				previewState.aliasHardBlocked(),
+				previewState.aliasWaitTicks(),
+				costSummary.aliasCost()
+			),
+			new RateLimitWindowState(
+				previewState.graphAllowed(),
+				previewState.graphHardBlocked(),
+				previewState.graphWaitTicks(),
+				costSummary.graphCost()
+			)
+		);
 	}
 
 	private static int saturatingAdd(int left, int right) {
@@ -665,17 +917,24 @@ public final class GraphWriteService {
 	private record ValidatedReplaceOperation(
 		LinkSetExecutionService.PreparedReplaceOperation operation,
 		List<Long> affectedCoreSerials,
+		boolean actualGraphWrite,
 		String failureResponseJson
 	) {
 		private static ValidatedReplaceOperation success(
 			LinkSetExecutionService.PreparedReplaceOperation operation,
-			List<Long> affectedCoreSerials
+			List<Long> affectedCoreSerials,
+			boolean actualGraphWrite
 		) {
-			return new ValidatedReplaceOperation(operation, List.copyOf(affectedCoreSerials == null ? List.of() : affectedCoreSerials), "");
+			return new ValidatedReplaceOperation(
+				operation,
+				List.copyOf(affectedCoreSerials == null ? List.of() : affectedCoreSerials),
+				actualGraphWrite,
+				""
+			);
 		}
 
 		private static ValidatedReplaceOperation failure(String failureResponseJson) {
-			return new ValidatedReplaceOperation(null, List.of(), failureResponseJson == null ? "" : failureResponseJson);
+			return new ValidatedReplaceOperation(null, List.of(), false, failureResponseJson == null ? "" : failureResponseJson);
 		}
 	}
 
@@ -713,32 +972,72 @@ public final class GraphWriteService {
 		List<ValidatedAliasOperation> validatedAliasOperations,
 		List<ValidatedReplaceOperation> validatedReplaceOperations,
 		ValidatedChannelBatchOperation validatedChannelBatchOperation,
-		int totalCommandCost,
+		PreparedCostSummary costSummary,
 		String failureResponseJson
 	) {
 		private static PreparedPlan success(
 			List<ValidatedAliasOperation> validatedAliasOperations,
 			List<ValidatedReplaceOperation> validatedReplaceOperations,
 			ValidatedChannelBatchOperation validatedChannelBatchOperation,
-			int totalCommandCost
+			PreparedCostSummary costSummary
 		) {
 			return new PreparedPlan(
 				List.copyOf(validatedAliasOperations == null ? List.of() : validatedAliasOperations),
 				List.copyOf(validatedReplaceOperations == null ? List.of() : validatedReplaceOperations),
 				validatedChannelBatchOperation,
-				Math.max(0, totalCommandCost),
+				costSummary == null ? new PreparedCostSummary(0, 0, 0, 0, 0) : costSummary,
 				""
 			);
 		}
 
 		private static PreparedPlan failure(String failureResponseJson) {
-			return new PreparedPlan(List.of(), List.of(), null, 0, failureResponseJson == null ? "" : failureResponseJson);
+			return new PreparedPlan(
+				List.of(),
+				List.of(),
+				null,
+				new PreparedCostSummary(0, 0, 0, 0, 0),
+				failureResponseJson == null ? "" : failureResponseJson
+			);
 		}
 
 		private boolean successful() {
 			return failureResponseJson == null || failureResponseJson.isBlank();
 		}
 	}
+
+	/**
+	 * graph 保存专用成本摘要。
+	 */
+	private record PreparedCostSummary(
+		int aliasCost,
+		int graphWriteUnitCount,
+		int graphCost,
+		int changedReplaceCount,
+		int changedChannelNodeCount
+	) {
+		private PreparedCostSummary {
+			aliasCost = Math.max(0, aliasCost);
+			graphWriteUnitCount = Math.max(0, graphWriteUnitCount);
+			graphCost = Math.max(0, graphCost);
+			changedReplaceCount = Math.max(0, changedReplaceCount);
+			changedChannelNodeCount = Math.max(0, changedChannelNodeCount);
+		}
+	}
+
+	/**
+	 * 限流窗口的本地归一化快照，允许 0 成本场景无损表达。
+	 */
+	private record RateLimitWindowState(boolean allowed, boolean hardBlocked, long waitTicks, int cost) {
+		private RateLimitWindowState {
+			waitTicks = Math.max(0L, waitTicks);
+			cost = Math.max(0, cost);
+		}
+	}
+
+	/**
+	 * 入口解析完成后的共享上下文。
+	 */
+	private record ResolvedRequestContext(GraphWriteRequest request, ServerLevel level, LinkSavedData savedData) {}
 
 	/**
 	 * graph 保存拒绝异常，用于在统一入口中断并返回结构化 JSON。

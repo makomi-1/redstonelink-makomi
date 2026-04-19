@@ -312,6 +312,38 @@ public final class StatePanelNetwork {
 	}
 
 	/**
+	 * 客户端提交 graph 保存预检请求。
+	 */
+	public record PreviewGraphWritePayload(String requestId, String requestJson) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<PreviewGraphWritePayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "preview_graph_write")
+		);
+		public static final StreamCodec<FriendlyByteBuf, PreviewGraphWritePayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphWriteRequestPayload(
+				buffer,
+				payload.requestId(),
+				payload.requestJson()
+			),
+			buffer -> {
+				StatePanelNetworkPayloadSupport.DecodedGraphWriteRequestPayload decoded = StatePanelNetworkPayloadSupport.decodeGraphWriteRequestPayload(
+					buffer
+				);
+				return new PreviewGraphWritePayload(decoded.requestId(), decoded.requestJson());
+			}
+		);
+
+		public PreviewGraphWritePayload {
+			requestId = requestId == null ? "" : requestId;
+			requestJson = requestJson == null ? "" : requestJson;
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 客户端清空全部订阅的 C2S 请求。
 	 */
 	public record CleanAllStatePanelPayload() implements CustomPacketPayload {

@@ -54,6 +54,8 @@ record RedstoneLinkServerConfigSnapshot(
 				16,
 				12,
 				8,
+				24,
+				16,
 				4,
 				3,
 				6,

@@ -15,6 +15,7 @@ import type {
   GraphNodeInfo,
   GraphNodeTypeToken,
   GraphSnapshotBundle,
+  GraphWriteResponse,
 } from "../graphTypes";
 import { createGraphNodeKey, createInitialGraphDraft } from "../graphTypes";
 import {
@@ -37,6 +38,7 @@ import {
   formatEditModeInstruction,
   formatEditModeLabel,
   loadDraft,
+  previewGraphSave,
   persistDraft,
   sameGraphDraft,
   sameNumberArray,
@@ -69,6 +71,8 @@ type GraphViewerProps = {
   graphFileName: string;
   onDirtyStateChange?: (dirty: boolean) => void;
 };
+
+type SavePreviewPhase = "idle" | "checking" | "ready" | "error";
 
 function formatCanvasNodeDisplayText(canvasNode: GraphCanvasNodeInfo): string {
   if (canvasNode.kind === "actual") {
@@ -139,6 +143,12 @@ export default function GraphViewer({
   const [draftPersistError, setDraftPersistError] = useState("");
   const [savePhase, setSavePhase] = useState<SavePhase>("idle");
   const [saveMessage, setSaveMessage] = useState("");
+  const [savePreviewPhase, setSavePreviewPhase] =
+    useState<SavePreviewPhase>("idle");
+  const [savePreviewMessage, setSavePreviewMessage] = useState("");
+  const [savePreviewResponse, setSavePreviewResponse] =
+    useState<GraphWriteResponse | null>(null);
+  const [savePreviewRefreshToken, setSavePreviewRefreshToken] = useState(0);
   const [displayMode, setDisplayMode] = useState<GraphDisplayMode>("serial");
   const [serialContentMode, setSerialContentMode] =
     useState<GraphDisplayContentMode>("topology");
@@ -197,6 +207,7 @@ export default function GraphViewer({
   const aggregateOutlineSuspendDepthRef = useRef(0);
   const suppressAutoViewportFitRef = useRef(false);
   const releaseAutoViewportFitFrameRef = useRef<number | null>(null);
+  const previewRequestSequenceRef = useRef(0);
 
   const draftFileName = useMemo(
     () => buildDraftFileName(graphFileName, graphBundle.snapshotId),
@@ -585,6 +596,29 @@ export default function GraphViewer({
           editMode !== "view" &&
           selectedEditSourceSerials.length > 0 &&
           selectedEditTargetSerials.length > 0;
+  const savePreview = savePreviewResponse?.preview ?? null;
+  const previewBlocked =
+    savePreviewPhase === "error" ||
+    savePreviewResponse?.status === "error" ||
+    savePreviewResponse?.result === "conflict" ||
+    savePreviewResponse?.result === "rejected" ||
+    (savePreviewResponse?.result === "preview" &&
+      (savePreview == null || !savePreview.canSave));
+  const previewStatusClassName =
+    savePreviewPhase === "checking"
+      ? "status-pill is-waiting"
+      : graphDraft.dirty && previewBlocked
+        ? "status-pill is-error"
+        : "status-pill is-ready";
+  const previewStatusText = !graphDraft.dirty
+    ? "无需预检"
+    : savePreviewPhase === "checking"
+      ? "预检中"
+      : previewBlocked
+        ? "暂不可保存"
+        : "可保存";
+  const previewMessageClassName =
+    graphDraft.dirty && previewBlocked ? "error-text" : "graph-editor-message";
   const statusClassName =
     savePhase === "saving"
       ? "status-pill is-waiting"
@@ -622,6 +656,9 @@ export default function GraphViewer({
     setDraftError("");
     setSavePhase("idle");
     setSaveMessage("");
+    setSavePreviewPhase("idle");
+    setSavePreviewMessage("");
+    setSavePreviewResponse(null);
     setDisplayMode("serial");
     setSerialContentMode("topology");
     setChannelContentMode("topology");
@@ -1038,6 +1075,56 @@ export default function GraphViewer({
       window.clearTimeout(timeoutId);
     };
   }, [draftFileName, draftLoading, graphDraft]);
+
+  useEffect(() => {
+    previewRequestSequenceRef.current += 1;
+    const requestSequence = previewRequestSequenceRef.current;
+    if (draftLoading) {
+      return;
+    }
+    if (!graphDraft.dirty) {
+      setSavePreviewPhase("idle");
+      setSavePreviewMessage("");
+      setSavePreviewResponse(null);
+      return;
+    }
+
+    setSavePreviewPhase("checking");
+    setSavePreviewMessage("正在向服务端预计算当前草稿的保存成本...");
+    const timeoutId = window.setTimeout(() => {
+      void previewGraphSave(graphDraft, displayMode)
+        .then((graphWriteResponse) => {
+          if (previewRequestSequenceRef.current !== requestSequence) {
+            return;
+          }
+          setSavePreviewResponse(graphWriteResponse);
+          setSavePreviewPhase(
+            graphWriteResponse.status === "error" ? "error" : "ready",
+          );
+          setSavePreviewMessage(
+            graphWriteResponse.message || "当前无法完成保存预检。",
+          );
+        })
+        .catch((error) => {
+          if (previewRequestSequenceRef.current !== requestSequence) {
+            return;
+          }
+          setSavePreviewResponse(null);
+          setSavePreviewPhase("error");
+          setSavePreviewMessage(
+            error instanceof Error ? error.message : "unknown error",
+          );
+        });
+    }, 220);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    displayMode,
+    draftLoading,
+    graphDraft,
+    savePreviewRefreshToken,
+  ]);
 
   function focusNode(nodeKey: string) {
     suppressAutoViewportFitForContextFocus();
@@ -1610,6 +1697,7 @@ export default function GraphViewer({
       if (graphWriteResponse.status === "error") {
         setSavePhase("error");
         setSaveMessage(graphWriteResponse.message || "graph 保存请求失败。");
+        setSavePreviewRefreshToken((currentValue) => currentValue + 1);
         return;
       }
       if (graphWriteResponse.result === "conflict") {
@@ -1618,11 +1706,13 @@ export default function GraphViewer({
           graphWriteResponse.message ||
             "保存冲突：请重新导出 graph 文件后再试。",
         );
+        setSavePreviewRefreshToken((currentValue) => currentValue + 1);
         return;
       }
       if (graphWriteResponse.result === "rejected") {
         setSavePhase("error");
         setSaveMessage(graphWriteResponse.message || "保存被服务端拒绝。");
+        setSavePreviewRefreshToken((currentValue) => currentValue + 1);
         return;
       }
       const nextBaseGraphBundle = applyUpdatedNodeStates(
@@ -1634,9 +1724,13 @@ export default function GraphViewer({
       setUndoableGraphDraft(null);
       setSavePhase("idle");
       setSaveMessage(graphWriteResponse.message || "已保存。");
+      setSavePreviewPhase("idle");
+      setSavePreviewMessage("");
+      setSavePreviewResponse(null);
     } catch (error) {
       setSavePhase("error");
       setSaveMessage(error instanceof Error ? error.message : "unknown error");
+      setSavePreviewRefreshToken((currentValue) => currentValue + 1);
     }
   }
 
@@ -1799,6 +1893,32 @@ export default function GraphViewer({
         </p>
         {saveMessage ? (
           <p className="graph-editor-message">{saveMessage}</p>
+        ) : null}
+        {graphDraft.dirty ? (
+          <div className="graph-save-preview">
+            <div className="graph-save-preview-header">
+              <span className={previewStatusClassName}>{previewStatusText}</span>
+              {savePreview ? (
+                <dl className="graph-inline-stats graph-save-preview-stats">
+                  <div>
+                    <dt>Alias Cost</dt>
+                    <dd>{savePreview.aliasCost}</dd>
+                  </div>
+                  <div>
+                    <dt>Graph Cost</dt>
+                    <dd>{savePreview.graphCost}</dd>
+                  </div>
+                  <div>
+                    <dt>Write Units</dt>
+                    <dd>{savePreview.graphWriteUnitCount}</dd>
+                  </div>
+                </dl>
+              ) : null}
+            </div>
+            {savePreviewMessage ? (
+              <p className={previewMessageClassName}>{savePreviewMessage}</p>
+            ) : null}
+          </div>
         ) : null}
         {draftError ? (
           <p className="error-text">加载本地 draft 失败：{draftError}</p>

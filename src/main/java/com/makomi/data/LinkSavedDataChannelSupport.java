@@ -1,8 +1,10 @@
 package com.makomi.data;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -128,18 +130,19 @@ public final class LinkSavedDataChannelSupport {
 		if (data == null || triggerSourceSerial <= 0L) {
 			return Set.of();
 		}
-		Map<String, ChannelOverride> overridesByNodeKey = indexOverrides(
-			Set.of(new ChannelOverride(overrideType, overrideSerial, overrideMode == LinkConnectionMode.CHANNEL ? overrideChannel : 0L))
+		return resolveDesiredTargetsForTriggerSourceWithContext(
+			data,
+			triggerSourceSerial,
+			createBatchTargetResolutionContext(
+				Set.of(
+					new ChannelOverride(
+						overrideType,
+						overrideSerial,
+						overrideMode == LinkConnectionMode.CHANNEL ? overrideChannel : 0L
+					)
+				)
+			)
 		);
-		LinkConnectionMode sourceMode = effectiveMode(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, overridesByNodeKey);
-		long sourceChannel = effectiveChannel(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, overridesByNodeKey);
-		if (sourceMode == LinkConnectionMode.CHANNEL) {
-			if (!isValidChannel(sourceChannel)) {
-				return Set.of();
-			}
-			return collectEffectiveChannelCores(data, sourceChannel, overridesByNodeKey);
-		}
-		return collectEffectiveSerialTargets(data, triggerSourceSerial, overridesByNodeKey);
 	}
 
 	/**
@@ -153,17 +156,67 @@ public final class LinkSavedDataChannelSupport {
 		long triggerSourceSerial,
 		Iterable<ChannelOverride> overrides
 	) {
+		return resolveDesiredTargetsForTriggerSourceWithContext(
+			data,
+			triggerSourceSerial,
+			createBatchTargetResolutionContext(overrides)
+		);
+	}
+
+	/**
+	 * 为一批频道覆盖构造可复用的目标推导上下文。
+	 * <p>
+	 * 该上下文会缓存：
+	 * </p>
+	 * <ul>
+	 * <li>按 `nodeKey` 索引后的 overrides；</li>
+	 * <li>仅影响 core 成员推导的 core overrides；</li>
+	 * <li>按频道号缓存的“最终 core 成员集合”。</li>
+	 * </ul>
+	 */
+	public static BatchTargetResolutionContext createBatchTargetResolutionContext(Iterable<ChannelOverride> overrides) {
+		Map<String, ChannelOverride> overridesByNodeKey = new LinkedHashMap<>();
+		List<ChannelOverride> coreOverrides = new ArrayList<>();
+		if (overrides != null) {
+			for (ChannelOverride override : overrides) {
+				if (override == null || !override.valid()) {
+					continue;
+				}
+				overridesByNodeKey.put(buildOverrideNodeKey(override.nodeType(), override.serial()), override);
+				if (override.nodeType() == LinkNodeType.CORE) {
+					coreOverrides.add(override);
+				}
+			}
+		}
+		return new BatchTargetResolutionContext(
+			overridesByNodeKey.isEmpty() ? Map.of() : Map.copyOf(overridesByNodeKey),
+			coreOverrides.isEmpty() ? List.of() : List.copyOf(coreOverrides)
+		);
+	}
+
+	/**
+	 * 基于可复用上下文推导某个 triggerSource 的最终目标集合。
+	 * <p>
+	 * 该入口供批量 prepare 复用，避免在大频道场景下为每个 triggerSource 重建 overrides 索引，
+	 * 并允许同一频道的 core 成员结果在整批中只计算一次。
+	 * </p>
+	 */
+	public static Set<Long> resolveDesiredTargetsForTriggerSourceWithContext(
+		LinkSavedData data,
+		long triggerSourceSerial,
+		BatchTargetResolutionContext resolutionContext
+	) {
 		if (data == null || triggerSourceSerial <= 0L) {
 			return Set.of();
 		}
-		Map<String, ChannelOverride> overridesByNodeKey = indexOverrides(overrides);
+		Map<String, ChannelOverride> overridesByNodeKey = resolutionContext == null ? Map.of() : resolutionContext.overridesByNodeKey();
 		LinkConnectionMode sourceMode = effectiveMode(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, overridesByNodeKey);
 		long sourceChannel = effectiveChannel(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, overridesByNodeKey);
 		if (sourceMode == LinkConnectionMode.CHANNEL) {
 			if (!isValidChannel(sourceChannel)) {
 				return Set.of();
 			}
-			return collectEffectiveChannelCores(data, sourceChannel, overridesByNodeKey);
+			return collectEffectiveChannelCores(data, sourceChannel, resolutionContext);
 		}
 		return collectEffectiveSerialTargets(data, triggerSourceSerial, overridesByNodeKey);
 	}
@@ -237,10 +290,21 @@ public final class LinkSavedDataChannelSupport {
 		return desiredTargets.isEmpty() ? Set.of() : Set.copyOf(desiredTargets);
 	}
 
-	private static Set<Long> collectEffectiveChannelCores(LinkSavedData data, long channel, Map<String, ChannelOverride> overridesByNodeKey) {
+	private static Set<Long> collectEffectiveChannelCores(
+		LinkSavedData data,
+		long channel,
+		BatchTargetResolutionContext resolutionContext
+	) {
+		if (resolutionContext != null) {
+			Set<Long> cachedTargets = resolutionContext.cachedChannelCoreTargets(channel);
+			if (cachedTargets != null) {
+				return cachedTargets;
+			}
+		}
 		Set<Long> desiredTargets = new HashSet<>(getChannelMembers(data, LinkNodeType.CORE, channel));
-		for (ChannelOverride override : overridesByNodeKey.values()) {
-			if (override.nodeType() != LinkNodeType.CORE || override.serial() <= 0L) {
+		List<ChannelOverride> coreOverrides = resolutionContext == null ? List.of() : resolutionContext.coreOverrides();
+		for (ChannelOverride override : coreOverrides) {
+			if (override.serial() <= 0L) {
 				continue;
 			}
 			long currentChannel = getChannel(data, LinkNodeType.CORE, override.serial());
@@ -251,21 +315,11 @@ public final class LinkSavedDataChannelSupport {
 				desiredTargets.add(override.serial());
 			}
 		}
-		return desiredTargets.isEmpty() ? Set.of() : Set.copyOf(desiredTargets);
-	}
-
-	private static Map<String, ChannelOverride> indexOverrides(Iterable<ChannelOverride> overrides) {
-		if (overrides == null) {
-			return Map.of();
+		Set<Long> resolvedTargets = desiredTargets.isEmpty() ? Set.of() : Set.copyOf(desiredTargets);
+		if (resolutionContext != null) {
+			resolutionContext.cacheChannelCoreTargets(channel, resolvedTargets);
 		}
-		Map<String, ChannelOverride> overridesByNodeKey = new LinkedHashMap<>();
-		for (ChannelOverride override : overrides) {
-			if (override == null || !override.valid()) {
-				continue;
-			}
-			overridesByNodeKey.put(buildOverrideNodeKey(override.nodeType(), override.serial()), override);
-		}
-		return overridesByNodeKey.isEmpty() ? Map.of() : Map.copyOf(overridesByNodeKey);
+		return resolvedTargets;
 	}
 
 	private static String buildOverrideNodeKey(LinkNodeType type, long serial) {
@@ -296,6 +350,46 @@ public final class LinkSavedDataChannelSupport {
 		 */
 		public boolean valid() {
 			return nodeType != null && serial > 0L;
+		}
+	}
+
+	/**
+	 * 批量频道目标推导上下文。
+	 * <p>
+	 * 该上下文只服务于 prepare / preview 阶段，不参与任何真值写回。
+	 * </p>
+	 */
+	public static final class BatchTargetResolutionContext {
+		private final Map<String, ChannelOverride> overridesByNodeKey;
+		private final List<ChannelOverride> coreOverrides;
+		private final Map<Long, Set<Long>> cachedChannelCoreTargetsByChannel;
+
+		private BatchTargetResolutionContext(
+			Map<String, ChannelOverride> overridesByNodeKey,
+			List<ChannelOverride> coreOverrides
+		) {
+			this.overridesByNodeKey = overridesByNodeKey == null ? Map.of() : overridesByNodeKey;
+			this.coreOverrides = coreOverrides == null ? List.of() : coreOverrides;
+			this.cachedChannelCoreTargetsByChannel = new LinkedHashMap<>();
+		}
+
+		private Map<String, ChannelOverride> overridesByNodeKey() {
+			return overridesByNodeKey;
+		}
+
+		private List<ChannelOverride> coreOverrides() {
+			return coreOverrides;
+		}
+
+		private Set<Long> cachedChannelCoreTargets(long channel) {
+			return cachedChannelCoreTargetsByChannel.get(channel);
+		}
+
+		private void cacheChannelCoreTargets(long channel, Set<Long> targets) {
+			if (!isValidChannel(channel)) {
+				return;
+			}
+			cachedChannelCoreTargetsByChannel.put(channel, targets == null ? Set.of() : targets);
 		}
 	}
 }

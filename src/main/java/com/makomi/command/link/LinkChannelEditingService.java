@@ -4,6 +4,7 @@ import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkSavedDataChannelSupport.ChannelOverride;
+import com.makomi.data.LinkSavedDataChannelSupport.BatchTargetResolutionContext;
 import com.makomi.data.LinkSavedDataChannelSupport;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -94,16 +95,19 @@ public final class LinkChannelEditingService {
 		}
 
 		Set<Long> affectedTriggerSources = resolveAffectedTriggerSources(savedData, normalizedOverrides);
+		BatchTargetResolutionContext targetResolutionContext = LinkSavedDataChannelSupport.createBatchTargetResolutionContext(
+			normalizedOverrides
+		);
 		List<LinkSetExecutionService.PreparedReplaceOperation> preparedOperations = new ArrayList<>();
 		int totalCommandCost = 0;
 		for (Long triggerSourceSerial : affectedTriggerSources) {
 			if (triggerSourceSerial == null || triggerSourceSerial <= 0L) {
 				continue;
 			}
-			Set<Long> nextTargets = LinkSavedDataChannelSupport.resolveDesiredTargetsForTriggerSourceWithOverrides(
+			Set<Long> nextTargets = LinkSavedDataChannelSupport.resolveDesiredTargetsForTriggerSourceWithContext(
 				savedData,
 				triggerSourceSerial,
-				normalizedOverrides
+				targetResolutionContext
 			);
 			LinkSetExecutionService.PreparationResult preparationResult = LinkSetExecutionService.prepareConfirmedReplaceResolvedTargets(
 				level,
