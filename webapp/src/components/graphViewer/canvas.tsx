@@ -1059,17 +1059,12 @@ function buildChannelGraphCanvasView(
   const hiddenActualEdgeKeys = new Set<string>();
 
   channelHubNodes.forEach((channelHubNode) => {
-    if (
-      channelHubNode.sourceSerials.length <
-        SHARED_CORE_GROUP_MIN_SOURCE_COUNT ||
-      channelHubNode.coreSerials.length < SHARED_CORE_GROUP_MIN_CORE_COUNT
-    ) {
-      return;
-    }
     const coreNodes = channelHubNode.coreNodeKeys
       .map((nodeKey) => actualNodeByKey.get(nodeKey) ?? null)
       .filter((node): node is GraphNodeInfo => node != null)
       .sort(compareGraphNodeIdentity);
+    // 频道模式允许“单侧成员”直接折叠成聚合块；
+    // 只要本侧成员数达到门槛，就仍然通过 channelHub 挂载该聚合块。
     if (coreNodes.length < SHARED_CORE_GROUP_MIN_CORE_COUNT) {
       return;
     }
@@ -1112,14 +1107,6 @@ function buildChannelGraphCanvasView(
   });
 
   channelHubNodes.forEach((channelHubNode) => {
-    if (
-      channelHubNode.coreSerials.length <
-        SHARED_TRIGGER_SOURCE_GROUP_MIN_TARGET_COUNT ||
-      channelHubNode.sourceSerials.length <
-        SHARED_TRIGGER_SOURCE_GROUP_MIN_SOURCE_COUNT
-    ) {
-      return;
-    }
     const sourceNodes = channelHubNode.sourceNodeKeys
       .map((nodeKey) => actualNodeByKey.get(nodeKey) ?? null)
       .filter((node): node is GraphNodeInfo => node != null)
