@@ -1839,217 +1839,223 @@ export default function GraphViewer({
 
   return (
     <section className="graph-viewer">
-      <div className="graph-toolbar-block">
-        <div className="recording-toolbar-row">
-          <span className="chart-toolbar-label">显示模式</span>
-          <div className="chip-group">
-            {(["serial", "channel"] as GraphDisplayMode[]).map((modeValue) => (
-              <button
-                key={modeValue}
-                type="button"
-                className={`metric-chip${displayMode === modeValue ? " is-active" : ""}`}
-                onClick={() => handleDisplayModeChange(modeValue)}
-              >
-                {modeValue === "serial" ? "序号" : "频道"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="recording-toolbar-row graph-submode-row">
-          <span className="chart-toolbar-label">{graphModeLabel}内容</span>
-          <div className="chip-group">
-            <button
-              type="button"
-              className={`metric-chip${activeContentMode === "topology" ? " is-active" : ""}`}
-              onClick={() => {
-                if (displayMode === "serial") {
-                  setSerialContentMode("topology");
-                  return;
-                }
-                setChannelContentMode("topology");
-              }}
-            >
-              拓扑
-            </button>
-          </div>
-        </div>
-        <div className="graph-toolbar-row">
-          <div className="graph-search-panel">
-            <label className="recording-file-field graph-search-field">
-              <span>搜索节点</span>
-              <input
-                className="graph-search-input"
-                type="text"
-                value={searchDraftText}
-                onChange={(event) => setSearchDraftText(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    handleApplySearch();
-                  }
-                }}
-                placeholder="按别名、显示名、nodeKey 搜索；序号用 #12，频道用 channel:3"
-              />
-            </label>
-            <div className="graph-search-filter-row">
-              <span className="graph-search-filter-label">类型</span>
-              <div className="chip-group">
-                {(
-                  ["all", "triggerSource", "core"] as GraphSearchTypeFilter[]
-                ).map((filterValue) => (
+      <div className="graph-workspace">
+        <aside className="graph-toolbar-card graph-toolbar-block">
+          <div className="recording-toolbar-row">
+            <span className="chart-toolbar-label">显示模式</span>
+            <div className="chip-group">
+              {(["serial", "channel"] as GraphDisplayMode[]).map(
+                (modeValue) => (
                   <button
-                    key={filterValue}
+                    key={modeValue}
                     type="button"
-                    className={`metric-chip${searchDraftTypeFilter === filterValue ? " is-active" : ""}`}
-                    onClick={() => setSearchDraftTypeFilter(filterValue)}
+                    className={`metric-chip${displayMode === modeValue ? " is-active" : ""}`}
+                    onClick={() => handleDisplayModeChange(modeValue)}
                   >
-                    {formatSearchTypeLabel(filterValue)}
+                    {modeValue === "serial" ? "序号" : "频道"}
                   </button>
-                ))}
-              </div>
-            </div>
-            <div className="graph-search-filter-row">
-              <span className="graph-search-filter-label">
-                {hasPendingSearchChanges ? "搜索条件未应用" : "搜索条件已应用"}
-              </span>
-              <div className="graph-editor-actions">
-                <button
-                  type="button"
-                  className="action-button"
-                  onClick={handleApplySearch}
-                  disabled={!hasPendingSearchChanges}
-                >
-                  应用搜索
-                </button>
-                <button
-                  type="button"
-                  className="action-button"
-                  onClick={handleClearSearch}
-                  disabled={
-                    searchDraftText.length === 0 &&
-                    appliedSearchText.length === 0 &&
-                    searchDraftTypeFilter === "all" &&
-                    appliedSearchTypeFilter === "all"
-                  }
-                >
-                  清空搜索
-                </button>
-              </div>
+                ),
+              )}
             </div>
           </div>
-          <div className="graph-editor-actions">
-            <span className={statusClassName}>{statusText}</span>
-            <button
-              type="button"
-              className="action-button"
-              disabled={undoDraftHistory.length === 0}
-              onClick={handleUndoDraft}
-            >
-              撤回草稿
-            </button>
-            <button
-              type="button"
-              className="action-button"
-              onClick={handleAutoLayout}
-            >
-              重新布局
-            </button>
-            <button
-              type="button"
-              className="action-button"
-              disabled={!graphDraft.dirty || savePhase === "saving"}
-              onClick={() => void handleSave()}
-            >
-              Save
-            </button>
-          </div>
-        </div>
-        <div className="recording-toolbar-row">
-          <span className="chart-toolbar-label">
-            编辑模式{canEditCurrentView ? "" : "（当前内容不可编辑）"}
-          </span>
-          <div className="chip-group">
-            {availableEditModes.map((modeValue) => (
+          <div className="recording-toolbar-row graph-submode-row">
+            <span className="chart-toolbar-label">{graphModeLabel}内容</span>
+            <div className="chip-group">
               <button
-                key={modeValue}
                 type="button"
-                className={`metric-chip${editMode === modeValue ? " is-active" : ""}`}
-                onClick={() => handleEditModeChange(modeValue)}
-                disabled={!canEditCurrentView && modeValue !== "view"}
+                className={`metric-chip${activeContentMode === "topology" ? " is-active" : ""}`}
+                onClick={() => {
+                  if (displayMode === "serial") {
+                    setSerialContentMode("topology");
+                    return;
+                  }
+                  setChannelContentMode("topology");
+                }}
               >
-                {formatEditModeLabel(modeValue)}
+                拓扑
               </button>
-            ))}
+            </div>
           </div>
-        </div>
-        <p className="chart-interaction-hint">
-          鼠标滚轮缩放，拖动画布平移，拖拽节点只影响本地布局；双击节点会聚焦到该节点。
-          搜索条件会在回车或点击“应用搜索”后刷新画布。
-          {displayMode === "serial"
-            ? "点击聚合块，可展开或收起对应的局部 core 集合。"
-            : "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。"}
-          {canEditCurrentView
-            ? displayMode === "channel"
-              ? "先框选或点选一个或多个节点，再输入频道号并应用到草稿；输入 0 表示移出频道。网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。"
-              : `${formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。`
-            : "当前内容模式不接入网页保存编辑。"}
-        </p>
-        {saveMessage ? (
-          <p className="graph-editor-message">{saveMessage}</p>
-        ) : null}
-        {graphDraft.dirty ? (
-          <div className="graph-save-preview">
-            <div className="graph-save-preview-header">
-              <span className={previewStatusClassName}>{previewStatusText}</span>
-              {savePreview ? (
-                <dl className="graph-inline-stats graph-save-preview-stats">
-                  <div>
-                    <dt>Alias Cost</dt>
-                    <dd>{savePreview.aliasCost}</dd>
-                  </div>
-                  <div>
-                    <dt>Graph Cost</dt>
-                    <dd>{savePreview.graphCost}</dd>
-                  </div>
-                  <div>
-                    <dt>Write Units</dt>
-                    <dd>{savePreview.graphWriteUnitCount}</dd>
-                  </div>
-                </dl>
+          <div className="graph-toolbar-row">
+            <div className="graph-search-panel">
+              <label className="recording-file-field graph-search-field">
+                <span>搜索节点</span>
+                <input
+                  className="graph-search-input"
+                  type="text"
+                  value={searchDraftText}
+                  onChange={(event) => setSearchDraftText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleApplySearch();
+                    }
+                  }}
+                  placeholder="按别名、显示名、nodeKey 搜索；序号用 #12，频道用 channel:3"
+                />
+              </label>
+              <div className="graph-search-filter-row">
+                <span className="graph-search-filter-label">类型</span>
+                <div className="chip-group">
+                  {(
+                    ["all", "triggerSource", "core"] as GraphSearchTypeFilter[]
+                  ).map((filterValue) => (
+                    <button
+                      key={filterValue}
+                      type="button"
+                      className={`metric-chip${searchDraftTypeFilter === filterValue ? " is-active" : ""}`}
+                      onClick={() => setSearchDraftTypeFilter(filterValue)}
+                    >
+                      {formatSearchTypeLabel(filterValue)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="graph-search-filter-row">
+                <span className="graph-search-filter-label">
+                  {hasPendingSearchChanges ? "搜索条件未应用" : "搜索条件已应用"}
+                </span>
+                <div className="graph-editor-actions">
+                  <button
+                    type="button"
+                    className="action-button"
+                    onClick={handleApplySearch}
+                    disabled={!hasPendingSearchChanges}
+                  >
+                    应用搜索
+                  </button>
+                  <button
+                    type="button"
+                    className="action-button"
+                    onClick={handleClearSearch}
+                    disabled={
+                      searchDraftText.length === 0 &&
+                      appliedSearchText.length === 0 &&
+                      searchDraftTypeFilter === "all" &&
+                      appliedSearchTypeFilter === "all"
+                    }
+                  >
+                    清空搜索
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="graph-editor-actions">
+              <span className={statusClassName}>{statusText}</span>
+              <button
+                type="button"
+                className="action-button"
+                disabled={undoDraftHistory.length === 0}
+                onClick={handleUndoDraft}
+              >
+                撤回草稿
+              </button>
+              <button
+                type="button"
+                className="action-button"
+                onClick={handleAutoLayout}
+              >
+                重新布局
+              </button>
+              <button
+                type="button"
+                className="action-button"
+                disabled={!graphDraft.dirty || savePhase === "saving"}
+                onClick={() => void handleSave()}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <div className="recording-toolbar-row">
+            <span className="chart-toolbar-label">
+              编辑模式{canEditCurrentView ? "" : "（当前内容不可编辑）"}
+            </span>
+            <div className="chip-group">
+              {availableEditModes.map((modeValue) => (
+                <button
+                  key={modeValue}
+                  type="button"
+                  className={`metric-chip${editMode === modeValue ? " is-active" : ""}`}
+                  onClick={() => handleEditModeChange(modeValue)}
+                  disabled={!canEditCurrentView && modeValue !== "view"}
+                >
+                  {formatEditModeLabel(modeValue)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="chart-interaction-hint">
+            鼠标滚轮缩放，拖动画布平移，拖拽节点只影响本地布局；双击节点会聚焦到该节点。
+            搜索条件会在回车或点击“应用搜索”后刷新画布。
+            {displayMode === "serial"
+              ? "点击聚合块，可展开或收起对应的局部 core 集合。"
+              : "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。"}
+            {canEditCurrentView
+              ? displayMode === "channel"
+                ? "先框选或点选一个或多个节点，再输入频道号并应用到草稿；输入 0 表示移出频道。网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。"
+                : `${formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。`
+              : "当前内容模式不接入网页保存编辑。"}
+          </p>
+          {saveMessage ? (
+            <p className="graph-editor-message">{saveMessage}</p>
+          ) : null}
+          {graphDraft.dirty ? (
+            <div className="graph-save-preview">
+              <div className="graph-save-preview-header">
+                <span className={previewStatusClassName}>
+                  {previewStatusText}
+                </span>
+                {savePreview ? (
+                  <dl className="graph-inline-stats graph-save-preview-stats">
+                    <div>
+                      <dt>Alias Cost</dt>
+                      <dd>{savePreview.aliasCost}</dd>
+                    </div>
+                    <div>
+                      <dt>Graph Cost</dt>
+                      <dd>{savePreview.graphCost}</dd>
+                    </div>
+                    <div>
+                      <dt>Write Units</dt>
+                      <dd>{savePreview.graphWriteUnitCount}</dd>
+                    </div>
+                  </dl>
+                ) : null}
+              </div>
+              {savePreviewMessage ? (
+                <p className={previewMessageClassName}>{savePreviewMessage}</p>
               ) : null}
             </div>
-            {savePreviewMessage ? (
-              <p className={previewMessageClassName}>{savePreviewMessage}</p>
-            ) : null}
-          </div>
-        ) : null}
-        {draftError ? (
-          <p className="error-text">加载本地 draft 失败：{draftError}</p>
-        ) : null}
-        {draftPersistError ? (
-          <p className="error-text">写入本地 draft 失败：{draftPersistError}</p>
-        ) : null}
-        {hasSearch ? (
-          <div className="graph-search-results">
-            {matchedNodes.length === 0 ? (
-              <span className="empty-state">没有命中当前搜索条件的节点。</span>
-            ) : (
-              matchedNodes.slice(0, 12).map((node) => (
-                <button
-                  key={node.nodeKey}
-                  type="button"
-                  className={`graph-search-chip${selectedNodeKey === node.nodeKey ? " is-selected" : ""}`}
-                  onClick={() => focusNode(node.nodeKey)}
-                >
-                  {buildSearchResultLabel(node)}
-                </button>
-              ))
-            )}
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+          {draftError ? (
+            <p className="error-text">加载本地 draft 失败：{draftError}</p>
+          ) : null}
+          {draftPersistError ? (
+            <p className="error-text">写入本地 draft 失败：{draftPersistError}</p>
+          ) : null}
+          {hasSearch ? (
+            <div className="graph-search-results">
+              {matchedNodes.length === 0 ? (
+                <span className="empty-state">
+                  没有命中当前搜索条件的节点。
+                </span>
+              ) : (
+                matchedNodes.slice(0, 12).map((node) => (
+                  <button
+                    key={node.nodeKey}
+                    type="button"
+                    className={`graph-search-chip${selectedNodeKey === node.nodeKey ? " is-selected" : ""}`}
+                    onClick={() => focusNode(node.nodeKey)}
+                  >
+                    {buildSearchResultLabel(node)}
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
+        </aside>
 
-      <div className="graph-workspace">
         <div className="graph-canvas-card">
           <div className="graph-canvas-header">
             <div>

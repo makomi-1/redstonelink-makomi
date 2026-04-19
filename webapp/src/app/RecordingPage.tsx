@@ -76,6 +76,10 @@ export default function RecordingPage({
           <button type="button" className="action-button" onClick={onRefreshStorageIndex}>
             刷新索引
           </button>
+          <ThemeSwitcher
+            currentThemeId={themeId}
+            onThemeChange={onThemeChange}
+          />
         </div>
         {recordingSelectedEntry ? (
           <dl className="recording-file-meta">
@@ -101,13 +105,6 @@ export default function RecordingPage({
           <p className="error-text">无法读取 `./api/storage/index`：{storageError}</p>
         ) : null}
         {bridgeError ? <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p> : null}
-      </section>
-
-      <section className="info-card theme-preview-panel theme-preview-panel-wide">
-        <ThemeSwitcher
-          currentThemeId={themeId}
-          onThemeChange={onThemeChange}
-        />
       </section>
 
       <section className="recording-page-main">

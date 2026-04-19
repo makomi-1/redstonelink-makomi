@@ -90,6 +90,10 @@ export default function GraphPage({
           >
             刷新索引
           </button>
+          <ThemeSwitcher
+            currentThemeId={themeId}
+            onThemeChange={onThemeChange}
+          />
         </div>
         {graphSelectedEntry ? (
           <dl className="recording-file-meta">
@@ -121,13 +125,6 @@ export default function GraphPage({
         {bridgeError ? (
           <p className="error-text">无法读取 `./api/ping`：{bridgeError}</p>
         ) : null}
-      </section>
-
-      <section className="info-card theme-preview-panel theme-preview-panel-wide">
-        <ThemeSwitcher
-          currentThemeId={themeId}
-          onThemeChange={onThemeChange}
-        />
       </section>
 
       <section className="recording-page-main">
