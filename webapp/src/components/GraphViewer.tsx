@@ -13,7 +13,6 @@ import "reactflow/dist/style.css";
 import type {
   GraphDraft,
   GraphNodeInfo,
-  GraphNodeTypeToken,
   GraphSnapshotBundle,
   GraphWriteResponse,
 } from "../graphTypes";
@@ -73,6 +72,14 @@ type GraphViewerProps = {
 };
 
 type SavePreviewPhase = "idle" | "checking" | "ready" | "error";
+const GRAPH_DRAFT_UNDO_HISTORY_LIMIT = 10;
+
+/**
+ * 别名草稿与持久化层都按去首尾空白后的值比较，避免“仅空格变化”制造伪差异。
+ */
+function normalizeAliasInput(value: string): string {
+  return value.trim();
+}
 
 function formatCanvasNodeDisplayText(canvasNode: GraphCanvasNodeInfo): string {
   if (canvasNode.kind === "actual") {
@@ -173,8 +180,8 @@ export default function GraphViewer({
   const [selectedEditChannelNodeKeys, setSelectedEditChannelNodeKeys] =
     useState<string[]>([]);
   const [channelBatchDraftValue, setChannelBatchDraftValue] = useState("0");
-  const [undoableGraphDraft, setUndoableGraphDraft] =
-    useState<GraphDraft | null>(null);
+  const [aliasDraftValue, setAliasDraftValue] = useState("");
+  const [undoDraftHistory, setUndoDraftHistory] = useState<GraphDraft[]>([]);
   const [expandedAggregateNodeKeys, setExpandedAggregateNodeKeys] = useState<
     string[]
   >([]);
@@ -488,6 +495,10 @@ export default function GraphViewer({
     selectedCanvasNode?.kind === "aggregate" ? selectedCanvasNode : null;
   const selectedNode =
     selectedCanvasNode?.kind === "actual" ? selectedCanvasNode.graphNode : null;
+  const canEditSelectedAlias = canEditCurrentView && selectedNode != null;
+  const hasPendingAliasDraft =
+    canEditSelectedAlias &&
+    normalizeAliasInput(aliasDraftValue) !== normalizeAliasInput(selectedNode.alias);
   const selectedTriggerSourceTargets =
     canEditCurrentView && selectedNode?.type === "triggerSource"
       ? resolveCurrentTargetSerials(effectiveGraphBundle, selectedNode.serial)
@@ -668,7 +679,8 @@ export default function GraphViewer({
     setSelectedEditTargetSerials([]);
     setSelectedEditChannelNodeKeys([]);
     setChannelBatchDraftValue("0");
-    setUndoableGraphDraft(null);
+    setAliasDraftValue("");
+    setUndoDraftHistory([]);
     setExpandedAggregateNodeKeys([]);
     setPinnedIsolatedNodeKeys([]);
     setPendingAggregateFocusNodeKey("");
@@ -722,6 +734,14 @@ export default function GraphViewer({
     }
     setActiveSidebarPanel("details");
   }, [activeSidebarPanel, availableSidebarPanels]);
+
+  useEffect(() => {
+    if (!canEditSelectedAlias || !selectedNode) {
+      setAliasDraftValue("");
+      return;
+    }
+    setAliasDraftValue(selectedNode.alias);
+  }, [canEditSelectedAlias, selectedNode?.alias, selectedNode?.nodeKey]);
 
   useEffect(() => {
     if (draftLoading) {
@@ -1387,11 +1407,22 @@ export default function GraphViewer({
     });
   }
 
+  /**
+   * 所有真正写入本地草稿的动作都统一经过这里，
+   * 并把“变更前”的整份草稿快照压入有限历史栈，供后续撤回使用。
+   */
   function applyLocalDraftChange(nextDraft: GraphDraft): boolean {
     if (sameGraphDraft(graphDraft, nextDraft)) {
       return false;
     }
-    setUndoableGraphDraft(graphDraft);
+    setUndoDraftHistory((currentHistory) => {
+      const lastDraft = currentHistory[currentHistory.length - 1] ?? null;
+      if (lastDraft && sameGraphDraft(lastDraft, graphDraft)) {
+        return currentHistory;
+      }
+      const nextHistory = [...currentHistory, graphDraft];
+      return nextHistory.slice(-GRAPH_DRAFT_UNDO_HISTORY_LIMIT);
+    });
     setGraphDraft(nextDraft);
     return true;
   }
@@ -1421,16 +1452,17 @@ export default function GraphViewer({
   }
 
   function handleUndoDraft() {
-    if (!undoableGraphDraft) {
+    const previousDraft = undoDraftHistory[undoDraftHistory.length - 1];
+    if (!previousDraft) {
       return;
     }
     setDraftPersistError("");
     if (savePhase === "error" || savePhase === "conflict") {
       setSavePhase("idle");
     }
-    setGraphDraft(undoableGraphDraft);
-    setUndoableGraphDraft(null);
-    setSaveMessage("已撤回最近一步本地草稿。");
+    setGraphDraft(previousDraft);
+    setUndoDraftHistory((currentHistory) => currentHistory.slice(0, -1));
+    setSaveMessage("已撤回最近一次本地草稿应用。");
   }
 
   function handleApplySearch() {
@@ -1629,21 +1661,27 @@ export default function GraphViewer({
     handleCanvasNodeClick(nodeKey);
   }
 
-  function handleAliasChange(
-    nodeType: GraphNodeTypeToken,
-    serial: number,
-    alias: string,
-  ) {
-    if (!canEditCurrentView) {
+  function handleApplyAliasDraft() {
+    if (!canEditSelectedAlias || !selectedNode) {
       return;
     }
     setDraftPersistError("");
     if (savePhase === "error" || savePhase === "conflict") {
       setSavePhase("idle");
     }
-    applyLocalDraftChange(
-      upsertAliasDraft(graphDraft, baseGraphBundle, nodeType, serial, alias),
-    );
+    if (
+      applyLocalDraftChange(
+        upsertAliasDraft(
+          graphDraft,
+          baseGraphBundle,
+          selectedNode.type,
+          selectedNode.serial,
+          aliasDraftValue,
+        ),
+      )
+    ) {
+      setSaveMessage("已将节点别名写入本地草稿，点击 Save 后才会回传游戏真值。");
+    }
   }
 
   function handleApplyBatchEdit() {
@@ -1721,7 +1759,7 @@ export default function GraphViewer({
       );
       setBaseGraphBundle(nextBaseGraphBundle);
       setGraphDraft(createInitialGraphDraft(nextBaseGraphBundle));
-      setUndoableGraphDraft(null);
+      setUndoDraftHistory([]);
       setSavePhase("idle");
       setSaveMessage(graphWriteResponse.message || "已保存。");
       setSavePreviewPhase("idle");
@@ -1839,10 +1877,10 @@ export default function GraphViewer({
             <button
               type="button"
               className="action-button"
-              disabled={undoableGraphDraft == null}
+              disabled={undoDraftHistory.length === 0}
               onClick={handleUndoDraft}
             >
-              撤回一步草稿
+              撤回草稿
             </button>
             <button
               type="button"
@@ -2570,22 +2608,30 @@ export default function GraphViewer({
                   </p>
                 </div>
                 {canEditCurrentView ? (
-                  <label className="graph-editor-field">
-                    <span>Alias</span>
-                    <input
-                      className="graph-editor-input"
-                      type="text"
-                      value={selectedCanvasNode.graphNode.alias}
-                      onChange={(event) =>
-                        handleAliasChange(
-                          selectedCanvasNode.graphNode.type,
-                          selectedCanvasNode.graphNode.serial,
-                          event.target.value,
-                        )
-                      }
-                      placeholder="输入节点别名，留空则清空"
-                    />
-                  </label>
+                  <>
+                    <label className="graph-editor-field">
+                      <span>Alias</span>
+                      <input
+                        className="graph-editor-input"
+                        type="text"
+                        value={aliasDraftValue}
+                        onChange={(event) =>
+                          setAliasDraftValue(event.target.value)
+                        }
+                        placeholder="输入节点别名，留空则清空"
+                      />
+                    </label>
+                    <div className="graph-batch-action-row">
+                      <button
+                        type="button"
+                        className="action-button"
+                        disabled={!hasPendingAliasDraft}
+                        onClick={handleApplyAliasDraft}
+                      >
+                        应用到草稿
+                      </button>
+                    </div>
+                  </>
                 ) : null}
                 <dl className="preview-meta graph-detail-grid">
                   <div>
