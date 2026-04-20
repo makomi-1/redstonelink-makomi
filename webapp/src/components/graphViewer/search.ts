@@ -1,4 +1,5 @@
 import type { GraphNodeInfo } from '../../graphTypes';
+import { pickLocalizedText, type AppLanguage } from '../../app/i18n';
 import type { GraphSearchTypeFilter } from './types';
 
 function normalizeSearchValue(value: string): string {
@@ -17,15 +18,25 @@ function buildExactSearchTerms(node: GraphNodeInfo): string[] {
   return terms;
 }
 
-export function formatSearchTypeLabel(searchTypeFilter: GraphSearchTypeFilter): string {
+export function formatSearchTypeLabel(
+  searchTypeFilter: GraphSearchTypeFilter,
+  language: AppLanguage,
+): string {
   if (searchTypeFilter === 'all') {
-    return '全部';
+    return pickLocalizedText(language, '全部', 'All');
   }
   return searchTypeFilter;
 }
 
-export function buildSearchResultLabel(node: GraphNodeInfo): string {
-  return `${node.type} #${node.serial} · ${node.displayText}`;
+export function buildSearchResultLabel(
+  node: GraphNodeInfo,
+  language: AppLanguage,
+): string {
+  return pickLocalizedText(
+    language,
+    `${node.type} #${node.serial} · ${node.displayText}`,
+    `${node.type} #${node.serial} · ${node.displayText}`,
+  );
 }
 
 export function matchesSearchType(

@@ -43,8 +43,10 @@ public final class LocalWebAppBridgeService {
 	private static final String HOME_PAGE_RESOURCE = "index.html";
 	private static final String BRIDGE_VERSION = "p4";
 	private static final LocalWebAssetRepository ASSET_REPOSITORY = LocalWebAssetRepository.createDefault();
+	private static final LocalWebPreferencesStore PREFERENCES_STORE = LocalWebPreferencesStore.createDefault();
 	private static final int GRAPH_SAVE_REQUEST_MAX_BYTES = 32768;
 	private static final int GRAPH_DRAFT_REQUEST_MAX_BYTES = 262144;
+	private static final int PREFERENCES_REQUEST_MAX_BYTES = 4096;
 	private static volatile BridgeRuntime runtime;
 
 	private LocalWebAppBridgeService() {
@@ -174,6 +176,7 @@ public final class LocalWebAppBridgeService {
 			httpServer.createContext("/api/ping", LocalWebAppBridgeService::handlePingRequest);
 			httpServer.createContext("/api/storage/index", LocalWebAppBridgeService::handleStorageIndexRequest);
 			httpServer.createContext("/api/storage/entry", LocalWebAppBridgeService::handleStorageEntryRequest);
+			httpServer.createContext("/api/preferences", LocalWebAppBridgeService::handlePreferencesRequest);
 			httpServer.createContext("/api/graph/save", LocalWebAppBridgeService::handleGraphSaveRequest);
 			httpServer.createContext("/api/graph/preview", LocalWebAppBridgeService::handleGraphPreviewRequest);
 			httpServer.createContext("/api/graph/draft", LocalWebAppBridgeService::handleGraphDraftRequest);
@@ -253,6 +256,32 @@ public final class LocalWebAppBridgeService {
 		} catch (IOException exception) {
 			LOGGER.warn("读取本地网页资产内容失败: kind={}, file={}", assetKind.token(), fileName, exception);
 			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload("Failed to read storage entry."));
+		}
+	}
+
+	/**
+	 * 读取或写入网页语言/主题偏好。
+	 */
+	private static void handlePreferencesRequest(HttpExchange exchange) throws IOException {
+		try {
+			if (isReadMethod(exchange)) {
+				sendJsonResponse(exchange, 200, LocalWebJsonSupport.buildPreferencesPayload(PREFERENCES_STORE.load()));
+				return;
+			}
+			if (!isWriteMethod(exchange, "POST")) {
+				sendJsonResponse(exchange, 405, LocalWebJsonSupport.buildErrorPayload("Method Not Allowed"));
+				return;
+			}
+			LocalWebPreferences currentPreferences = PREFERENCES_STORE.load();
+			String requestJson = readRequestBodyUtf8(exchange, PREFERENCES_REQUEST_MAX_BYTES);
+			LocalWebPreferences nextPreferences = LocalWebJsonSupport.parsePreferencesPatch(requestJson, currentPreferences);
+			LocalWebPreferences savedPreferences = PREFERENCES_STORE.save(nextPreferences);
+			sendJsonResponse(exchange, 200, LocalWebJsonSupport.buildPreferencesPayload(savedPreferences));
+		} catch (IOException exception) {
+			sendJsonResponse(exchange, 400, LocalWebJsonSupport.buildErrorPayload(exception.getMessage()));
+		} catch (RuntimeException exception) {
+			LOGGER.warn("处理网页偏好请求失败", exception);
+			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload("Failed to process preferences request."));
 		}
 	}
 

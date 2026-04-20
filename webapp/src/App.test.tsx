@@ -10,14 +10,17 @@ import {
   createTestStorageEntryPayload,
   createTestStorageEntrySummary,
   createTestStorageIndex,
+  createTestWebPreferencesPayload,
 } from './test/factories';
 import { createJsonResponse } from './test/http';
 
 vi.mock('./app/GraphPage', () => ({
   default: (props: {
+    currentLanguage: 'zh-CN' | 'en-US';
     selectedFileName: string;
     graphBundle: unknown;
     themeId: string;
+    onLanguageChange: (language: 'zh-CN' | 'en-US') => void;
     onThemeChange: (
       themeId: 'future-command' | 'lab-minimal' | 'industrial-tech',
     ) => void;
@@ -29,8 +32,14 @@ vi.mock('./app/GraphPage', () => ({
       >
         实验室极简
       </button>
+      <button
+        type="button"
+        onClick={() => props.onLanguageChange('en-US')}
+      >
+        English
+      </button>
       <div data-testid="graph-page">
-        graph-page:{props.selectedFileName}:{props.graphBundle ? 'loaded' : 'empty'}
+        graph-page:{props.selectedFileName}:{props.graphBundle ? 'loaded' : 'empty'}:{props.currentLanguage}
       </div>
     </main>
   ),
@@ -41,12 +50,17 @@ vi.mock('./app/RecordingPage', () => ({
 }));
 
 describe('App', () => {
-  it('根路径默认进入 graph 页面，并支持同步主题状态', async () => {
+  it('根路径默认进入 graph 页面，并会通过 preferences 接口持久化语言与主题选择', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === './api/ping') {
         return createJsonResponse(createTestBridgePayload());
+      }
+      if (url === './api/preferences') {
+        return createJsonResponse(
+          createTestWebPreferencesPayload(),
+        );
       }
       if (url === './api/storage/index') {
         return createJsonResponse(createTestStorageIndex([]));
@@ -59,7 +73,7 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByTestId('graph-page')).toHaveTextContent(
-      'graph-page::empty',
+      'graph-page::empty:zh-CN',
     );
     expect(screen.getByRole('main')).toHaveAttribute(
       'data-theme',
@@ -71,6 +85,73 @@ describe('App', () => {
     expect(screen.getByRole('main')).toHaveAttribute(
       'data-theme',
       'lab-minimal',
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('./api/preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({
+          language: 'zh-CN',
+          themeId: 'lab-minimal',
+        }),
+      }),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'English' }));
+
+    expect(screen.getByTestId('graph-page')).toHaveTextContent(
+      'graph-page::empty:en-US',
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('./api/preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({
+          language: 'en-US',
+          themeId: 'lab-minimal',
+        }),
+      }),
+    );
+  });
+
+  it('进入时会优先恢复客户端已持久化的语言与主题', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === './api/ping') {
+        return createJsonResponse(createTestBridgePayload());
+      }
+      if (url === './api/preferences') {
+        return createJsonResponse(
+          createTestWebPreferencesPayload({
+            language: 'en-US',
+            themeId: 'lab-minimal',
+          }),
+        );
+      }
+      if (url === './api/storage/index') {
+        return createJsonResponse(createTestStorageIndex([]));
+      }
+      throw new Error(`unexpected fetch url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.replaceState({}, '', './');
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('graph-page')).toHaveTextContent(
+        'graph-page::empty:en-US',
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('main')).toHaveAttribute(
+        'data-theme',
+        'lab-minimal',
+      ),
     );
   });
 
@@ -91,6 +172,9 @@ describe('App', () => {
       const url = String(input);
       if (url === './api/ping') {
         return createJsonResponse(createTestBridgePayload());
+      }
+      if (url === './api/preferences') {
+        return createJsonResponse(createTestWebPreferencesPayload());
       }
       if (url === './api/storage/index') {
         return createJsonResponse(
@@ -119,7 +203,7 @@ describe('App', () => {
 
     await waitFor(() =>
       expect(screen.getByTestId('graph-page')).toHaveTextContent(
-        'graph-page:demo-graph.json:loaded',
+        'graph-page:demo-graph.json:loaded:zh-CN',
       ),
     );
   });
@@ -129,6 +213,9 @@ describe('App', () => {
       const url = String(input);
       if (url === './api/ping') {
         return createJsonResponse(createTestBridgePayload());
+      }
+      if (url === './api/preferences') {
+        return createJsonResponse(createTestWebPreferencesPayload());
       }
       if (url === './api/storage/index') {
         return createJsonResponse(createTestStorageIndex([]));

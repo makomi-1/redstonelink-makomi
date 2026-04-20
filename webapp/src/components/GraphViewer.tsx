@@ -64,10 +64,12 @@ import {
   matchesSearch,
   matchesSearchType,
 } from "./graphViewer/search";
+import { pickLocalizedText, type AppLanguage } from "../app/i18n";
 
 type GraphViewerProps = {
   graphBundle: GraphSnapshotBundle;
   graphFileName: string;
+  language: AppLanguage;
   onDirtyStateChange?: (dirty: boolean) => void;
 };
 
@@ -244,8 +246,15 @@ function buildCanvasStructureSignature(
 export default function GraphViewer({
   graphBundle,
   graphFileName,
+  language,
   onDirtyStateChange,
 }: GraphViewerProps) {
+  const text = (chineseText: string, englishText: string) =>
+    pickLocalizedText(language, chineseText, englishText);
+  const booleanText = (value: boolean) =>
+    value
+      ? pickLocalizedText(language, "true", "true")
+      : pickLocalizedText(language, "false", "false");
   const [baseGraphBundle, setBaseGraphBundle] =
     useState<GraphSnapshotBundle>(graphBundle);
   const [graphDraft, setGraphDraft] = useState<GraphDraft>(() =>
@@ -756,17 +765,17 @@ export default function GraphViewer({
     () =>
       displayMode === "serial"
         ? [
-            ["details", "详情"],
-            ["isolated", "孤立节点池"],
-            ["crossMode", "另一模式节点池"],
-            ["batch", "批量编辑"],
+            ["details", text("详情", "Details")],
+            ["isolated", text("孤立节点池", "Isolated Pool")],
+            ["crossMode", text("另一模式节点池", "Other-mode Pool")],
+            ["batch", text("批量编辑", "Batch Edit")],
           ]
         : [
-            ["details", "详情"],
-            ["crossMode", "另一模式节点池"],
-            ["batch", "批量编辑"],
+            ["details", text("详情", "Details")],
+            ["crossMode", text("另一模式节点池", "Other-mode Pool")],
+            ["batch", text("批量编辑", "Batch Edit")],
           ],
-    [displayMode],
+    [displayMode, language],
   );
   const hasPendingSearchChanges =
     searchDraftText !== appliedSearchText ||
@@ -803,12 +812,12 @@ export default function GraphViewer({
         ? "status-pill is-error"
         : "status-pill is-ready";
   const previewStatusText = !graphDraft.dirty
-    ? "无需预检"
+    ? text("无需预检", "No preview needed")
     : savePreviewPhase === "checking"
-      ? "预检中"
+      ? text("预检中", "Previewing")
       : previewBlocked
-        ? "暂不可保存"
-        : "可保存";
+        ? text("暂不可保存", "Cannot save yet")
+        : text("可保存", "Ready to save");
   const previewMessageClassName =
     graphDraft.dirty && previewBlocked ? "error-text" : "graph-editor-message";
   const statusClassName =
@@ -821,40 +830,81 @@ export default function GraphViewer({
           : "status-pill is-ready";
   const statusText =
     savePhase === "saving"
-      ? "保存中"
+      ? text("保存中", "Saving")
       : savePhase === "conflict"
-        ? "保存冲突"
+        ? text("保存冲突", "Save conflict")
         : savePhase === "error"
-          ? "保存失败"
+          ? text("保存失败", "Save failed")
           : graphDraft.dirty
-            ? "未保存"
-            : "已同步";
+            ? text("未保存", "Unsaved")
+            : text("已同步", "Synced");
   const graphModeHint =
     displayMode === "serial"
-      ? "点击聚合块，可展开或收起对应的局部 core 集合。"
-      : "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。";
+      ? text(
+          "点击聚合块，可展开或收起对应的局部 core 集合。",
+          "Click an aggregate block to expand or collapse its local core set.",
+        )
+      : text(
+          "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。",
+          "Channel mode renders two-level links as triggerSource -> channelHub -> core using a virtual channelHub and two aggregate block types.",
+        );
   const graphEditHint = canEditCurrentView
     ? displayMode === "channel"
-      ? "先框选或点选一个或多个节点，再输入频道号并应用到草稿；输入 0 表示移出频道。网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。"
-      : `${formatEditModeInstruction(editMode)} 网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。`
-    : "当前内容模式不接入网页保存编辑。";
+      ? text(
+          "先框选或点选一个或多个节点，再输入频道号并应用到草稿；输入 0 表示移出频道。网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。",
+          "Box-select or click one or more nodes first, then enter a channel id and apply it to the draft. Enter 0 to remove nodes from the channel. Web edits stay in the local draft until you click Save.",
+        )
+      : `${formatEditModeInstruction(editMode, language)} ${text(
+          "网页修改只进入本地草稿，点击 Save 后才会回传游戏真值。",
+          "Web edits stay in the local draft until you click Save.",
+        )}`
+    : text(
+        "当前内容模式不接入网页保存编辑。",
+        "The current content mode does not support web save editing.",
+      );
   const graphStaticHint =
-    "鼠标滚轮缩放，拖动画布平移，拖拽节点只影响本地布局；双击节点会聚焦到该节点。搜索条件会在回车或点击“应用搜索”后刷新画布。";
+    text(
+      "鼠标滚轮缩放，拖动画布平移，拖拽节点只影响本地布局；双击节点会聚焦到该节点。搜索条件会在回车或点击“应用搜索”后刷新画布。",
+      "Use the mouse wheel to zoom and drag the canvas to pan. Dragging nodes only changes the local layout. Double-click a node to focus it. Search is applied when you press Enter or click Apply Search.",
+    );
   const crossModePoolCaption =
     displayMode === "serial"
-      ? "这里列出当前仍处于频道模式的节点。先选择要迁回序号模式的节点，点击“应用到草稿”后，它们才会回到当前序号模式并可继续编辑。"
-      : "这里列出当前仍处于序号模式的节点。先选择要迁入当前频道模式的节点，点击“应用到草稿”后，它们才会并入当前频道编辑上下文。";
+      ? text(
+          "这里列出当前仍处于频道模式的节点。先选择要迁回序号模式的节点，点击“应用到草稿”后，它们才会回到当前序号模式并可继续编辑。",
+          "This list contains nodes that are still in channel mode. Select the nodes you want to move back to serial mode first; they return to the current serial editing context only after Apply to Draft.",
+        )
+      : text(
+          "这里列出当前仍处于序号模式的节点。先选择要迁入当前频道模式的节点，点击“应用到草稿”后，它们才会并入当前频道编辑上下文。",
+          "This list contains nodes that are still in serial mode. Select the nodes you want to move into the current channel mode first; they join the current channel editing context only after Apply to Draft.",
+        );
   const crossModeContinueHint =
     displayMode === "serial"
-      ? "迁回 serial 只表示回到显式边模式，不会自动生成真实 triggerSource -> core 连接；应用后请在当前序号模式下继续使用 add/remove/replace 编辑真实边。"
-      : "频道模式同样需要先应用到草稿，再继续当前频道模式下的覆盖编辑。";
+      ? text(
+          "迁回 serial 只表示回到显式边模式，不会自动生成真实 triggerSource -> core 连接；应用后请在当前序号模式下继续使用 add/remove/replace 编辑真实边。",
+          "Moving back to serial only returns the node to explicit-edge mode. It does not create real triggerSource -> core links automatically. After applying, continue editing real edges in the current serial mode with add/remove/replace.",
+        )
+      : text(
+          "频道模式同样需要先应用到草稿，再继续当前频道模式下的覆盖编辑。",
+          "Channel mode also requires applying to the draft before continuing with overwrite editing in the current channel mode.",
+        );
+  const crossModeSaveHint = text(
+    "跨模式添加节点后，建议尽快 Save，再继续做后续跨模式或连线调整，否则关系可能会比较混乱。",
+    "After adding nodes from the other mode, save as soon as possible before doing more cross-mode or link edits, otherwise relationships can become confusing.",
+  );
   const canvasSectionTag =
     displayMode === "serial" ? "Serial View" : "Channel View";
   const canvasTitle =
-    displayMode === "serial" ? "显式保存拓扑图" : "频道两级拓扑图";
-  const graphModeLabel = displayMode === "serial" ? "序号模式" : "频道模式";
+    displayMode === "serial"
+      ? text("显式保存拓扑图", "Explicit Saved Topology")
+      : text("频道两级拓扑图", "Two-level Channel Topology");
+  const graphModeLabel =
+    displayMode === "serial"
+      ? text("序号模式", "Serial Mode")
+      : text("频道模式", "Channel Mode");
   const activeContentLabel =
-    activeContentMode === "topology" ? "拓扑" : activeContentMode;
+    activeContentMode === "topology"
+      ? text("拓扑", "Topology")
+      : activeContentMode;
   const availableEditModes =
     displayMode === "serial"
       ? (["view", "add", "remove", "replace"] as GraphEditMode[])
@@ -985,6 +1035,7 @@ export default function GraphViewer({
       buildGraphFlowNodes(
         graphCanvasView.canvasNodes,
         autoLayoutPositions,
+        language,
         editMode,
         initialNodeKey,
         false,
@@ -1064,6 +1115,7 @@ export default function GraphViewer({
       return buildGraphFlowNodes(
         graphCanvasView.canvasNodes,
         autoLayoutPositions,
+        language,
         editMode,
         selectedNodeKey,
         hasSearch,
@@ -1108,6 +1160,7 @@ export default function GraphViewer({
     draftChangedCanvasNodeKeys,
     activeEditSourceNodeKeys,
     activeEditTargetNodeKeys,
+    language,
     setEdges,
     setNodes,
   ]);
@@ -1357,7 +1410,12 @@ export default function GraphViewer({
     }
 
     setSavePreviewPhase("checking");
-    setSavePreviewMessage("正在向服务端预计算当前草稿的保存成本...");
+    setSavePreviewMessage(
+      text(
+        "正在向服务端预计算当前草稿的保存成本...",
+        "Precomputing the save cost for the current draft on the server...",
+      ),
+    );
     const timeoutId = window.setTimeout(() => {
       void previewGraphSave(graphDraft, displayMode)
         .then((graphWriteResponse) => {
@@ -1369,7 +1427,11 @@ export default function GraphViewer({
             graphWriteResponse.status === "error" ? "error" : "ready",
           );
           setSavePreviewMessage(
-            graphWriteResponse.message || "当前无法完成保存预检。",
+            graphWriteResponse.message ||
+              text(
+                "当前无法完成保存预检。",
+                "The save preview cannot be completed right now.",
+              ),
           );
         })
         .catch((error) => {
@@ -1390,6 +1452,7 @@ export default function GraphViewer({
     displayMode,
     draftLoading,
     graphDraft,
+    language,
     savePreviewRefreshToken,
   ]);
 
@@ -1714,7 +1777,12 @@ export default function GraphViewer({
     }
     setGraphDraft(previousDraft);
     setUndoDraftHistory((currentHistory) => currentHistory.slice(0, -1));
-    setSaveMessage("已撤回最近一次本地草稿应用。");
+    setSaveMessage(
+      text(
+        "已撤回最近一次本地草稿应用。",
+        "Reverted the most recent local draft application.",
+      ),
+    );
   }
 
   function handleApplySearch() {
@@ -1746,6 +1814,7 @@ export default function GraphViewer({
       return buildGraphFlowNodes(
         graphCanvasView.canvasNodes,
         autoLayoutPositions,
+        language,
         editMode,
         selectedNodeKey,
         hasSearch,
@@ -1955,7 +2024,12 @@ export default function GraphViewer({
         ),
       )
     ) {
-      setSaveMessage("已将节点别名写入本地草稿，点击 Save 后才会回传游戏真值。");
+      setSaveMessage(
+        text(
+          "已将节点别名写入本地草稿，点击 Save 后才会回传游戏真值。",
+          "The node alias has been written to the local draft. It will be sent back to the game only after you click Save.",
+        ),
+      );
     }
   }
 
@@ -1993,8 +2067,14 @@ export default function GraphViewer({
       });
       setSaveMessage(
         displayMode === "channel"
-          ? `已将频道覆盖写入本地草稿，点击 Save 后才会回传游戏真值。`
-          : `已将 ${formatEditModeLabel(editMode)} 操作写入本地草稿，点击 Save 后才会回传游戏真值。`,
+          ? text(
+              "已将频道覆盖写入本地草稿，点击 Save 后才会回传游戏真值。",
+              "The channel overwrite has been written to the local draft. It will be sent back to the game only after you click Save.",
+            )
+          : text(
+              `已将 ${formatEditModeLabel(editMode, language)} 操作写入本地草稿，点击 Save 后才会回传游戏真值。`,
+              `The ${formatEditModeLabel(editMode, language)} operation has been written to the local draft. It will be sent back to the game only after you click Save.`,
+            ),
       );
     }
   }
@@ -2044,7 +2124,10 @@ export default function GraphViewer({
         mergeUniqueSortedNumbers(currentValues, migratedCoreSerials),
       );
       setSaveMessage(
-        `已将 ${selectedCrossModeNodeKeys.length} 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。`,
+        text(
+          `已将 ${selectedCrossModeNodeKeys.length} 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。建议尽快 Save，再继续做后续跨模式或连线调整，否则关系可能会比较混乱。`,
+          `${selectedCrossModeNodeKeys.length} nodes from the other mode have been moved back into the serial-mode draft. Returning to serial only switches back to explicit-edge mode; continue editing real edges in the current serial mode with add/remove/replace. Save as soon as possible before more cross-mode or link edits, otherwise relationships can become confusing.`,
+        ),
       );
       if (autoPinnedNodeKeys.length > 0) {
         setPinnedIsolatedNodeKeys((currentValues) =>
@@ -2056,7 +2139,10 @@ export default function GraphViewer({
         mergeUniqueSortedStrings(currentValues, selectedCrossModeNodeKeys),
       );
       setSaveMessage(
-        `已将 ${selectedCrossModeNodeKeys.length} 个另一模式节点迁入频道 #${nextChannel} 的草稿；应用后才可继续当前频道模式下的覆盖编辑。`,
+        text(
+          `已将 ${selectedCrossModeNodeKeys.length} 个另一模式节点迁入频道 #${nextChannel} 的草稿；应用后才可继续当前频道模式下的覆盖编辑。建议尽快 Save，再继续做后续跨模式或连线调整，否则关系可能会比较混乱。`,
+          `${selectedCrossModeNodeKeys.length} nodes from the other mode have been moved into the draft for channel #${nextChannel}. Continue overwrite editing in the current channel mode after applying. Save as soon as possible before more cross-mode or link edits, otherwise relationships can become confusing.`,
+        ),
       );
     }
     resetCrossModeSelectionState();
@@ -2076,7 +2162,10 @@ export default function GraphViewer({
       const graphWriteResponse = await submitGraphSave(graphDraft, displayMode);
       if (graphWriteResponse.status === "error") {
         setSavePhase("error");
-        setSaveMessage(graphWriteResponse.message || "graph 保存请求失败。");
+        setSaveMessage(
+          graphWriteResponse.message ||
+            text("graph 保存请求失败。", "The graph save request failed."),
+        );
         setSavePreviewRefreshToken((currentValue) => currentValue + 1);
         return;
       }
@@ -2084,14 +2173,20 @@ export default function GraphViewer({
         setSavePhase("conflict");
         setSaveMessage(
           graphWriteResponse.message ||
-            "保存冲突：请重新导出 graph 文件后再试。",
+            text(
+              "保存冲突：请重新导出 graph 文件后再试。",
+              "Save conflict: export the graph file again and retry.",
+            ),
         );
         setSavePreviewRefreshToken((currentValue) => currentValue + 1);
         return;
       }
       if (graphWriteResponse.result === "rejected") {
         setSavePhase("error");
-        setSaveMessage(graphWriteResponse.message || "保存被服务端拒绝。");
+        setSaveMessage(
+          graphWriteResponse.message ||
+            text("保存被服务端拒绝。", "The save was rejected by the server."),
+        );
         setSavePreviewRefreshToken((currentValue) => currentValue + 1);
         return;
       }
@@ -2103,7 +2198,9 @@ export default function GraphViewer({
       setGraphDraft(createInitialGraphDraft(nextBaseGraphBundle));
       setUndoDraftHistory([]);
       setSavePhase("idle");
-      setSaveMessage(graphWriteResponse.message || "已保存。");
+      setSaveMessage(
+        graphWriteResponse.message || text("已保存。", "Saved."),
+      );
       setSavePreviewPhase("idle");
       setSavePreviewMessage("");
       setSavePreviewResponse(null);
@@ -2119,7 +2216,9 @@ export default function GraphViewer({
       <div className="graph-workspace">
         <aside className="graph-toolbar-card graph-toolbar-block">
           <div className="recording-toolbar-row">
-            <span className="chart-toolbar-label">显示模式</span>
+            <span className="chart-toolbar-label">
+              {text("显示模式", "Display Mode")}
+            </span>
             <div className="chip-group">
               {(["serial", "channel"] as GraphDisplayMode[]).map(
                 (modeValue) => (
@@ -2129,14 +2228,19 @@ export default function GraphViewer({
                     className={`metric-chip${displayMode === modeValue ? " is-active" : ""}`}
                     onClick={() => handleDisplayModeChange(modeValue)}
                   >
-                    {modeValue === "serial" ? "序号" : "频道"}
+                    {modeValue === "serial"
+                      ? text("序号", "Serial")
+                      : text("频道", "Channel")}
                   </button>
                 ),
               )}
             </div>
           </div>
           <div className="recording-toolbar-row graph-submode-row">
-            <span className="chart-toolbar-label">{graphModeLabel}内容</span>
+            <span className="chart-toolbar-label">
+              {graphModeLabel}
+              {text("内容", " Content")}
+            </span>
             <div className="chip-group">
               <button
                 type="button"
@@ -2149,14 +2253,14 @@ export default function GraphViewer({
                   setChannelContentMode("topology");
                 }}
               >
-                拓扑
+                {text("拓扑", "Topology")}
               </button>
             </div>
           </div>
           <div className="graph-toolbar-row">
             <div className="graph-search-panel">
               <label className="recording-file-field graph-search-field">
-                <span>搜索节点</span>
+                <span>{text("搜索节点", "Search Nodes")}</span>
                 <input
                   className="graph-search-input"
                   type="text"
@@ -2168,11 +2272,16 @@ export default function GraphViewer({
                       handleApplySearch();
                     }
                   }}
-                  placeholder="按别名、显示名、nodeKey 搜索；序号用 #12，频道用 channel:3"
+                  placeholder={text(
+                    "按别名、显示名、nodeKey 搜索；序号用 #12，频道用 channel:3",
+                    "Search by alias, display name, or nodeKey; use #12 for serial and channel:3 for channels.",
+                  )}
                 />
               </label>
               <div className="graph-search-filter-row">
-                <span className="graph-search-filter-label">类型</span>
+                <span className="graph-search-filter-label">
+                  {text("类型", "Type")}
+                </span>
                 <div className="chip-group">
                   {(
                     ["all", "triggerSource", "core"] as GraphSearchTypeFilter[]
@@ -2183,14 +2292,16 @@ export default function GraphViewer({
                       className={`metric-chip${searchDraftTypeFilter === filterValue ? " is-active" : ""}`}
                       onClick={() => setSearchDraftTypeFilter(filterValue)}
                     >
-                      {formatSearchTypeLabel(filterValue)}
+                      {formatSearchTypeLabel(filterValue, language)}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="graph-search-filter-row">
                 <span className="graph-search-filter-label">
-                  {hasPendingSearchChanges ? "搜索条件未应用" : "搜索条件已应用"}
+                  {hasPendingSearchChanges
+                    ? text("搜索条件未应用", "Search changes not applied")
+                    : text("搜索条件已应用", "Search applied")}
                 </span>
                 <div className="graph-editor-actions">
                   <button
@@ -2199,7 +2310,7 @@ export default function GraphViewer({
                     onClick={handleApplySearch}
                     disabled={!hasPendingSearchChanges}
                   >
-                    应用搜索
+                    {text("应用搜索", "Apply Search")}
                   </button>
                   <button
                     type="button"
@@ -2212,7 +2323,7 @@ export default function GraphViewer({
                       appliedSearchTypeFilter === "all"
                     }
                   >
-                    清空搜索
+                    {text("清空搜索", "Clear Search")}
                   </button>
                 </div>
               </div>
@@ -2225,14 +2336,14 @@ export default function GraphViewer({
                 disabled={undoDraftHistory.length === 0}
                 onClick={handleUndoDraft}
               >
-                撤回草稿
+                {text("撤回草稿", "Undo Draft")}
               </button>
               <button
                 type="button"
                 className="action-button"
                 onClick={handleAutoLayout}
               >
-                重新布局
+                {text("重新布局", "Relayout")}
               </button>
               <button
                 type="button"
@@ -2246,7 +2357,10 @@ export default function GraphViewer({
           </div>
           <div className="recording-toolbar-row">
             <span className="chart-toolbar-label">
-              编辑模式{canEditCurrentView ? "" : "（当前内容不可编辑）"}
+              {text("编辑模式", "Edit Mode")}
+              {canEditCurrentView
+                ? ""
+                : text("（当前内容不可编辑）", " (current content is read-only)")}
             </span>
             <div className="chip-group">
               {availableEditModes.map((modeValue) => (
@@ -2257,7 +2371,7 @@ export default function GraphViewer({
                   onClick={() => handleEditModeChange(modeValue)}
                   disabled={!canEditCurrentView && modeValue !== "view"}
                 >
-                  {formatEditModeLabel(modeValue)}
+                  {formatEditModeLabel(modeValue, language)}
                 </button>
               ))}
             </div>
@@ -2297,16 +2411,22 @@ export default function GraphViewer({
             </div>
           ) : null}
           {draftError ? (
-            <p className="error-text">加载本地 draft 失败：{draftError}</p>
+            <p className="error-text">
+              {text("加载本地 draft 失败：", "Failed to load the local draft: ")}
+              {draftError}
+            </p>
           ) : null}
           {draftPersistError ? (
-            <p className="error-text">写入本地 draft 失败：{draftPersistError}</p>
+            <p className="error-text">
+              {text("写入本地 draft 失败：", "Failed to persist the local draft: ")}
+              {draftPersistError}
+            </p>
           ) : null}
           {hasSearch ? (
             <div className="graph-search-results">
               {matchedNodes.length === 0 ? (
                 <span className="empty-state">
-                  没有命中当前搜索条件的节点。
+                  {text("没有命中当前搜索条件的节点。", "No nodes matched the current search criteria.")}
                 </span>
               ) : (
                 matchedNodes.slice(0, 12).map((node) => (
@@ -2316,7 +2436,7 @@ export default function GraphViewer({
                     className={`graph-search-chip${selectedNodeKey === node.nodeKey ? " is-selected" : ""}`}
                     onClick={() => focusNode(node.nodeKey)}
                   >
-                    {buildSearchResultLabel(node)}
+                    {buildSearchResultLabel(node, language)}
                   </button>
                 ))
               )}
@@ -2335,7 +2455,7 @@ export default function GraphViewer({
             </div>
             <dl className="graph-inline-stats">
               <div>
-                <dt>{displayMode === "serial" ? "Nodes" : "Mode Nodes"}</dt>
+                <dt>{displayMode === "serial" ? "Nodes" : text("模式节点", "Mode Nodes")}</dt>
                 <dd>
                   {displayMode === "serial"
                     ? effectiveGraphBundle.stats.nodeCount
@@ -2343,11 +2463,11 @@ export default function GraphViewer({
                 </dd>
               </div>
               <div>
-                <dt>Canvas</dt>
+                <dt>{text("画布", "Canvas")}</dt>
                 <dd>{graphCanvasView.canvasNodes.length}</dd>
               </div>
               <div>
-                <dt>{displayMode === "serial" ? "Edges" : "Virtual Edges"}</dt>
+                <dt>{displayMode === "serial" ? "Edges" : text("虚拟边", "Virtual Edges")}</dt>
                 <dd>
                   {displayMode === "serial"
                     ? effectiveGraphBundle.edges.length
@@ -2356,7 +2476,9 @@ export default function GraphViewer({
               </div>
               <div>
                 <dt>
-                  {displayMode === "serial" ? "Groups" : "Channels / Groups"}
+                  {displayMode === "serial"
+                    ? text("聚合块", "Groups")
+                    : text("频道 / 聚合块", "Channels / Groups")}
                 </dt>
                 <dd>
                   {displayMode === "serial"
@@ -2365,7 +2487,7 @@ export default function GraphViewer({
                 </dd>
               </div>
               <div>
-                <dt>Revision</dt>
+                <dt>{text("版本", "Revision")}</dt>
                 <dd>{baseGraphBundle.graphRevision}</dd>
               </div>
             </dl>
@@ -2406,17 +2528,25 @@ export default function GraphViewer({
           >
             {draftLoading ? (
               <div className="graph-empty-overlay">
-                <p className="empty-state">正在加载 graph draft...</p>
+                <p className="empty-state">
+                  {text("正在加载 graph draft...", "Loading graph draft...")}
+                </p>
               </div>
             ) : null}
             {!draftLoading && !hasCanvasNodes ? (
               <div className="graph-empty-overlay">
                 <p className="empty-state">
                   {displayMode === "channel"
-                    ? "当前没有可展示的频道模式节点；仅 connectionMode=channel 且 channel>0 的节点会进入该视图。"
+                    ? text(
+                        "当前没有可展示的频道模式节点；仅 connectionMode=channel 且 channel>0 的节点会进入该视图。",
+                        "There are no channel-mode nodes to display; only nodes with connectionMode=channel and channel>0 enter this view.",
+                      )
                     : effectiveGraphBundle.nodes.length === 0
-                      ? "当前图快照没有可展示节点。"
-                      : "当前主画布没有默认可展示的拓扑块，可在右侧孤立节点池中选择节点。"}
+                      ? text("当前图快照没有可展示节点。", "The current graph snapshot has no displayable nodes.")
+                      : text(
+                          "当前主画布没有默认可展示的拓扑块，可在右侧孤立节点池中选择节点。",
+                          "The main canvas has no topology blocks visible by default. Pick nodes from the isolated pool on the right.",
+                        )}
                 </p>
               </div>
             ) : null}
@@ -2492,9 +2622,11 @@ export default function GraphViewer({
         <aside className="graph-detail-card">
           <header className="card-header graph-detail-card-header">
             <div>
-              <span className="section-tag">Details</span>
+              <span className="section-tag">{text("详情", "Details")}</span>
               <h2>
-                {displayMode === "serial" ? "节点详情与编辑" : "频道视图详情"}
+                {displayMode === "serial"
+                  ? text("节点详情与编辑", "Node Details and Editing")
+                  : text("频道视图详情", "Channel View Details")}
               </h2>
             </div>
             <div className="chip-group graph-detail-tabs">
@@ -2515,14 +2647,19 @@ export default function GraphViewer({
             <section className="graph-isolated-panel">
               <div className="graph-isolated-panel-header">
                 <div>
-                  <strong>孤立节点池</strong>
+                  <strong>{text("孤立节点池", "Isolated Node Pool")}</strong>
                   <p className="graph-batch-editor-caption">
-                    默认不进入主画布。点击后会临时拉回画布并聚焦；搜索、草稿差异和编辑选择也会强制显示。
+                    {text(
+                      "默认不进入主画布。点击后会临时拉回画布并聚焦；搜索、草稿差异和编辑选择也会强制显示。",
+                      "Nodes here do not enter the main canvas by default. Clicking them temporarily reveals and focuses them; search hits, draft diffs, and edit selections also force them visible.",
+                    )}
                   </p>
                 </div>
                 <div className="graph-isolated-panel-actions">
                   <span className="graph-isolated-panel-count">
-                    当前临时显示 {pinnedIsolatedNodeCount} 个
+                    {text("当前临时显示 ", "Temporarily visible: ")}
+                    {pinnedIsolatedNodeCount}
+                    {text(" 个", "")}
                   </span>
                   <button
                     type="button"
@@ -2530,7 +2667,7 @@ export default function GraphViewer({
                     disabled={pinnedIsolatedNodeCount === 0}
                     onClick={handleClearPinnedIsolatedNodes}
                   >
-                    清空临时显示
+                    {text("清空临时显示", "Clear Temporary Reveal")}
                   </button>
                 </div>
               </div>
@@ -2539,13 +2676,14 @@ export default function GraphViewer({
                   <div className="graph-target-editor-header">
                     <strong>Isolated TriggerSources</strong>
                     <span>
-                      数量 {graphCanvasView.isolatedTriggerSourceNodes.length}
+                      {text("数量 ", "Count ")}
+                      {graphCanvasView.isolatedTriggerSourceNodes.length}
                     </span>
                   </div>
                   <div className="graph-target-list">
                     {graphCanvasView.isolatedTriggerSourceNodes.length === 0 ? (
                       <p className="empty-state">
-                        当前没有孤立的 triggerSource。
+                        {text("当前没有孤立的 triggerSource。", "There are no isolated triggerSources.")}
                       </p>
                     ) : (
                       graphCanvasView.isolatedTriggerSourceNodes.map(
@@ -2568,11 +2706,14 @@ export default function GraphViewer({
                 <section className="graph-target-editor">
                   <div className="graph-target-editor-header">
                     <strong>Isolated Cores</strong>
-                    <span>数量 {graphCanvasView.isolatedCoreNodes.length}</span>
+                    <span>
+                      {text("数量 ", "Count ")}
+                      {graphCanvasView.isolatedCoreNodes.length}
+                    </span>
                   </div>
                   <div className="graph-target-list">
                     {graphCanvasView.isolatedCoreNodes.length === 0 ? (
-                      <p className="empty-state">当前没有孤立的 core。</p>
+                      <p className="empty-state">{text("当前没有孤立的 core。", "There are no isolated cores.")}</p>
                     ) : (
                       graphCanvasView.isolatedCoreNodes.map((isolatedNode) => (
                         <button
@@ -2597,23 +2738,28 @@ export default function GraphViewer({
             <section className="graph-isolated-panel">
               <div className="graph-isolated-panel-header">
                 <div>
-                  <strong>另一模式节点池</strong>
+                  <strong>{text("另一模式节点池", "Other-mode Node Pool")}</strong>
                   <p className="graph-batch-editor-caption">
                     {crossModePoolCaption}
                   </p>
                   <p className="graph-batch-editor-caption">
                     {crossModeContinueHint}
                   </p>
+                  <p className="graph-batch-editor-caption">
+                    {crossModeSaveHint}
+                  </p>
                 </div>
                 <div className="graph-isolated-panel-actions">
                   <span className="graph-isolated-panel-count">
-                    当前待应用 {selectedCrossModeNodeKeys.length} 个
+                    {text("当前待应用 ", "Pending apply: ")}
+                    {selectedCrossModeNodeKeys.length}
+                    {text(" 个", "")}
                   </span>
                 </div>
               </div>
               {displayMode === "channel" ? (
                 <label className="graph-editor-field">
-                  <span>迁入目标频道号</span>
+                  <span>{text("迁入目标频道号", "Target Channel")}</span>
                   <input
                     className="graph-editor-input"
                     type="number"
@@ -2623,7 +2769,7 @@ export default function GraphViewer({
                     onChange={(event) =>
                       setChannelBatchDraftValue(event.target.value)
                     }
-                    placeholder="输入 > 0 的整数"
+                    placeholder={text("输入 > 0 的整数", "Enter an integer > 0")}
                   />
                 </label>
               ) : null}
@@ -2631,12 +2777,15 @@ export default function GraphViewer({
                 <section className="graph-target-editor">
                   <div className="graph-target-editor-header">
                     <strong>Other-mode TriggerSources</strong>
-                    <span>数量 {crossModeTriggerSourceNodes.length}</span>
+                    <span>
+                      {text("数量 ", "Count ")}
+                      {crossModeTriggerSourceNodes.length}
+                    </span>
                   </div>
                   <div className="graph-target-list">
                     {crossModeTriggerSourceNodes.length === 0 ? (
                       <p className="empty-state">
-                        当前没有另一模式的 triggerSource。
+                        {text("当前没有另一模式的 triggerSource。", "There are no triggerSources in the other mode.")}
                       </p>
                     ) : (
                       crossModeTriggerSourceNodes.map((graphNode) => (
@@ -2657,12 +2806,15 @@ export default function GraphViewer({
                 <section className="graph-target-editor">
                   <div className="graph-target-editor-header">
                     <strong>Other-mode Cores</strong>
-                    <span>数量 {crossModeCoreNodes.length}</span>
+                    <span>
+                      {text("数量 ", "Count ")}
+                      {crossModeCoreNodes.length}
+                    </span>
                   </div>
                   <div className="graph-target-list">
                     {crossModeCoreNodes.length === 0 ? (
                       <p className="empty-state">
-                        当前没有另一模式的 core。
+                        {text("当前没有另一模式的 core。", "There are no cores in the other mode.")}
                       </p>
                     ) : (
                       crossModeCoreNodes.map((graphNode) => (
@@ -2688,7 +2840,7 @@ export default function GraphViewer({
                   onClick={handleClearCrossModeSelection}
                   disabled={selectedCrossModeNodeKeys.length === 0}
                 >
-                  清空选择
+                  {text("清空选择", "Clear Selection")}
                 </button>
                 <button
                   type="button"
@@ -2696,7 +2848,7 @@ export default function GraphViewer({
                   disabled={!canApplyCrossModeDraft}
                   onClick={handleApplyCrossModeDraft}
                 >
-                  应用到草稿
+                  {text("应用到草稿", "Apply to Draft")}
                 </button>
               </div>
             </section>
@@ -2707,15 +2859,21 @@ export default function GraphViewer({
               displayMode === "channel" ? (
                 <section className="graph-batch-editor">
                   <div className="graph-batch-editor-header">
-                    <strong>频道覆盖编辑</strong>
-                    <span>已选节点 {selectedEditChannelNodeKeys.length} 个</span>
+                    <strong>{text("频道覆盖编辑", "Channel Overwrite Edit")}</strong>
+                    <span>
+                      {text("已选节点 ", "Selected nodes: ")}
+                      {selectedEditChannelNodeKeys.length}
+                      {text(" 个", "")}
+                    </span>
                   </div>
                   <p className="graph-batch-editor-caption">
-                    在频道模式下，批量编辑按“节点到频道号”的覆盖语义处理；输入
-                    `0` 表示移出频道。
+                    {text(
+                      "在频道模式下，批量编辑按“节点到频道号”的覆盖语义处理；输入 `0` 表示移出频道。",
+                      "In channel mode, batch editing uses overwrite semantics from nodes to a channel id; enter `0` to remove nodes from the channel.",
+                    )}
                   </p>
                   <label className="graph-editor-field">
-                    <span>目标频道号</span>
+                    <span>{text("目标频道号", "Target Channel")}</span>
                     <input
                       className="graph-editor-input"
                       type="number"
@@ -2725,7 +2883,7 @@ export default function GraphViewer({
                       onChange={(event) =>
                         setChannelBatchDraftValue(event.target.value)
                       }
-                      placeholder="输入 >= 0 的整数"
+                      placeholder={text("输入 >= 0 的整数", "Enter an integer >= 0")}
                     />
                   </label>
                   <div className="graph-batch-selection-grid">
@@ -2733,12 +2891,15 @@ export default function GraphViewer({
                       <div className="graph-target-editor-header">
                         <strong>Selected Nodes</strong>
                         <span>
-                          点击或框选 triggerSource/core，`Ctrl/Shift` 可追加多选。
+                          {text(
+                            "点击或框选 triggerSource/core，`Ctrl/Shift` 可追加多选。",
+                            "Click or box-select triggerSources/cores. Use `Ctrl/Shift` to append to the selection.",
+                          )}
                         </span>
                       </div>
                       <div className="graph-target-list">
                         {selectedEditChannelNodes.length === 0 ? (
-                          <p className="empty-state">当前还没有选中节点。</p>
+                          <p className="empty-state">{text("当前还没有选中节点。", "No nodes are selected yet.")}</p>
                         ) : (
                           selectedEditChannelNodes.map((graphNode) => (
                             <button
@@ -2760,7 +2921,7 @@ export default function GraphViewer({
                       className="action-button"
                       onClick={handleClearBatchSelection}
                     >
-                      清空选择
+                      {text("清空选择", "Clear Selection")}
                     </button>
                     <button
                       type="button"
@@ -2768,26 +2929,33 @@ export default function GraphViewer({
                       disabled={!canApplyBatchEdit}
                       onClick={handleApplyBatchEdit}
                     >
-                      应用到草稿
+                      {text("应用到草稿", "Apply to Draft")}
                     </button>
                   </div>
                 </section>
               ) : (
                 <section className="graph-batch-editor">
                   <div className="graph-batch-editor-header">
-                    <strong>{formatEditModeLabel(editMode)} 批量拓扑编辑</strong>
+                    <strong>
+                      {formatEditModeLabel(editMode, language)} {text("批量拓扑编辑", "Batch Topology Edit")}
+                    </strong>
                     <span>
-                      已选来源 {selectedEditSourceSerials.length} 个 / 目标{" "}
-                      {selectedEditTargetSerials.length} 个
+                      {text("已选来源 ", "Selected sources: ")}
+                      {selectedEditSourceSerials.length}
+                      {text(" 个 / 目标 ", " / targets: ")}
+                      {selectedEditTargetSerials.length}
+                      {text(" 个", "")}
                     </span>
                   </div>
                   <p className="graph-batch-editor-caption">
-                    {formatEditModeInstruction(editMode)}
+                    {formatEditModeInstruction(editMode, language)}
                   </p>
                   {editMode === "replace" ? (
                     <p className="graph-batch-editor-caption">
-                      `replace` 模式允许来源集合为空目标，应用后可直接清空这些
-                      triggerSource 的全部连接。
+                      {text(
+                        "`replace` 模式允许来源集合为空目标，应用后可直接清空这些 triggerSource 的全部连接。",
+                        "In `replace` mode, the source set may keep an empty target set, which clears all links of those triggerSources after applying.",
+                      )}
                     </p>
                   ) : null}
                   <div className="graph-batch-selection-grid">
@@ -2795,12 +2963,15 @@ export default function GraphViewer({
                       <div className="graph-target-editor-header">
                         <strong>Selected TriggerSources</strong>
                         <span>
-                          点击或框选 triggerSource，`Ctrl/Shift` 可追加多选。
+                          {text(
+                            "点击或框选 triggerSource，`Ctrl/Shift` 可追加多选。",
+                            "Click or box-select triggerSources. Use `Ctrl/Shift` to append to the selection.",
+                          )}
                         </span>
                       </div>
                       <div className="graph-target-list">
                         {selectedEditSourceNodes.length === 0 ? (
-                          <p className="empty-state">当前还没有选中来源节点。</p>
+                          <p className="empty-state">{text("当前还没有选中来源节点。", "No source nodes are selected yet.")}</p>
                         ) : (
                           selectedEditSourceNodes.map((sourceNode) => (
                             <button
@@ -2818,11 +2989,16 @@ export default function GraphViewer({
                     <section className="graph-target-editor">
                       <div className="graph-target-editor-header">
                         <strong>Selected Cores</strong>
-                        <span>点击或框选 core，`Ctrl/Shift` 可追加多选。</span>
+                        <span>
+                          {text(
+                            "点击或框选 core，`Ctrl/Shift` 可追加多选。",
+                            "Click or box-select cores. Use `Ctrl/Shift` to append to the selection.",
+                          )}
+                        </span>
                       </div>
                       <div className="graph-target-list">
                         {selectedEditTargetNodes.length === 0 ? (
-                          <p className="empty-state">当前还没有选中目标节点。</p>
+                          <p className="empty-state">{text("当前还没有选中目标节点。", "No target nodes are selected yet.")}</p>
                         ) : (
                           selectedEditTargetNodes.map((targetNode) => (
                             <button
@@ -2844,7 +3020,7 @@ export default function GraphViewer({
                       className="action-button"
                       onClick={handleClearBatchSelection}
                     >
-                      清空选择
+                      {text("清空选择", "Clear Selection")}
                     </button>
                     <button
                       type="button"
@@ -2852,14 +3028,17 @@ export default function GraphViewer({
                       disabled={!canApplyBatchEdit}
                       onClick={handleApplyBatchEdit}
                     >
-                      应用到草稿
+                      {text("应用到草稿", "Apply to Draft")}
                     </button>
                   </div>
                 </section>
               )
             ) : (
               <p className="empty-state graph-detail-empty">
-                当前视图还没有进入可编辑状态。切换到 `replace`，这里会显示批量编辑面板。
+                {text(
+                  "当前视图还没有进入可编辑状态。切换到 `replace`，这里会显示批量编辑面板。",
+                  "The current view is not in an editable state yet. Switch to `replace` and the batch editing panel will appear here.",
+                )}
               </p>
             )
           ) : null}
@@ -2867,7 +3046,10 @@ export default function GraphViewer({
           {activeSidebarPanel === "details" ? (
             !selectedCanvasNode ? (
               <p className="empty-state graph-detail-empty">
-                点击图中的一个节点或频道块后，这里会显示当前模式下的结构信息。
+                {text(
+                  "点击图中的一个节点或频道块后，这里会显示当前模式下的结构信息。",
+                  "Click a node or channel block in the graph to show structural information for the current mode here.",
+                )}
               </p>
             ) : selectedCanvasNode.kind === "channelHub" ? (
               <div className="graph-detail-section">
@@ -2913,12 +3095,12 @@ export default function GraphViewer({
                   <section className="graph-target-editor">
                     <div className="graph-target-editor-header">
                       <strong>Channel TriggerSources</strong>
-                      <span>当前频道下的来源节点。</span>
+                      <span>{text("当前频道下的来源节点。", "Source nodes in the current channel.")}</span>
                     </div>
                     <div className="graph-target-list">
                       {selectedChannelTriggerSourceNodes.length === 0 ? (
                         <p className="empty-state">
-                          当前频道下没有 triggerSource。
+                          {text("当前频道下没有 triggerSource。", "There are no triggerSources in the current channel.")}
                         </p>
                       ) : (
                         selectedChannelTriggerSourceNodes.map((sourceNode) => (
@@ -2937,11 +3119,11 @@ export default function GraphViewer({
                   <section className="graph-target-editor">
                     <div className="graph-target-editor-header">
                       <strong>Channel Cores</strong>
-                      <span>当前频道下的目标节点。</span>
+                      <span>{text("当前频道下的目标节点。", "Target nodes in the current channel.")}</span>
                     </div>
                     <div className="graph-target-list">
                       {selectedChannelCoreNodes.length === 0 ? (
-                        <p className="empty-state">当前频道下没有 core。</p>
+                        <p className="empty-state">{text("当前频道下没有 core。", "There are no cores in the current channel.")}</p>
                       ) : (
                         selectedChannelCoreNodes.map((coreNode) => (
                           <button
@@ -2964,7 +3146,10 @@ export default function GraphViewer({
                   <p className="eyebrow">
                     {selectedCanvasNode.aggregateRole} aggregate
                   </p>
-                  <h3>{selectedCanvasNode.memberCount} 个聚合成员</h3>
+                  <h3>
+                    {selectedCanvasNode.memberCount}
+                    {text(" 个聚合成员", " aggregate members")}
+                  </h3>
                   <p className="graph-detail-caption">
                     {selectedCanvasNode.nodeKey}
                   </p>
@@ -3002,13 +3187,15 @@ export default function GraphViewer({
                     <div className="graph-target-editor-header">
                       <strong>Connected Nodes</strong>
                       <span>
-                        与该聚合块保持可见关系的连接对象；频道模式下这里会显示
-                        channelHub。
+                        {text(
+                          "与该聚合块保持可见关系的连接对象；频道模式下这里会显示 channelHub。",
+                          "Connected objects that keep a visible relationship with this aggregate block; channel mode shows channelHub here.",
+                        )}
                       </span>
                     </div>
                     <div className="graph-target-list">
                       {selectedAggregateConnectedCanvasNodes.length === 0 ? (
-                        <p className="empty-state">当前没有已连接节点。</p>
+                        <p className="empty-state">{text("当前没有已连接节点。", "There are no connected nodes.")}</p>
                       ) : (
                         selectedAggregateConnectedCanvasNodes.map(
                           (canvasNode) => (
@@ -3028,11 +3215,11 @@ export default function GraphViewer({
                   <section className="graph-target-editor">
                     <div className="graph-target-editor-header">
                       <strong>Member Nodes</strong>
-                      <span>聚合块代表的真实成员节点。</span>
+                      <span>{text("聚合块代表的真实成员节点。", "Real member nodes represented by this aggregate block.")}</span>
                     </div>
                     <div className="graph-target-list">
                       {selectedAggregateMemberNodes.length === 0 ? (
-                        <p className="empty-state">当前没有成员节点。</p>
+                        <p className="empty-state">{text("当前没有成员节点。", "There are no member nodes.")}</p>
                       ) : (
                         selectedAggregateMemberNodes.map((graphNode) => (
                           <button
@@ -3069,7 +3256,7 @@ export default function GraphViewer({
                         onChange={(event) =>
                           setAliasDraftValue(event.target.value)
                         }
-                        placeholder="输入节点别名，留空则清空"
+                        placeholder={text("输入节点别名，留空则清空", "Enter a node alias; leave empty to clear it")}
                       />
                     </label>
                     <div className="graph-batch-action-row">
@@ -3079,7 +3266,7 @@ export default function GraphViewer({
                         disabled={!hasPendingAliasDraft}
                         onClick={handleApplyAliasDraft}
                       >
-                        应用到草稿
+                        {text("应用到草稿", "Apply to Draft")}
                       </button>
                     </div>
                   </>
@@ -3108,15 +3295,13 @@ export default function GraphViewer({
                   <div>
                     <dt>Allocated</dt>
                     <dd>
-                      {selectedCanvasNode.graphNode.allocated
-                        ? "true"
-                        : "false"}
+                      {booleanText(selectedCanvasNode.graphNode.allocated)}
                     </dd>
                   </div>
                   <div>
                     <dt>Retired</dt>
                     <dd>
-                      {selectedCanvasNode.graphNode.retired ? "true" : "false"}
+                      {booleanText(selectedCanvasNode.graphNode.retired)}
                     </dd>
                   </div>
                   <div>
@@ -3138,13 +3323,13 @@ export default function GraphViewer({
                   <div className="graph-batch-selection-grid">
                     <section className="graph-target-editor">
                       <div className="graph-target-editor-header">
-                        <strong>同频道 TriggerSources</strong>
-                        <span>当前节点所在频道的来源节点。</span>
+                        <strong>{text("同频道 TriggerSources", "Same-channel TriggerSources")}</strong>
+                        <span>{text("当前节点所在频道的来源节点。", "Source nodes in the same channel as the current node.")}</span>
                       </div>
                       <div className="graph-target-list">
                         {selectedChannelTriggerSourceNodes.length === 0 ? (
                           <p className="empty-state">
-                            当前频道下没有 triggerSource。
+                            {text("当前频道下没有 triggerSource。", "There are no triggerSources in the current channel.")}
                           </p>
                         ) : (
                           selectedChannelTriggerSourceNodes.map(
@@ -3164,12 +3349,12 @@ export default function GraphViewer({
                     </section>
                     <section className="graph-target-editor">
                       <div className="graph-target-editor-header">
-                        <strong>同频道 Cores</strong>
-                        <span>当前节点所在频道的目标节点。</span>
+                        <strong>{text("同频道 Cores", "Same-channel Cores")}</strong>
+                        <span>{text("当前节点所在频道的目标节点。", "Target nodes in the same channel as the current node.")}</span>
                       </div>
                       <div className="graph-target-list">
                         {selectedChannelCoreNodes.length === 0 ? (
-                          <p className="empty-state">当前频道下没有 core。</p>
+                          <p className="empty-state">{text("当前频道下没有 core。", "There are no cores in the current channel.")}</p>
                         ) : (
                           selectedChannelCoreNodes.map((coreNode) => (
                             <button

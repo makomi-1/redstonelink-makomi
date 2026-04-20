@@ -11,6 +11,7 @@ import {
   zoomRecordingWindowAt,
 } from '../recordingTypes';
 import type { WebThemeId } from '../app/theme';
+import { pickLocalizedText, type AppLanguage } from '../app/i18n';
 
 type RecordingSample = {
   tick: number;
@@ -19,6 +20,7 @@ type RecordingSample = {
 };
 
 type RecordingChartProps = {
+  language: AppLanguage;
   nodeSeriesGroups: RecordingChartNodeSeriesGroup[];
   startedTick: number;
   xMode: RecordingXAxisMode;
@@ -52,6 +54,7 @@ const WHEEL_ZOOM_FACTOR = 0.82;
  * </p>
  */
 export default function RecordingChart({
+  language,
   nodeSeriesGroups,
   startedTick,
   xMode,
@@ -63,6 +66,8 @@ export default function RecordingChart({
   onWindowChange,
   onResetWindow,
 }: RecordingChartProps) {
+  const text = (chineseText: string, englishText: string) =>
+    pickLocalizedText(language, chineseText, englishText);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
@@ -80,12 +85,12 @@ export default function RecordingChart({
   );
   const emptyStateMessage =
     nodeSeriesGroups.length === 0
-      ? '请先在左侧选择 1~5 个节点。'
+      ? text('请先在左侧选择 1~5 个节点。', 'Select 1 to 5 nodes on the left first.')
       : visibleMetrics.length === 0
-        ? '请至少启用一条功率曲线。'
+        ? text('请至少启用一条功率曲线。', 'Enable at least one power series.')
         : chartNodeSeriesGroups.length === 0
-          ? '当前已选节点暂无样本。'
-        : '';
+          ? text('当前已选节点暂无样本。', 'The selected nodes have no samples.')
+          : '';
 
   useEffect(() => {
     currentWindowRef.current = xWindow;
@@ -144,7 +149,7 @@ export default function RecordingChart({
     const data: uPlot.AlignedData = [xValues];
     const series: uPlot.Series[] = [
       {
-        label: xMode === 'relative' ? 'Tick Δ' : 'Tick',
+        label: xMode === 'relative' ? text('Tick 差值', 'Tick Δ') : 'Tick',
       },
     ];
     const seriesPathBuilder = resolveSeriesPathBuilder(renderMode);
@@ -208,14 +213,14 @@ export default function RecordingChart({
         series,
         axes: [
           {
-            label: xMode === 'relative' ? 'Tick Δ' : 'Tick',
+            label: xMode === 'relative' ? text('Tick 差值', 'Tick Δ') : 'Tick',
             stroke: axisStroke,
             grid: {
               stroke: gridStroke,
             },
           },
           {
-            label: 'Power',
+            label: text('功率', 'Power'),
             stroke: axisStroke,
             grid: {
               stroke: gridStroke,
@@ -242,6 +247,7 @@ export default function RecordingChart({
   }, [
     chartNodeSeriesGroups,
     chartWidth,
+    language,
     renderMode,
     startedTick,
     themeId,

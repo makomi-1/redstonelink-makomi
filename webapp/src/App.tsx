@@ -1,14 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import GraphPage from './app/GraphPage';
 import RecordingPage from './app/RecordingPage';
 import { buildAppHref, buildEntryKey, parseAppLocation } from './app/location';
+import {
+  fetchWebPreferences,
+  saveWebPreferences,
+} from './app/preferencesApi';
 import {
   fetchBridgeStatus,
   fetchStorageEntry,
   fetchStorageIndex,
   findStorageEntry,
 } from './app/storageApi';
-import { DEFAULT_WEB_THEME_ID, type WebThemeId } from './app/theme';
+import {
+  DEFAULT_APP_LANGUAGE,
+  isAppLanguage,
+  pickLocalizedText,
+  type AppLanguage,
+} from './app/i18n';
+import {
+  DEFAULT_WEB_THEME_ID,
+  isWebThemeId,
+  type WebThemeId,
+} from './app/theme';
 import type {
   AppLocation,
   StorageEntryPayload,
@@ -25,6 +39,8 @@ import { parseRecordingBundle } from './recordingTypes';
  */
 export default function App() {
   const [appLocation, setAppLocation] = useState<AppLocation>(() => parseAppLocation());
+  const [currentLanguage, setCurrentLanguage] =
+    useState<AppLanguage>(DEFAULT_APP_LANGUAGE);
   const [currentThemeId, setCurrentThemeId] =
     useState<WebThemeId>(DEFAULT_WEB_THEME_ID);
   const [graphPageDirty, setGraphPageDirty] = useState(false);
@@ -42,8 +58,15 @@ export default function App() {
   const [graphSelectedEntry, setGraphSelectedEntry] = useState<StorageEntryPayload | null>(null);
   const [graphEntryError, setGraphEntryError] = useState<string>('');
   const [graphEntryLoading, setGraphEntryLoading] = useState(false);
+  const currentLanguageRef = useRef<AppLanguage>(DEFAULT_APP_LANGUAGE);
+  const currentThemeIdRef = useRef<WebThemeId>(DEFAULT_WEB_THEME_ID);
+  const preferencesSaveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
 
-  const bridgeStateLabel = bridgeLoading ? '连接中' : bridgeError ? '未连接' : '已连接';
+  const bridgeStateLabel = bridgeLoading
+    ? pickLocalizedText(currentLanguage, '连接中', 'Connecting')
+    : bridgeError
+      ? pickLocalizedText(currentLanguage, '未连接', 'Disconnected')
+      : pickLocalizedText(currentLanguage, '已连接', 'Connected');
   const bridgeStateClassName = bridgeLoading
     ? 'status-pill is-waiting'
     : bridgeError
@@ -87,7 +110,16 @@ export default function App() {
   useEffect(() => {
     void loadBridgeStatus();
     void loadStorageIndexState();
+    void loadPreferencesState();
   }, []);
+
+  useEffect(() => {
+    currentLanguageRef.current = currentLanguage;
+  }, [currentLanguage]);
+
+  useEffect(() => {
+    currentThemeIdRef.current = currentThemeId;
+  }, [currentThemeId]);
 
   useEffect(() => {
     if (appLocation.page !== 'graph') {
@@ -104,7 +136,13 @@ export default function App() {
       if (!targetEntry) {
         setRecordingSelectedEntry(null);
         setRecordingSelectedEntryKey('');
-        setRecordingEntryError(`未找到指定 recording 文件：${appLocation.fileName}`);
+        setRecordingEntryError(
+          pickLocalizedText(
+            currentLanguage,
+            `未找到指定 recording 文件：${appLocation.fileName}`,
+            `Requested recording file was not found: ${appLocation.fileName}`,
+          ),
+        );
         return;
       }
       const targetKey = buildEntryKey(targetEntry.kind, targetEntry.fileName);
@@ -116,7 +154,7 @@ export default function App() {
     setRecordingSelectedEntry(null);
     setRecordingSelectedEntryKey('');
     setRecordingEntryError('');
-  }, [appLocation, recordingSelectedEntryKey, storageIndex]);
+  }, [appLocation, currentLanguage, recordingSelectedEntryKey, storageIndex]);
 
   useEffect(() => {
     if (!storageIndex || appLocation.page !== 'graph') {
@@ -127,7 +165,13 @@ export default function App() {
       if (!targetEntry) {
         setGraphSelectedEntry(null);
         setGraphSelectedEntryKey('');
-        setGraphEntryError(`未找到指定 graph 文件：${appLocation.fileName}`);
+        setGraphEntryError(
+          pickLocalizedText(
+            currentLanguage,
+            `未找到指定 graph 文件：${appLocation.fileName}`,
+            `Requested graph file was not found: ${appLocation.fileName}`,
+          ),
+        );
         return;
       }
       const targetKey = buildEntryKey(targetEntry.kind, targetEntry.fileName);
@@ -139,7 +183,7 @@ export default function App() {
     setGraphSelectedEntry(null);
     setGraphSelectedEntryKey('');
     setGraphEntryError('');
-  }, [appLocation, graphSelectedEntryKey, storageIndex]);
+  }, [appLocation, currentLanguage, graphSelectedEntryKey, storageIndex]);
 
   async function loadBridgeStatus() {
     try {
@@ -166,6 +210,24 @@ export default function App() {
     }
   }
 
+  async function loadPreferencesState() {
+    try {
+      const preferencesPayload = await fetchWebPreferences();
+      const nextLanguage = isAppLanguage(preferencesPayload.language)
+        ? preferencesPayload.language
+        : DEFAULT_APP_LANGUAGE;
+      const nextThemeId = isWebThemeId(preferencesPayload.themeId)
+        ? preferencesPayload.themeId
+        : DEFAULT_WEB_THEME_ID;
+      currentLanguageRef.current = nextLanguage;
+      currentThemeIdRef.current = nextThemeId;
+      setCurrentLanguage(nextLanguage);
+      setCurrentThemeId(nextThemeId);
+    } catch (error) {
+      console.warn('Failed to load web preferences, using defaults.', error);
+    }
+  }
+
   async function loadRecordingEntry(fileName: string) {
     try {
       setRecordingEntryLoading(true);
@@ -178,6 +240,27 @@ export default function App() {
     } finally {
       setRecordingEntryLoading(false);
     }
+  }
+
+  function enqueuePreferencesSave(nextLanguage: AppLanguage, nextThemeId: WebThemeId) {
+    preferencesSaveQueueRef.current = preferencesSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveWebPreferences(nextLanguage, nextThemeId))
+      .catch((error) => {
+        console.warn('Failed to persist web preferences.', error);
+      });
+  }
+
+  function handleLanguageChange(nextLanguage: AppLanguage) {
+    currentLanguageRef.current = nextLanguage;
+    setCurrentLanguage(nextLanguage);
+    enqueuePreferencesSave(nextLanguage, currentThemeIdRef.current);
+  }
+
+  function handleThemeChange(nextThemeId: WebThemeId) {
+    currentThemeIdRef.current = nextThemeId;
+    setCurrentThemeId(nextThemeId);
+    enqueuePreferencesSave(currentLanguageRef.current, nextThemeId);
   }
 
   async function loadGraphEntry(fileName: string) {
@@ -219,7 +302,13 @@ export default function App() {
 
   function handleGraphFileChange(fileName: string) {
     if (graphPageDirty && typeof window !== 'undefined') {
-      const confirmed = window.confirm('当前 graph 页面有未保存修改，切换文件会丢失本地草稿，是否继续？');
+      const confirmed = window.confirm(
+        pickLocalizedText(
+          currentLanguage,
+          '当前 graph 页面有未保存修改，切换文件会丢失本地草稿，是否继续？',
+          'The current graph page has unsaved local changes. Switching files will discard the local draft. Continue?',
+        ),
+      );
       if (!confirmed) {
         return;
       }
@@ -240,7 +329,9 @@ export default function App() {
         bridgeError={bridgeError}
         bridgeStateClassName={bridgeStateClassName}
         bridgeStateLabel={bridgeStateLabel}
-        onThemeChange={setCurrentThemeId}
+        currentLanguage={currentLanguage}
+        onThemeChange={handleThemeChange}
+        onLanguageChange={handleLanguageChange}
         onRecordingFileChange={handleRecordingFileChange}
         onRefreshStorageIndex={() => void loadStorageIndexState()}
         recordingBundle={recordingBundle}
@@ -261,6 +352,7 @@ export default function App() {
       bridgeError={bridgeError}
       bridgeStateClassName={bridgeStateClassName}
       bridgeStateLabel={bridgeStateLabel}
+      currentLanguage={currentLanguage}
       graphBundle={graphBundle}
       graphEntries={graphEntries}
       graphEntryError={graphEntryError}
@@ -269,8 +361,9 @@ export default function App() {
       graphSelectedEntry={graphSelectedEntry}
       onDirtyStateChange={setGraphPageDirty}
       onGraphFileChange={handleGraphFileChange}
+      onLanguageChange={handleLanguageChange}
       onRefreshStorageIndex={() => void loadStorageIndexState()}
-      onThemeChange={setCurrentThemeId}
+      onThemeChange={handleThemeChange}
       selectedFileName={appLocation.fileName}
       storageError={storageError}
       storageLoading={storageLoading}

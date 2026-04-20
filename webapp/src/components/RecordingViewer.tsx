@@ -14,6 +14,7 @@ import {
   resolveDisplayTick,
 } from '../recordingTypes';
 import type { WebThemeId } from '../app/theme';
+import { pickLocalizedText, type AppLanguage } from '../app/i18n';
 
 const DEFAULT_VISIBLE_METRICS: RecordingMetricKey[] = ['inputPower', 'outputPower'];
 const MAX_SELECTED_RECORDING_NODES = 5;
@@ -41,6 +42,7 @@ const RECORDING_NODE_COLORS = [
 ] as const;
 
 type RecordingViewerProps = {
+  language: AppLanguage;
   recordingBundle: RecordingBundle;
   themeId: WebThemeId;
 };
@@ -53,9 +55,12 @@ type RecordingViewerProps = {
  * </p>
  */
 export default function RecordingViewer({
+  language,
   recordingBundle,
   themeId,
 }: RecordingViewerProps) {
+  const text = (chineseText: string, englishText: string) =>
+    pickLocalizedText(language, chineseText, englishText);
   const [selectedRecordingNodeKeys, setSelectedRecordingNodeKeys] = useState<string[]>([]);
   const [recordingXAxisMode, setRecordingXAxisMode] =
     useState<RecordingXAxisMode>('relative');
@@ -195,9 +200,9 @@ export default function RecordingViewer({
 
         <article className="recording-summary-card">
           <span className="section-tag">Markers</span>
-          <h3>录制标记</h3>
+          <h3>{text('录制标记', 'Recording Markers')}</h3>
           {recordingBundle.markers.length === 0 ? (
-            <p className="empty-state">当前没有额外标记。</p>
+            <p className="empty-state">{text('当前没有额外标记。', 'There are no extra markers.')}</p>
           ) : (
             <ul className="marker-list">
               {recordingBundle.markers.map((marker) => (
@@ -215,7 +220,9 @@ export default function RecordingViewer({
         <div className="recording-node-list">
           <div className="recording-section-header">
             <span className="section-tag">Nodes</span>
-            <h3>录制节点 ({selectedRecordingNodeKeys.length}/{MAX_SELECTED_RECORDING_NODES})</h3>
+            <h3>
+              {text('录制节点', 'Recording Nodes')} ({selectedRecordingNodeKeys.length}/{MAX_SELECTED_RECORDING_NODES})
+            </h3>
           </div>
           {recordingBundle.nodes.map((node) => {
             const isSelected = selectedRecordingNodeKeys.includes(node.nodeKey);
@@ -242,7 +249,7 @@ export default function RecordingViewer({
         <div className="recording-series-panel">
           <div className="recording-section-header">
             <span className="section-tag">Series</span>
-            <h3>同坐标系节点曲线</h3>
+            <h3>{text('同坐标系节点曲线', 'Shared Axis Node Series')}</h3>
           </div>
           {selectedRecordingNodes.length > 0 ? (
             <dl className="recording-meta-grid">
@@ -286,9 +293,10 @@ export default function RecordingViewer({
             </div>
           ) : null}
           {!fullRecordingDomain || !activeRecordingWindow ? (
-            <p className="empty-state">当前已选节点暂无样本。</p>
+            <p className="empty-state">{text('当前已选节点暂无样本。', 'The currently selected nodes have no samples.')}</p>
           ) : (
             <RecordingSeriesPanel
+              language={language}
               recordingBundle={recordingBundle}
               selectedRecordingSeries={selectedRecordingSeries}
               chartNodeSeriesGroups={chartNodeSeriesGroups}
@@ -312,6 +320,7 @@ export default function RecordingViewer({
 }
 
 type RecordingSeriesPanelProps = {
+  language: AppLanguage;
   recordingBundle: RecordingBundle;
   selectedRecordingSeries: Array<{
     node: RecordingNodeInfo;
@@ -338,6 +347,7 @@ type RecordingSeriesPanelProps = {
 };
 
 function RecordingSeriesPanel({
+  language,
   recordingBundle,
   selectedRecordingSeries,
   chartNodeSeriesGroups,
@@ -353,23 +363,25 @@ function RecordingSeriesPanel({
   onWindowChange,
   onResetWindow,
 }: RecordingSeriesPanelProps) {
+  const text = (chineseText: string, englishText: string) =>
+    pickLocalizedText(language, chineseText, englishText);
   return (
     <>
       <div className="recording-toolbar-block">
-        <RecordingToolbarRow label="横坐标">
+        <RecordingToolbarRow label={text('横坐标', 'X Axis')}>
           <MetricToggleButton
             active={recordingXAxisMode === 'relative'}
-            label="相对 Tick"
+            label={text('相对 Tick', 'Relative Tick')}
             onClick={() => setRecordingXAxisMode('relative')}
           />
           <MetricToggleButton
             active={recordingXAxisMode === 'raw'}
-            label="原始 Tick"
+            label={text('原始 Tick', 'Raw Tick')}
             onClick={() => setRecordingXAxisMode('raw')}
           />
         </RecordingToolbarRow>
 
-        <RecordingToolbarRow label="曲线">
+        <RecordingToolbarRow label={text('曲线', 'Series')}>
           <MetricToggleButton
             active={visibleRecordingMetrics.includes('inputPower')}
             label="Input Power"
@@ -382,32 +394,36 @@ function RecordingSeriesPanel({
           />
         </RecordingToolbarRow>
 
-        <RecordingToolbarRow label="显示">
+        <RecordingToolbarRow label={text('显示', 'Render')}>
           <MetricToggleButton
             active={recordingChartRenderMode === 'linear'}
-            label="折线"
+            label={text('折线', 'Line')}
             onClick={() => setRecordingChartRenderMode('linear')}
           />
           <MetricToggleButton
             active={recordingChartRenderMode === 'stepped'}
-            label="阶跃"
+            label={text('阶跃', 'Stepped')}
             onClick={() => setRecordingChartRenderMode('stepped')}
           />
         </RecordingToolbarRow>
       </div>
 
       <p className="chart-interaction-hint">
-        滚轮缩放，左键拖拽平移，双击重置；聚焦图表后可用 `←` `→` `+` `-` `0`
-        操作时间窗。
+        {text(
+          '滚轮缩放，左键拖拽平移，双击重置；聚焦图表后可用 `←` `→` `+` `-` `0` 操作时间窗。',
+          'Use the mouse wheel to zoom, drag with the left button to pan, and double-click to reset. After focusing the chart, use `←` `→` `+` `-` `0` to control the time window.',
+        )}
       </p>
 
       <div className="chart-window-hint">
-        当前视窗：{recordingWindow.min.toFixed(0)} ~ {recordingWindow.max.toFixed(0)} (
+        {text('当前视窗：', 'Current window: ')}
+        {recordingWindow.min.toFixed(0)} ~ {recordingWindow.max.toFixed(0)} (
         {formatXAxisLabel(recordingXAxisMode)})
       </div>
 
       <div className="recording-chart-card">
         <RecordingChart
+          language={language}
           nodeSeriesGroups={chartNodeSeriesGroups}
           startedTick={recordingBundle.manifest.startedTick}
           xMode={recordingXAxisMode}
@@ -424,18 +440,18 @@ function RecordingSeriesPanel({
       {selectedRecordingSeries.map((entry) => (
         <details className="sample-table-panel" key={entry.node.nodeKey}>
           <summary>
-            具体数据列表 - {entry.node.displayText}（{entry.series.samples.length} 条样本）
+            {text('具体数据列表', 'Sample Details')} - {entry.node.displayText}（{entry.series.samples.length}{text(' 条样本', ' samples')})
           </summary>
           <div className="sample-table-wrap">
             <table className="sample-table">
               <thead>
                 <tr>
                   <th>{formatXAxisLabel(recordingXAxisMode)}</th>
-                  {recordingXAxisMode === 'relative' ? <th>Raw Tick</th> : null}
-                  <th>Online</th>
-                  <th>Active</th>
-                  <th>Input</th>
-                  <th>Output</th>
+                  {recordingXAxisMode === 'relative' ? <th>{text('原始 Tick', 'Raw Tick')}</th> : null}
+                  <th>{text('在线', 'Online')}</th>
+                  <th>{text('激活', 'Active')}</th>
+                  <th>{text('输入', 'Input')}</th>
+                  <th>{text('输出', 'Output')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -449,8 +465,8 @@ function RecordingSeriesPanel({
                       )}
                     </td>
                     {recordingXAxisMode === 'relative' ? <td>{sample.tick}</td> : null}
-                    <td>{sample.online ? 'yes' : 'no'}</td>
-                    <td>{sample.active ? 'yes' : 'no'}</td>
+                    <td>{sample.online ? text('是', 'yes') : text('否', 'no')}</td>
+                    <td>{sample.active ? text('是', 'yes') : text('否', 'no')}</td>
                     <td>{sample.inputPower}</td>
                     <td>{sample.outputPower}</td>
                   </tr>

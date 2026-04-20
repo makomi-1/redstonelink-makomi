@@ -46,6 +46,12 @@ export type StorageEntryPayload = {
   textContent: string;
 };
 
+export type WebPreferencesPayload = {
+  status: string;
+  language: string;
+  themeId: string;
+};
+
 export type AppPage = 'recording' | 'graph';
 
 export type AppLocation = {

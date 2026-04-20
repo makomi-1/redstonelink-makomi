@@ -14,6 +14,7 @@ import {
   parseGraphWriteResponse,
   serializeGraphDraft,
 } from '../../graphTypes';
+import { pickLocalizedText, type AppLanguage } from '../../app/i18n';
 import type { GraphDraftDiff, GraphEditMode } from './types';
 
 export function buildDraftFileName(graphFileName: string, snapshotId: string): string {
@@ -56,29 +57,51 @@ export function sameNumberArray(left: number[], right: number[]): boolean {
   return left.every((value, index) => value === right[index]);
 }
 
-export function formatEditModeLabel(editMode: GraphEditMode): string {
+export function formatEditModeLabel(
+  editMode: GraphEditMode,
+  language: AppLanguage,
+): string {
   switch (editMode) {
     case 'add':
-      return '追加';
+      return pickLocalizedText(language, '追加', 'Add');
     case 'remove':
-      return '移除';
+      return pickLocalizedText(language, '移除', 'Remove');
     case 'replace':
-      return '覆盖';
+      return pickLocalizedText(language, '覆盖', 'Replace');
     default:
-      return '查看';
+      return pickLocalizedText(language, '查看', 'View');
   }
 }
 
-export function formatEditModeInstruction(editMode: GraphEditMode): string {
+export function formatEditModeInstruction(
+  editMode: GraphEditMode,
+  language: AppLanguage,
+): string {
   switch (editMode) {
     case 'add':
-      return '先点选一个或多个 triggerSource，再点选要追加的 core，应用后会把这些 core 并入每个来源节点的目标集合。';
+      return pickLocalizedText(
+        language,
+        '先点选一个或多个 triggerSource，再点选要追加的 core，应用后会把这些 core 并入每个来源节点的目标集合。',
+        'Select one or more triggerSources first, then select the cores to append. After applying, those cores will be merged into each source node\'s target set.',
+      );
     case 'remove':
-      return '先点选一个或多个 triggerSource，再点选要移除的 core，应用后会从每个来源节点当前目标集合中扣除它们。';
+      return pickLocalizedText(
+        language,
+        '先点选一个或多个 triggerSource，再点选要移除的 core，应用后会从每个来源节点当前目标集合中扣除它们。',
+        'Select one or more triggerSources first, then select the cores to remove. After applying, they will be removed from each source node\'s current target set.',
+      );
     case 'replace':
-      return '先点选一个或多个 triggerSource，再点选新的 core 集合，应用后会整体覆盖这些来源节点的目标集合。';
+      return pickLocalizedText(
+        language,
+        '先点选一个或多个 triggerSource，再点选新的 core 集合，应用后会整体覆盖这些来源节点的目标集合。',
+        'Select one or more triggerSources first, then select the new core set. After applying, the target set of those source nodes will be replaced as a whole.',
+      );
     default:
-      return '查看模式下点击节点只会切换详情，不会修改拓扑草稿。';
+      return pickLocalizedText(
+        language,
+        '查看模式下点击节点只会切换详情，不会修改拓扑草稿。',
+        'In view mode, clicking nodes only switches the details panel and does not modify the topology draft.',
+      );
   }
 }
 

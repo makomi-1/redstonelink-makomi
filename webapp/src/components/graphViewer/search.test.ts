@@ -31,9 +31,13 @@ describe('graphViewer/search', () => {
     expect(matchesSearchType(triggerSourceNode, 'triggerSource')).toBe(true);
     expect(matchesSearchType(triggerSourceNode, 'core')).toBe(false);
     expect(matchesSearchType(triggerSourceNode, 'all')).toBe(true);
-    expect(formatSearchTypeLabel('all')).toBe('全部');
-    expect(formatSearchTypeLabel('core')).toBe('core');
-    expect(buildSearchResultLabel(triggerSourceNode)).toBe(
+    expect(formatSearchTypeLabel('all', 'zh-CN')).toBe('全部');
+    expect(formatSearchTypeLabel('all', 'en-US')).toBe('All');
+    expect(formatSearchTypeLabel('core', 'zh-CN')).toBe('core');
+    expect(buildSearchResultLabel(triggerSourceNode, 'zh-CN')).toBe(
+      'triggerSource #12 · Alpha(#12)',
+    );
+    expect(buildSearchResultLabel(triggerSourceNode, 'en-US')).toBe(
       'triggerSource #12 · Alpha(#12)',
     );
   });

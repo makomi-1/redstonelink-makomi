@@ -159,6 +159,7 @@ describe('graphViewer/canvas', () => {
     const flowNodes = buildGraphFlowNodes(
       canvasView.canvasNodes,
       positionByNodeKey,
+      'zh-CN',
       'replace',
       'triggerSource:1',
       false,
@@ -205,6 +206,7 @@ describe('graphViewer/canvas', () => {
     const flowNodes = buildGraphFlowNodes(
       expandedView.canvasNodes,
       positionByNodeKey,
+      'zh-CN',
       'view',
       '',
       false,

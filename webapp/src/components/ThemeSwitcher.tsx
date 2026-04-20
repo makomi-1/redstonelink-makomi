@@ -1,10 +1,13 @@
 import {
+  formatThemeLabel,
   WEB_THEME_OPTIONS,
   type WebThemeId,
 } from '../app/theme';
+import { pickLocalizedText, type AppLanguage } from '../app/i18n';
 
 type ThemeSwitcherProps = {
   currentThemeId: WebThemeId;
+  language: AppLanguage;
   onThemeChange: (themeId: WebThemeId) => void;
 };
 
@@ -17,11 +20,14 @@ type ThemeSwitcherProps = {
  */
 export default function ThemeSwitcher({
   currentThemeId,
+  language,
   onThemeChange,
 }: ThemeSwitcherProps) {
   return (
     <div className="theme-switcher">
-      <span className="theme-switcher-label">主题</span>
+      <span className="theme-switcher-label">
+        {pickLocalizedText(language, '主题', 'Theme')}
+      </span>
       <div className="theme-switcher-grid">
         {WEB_THEME_OPTIONS.map((themeOption) => {
           const active = currentThemeId === themeOption.id;
@@ -33,7 +39,9 @@ export default function ThemeSwitcher({
               aria-pressed={active}
               onClick={() => onThemeChange(themeOption.id)}
             >
-              <span className="theme-option-title">{themeOption.label}</span>
+              <span className="theme-option-title">
+                {formatThemeLabel(themeOption.id, language)}
+              </span>
             </button>
           );
         })}

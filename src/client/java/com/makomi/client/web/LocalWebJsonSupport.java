@@ -1,9 +1,13 @@
 package com.makomi.client.web;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.makomi.client.web.LocalWebAssetRepository.StorageCategorySummary;
 import com.makomi.client.web.LocalWebAssetRepository.StorageEntryContent;
 import com.makomi.client.web.LocalWebAssetRepository.StorageEntrySummary;
 import com.makomi.client.web.LocalWebAssetRepository.StorageIndex;
+import java.io.IOException;
 
 /**
  * 本地网页 Bridge JSON 序列化支持。
@@ -87,6 +91,69 @@ public final class LocalWebJsonSupport {
 	}
 
 	/**
+	 * 构建网页偏好 API 返回体。
+	 */
+	public static String buildPreferencesPayload(LocalWebPreferences preferences) {
+		LocalWebPreferences normalizedPreferences = preferences == null
+			? LocalWebPreferences.defaults()
+			: preferences.normalized();
+		StringBuilder builder = new StringBuilder(128);
+		builder.append("{\"status\":\"ok\"");
+		builder.append(",\"language\":");
+		appendQuoted(builder, normalizedPreferences.language());
+		builder.append(",\"themeId\":");
+		appendQuoted(builder, normalizedPreferences.themeId());
+		builder.append('}');
+		return builder.toString();
+	}
+
+	/**
+	 * 构建偏好落盘文档。
+	 */
+	public static String buildPreferencesDocument(LocalWebPreferences preferences) {
+		LocalWebPreferences normalizedPreferences = preferences == null
+			? LocalWebPreferences.defaults()
+			: preferences.normalized();
+		StringBuilder builder = new StringBuilder(96);
+		builder.append("{\"language\":");
+		appendQuoted(builder, normalizedPreferences.language());
+		builder.append(",\"themeId\":");
+		appendQuoted(builder, normalizedPreferences.themeId());
+		builder.append('}');
+		return builder.toString();
+	}
+
+	/**
+	 * 解析网页偏好落盘文档；若缺字段则回退默认值。
+	 */
+	public static LocalWebPreferences parsePreferencesDocument(String rawJson) throws IOException {
+		return parsePreferencesPatch(rawJson, LocalWebPreferences.defaults());
+	}
+
+	/**
+	 * 解析网页偏好更新请求，并基于 fallback 合并缺失字段。
+	 */
+	public static LocalWebPreferences parsePreferencesPatch(String rawJson, LocalWebPreferences fallbackPreferences) throws IOException {
+		LocalWebPreferences safeFallback = fallbackPreferences == null ? LocalWebPreferences.defaults() : fallbackPreferences.normalized();
+		if (rawJson == null || rawJson.isBlank()) {
+			throw new IOException("Preferences request body is empty.");
+		}
+		try {
+			JsonElement rootElement = JsonParser.parseString(rawJson);
+			if (!rootElement.isJsonObject()) {
+				throw new IOException("Preferences request body is not a JSON object.");
+			}
+			JsonObject rootObject = rootElement.getAsJsonObject();
+			return safeFallback.withOverrides(
+				readNullableString(rootObject, "language"),
+				readNullableString(rootObject, "themeId")
+			);
+		} catch (RuntimeException exception) {
+			throw new IOException("Preferences request body is invalid JSON.", exception);
+		}
+	}
+
+	/**
 	 * 构建错误返回体。
 	 */
 	public static String buildErrorPayload(String message) {
@@ -102,6 +169,19 @@ public final class LocalWebJsonSupport {
 	 */
 	public static String buildOkPayload() {
 		return "{\"status\":\"ok\"}";
+	}
+
+	private static String readNullableString(JsonObject object, String memberName) {
+		if (object == null || memberName == null || memberName.isBlank() || !object.has(memberName)) {
+			return null;
+		}
+		JsonElement memberElement = object.get(memberName);
+		if (memberElement == null || memberElement.isJsonNull()) {
+			return null;
+		}
+		return memberElement.isJsonPrimitive() && memberElement.getAsJsonPrimitive().isString()
+			? memberElement.getAsString()
+			: null;
 	}
 
 	private static void appendCategorySummary(StringBuilder builder, StorageCategorySummary categorySummary) {

@@ -10,6 +10,7 @@ import type {
   GraphNodeTypeToken,
   GraphSnapshotBundle,
 } from "../../graphTypes";
+import { pickLocalizedText, type AppLanguage } from "../../app/i18n";
 import type {
   DraftEdgeDiffState,
   GraphCanvasAggregateNode,
@@ -75,13 +76,16 @@ function buildNodeLabel(node: GraphNodeInfo): JSX.Element {
 
 function buildAggregateNodeLabel(
   aggregateNode: GraphCanvasAggregateNode,
+  language: AppLanguage,
 ): JSX.Element {
   const memberLabel =
     aggregateNode.aggregateRole === "core"
-      ? "grouped cores"
-      : "grouped triggerSources";
+      ? pickLocalizedText(language, "聚合 cores", "grouped cores")
+      : pickLocalizedText(language, "聚合 triggerSources", "grouped triggerSources");
   const connectedLabel =
-    aggregateNode.aggregateRole === "core" ? "triggerSources" : "cores";
+    aggregateNode.aggregateRole === "core"
+      ? "triggerSources"
+      : "cores";
   return (
     <div className="graph-node-label">
       <strong className="graph-node-title">
@@ -91,7 +95,9 @@ function buildAggregateNodeLabel(
       </strong>
       <span className="graph-node-meta">
         {aggregateNode.connectedSerials.length} {connectedLabel} ·{" "}
-        {aggregateNode.expanded ? "已展开，仅展开节点" : "点击展开节点"}
+        {aggregateNode.expanded
+          ? pickLocalizedText(language, "已展开，仅展开节点", "expanded, showing members")
+          : pickLocalizedText(language, "点击展开节点", "click to expand")}
       </span>
     </div>
   );
@@ -99,6 +105,7 @@ function buildAggregateNodeLabel(
 
 function buildChannelHubNodeLabel(
   channelHubNode: GraphCanvasChannelHubNode,
+  language: AppLanguage,
 ): JSX.Element {
   return (
     <div className="graph-node-label">
@@ -1766,6 +1773,7 @@ export function buildAutoLayoutPositions(
 export function buildGraphFlowNodes(
   canvasNodes: GraphCanvasNodeInfo[],
   positionByNodeKey: Map<string, XYPosition>,
+  language: AppLanguage,
   editMode: GraphEditMode,
   selectedNodeKey: string,
   hasSearch: boolean,
@@ -1785,9 +1793,9 @@ export function buildGraphFlowNodes(
       data: {
         label:
           canvasNode.kind === "aggregate"
-            ? buildAggregateNodeLabel(canvasNode)
+            ? buildAggregateNodeLabel(canvasNode, language)
             : canvasNode.kind === "channelHub"
-              ? buildChannelHubNodeLabel(canvasNode)
+              ? buildChannelHubNodeLabel(canvasNode, language)
               : buildNodeLabel(canvasNode.graphNode),
         canvasNodeKey: nodeKey,
       },

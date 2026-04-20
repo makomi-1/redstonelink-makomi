@@ -166,6 +166,7 @@ describe('GraphViewer', () => {
       <GraphViewer
         graphBundle={graphBundle}
         graphFileName="demo-graph.json"
+        language="zh-CN"
       />,
     );
 
@@ -195,6 +196,7 @@ describe('GraphViewer', () => {
       <GraphViewer
         graphBundle={graphBundle}
         graphFileName="demo-graph.json"
+        language="zh-CN"
       />,
     );
 
@@ -246,6 +248,7 @@ describe('GraphViewer', () => {
       <GraphViewer
         graphBundle={graphBundle}
         graphFileName="demo-graph.json"
+        language="zh-CN"
       />,
     );
 
@@ -267,6 +270,7 @@ describe('GraphViewer', () => {
       <GraphViewer
         graphBundle={graphBundle}
         graphFileName="demo-graph.json"
+        language="zh-CN"
       />,
     );
 
@@ -299,6 +303,7 @@ describe('GraphViewer', () => {
       <GraphViewer
         graphBundle={graphBundle}
         graphFileName="demo-graph.json"
+        language="zh-CN"
       />,
     );
 
@@ -311,7 +316,7 @@ describe('GraphViewer', () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。',
+          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。建议尽快 Save，再继续做后续跨模式或连线调整，否则关系可能会比较混乱。',
         ),
       ).toBeInTheDocument(),
     );
@@ -331,6 +336,7 @@ describe('GraphViewer', () => {
       <GraphViewer
         graphBundle={graphBundle}
         graphFileName="demo-graph.json"
+        language="zh-CN"
       />,
     );
 
@@ -344,7 +350,7 @@ describe('GraphViewer', () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。',
+          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。建议尽快 Save，再继续做后续跨模式或连线调整，否则关系可能会比较混乱。',
         ),
       ).toBeInTheDocument(),
     );
@@ -362,6 +368,7 @@ describe('GraphViewer', () => {
       <GraphViewer
         graphBundle={graphBundle}
         graphFileName="demo-graph.json"
+        language="zh-CN"
       />,
     );
 
@@ -375,7 +382,7 @@ describe('GraphViewer', () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。',
+          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。建议尽快 Save，再继续做后续跨模式或连线调整，否则关系可能会比较混乱。',
         ),
       ).toBeInTheDocument(),
     );
@@ -419,6 +426,7 @@ describe('GraphViewer', () => {
       <GraphViewer
         graphBundle={channelGraphBundle}
         graphFileName="channel-graph.json"
+        language="zh-CN"
       />,
     );
 
@@ -433,7 +441,7 @@ describe('GraphViewer', () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          '已将 2 个另一模式节点迁入频道 #9 的草稿；应用后才可继续当前频道模式下的覆盖编辑。',
+          '已将 2 个另一模式节点迁入频道 #9 的草稿；应用后才可继续当前频道模式下的覆盖编辑。建议尽快 Save，再继续做后续跨模式或连线调整，否则关系可能会比较混乱。',
         ),
       ).toBeInTheDocument(),
     );

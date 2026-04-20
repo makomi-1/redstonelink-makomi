@@ -12,6 +12,7 @@ import type {
   StorageEntryPayload,
   StorageEntrySummary,
   StorageIndexPayload,
+  WebPreferencesPayload,
 } from '../app/types';
 
 type GraphNodeInput = Partial<GraphNodeInfo> & {
@@ -178,5 +179,15 @@ export function createTestStorageEntryPayload(
     sizeBytes: overrides.sizeBytes ?? overrides.textContent.length,
     lastModifiedEpochMillis: overrides.lastModifiedEpochMillis ?? 1710000000000,
     textContent: overrides.textContent,
+  };
+}
+
+export function createTestWebPreferencesPayload(
+  overrides: Partial<WebPreferencesPayload> = {},
+): WebPreferencesPayload {
+  return {
+    status: overrides.status ?? 'ok',
+    language: overrides.language ?? 'zh-CN',
+    themeId: overrides.themeId ?? 'future-command',
   };
 }
