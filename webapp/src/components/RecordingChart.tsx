@@ -41,10 +41,37 @@ type RecordingChartNodeSeriesGroup = {
   outputColor: string;
 };
 
+type RecordingTooltipPlacement = 'above' | 'below';
+
+type RecordingTooltipRow = {
+  label: string;
+  color: string;
+  dashed: boolean;
+  valueText: string;
+};
+
+type RecordingTooltipSeriesEntry = {
+  label: string;
+  color: string;
+  dashed: boolean;
+};
+
+type RecordingChartTooltipState = {
+  left: number;
+  top: number;
+  xLabel: string;
+  xValueText: string;
+  placement: RecordingTooltipPlacement;
+  rows: RecordingTooltipRow[];
+};
+
 const CHART_HEIGHT = 420;
 const MIN_CHART_WIDTH = 320;
 const KEYBOARD_ZOOM_FACTOR = 0.85;
 const WHEEL_ZOOM_FACTOR = 0.82;
+const TOOLTIP_WIDTH = 236;
+const TOOLTIP_SIDE_MARGIN = 12;
+const TOOLTIP_CURSOR_OFFSET = 16;
 
 /**
  * 录制曲线图。
@@ -79,6 +106,9 @@ export default function RecordingChart({
     startWindow: RecordingChartWindow;
   } | null>(null);
   const [chartWidth, setChartWidth] = useState<number>(MIN_CHART_WIDTH);
+  const [tooltipState, setTooltipState] = useState<RecordingChartTooltipState | null>(
+    null,
+  );
   const chartNodeSeriesGroups = useMemo(
     () => nodeSeriesGroups.filter((group) => group.samples.length > 0),
     [nodeSeriesGroups],
@@ -125,6 +155,7 @@ export default function RecordingChart({
     plotRef.current?.destroy();
     plotRef.current = null;
     dragStateRef.current = null;
+    setTooltipState(null);
     host.innerHTML = '';
 
     if (chartNodeSeriesGroups.length === 0 || visibleMetrics.length === 0) {
@@ -147,11 +178,14 @@ export default function RecordingChart({
     });
 
     const data: uPlot.AlignedData = [xValues];
+    const xAxisLabel =
+      xMode === 'relative' ? text('Tick 差值', 'Tick Δ') : 'Tick';
     const series: uPlot.Series[] = [
       {
-        label: xMode === 'relative' ? text('Tick 差值', 'Tick Δ') : 'Tick',
+        label: xAxisLabel,
       },
     ];
+    const tooltipSeriesEntries: Array<RecordingTooltipSeriesEntry | null> = [null];
     const seriesPathBuilder = resolveSeriesPathBuilder(renderMode);
 
     for (const group of chartNodeSeriesGroups) {
@@ -169,23 +203,37 @@ export default function RecordingChart({
       }
 
       if (visibleMetrics.includes('inputPower')) {
+        const inputSeriesLabel = `${group.label} · ${text('输入', 'Input')}`;
+        const inputSeriesColor = resolveThemeColor(group.inputColor, host);
         data.push(inputValues);
         series.push({
-          label: `${group.label} · Input`,
-          stroke: resolveThemeColor(group.inputColor, host),
+          label: inputSeriesLabel,
+          stroke: inputSeriesColor,
           width: 2,
           ...(seriesPathBuilder ? { paths: seriesPathBuilder } : {}),
+        });
+        tooltipSeriesEntries.push({
+          label: inputSeriesLabel,
+          color: inputSeriesColor,
+          dashed: false,
         });
       }
 
       if (visibleMetrics.includes('outputPower')) {
+        const outputSeriesLabel = `${group.label} · ${text('输出', 'Output')}`;
+        const outputSeriesColor = resolveThemeColor(group.outputColor, host);
         data.push(outputValues);
         series.push({
-          label: `${group.label} · Output`,
-          stroke: resolveThemeColor(group.outputColor, host),
+          label: outputSeriesLabel,
+          stroke: outputSeriesColor,
           width: 2,
           dash: [10, 6],
           ...(seriesPathBuilder ? { paths: seriesPathBuilder } : {}),
+        });
+        tooltipSeriesEntries.push({
+          label: outputSeriesLabel,
+          color: outputSeriesColor,
+          dashed: true,
         });
       }
     }
@@ -210,10 +258,25 @@ export default function RecordingChart({
             time: false,
           },
         },
+        hooks: {
+          setCursor: [
+            (self) => {
+              setTooltipState(
+                resolveRecordingChartTooltipState({
+                  chartWidth,
+                  plot: self,
+                  data,
+                  tooltipSeriesEntries,
+                  xAxisLabel,
+                }),
+              );
+            },
+          ],
+        },
         series,
         axes: [
           {
-            label: xMode === 'relative' ? text('Tick 差值', 'Tick Δ') : 'Tick',
+            label: xAxisLabel,
             stroke: axisStroke,
             grid: {
               stroke: gridStroke,
@@ -321,12 +384,17 @@ export default function RecordingChart({
       onResetWindow();
     };
 
+    const handleMouseLeave = () => {
+      setTooltipState(null);
+    };
+
     overElement.addEventListener('wheel', handleWheel, { passive: false });
     overElement.addEventListener('pointerdown', handlePointerDown);
     overElement.addEventListener('pointermove', handlePointerMove);
     overElement.addEventListener('pointerup', clearDragState);
     overElement.addEventListener('pointercancel', clearDragState);
     overElement.addEventListener('dblclick', handleDoubleClick);
+    overElement.addEventListener('mouseleave', handleMouseLeave);
   }
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
@@ -387,6 +455,41 @@ export default function RecordingChart({
         ref={hostRef}
         className={`recording-chart-host${emptyStateMessage ? ' is-empty' : ''}`}
       />
+      {tooltipState ? (
+        <div
+          className={`recording-chart-tooltip${
+            tooltipState.placement === 'above' ? ' is-above' : ' is-below'
+          }`}
+          style={{
+            left: `${tooltipState.left}px`,
+            top: `${tooltipState.top}px`,
+          }}
+        >
+          <div className="recording-chart-tooltip-header">
+            <span className="recording-chart-tooltip-axis">{tooltipState.xLabel}</span>
+            <span className="recording-chart-tooltip-value">
+              {tooltipState.xValueText}
+            </span>
+          </div>
+          <div className="recording-chart-tooltip-body">
+            {tooltipState.rows.map((row) => (
+              <div key={row.label} className="recording-chart-tooltip-row">
+                <span className="recording-chart-tooltip-label">
+                  <span
+                    className={`recording-chart-tooltip-swatch${
+                      row.dashed ? ' is-dashed' : ''
+                    }`}
+                    style={{ color: row.color }}
+                    aria-hidden="true"
+                  />
+                  <span>{row.label}</span>
+                </span>
+                <span className="recording-chart-tooltip-value">{row.valueText}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {emptyStateMessage ? (
         <div className="recording-chart-empty-overlay">
           <p className="empty-state">{emptyStateMessage}</p>
@@ -416,6 +519,98 @@ function resolveSeriesPathBuilder(
 
 function clampOffsetX(offsetX: number, plot: uPlot): number {
   return Math.max(0, Math.min(plot.bbox.width, offsetX));
+}
+
+/**
+ * 根据当前 cursor 与序列数据生成 tooltip 展示状态。
+ */
+function resolveRecordingChartTooltipState({
+  chartWidth,
+  plot,
+  data,
+  tooltipSeriesEntries,
+  xAxisLabel,
+}: {
+  chartWidth: number;
+  plot: uPlot;
+  data: uPlot.AlignedData;
+  tooltipSeriesEntries: Array<RecordingTooltipSeriesEntry | null>;
+  xAxisLabel: string;
+}): RecordingChartTooltipState | null {
+  const cursorIndex = plot.cursor.idx;
+  if (cursorIndex == null || cursorIndex < 0) {
+    return null;
+  }
+
+  const xValues = data[0];
+  const xValue = xValues?.[cursorIndex];
+  if (typeof xValue !== 'number' || !Number.isFinite(xValue)) {
+    return null;
+  }
+
+  const rows: RecordingTooltipRow[] = [];
+  for (let seriesIndex = 1; seriesIndex < data.length; seriesIndex += 1) {
+    const entry = tooltipSeriesEntries[seriesIndex];
+    if (!entry) {
+      continue;
+    }
+    const seriesValues = data[seriesIndex];
+    const value = seriesValues?.[cursorIndex];
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      continue;
+    }
+    rows.push({
+      ...entry,
+      valueText: formatTooltipValue(value),
+    });
+  }
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const cursorLeft = plot.cursor.left ?? 0;
+  const cursorTop = plot.cursor.top ?? 0;
+  const plotLeft = plot.bbox.left + cursorLeft;
+  const plotTop = plot.bbox.top + cursorTop;
+  const preferredLeft =
+    plotLeft > chartWidth * 0.62
+      ? plotLeft - TOOLTIP_WIDTH - TOOLTIP_CURSOR_OFFSET
+      : plotLeft + TOOLTIP_CURSOR_OFFSET;
+  const placement: RecordingTooltipPlacement =
+    plotTop > CHART_HEIGHT * 0.52 ? 'above' : 'below';
+
+  return {
+    left: clampTooltipLeft(preferredLeft, chartWidth),
+    top:
+      placement === 'above'
+        ? Math.max(TOOLTIP_SIDE_MARGIN, plotTop - TOOLTIP_CURSOR_OFFSET)
+        : plotTop + TOOLTIP_CURSOR_OFFSET,
+    xLabel: xAxisLabel,
+    xValueText: formatTooltipValue(xValue),
+    placement,
+    rows,
+  };
+}
+
+/**
+ * tooltip 横向定位只做基础钳制，避免贴边截断。
+ */
+function clampTooltipLeft(left: number, chartWidth: number): number {
+  return Math.max(
+    TOOLTIP_SIDE_MARGIN,
+    Math.min(chartWidth - TOOLTIP_WIDTH - TOOLTIP_SIDE_MARGIN, left),
+  );
+}
+
+/**
+ * 录制曲线数值以整数为主，这里保留必要的小数并去掉多余尾零。
+ */
+function formatTooltipValue(value: number): string {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(3).replace(/\.?0+$/, '');
 }
 
 /**

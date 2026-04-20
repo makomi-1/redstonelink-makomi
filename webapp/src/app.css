@@ -1833,6 +1833,79 @@ body {
   border-radius: 12px;
 }
 
+.recording-chart-tooltip {
+  position: absolute;
+  z-index: 4;
+  width: min(236px, calc(100% - 24px));
+  padding: 10px 12px;
+  border: 1px solid var(--app-control-border-strong);
+  border-radius: 12px;
+  background: var(--app-surface-strong);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28);
+  color: var(--app-text-primary);
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+}
+
+.recording-chart-tooltip.is-above {
+  transform: translateY(-100%);
+}
+
+.recording-chart-tooltip-header,
+.recording-chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.recording-chart-tooltip-header {
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--app-divider);
+}
+
+.recording-chart-tooltip-axis {
+  color: var(--app-text-muted);
+  font-size: 0.8rem;
+}
+
+.recording-chart-tooltip-body {
+  display: grid;
+  gap: 4px;
+}
+
+.recording-chart-tooltip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.84rem;
+  color: var(--app-text-secondary);
+}
+
+.recording-chart-tooltip-label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-chart-tooltip-value {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text-strong);
+}
+
+.recording-chart-tooltip-swatch {
+  display: inline-block;
+  width: 18px;
+  border-top: 2px solid currentColor;
+}
+
+.recording-chart-tooltip-swatch.is-dashed {
+  border-top-style: dashed;
+}
+
 .recording-chart-empty-overlay {
   position: absolute;
   inset: 0;
