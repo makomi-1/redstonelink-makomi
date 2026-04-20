@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -20,11 +20,23 @@ vi.mock('reactflow', async () => {
       nodes,
       edges,
       onInit,
+      onNodeClick,
+      onNodesChange,
+      onSelectionChange,
+      onSelectionStart,
+      onSelectionEnd,
       children,
     }: {
       nodes: Array<{ id: string }>;
       edges: Array<{ id: string }>;
       onInit?: (instance: unknown) => void;
+      onNodeClick?: (event: unknown, node: { id: string }) => void;
+      onNodesChange?: (
+        changes: Array<{ id: string; type: string; selected?: boolean }>,
+      ) => void;
+      onSelectionChange?: (payload: { nodes: Array<{ id: string }> }) => void;
+      onSelectionStart?: () => void;
+      onSelectionEnd?: () => void;
       children?: React.ReactNode;
     }) => {
       reactModule.useEffect(() => {
@@ -37,6 +49,50 @@ vi.mock('reactflow', async () => {
         <div data-testid="reactflow">
           <div data-testid="reactflow-node-count">{nodes.length}</div>
           <div data-testid="reactflow-edge-count">{edges.length}</div>
+          {nodes.map((node) => (
+            <button
+              key={`rf-click:${String(node.id)}`}
+              type="button"
+              data-testid={`rf-click:${String(node.id)}`}
+              onClick={() =>
+                onNodeClick?.({}, { id: String(node.id) })
+              }
+            >
+              rf-click:{String(node.id)}
+            </button>
+          ))}
+          {nodes.map((node) => (
+            <button
+              key={`rf-select:${String(node.id)}`}
+              type="button"
+              data-testid={`rf-select:${String(node.id)}`}
+              onClick={() =>
+                onSelectionChange?.({ nodes: [{ id: String(node.id) }] })
+              }
+            >
+              rf-select:{String(node.id)}
+            </button>
+          ))}
+          {nodes.map((node) => (
+            <button
+              key={`rf-box:${String(node.id)}`}
+              type="button"
+              data-testid={`rf-box:${String(node.id)}`}
+              onClick={() => {
+                onSelectionStart?.();
+                onNodesChange?.([
+                  {
+                    id: String(node.id),
+                    type: 'select',
+                    selected: true,
+                  },
+                ]);
+                onSelectionEnd?.();
+              }}
+            >
+              rf-box:{String(node.id)}
+            </button>
+          ))}
           {children}
         </div>
       );
@@ -215,6 +271,109 @@ describe('GraphViewer', () => {
     expect(undoButton).toBeEnabled();
 
     await user.click(undoButton);
+
+    await waitFor(() =>
+      expect(screen.getByText('已撤回最近一次本地草稿应用。')).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: '撤回草稿' })).toBeDisabled();
+  });
+
+  it('编辑模式下点击节点会持续追加来源与目标选区', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+        language="zh-CN"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '追加' }));
+    await user.click(screen.getByTestId('rf-click:triggerSource:1'));
+    await user.click(screen.getByTestId('rf-click:core:2'));
+
+    await waitFor(() =>
+      expect(screen.getByText('已选来源 1 个 / 目标 1 个')).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: '#1 (alpha)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '#2 (beta)' })).toBeInTheDocument();
+  });
+
+  it('选区回流只返回本轮节点时，仍会在已有编辑选区上继续追加', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+        language="zh-CN"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '追加' }));
+    await user.click(screen.getByTestId('rf-select:triggerSource:1'));
+    await user.click(screen.getByTestId('rf-select:core:2'));
+
+    await waitFor(() =>
+      expect(screen.getByText('已选来源 1 个 / 目标 1 个')).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: '#1 (alpha)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '#2 (beta)' })).toBeInTheDocument();
+  });
+
+  it('编辑模式下连续框选会在已有选区上继续追加', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+        language="zh-CN"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '追加' }));
+    await user.click(screen.getByTestId('rf-box:triggerSource:1'));
+    await user.click(screen.getByTestId('rf-box:core:2'));
+
+    await waitFor(() =>
+      expect(screen.getByText('已选来源 1 个 / 目标 1 个')).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: '#1 (alpha)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '#2 (beta)' })).toBeInTheDocument();
+  });
+
+  it('Ctrl+Z 会撤回最近一次本地草稿应用', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+        language="zh-CN"
+      />,
+    );
+
+    const aliasInput = await screen.findByLabelText('Alias');
+    await user.clear(aliasInput);
+    await user.type(aliasInput, 'undo-by-shortcut');
+    await user.click(screen.getByRole('button', { name: '应用到草稿' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('已将节点别名写入本地草稿，点击 Save 后才会回传游戏真值。'),
+      ).toBeInTheDocument(),
+    );
+
+    fireEvent.keyDown(window, {
+      key: 'z',
+      ctrlKey: true,
+    });
 
     await waitFor(() =>
       expect(screen.getByText('已撤回最近一次本地草稿应用。')).toBeInTheDocument(),

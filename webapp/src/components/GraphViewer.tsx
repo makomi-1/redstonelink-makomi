@@ -124,6 +124,19 @@ function mergeUniqueSortedStrings(
   );
 }
 
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const normalizedTagName = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    normalizedTagName === "input" ||
+    normalizedTagName === "textarea" ||
+    normalizedTagName === "select"
+  );
+}
+
 /**
  * 跨模式迁回序号后，若节点暂时没有显式边，就先临时并入孤立节点显示集合；
  * 这样可以复用现有上下文聚焦链路，而不额外引入新的聚焦分支。
@@ -1556,9 +1569,7 @@ export default function GraphViewer({
       changed = true;
       if (change.selected) {
         nextNodeKeySet.add(nodeKey);
-        return;
       }
-      nextNodeKeySet.delete(nodeKey);
     });
     if (!changed) {
       return;
@@ -1648,16 +1659,21 @@ export default function GraphViewer({
   }
 
   /**
-   * 将 ReactFlow 的当前框选结果同步为批量编辑集合，仅保留真实 triggerSource/core 节点。
+   * 将本轮命中的真实节点追加进批量编辑集合，而不是覆盖已有业务选区。
    */
-  function applyBatchSelectionFromNodeKeys(nodeKeys: Iterable<string>) {
+  function appendBatchSelectionFromNodeKeys(nodeKeys: Iterable<string>) {
     if (displayMode === "channel") {
       const normalizedNodeKeys = resolveSelectableActualNodeKeys(nodeKeys);
+      if (normalizedNodeKeys.length === 0) {
+        return;
+      }
       setSelectedEditChannelNodeKeys((currentValues) =>
-        currentValues.length === normalizedNodeKeys.length &&
-        currentValues.every((value, index) => value === normalizedNodeKeys[index])
+        sameStringArray(
+          currentValues,
+          mergeUniqueSortedStrings(currentValues, normalizedNodeKeys),
+        )
           ? currentValues
-          : normalizedNodeKeys,
+          : mergeUniqueSortedStrings(currentValues, normalizedNodeKeys),
       );
       return;
     }
@@ -1674,21 +1690,29 @@ export default function GraphViewer({
       }
       nextTargetSerials.add(graphNode.serial);
     }
-    const normalizedSourceSerials = [...nextSourceSerials].sort(
-      (left, right) => left - right,
-    );
-    const normalizedTargetSerials = [...nextTargetSerials].sort(
-      (left, right) => left - right,
-    );
+    const normalizedSourceSerials = [...nextSourceSerials].sort((left, right) => left - right);
+    const normalizedTargetSerials = [...nextTargetSerials].sort((left, right) => left - right);
+    if (
+      normalizedSourceSerials.length === 0 &&
+      normalizedTargetSerials.length === 0
+    ) {
+      return;
+    }
     setSelectedEditSourceSerials((currentValues) =>
-      sameNumberArray(currentValues, normalizedSourceSerials)
+      sameNumberArray(
+        currentValues,
+        mergeUniqueSortedNumbers(currentValues, normalizedSourceSerials),
+      )
         ? currentValues
-        : normalizedSourceSerials,
+        : mergeUniqueSortedNumbers(currentValues, normalizedSourceSerials),
     );
     setSelectedEditTargetSerials((currentValues) =>
-      sameNumberArray(currentValues, normalizedTargetSerials)
+      sameNumberArray(
+        currentValues,
+        mergeUniqueSortedNumbers(currentValues, normalizedTargetSerials),
+      )
         ? currentValues
-        : normalizedTargetSerials,
+        : mergeUniqueSortedNumbers(currentValues, normalizedTargetSerials),
     );
   }
 
@@ -1718,7 +1742,7 @@ export default function GraphViewer({
       finalizeSelectionFrameRef.current = null;
       pendingSelectionNodeKeysRef.current = [];
       applyCanvasSelectedNodeKeys(finalNodeKeys);
-      applyBatchSelectionFromNodeKeys(finalNodeKeys);
+      appendBatchSelectionFromNodeKeys(finalNodeKeys);
     });
   }
 
@@ -1784,6 +1808,32 @@ export default function GraphViewer({
       ),
     );
   }
+
+  useEffect(() => {
+    function handleWindowKeyDown(event: KeyboardEvent) {
+      if (
+        event.key.toLowerCase() !== "z" ||
+        event.altKey ||
+        event.shiftKey ||
+        !(event.ctrlKey || event.metaKey)
+      ) {
+        return;
+      }
+      if (
+        undoDraftHistory.length === 0 ||
+        isEditableKeyboardTarget(event.target)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      handleUndoDraft();
+    }
+
+    window.addEventListener("keydown", handleWindowKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleWindowKeyDown);
+    };
+  }, [handleUndoDraft, undoDraftHistory.length]);
 
   function handleApplySearch() {
     const nextMatchedNode = searchableNodes.find(
@@ -1967,6 +2017,7 @@ export default function GraphViewer({
       setActiveSidebarPanel("details");
       return;
     }
+    appendBatchSelectionFromNodeKeys([nodeKey]);
   }
 
   function handleCanvasNodeDoubleClick(nodeKey: string) {
@@ -2573,7 +2624,7 @@ export default function GraphViewer({
                 const selectedNodeKeys = resolveSelectableActualNodeKeys(
                   selectedNodes.map((selectedNode) => String(selectedNode.id)),
                 );
-                applyBatchSelectionFromNodeKeys(selectedNodeKeys);
+                appendBatchSelectionFromNodeKeys(selectedNodeKeys);
               }}
               onSelectionStart={handleSelectionPreviewStart}
               onSelectionEnd={handleSelectionPreviewEnd}
@@ -2892,8 +2943,8 @@ export default function GraphViewer({
                         <strong>Selected Nodes</strong>
                         <span>
                           {text(
-                            "点击或框选 triggerSource/core，`Ctrl/Shift` 可追加多选。",
-                            "Click or box-select triggerSources/cores. Use `Ctrl/Shift` to append to the selection.",
+                            "点击或框选 triggerSource/core 会持续追加到当前选区；如需重置，请使用“清空选择”。",
+                            "Clicking or box-selecting triggerSources/cores keeps appending to the current selection. Use Clear Selection to reset it.",
                           )}
                         </span>
                       </div>
@@ -2964,8 +3015,8 @@ export default function GraphViewer({
                         <strong>Selected TriggerSources</strong>
                         <span>
                           {text(
-                            "点击或框选 triggerSource，`Ctrl/Shift` 可追加多选。",
-                            "Click or box-select triggerSources. Use `Ctrl/Shift` to append to the selection.",
+                            "点击或框选 triggerSource 会持续追加到当前选区；如需重置，请使用“清空选择”。",
+                            "Clicking or box-selecting triggerSources keeps appending to the current selection. Use Clear Selection to reset it.",
                           )}
                         </span>
                       </div>
@@ -2991,8 +3042,8 @@ export default function GraphViewer({
                         <strong>Selected Cores</strong>
                         <span>
                           {text(
-                            "点击或框选 core，`Ctrl/Shift` 可追加多选。",
-                            "Click or box-select cores. Use `Ctrl/Shift` to append to the selection.",
+                            "点击或框选 core 会持续追加到当前选区；如需重置，请使用“清空选择”。",
+                            "Clicking or box-selecting cores keeps appending to the current selection. Use Clear Selection to reset it.",
                           )}
                         </span>
                       </div>
