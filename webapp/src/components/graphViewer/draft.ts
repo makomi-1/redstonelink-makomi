@@ -97,6 +97,55 @@ function resolveBaseTargetSerials(
   );
 }
 
+/**
+ * 判断某个 triggerSource 是否处于“base 为频道模式、草稿里切回 serial”的首次显式编辑阶段。
+ * <p>
+ * 命中该场景时，序号模式下的 add/remove 应以“空的显式 serial 边”为基线，
+ * 而不是继续继承导出图里来自频道态的当前生效目标集合。
+ * </p>
+ */
+function isTriggerSourceReturningToSerial(
+  graphBundle: GraphSnapshotBundle,
+  graphDraft: GraphDraft,
+  triggerSourceSerial: number,
+): boolean {
+  const baseSourceNode = graphBundle.nodes.find(
+    (node) =>
+      node.type === 'triggerSource' && node.serial === triggerSourceSerial,
+  );
+  if (baseSourceNode?.connectionMode !== 'channel') {
+    return false;
+  }
+  return graphDraft.operations.some(
+    (operation) =>
+      operation.type === 'SetNodeChannel' &&
+      operation.nodeType === 'triggerSource' &&
+      operation.serial === triggerSourceSerial &&
+      normalizeChannel(operation.channel) === 0,
+  );
+}
+
+/**
+ * 解析序号模式显式边编辑应看到的“基线目标集合”。
+ * <p>
+ * 普通 serial 来源继续读取导出图里的当前显式边；只有“频道迁回 serial”的首次编辑，
+ * 才会把基线收敛为空显式边集合。
+ * </p>
+ */
+function resolveExplicitSerialBaseTargetSerials(
+  graphBundle: GraphSnapshotBundle,
+  graphDraft: GraphDraft,
+  triggerSourceSerial: number,
+): number[] {
+  return isTriggerSourceReturningToSerial(
+    graphBundle,
+    graphDraft,
+    triggerSourceSerial,
+  )
+    ? []
+    : resolveBaseTargetSerials(graphBundle, triggerSourceSerial);
+}
+
 export function resolveEffectiveTargetSerials(
   graphBundle: GraphSnapshotBundle,
   graphDraft: GraphDraft,
@@ -108,7 +157,11 @@ export function resolveEffectiveTargetSerials(
       operation.triggerSourceSerial === triggerSourceSerial,
   );
   return replaceOperation == null
-    ? resolveBaseTargetSerials(graphBundle, triggerSourceSerial)
+    ? resolveExplicitSerialBaseTargetSerials(
+        graphBundle,
+        graphDraft,
+        triggerSourceSerial,
+      )
     : normalizeTargetSerials(replaceOperation.targetCoreSerials);
 }
 
@@ -162,7 +215,11 @@ function upsertReplaceTargetsDraft(
   targetCoreSerials: number[],
 ): GraphDraft {
   const normalizedTargets = normalizeTargetSerials(targetCoreSerials);
-  const baseTargets = resolveBaseTargetSerials(graphBundle, triggerSourceSerial);
+  const baseTargets = resolveExplicitSerialBaseTargetSerials(
+    graphBundle,
+    graphDraft,
+    triggerSourceSerial,
+  );
   const nextOperations = graphDraft.operations.filter(
     (operation) =>
       !(
@@ -344,7 +401,10 @@ export function applyDraftToGraph(
   graphBundle.edges.forEach((edge) => {
     const matched = edge.sourceNodeKey.match(/^triggerSource:(\d+)$/);
     const sourceSerial = matched == null ? 0 : Number(matched[1]);
-    if (replacedSources.has(sourceSerial)) {
+    if (
+      replacedSources.has(sourceSerial) ||
+      isTriggerSourceReturningToSerial(graphBundle, graphDraft, sourceSerial)
+    ) {
       return;
     }
     explicitEdges.push(edge);
@@ -449,7 +509,11 @@ export function buildDraftDiff(
     }
     const sourceNodeKey = createGraphNodeKey('triggerSource', operation.triggerSourceSerial);
     changedNodeKeys.add(sourceNodeKey);
-    const baseTargets = resolveBaseTargetSerials(baseGraphBundle, operation.triggerSourceSerial);
+    const baseTargets = resolveExplicitSerialBaseTargetSerials(
+      baseGraphBundle,
+      graphDraft,
+      operation.triggerSourceSerial,
+    );
     const nextTargets = resolveEffectiveTargetSerials(
       baseGraphBundle,
       graphDraft,

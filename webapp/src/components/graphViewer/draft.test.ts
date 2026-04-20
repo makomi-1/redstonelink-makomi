@@ -63,6 +63,98 @@ describe('graphViewer/draft', () => {
     ]);
   });
 
+  it('频道迁回序号后，当前目标集合会按空显式边基线起算', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 1,
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 11,
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+      ],
+      edges: [
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 10 }),
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 11 }),
+      ],
+    });
+    const initialDraft = createInitialGraphDraft(graphBundle);
+
+    const migratedDraft = applyChannelEditToDraft(
+      initialDraft,
+      graphBundle,
+      ['triggerSource:1', 'core:10', 'core:11'],
+      0,
+    );
+
+    expect(resolveEffectiveTargetSerials(graphBundle, migratedDraft, 1)).toEqual([]);
+    expect(applyDraftToGraph(graphBundle, migratedDraft).edges).toEqual([]);
+  });
+
+  it('频道迁回序号后第一次 add 会从空显式边集合开始追加', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 1,
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 11,
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+      ],
+      edges: [
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 10 }),
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 11 }),
+      ],
+    });
+    const initialDraft = createInitialGraphDraft(graphBundle);
+    const migratedDraft = applyChannelEditToDraft(
+      initialDraft,
+      graphBundle,
+      ['triggerSource:1', 'core:10', 'core:11'],
+      0,
+    );
+
+    const nextDraft = applyBatchEditToDraft(migratedDraft, graphBundle, 'add', [1], [10]);
+    const replaceOperation = nextDraft.operations.find(
+      (operation) => operation.type === 'ReplaceTriggerSourceTargets',
+    );
+
+    expect(resolveEffectiveTargetSerials(graphBundle, nextDraft, 1)).toEqual([10]);
+    expect(replaceOperation).toEqual({
+      type: 'ReplaceTriggerSourceTargets',
+      triggerSourceSerial: 1,
+      expectedSourceRevision: 1,
+      targetCoreSerials: [10],
+    });
+    expect(applyDraftToGraph(graphBundle, nextDraft).edges.map((edge) => edge.edgeKey)).toEqual([
+      'triggerSource:1->core:10',
+    ]);
+  });
+
   it('applyChannelEditToDraft 与 applyDraftToGraph 会把频道覆盖折算到最终图', () => {
     const graphBundle = createTestGraphBundle({
       nodes: [
