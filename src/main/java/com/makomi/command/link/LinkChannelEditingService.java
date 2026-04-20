@@ -119,7 +119,8 @@ public final class LinkChannelEditingService {
 				hasLimitedBypassPermission,
 				hasProtectedBypassPermission,
 				false,
-				false
+				false,
+				Set.of()
 			);
 			if (!preparationResult.successful()) {
 				return new BatchPreparationResult(null, preparationResult.feedbacks());

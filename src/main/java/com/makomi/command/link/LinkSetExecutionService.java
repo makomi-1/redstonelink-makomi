@@ -90,7 +90,8 @@ public final class LinkSetExecutionService {
 			hasLimitedBypassPermission,
 			hasProtectedBypassPermission,
 			true,
-			true
+			true,
+			Set.of()
 		);
 	}
 
@@ -115,6 +116,41 @@ public final class LinkSetExecutionService {
 		boolean hasLimitedBypassPermission,
 		boolean hasProtectedBypassPermission
 	) {
+		return prepareConfirmedReplace(
+			level,
+			player,
+			sourceType,
+			sourceSerial,
+			targetSerials,
+			hasLimitedBypassPermission,
+			hasProtectedBypassPermission,
+			Set.of()
+		);
+	}
+
+	/**
+	 * 基于结构化目标集合准备一次已确认的覆盖写入操作，并允许同一批请求里即将切回 serial 的目标暂时越过频道目标校验。
+	 *
+	 * @param level 服务端世界
+	 * @param player 玩家上下文；仅用于后续物品快照同步，可为 {@code null}
+	 * @param sourceType 来源类型
+	 * @param sourceSerial 来源序号
+	 * @param targetSerials 结构化目标集合；空集合表示清空连接
+	 * @param hasLimitedBypassPermission 是否具备 limited 模式越权权限
+	 * @param hasProtectedBypassPermission 是否具备 protected 模式越权权限
+	 * @param channelModeTargetsAllowedByRequest 同一请求中允许暂时保留 channel 真值、但会在实际应用前切回 serial 的目标集合
+	 * @return 准备结果；失败时携带失败反馈
+	 */
+	public static PreparationResult prepareConfirmedReplace(
+		ServerLevel level,
+		ServerPlayer player,
+		LinkNodeType sourceType,
+		long sourceSerial,
+		Set<Long> targetSerials,
+		boolean hasLimitedBypassPermission,
+		boolean hasProtectedBypassPermission,
+		Set<Long> channelModeTargetsAllowedByRequest
+	) {
 		return prepareConfirmedReplaceResolvedTargets(
 			level,
 			player,
@@ -125,7 +161,8 @@ public final class LinkSetExecutionService {
 			hasLimitedBypassPermission,
 			hasProtectedBypassPermission,
 			true,
-			true
+			true,
+			channelModeTargetsAllowedByRequest
 		);
 	}
 
@@ -146,7 +183,8 @@ public final class LinkSetExecutionService {
 		boolean hasLimitedBypassPermission,
 		boolean hasProtectedBypassPermission,
 		boolean switchSourceToSerialModeBeforeApply,
-		boolean requireSerialTargets
+		boolean requireSerialTargets,
+		Set<Long> channelModeTargetsAllowedByRequest
 	) {
 		if (level == null || sourceType == null) {
 			return PreparationResult.failure(OperationFeedback.failure("message.redstonelink.permission.insufficient"));
@@ -169,6 +207,7 @@ public final class LinkSetExecutionService {
 
 		int maxTargets = RedstoneLinkConfig.general().maxTargetsPerSetLinks();
 		Set<Long> targets = normalizePositiveTargets(targetSerials);
+		Set<Long> allowedChannelModeTargets = normalizePositiveTargets(channelModeTargetsAllowedByRequest);
 		if (targets.size() > maxTargets) {
 			return PreparationResult.failure(
 				OperationFeedback.failure("message.redstonelink.too_many_targets", Integer.toString(maxTargets))
@@ -198,7 +237,8 @@ public final class LinkSetExecutionService {
 			}
 			if (
 				requireSerialTargets &&
-				savedData.getConnectionMode(targetType, targetSerial) == LinkConnectionMode.CHANNEL
+				savedData.getConnectionMode(targetType, targetSerial) == LinkConnectionMode.CHANNEL &&
+				!allowedChannelModeTargets.contains(targetSerial)
 			) {
 				channelModeTargets.add(targetSerial);
 			}

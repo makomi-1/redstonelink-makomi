@@ -81,30 +81,6 @@ public final class GraphWriteService {
 				);
 			}
 
-			for (ValidatedReplaceOperation validatedReplaceOperation : preparedPlan.validatedReplaceOperations()) {
-				if (!validatedReplaceOperation.actualGraphWrite()) {
-					continue;
-				}
-				LinkSetExecutionService.applyPreparedReplace(validatedReplaceOperation.operation());
-				appliedReplaceCount++;
-				updatedNodeStates.add(
-					buildAppliedUpdatedNodeState(
-						requestContext.savedData(),
-						LinkNodeType.TRIGGER_SOURCE,
-						validatedReplaceOperation.operation().sourceSerial()
-					)
-				);
-				for (Long targetSerialValue : validatedReplaceOperation.affectedCoreSerials()) {
-					long targetSerial = targetSerialValue == null ? 0L : targetSerialValue;
-					if (targetSerial <= 0L) {
-						continue;
-					}
-					updatedNodeStates.add(
-						buildAppliedUpdatedNodeState(requestContext.savedData(), LinkNodeType.CORE, targetSerial)
-					);
-				}
-			}
-
 			ValidatedChannelBatchOperation validatedChannelBatchOperation = preparedPlan.validatedChannelBatchOperation();
 			if (
 				validatedChannelBatchOperation != null &&
@@ -138,6 +114,30 @@ public final class GraphWriteService {
 					}
 					updatedNodeStates.add(
 						buildAppliedUpdatedNodeState(requestContext.savedData(), LinkNodeType.CORE, coreSerial)
+					);
+				}
+			}
+
+			for (ValidatedReplaceOperation validatedReplaceOperation : preparedPlan.validatedReplaceOperations()) {
+				if (!validatedReplaceOperation.actualGraphWrite()) {
+					continue;
+				}
+				LinkSetExecutionService.applyPreparedReplace(validatedReplaceOperation.operation());
+				appliedReplaceCount++;
+				updatedNodeStates.add(
+					buildAppliedUpdatedNodeState(
+						requestContext.savedData(),
+						LinkNodeType.TRIGGER_SOURCE,
+						validatedReplaceOperation.operation().sourceSerial()
+					)
+				);
+				for (Long targetSerialValue : validatedReplaceOperation.affectedCoreSerials()) {
+					long targetSerial = targetSerialValue == null ? 0L : targetSerialValue;
+					if (targetSerial <= 0L) {
+						continue;
+					}
+					updatedNodeStates.add(
+						buildAppliedUpdatedNodeState(requestContext.savedData(), LinkNodeType.CORE, targetSerial)
 					);
 				}
 			}
@@ -292,25 +292,6 @@ public final class GraphWriteService {
 			return PreparedPlan.failure(aliasFailureResponseJson);
 		}
 
-		List<ValidatedReplaceOperation> validatedReplaceOperations = validateReplaceOperations(
-			level,
-			player,
-			savedData,
-			replaceOperations,
-			requestContext.hasLimitedBypassPermission(),
-			requestContext.hasProtectedBypassPermission()
-		);
-		if (validatedReplaceOperations == null) {
-			return PreparedPlan.failure(
-				GraphWriteJsonSupport.buildRejectedResponse("replace_invalid", "当前拓扑修改不合法，请检查 triggerSource 与目标 core 集合。", savedData.graphRevision(), List.of())
-			);
-		}
-		for (ValidatedReplaceOperation validatedReplaceOperation : validatedReplaceOperations) {
-			if (validatedReplaceOperation.failureResponseJson() != null && !validatedReplaceOperation.failureResponseJson().isBlank()) {
-				return PreparedPlan.failure(validatedReplaceOperation.failureResponseJson());
-			}
-		}
-
 		ValidatedChannelBatchOperation validatedChannelBatchOperation = validateChannelOperations(
 			level,
 			player,
@@ -331,6 +312,33 @@ public final class GraphWriteService {
 		) {
 			return PreparedPlan.failure(validatedChannelBatchOperation.failureResponseJson());
 		}
+		Set<Long> channelTargetsReturningToSerial = collectChannelTargetsReturningToSerial(
+			savedData,
+			validatedChannelBatchOperation
+		);
+		List<ValidatedReplaceOperation> validatedReplaceOperations = validateReplaceOperations(
+			level,
+			player,
+			savedData,
+			replaceOperations,
+			requestContext.hasLimitedBypassPermission(),
+			requestContext.hasProtectedBypassPermission(),
+			channelTargetsReturningToSerial
+		);
+		if (validatedReplaceOperations == null) {
+			return PreparedPlan.failure(
+				GraphWriteJsonSupport.buildRejectedResponse("replace_invalid", "当前拓扑修改不合法，请检查 triggerSource 与目标 core 集合。", savedData.graphRevision(), List.of())
+			);
+		}
+		for (ValidatedReplaceOperation validatedReplaceOperation : validatedReplaceOperations) {
+			if (validatedReplaceOperation.failureResponseJson() != null && !validatedReplaceOperation.failureResponseJson().isBlank()) {
+				return PreparedPlan.failure(validatedReplaceOperation.failureResponseJson());
+			}
+		}
+		validatedChannelBatchOperation = trimChannelBatchOperationForExplicitReplace(
+			validatedChannelBatchOperation,
+			validatedReplaceOperations
+		);
 
 		return PreparedPlan.success(
 			validatedAliasOperations,
@@ -420,7 +428,8 @@ public final class GraphWriteService {
 		LinkSavedData savedData,
 		List<ReplaceTriggerSourceTargetsOperation> replaceOperations,
 		boolean hasLimitedBypassPermission,
-		boolean hasProtectedBypassPermission
+		boolean hasProtectedBypassPermission,
+		Set<Long> channelTargetsReturningToSerial
 	) {
 		if (replaceOperations == null || replaceOperations.isEmpty()) {
 			return List.of();
@@ -466,7 +475,8 @@ public final class GraphWriteService {
 				replaceOperation.triggerSourceSerial(),
 				nextTargets,
 				hasLimitedBypassPermission,
-				hasProtectedBypassPermission
+				hasProtectedBypassPermission,
+				channelTargetsReturningToSerial
 			);
 			if (!preparationResult.successful()) {
 				validatedReplaceOperations.add(
@@ -565,26 +575,114 @@ public final class GraphWriteService {
 				)
 			);
 		}
+		return buildValidatedChannelBatchOperation(preparationResult.plan());
+	}
 
+	/**
+	 * 将频道批量计划转成 GraphWriteService 内部统一使用的受影响节点摘要。
+	 */
+	private static ValidatedChannelBatchOperation buildValidatedChannelBatchOperation(
+		LinkChannelEditingService.PreparedChannelBatchUpdate plan
+	) {
+		if (plan == null) {
+			return null;
+		}
 		Set<Long> affectedTriggerSourceSerials = new LinkedHashSet<>();
 		Set<Long> affectedCoreSerials = new LinkedHashSet<>();
-		for (ChannelOverride override : preparationResult.plan().overrides()) {
+		for (ChannelOverride override : plan.overrides()) {
 			if (override.nodeType() == LinkNodeType.TRIGGER_SOURCE) {
 				affectedTriggerSourceSerials.add(override.serial());
 			} else {
 				affectedCoreSerials.add(override.serial());
 			}
 		}
-		for (LinkSetExecutionService.PreparedReplaceOperation preparedOperation : preparationResult.plan().preparedOperations()) {
+		for (LinkSetExecutionService.PreparedReplaceOperation preparedOperation : plan.preparedOperations()) {
 			affectedTriggerSourceSerials.add(preparedOperation.sourceSerial());
 			affectedCoreSerials.addAll(preparedOperation.previousTargets());
 			affectedCoreSerials.addAll(preparedOperation.targets());
 		}
 		return ValidatedChannelBatchOperation.success(
-			preparationResult.plan(),
+			plan,
 			List.copyOf(affectedTriggerSourceSerials),
 			List.copyOf(affectedCoreSerials)
 		);
+	}
+
+	/**
+	 * 收集同一批请求里会被切回 serial 的 core，供显式 replace 校验阶段放宽频道目标限制。
+	 */
+	private static Set<Long> collectChannelTargetsReturningToSerial(
+		LinkSavedData savedData,
+		ValidatedChannelBatchOperation validatedChannelBatchOperation
+	) {
+		if (savedData == null || validatedChannelBatchOperation == null || validatedChannelBatchOperation.plan() == null) {
+			return Set.of();
+		}
+		Set<Long> targetCoreSerials = new LinkedHashSet<>();
+		for (ChannelOverride override : validatedChannelBatchOperation.plan().overrides()) {
+			if (
+				override.nodeType() == LinkNodeType.CORE &&
+				override.channel() <= 0L &&
+				savedData.getConnectionMode(LinkNodeType.CORE, override.serial()) == LinkConnectionMode.CHANNEL
+			) {
+				targetCoreSerials.add(override.serial());
+			}
+		}
+		return targetCoreSerials.isEmpty() ? Set.of() : Set.copyOf(targetCoreSerials);
+	}
+
+	/**
+	 * 同一来源若已存在显式 replace，则频道派生 replace 让位给显式结果，避免同批请求互相覆盖。
+	 */
+	private static ValidatedChannelBatchOperation trimChannelBatchOperationForExplicitReplace(
+		ValidatedChannelBatchOperation validatedChannelBatchOperation,
+		List<ValidatedReplaceOperation> validatedReplaceOperations
+	) {
+		if (validatedChannelBatchOperation == null || validatedChannelBatchOperation.plan() == null) {
+			return validatedChannelBatchOperation;
+		}
+		Set<Long> explicitReplaceSourceSerials = new LinkedHashSet<>();
+		if (validatedReplaceOperations != null) {
+			for (ValidatedReplaceOperation validatedReplaceOperation : validatedReplaceOperations) {
+				if (
+					validatedReplaceOperation == null ||
+					!validatedReplaceOperation.actualGraphWrite() ||
+					validatedReplaceOperation.operation() == null
+				) {
+					continue;
+				}
+				explicitReplaceSourceSerials.add(validatedReplaceOperation.operation().sourceSerial());
+			}
+		}
+		if (explicitReplaceSourceSerials.isEmpty()) {
+			return validatedChannelBatchOperation;
+		}
+		List<LinkSetExecutionService.PreparedReplaceOperation> retainedOperations = validatedChannelBatchOperation
+			.plan()
+			.preparedOperations()
+			.stream()
+			.filter((preparedOperation) -> !explicitReplaceSourceSerials.contains(preparedOperation.sourceSerial()))
+			.toList();
+		if (retainedOperations.size() == validatedChannelBatchOperation.plan().preparedOperations().size()) {
+			return validatedChannelBatchOperation;
+		}
+		int totalCommandCost = 0;
+		for (LinkSetExecutionService.PreparedReplaceOperation retainedOperation : retainedOperations) {
+			totalCommandCost = saturatingAdd(totalCommandCost, retainedOperation.commandCost());
+		}
+		if (!validatedChannelBatchOperation.plan().changedOverrides().isEmpty() && totalCommandCost <= 0) {
+			totalCommandCost = 1;
+		}
+		LinkChannelEditingService.PreparedChannelBatchUpdate trimmedPlan =
+			new LinkChannelEditingService.PreparedChannelBatchUpdate(
+				validatedChannelBatchOperation.plan().level(),
+				validatedChannelBatchOperation.plan().player(),
+				validatedChannelBatchOperation.plan().overrides(),
+				validatedChannelBatchOperation.plan().changedOverrides(),
+				retainedOperations,
+				totalCommandCost
+			);
+		return buildValidatedChannelBatchOperation(trimmedPlan);
 	}
 
 	private static void acquireRateLimitsOrThrow(

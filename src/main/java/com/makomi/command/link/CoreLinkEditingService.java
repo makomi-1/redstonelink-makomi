@@ -208,7 +208,8 @@ public final class CoreLinkEditingService {
 				hasLimitedBypassPermission,
 				hasProtectedBypassPermission,
 				false,
-				false
+				false,
+				Set.of()
 			);
 			if (!preparationResult.successful()) {
 				List<LinkSetExecutionService.OperationFeedback> allFeedbacks = new ArrayList<>(feedbacks);
