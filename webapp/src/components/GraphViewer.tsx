@@ -123,6 +123,35 @@ function mergeUniqueSortedStrings(
 }
 
 /**
+ * 跨模式迁回序号后，若节点暂时没有显式边，就先临时并入孤立节点显示集合；
+ * 这样可以复用现有上下文聚焦链路，而不额外引入新的聚焦分支。
+ */
+function resolveAutoPinnedCrossModeSerialNodeKeys(
+  baseGraphBundle: GraphSnapshotBundle,
+  nextDraft: GraphDraft,
+  migratedNodes: GraphNodeInfo[],
+): string[] {
+  if (migratedNodes.length === 0) {
+    return [];
+  }
+  const nextGraphBundle = applyDraftToGraph(baseGraphBundle, nextDraft);
+  const nextNodeByKey = new Map(
+    nextGraphBundle.nodes.map((node) => [node.nodeKey, node] as const),
+  );
+  const nextEdgeCountByNodeKey = buildEdgeCountByNodeKey(nextGraphBundle);
+  return migratedNodes
+    .filter((node) => {
+      const nextNode = nextNodeByKey.get(node.nodeKey);
+      return (
+        nextNode?.connectionMode === "serial" &&
+        (nextEdgeCountByNodeKey.get(node.nodeKey) ?? 0) === 0
+      );
+    })
+    .map((node) => node.nodeKey)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+/**
  * 选区数组统一按稳定顺序比较，避免仅引用变化触发无意义回流。
  */
 function sameStringArray(left: string[], right: string[]): boolean {
@@ -1996,6 +2025,14 @@ export default function GraphViewer({
       selectedCrossModeNodeKeys,
       nextChannel,
     );
+    const autoPinnedNodeKeys =
+      displayMode === "serial"
+        ? resolveAutoPinnedCrossModeSerialNodeKeys(
+            baseGraphBundle,
+            nextDraft,
+            selectedCrossModeNodes,
+          )
+        : [];
     if (!applyLocalDraftChange(nextDraft)) {
       return;
     }
@@ -2009,6 +2046,11 @@ export default function GraphViewer({
       setSaveMessage(
         `已将 ${selectedCrossModeNodeKeys.length} 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。`,
       );
+      if (autoPinnedNodeKeys.length > 0) {
+        setPinnedIsolatedNodeKeys((currentValues) =>
+          mergeUniqueSortedStrings(currentValues, autoPinnedNodeKeys),
+        );
+      }
     } else {
       setSelectedEditChannelNodeKeys((currentValues) =>
         mergeUniqueSortedStrings(currentValues, selectedCrossModeNodeKeys),

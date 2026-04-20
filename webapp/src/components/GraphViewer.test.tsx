@@ -323,6 +323,37 @@ describe('GraphViewer', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
   });
 
+  it('序号模式下跨模式迁回后新孤立节点会自动进入当前画布上下文', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+      />,
+    );
+
+    expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('2');
+
+    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.click(screen.getByRole('button', { name: '#3 (gamma)' }));
+    await user.click(screen.getByRole('button', { name: '#4 (delta)' }));
+    await user.click(screen.getByRole('button', { name: '应用到草稿' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          '已将 2 个另一模式节点迁回序号模式草稿。迁回 serial 只表示回到显式边模式；继续编辑真实边请在当前序号模式下使用 add/remove/replace。',
+        ),
+      ).toBeInTheDocument(),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('4'),
+    );
+  });
+
   it('序号模式下跨模式迁回的节点切入编辑态后仍会进入当前画布上下文', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createGraphViewerFetchMock());
