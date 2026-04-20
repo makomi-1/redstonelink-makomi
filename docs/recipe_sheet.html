@@ -223,6 +223,23 @@
 <section class='card'><div class='row'><table class='grid'>
 <tr>
 <td class='empty'></td>
+<td>minecraft:glass_pane</td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td>minecraft:glass_pane</td>
+<td>redstonelink:redstone_link_component</td>
+<td>minecraft:glass_pane</td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td>redstonelink:quick_link_tool</td>
+<td class='empty'></td>
+</tr>
+</table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:graph_visual_editor</div><div class='count'>数量 x1</div></div></div></section>
+<section class='card'><div class='row'><table class='grid'>
+<tr>
+<td class='empty'></td>
 <td>minecraft:iron_ingot</td>
 <td class='empty'></td>
 </tr>
@@ -636,6 +653,7 @@
 		'redstonelink_pulse_linker': ['脉冲遥控器', 'Linked Pulse Linker'],
 		'redstonelink_sync_linker': ['同步遥控器', 'Linked Sync Linker'],
 		'quick_link_tool': ['快速连接工具', 'Quick Link Tool'],
+		'graph_visual_editor': ['图可视化编辑器', 'Graph Visual Editor'],
 		'redstone_link_component': ['连接原件', 'Redstone Link Component'],
 		'redstonelink_status_panel': ['状态面板工具', 'State Panel Tool']
 	};
@@ -1627,6 +1645,7 @@
 
 		if (
 			outputId === 'redstonelink:quick_link_tool' ||
+			outputId === 'redstonelink:graph_visual_editor' ||
 			outputId === 'redstonelink:redstonelink_pulse_linker' ||
 			outputId === 'redstonelink:redstonelink_sync_linker' ||
 			outputId === 'redstonelink:redstonelink_toggle_linker' ||

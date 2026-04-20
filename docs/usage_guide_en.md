@@ -15,7 +15,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ## I. Quick Start for Players
 
 - Best for: players using the mod for the first time and only wanting everyday linking plus state checks.
-- Recommended reading order: `Quick Link Tool` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `State Panel Tool` -> `Batch Serial Input Format for Commands/GUI`.
+- Recommended reading order: `Quick Link Tool` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `State Panel Tool` -> `Graph Visual Editor` -> `Batch Serial Input Format for Commands/GUI`.
 
 ### Quick Link Tool
 - Item name: `Quick Link Tool`.
@@ -131,7 +131,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Item name: `State Panel Tool`.
 - Basic interaction:
 1. Hold it in the main hand and right-click: open the state panel.
-2. The panel provides four action buttons: `Subscribe / Refresh / Record / Clear`. `Record` is only a reserved entry right now and immediately says it will open later.
+2. The panel provides four action buttons: `Subscribe / Refresh / Record / Clear`. Clicking `Record` now opens the dedicated recording configuration screen instead of a placeholder entry.
 3. The subscription type can switch between `core` and `triggerSource`.
 - Input and validation rules:
 1. The input box uses the same serial-expression grammar as the pairing GUI: `N` and `A:B`, separated by `/`.
@@ -147,6 +147,25 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Config keys:
 1. `server.statePanel.refreshHz`: overall refresh throttle for the state panel, default `5`.
 2. `server.statePanel.maxSubscriptions`: total subscription cap (`core + triggerSource` combined), default `50`.
+
+- Recording and web viewing:
+1. The recording screen can configure title, sample interval, capacity per node, timed duration, and the subscription subset to record from the current list.
+2. It supports both `Open web after export` and `Open Curves`; after export, the result is written as a local recording asset.
+3. The recording page and graph page share the same local web bridge. The web entry now only serves two standalone pages: `graph` and `recording`.
+
+### Graph Visual Editor
+- Item name: `Graph Visual Editor`.
+- Basic interaction:
+1. Main-hand right-click, or use it on a block with the main hand: export the current visible `serial` topology snapshot and automatically open the local `graph` page.
+2. You can also use the client command `/rlclient web graph` to request export of the current visible graph, or `/rlclient web graph open` to open the local `graph` page directly.
+- Graph page behavior:
+1. The `graph` page supports both `serial` and `channel` views. The `channel` view renders channel relationships as a two-level structure: `triggerSource -> channelHub -> core`.
+2. Link edits, channel edits, alias edits, and cross-mode adjustments made on the web page only enter the local draft first; they do not modify game truth until you click `Save`.
+3. A save preview is performed before `Save`; local drafts, layouts, and exported graph snapshots are all stored in the client-side local web asset directory.
+4. The web page supports language switching and theme switching. The current preference is persisted to `gameDir/redstonelink/web/preferences.json` and remains effective after restarting the game.
+- Export and cache behavior:
+1. The default export is the "current visible serial graph snapshot", so the web page opens directly around the current in-game context.
+2. When the structure checksum is unchanged, the editor reuses the existing local graph asset first; it only re-exports and writes back when the asset is missing.
 
 ### Pairing Input Box Hint Behavior
 - If the input box starts empty, it no longer steals focus automatically, so the placeholder hint stays visible.

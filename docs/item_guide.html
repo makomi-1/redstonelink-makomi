@@ -897,12 +897,35 @@
           render: 'item',
           name: { zh: '状态面板工具', en: 'State Panel Tool' },
           effect: {
-            zh: '用于订阅并查看 core/triggerSource 节点运行状态。',
-            en: 'Used to subscribe and inspect runtime state of core/triggerSource nodes.'
+            zh: '用于订阅节点运行状态、配置录制并进入独立曲线页。',
+            en: 'Used to subscribe to node runtime state, configure recordings, and open the standalone curves page.'
           },
           usage: {
-            zh: ['主手右键打开状态面板。', '在面板中进行订阅、刷新和清空订阅。', '用于运行期观察与维护。'],
-            en: ['Main-hand right-click to open state panel.', 'Manage subscriptions, refresh, and clear entries.', 'Use for runtime observation and maintenance.']
+            zh: ['主手右键打开状态面板。', '可进行订阅、刷新、清空订阅，并从录制入口进入独立录制配置界面。', '录制配置界面可设置采样参数、选择订阅子集，并支持直接打开曲线页。'],
+            en: ['Main-hand right-click opens the state panel.', 'Use it to subscribe, refresh, clear subscriptions, and enter the dedicated recording configuration screen from the record action.', 'The recording screen can configure sampling parameters, choose a subscription subset, and open the curves page directly.']
+          },
+          note: {
+            zh: '录制导出后的 recording 资产与 graph 页面共用同一套本地网页桥；曲线页可独立打开。',
+            en: 'Exported recording assets share the same local web bridge used by the graph page, and the curves page can be opened independently.'
+          }
+        },
+        {
+          path: 'graph_visual_editor',
+          category: 'tools',
+          role: 'utility',
+          render: 'item',
+          name: { zh: '图可视化编辑器', en: 'Graph Visual Editor' },
+          effect: {
+            zh: '导出当前可见 serial 拓扑图，并进入独立 graph 网页编辑工作流。',
+            en: 'Exports the current visible serial topology and enters the standalone graph web editing workflow.'
+          },
+          usage: {
+            zh: ['主手右键，或主手对方块使用：导出当前可见 serial 图快照并自动打开 graph 页面。', 'graph 页面可在 serial/channel 视图间切换，并查看聚合块与频道两级结构。', '网页修改只进入本地草稿，需点击 Save 才会回传游戏真值。'],
+            en: ['Main-hand right-click, or use it on a block with the main hand, to export the current visible serial snapshot and automatically open the graph page.', 'The graph page can switch between serial/channel views and inspect aggregate blocks plus the two-level channel structure.', 'Web-side edits only enter the local draft first; they are sent back to game truth only after Save.']
+          },
+          note: {
+            zh: '当结构校验码未变化时会优先复用已有本地图资产；网页语言与主题偏好会本地持久化。',
+            en: 'When the structure checksum is unchanged, the editor reuses the existing local graph asset first; web language and theme preferences are persisted locally.'
           }
         },
         {
