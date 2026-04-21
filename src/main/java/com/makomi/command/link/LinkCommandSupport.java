@@ -10,12 +10,15 @@ import com.makomi.data.LinkWriteControlService;
 import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.util.SerialParseUtil;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
@@ -131,33 +134,155 @@ public final class LinkCommandSupport {
 	}
 
 	/**
-	 * 同步玩家背包中同序列号物品的链接快照。
+	 * 同步玩家背包中指定节点序号的物品链接快照。
 	 */
 	public static void syncPlayerItemLinkSnapshot(
 		ServerPlayer player,
-		LinkNodeType sourceType,
-		long sourceSerial
+		LinkNodeType nodeType,
+		long serial
 	) {
-		if (player == null || sourceType == null || sourceSerial <= 0L) {
+		syncPlayerItemLinkSnapshots(player, nodeType, Set.of(serial));
+	}
+
+	/**
+	 * 同步玩家背包中一组节点序号对应的物品链接快照。
+	 * <p>
+	 * 该入口统一覆盖主背包、副手、盔甲栏与当前拖拽物品，
+	 * 并在命中任一变更后只广播一次容器更新，避免 tooltip 继续展示旧缓存。
+	 * </p>
+	 */
+	public static void syncPlayerItemLinkSnapshots(
+		ServerPlayer player,
+		LinkNodeType nodeType,
+		Set<Long> serials
+	) {
+		Set<Long> normalizedSerials = normalizePositiveSerials(serials);
+		if (player == null || nodeType == null || normalizedSerials.isEmpty()) {
 			return;
 		}
-		Set<Long> snapshotTargets = NodeSnapshotQueryService
-			.queryItemSnapshotLinks(player.serverLevel(), sourceType, sourceSerial)
-			.visibleTargetSet();
-
-		for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
-			ItemStack stack = player.getInventory().getItem(slot);
-			if (stack.isEmpty()) {
-				continue;
-			}
-			if (LinkItemData.getSerial(stack) != sourceSerial) {
-				continue;
-			}
-			if (LinkItemData.getNodeType(stack).orElse(null) != sourceType) {
-				continue;
-			}
-			LinkItemData.setLinkedSerials(stack, snapshotTargets);
+		boolean changed = syncPlayerInventoryLinkSnapshots(player, nodeType, normalizedSerials);
+		if (changed) {
+			player.containerMenu.broadcastChanges();
 		}
+	}
+
+	/**
+	 * 同步某一批受影响节点序号对应的玩家物品链接快照。
+	 */
+	public static void syncAffectedPlayerItemLinkSnapshots(
+		ServerPlayer player,
+		LinkNodeType nodeType,
+		Set<Long> previousSerials,
+		Set<Long> currentSerials
+	) {
+		if (player == null || nodeType == null) {
+			return;
+		}
+		Set<Long> affectedSerials = new HashSet<>();
+		if (previousSerials != null) {
+			affectedSerials.addAll(previousSerials);
+		}
+		if (currentSerials != null) {
+			affectedSerials.addAll(currentSerials);
+		}
+		syncPlayerItemLinkSnapshots(player, nodeType, affectedSerials);
+	}
+
+	/**
+	 * 刷新玩家各容器段中命中的节点物品快照。
+	 */
+	private static boolean syncPlayerInventoryLinkSnapshots(
+		ServerPlayer player,
+		LinkNodeType nodeType,
+		Set<Long> serials
+	) {
+		if (player == null || nodeType == null || serials == null || serials.isEmpty()) {
+			return false;
+		}
+		ServerLevel level = player.serverLevel();
+		Inventory inventory = player.getInventory();
+		boolean changed = false;
+		changed |= syncItemListLinkSnapshots(level, inventory.items, nodeType, serials);
+		changed |= syncItemListLinkSnapshots(level, inventory.offhand, nodeType, serials);
+		changed |= syncItemListLinkSnapshots(level, inventory.armor, nodeType, serials);
+		changed |= syncSingleItemLinkSnapshot(level, player.containerMenu.getCarried(), nodeType, serials);
+		return changed;
+	}
+
+	/**
+	 * 刷新物品列表中命中的节点物品快照。
+	 * <p>
+	 * 该 helper 暴露给同包测试复用，避免测试环境依赖完整玩家实例。
+	 * </p>
+	 */
+	static boolean syncItemListLinkSnapshots(
+		ServerLevel level,
+		List<ItemStack> stacks,
+		LinkNodeType nodeType,
+		Set<Long> serials
+	) {
+		if (level == null || stacks == null || stacks.isEmpty() || nodeType == null || serials == null || serials.isEmpty()) {
+			return false;
+		}
+		boolean changed = false;
+		for (ItemStack stack : stacks) {
+			changed |= syncSingleItemLinkSnapshot(level, stack, nodeType, serials);
+		}
+		return changed;
+	}
+
+	/**
+	 * 刷新单个命中物品的链接快照。
+	 */
+	static boolean syncSingleItemLinkSnapshot(
+		ServerLevel level,
+		ItemStack stack,
+		LinkNodeType nodeType,
+		Set<Long> serials
+	) {
+		if (!matchesNodeItem(stack, nodeType, serials)) {
+			return false;
+		}
+		List<Long> beforeLinks = LinkItemData.getLinkedSerials(stack);
+		LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, level);
+		return !beforeLinks.equals(LinkItemData.getLinkedSerials(stack));
+	}
+
+	/**
+	 * 判断当前物品是否命中本次要刷新的节点集合。
+	 */
+	private static boolean matchesNodeItem(
+		ItemStack stack,
+		LinkNodeType nodeType,
+		Set<Long> serials
+	) {
+		if (stack == null || stack.isEmpty() || nodeType == null || serials == null || serials.isEmpty()) {
+			return false;
+		}
+		if (LinkItemData.getSerialCount(stack) != 1) {
+			return false;
+		}
+		long serial = LinkItemData.getSerial(stack);
+		if (!serials.contains(serial)) {
+			return false;
+		}
+		return LinkItemData.getNodeType(stack).orElse(null) == nodeType;
+	}
+
+	/**
+	 * 归一化序号集合：仅保留正数并去重。
+	 */
+	private static Set<Long> normalizePositiveSerials(Set<Long> serials) {
+		if (serials == null || serials.isEmpty()) {
+			return Set.of();
+		}
+		Set<Long> normalizedSerials = new HashSet<>();
+		for (Long serial : serials) {
+			if (serial != null && serial > 0L) {
+				normalizedSerials.add(serial);
+			}
+		}
+		return normalizedSerials.isEmpty() ? Set.of() : Set.copyOf(normalizedSerials);
 	}
 
 	/**
@@ -205,21 +330,43 @@ public final class LinkCommandSupport {
 				return;
 			}
 			collectAffectedNodeLinkSnapshots(operation.targetType(), operation.previousTargets(), operation.targets());
+			collectAffectedPlayerItemLinkSnapshots(
+				operation.player(),
+				operation.targetType(),
+				operation.previousTargets(),
+				operation.targets()
+			);
 			collectPlayerItemLinkSnapshot(operation.player(), operation.sourceType(), operation.sourceSerial());
 		}
 
 		/**
-		 * 收集一次来源物品快照刷新需求。
+		 * 收集一次节点物品快照刷新需求。
 		 */
 		public void collectPlayerItemLinkSnapshot(
 			ServerPlayer player,
-			LinkNodeType sourceType,
-			long sourceSerial
+			LinkNodeType nodeType,
+			long serial
 		) {
-			if (player == null || sourceType == null || sourceSerial <= 0L) {
+			if (player == null || nodeType == null || serial <= 0L) {
 				return;
 			}
-			playerItemSnapshotSyncRequests.add(new PlayerItemSnapshotSyncRequest(player, sourceType, sourceSerial));
+			playerItemSnapshotSyncRequests.add(new PlayerItemSnapshotSyncRequest(player, nodeType, serial));
+		}
+
+		/**
+		 * 收集一次受影响节点集合对应的物品快照刷新需求。
+		 */
+		public void collectAffectedPlayerItemLinkSnapshots(
+			ServerPlayer player,
+			LinkNodeType nodeType,
+			Set<Long> previousSerials,
+			Set<Long> currentSerials
+		) {
+			if (player == null || nodeType == null) {
+				return;
+			}
+			collectItemSnapshotSerials(player, nodeType, previousSerials);
+			collectItemSnapshotSerials(player, nodeType, currentSerials);
 		}
 
 		/**
@@ -248,6 +395,17 @@ public final class LinkCommandSupport {
 			}
 		}
 
+		private void collectItemSnapshotSerials(ServerPlayer player, LinkNodeType nodeType, Set<Long> serials) {
+			if (serials == null || serials.isEmpty()) {
+				return;
+			}
+			for (Long serial : serials) {
+				if (serial != null && serial > 0L) {
+					playerItemSnapshotSyncRequests.add(new PlayerItemSnapshotSyncRequest(player, nodeType, serial));
+				}
+			}
+		}
+
 		/**
 		 * 执行一次批量 flush，并在结束后自动清空收集器。
 		 */
@@ -257,8 +415,13 @@ public final class LinkCommandSupport {
 					syncNodeLinkSnapshot(sourceLevel, request.nodeType(), request.serial());
 				}
 			}
+			Map<PlayerItemSnapshotSyncGroupKey, Set<Long>> serialsByGroup = new LinkedHashMap<>();
 			for (PlayerItemSnapshotSyncRequest request : playerItemSnapshotSyncRequests) {
-				syncPlayerItemLinkSnapshot(request.player(), request.sourceType(), request.sourceSerial());
+				PlayerItemSnapshotSyncGroupKey groupKey = new PlayerItemSnapshotSyncGroupKey(request.player(), request.nodeType());
+				serialsByGroup.computeIfAbsent(groupKey, ignored -> new HashSet<>()).add(request.serial());
+			}
+			for (Map.Entry<PlayerItemSnapshotSyncGroupKey, Set<Long>> entry : serialsByGroup.entrySet()) {
+				syncPlayerItemLinkSnapshots(entry.getKey().player(), entry.getKey().nodeType(), entry.getValue());
 			}
 			clear();
 		}
@@ -301,7 +464,13 @@ public final class LinkCommandSupport {
 	/**
 	 * 唯一化后的玩家物品快照刷新请求。
 	 */
-	private record PlayerItemSnapshotSyncRequest(ServerPlayer player, LinkNodeType sourceType, long sourceSerial) {
+	private record PlayerItemSnapshotSyncRequest(ServerPlayer player, LinkNodeType nodeType, long serial) {
+	}
+
+	/**
+	 * 玩家物品快照批量刷新的分组键。
+	 */
+	private record PlayerItemSnapshotSyncGroupKey(ServerPlayer player, LinkNodeType nodeType) {
 	}
 
 	/**

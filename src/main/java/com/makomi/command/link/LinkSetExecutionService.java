@@ -533,6 +533,12 @@ public final class LinkSetExecutionService {
 			operation.previousTargets(),
 			operation.targets()
 		);
+		LinkCommandSupport.syncAffectedPlayerItemLinkSnapshots(
+			operation.player(),
+			operation.targetType(),
+			operation.previousTargets(),
+			operation.targets()
+		);
 		LinkCommandSupport.syncPlayerItemLinkSnapshot(operation.player(), operation.sourceType(), operation.sourceSerial());
 	}
 
