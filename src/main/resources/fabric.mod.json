@@ -9,7 +9,8 @@
 	],
 	"contact": {
 		"homepage": "${mod_homepage}",
-		"sources": "${mod_sources}"
+		"sources": "${mod_sources}",
+		"issues": "${mod_issues}"
 	},
 	"license": "${mod_license}",
 	"icon": "assets/redstonelink/icon.png",

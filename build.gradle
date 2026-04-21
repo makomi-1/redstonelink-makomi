@@ -143,6 +143,7 @@ processResources {
 		mod_authors: project.mod_authors,
 		mod_homepage: project.mod_homepage,
 		mod_sources: project.mod_sources,
+		mod_issues: project.mod_issues,
 		mod_license: project.mod_license
 	]
 
