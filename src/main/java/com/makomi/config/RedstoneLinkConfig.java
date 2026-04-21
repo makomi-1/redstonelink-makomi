@@ -224,6 +224,13 @@ public final class RedstoneLinkConfig {
 	}
 
 	/**
+	 * @return 网页功能权限配置
+	 */
+	public static RedstoneLinkWebConfig web() {
+		return snapshot.web();
+	}
+
+	/**
 	 * @return 命令限流配置
 	 */
 	public static RedstoneLinkRateLimitConfig rateLimit() {

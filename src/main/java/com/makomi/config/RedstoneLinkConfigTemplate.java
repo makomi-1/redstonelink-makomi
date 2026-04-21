@@ -63,6 +63,16 @@ final class RedstoneLinkConfigTemplate {
 			# en: Scope: node activate, place, node retire (including batch), audit, node get/list, and link get.
 			server.command.otherPermissionLevel=2
 
+			# server.web.recording.permissionLevel
+			# zh: 录制网页功能权限等级（0~4）。控制状态面板录制会话的启动，以及后续 recording 导出链路。
+			# en: Permission level for recording web features (0~4). Controls starting state-panel recording sessions and the downstream recording export flow.
+			server.web.recording.permissionLevel=2
+
+			# server.web.graph.permissionLevel
+			# zh: graph 可视化编辑网页功能权限等级（0~4）。控制 graph 导出、网页预检与网页保存链路。
+			# en: Permission level for graph visual-editor web features (0~4). Controls graph export, web preview, and web save flows.
+			server.web.graph.permissionLevel=2
+
 			# server.command.benchmarkMode.enabled
 			# zh: 是否启用 bench 命令测试模式。启用后，bench 相关命令允许更方便地配合控制台或 RCON 执行。
 			# en: Whether to enable benchmark command mode for bench workflows. When enabled, bench-related commands can be used more conveniently with console or RCON.

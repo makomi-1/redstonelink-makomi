@@ -88,6 +88,13 @@ public final class StatePanelRecordingSessionService {
 				SessionSnapshot.inactive(0)
 			);
 		}
+		if (!WebFeaturePermissionService.canUseRecordingFeature(player)) {
+			return new StartResult(
+				false,
+				QuickLinkOperationFeedback.failure("message.redstonelink.permission.insufficient"),
+				SessionSnapshot.inactive(currentSubscriptionCount(player))
+			);
+		}
 		if (activeSession(player) != null) {
 			return new StartResult(
 				false,

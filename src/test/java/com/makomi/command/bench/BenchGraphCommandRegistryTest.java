@@ -97,4 +97,5 @@ class BenchGraphCommandRegistryTest {
 			BenchGraphCommandRegistry.buildWriteSummary("graph_save", 5L, 2, responseJson)
 		);
 	}
+
 }

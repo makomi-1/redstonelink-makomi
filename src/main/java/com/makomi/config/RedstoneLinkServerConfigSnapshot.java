@@ -10,6 +10,7 @@ import java.util.Set;
 record RedstoneLinkServerConfigSnapshot(
 	RedstoneLinkGeneralConfig general,
 	RedstoneLinkCommandConfig command,
+	RedstoneLinkWebConfig web,
 	RedstoneLinkRateLimitConfig rateLimit,
 	RedstoneLinkPrivacyConfig privacy,
 	RedstoneLinkWriteControlConfig writeControl,
@@ -43,6 +44,10 @@ record RedstoneLinkServerConfigSnapshot(
 				1024,
 				1024,
 				1024
+			),
+			new RedstoneLinkWebConfig(
+				2,
+				2
 			),
 			new RedstoneLinkRateLimitConfig(
 				true,

@@ -15,6 +15,7 @@ import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.data.QuickLinkOperationFeedback;
 import com.makomi.data.StatePanelRecordingSessionService;
 import com.makomi.data.StatePanelRecordingSessionService.ExportBundle;
+import com.makomi.data.WebFeaturePermissionService;
 import com.makomi.data.StatePanelToolData;
 import com.makomi.item.StatePanelToolItem;
 import com.makomi.util.SerialParseUtil;
@@ -291,6 +292,10 @@ final class StatePanelNetworkServerHandlerSupport {
 	 */
 	static void handleExportGraph(ServerPlayer player, StatePanelNetwork.ExportStatePanelGraphPayload payload) {
 		if (player == null) {
+			return;
+		}
+		if (!WebFeaturePermissionService.canUseGraphFeature(player)) {
+			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.permission.insufficient"));
 			return;
 		}
 		try {

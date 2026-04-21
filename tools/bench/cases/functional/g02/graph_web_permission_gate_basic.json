@@ -1,0 +1,176 @@
+{
+  "id": "graph_web_permission_gate_basic",
+  "description": "验证 graph 网页功能权限门：低权限拒绝 export/preview/save，高权限恢复后允许导出与保存并生效。",
+  "layer": "G",
+  "scenarioId": "G02",
+  "arena": {
+    "clearFrom": [-8, 63, 808],
+    "clearTo": [24, 66, 820]
+  },
+  "targets": {
+    "id": "core_graph_permission",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 812],
+      "to": [12, 64, 812]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_graph_permission",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 812],
+        "to": [0, 64, 812]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "trace_mount_core_mixed",
+      "name": "mount_graph_permission_target",
+      "serialIndexes": [0],
+      "capacity": 64
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_graph_permission_constant_sync_without_link",
+      "serialRef": "sync_graph_permission",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_graph_permission_without_link",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "graph_permission_target_should_stay_low_without_link",
+      "serialFormat": "mixed",
+      "serialIndexes": [0],
+      "expectedCount": 1,
+      "expect": {
+        "active": false,
+        "effectiveMode": "none",
+        "resolvedStrength": 0
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "tag_graph_permission_player",
+      "command": "tag @s add rl_perm_g02",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "deop_graph_permission_player",
+      "command": "deop @a[tag=rl_perm_g02,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_graph_export_denied",
+      "command": "redstonelink bench graph export force",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_export",
+      "expectedRegexes": [
+        "outcome=rejected",
+        "reason=permission_denied"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_graph_preview_denied",
+      "commandTemplate": "redstonelink bench graph preview triggerSource {{source:sync_graph_permission[0]}} core {{targets[0]:mixed}}",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_preview",
+      "expectedRegexes": [
+        "outcome=rejected",
+        "reason=permission_denied"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_graph_save_denied",
+      "commandTemplate": "redstonelink bench graph save triggerSource {{source:sync_graph_permission[0]}} core {{targets[0]:mixed}}",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_save",
+      "expectedRegexes": [
+        "outcome=rejected",
+        "reason=permission_denied"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "op_graph_permission_player",
+      "command": "op @a[tag=rl_perm_g02,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_graph_export_allowed",
+      "command": "redstonelink bench graph export force",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_export",
+      "expectedRegexes": [
+        "outcome=exported",
+        "reusedExisting=false",
+        "nodeCount=2",
+        "edgeCount=0"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_graph_preview_allowed",
+      "commandTemplate": "redstonelink bench graph preview triggerSource {{source:sync_graph_permission[0]}} core {{targets[0]:mixed}}",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_preview",
+      "expectedRegexes": [
+        "outcome=preview",
+        "requestedTargetCount=1",
+        "previewCanSave=true",
+        "previewGraphWriteUnitCount=1"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_graph_save_allowed",
+      "commandTemplate": "redstonelink bench graph save triggerSource {{source:sync_graph_permission[0]}} core {{targets[0]:mixed}}",
+      "expectedPrefix": "[RedstoneLink/Bench] graph_save",
+      "expectedRegexes": [
+        "outcome=applied",
+        "requestedTargetCount=1",
+        "updatedNodeCount=2"
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_graph_permission_after_save",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "graph_permission_target_should_replay_sync_after_save",
+      "serialFormat": "mixed",
+      "serialIndexes": [0],
+      "expectedCount": 1,
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_graph_permission_sync_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_core_mixed",
+      "name": "unmount_graph_permission_target",
+      "serialIndexes": [0]
+    }
+  ]
+}

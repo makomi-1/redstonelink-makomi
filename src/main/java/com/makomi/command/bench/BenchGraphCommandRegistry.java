@@ -11,6 +11,7 @@ import com.makomi.data.GraphSnapshotExportService;
 import com.makomi.data.GraphWriteService;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.WebFeaturePermissionService;
 import com.makomi.util.SerialParseUtil;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.LongArgumentType;
@@ -85,6 +86,10 @@ public final class BenchGraphCommandRegistry {
 	 */
 	private static int executeExport(CommandContext<CommandSourceStack> context, boolean forceTransfer) {
 		CommandSourceStack source = context.getSource();
+		if (!WebFeaturePermissionService.canUseGraphFeature(source)) {
+			source.sendFailure(Component.literal("[RedstoneLink/Bench] graph_export outcome=rejected reason=permission_denied"));
+			return 0;
+		}
 		try {
 			GraphSnapshotExportService.ExportBundle exportBundle = GraphSnapshotExportService.exportVisibleSerialGraph(source, forceTransfer);
 			String summary = buildExportSummary(

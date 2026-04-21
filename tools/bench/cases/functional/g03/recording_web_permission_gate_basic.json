@@ -1,0 +1,103 @@
+{
+  "id": "recording_web_permission_gate_basic",
+  "description": "验证 recording 网页功能权限门：低权限拒绝启动录制，高权限可准备订阅、启动录制并导出 recording bundle。",
+  "layer": "G",
+  "scenarioId": "G03",
+  "arena": {
+    "clearFrom": [-8, 63, 828],
+    "clearTo": [24, 66, 840]
+  },
+  "targets": {
+    "id": "core_recording_permission",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 832],
+      "to": [12, 64, 832]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_recording_permission",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 832],
+        "to": [0, 64, 832]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "tag_recording_permission_player",
+      "command": "tag @s add rl_perm_g03",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "deop_recording_permission_player",
+      "command": "deop @a[tag=rl_perm_g03,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "low_permission_recording_start_denied",
+      "command": "redstonelink bench recording start",
+      "expectedPrefix": "[RedstoneLink/Bench] recording_start",
+      "expectedRegexes": [
+        "outcome=rejected",
+        "reason=permission_insufficient"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "op_recording_permission_player",
+      "command": "op @a[tag=rl_perm_g03,limit=1]",
+      "skipPlayerContext": true,
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "prepare_recording_state_panel",
+      "commandTemplate": "redstonelink bench recording prepare triggerSource {{source:sync_recording_permission[0]}} core {{targets[0]:mixed}}",
+      "expectedPrefix": "[RedstoneLink/Bench] recording_prepare",
+      "expectedRegexes": [
+        "outcome=prepared",
+        "triggerSourceSerial={{source:sync_recording_permission[0]}}",
+        "coreCount=1",
+        "subscriptionCount=2"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_recording_start_allowed",
+      "command": "redstonelink bench recording start",
+      "expectedPrefix": "[RedstoneLink/Bench] recording_start",
+      "expectedRegexes": [
+        "outcome=started",
+        "mountedCount=2",
+        "sampleEveryTicks=1",
+        "autoOpenWeb=false"
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_recording_permission_capture",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "high_permission_recording_stop_allowed",
+      "command": "redstonelink bench recording stop",
+      "expectedPrefix": "[RedstoneLink/Bench] recording_stop",
+      "expectedRegexes": [
+        "outcome=exported",
+        "exportBytes=[1-9][0-9]*",
+        "fileName=recording-.*\\.json\\.gz"
+      ]
+    }
+  ]
+}

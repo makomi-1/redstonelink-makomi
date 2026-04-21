@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "游戏内服务器基本权限专项：读控、写控与权限感知限流。",
+  "description": "游戏内服务器基本权限专项：读控、写控、网页功能权限与权限感知限流。",
   "defaults": {
     "benchAction": "RunFunctionalCase",
     "matrixPath": "../functional-matrix.json"
@@ -40,6 +40,28 @@
         "server.command.rateLimit.actorGroup.other.stepPerLevel": "4",
         "server.currentLinksPrivacy.mode": "plain",
         "server.linkWriteControl.mode": "full"
+      }
+    },
+    {
+      "entryId": "g02_graph_web_permission_gate",
+      "caseId": "graph_web_permission_gate_basic",
+      "serverConfigOverrides": {
+        "server.command.permissionLevel": "0",
+        "server.command.otherPermissionLevel": "0",
+        "server.command.benchmarkMode.enabled": "true",
+        "server.currentLinksPrivacy.mode": "plain",
+        "server.web.graph.permissionLevel": "2"
+      }
+    },
+    {
+      "entryId": "g03_recording_web_permission_gate",
+      "caseId": "recording_web_permission_gate_basic",
+      "serverConfigOverrides": {
+        "server.command.permissionLevel": "0",
+        "server.command.otherPermissionLevel": "0",
+        "server.command.benchmarkMode.enabled": "true",
+        "server.currentLinksPrivacy.mode": "plain",
+        "server.web.recording.permissionLevel": "2"
       }
     }
   ]

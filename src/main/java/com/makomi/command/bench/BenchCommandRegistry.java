@@ -26,6 +26,7 @@ public final class BenchCommandRegistry {
 			.then(BenchInputCommandRegistry.createRoot())
 			.then(BenchLinkCommandRegistry.createRoot())
 			.then(BenchGraphCommandRegistry.createRoot())
+			.then(BenchRecordingCommandRegistry.createRoot())
 			.then(BenchOccCommandRegistry.createRoot())
 			.then(BenchTraceCommandRegistry.createRoot());
 	}

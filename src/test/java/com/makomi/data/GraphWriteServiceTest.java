@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.makomi.command.link.LinkChannelEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.data.GraphWriteJsonSupport.GraphWriteRequest;
+import com.makomi.data.GraphWriteJsonSupport.RenameNodeAliasOperation;
 import com.makomi.data.GraphWriteJsonSupport.ReplaceTriggerSourceTargetsOperation;
 import com.makomi.data.GraphWriteJsonSupport.SetNodeChannelOperation;
 import java.lang.reflect.Constructor;
@@ -151,12 +152,49 @@ class GraphWriteServiceTest {
 	}
 
 	/**
+	 * graph 网页功能权限被关闭时，即使只是别名修改，也应整体拒绝网页保存请求。
+	 */
+	@Test
+	void preparePlanShouldRejectWhenGraphWebFeaturePermissionMissing(@TempDir Path tempDir) throws Exception {
+		ServerLevel level = createServerLevel(tempDir);
+		LinkSavedData savedData = LinkSavedData.get(level);
+		savedData.markSerialAllocated(LinkNodeType.TRIGGER_SOURCE, 101L);
+
+		GraphWriteRequest request = new GraphWriteRequest(
+			"draft-3",
+			"snapshot-3",
+			"serial",
+			savedData.graphRevision(),
+			List.of(new RenameNodeAliasOperation(LinkNodeType.TRIGGER_SOURCE, 101L, "门口开关"))
+		);
+
+		Object preparedPlan = invokePreparePlan(request, level, savedData, false, true, true);
+
+		assertTrue(!readBoolean(preparedPlan, "successful"));
+		assertTrue(readString(preparedPlan, "failureResponseJson").contains("当前没有使用图编辑网页的权限"));
+	}
+
+	/**
 	 * 通过反射构造 ResolvedRequestContext 并执行 preparePlan，避免测试里重复拼接完整网络入口。
 	 */
 	private static Object invokePreparePlan(
 		GraphWriteRequest request,
 		ServerLevel level,
 		LinkSavedData savedData
+	) throws Exception {
+		return invokePreparePlan(request, level, savedData, true, true, true);
+	}
+
+	/**
+	 * 按指定权限位构造 ResolvedRequestContext 并执行 preparePlan。
+	 */
+	private static Object invokePreparePlan(
+		GraphWriteRequest request,
+		ServerLevel level,
+		LinkSavedData savedData,
+		boolean hasGraphFeaturePermission,
+		boolean hasGraphEditPermission,
+		boolean hasAliasEditPermission
 	) throws Exception {
 		Class<?> contextClass = Class.forName("com.makomi.data.GraphWriteService$ResolvedRequestContext");
 		Constructor<?> constructor = contextClass.getDeclaredConstructor(
@@ -165,6 +203,7 @@ class GraphWriteServiceTest {
 			LinkSavedData.class,
 			ServerPlayer.class,
 			CommandSourceStack.class,
+			boolean.class,
 			boolean.class,
 			boolean.class,
 			boolean.class,
@@ -177,8 +216,9 @@ class GraphWriteServiceTest {
 			savedData,
 			null,
 			null,
-			true,
-			true,
+			hasGraphFeaturePermission,
+			hasGraphEditPermission,
+			hasAliasEditPermission,
 			false,
 			false
 		);

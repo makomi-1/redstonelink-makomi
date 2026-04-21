@@ -225,6 +225,7 @@ public final class GraphWriteService {
 			LinkSavedData.get(level),
 			player,
 			rateLimitSource,
+			source == null ? WebFeaturePermissionService.canUseGraphFeature(player) : WebFeaturePermissionService.canUseGraphFeature(source),
 			hasPermission(source, player, RedstoneLinkConfig.command().permissionLevel()),
 			hasPermission(source, player, RedstoneLinkConfig.command().otherPermissionLevel()),
 			hasPermission(source, player, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
@@ -256,6 +257,12 @@ public final class GraphWriteService {
 		if (aliasOperations.isEmpty() && replaceOperations.isEmpty() && channelOperations.isEmpty()) {
 			return PreparedPlan.failure(
 				GraphWriteJsonSupport.buildRejectedResponse("empty_operations", "当前没有可保存的修改。", savedData.graphRevision(), List.of())
+			);
+		}
+		if ((!aliasOperations.isEmpty() || !replaceOperations.isEmpty() || !channelOperations.isEmpty()) &&
+			!requestContext.hasGraphFeaturePermission()) {
+			return PreparedPlan.failure(
+				GraphWriteJsonSupport.buildRejectedResponse("permission_denied", "当前没有使用图编辑网页的权限。", savedData.graphRevision(), List.of())
 			);
 		}
 		if ((!replaceOperations.isEmpty() || !channelOperations.isEmpty()) && !requestContext.hasGraphEditPermission()) {
@@ -1199,6 +1206,7 @@ public final class GraphWriteService {
 		LinkSavedData savedData,
 		ServerPlayer player,
 		CommandSourceStack rateLimitSource,
+		boolean hasGraphFeaturePermission,
 		boolean hasGraphEditPermission,
 		boolean hasAliasEditPermission,
 		boolean hasLimitedBypassPermission,

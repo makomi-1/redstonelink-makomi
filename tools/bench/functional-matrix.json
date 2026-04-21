@@ -22,6 +22,8 @@
     "cases/functional/c07/server_permission_read_write_basic.json",
     "cases/functional/c08/server_permission_rate_limit_basic.json",
     "cases/functional/g01/graph_export_preview_save_replace_basic.json",
+    "cases/functional/g02/graph_web_permission_gate_basic.json",
+    "cases/functional/g03/recording_web_permission_gate_basic.json",
     "cases/functional/f02/link_lifecycle_add_remove_set_clear.json",
     "cases/functional/f03/sync_core_range_square_basic.json",
     "cases/functional/f03/sync_triggerSource_slash_square_basic.json",

@@ -151,7 +151,8 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Recording and web viewing:
 1. The recording screen can configure title, sample interval, capacity per node, timed duration, and the subscription subset to record from the current list.
 2. It supports both `Open web after export` and `Open Curves`; after export, the result is written as a local recording asset.
-3. The recording page and graph page share the same local web bridge. The web entry now only serves two standalone pages: `graph` and `recording`.
+3. Starting a recording is gated by `server.web.recording.permissionLevel`; when the player lacks this permission, the recording session will not start.
+4. The recording page and graph page share the same local web bridge. The web entry now only serves two standalone pages: `graph` and `recording`.
 
 ### Graph Visual Editor
 - Item name: `Graph Visual Editor`.
@@ -161,8 +162,9 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Graph page behavior:
 1. The `graph` page supports both `serial` and `channel` views. The `channel` view renders channel relationships as a two-level structure: `triggerSource -> channelHub -> core`.
 2. Link edits, channel edits, alias edits, and cross-mode adjustments made on the web page only enter the local draft first; they do not modify game truth until you click `Save`.
-3. A save preview is performed before `Save`; local drafts, layouts, and exported graph snapshots are all stored in the client-side local web asset directory.
-4. The web page supports language switching and theme switching. The current preference is persisted to `gameDir/redstonelink/web/preferences.json` and remains effective after restarting the game.
+3. Graph export, web preview, and web save are all gated by `server.web.graph.permissionLevel`; the actual save still goes through the existing write control, permission, and OCC checks.
+4. A save preview is performed before `Save`; local drafts, layouts, and exported graph snapshots are all stored in the client-side local web asset directory.
+5. The web page supports language switching and theme switching. The current preference is persisted to `gameDir/redstonelink/web/preferences.json` and remains effective after restarting the game.
 - Export and cache behavior:
 1. The default export is the "current visible serial graph snapshot", so the web page opens directly around the current in-game context.
 2. When the structure checksum is unchanged, the editor reuses the existing local graph asset first; it only re-exports and writes back when the asset is missing.
@@ -398,6 +400,8 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 | --- | --- | --- |
 | `server.command.permissionLevel` | `0` | Permission gate for the `/redstonelink` root command (includes `link set`, so it also affects GUI submit) |
 | `server.command.otherPermissionLevel` | `2` | Permission gate for the other command group: `node activate`, `node retire`, `node get/list`, `node alias`, `link get`, `place`, `audit` |
+| `server.web.recording.permissionLevel` | `2` | Permission gate for recording web features: starting recordings and the downstream recording-export flow |
+| `server.web.graph.permissionLevel` | `2` | Permission gate for graph visual-editor web features: graph export, web preview, and web save |
 | `server.currentLinksPrivacy.mode` | `masked` | Current-link read mode: `hidden/masked/plain` |
 | `server.currentLinksPrivacy.overlayResponsePermissionLevel` | `0` | Minimum permission needed for the server to send near-overlay packets |
 | `server.currentLinksPrivacy.viewPermissionLevel` | `2` | Permission needed to view masked current links |

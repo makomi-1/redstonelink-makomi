@@ -44,6 +44,7 @@ public final class RedstoneLinkConfigTestHelper {
 		RedstoneLinkServerConfigSnapshot replaced = new RedstoneLinkServerConfigSnapshot(
 			previous.general(),
 			previous.command(),
+			previous.web(),
 			previous.rateLimit(),
 			previous.privacy(),
 			previous.writeControl(),

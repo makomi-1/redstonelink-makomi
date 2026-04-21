@@ -19,6 +19,7 @@ final class RedstoneLinkConfigParser {
 		return new RedstoneLinkServerConfigSnapshot(
 			parseGeneral(props),
 			parseCommand(props),
+			parseWeb(props),
 			parseRateLimit(props),
 			parsePrivacy(props),
 			parseWriteControl(props),
@@ -59,6 +60,16 @@ final class RedstoneLinkConfigParser {
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.privacy.currentLinksMask.maxSetSerials", 1024, 1, 65536),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.writeControl.protected.maxSetSerials", 1024, 1, 65536),
 			RedstoneLinkConfigParseSupport.parseInt(props, "server.command.crosschunk.whitelist.maxSetSerials", 1024, 1, 65536)
+		);
+	}
+
+	/**
+	 * 解析网页功能权限配置。
+	 */
+	private static RedstoneLinkWebConfig parseWeb(Properties props) {
+		return new RedstoneLinkWebConfig(
+			RedstoneLinkConfigParseSupport.parseInt(props, "server.web.recording.permissionLevel", 2, 0, 4),
+			RedstoneLinkConfigParseSupport.parseInt(props, "server.web.graph.permissionLevel", 2, 0, 4)
 		);
 	}
 

@@ -2,6 +2,7 @@ package com.makomi.item;
 
 import com.makomi.RedstoneLink;
 import com.makomi.data.GraphSnapshotExportService;
+import com.makomi.data.WebFeaturePermissionService;
 import com.makomi.network.GraphExportNetworkSupport;
 import java.io.IOException;
 import java.util.List;
@@ -69,6 +70,10 @@ public class GraphVisualEditorItem extends Item {
 	 */
 	private static void exportGraph(Level level, Player player) {
 		if (level.isClientSide || !(player instanceof ServerPlayer serverPlayer)) {
+			return;
+		}
+		if (!WebFeaturePermissionService.canUseGraphFeature(serverPlayer)) {
+			serverPlayer.displayClientMessage(Component.translatable("message.redstonelink.permission.insufficient"), true);
 			return;
 		}
 		try {
