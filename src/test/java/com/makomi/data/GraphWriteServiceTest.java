@@ -175,6 +175,112 @@ class GraphWriteServiceTest {
 	}
 
 	/**
+	 * 无关对象推动 graphRevision 后，replace 仍应按目标 triggerSource 的 sourceRevision 判定，而不是整图误拒绝。
+	 */
+	@Test
+	void preparePlanShouldAllowReplaceWhenOnlyUnrelatedTopologyChanged(@TempDir Path tempDir) throws Exception {
+		ServerLevel level = createServerLevel(tempDir);
+		LinkSavedData savedData = LinkSavedData.get(level);
+
+		savedData.markSerialAllocated(LinkNodeType.TRIGGER_SOURCE, 101L);
+		savedData.markSerialAllocated(LinkNodeType.TRIGGER_SOURCE, 102L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 201L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 202L);
+
+		long baseGraphRevision = savedData.graphRevision();
+		long expectedSourceRevision = savedData.sourceRevision(LinkNodeType.TRIGGER_SOURCE, 101L);
+
+		savedData.replaceTriggerSourceTargets(102L, Set.of(202L));
+
+		GraphWriteRequest request = new GraphWriteRequest(
+			"draft-4",
+			"snapshot-4",
+			"serial",
+			baseGraphRevision,
+			List.of(new ReplaceTriggerSourceTargetsOperation(101L, expectedSourceRevision, List.of(201L)))
+		);
+
+		Object preparedPlan = invokePreparePlan(request, level, savedData);
+
+		assertTrue(readBoolean(preparedPlan, "successful"));
+		assertEquals("", readString(preparedPlan, "failureResponseJson"));
+		List<?> validatedReplaceOperations = readList(preparedPlan, "validatedReplaceOperations");
+		assertEquals(1, validatedReplaceOperations.size());
+		assertEquals("", readString(validatedReplaceOperations.get(0), "failureResponseJson"));
+		assertTrue(readBoolean(validatedReplaceOperations.get(0), "actualGraphWrite"));
+	}
+
+	/**
+	 * 无关对象推动 graphRevision 后，频道修改也应继续按节点 revision 判定，而不是整图误拒绝。
+	 */
+	@Test
+	void preparePlanShouldAllowChannelUpdateWhenOnlyUnrelatedTopologyChanged(@TempDir Path tempDir) throws Exception {
+		ServerLevel level = createServerLevel(tempDir);
+		LinkSavedData savedData = LinkSavedData.get(level);
+
+		savedData.markSerialAllocated(LinkNodeType.TRIGGER_SOURCE, 101L);
+		savedData.markSerialAllocated(LinkNodeType.TRIGGER_SOURCE, 102L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 201L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 202L);
+
+		long baseGraphRevision = savedData.graphRevision();
+		long expectedCoreRevision = savedData.coreRevision(201L);
+
+		savedData.replaceTriggerSourceTargets(102L, Set.of(202L));
+
+		GraphWriteRequest request = new GraphWriteRequest(
+			"draft-5",
+			"snapshot-5",
+			"serial",
+			baseGraphRevision,
+			List.of(new SetNodeChannelOperation(LinkNodeType.CORE, 201L, 0L, expectedCoreRevision, 7L))
+		);
+
+		Object preparedPlan = invokePreparePlan(request, level, savedData);
+
+		assertTrue(readBoolean(preparedPlan, "successful"));
+		assertEquals("", readString(preparedPlan, "failureResponseJson"));
+		Object validatedChannelBatchOperation = invokeNoArg(preparedPlan, "validatedChannelBatchOperation");
+		assertNotNull(validatedChannelBatchOperation);
+		assertEquals("", readString(validatedChannelBatchOperation, "failureResponseJson"));
+		LinkChannelEditingService.PreparedChannelBatchUpdate channelPlan =
+			(LinkChannelEditingService.PreparedChannelBatchUpdate) invokeNoArg(validatedChannelBatchOperation, "plan");
+		assertNotNull(channelPlan);
+		assertEquals(1, channelPlan.changedChannelNodeCount());
+	}
+
+	/**
+	 * 同一 triggerSource 在保存前已被其他操作修改时，仍应返回来源级真实冲突。
+	 */
+	@Test
+	void preparePlanShouldKeepSourceConflictWhenEditedTriggerSourceChanged(@TempDir Path tempDir) throws Exception {
+		ServerLevel level = createServerLevel(tempDir);
+		LinkSavedData savedData = LinkSavedData.get(level);
+
+		savedData.markSerialAllocated(LinkNodeType.TRIGGER_SOURCE, 101L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 201L);
+		savedData.markSerialAllocated(LinkNodeType.CORE, 202L);
+
+		long baseGraphRevision = savedData.graphRevision();
+		long expectedSourceRevision = savedData.sourceRevision(LinkNodeType.TRIGGER_SOURCE, 101L);
+
+		savedData.replaceTriggerSourceTargets(101L, Set.of(202L));
+
+		GraphWriteRequest request = new GraphWriteRequest(
+			"draft-6",
+			"snapshot-6",
+			"serial",
+			baseGraphRevision,
+			List.of(new ReplaceTriggerSourceTargetsOperation(101L, expectedSourceRevision, List.of(201L)))
+		);
+
+		Object preparedPlan = invokePreparePlan(request, level, savedData);
+
+		assertTrue(!readBoolean(preparedPlan, "successful"));
+		assertTrue(readString(preparedPlan, "failureResponseJson").contains("source_revision_conflict"));
+	}
+
+	/**
 	 * 通过反射构造 ResolvedRequestContext 并执行 preparePlan，避免测试里重复拼接完整网络入口。
 	 */
 	private static Object invokePreparePlan(

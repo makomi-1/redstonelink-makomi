@@ -276,18 +276,6 @@ public final class GraphWriteService {
 			);
 		}
 
-		if ((!replaceOperations.isEmpty() || !channelOperations.isEmpty()) &&
-			LinkOccSupport.isRevisionMismatch(request.baseGraphRevision(), savedData.graphRevision())) {
-			return PreparedPlan.failure(
-				GraphWriteJsonSupport.buildConflictResponse(
-					"graph_revision_conflict",
-					"保存冲突：当前拓扑图已发生变化，请重新导出 graph 文件后再试。",
-					savedData.graphRevision(),
-					List.of()
-				)
-			);
-		}
-
 		List<ValidatedAliasOperation> validatedAliasOperations = validateAliasOperations(savedData, aliasOperations);
 		if (validatedAliasOperations == null) {
 			return PreparedPlan.failure(
