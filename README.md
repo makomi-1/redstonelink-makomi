@@ -35,8 +35,8 @@
 ## 文档
 - [全物品图鉴](https://makomi-1.github.io/redstonelink-makomi/item_guide.html)
 - [配方](https://makomi-1.github.io/redstonelink-makomi/recipe_sheet.html)
-- [机制设计](docs/机制设计.md)
-- [使用说明](docs/使用说明.md)
+- [机制设计](docs/mechanism_design_cn.md)
+- [使用说明](docs/usage_guide_cn.md)
 
 ## 冲突
 潜在冲突风险的为修改原版`区块加载机制`和`物品交互`的模组
