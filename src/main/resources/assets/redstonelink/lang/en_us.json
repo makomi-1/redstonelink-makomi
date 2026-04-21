@@ -39,6 +39,7 @@
   "key.redstonelink.toggle_serial_overlay": "Toggle Serial Overlay Mode",
   "key.redstonelink.toggle_quick_link_mode": "Toggle Quick Link Tool Mode",
   "tooltip.redstonelink.serial": "Serial: %s",
+  "tooltip.redstonelink.channel": "Channel: %s",
   "tooltip.redstonelink.aggregate_count": "Aggregate Count: %s",
   "tooltip.redstonelink.aggregate_serials": "Aggregate Serials: %s",
   "tooltip.redstonelink.pair": "Last Target Serial: %s",

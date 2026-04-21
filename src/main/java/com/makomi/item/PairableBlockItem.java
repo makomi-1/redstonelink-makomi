@@ -143,6 +143,15 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 				NodeAliasDisplayUtil.formatDisplayText(LinkItemData.getDisplayAlias(stack), serial)
 			)
 		);
+		if (nodeType == LinkNodeType.TRIGGER_SOURCE || nodeType == LinkNodeType.CORE) {
+			long channel = LinkItemData.getChannel(stack);
+			tooltipComponents.add(
+				Component.translatable(
+					"tooltip.redstonelink.channel",
+					channel > 0L ? Long.toString(channel) : "-"
+				)
+			);
+		}
 		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
 		String linkedText = TooltipTextTruncateUtil.buildTargetsText(
 			linkedSerials,

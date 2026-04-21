@@ -244,8 +244,12 @@ public final class LinkCommandSupport {
 			return false;
 		}
 		List<Long> beforeLinks = LinkItemData.getLinkedSerials(stack);
+		String beforeAlias = LinkItemData.getDisplayAlias(stack);
+		long beforeChannel = LinkItemData.getChannel(stack);
 		LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, level);
-		return !beforeLinks.equals(LinkItemData.getLinkedSerials(stack));
+		return !beforeLinks.equals(LinkItemData.getLinkedSerials(stack))
+			|| !beforeAlias.equals(LinkItemData.getDisplayAlias(stack))
+			|| beforeChannel != LinkItemData.getChannel(stack);
 	}
 
 	/**

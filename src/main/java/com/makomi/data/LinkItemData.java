@@ -38,6 +38,7 @@ public final class LinkItemData {
 	private static final String KEY_DISPLAY_ALIAS = "rl_display_alias";
 	private static final String KEY_PAIR = "rl_pair";
 	private static final String KEY_LINKS = "rl_links";
+	private static final String KEY_CHANNEL = "rl_channel";
 	private static final String KEY_DESTROY_RETIRE = "rl_destroy_retire";
 	private static final String KEY_SYNC_LINKER_SIGNAL = "rl_sync_linker_signal";
 	private static final int SYNC_LINKER_SIGNAL_OFF = 0;
@@ -243,6 +244,7 @@ public final class LinkItemData {
 			}
 			tag.remove(KEY_SERIAL_GROUP);
 			tag.remove(KEY_DISPLAY_ALIAS);
+			tag.remove(KEY_CHANNEL);
 		});
 	}
 
@@ -344,7 +346,34 @@ public final class LinkItemData {
 	}
 
 	/**
-	 * 为单件物品同步当前连接快照。
+	 * 读取物品缓存的频道快照。
+	 */
+	public static long getChannel(ItemStack stack) {
+		CompoundTag tag = readTag(stack);
+		if (!tag.contains(KEY_CHANNEL, Tag.TAG_LONG)) {
+			return 0L;
+		}
+		return Math.max(0L, tag.getLong(KEY_CHANNEL));
+	}
+
+	/**
+	 * 写入物品缓存的频道快照。
+	 *
+	 * @param channel 大于 0 时写入，小于等于 0 时移除字段
+	 */
+	public static void setChannel(ItemStack stack, long channel) {
+		long normalizedChannel = Math.max(0L, channel);
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+			if (normalizedChannel > 0L) {
+				tag.putLong(KEY_CHANNEL, normalizedChannel);
+			} else {
+				tag.remove(KEY_CHANNEL);
+			}
+		});
+	}
+
+	/**
+	 * 为单件物品同步当前连接、别名与频道快照。
 	 * <p>
 	 * 仅当物品当前承载单个序号时才执行，避免把聚合态误解释为“顶部单件”的
 	 * 当前连接视图。
@@ -364,6 +393,7 @@ public final class LinkItemData {
 		}
 		setLinkedSerials(stack, NodeSnapshotQueryService.queryItemSnapshotLinks(level, nodeType.get(), serial).visibleTargetSet());
 		syncDisplayAliasIfSingle(stack, level);
+		syncChannelIfSingle(stack, level);
 	}
 
 	/**
@@ -385,6 +415,27 @@ public final class LinkItemData {
 			return;
 		}
 		setDisplayAlias(stack, NodeAliasServerSupport.resolveAlias(level, nodeType.get(), serial).orElse(""));
+	}
+
+	/**
+	 * 为单件物品同步当前节点频道快照。
+	 */
+	public static void syncChannelIfSingle(ItemStack stack, ServerLevel level) {
+		if (stack == null || stack.isEmpty() || level == null || getSerialCount(stack) != 1) {
+			setChannel(stack, 0L);
+			return;
+		}
+		Optional<LinkNodeType> nodeType = getNodeType(stack);
+		if (nodeType.isEmpty()) {
+			setChannel(stack, 0L);
+			return;
+		}
+		long serial = getSerial(stack);
+		if (serial <= 0L) {
+			setChannel(stack, 0L);
+			return;
+		}
+		setChannel(stack, LinkSavedData.get(level).getChannel(nodeType.get(), serial));
 	}
 
 	/**
@@ -521,6 +572,7 @@ public final class LinkItemData {
 			tag.remove(KEY_DISPLAY_ALIAS);
 			tag.remove(KEY_PAIR);
 			tag.remove(KEY_LINKS);
+			tag.remove(KEY_CHANNEL);
 			return;
 		}
 
@@ -533,6 +585,7 @@ public final class LinkItemData {
 		tag.remove(KEY_DISPLAY_ALIAS);
 		tag.remove(KEY_PAIR);
 		tag.remove(KEY_LINKS);
+		tag.remove(KEY_CHANNEL);
 	}
 
 	/**

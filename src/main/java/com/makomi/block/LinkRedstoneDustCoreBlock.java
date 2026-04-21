@@ -6,7 +6,6 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
-import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.network.PairingNetwork;
 import com.makomi.util.NeighborFanoutUtil;
 import java.util.ArrayList;
@@ -85,7 +84,7 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 	}
 
 	/**
-	 * 掉落时回写序列号与链接快照，确保“挖起再放置”可保持身份连续性。
+	 * 掉落时回写序列号与当前物品快照，确保“挖起再放置”可保持身份连续性。
 	 */
 	@Override
 	protected List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
@@ -108,11 +107,7 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
 				if (coreBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
-					LinkItemData.syncDisplayAliasIfSingle(drop, serverLevel);
-					LinkItemData.setLinkedSerials(
-						drop,
-						NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.CORE, serial).visibleTargetSet()
-					);
+					LinkItemData.syncCurrentLinksSnapshotIfSingle(drop, serverLevel);
 				}
 			}
 		}

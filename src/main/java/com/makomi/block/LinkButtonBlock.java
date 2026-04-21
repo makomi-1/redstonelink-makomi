@@ -6,7 +6,6 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
-import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.network.PairingNetwork;
 import java.util.ArrayList;
 import java.util.List;
@@ -89,13 +88,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 				LinkItemData.setSerial(drop, serial);
 				LinkItemData.setDestroyRetireCandidate(drop, true);
 				if (triggerSourceBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
-					LinkItemData.syncDisplayAliasIfSingle(drop, serverLevel);
-					LinkItemData.setLinkedSerials(
-						drop,
-						NodeSnapshotQueryService
-							.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial)
-							.visibleTargetSet()
-					);
+					LinkItemData.syncCurrentLinksSnapshotIfSingle(drop, serverLevel);
 				}
 			}
 		}

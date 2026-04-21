@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.LinkSavedDataChannelSupport;
 import com.makomi.item.PairableItem;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -77,6 +78,34 @@ class LinkCommandSupportTest {
 		assertTrue(changed);
 		assertEquals(List.of(101L), LinkItemData.getLinkedSerials(refreshedCoreStack));
 		assertEquals(List.of(888L), LinkItemData.getLinkedSerials(untouchedCoreStack));
+	}
+
+	/**
+	 * 当频道真值变化但链接集合未变化时，也应判定为命中刷新，确保 Tooltip 频道快照同步。
+	 */
+	@Test
+	void syncItemListLinkSnapshotsShouldRefreshMatchingCoreChannelSnapshotWhenLinksUnchanged(@TempDir Path tempDir) throws Exception {
+		ServerLevel level = createServerLevel(tempDir);
+		LinkSavedData savedData = LinkSavedData.get(level);
+
+		savedData.markSerialAllocated(LinkNodeType.CORE, 201L);
+		LinkSavedDataChannelSupport.putChannelConfig(savedData, LinkNodeType.CORE, 201L, 77L);
+
+		ItemStack coreStack = createTestCoreStack();
+		LinkItemData.setSerial(coreStack, 201L);
+		LinkItemData.setLinkedSerials(coreStack, Set.of());
+		LinkItemData.setChannel(coreStack, 66L);
+
+		boolean changed = LinkCommandSupport.syncItemListLinkSnapshots(
+			level,
+			List.of(coreStack),
+			LinkNodeType.CORE,
+			Set.of(201L)
+		);
+
+		assertTrue(changed);
+		assertEquals(List.of(), LinkItemData.getLinkedSerials(coreStack));
+		assertEquals(77L, LinkItemData.getChannel(coreStack));
 	}
 
 	/**

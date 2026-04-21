@@ -58,6 +58,22 @@ class LinkItemDataTest {
 	}
 
 	/**
+	 * 频道快照字段应支持写入、读取与移除。
+	 */
+	@Test
+	void channelFieldShouldSupportWriteReadAndRemove() {
+		ItemStack stack = new ItemStack(Items.STONE);
+
+		assertEquals(0L, LinkItemData.getChannel(stack));
+
+		LinkItemData.setChannel(stack, 77L);
+		assertEquals(77L, LinkItemData.getChannel(stack));
+
+		LinkItemData.setChannel(stack, 0L);
+		assertEquals(0L, LinkItemData.getChannel(stack));
+	}
+
+	/**
 	 * linked serials 写入时应过滤非正数并升序存储。
 	 */
 	@Test
@@ -101,6 +117,21 @@ class LinkItemDataTest {
 	}
 
 	/**
+	 * 序号写回时应清理绑定在旧单件快照上的频道缓存，避免 Tooltip 残留旧值。
+	 */
+	@Test
+	void setSerialShouldClearChannelSnapshot() {
+		ItemStack stack = new ItemStack(Items.STONE);
+
+		LinkItemData.setSerial(stack, 11L);
+		LinkItemData.setChannel(stack, 29L);
+		assertEquals(29L, LinkItemData.getChannel(stack));
+
+		LinkItemData.setSerial(stack, 12L);
+		assertEquals(0L, LinkItemData.getChannel(stack));
+	}
+
+	/**
 	 * 聚合序号组写入时应遵守 64 上限，并可计算剩余容量。
 	 */
 	@Test
@@ -118,6 +149,21 @@ class LinkItemDataTest {
 			LinkItemData.getSerialGroup(stack)
 		);
 		assertEquals(0, LinkItemData.getRemainingAggregateCapacity(stack));
+	}
+
+	/**
+	 * 聚合序号组改写时应同时清理旧频道缓存，避免新顶部序号继承旧节点频道。
+	 */
+	@Test
+	void serialGroupRewriteShouldClearChannelSnapshot() {
+		ItemStack stack = new ItemStack(Items.STONE);
+
+		LinkItemData.setSerial(stack, 31L);
+		LinkItemData.setChannel(stack, 66L);
+		assertEquals(66L, LinkItemData.getChannel(stack));
+
+		LinkItemData.setSerialGroup(stack, List.of(41L, 42L));
+		assertEquals(0L, LinkItemData.getChannel(stack));
 	}
 
 	/**
