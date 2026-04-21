@@ -51,7 +51,7 @@ public class StatePanelToolScreen extends Screen {
 	);
 
 	/** 面板主体默认宽度。 */
-	private static final int PANEL_WIDTH = 548;
+	private static final int PANEL_WIDTH = 492;
 	private static final int VISIBLE_ROWS = 8;
 	private static final int ROW_HEIGHT = 20;
 	private static final int INPUT_HEIGHT = 20;
@@ -61,7 +61,7 @@ public class StatePanelToolScreen extends Screen {
 	private static final int REMOVE_BUTTON_WIDTH = 20;
 	private static final int CLEAN_ALL_BUTTON_WIDTH = 72;
 	private static final int SCREEN_EDGE_MARGIN = 16;
-	private static final int PANEL_CONTENT_HEIGHT = 304;
+	private static final int PANEL_CONTENT_HEIGHT = 278;
 	private static final int LIST_ROW_TEXT_OFFSET_Y = 6;
 	private static final int TYPE_LABEL_TOP_OFFSET = 10;
 	private static final int INPUT_TOP_OFFSET = 24;
@@ -81,11 +81,14 @@ public class StatePanelToolScreen extends Screen {
 	private static final int STATUS_ERROR_TEXT_COLOR = 0xFFFFC1C1;
 
 	private static final int LIST_LEFT_PADDING = 4;
-	private static final int COL_TYPE_W = 108;
+	private static final int COL_TYPE_W = 92;
 	private static final int COL_SERIAL_W = 140;
-	private static final int MIN_COL_TYPE_W = 72;
+	private static final int MIN_COL_TYPE_W = 64;
 	private static final int MIN_COL_SERIAL_W = 96;
-	private static final int MIN_COL_STATUS_W = 96;
+	private static final int MIN_COL_STATUS_W = 72;
+	private static final int TYPE_TOGGLE_PREFERRED_WIDTH = 148;
+	private static final int TYPE_TOGGLE_MIN_WIDTH = 92;
+	private static final int ACTION_BUTTON_MIN_WIDTH = 56;
 
 	private final List<StatePanelNetwork.SubscriptionEntryPayload> initialSubscriptions;
 	private final List<StatePanelNetwork.StatePanelSnapshotEntry> entries = new ArrayList<>();
@@ -130,7 +133,7 @@ public class StatePanelToolScreen extends Screen {
 		setInitialFocus(inputBox);
 
 		typeToggleButton = addRenderableWidget(
-			createThemedButton(typeToggleLabel(), layout.panelLeft(), layout.typeToggleY(), layout.panelWidth(), button -> {
+			createThemedButton(typeToggleLabel(), layout.panelLeft(), layout.typeToggleY(), layout.typeToggleWidth(), button -> {
 				currentType = currentType == LinkNodeType.CORE ? LinkNodeType.TRIGGER_SOURCE : LinkNodeType.CORE;
 				button.setMessage(typeToggleLabel());
 			})
@@ -443,18 +446,17 @@ public class StatePanelToolScreen extends Screen {
 		if (entry == null || !entry.readable()) {
 			return STATUS_HIDDEN.getString();
 		}
-		String online = entry.online() ? "online" : "offline";
-		String active = entry.active() ? "active" : "idle";
-		String retired = entry.retired() ? "retired" : "alive";
-		StringBuilder sb = new StringBuilder(64);
-		sb.append(online);
-		sb.append(" / ");
+		String active = entry.active() ? "act" : "idle";
+		String retired = entry.retired() ? "ret" : "live";
+		StringBuilder sb = new StringBuilder(32);
+		sb.append(entry.online() ? "on" : "off");
+		sb.append(' ');
 		sb.append(active);
-		sb.append(" / ");
+		sb.append(' ');
 		sb.append(retired);
-		sb.append(" / in=");
+		sb.append(" i");
 		sb.append(entry.inputPower());
-		sb.append(" out=");
+		sb.append(" o");
 		sb.append(entry.outputPower());
 		return sb.toString();
 	}
@@ -471,7 +473,7 @@ public class StatePanelToolScreen extends Screen {
 	}
 
 	private Component typeToggleLabel() {
-		return Component.translatable("screen.redstonelink.state_panel.type", LinkNodeSemantics.toSemanticName(currentType));
+		return HEADER_TYPE.copy().append(": ").append(Component.literal(LinkNodeSemantics.toSemanticName(currentType)));
 	}
 
 	/**
@@ -564,7 +566,7 @@ public class StatePanelToolScreen extends Screen {
 		if (typeToggleButton != null) {
 			typeToggleButton.setX(layout.panelLeft());
 			typeToggleButton.setY(layout.typeToggleY());
-			typeToggleButton.setWidth(layout.panelWidth());
+			typeToggleButton.setWidth(layout.typeToggleWidth());
 			typeToggleButton.setHeight(BUTTON_HEIGHT);
 		}
 		applyActionButtonLayout(subscribeButton, layout, 0);
@@ -619,10 +621,13 @@ public class StatePanelToolScreen extends Screen {
 			PANEL_CONTENT_HEIGHT,
 			screenHeight
 		);
-		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelWidth, PADDING, ACTION_BUTTON_COUNT);
 		int inputY = panelTop + INPUT_TOP_OFFSET;
 		int typeToggleY = inputY + INPUT_HEIGHT + PADDING;
-		int actionY = typeToggleY + BUTTON_HEIGHT + PADDING;
+		int typeToggleWidth = resolveTypeToggleWidth(panelWidth);
+		int actionStartX = panelLeft + typeToggleWidth + PADDING;
+		int actionAreaWidth = Math.max(1, panelWidth - typeToggleWidth - PADDING);
+		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(actionAreaWidth, PADDING, ACTION_BUTTON_COUNT);
+		int actionY = typeToggleY;
 		int headerY = actionY + BUTTON_HEIGHT + PADDING + HEADER_TOP_EXTRA_OFFSET;
 		int listTop = headerY + ROW_HEIGHT;
 		int statusMessageY = listTop + VISIBLE_ROWS * ROW_HEIGHT + PADDING;
@@ -635,7 +640,9 @@ public class StatePanelToolScreen extends Screen {
 			panelWidth,
 			inputY,
 			typeToggleY,
+			typeToggleWidth,
 			actionY,
+			actionStartX,
 			actionButtonWidth,
 			headerY,
 			listTop,
@@ -649,6 +656,16 @@ public class StatePanelToolScreen extends Screen {
 			columnLayout.statusX(),
 			columnLayout.statusWidth()
 		);
+	}
+
+	/**
+	 * 解析类型切换按钮宽度，同时给右侧三颗动作按钮保留最小可点击空间。
+	 */
+	private static int resolveTypeToggleWidth(int panelWidth) {
+		int preferredWidth = Math.min(TYPE_TOGGLE_PREFERRED_WIDTH, Math.max(TYPE_TOGGLE_MIN_WIDTH, panelWidth / 3));
+		int minActionAreaWidth = ACTION_BUTTON_MIN_WIDTH * ACTION_BUTTON_COUNT + PADDING * Math.max(0, ACTION_BUTTON_COUNT - 1);
+		int maxToggleWidth = Math.max(TYPE_TOGGLE_MIN_WIDTH, panelWidth - PADDING - minActionAreaWidth);
+		return Math.max(TYPE_TOGGLE_MIN_WIDTH, Math.min(preferredWidth, maxToggleWidth));
 	}
 
 	/**
@@ -700,7 +717,9 @@ public class StatePanelToolScreen extends Screen {
 		int panelWidth,
 		int inputY,
 		int typeToggleY,
+		int typeToggleWidth,
 		int actionY,
+		int actionStartX,
 		int actionButtonWidth,
 		int headerY,
 		int listTop,
@@ -715,7 +734,7 @@ public class StatePanelToolScreen extends Screen {
 		int statusWidth
 	) {
 		int actionButtonX(int index) {
-			return panelLeft + (actionButtonWidth + PADDING) * index;
+			return actionStartX + (actionButtonWidth + PADDING) * index;
 		}
 
 		int listRowY(int row) {

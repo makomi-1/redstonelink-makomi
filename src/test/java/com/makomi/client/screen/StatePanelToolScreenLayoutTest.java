@@ -35,6 +35,19 @@ class StatePanelToolScreenLayoutTest {
 	}
 
 	/**
+	 * 类型切换与三颗主按钮应共用同一行，保证紧凑化后按钮仍留在面板内。
+	 */
+	@Test
+	void resolveLayoutShouldKeepTypeToggleAndActionsOnSameRow() {
+		StatePanelToolScreen.StatePanelLayout layout = StatePanelToolScreen.resolveLayout(854, 480);
+
+		assertEquals(layout.typeToggleY(), layout.actionY());
+		assertTrue(layout.typeToggleWidth() > 0);
+		assertTrue(layout.actionStartX() >= layout.panelLeft() + layout.typeToggleWidth());
+		assertTrue(layout.actionButtonX(2) + layout.actionButtonWidth() <= layout.panelLeft() + layout.panelWidth());
+	}
+
+	/**
 	 * 列坐标在窄屏下仍应保持从左到右有序，状态列宽度不能为负数。
 	 */
 	@Test

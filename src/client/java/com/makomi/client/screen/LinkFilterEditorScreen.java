@@ -52,20 +52,20 @@ public class LinkFilterEditorScreen extends Screen {
 		0xFFD2B4BC
 	);
 	private static final int SCREEN_EDGE_MARGIN = 16;
-	private static final int PANEL_CONTENT_HEIGHT = 344;
+	private static final int PANEL_CONTENT_HEIGHT = 296;
 	private static final int PANEL_PREFERRED_WIDTH = 320;
-	private static final int TITLE_TOP_MARGIN = 26;
+	private static final int TITLE_TOP_MARGIN = 22;
 	private static final int SUBTITLE_MARGIN = 14;
-	private static final int GROUP_LABEL_MARGIN = 12;
+	private static final int GROUP_LABEL_MARGIN = 8;
 	private static final int SERIAL_INPUT_HEIGHT = 54;
 	private static final int CHANNEL_INPUT_MAX_LENGTH = 19;
 	private static final int BUTTON_HEIGHT = 20;
 	private static final int BUTTON_GAP = 4;
 	private static final int FIXED_THRESHOLD_WIDTH = 56;
-	private static final int STATUS_MESSAGE_MARGIN = 14;
+	private static final int STATUS_MESSAGE_MARGIN = 10;
 	private static final int BACKGROUND_HORIZONTAL_PADDING = 12;
-	private static final int BACKGROUND_TOP_PADDING = 18;
-	private static final int BACKGROUND_BOTTOM_PADDING = 26;
+	private static final int BACKGROUND_TOP_PADDING = 16;
+	private static final int BACKGROUND_BOTTOM_PADDING = 22;
 
 	private final LinkFilterEditorTargetKind targetKind;
 	private final String dimensionKey;
@@ -251,24 +251,7 @@ public class LinkFilterEditorScreen extends Screen {
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(
-			font,
-			Component.translatable("screen.redstonelink.link_filter.target_mode"),
-			layout.panelLeft(),
-			layout.targetModeLabelY(),
-			0xFFFFFF,
-			false
-		);
 		guiGraphics.drawString(font, currentTargetInputLabel(), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.node_set_mode"), layout.panelLeft(), layout.nodeSetLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(
-			font,
-			Component.translatable("screen.redstonelink.link_filter.signal_threshold_source"),
-			layout.panelLeft(),
-			layout.thresholdSourceLabelY(),
-			0xFFFFFF,
-			false
-		);
 		guiGraphics.drawString(
 			font,
 			Component.translatable("screen.redstonelink.link_filter.fixed_threshold"),
@@ -277,7 +260,6 @@ public class LinkFilterEditorScreen extends Screen {
 			0xFFFFFF,
 			false
 		);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.signal_mode"), layout.panelLeft(), layout.signalModeLabelY(), 0xFFFFFF, false);
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
@@ -675,18 +657,18 @@ public class LinkFilterEditorScreen extends Screen {
 		int aliasLabelY = titleY + TITLE_TOP_MARGIN;
 		int aliasInputY = aliasLabelY + GROUP_LABEL_MARGIN;
 		int targetModeLabelY = aliasInputY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
-		int targetModeRowY = targetModeLabelY + GROUP_LABEL_MARGIN;
+		int targetModeRowY = targetModeLabelY;
 		int serialLabelY = targetModeRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
 		int serialInputY = serialLabelY + GROUP_LABEL_MARGIN;
 		int channelInputY = serialInputY;
 		int nodeSetLabelY = serialInputY + SERIAL_INPUT_HEIGHT + GROUP_LABEL_MARGIN;
-		int nodeSetRowY = nodeSetLabelY + GROUP_LABEL_MARGIN;
+		int nodeSetRowY = nodeSetLabelY;
 		int thresholdSourceLabelY = nodeSetRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
-		int thresholdSourceRowY = thresholdSourceLabelY + GROUP_LABEL_MARGIN;
+		int thresholdSourceRowY = thresholdSourceLabelY;
 		int fixedThresholdLabelY = thresholdSourceRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
 		int fixedThresholdInputY = fixedThresholdLabelY + GROUP_LABEL_MARGIN;
 		int signalModeLabelY = fixedThresholdInputY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
-		int signalModeRowY = signalModeLabelY + GROUP_LABEL_MARGIN;
+		int signalModeRowY = signalModeLabelY;
 		int actionButtonY = signalModeRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
 		int statusMessageY = actionButtonY + BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
 		return new LinkFilterLayout(
@@ -794,10 +776,6 @@ public class LinkFilterEditorScreen extends Screen {
 			);
 		bounds =
 			bounds.include(
-				leftAlignedTextBounds(Component.translatable("screen.redstonelink.link_filter.target_mode"), layout.panelLeft(), layout.targetModeLabelY())
-			);
-		bounds =
-			bounds.include(
 				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.targetModeRowY(), layout.panelWidth(), BUTTON_HEIGHT)
 			);
 		bounds =
@@ -810,23 +788,7 @@ public class LinkFilterEditorScreen extends Screen {
 			);
 		bounds =
 			bounds.include(
-				leftAlignedTextBounds(
-					Component.translatable("screen.redstonelink.link_filter.node_set_mode"),
-					layout.panelLeft(),
-					layout.nodeSetLabelY()
-				)
-			);
-		bounds =
-			bounds.include(
 				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.nodeSetRowY(), layout.panelWidth(), BUTTON_HEIGHT)
-			);
-		bounds =
-			bounds.include(
-				leftAlignedTextBounds(
-					Component.translatable("screen.redstonelink.link_filter.signal_threshold_source"),
-					layout.panelLeft(),
-					layout.thresholdSourceLabelY()
-				)
 			);
 		bounds =
 			bounds.include(
@@ -843,14 +805,6 @@ public class LinkFilterEditorScreen extends Screen {
 		bounds =
 			bounds.include(
 				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.fixedThresholdInputY(), FIXED_THRESHOLD_WIDTH, BUTTON_HEIGHT)
-			);
-		bounds =
-			bounds.include(
-				leftAlignedTextBounds(
-					Component.translatable("screen.redstonelink.link_filter.signal_mode"),
-					layout.panelLeft(),
-					layout.signalModeLabelY()
-				)
 			);
 		bounds =
 			bounds.include(

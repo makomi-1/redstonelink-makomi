@@ -34,12 +34,23 @@ public class StatePanelRecordingScreen extends Screen {
 	private static final Component SCROLL_DOWN = Component.translatable("screen.redstonelink.state_panel.recording.scroll_down");
 	private static final Component OPEN_RECORDING_PAGE = Component.translatable("screen.redstonelink.state_panel.recording.open_recording_page");
 	private static final int PANEL_WIDTH = 448;
-	private static final int PANEL_HEIGHT = 424;
+	private static final int PANEL_CONTENT_HEIGHT = 384;
+	private static final int SCREEN_EDGE_MARGIN = 16;
 	private static final int PADDING = 6;
+	private static final int LABEL_WIDTH = 132;
 	private static final int FIELD_HEIGHT = 20;
 	private static final int BUTTON_HEIGHT = 20;
 	private static final int VISIBLE_SUBSCRIPTION_ROWS = 5;
-	private static final int SUBSCRIPTION_ROW_STEP = 22;
+	private static final int SUBSCRIPTION_ROW_STEP = 21;
+	private static final int TITLE_TOP_MARGIN = 8;
+	private static final int SUMMARY_TOP_MARGIN = 24;
+	private static final int RUNTIME_INFO_TOP_MARGIN = 38;
+	private static final int FIRST_FIELD_TOP_MARGIN = 56;
+	private static final int FIELD_ROW_STEP = 24;
+	private static final int SELECTION_TITLE_GAP = 26;
+	private static final int SELECTION_BUTTONS_GAP = 16;
+	private static final int SELECTION_LIST_GAP = 24;
+	private static final int STATUS_MESSAGE_GAP = 8;
 	private static final int STATUS_SUCCESS_TEXT_COLOR = 0xFF9AE39A;
 	private static final int STATUS_ERROR_TEXT_COLOR = 0xFFFFC1C1;
 	private static final int LABEL_TEXT_COLOR = 0xFFFFE3E3;
@@ -712,33 +723,51 @@ public class StatePanelRecordingScreen extends Screen {
 	}
 
 	static PanelLayout resolveLayout(int screenWidth, int screenHeight) {
-		int panelWidth = Math.min(PANEL_WIDTH, Math.max(1, screenWidth - 32));
-		int panelHeight = Math.min(PANEL_HEIGHT, Math.max(1, screenHeight - 32));
-		int panelLeft = (screenWidth - panelWidth) / 2;
-		int panelTop = (screenHeight - panelHeight) / 2;
-		int labelWidth = 132;
+		CenteredFormLayoutSupport.CenteredPanelBox panelBox = CenteredFormLayoutSupport.resolvePanelBox(
+			screenWidth,
+			screenHeight,
+			PANEL_WIDTH,
+			PANEL_CONTENT_HEIGHT,
+			SCREEN_EDGE_MARGIN
+		);
+		int panelWidth = panelBox.width();
+		int panelHeight = panelBox.height();
+		int panelLeft = panelBox.left();
+		int panelTop = panelBox.top();
+		int labelWidth = Math.min(LABEL_WIDTH, Math.max(72, panelWidth / 3));
 		int fieldX = panelLeft + labelWidth;
-		int fieldWidth = panelWidth - labelWidth;
-		int splitFieldButtonWidth = Math.max(1, (fieldWidth - PADDING) / 2);
-		int actionButtonWidth = (panelWidth - (PADDING * 3)) / 4;
+		int fieldWidth = Math.max(1, panelWidth - labelWidth);
+		int splitFieldButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(fieldWidth, PADDING, 2);
+		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelWidth, PADDING, 4);
+		int titleFieldY = panelTop + FIRST_FIELD_TOP_MARGIN;
+		int sampleFieldY = titleFieldY + FIELD_ROW_STEP;
+		int capacityFieldY = sampleFieldY + FIELD_ROW_STEP;
+		int durationFieldY = capacityFieldY + FIELD_ROW_STEP;
+		int autoOpenButtonY = durationFieldY + FIELD_ROW_STEP;
+		int actionButtonsY = autoOpenButtonY + FIELD_ROW_STEP;
+		int selectionTitleY = actionButtonsY + SELECTION_TITLE_GAP;
+		int selectionButtonsY = selectionTitleY + SELECTION_BUTTONS_GAP;
+		int selectionStartY = selectionButtonsY + SELECTION_LIST_GAP;
+		int selectionListHeight = ((VISIBLE_SUBSCRIPTION_ROWS - 1) * SUBSCRIPTION_ROW_STEP) + BUTTON_HEIGHT;
+		int statusMessageY = selectionStartY + selectionListHeight + STATUS_MESSAGE_GAP;
 		return new PanelLayout(
 			panelLeft,
 			panelTop,
 			panelWidth,
 			panelHeight,
-			panelTop + 8,
-			panelTop + 30,
-			panelTop + 52,
-			panelTop + 76,
-			panelTop + 102,
-			panelTop + 128,
-			panelTop + 154,
-			panelTop + 180,
-			panelTop + 208,
-			panelTop + 240,
-			panelTop + 258,
-			panelTop + 284,
-			panelTop + 398,
+			panelTop + TITLE_TOP_MARGIN,
+			panelTop + SUMMARY_TOP_MARGIN,
+			panelTop + RUNTIME_INFO_TOP_MARGIN,
+			titleFieldY,
+			sampleFieldY,
+			capacityFieldY,
+			durationFieldY,
+			autoOpenButtonY,
+			actionButtonsY,
+			selectionTitleY,
+			selectionButtonsY,
+			selectionStartY,
+			statusMessageY,
 			fieldX,
 			fieldWidth,
 			splitFieldButtonWidth,

@@ -33,13 +33,13 @@ class LinkFilterEditorScreenLayoutTest {
 		LinkFilterEditorScreen.LinkFilterLayout layout = LinkFilterEditorScreen.resolveLayout(320, 300, 9);
 
 		assertTrue(layout.aliasInputY() > layout.aliasLabelY());
-		assertTrue(layout.targetModeRowY() > layout.targetModeLabelY());
+		assertEquals(layout.targetModeLabelY(), layout.targetModeRowY());
 		assertTrue(layout.serialLabelY() > layout.targetModeRowY());
 		assertTrue(layout.serialInputY() > layout.serialLabelY());
-		assertTrue(layout.nodeSetRowY() > layout.nodeSetLabelY());
-		assertTrue(layout.thresholdSourceRowY() > layout.thresholdSourceLabelY());
+		assertEquals(layout.nodeSetLabelY(), layout.nodeSetRowY());
+		assertEquals(layout.thresholdSourceLabelY(), layout.thresholdSourceRowY());
 		assertTrue(layout.fixedThresholdInputY() > layout.fixedThresholdLabelY());
-		assertTrue(layout.signalModeRowY() > layout.signalModeLabelY());
+		assertEquals(layout.signalModeLabelY(), layout.signalModeRowY());
 		assertTrue(layout.actionButtonY() > layout.signalModeRowY());
 		assertTrue(layout.statusMessageY() > layout.actionButtonY());
 	}
