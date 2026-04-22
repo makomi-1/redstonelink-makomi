@@ -116,6 +116,7 @@ public final class NodeSnapshotQueryService {
 			nodeType,
 			serial,
 			CrossChunkWhitelistSavedData.get(level),
+			PlacedChunkActivatorSavedData.get(level),
 			RedstoneLinkConfig.crossChunk()
 		);
 	}
@@ -219,11 +220,24 @@ public final class NodeSnapshotQueryService {
 		CrossChunkWhitelistSavedData whitelistSavedData,
 		RedstoneLinkCrossChunkConfig crossChunkConfig
 	) {
+		return resolveCrossChunkNodeIdentity(nodeType, serial, whitelistSavedData, null, crossChunkConfig);
+	}
+
+	/**
+	 * 按给定手动白名单、区块激活器真值与配置快照解析跨区块身份。
+	 */
+	static CrossChunkNodeIdentity resolveCrossChunkNodeIdentity(
+		LinkNodeType nodeType,
+		long serial,
+		CrossChunkWhitelistSavedData whitelistSavedData,
+		PlacedChunkActivatorSavedData chunkActivatorSavedData,
+		RedstoneLinkCrossChunkConfig crossChunkConfig
+	) {
 		LinkNodeSemantics.Role role = resolveCrossChunkRole(nodeType);
 		if (nodeType == null || serial <= 0L || role == null || whitelistSavedData == null || crossChunkConfig == null) {
 			return CrossChunkNodeIdentity.NORMAL;
 		}
-		if (whitelistSavedData.isResident(nodeType, serial, role)) {
+		if (CrossChunkEffectiveWhitelistService.isResident(nodeType, serial, role, whitelistSavedData, chunkActivatorSavedData)) {
 			return CrossChunkNodeIdentity.RESIDENT;
 		}
 		if (!crossChunkConfig.forceLoadEnabled() || !isConfigAllowedForRole(nodeType, role, crossChunkConfig)) {
@@ -232,7 +246,16 @@ public final class NodeSnapshotQueryService {
 		if (crossChunkConfig.forceLoadMode() == RedstoneLinkConfig.CrossChunkForceLoadMode.ALL) {
 			return CrossChunkNodeIdentity.FORCE_LOAD;
 		}
-		if (whitelistSavedData.contains(nodeType, serial, role) || crossChunkConfig.presetContains(nodeType, serial, role)) {
+		if (
+			CrossChunkEffectiveWhitelistService.containsWhitelist(
+				nodeType,
+				serial,
+				role,
+				whitelistSavedData,
+				chunkActivatorSavedData
+			)
+				|| crossChunkConfig.presetContains(nodeType, serial, role)
+		) {
 			return CrossChunkNodeIdentity.FORCE_LOAD;
 		}
 		return CrossChunkNodeIdentity.NORMAL;

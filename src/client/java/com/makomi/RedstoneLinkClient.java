@@ -4,6 +4,7 @@ import com.makomi.client.ClientHooks;
 import com.makomi.client.bench.BenchClientAutomationController;
 import com.makomi.client.bench.BenchClientCommandBridge;
 import com.makomi.client.network.BenchCommandNetworkClientHandlerSupport;
+import com.makomi.client.network.ChunkActivatorNetworkClientHandlerSupport;
 import com.makomi.client.network.LinkFilterNetworkClientHandlerSupport;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.client.network.PairingNetworkClientHandlerSupport;
@@ -72,6 +73,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerQuickLinkClientHooks();
 		registerStatePanelClientHooks();
 		registerLinkFilterClientHooks();
+		registerChunkActivatorClientHooks();
 		BenchClientAutomationController.initialize();
 		RedstoneLink.LOGGER.info("RedstoneLink client initialized");
 	}
@@ -91,6 +93,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SYNC_EMITTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SEND_FILTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_RECEIVE_FILTER, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_CHUNK_ACTIVATOR, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.translucent());
 	}
 
@@ -438,5 +441,12 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerLinkFilterClientHooks() {
 		LinkFilterNetworkClientHandlerSupport.registerReceivers();
+	}
+
+	/**
+	 * 注册区块激活器编辑器客户端接包。
+	 */
+	private static void registerChunkActivatorClientHooks() {
+		ChunkActivatorNetworkClientHandlerSupport.registerReceivers();
 	}
 }

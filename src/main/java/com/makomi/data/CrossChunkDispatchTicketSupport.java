@@ -52,12 +52,13 @@ final class CrossChunkDispatchTicketSupport {
 		ServerLevel contextLevel,
 		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending
 	) {
-		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(contextLevel);
-		boolean whitelistMatched = whitelistSavedData.contains(
+		boolean whitelistMatched = CrossChunkEffectiveWhitelistService.containsWhitelist(
+			contextLevel,
 			pending.key().sourceType(),
 			pending.key().sourceSerial(),
 			LinkNodeSemantics.Role.SOURCE
-		) || whitelistSavedData.contains(
+		) || CrossChunkEffectiveWhitelistService.containsWhitelist(
+			contextLevel,
 			pending.key().targetType(),
 			pending.key().targetSerial(),
 			LinkNodeSemantics.Role.TARGET
@@ -94,11 +95,14 @@ final class CrossChunkDispatchTicketSupport {
 		}
 		LinkSavedData linkSavedData = LinkSavedData.get(overworld);
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(overworld);
+		PlacedChunkActivatorSavedData chunkActivatorSavedData = PlacedChunkActivatorSavedData.get(overworld);
 		long residentWhitelistVersion = whitelistSavedData.residentStateVersion();
+		long residentActivatorVersion = chunkActivatorSavedData.residentStateVersion();
 		long runtimeNodeVersion = linkSavedData.runtimeNodeVersion();
-		state.residentSyncArmed = whitelistSavedData.hasResidents();
+		state.residentSyncArmed = whitelistSavedData.hasResidents() || chunkActivatorSavedData.hasResidents();
 		if (
 			state.residentWhitelistVersion == residentWhitelistVersion
+				&& state.residentActivatorVersion == residentActivatorVersion
 				&& state.residentRuntimeNodeVersion == runtimeNodeVersion
 		) {
 			return;
@@ -107,9 +111,10 @@ final class CrossChunkDispatchTicketSupport {
 		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desiredTickets =
 			state.residentDesiredTicketsScratch;
 		try {
-			collectDesiredResidentTickets(overworld, linkSavedData, whitelistSavedData, desiredTickets);
+			collectDesiredResidentTickets(overworld, linkSavedData, desiredTickets);
 			syncResidentTicketDiff(server, state, desiredTickets);
 			state.residentWhitelistVersion = residentWhitelistVersion;
+			state.residentActivatorVersion = residentActivatorVersion;
 			state.residentRuntimeNodeVersion = runtimeNodeVersion;
 		} finally {
 			desiredTickets.clear();
@@ -135,17 +140,17 @@ final class CrossChunkDispatchTicketSupport {
 	static void collectDesiredResidentTickets(
 		ServerLevel contextLevel,
 		LinkSavedData linkSavedData,
-		CrossChunkWhitelistSavedData whitelistSavedData,
 		Map<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desired
 	) {
 		if (desired == null) {
 			return;
 		}
 		desired.clear();
-		if (contextLevel == null || linkSavedData == null || whitelistSavedData == null) {
+		if (contextLevel == null || linkSavedData == null) {
 			return;
 		}
-		whitelistSavedData.forEachResidentSerial(
+		CrossChunkEffectiveWhitelistService.forEachResidentSerial(
+			contextLevel,
 			LinkNodeSemantics.Role.SOURCE,
 			(type, serial) -> appendDesiredResidentTicket(
 				desired,
@@ -156,7 +161,8 @@ final class CrossChunkDispatchTicketSupport {
 				linkSavedData
 			)
 		);
-		whitelistSavedData.forEachResidentSerial(
+		CrossChunkEffectiveWhitelistService.forEachResidentSerial(
+			contextLevel,
 			LinkNodeSemantics.Role.TARGET,
 			(type, serial) -> appendDesiredResidentTicket(
 				desired,
@@ -361,6 +367,7 @@ final class CrossChunkDispatchTicketSupport {
 		CrossChunkDispatchRuntimeSupport.clearTransientRuntimeState(state);
 		state.residentSyncArmed = false;
 		state.residentWhitelistVersion = Long.MIN_VALUE;
+		state.residentActivatorVersion = Long.MIN_VALUE;
 		state.residentRuntimeNodeVersion = Long.MIN_VALUE;
 		state.forceLoadCountThisTick = 0;
 		state.forceLoadWindowTick = Long.MIN_VALUE;

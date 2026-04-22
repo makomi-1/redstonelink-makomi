@@ -9,6 +9,7 @@
     "redstonelink:link_pulse_emitter",
     "redstonelink:link_sync_emitter",
     "redstonelink:link_send_filter",
-    "redstonelink:link_receive_filter"
+    "redstonelink:link_receive_filter",
+    "redstonelink:link_chunk_activator"
   ]
 }

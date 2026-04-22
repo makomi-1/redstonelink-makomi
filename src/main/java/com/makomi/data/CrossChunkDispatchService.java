@@ -690,6 +690,7 @@ public final class CrossChunkDispatchService {
 			new CrossChunkDispatchRuntimeSupport.ChunkReadyDrainCache();
 		boolean residentSyncArmed;
 		long residentWhitelistVersion = Long.MIN_VALUE;
+		long residentActivatorVersion = Long.MIN_VALUE;
 		long residentRuntimeNodeVersion = Long.MIN_VALUE;
 		long forceLoadWindowTick = Long.MIN_VALUE;
 		int forceLoadCountThisTick;

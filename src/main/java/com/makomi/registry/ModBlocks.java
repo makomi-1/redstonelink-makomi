@@ -2,6 +2,7 @@ package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
 import com.makomi.block.LinkCoreBlock;
+import com.makomi.block.LinkChunkActivatorBlock;
 import com.makomi.block.LinkPulseEmitterBlock;
 import com.makomi.block.LinkPulseButtonBlock;
 import com.makomi.block.LinkReceiveFilterBlock;
@@ -83,6 +84,11 @@ public final class ModBlocks {
 	public static final LinkReceiveFilterBlock LINK_RECEIVE_FILTER = register(
 		"link_receive_filter",
 		new LinkReceiveFilterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).noOcclusion())
+	);
+
+	public static final LinkChunkActivatorBlock LINK_CHUNK_ACTIVATOR = register(
+		"link_chunk_activator",
+		new LinkChunkActivatorBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
 	);
 
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(

@@ -1,0 +1,161 @@
+package com.makomi.network;
+
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
+import com.makomi.command.CommandTreeSupport;
+import com.makomi.command.link.LinkSetExecutionService;
+import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.ChunkActivatorConfigSnapshot;
+import com.makomi.data.ChunkActivatorItemData;
+import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.NodeAliasSavedData;
+import com.makomi.data.PlacedChunkActivatorSavedData;
+import com.makomi.item.ChunkActivatorBlockItem;
+import com.makomi.util.SerialParseUtil;
+import java.util.List;
+import java.util.Optional;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+
+/**
+ * 区块激活器网络服务端处理壳。
+ */
+final class ChunkActivatorNetworkServerHandlerSupport {
+	private ChunkActivatorNetworkServerHandlerSupport() {
+	}
+
+	static void handleSaveChunkActivator(ServerPlayer player, ChunkActivatorNetwork.SaveChunkActivatorPayload payload) {
+		if (player == null || payload == null) {
+			return;
+		}
+		String normalizedDisplayAlias = NodeAliasDisplayUtil.normalizeAlias(payload.displayAlias());
+		if (!normalizedDisplayAlias.isEmpty()) {
+			NodeAliasSavedData.ValidationResult aliasValidation = NodeAliasSavedData.validateAlias(normalizedDisplayAlias);
+			if (!aliasValidation.valid()) {
+				LinkSetExecutionService.OperationFeedback feedback = PairingNetworkServerHandlerSupport.buildAliasValidationFeedback(
+					normalizedDisplayAlias,
+					aliasValidation
+				);
+				sendFeedback(player, false, feedback.messageKey(), feedback.messageArgs().toArray(String[]::new));
+				return;
+			}
+		}
+		ChunkActivatorConfigSnapshot configSnapshot = payload.configSnapshot();
+		if (configSnapshot.serialExpression().length() > RedstoneLinkConfig.command().linkSetMaxInputLength()) {
+			sendFeedback(
+				player,
+				false,
+				"message.redstonelink.chunk_activator.input_too_long",
+				Integer.toString(RedstoneLinkConfig.command().linkSetMaxInputLength())
+			);
+			return;
+		}
+
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
+			configSnapshot.serialExpression(),
+			PlacedChunkActivatorSavedData.MAX_TRIGGER_SOURCE_COUNT
+		);
+		if (!parseResult.invalidEntries().isEmpty()) {
+			sendFeedback(
+				player,
+				false,
+				"message.redstonelink.pairing.invalid_tokens",
+				String.join(", ", parseResult.invalidEntries())
+			);
+			return;
+		}
+		if (parseResult.exceedLimit()) {
+			sendFeedback(
+				player,
+				false,
+				"message.redstonelink.chunk_activator.too_many_serials",
+				Integer.toString(PlacedChunkActivatorSavedData.MAX_TRIGGER_SOURCE_COUNT)
+			);
+			return;
+		}
+
+		if (payload.targetKind().usesBlockEntityTarget()) {
+			if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+				sendFeedback(player, false, "message.redstonelink.permission.insufficient");
+				return;
+			}
+			LinkChunkActivatorBlockEntity blockEntity = resolveBlockEntity(player, payload);
+			if (blockEntity == null) {
+				sendFeedback(player, false, "message.redstonelink.chunk_activator.target_missing");
+				return;
+			}
+			blockEntity.applyEditorState(normalizedDisplayAlias, configSnapshot);
+		} else {
+			ItemStack heldStack = resolveHeldStack(player, payload);
+			if (heldStack.isEmpty()) {
+				sendFeedback(player, false, "message.redstonelink.chunk_activator.target_missing");
+				return;
+			}
+			ChunkActivatorItemData.write(heldStack, configSnapshot);
+			ChunkActivatorItemData.setDisplayAlias(heldStack, normalizedDisplayAlias);
+		}
+
+		if (!parseResult.duplicateEntries().isEmpty()) {
+			sendFeedback(
+				player,
+				true,
+				"message.redstonelink.duplicate_targets_deduped",
+				CommandTreeSupport.formatSerialCollection(parseResult.duplicateEntries())
+			);
+			return;
+		}
+		sendFeedback(player, true, "message.redstonelink.chunk_activator.saved");
+	}
+
+	private static LinkChunkActivatorBlockEntity resolveBlockEntity(
+		ServerPlayer player,
+		ChunkActivatorNetwork.SaveChunkActivatorPayload payload
+	) {
+		if (player == null || payload == null || payload.dimensionKey().isBlank()) {
+			return null;
+		}
+		ResourceLocation dimensionLocation = ResourceLocation.tryParse(payload.dimensionKey());
+		if (dimensionLocation == null) {
+			return null;
+		}
+		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionLocation);
+		ServerLevel level = player.server.getLevel(dimension);
+		if (level == null) {
+			return null;
+		}
+		if (!(level.getBlockEntity(BlockPos.of(payload.blockPosLong())) instanceof LinkChunkActivatorBlockEntity blockEntity)) {
+			return null;
+		}
+		return blockEntity;
+	}
+
+	private static ItemStack resolveHeldStack(ServerPlayer player, ChunkActivatorNetwork.SaveChunkActivatorPayload payload) {
+		if (player == null || payload == null || !payload.targetKind().usesHeldMainHandTarget()) {
+			return ItemStack.EMPTY;
+		}
+		if (player.getInventory().selected != payload.selectedSlot()) {
+			return ItemStack.EMPTY;
+		}
+		ItemStack heldStack = player.getMainHandItem();
+		if (heldStack.isEmpty()) {
+			return ItemStack.EMPTY;
+		}
+		return heldStack.getItem() instanceof ChunkActivatorBlockItem ? heldStack : ItemStack.EMPTY;
+	}
+
+	private static void sendFeedback(ServerPlayer player, boolean success, String messageKey, String... messageArgs) {
+		if (player == null || messageKey == null || messageKey.isBlank()) {
+			return;
+		}
+		ServerPlayNetworking.send(
+			player,
+			new ChunkActivatorNetwork.ChunkActivatorFeedbackPayload(success, messageKey, List.of(messageArgs))
+		);
+	}
+}

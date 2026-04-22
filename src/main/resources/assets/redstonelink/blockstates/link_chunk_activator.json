@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "redstonelink:block/link_chunk_activator"
+    },
+    "powered=true": {
+      "model": "redstonelink:block/link_chunk_activator_bright"
+    }
+  }
+}

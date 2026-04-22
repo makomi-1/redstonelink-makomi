@@ -57,6 +57,7 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 		buildLinkBaseRecipe(recipeOutput, "link_toggle_emitter", ModItems.LINK_TOGGLE_EMITTER, TRIGGER_T_MATERIALS);
 		buildLinkBaseRecipe(recipeOutput, "link_send_filter", ModItems.LINK_SEND_FILTER, ModItems.LINK_SYNC_EMITTER);
 		buildLinkBaseRecipe(recipeOutput, "link_receive_filter", ModItems.LINK_RECEIVE_FILTER, ModItems.LINK_REDSTONE_CORE);
+		buildLinkBaseRecipe(recipeOutput, "link_chunk_activator", ModItems.LINK_CHUNK_ACTIVATOR, ModItems.LINK_SEND_FILTER);
 		buildLinkBaseRecipe(recipeOutput, "link_redstone_core", ModItems.LINK_REDSTONE_CORE, Items.REDSTONE_BLOCK);
 		buildLinkBaseRecipe(recipeOutput, "link_redstone_dust_core", ModItems.LINK_REDSTONE_DUST_CORE, Items.REDSTONE);
 		buildLinkerRecipe(recipeOutput, "redstonelink_toggle_linker", ModItems.REDSTONELINK_TOGGLE_LINKER, ModItems.LINK_TOGGLE_BUTTON);

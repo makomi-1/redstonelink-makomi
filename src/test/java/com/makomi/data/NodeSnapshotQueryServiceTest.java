@@ -10,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -143,6 +144,60 @@ class NodeSnapshotQueryServiceTest {
 
 		assertEquals(CrossChunkNodeIdentity.FORCE_LOAD, whitelistIdentity);
 		assertEquals(CrossChunkNodeIdentity.FORCE_LOAD, presetIdentity);
+	}
+
+	/**
+	 * 区块激活器贡献也应参与跨区块身份解析。
+	 */
+	@Test
+	void resolveCrossChunkNodeIdentityShouldIncludeChunkActivatorContribution() {
+		PlacedChunkActivatorSavedData activatorSavedData = new PlacedChunkActivatorSavedData();
+		activatorSavedData.upsert(
+			net.minecraft.world.level.Level.OVERWORLD,
+			BlockPos.ZERO,
+			new ChunkActivatorConfigSnapshot("54", ChunkActivatorMode.FORCE_LOAD),
+			"",
+			true
+		);
+		activatorSavedData.upsert(
+			net.minecraft.world.level.Level.OVERWORLD,
+			new BlockPos(1, 64, 1),
+			new ChunkActivatorConfigSnapshot("91", ChunkActivatorMode.RESIDENT),
+			"",
+			true
+		);
+
+		CrossChunkNodeIdentity forceLoadIdentity = NodeSnapshotQueryService.resolveCrossChunkNodeIdentity(
+			LinkNodeType.TRIGGER_SOURCE,
+			54L,
+			new CrossChunkWhitelistSavedData(),
+			activatorSavedData,
+			crossChunkConfig(
+				true,
+				RedstoneLinkConfig.CrossChunkForceLoadMode.WHITELIST,
+				Set.of(LinkNodeType.TRIGGER_SOURCE),
+				Set.of(LinkNodeType.CORE),
+				Map.of(),
+				Map.of()
+			)
+		);
+		CrossChunkNodeIdentity residentIdentity = NodeSnapshotQueryService.resolveCrossChunkNodeIdentity(
+			LinkNodeType.TRIGGER_SOURCE,
+			91L,
+			new CrossChunkWhitelistSavedData(),
+			activatorSavedData,
+			crossChunkConfig(
+				true,
+				RedstoneLinkConfig.CrossChunkForceLoadMode.WHITELIST,
+				Set.of(LinkNodeType.TRIGGER_SOURCE),
+				Set.of(LinkNodeType.CORE),
+				Map.of(),
+				Map.of()
+			)
+		);
+
+		assertEquals(CrossChunkNodeIdentity.FORCE_LOAD, forceLoadIdentity);
+		assertEquals(CrossChunkNodeIdentity.RESIDENT, residentIdentity);
 	}
 
 	/**

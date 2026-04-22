@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "B": {
+      "item": "redstonelink:link_send_filter"
+    },
+    "L": {
+      "item": "redstonelink:redstone_link_component"
+    }
+  },
+  "pattern": [
+    "   ",
+    "BL ",
+    "   "
+  ],
+  "result": {
+    "count": 1,
+    "id": "redstonelink:link_chunk_activator"
+  }
+}

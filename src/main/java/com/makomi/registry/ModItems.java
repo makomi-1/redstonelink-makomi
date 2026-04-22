@@ -4,6 +4,7 @@ import com.makomi.RedstoneLink;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.data.LinkFilterKind;
 import com.makomi.item.GraphVisualEditorItem;
+import com.makomi.item.ChunkActivatorBlockItem;
 import com.makomi.item.LinkerItem;
 import com.makomi.item.LinkFilterBlockItem;
 import com.makomi.item.PairableBlockItem;
@@ -124,6 +125,11 @@ public final class ModItems {
 	public static final Item LINK_RECEIVE_FILTER = register(
 		"link_receive_filter",
 		new LinkFilterBlockItem(ModBlocks.LINK_RECEIVE_FILTER, new Item.Properties().stacksTo(1), LinkFilterKind.RECEIVE)
+	);
+
+	public static final Item LINK_CHUNK_ACTIVATOR = register(
+		"link_chunk_activator",
+		new ChunkActivatorBlockItem(ModBlocks.LINK_CHUNK_ACTIVATOR, new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item REDSTONELINK_TOGGLE_LINKER = register(
