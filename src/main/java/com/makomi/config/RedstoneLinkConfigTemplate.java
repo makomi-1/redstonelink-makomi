@@ -284,11 +284,6 @@ final class RedstoneLinkConfigTemplate {
 			# en: Whether SYNC uses unlimited persistence as a fallback. true keeps the latest-state pending without TTL expiry until the target recovers; disabled by default because normal recovery primarily relies on target attach replay.
 			crosschunk.syncSignalPersistent=false
 
-			# crosschunk.syncTargetChunkLoadReplay.enabled
-			# zh: 是否启用目标区块 `CHUNK_LOAD` 时的 sync 补发。true=按来源端最近一次真实 sync 时间键恢复。
-			# en: Whether sync should replay when the target chunk loads. true means restore using the source's latest real sync event time.
-			crosschunk.syncTargetChunkLoadReplay.enabled=true
-
 			# crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst
 			# zh: 目标区块 `CHUNK_LOAD` 时是否先立即尝试一次 sync 补发。true=当前 tick 先试，只有目标尚未真正就绪时才延后到下一 tick 重试；false=始终先延后一 tick。
 			# en: Whether target-chunk-load sync replay should try immediately first. true tries in the current tick and only defers when the target is not ready yet; false always defers by one tick first.
@@ -443,6 +438,11 @@ final class RedstoneLinkConfigTemplate {
 			# zh: 每个来源每 tick 最多执行的强制加载请求数量。
 			# en: Maximum force-load requests per source per tick.
 			crosschunk.forceLoad.maxPerSourcePerTick=256
+
+			# crosschunk.resident.maxEntries
+			# zh: 当前世界生效的 resident 唯一节点总上限，统一按“手动 resident + 激活态区块激活器 resident 并集”去重计数，范围 1~256。
+			# en: Maximum number of effective distinct resident nodes in the current world, counted as the deduplicated union of manual residents and active chunk-activator residents, range 1~256.
+			crosschunk.resident.maxEntries=128
 
 			# ----- [命令与提示 / Command & Notify] ---------------------------------
 			# crosschunk.command.enabled

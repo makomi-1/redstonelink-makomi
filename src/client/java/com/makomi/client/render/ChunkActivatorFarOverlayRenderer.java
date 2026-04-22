@@ -52,7 +52,7 @@ public final class ChunkActivatorFarOverlayRenderer implements BlockEntityRender
 			return;
 		}
 
-		int textColor = LinkSerialOverlayRenderCommon.resolveNodeTextColor(blockEntity.activeType());
+		int textColor = LinkSerialOverlayRenderCommon.resolveChunkActivatorTextColor();
 		int backgroundGlyphColor = withAlpha(textColor, 0x00);
 		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.overlay().farSeeThrough()
 			? Font.DisplayMode.SEE_THROUGH

@@ -42,7 +42,6 @@ final class RedstoneLinkCrossChunkConfigParser {
 		return new RedstoneLinkCrossChunkConfig(
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.syncSignalTtlTicks", 40, 1, 72_000),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSignalPersistent", false),
-			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.enabled", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSourceAttachReplay.enabled", false),
 			RedstoneLinkConfig.CrossChunkDirectBatchingMode.fromConfigValue(directBatchingRaw),
@@ -63,6 +62,7 @@ final class RedstoneLinkCrossChunkConfigParser {
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.forceLoad.ticketTicks", 80, 1, 7_200),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.forceLoad.maxPerTick", 256, 1, 256),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.forceLoad.maxPerSourcePerTick", 256, 1, 256),
+			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.resident.maxEntries", 128, 1, 256),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.command.enabled", true),
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.command.permissionLevel", 2, 0, 4),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.notify.enabled", true),

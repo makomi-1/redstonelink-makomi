@@ -13,7 +13,6 @@ import java.util.Set;
 public record RedstoneLinkCrossChunkConfig(
 	int syncSignalTtlTicks,
 	boolean syncSignalPersistent,
-	boolean syncTargetChunkLoadReplayEnabled,
 	boolean syncTargetChunkLoadReplayImmediateAttemptFirst,
 	boolean syncSourceAttachReplayEnabled,
 	RedstoneLinkConfig.CrossChunkDirectBatchingMode directBatchingMode,
@@ -34,6 +33,7 @@ public record RedstoneLinkCrossChunkConfig(
 	int forceLoadTicketTicks,
 	int forceLoadMaxPerTick,
 	int forceLoadMaxPerSourcePerTick,
+	int residentMaxEntries,
 	boolean commandEnabled,
 	int commandPermissionLevel,
 	boolean notifyEnabled,

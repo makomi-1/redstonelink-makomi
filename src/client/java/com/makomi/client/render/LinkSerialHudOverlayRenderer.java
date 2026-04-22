@@ -224,7 +224,7 @@ public final class LinkSerialHudOverlayRenderer {
 			guiGraphics,
 			minecraft.font,
 			displayLines,
-			LinkSerialOverlayRenderCommon.resolveNodeTextColor(chunkActivatorBlockEntity.activeType()),
+			LinkSerialOverlayRenderCommon.resolveChunkActivatorTextColor(),
 			RedstoneLinkClientDisplayConfig.overlay().fontScale()
 		);
 	}

@@ -518,24 +518,24 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 4. `crosschunk.dispatch.maxPerTick`: max number of queue entries handled per tick (default `500`, range `1~20000`)
 5. `crosschunk.syncSignalPersistent`: whether `sync` gets unlimited persistent fallback delivery (default `false`)
 6. `crosschunk.syncSignalTtlTicks`: TTL for `SYNC` events when `crosschunk.syncSignalPersistent=false`
-7. `crosschunk.syncTargetChunkLoadReplay.enabled`: whether to replay `sync` when the target chunk loads (default `true`)
-8. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst`: whether to try replay immediately in the same `CHUNK_LOAD` tick first, default `true`
-9. `crosschunk.syncSourceAttachReplay.enabled`: whether to enable `sync-only replay` when a `triggerSource` reattaches, default `false`
-10. `crosschunk.directBatching`: batch mode for loaded-direct dispatch. `off` = all loaded-direct `sync/toggle/pulse` are immediate; `queued_only` = only async loaded `sync` enters batching; `all_direct` = loaded-direct `sync/toggle/pulse` plus async loaded `sync` all enter target-level batching together. Default `all_direct`.
-11. `crosschunk.dispatch.batchWindowTicks`: fixed target-level batch delay in ticks (`0~2`); `0` = current-tick alignment plus same-tick late flush after `END_SERVER_TICK`, `1` = fixed `1 tick` delay, `2` = fixed `2 tick` delay. Default `0`.
-12. `crosschunk.activation.pulse.relay.enabled`: whether normal TTL relay is enabled for `pulse`, default `false`
-13. `crosschunk.activation.pulse.ttlTicks`: TTL for normal `pulse` relay
-14. `crosschunk.activation.pulse.persistentExperimental`: whether experimental unlimited `pulse` delivery is enabled, default `false`
-15. `crosschunk.activation.toggle.relay.enabled`: whether normal TTL relay is enabled for `toggle`, default `false`
-16. `crosschunk.activation.toggle.ttlTicks`: TTL for normal `toggle` relay
-17. `crosschunk.activation.toggle.persistentExperimental`: whether experimental unlimited `toggle` delivery is enabled, default `false`
-18. `crosschunk.triggerSourceContextDetachInvalidation.enabled`: whether to enable `triggerSource` `soft/context-detach invalidation`, which removes only `sync` contribution on targets; default `false`
-19. `triggerSource` hard invalidation is always on and no longer has its own config key; source offline / unlink / retire / delete and other non-context-detach invalidations still remove only that source's `sync` contribution from targets
-20. `crosschunk.forceLoad.enabled`: master switch for force-load
-21. `crosschunk.forceLoad.mode`: `all` / `whitelist`
-22. `crosschunk.forceLoad.ticketTicks`: lifetime of force-load tickets in ticks
-23. `crosschunk.forceLoad.maxPerTick`: max force-load operations per tick
-24. `crosschunk.forceLoad.maxPerSourcePerTick`: max force-load operations per source per tick
+7. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst`: when target-load sync replay is always enabled, whether to try replay in the same `CHUNK_LOAD` tick first; default `true`
+8. `crosschunk.syncSourceAttachReplay.enabled`: whether to enable `sync-only replay` when a `triggerSource` reattaches, default `false`
+9. `crosschunk.directBatching`: batch mode for loaded-direct dispatch. `off` = all loaded-direct `sync/toggle/pulse` are immediate; `queued_only` = only async loaded `sync` enters batching; `all_direct` = loaded-direct `sync/toggle/pulse` plus async loaded `sync` all enter target-level batching together. Default `all_direct`.
+10. `crosschunk.dispatch.batchWindowTicks`: fixed target-level batch delay in ticks (`0~2`); `0` = current-tick alignment plus same-tick late flush after `END_SERVER_TICK`, `1` = fixed `1 tick` delay, `2` = fixed `2 tick` delay. Default `0`.
+11. `crosschunk.activation.pulse.relay.enabled`: whether normal TTL relay is enabled for `pulse`, default `false`
+12. `crosschunk.activation.pulse.ttlTicks`: TTL for normal `pulse` relay
+13. `crosschunk.activation.pulse.persistentExperimental`: whether experimental unlimited `pulse` delivery is enabled, default `false`
+14. `crosschunk.activation.toggle.relay.enabled`: whether normal TTL relay is enabled for `toggle`, default `false`
+15. `crosschunk.activation.toggle.ttlTicks`: TTL for normal `toggle` relay
+16. `crosschunk.activation.toggle.persistentExperimental`: whether experimental unlimited `toggle` delivery is enabled, default `false`
+17. `crosschunk.triggerSourceContextDetachInvalidation.enabled`: whether to enable `triggerSource` `soft/context-detach invalidation`, which removes only `sync` contribution on targets; default `false`
+18. `triggerSource` hard invalidation is always on and no longer has its own config key; source offline / unlink / retire / delete and other non-context-detach invalidations still remove only that source's `sync` contribution from targets
+19. `crosschunk.forceLoad.enabled`: master switch for force-load
+20. `crosschunk.forceLoad.mode`: `all` / `whitelist`
+21. `crosschunk.forceLoad.ticketTicks`: lifetime of force-load tickets in ticks
+22. `crosschunk.forceLoad.maxPerTick`: max force-load operations per tick
+23. `crosschunk.forceLoad.maxPerSourcePerTick`: max force-load operations per source per tick
+24. `crosschunk.resident.maxEntries`: maximum number of effective distinct resident nodes (default `128`, range `1~256`), counted as the deduplicated union of manual residents and active chunk-activator residents
 25. `crosschunk.whitelist.sourceTypes` / `crosschunk.whitelist.targetTypes`: types allowed to participate in the whitelist
 26. `crosschunk.preset.<name>.sources` / `crosschunk.preset.<name>.targets`: readonly presets in `type:serial` form
 - Matrix when the target is not loaded:
@@ -548,10 +548,10 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 7. Stale-entry guard: same-key entries reject older versions monotonically; expired entries are dropped directly by TTL
 8. The default config is also the recommended signal model: `triggerSource` hard invalidation is always on, and real source-offline cases such as offline / unlink / retire / delete remove that source's `sync` contribution from targets
 9. Chunk activity itself does not decide source logical validity: temporary chunk unload, temporary inactivity, or pure context detach does not automatically make the source invalid; the default recovery mainline is target-chunk-load `sync` replay
-10. `sync` does not use unlimited persistent fallback by default (`crosschunk.syncSignalPersistent=false`); the normal relay/recovery mainline for unloaded targets is target-chunk-load replay (`crosschunk.syncTargetChunkLoadReplay.enabled=true`)
+10. `sync` does not use unlimited persistent fallback by default (`crosschunk.syncSignalPersistent=false`); the normal relay/recovery mainline for unloaded targets is fixed target-chunk-load replay
 11. If `crosschunk.syncSignalPersistent=true` is enabled, `sync` waits indefinitely as a latest-state pending entry and redelivers after the target recovers; this is better treated as a fallback, not the default main recovery path
 12. With `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=true`, replay is attempted in the same `CHUNK_LOAD` tick first; only if the target is still not truly ready does it fall back to the next-tick local retry queue
-13. If `crosschunk.syncTargetChunkLoadReplay.enabled=false`, the `CHUNK_LOAD` replay path is fully skipped; if you still want recovery after target restoration, then consider enabling `crosschunk.syncSignalPersistent=true`
+13. This `CHUNK_LOAD` replay path is now always enabled and no longer has its own master switch; if you only want a more conservative timing, set `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=false` so replay always starts one tick later
 14. With `crosschunk.syncSourceAttachReplay.enabled=true`, a reattached `triggerSource` resends one `sync-only replay` to all linked `core` nodes based on the current source state; default is off to avoid duplicating real post-placement input dispatch
 15. With `crosschunk.directBatching=queued_only`, only loaded `sync` hit by async / queue paths enters batching; loaded-direct `sync/toggle/pulse` still apply immediately
 16. With `crosschunk.directBatching=all_direct`, loaded-direct `sync/toggle/pulse` and async loaded `sync` all enter unified target-level batching; this is the current default
@@ -563,16 +563,15 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 22. `triggerSource` soft/context-detach invalidation only affects `sync` and is off by default; with `crosschunk.triggerSourceContextDetachInvalidation.enabled=true`, a source that only detaches from context still removes its `sync` contribution from targets and triggers recomputation
 23. `triggerSource` hard invalidation is always on; offline / unlink / retire / delete and other non-context-detach invalidations continue to remove that source's `sync` contribution from targets and do not roll back already persisted `pulse/toggle` event results
 
-### `sync` Target-Chunk-Load Replay Switch
-- Goal: decide whether target-chunk `CHUNK_LOAD` automatically replays the source side's latest real sync state.
+### `sync` Target-Chunk-Load Replay
+- Goal: replay the source side's latest real sync state on target-chunk `CHUNK_LOAD`; this path is always enabled.
 - Config (`config/redstonelink-server.properties`):
-1. `crosschunk.syncTargetChunkLoadReplay.enabled`: whether target-load sync replay is enabled, default `true`
-2. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst`: whether one replay attempt is made immediately in the `CHUNK_LOAD` tick first, default `true`; only if the target is still not truly ready does it fall back to the next-tick local retry queue
+1. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst`: whether one replay attempt is made immediately in the `CHUNK_LOAD` tick first, default `true`; only if the target is still not truly ready does it fall back to the next-tick local retry queue
 - Behavior:
-1. When enabled, if the source side has a replay snapshot after the target chunk loads, the server replays `sync` using the source side's original `tick/slot/seq`, instead of faking the target-load moment as the latest event
+1. If the source side has a replay snapshot after the target chunk loads, the server replays `sync` using the source side's original `tick/slot/seq`, instead of faking the target-load moment as the latest event
 2. With `immediateAttemptFirst=true`, recovery is attempted in the same `CHUNK_LOAD` tick first; only if the target is still not actually ready is it deferred to the next tick
 3. With `immediateAttemptFirst=false`, conservative mode is used: always delay one tick first and then retry locally
-4. When disabled, `CHUNK_LOAD` no longer automatically replays `sync`; new-link flows such as attach / replace remain unaffected
+4. This replay path no longer has a dedicated on/off config; new-link flows such as attach / replace remain unaffected by this timing policy
 
 ### Cross-Chunk Persistent Retry Backoff
 - Goal: control when persistent pending dispatch begins to slow down retries and what interval each slowdown stage uses.

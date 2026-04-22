@@ -27,30 +27,39 @@ import org.lwjgl.glfw.GLFW;
 public class ChunkActivatorEditorScreen extends Screen {
 	private static final Component SAVE = Component.translatable("screen.redstonelink.chunk_activator.save");
 	private static final Component CLEAR = Component.translatable("screen.redstonelink.chunk_activator.clear");
+	private static final int THEME_BORDER_COLOR = GuiBackgroundRenderSupport.BackgroundPreset.CHUNK_ACTIVATOR.borderColor();
+	private static final int THEME_FILL_COLOR = 0xCC8641C0;
+	private static final int THEME_HOVER_FILL_COLOR = 0xF09B4BDD;
+	private static final int THEME_DISABLED_FILL_COLOR = 0x9957257B;
+	private static final int THEME_FOCUSED_BORDER_COLOR = 0xFFB36DE9;
+	private static final int THEME_DISABLED_BORDER_COLOR = 0xFF6C3A99;
+	private static final int THEME_TEXT_COLOR = 0xFFFFF5FF;
+	private static final int THEME_DISABLED_TEXT_COLOR = 0xFFDCC7EE;
+	private static final int THEME_COUNTER_TEXT_COLOR = 0xFFF2DFFF;
 	private static final StyledMultiLineEditBox.Style SERIAL_INPUT_BOX_STYLE = new StyledMultiLineEditBox.Style(
-		0xFF9A4D00,
-		0xFF6D3300,
-		0xFFFFC791,
-		0xFFFFE8CF
+		THEME_FILL_COLOR,
+		THEME_BORDER_COLOR,
+		THEME_FOCUSED_BORDER_COLOR,
+		THEME_COUNTER_TEXT_COLOR
 	);
 	private static final StyledEditBox.Style EDIT_BOX_STYLE = new StyledEditBox.Style(
-		0xFF9A4D00,
-		0xFF6D3300,
-		0xFFFFC791,
-		0x99643A17,
-		0xFF8B5A33,
-		0xFFFFF7F0,
-		0xFFE0C2A8
+		THEME_FILL_COLOR,
+		THEME_BORDER_COLOR,
+		THEME_FOCUSED_BORDER_COLOR,
+		THEME_DISABLED_FILL_COLOR,
+		THEME_DISABLED_BORDER_COLOR,
+		THEME_TEXT_COLOR,
+		THEME_DISABLED_TEXT_COLOR
 	);
 	private static final StyledButton.Style BUTTON_STYLE = new StyledButton.Style(
-		0xE09A4D00,
-		0xF0C96C14,
-		0x99643A17,
-		0xFF6D3300,
-		0xFFFFC791,
-		0xFF8B5A33,
-		0xFFFFF7F0,
-		0xFFE0C2A8
+		0xE08641C0,
+		THEME_HOVER_FILL_COLOR,
+		THEME_DISABLED_FILL_COLOR,
+		THEME_BORDER_COLOR,
+		THEME_FOCUSED_BORDER_COLOR,
+		THEME_DISABLED_BORDER_COLOR,
+		THEME_TEXT_COLOR,
+		THEME_DISABLED_TEXT_COLOR
 	);
 	private static final int SCREEN_EDGE_MARGIN = 16;
 	private static final int PANEL_CONTENT_HEIGHT = 228;
@@ -530,20 +539,15 @@ public class ChunkActivatorEditorScreen extends Screen {
 				LinkNodeSemantics.toSemanticName(currentType)
 			),
 			resolveHeaderSubtitleColor(),
-			new GuiHeaderRenderSupport.HeaderIcon(
-				currentType == LinkNodeType.CORE ? GuiHeaderRenderSupport.IconKind.CORE : GuiHeaderRenderSupport.IconKind.TRIGGER_SOURCE,
-				-10
-			)
+			null
 		);
 	}
 
 	/**
-	 * 区块激活器界面固定使用专属背景，但副标题仍沿用当前作用类型语义色。
+	 * 区块激活器界面固定使用专属主题色；服务对象语义仅保留在副标题文案里。
 	 */
 	private int resolveHeaderSubtitleColor() {
-		return currentType == LinkNodeType.CORE
-			? GuiBackgroundRenderSupport.BackgroundPreset.CORE_PAIRING.borderColor()
-			: GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING.borderColor();
+		return GuiBackgroundRenderSupport.BackgroundPreset.CHUNK_ACTIVATOR.borderColor();
 	}
 
 	static record ChunkActivatorLayout(

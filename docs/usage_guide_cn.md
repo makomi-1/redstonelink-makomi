@@ -527,24 +527,24 @@
 4. `crosschunk.dispatch.maxPerTick`：每 tick 从持久队列最多处理条目数（默认 `500`，范围 `1~20000`）。
 5. `crosschunk.syncSignalPersistent`：是否启用 `sync` 不限时持久化兜底（默认 `false`）。
 6. `crosschunk.syncSignalTtlTicks`：`syncSignalPersistent=false` 时，SYNC 事件 TTL（tick）。
-7. `crosschunk.syncTargetChunkLoadReplay.enabled`：是否启用 `sync` 在目标区块加载时的补发（默认 `true`）。
-8. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst`：是否优先在 `CHUNK_LOAD` 当 tick 立即尝试补发；默认 `true`。
-9. `crosschunk.syncSourceAttachReplay.enabled`：是否启用 `triggerSource` 重新 attach 时的 `sync-only replay`（默认 `false`）。
-10. `crosschunk.directBatching`：loaded direct 链路的批提交模式。`off`=loaded direct `sync/toggle/pulse` 全部 immediate，`queued_only`=仅异步 loaded `sync` 进批提交，`all_direct`=loaded direct `sync/toggle/pulse` 与异步 loaded `sync` 统一进目标级批提交；默认 `all_direct`。
-11. `crosschunk.dispatch.batchWindowTicks`：目标级批提交的固定延迟窗口（tick，范围 `0~2`）；`0`=当前 tick 对齐并允许 `END_SERVER_TICK` 后 same-tick late flush，`1`=固定延迟 `1 tick`，`2`=固定延迟 `2 tick`；默认 `0`。
-12. `crosschunk.activation.pulse.relay.enabled`：是否启用 `pulse` 的普通 TTL relay（默认 `false`）。
-13. `crosschunk.activation.pulse.ttlTicks`：`pulse` 普通 relay 的 TTL（tick）。
-14. `crosschunk.activation.pulse.persistentExperimental`：是否启用 `pulse` 实验性不限时投递（默认 `false`）。
-15. `crosschunk.activation.toggle.relay.enabled`：是否启用 `toggle` 的普通 TTL relay（默认 `false`）。
-16. `crosschunk.activation.toggle.ttlTicks`：`toggle` 普通 relay 的 TTL（tick）。
-17. `crosschunk.activation.toggle.persistentExperimental`：是否启用 `toggle` 实验性不限时投递（默认 `false`）。
-18. `crosschunk.triggerSourceContextDetachInvalidation.enabled`：是否启用 `triggerSource` 的 `soft/context-detach invalidation`，仅剔除目标上的 `sync` 贡献（默认 `false`）。
-19. `triggerSource` 的 `hard invalidation` 固定开启，不再提供独立配置项；来源离线/解绑/退役/删除等非 context-detach 失效仍只会剔除目标上的 `sync` 贡献。
-20. `crosschunk.forceLoad.enabled`：强制加载总开关。
-21. `crosschunk.forceLoad.mode`：`all` / `whitelist`。
-22. `crosschunk.forceLoad.ticketTicks`：强制加载票据时长（tick）。
-23. `crosschunk.forceLoad.maxPerTick`：每 tick 强制加载上限。
-24. `crosschunk.forceLoad.maxPerSourcePerTick`：每来源每 tick 强制加载上限。
+7. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst`：目标区块加载补发固定启用时，是否优先在 `CHUNK_LOAD` 当 tick 立即尝试补发；默认 `true`。
+8. `crosschunk.syncSourceAttachReplay.enabled`：是否启用 `triggerSource` 重新 attach 时的 `sync-only replay`（默认 `false`）。
+9. `crosschunk.directBatching`：loaded direct 链路的批提交模式。`off`=loaded direct `sync/toggle/pulse` 全部 immediate，`queued_only`=仅异步 loaded `sync` 进批提交，`all_direct`=loaded direct `sync/toggle/pulse` 与异步 loaded `sync` 统一进目标级批提交；默认 `all_direct`。
+10. `crosschunk.dispatch.batchWindowTicks`：目标级批提交的固定延迟窗口（tick，范围 `0~2`）；`0`=当前 tick 对齐并允许 `END_SERVER_TICK` 后 same-tick late flush，`1`=固定延迟 `1 tick`，`2`=固定延迟 `2 tick`；默认 `0`。
+11. `crosschunk.activation.pulse.relay.enabled`：是否启用 `pulse` 的普通 TTL relay（默认 `false`）。
+12. `crosschunk.activation.pulse.ttlTicks`：`pulse` 普通 relay 的 TTL（tick）。
+13. `crosschunk.activation.pulse.persistentExperimental`：是否启用 `pulse` 实验性不限时投递（默认 `false`）。
+14. `crosschunk.activation.toggle.relay.enabled`：是否启用 `toggle` 的普通 TTL relay（默认 `false`）。
+15. `crosschunk.activation.toggle.ttlTicks`：`toggle` 普通 relay 的 TTL（tick）。
+16. `crosschunk.activation.toggle.persistentExperimental`：是否启用 `toggle` 实验性不限时投递（默认 `false`）。
+17. `crosschunk.triggerSourceContextDetachInvalidation.enabled`：是否启用 `triggerSource` 的 `soft/context-detach invalidation`，仅剔除目标上的 `sync` 贡献（默认 `false`）。
+18. `triggerSource` 的 `hard invalidation` 固定开启，不再提供独立配置项；来源离线/解绑/退役/删除等非 context-detach 失效仍只会剔除目标上的 `sync` 贡献。
+19. `crosschunk.forceLoad.enabled`：强制加载总开关。
+20. `crosschunk.forceLoad.mode`：`all` / `whitelist`。
+21. `crosschunk.forceLoad.ticketTicks`：强制加载票据时长（tick）。
+22. `crosschunk.forceLoad.maxPerTick`：每 tick 强制加载上限。
+23. `crosschunk.forceLoad.maxPerSourcePerTick`：每来源每 tick 强制加载上限。
+24. `crosschunk.resident.maxEntries`：resident 生效唯一节点总上限（默认 `128`，范围 `1~256`），按“手动 resident + 激活态区块激活器 resident 并集”去重计数。
 25. `crosschunk.whitelist.sourceTypes` / `crosschunk.whitelist.targetTypes`：可参与白名单的类型。
 26. `crosschunk.preset.<name>.sources` / `crosschunk.preset.<name>.targets`：只读 preset（`type:serial`）。
 - 组合矩阵（未加载目标时）：
@@ -557,10 +557,10 @@
 7. 防旧护栏：同 key 按版本单调拒旧；过期（TTL）事件直接丢弃。
 8. 默认配置即推荐的信号模型是：来源 `hard invalidation` 固定开启；来源离线、解绑、退役、删除等真实下线会撤掉该来源在目标上的 `sync` 贡献。
 9. 区块活动本身不决定来源逻辑有效性：区块暂时未加载、未活跃或仅发生 context detach，不会自动把来源判成无效；默认恢复主链是目标区块加载时的 `sync` 补发。
-10. `sync` 默认不使用不限时持久化兜底（`crosschunk.syncSignalPersistent=false`）；未加载目标上的常规 relay/recovery 主链是目标区块加载时的补发（`crosschunk.syncTargetChunkLoadReplay.enabled=true`）。
+10. `sync` 默认不使用不限时持久化兜底（`crosschunk.syncSignalPersistent=false`）；未加载目标上的常规 relay/recovery 主链固定就是目标区块加载时的补发。
 11. 打开 `crosschunk.syncSignalPersistent=true` 后，`sync` 才会按“最新状态”无限期等待目标恢复后补投递；更适合作为兜底策略，而不是默认主恢复链。
 12. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=true` 时，会优先在 `CHUNK_LOAD` 当 tick 直接尝试补发；若目标这时尚未真正就绪，才回落到下一 tick 的本地重试队列。
-13. 关闭 `crosschunk.syncTargetChunkLoadReplay.enabled` 后，才会完全跳过这条 `CHUNK_LOAD` 补发路径；此时若仍希望保留“目标恢复后继续补投递”的能力，再考虑开启 `crosschunk.syncSignalPersistent=true`。
+13. 这条 `CHUNK_LOAD` 补发路径现已固定启用，不再提供独立总开关；若只想改时序，可改 `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=false`，让其统一先延后一 tick。
 14. `crosschunk.syncSourceAttachReplay.enabled=true` 时，`triggerSource` 重新 attach 后会按当前来源状态，对其已链接 `core` 重新发一次 `sync-only replay`；默认关闭，避免与放置后真实输入派发重复。
 15. `crosschunk.directBatching=queued_only` 时，只有异步/队列链路命中的 loaded `sync` 进入 batch；loaded direct `sync/toggle/pulse` 仍立即生效。
 16. `crosschunk.directBatching=all_direct` 时，loaded direct `sync/toggle/pulse` 与异步 loaded `sync` 会统一进入目标级批提交；这是当前默认值。
@@ -572,16 +572,15 @@
 22. `triggerSource` 的 `soft/context-detach invalidation` 只影响 `sync`，且默认关闭；开启 `crosschunk.triggerSourceContextDetachInvalidation.enabled=true` 后，来源仅因上下文脱附时也会剔除其在目标上的 `sync` 贡献并重算。
 23. `triggerSource` 的 `hard invalidation` 固定开启；离线/解绑/退役/删除等非 context-detach 失效会持续自动剔除该来源在目标上的 `sync` 贡献，不会回滚目标已持久化的 `pulse/toggle` 事件结果。
 
-### sync 目标区块加载补发开关
-- 目标：控制目标区块 `CHUNK_LOAD` 时，是否自动按来源端最近一次真实 sync 事件补发旧状态。
+### sync 目标区块加载补发
+- 目标：在目标区块 `CHUNK_LOAD` 时，按来源端最近一次真实 sync 事件补发旧状态；该路径固定启用。
 - 配置（`config/redstonelink-server.properties`）：
-1. `crosschunk.syncTargetChunkLoadReplay.enabled`：是否启用 sync 目标加载补发（默认 `true`）。
-2. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst`：是否在 `CHUNK_LOAD` 当前 tick 先立即尝试一次补发（默认 `true`）；若当前 tick 目标仍未真正就绪，才回落到下一 tick 的本地重试队列。
+1. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst`：是否在 `CHUNK_LOAD` 当前 tick 先立即尝试一次补发（默认 `true`）；若当前 tick 目标仍未真正就绪，才回落到下一 tick 的本地重试队列。
 - 行为说明：
-1. 开启时，目标区块加载后若来源端存在 replay 快照，会按来源端原始 `tick/slot/seq` 补发 `sync`，不会把目标加载时刻错误盖成最新事件。
+1. 目标区块加载后若来源端存在 replay 快照，会按来源端原始 `tick/slot/seq` 补发 `sync`，不会把目标加载时刻错误盖成最新事件。
 2. `immediateAttemptFirst=true` 时，会先尝试在 `CHUNK_LOAD` 当 tick 直接恢复；只有目标尚未真正就绪时，才延后到下一 tick 重试。
 3. `immediateAttemptFirst=false` 时，保持保守模式：统一先延后一 tick，再走本地重试。
-4. 关闭时，`CHUNK_LOAD` 不再自动补发 `sync`；命令 attach / replace 等新建链路路径不受这个开关影响。
+4. 该补发路径不再提供独立启停配置；命令 attach / replace 等新建链路路径仍不受这里的时序策略影响。
 
 ### 跨区块持久重试退避配置
 - 目标：控制持久跨区块 pending 何时开始降频重试，以及降频后的重试间隔。

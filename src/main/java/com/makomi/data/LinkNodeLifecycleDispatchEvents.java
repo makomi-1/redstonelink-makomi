@@ -216,9 +216,6 @@ public final class LinkNodeLifecycleDispatchEvents {
 		}
 
 		CrossChunkDispatchService.notifyTargetChunkLoaded(server, task.dimension(), task.chunkPos());
-		if (!RedstoneLinkConfig.crossChunk().syncTargetChunkLoadReplayEnabled()) {
-			return ConsumeResult.COMPLETED;
-		}
 		return tryReplayTargetChunkLoad(level, task.nodeType(), task.serial());
 	}
 

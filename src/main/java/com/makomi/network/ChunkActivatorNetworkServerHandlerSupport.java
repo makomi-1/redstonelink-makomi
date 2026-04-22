@@ -7,6 +7,7 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.ChunkActivatorConfigSnapshot;
 import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorItemData;
+import com.makomi.data.CrossChunkEffectiveWhitelistService;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasSavedData;
@@ -62,6 +63,9 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 			LinkChunkActivatorBlockEntity blockEntity = resolveBlockEntity(player, payload);
 			if (blockEntity == null) {
 				sendFeedback(player, false, "message.redstonelink.chunk_activator.target_missing");
+				return;
+			}
+			if (!ensureResidentCapacityForPlacedActivator(player, blockEntity, configStateSnapshot)) {
 				return;
 			}
 			blockEntity.applyEditorState(normalizedDisplayAlias, configStateSnapshot);
@@ -136,6 +140,38 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 		return activeParseResult == null
 			? SerialParseUtil.parseTargetsOrdered("", PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE)
 			: activeParseResult;
+	}
+
+	/**
+	 * 校验已放置区块激活器保存后是否会超过 resident 总上限。
+	 */
+	private static boolean ensureResidentCapacityForPlacedActivator(
+		ServerPlayer player,
+		LinkChunkActivatorBlockEntity blockEntity,
+		ChunkActivatorConfigStateSnapshot configStateSnapshot
+	) {
+		if (player == null || blockEntity == null || !(blockEntity.getLevel() instanceof ServerLevel level)) {
+			return false;
+		}
+		int effectiveResidents = CrossChunkEffectiveWhitelistService.countDistinctResidentsAfterActivatorChange(
+			level,
+			level.dimension(),
+			blockEntity.getBlockPos(),
+			configStateSnapshot,
+			blockEntity.active()
+		);
+		int residentLimit = RedstoneLinkConfig.crossChunk().residentMaxEntries();
+		if (effectiveResidents <= residentLimit) {
+			return true;
+		}
+		sendFeedback(
+			player,
+			false,
+			"message.redstonelink.chunk_activator.resident.limit_exceeded",
+			Integer.toString(effectiveResidents),
+			Integer.toString(residentLimit)
+		);
+		return false;
 	}
 
 	private static LinkChunkActivatorBlockEntity resolveBlockEntity(

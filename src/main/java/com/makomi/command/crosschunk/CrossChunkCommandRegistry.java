@@ -6,6 +6,7 @@ import com.makomi.command.argument.SerialBatchArgumentType;
 import com.makomi.command.semantic.SemanticCommandMessageAdapter;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfig.CrossChunkPreset;
+import com.makomi.data.CrossChunkEffectiveWhitelistService;
 import com.makomi.data.CrossChunkWhitelistSavedData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -20,6 +21,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -194,6 +196,18 @@ public final class CrossChunkCommandRegistry {
 		boolean residentDeferred = resident && linkSavedData.findRuntimeOnlineNode(level, parsed.type(), serial).isEmpty();
 
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(level);
+		if (
+			resident
+				&& !ensureResidentCapacityForManualResidentChange(
+					source,
+					level,
+					parsed.type(),
+					parsed.role(),
+					withSerial(whitelistSavedData.listResident(parsed.type(), parsed.role()), serial)
+				)
+		) {
+			return 0;
+		}
 		var upsertResult = whitelistSavedData.upsert(parsed.type(), serial, parsed.role(), resident);
 		if (!upsertResult.valid()) {
 			// 数据层已拒绝本次写入，避免重复发送一层模糊错误。
@@ -481,6 +495,18 @@ public final class CrossChunkCommandRegistry {
 			));
 			return 0;
 		}
+		if (
+			resident
+				&& !ensureResidentCapacityForManualResidentChange(
+					source,
+					source.getLevel(),
+					parsed.type(),
+					parsed.role(),
+					targetSerials
+				)
+		) {
+			return 0;
+		}
 		List<Long> offlineSerials = resident
 			? collectOfflineSerials(source.getLevel(), savedData, parsed.type(), targetSerials)
 			: List.of();
@@ -743,6 +769,51 @@ public final class CrossChunkCommandRegistry {
 			}
 		}
 		return offlineSerials;
+	}
+
+	/**
+	 * 校验手动 resident 变更后的有效常驻总量是否仍在配置上限内。
+	 */
+	private static boolean ensureResidentCapacityForManualResidentChange(
+		CommandSourceStack source,
+		ServerLevel level,
+		LinkNodeType type,
+		LinkNodeSemantics.Role role,
+		Set<Long> residentSerials
+	) {
+		if (source == null || level == null || type == null || role == null) {
+			return false;
+		}
+		int effectiveResidents = CrossChunkEffectiveWhitelistService.countDistinctResidentsAfterManualResidentChange(
+			level,
+			type,
+			role,
+			residentSerials
+		);
+		int residentLimit = RedstoneLinkConfig.crossChunk().residentMaxEntries();
+		if (effectiveResidents <= residentLimit) {
+			return true;
+		}
+		source.sendFailure(Component.translatable(
+			"message.redstonelink.crosschunk.whitelist.resident.limit_exceeded",
+			effectiveResidents,
+			residentLimit
+		));
+		return false;
+	}
+
+	/**
+	 * 在原 resident 集合基础上追加单个序号，保持去重语义。
+	 */
+	private static Set<Long> withSerial(Set<Long> currentResidents, long serial) {
+		Set<Long> nextResidents = new LinkedHashSet<>();
+		if (currentResidents != null) {
+			nextResidents.addAll(currentResidents);
+		}
+		if (serial > 0L) {
+			nextResidents.add(serial);
+		}
+		return Set.copyOf(nextResidents);
 	}
 
 	/**

@@ -127,7 +127,6 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertEquals(2, snapshot.commandPermissionLevel());
 		assertEquals(500, snapshot.dispatchMaxPerTick());
 		assertFalse(snapshot.syncSignalPersistent());
-		assertTrue(snapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(snapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(snapshot.syncSourceAttachReplayEnabled());
 		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, snapshot.directBatchingMode());
@@ -142,6 +141,7 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 		assertTrue(snapshot.queueEnabled());
 		assertEquals(200, snapshot.queueDefaultTtlTicks());
 		assertEquals(100_000, snapshot.queueMaxPendingEntries());
+		assertEquals(128, snapshot.residentMaxEntries());
 		assertEquals(200, snapshot.retry().warnThreshold());
 		assertEquals(1000, snapshot.retry().errorThreshold());
 		assertEquals(2000, snapshot.retry().dropThreshold());
@@ -236,29 +236,44 @@ class RedstoneLinkConfigInteractionAndCrossChunkParseTest {
 	void parseCrossChunkShouldApplySyncReplayFlags() {
 		Properties disabled = new Properties();
 		disabled.setProperty("crosschunk.syncSignalPersistent", "false");
-		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "false");
 		disabled.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "false");
 		disabled.setProperty("crosschunk.syncSourceAttachReplay.enabled", "true");
 		disabled.setProperty("crosschunk.directBatching", "all_direct");
 		RedstoneLinkCrossChunkConfig disabledSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(disabled);
 		assertFalse(disabledSnapshot.syncSignalPersistent());
-		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertFalse(disabledSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertTrue(disabledSnapshot.syncSourceAttachReplayEnabled());
 		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, disabledSnapshot.directBatchingMode());
 
 		Properties invalid = new Properties();
 		invalid.setProperty("crosschunk.syncSignalPersistent", "invalid");
-		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.enabled", "invalid");
 		invalid.setProperty("crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", "invalid");
 		invalid.setProperty("crosschunk.syncSourceAttachReplay.enabled", "invalid");
 		invalid.setProperty("crosschunk.directBatching", "invalid");
 		RedstoneLinkCrossChunkConfig invalidSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(invalid);
 		assertFalse(invalidSnapshot.syncSignalPersistent());
-		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayEnabled());
 		assertTrue(invalidSnapshot.syncTargetChunkLoadReplayImmediateAttemptFirst());
 		assertFalse(invalidSnapshot.syncSourceAttachReplayEnabled());
 		assertEquals(RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT, invalidSnapshot.directBatchingMode());
+	}
+
+	/**
+	 * resident 有效总量上限应使用默认值 128，并执行 1~256 的边界夹紧。
+	 */
+	@Test
+	void parseCrossChunkShouldClampResidentMaxEntriesToRange() {
+		RedstoneLinkCrossChunkConfig defaultSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(new Properties());
+		assertEquals(128, defaultSnapshot.residentMaxEntries());
+
+		Properties lowProperties = new Properties();
+		lowProperties.setProperty("crosschunk.resident.maxEntries", "-9");
+		RedstoneLinkCrossChunkConfig lowSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(lowProperties);
+		assertEquals(1, lowSnapshot.residentMaxEntries());
+
+		Properties highProperties = new Properties();
+		highProperties.setProperty("crosschunk.resident.maxEntries", "900000");
+		RedstoneLinkCrossChunkConfig highSnapshot = RedstoneLinkConfigTestHelper.parseCrossChunk(highProperties);
+		assertEquals(256, highSnapshot.residentMaxEntries());
 	}
 
 	/**

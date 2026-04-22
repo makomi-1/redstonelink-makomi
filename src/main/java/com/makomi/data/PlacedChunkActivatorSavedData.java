@@ -470,6 +470,20 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 			return ChunkActivatorConfigStateSnapshot.normalizeType(type) == LinkNodeType.CORE ? coreSerials : triggerSourceSerials;
 		}
 
+		/**
+		 * @return 当前条目所属维度
+		 */
+		public ResourceKey<Level> dimension() {
+			return key.dimension();
+		}
+
+		/**
+		 * @return 当前条目所属区块激活器坐标
+		 */
+		public BlockPos activatorPos() {
+			return key.activatorPos();
+		}
+
 		boolean sameSerialIndex(ActivatorEntry other) {
 			return other != null
 				&& triggerSourceSerials.equals(other.triggerSourceSerials())
