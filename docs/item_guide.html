@@ -539,6 +539,7 @@
         'link_redstone_core_transparent': 'redstonelink:item/link_redstone_core_transparent_blue',
         'link_redstone_dust_core': 'redstonelink:item/link_redstone_dust_core_blue',
         'link_redstone_dust_core_transparent': 'redstonelink:item/link_redstone_dust_core_transparent_blue',
+        'link_chunk_activator': 'redstonelink:block/chunk_activator',
         'link_receive_filter': 'redstonelink:block/link_receive_filter',
         'link_send_filter': 'redstonelink:block/link_send_filter',
         'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
@@ -569,6 +570,7 @@
         'link_pulse_emitter': 'redstonelink:block/component_core_block',
         'link_sync_emitter': 'redstonelink:block/component_core_block',
         'link_toggle_emitter': 'redstonelink:block/component_core_block',
+        'link_chunk_activator': 'redstonelink:block/component_core_block',
         'link_send_filter': 'redstonelink:block/component_core_block',
         'link_receive_filter': 'redstonelink:block/component_core_block'
       };
@@ -586,6 +588,10 @@
         'link_sync_emitter': [
           'redstonelink:block/link_sync_emitter',
           'redstonelink:block/link_sync_emitter_bright'
+        ],
+        'link_chunk_activator': [
+          'redstonelink:block/chunk_activator',
+          'redstonelink:block/chunk_activator_bright'
         ],
         'link_redstone_core': [
           'redstonelink:block/link_redstone_core',
@@ -869,6 +875,25 @@
           note: {
             zh: '物品贴图会随当前状态切换（关闭/开启）。',
             en: 'Item texture changes with current state (off/on).'
+          }
+        },
+        {
+          path: 'link_chunk_activator',
+          category: 'tools',
+          role: 'utility',
+          render: 'block',
+          name: { zh: '区块激活器', en: 'Chunk Activator' },
+          effect: {
+            zh: '激活态下按当前作用类型，把配置好的节点集并入跨区块有效白名单；可工作在临时强加载或 resident 常驻模式。',
+            en: 'When active, it contributes its configured node set under the current role into the effective cross-chunk whitelist; it can operate in transient force-load or resident mode.'
+          },
+          usage: {
+            zh: ['放置后受邻居红石控制；潜行右键打开编辑器。', '同时维护 `triggerSource/core` 两套节点集与模式，当前只生效一套；切换作用类型不会清空另一套配置。', '每套节点集容量为 32；普通区块卸载不会丢失配置，挖掘破坏才会移除持久化条目。'],
+            en: ['After placement it is controlled by neighboring redstone; sneak right-click opens the editor.', 'It keeps separate `triggerSource/core` node sets and modes while only one set is active at a time; switching the active type does not clear the other configuration.', 'Each node set holds up to 32 entries; normal chunk unload does not discard the config, while physical breaking removes the persisted entry.']
+          },
+          note: {
+            zh: '只改白名单、只开激活器或只加 resident，不会凭空补发一次 sync；真正的自动补发仍以离线 sync 传播事件为触发条件。',
+            en: 'Changing whitelist state, toggling the activator, or adding resident alone does not fabricate a new sync replay; automatic resend still requires an actual offline sync propagation event.'
           }
         },
         {

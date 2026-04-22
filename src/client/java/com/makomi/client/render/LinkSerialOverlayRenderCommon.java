@@ -23,7 +23,7 @@ public final class LinkSerialOverlayRenderCommon {
 	private static final int CORE_TEXT_COLOR = 0xFF5DD7FF;
 	private static final int TRIGGER_SOURCE_TEXT_COLOR = 0xFFFFC66A;
 	private static final int FILTER_TEXT_COLOR = 0xFFFF7AA8;
-	private static final int CHUNK_ACTIVATOR_TEXT_COLOR = 0xFF572186;
+	private static final int CHUNK_ACTIVATOR_TEXT_COLOR = 0xFFB36DE9;
 	private static final int DEFAULT_TEXT_COLOR = 0xFFFFFFFF;
 
 	private LinkSerialOverlayRenderCommon() {

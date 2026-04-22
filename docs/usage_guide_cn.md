@@ -486,13 +486,25 @@
 
 ### 跨区块白名单常驻标签（resident）
 - linker不可作为触发源常驻对象
-- 一旦设置常驻，不需要受到/触发激活，目标/来源所在区块将在下一服务器tick强制加载
+- `resident` 负责长期持有已成功建票的白名单节点区块；票据本身不等于凭空补发一次 `sync`
 - `whitelist add <role> <type> <serial> resident`：新增白名单并设置 `resident=on`。
 - `whitelist add <role> <type> <serial>`：按严格命令语义写入并设置 `resident=off`（用于清零常驻）。
 - `whitelist set <role> <type> <serials> confirm`：批量覆盖并统一 `resident=off`。
 - `whitelist set <role> <type> <serials> resident confirm`：批量覆盖并统一 `resident=on`。
 - `resident` 严格依赖白名单，不允许独立存在；`whitelist list` 会额外输出 resident 列表。
 - 常驻区块加载仅使用本模组自有 ticket 类型，和其它模组的强制加载机制隔离。
+
+### 区块激活器（Chunk Activator）
+- 已放置区块激活器受邻居红石控制；仅在激活态下，按当前作用类型把节点集贡献到跨区块有效白名单。
+- 同时维护 `triggerSource/core` 两套节点集与各自模式，当前只生效一套；切换作用类型不会清空另一套配置，每套容量 `32`。
+- `force-load` 模式只贡献强加载资格；`resident` 模式会同时贡献强加载资格与 resident 常驻集合。
+- 真值会持久化到世界级数据；普通区块卸载不会清空配置，只有物理破坏才会移除条目。
+
+### 区块激活器与 sync 补发边界
+- 对 `sync` 来说，自动补发的触发条件不是“有 resident/临时强加载”本身，而是“确实生成了一次离线 `sync` 传播事件”；票据只负责把目标变成可处理，真正会被补发的是那条离线 `sync` 事件。
+- 新连接建立且目标区块已卸载：会尝试做一次 attach replay，把当前来源的可恢复 `sync` 状态发给新目标；若目标仍离线，则进入离线队列，后续自动补发。
+- 目标离线时 signal 改变：会自动进入离线 `sync` 传播；`0 -> 15`、`15 -> 0`、强度变化都算，目标被拉起或自然上线后会自动落地。
+- 只改白名单 / 只开激活器 / 只加 resident：如果没有伴随新的 `sync` 事件，本身不会凭空生成一次补发。
 
 ### 跨区块接管提示（2026-03-13）
 - 触发端在“强加载接管实际生效”时提示；持久队列转发不提示。

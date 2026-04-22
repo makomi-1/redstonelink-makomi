@@ -324,6 +324,23 @@
 </table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:redstonelink_status_panel</div><div class='count'>数量 x1</div></div></div></section>
 <section class='card'><div class='row'><table class='grid'>
 <tr>
+<td>minecraft:dirt</td>
+<td>minecraft:dirt</td>
+<td>minecraft:dirt</td>
+</tr>
+<tr>
+<td>minecraft:dirt</td>
+<td>redstonelink:redstone_link_component</td>
+<td>minecraft:dirt</td>
+</tr>
+<tr>
+<td>minecraft:dirt</td>
+<td>minecraft:dirt</td>
+<td>minecraft:dirt</td>
+</tr>
+</table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:link_chunk_activator</div><div class='count'>数量 x1</div></div></div></section>
+<section class='card'><div class='row'><table class='grid'>
+<tr>
 <td class='empty'></td>
 <td class='empty'></td>
 <td class='empty'></td>
@@ -468,6 +485,7 @@
 		'link_redstone_core_transparent': 'redstonelink:item/link_redstone_core_transparent_blue',
 		'link_redstone_dust_core': 'redstonelink:item/link_redstone_dust_core_blue',
 		'link_redstone_dust_core_transparent': 'redstonelink:item/link_redstone_dust_core_transparent_blue',
+		'link_chunk_activator': 'redstonelink:block/chunk_activator',
 		'link_receive_filter': 'redstonelink:block/link_receive_filter',
 		'link_send_filter': 'redstonelink:block/link_send_filter',
 		'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
@@ -561,6 +579,7 @@
 		'link_redstone_core_transparent': true,
 		'link_redstone_dust_core': true,
 		'link_redstone_dust_core_transparent': true,
+		'link_chunk_activator': true,
 		'link_receive_filter': true,
 		'link_send_filter': true,
 		'link_sync_emitter': true,
@@ -608,6 +627,7 @@
 		'polished_deepslate': true,
 		'blackstone': true,
 		'polished_blackstone': true,
+		'dirt': true,
 		'redstone_block': true,
 		'glass': true,
 		'lever': true,
@@ -631,6 +651,7 @@
 		'redstonelink:link_pulse_emitter': 'redstonelink:block/component_core_block',
 		'redstonelink:link_sync_emitter': 'redstonelink:block/component_core_block',
 		'redstonelink:link_toggle_emitter': 'redstonelink:block/component_core_block',
+		'redstonelink:link_chunk_activator': 'redstonelink:block/component_core_block',
 		'redstonelink:link_send_filter': 'redstonelink:block/component_core_block',
 		'redstonelink:link_receive_filter': 'redstonelink:block/component_core_block'
 	};
@@ -649,6 +670,7 @@
 		'link_toggle_emitter': ['切换发射器', 'Linked Toggle Emitter'],
 		'link_pulse_emitter': ['脉冲发射器', 'Linked Pulse Emitter'],
 		'link_sync_emitter': ['同步发射器', 'Linked Sync Emitter'],
+		'link_chunk_activator': ['区块激活器', 'Chunk Activator'],
 		'redstonelink_toggle_linker': ['切换遥控器', 'Linked Toggle Linker'],
 		'redstonelink_pulse_linker': ['脉冲遥控器', 'Linked Pulse Linker'],
 		'redstonelink_sync_linker': ['同步遥控器', 'Linked Sync Linker'],
@@ -668,6 +690,7 @@
 	var vanillaBilingualNamesById = {
 		'minecraft:redstone_block': ['红石块', 'Block of Redstone'],
 		'minecraft:redstone': ['红石粉', 'Redstone Dust'],
+		'minecraft:dirt': ['泥土', 'Dirt'],
 		'minecraft:iron_ingot': ['铁锭', 'Iron Ingot'],
 		'minecraft:copper_ingot': ['铜锭', 'Copper Ingot'],
 		'minecraft:glass': ['玻璃', 'Glass'],
@@ -1644,6 +1667,7 @@
 		}
 
 		if (
+			outputId === 'redstonelink:link_chunk_activator' ||
 			outputId === 'redstonelink:quick_link_tool' ||
 			outputId === 'redstonelink:graph_visual_editor' ||
 			outputId === 'redstonelink:redstonelink_pulse_linker' ||
