@@ -62,7 +62,7 @@
     {
       "templateRef": "command_assert",
       "name": "configure_chunk_activator_resident_remove",
-      "commandTemplate": "data merge block 272 64 678 {serialExpression:\"{{source:sync_chunk_activator_resident_remove_sources}}\",mode:\"resident\",DisplayAlias:\"bench-remove\"}",
+      "commandTemplate": "data merge block 272 64 678 {activeType:\"triggerSource\",triggerSourceSerialExpression:\"{{source:sync_chunk_activator_resident_remove_sources}}\",triggerSourceMode:\"resident\",coreSerialExpression:\"\",coreMode:\"force_load\",DisplayAlias:\"bench-remove\"}",
       "commandDimension": "minecraft:overworld"
     },
     {

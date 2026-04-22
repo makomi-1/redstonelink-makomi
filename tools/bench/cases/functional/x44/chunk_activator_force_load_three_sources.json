@@ -71,7 +71,7 @@
     {
       "templateRef": "command_assert",
       "name": "configure_chunk_activator_force_load",
-      "commandTemplate": "data merge block 272 64 638 {serialExpression:\"{{source:sync_chunk_activator_force_sources}}\",mode:\"force_load\",DisplayAlias:\"bench-force\"}",
+      "commandTemplate": "data merge block 272 64 638 {activeType:\"triggerSource\",triggerSourceSerialExpression:\"{{source:sync_chunk_activator_force_sources}}\",triggerSourceMode:\"force_load\",coreSerialExpression:\"\",coreMode:\"force_load\",DisplayAlias:\"bench-force\"}",
       "commandDimension": "minecraft:overworld"
     },
     {

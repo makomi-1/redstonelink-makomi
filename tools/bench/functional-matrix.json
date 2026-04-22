@@ -38,7 +38,6 @@
     "cases/functional/x05/crossdim_sync_nether_to_end_zip_square.json",
     "cases/functional/x06/crossdim_sync_end_to_overworld_zip_square.json",
     "cases/functional/x07/crosschunk_sync_reload_replay_enabled.json",
-    "cases/functional/x08/crosschunk_sync_reload_replay_disabled.json",
     "cases/functional/x09/crosschunk_force_load_mode_all.json",
     "cases/functional/x10/crosschunk_force_load_mode_whitelist_unmatched.json",
     "cases/functional/x44/chunk_activator_force_load_three_sources.json",

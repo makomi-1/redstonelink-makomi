@@ -62,7 +62,7 @@
     {
       "templateRef": "command_assert",
       "name": "configure_chunk_activator_resident",
-      "commandTemplate": "data merge block 272 64 658 {serialExpression:\"{{source:sync_chunk_activator_resident_sources}}\",mode:\"resident\",DisplayAlias:\"bench-resident\"}",
+      "commandTemplate": "data merge block 272 64 658 {activeType:\"triggerSource\",triggerSourceSerialExpression:\"{{source:sync_chunk_activator_resident_sources}}\",triggerSourceMode:\"resident\",coreSerialExpression:\"\",coreMode:\"force_load\",DisplayAlias:\"bench-resident\"}",
       "commandDimension": "minecraft:overworld"
     },
     {

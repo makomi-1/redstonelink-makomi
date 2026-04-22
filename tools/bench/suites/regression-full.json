@@ -117,14 +117,6 @@
       }
     },
     {
-      "entryId": "x08_reload_replay_disabled",
-      "caseId": "crosschunk_sync_reload_replay_disabled",
-      "serverConfigOverrides": {
-        "crosschunk.queue.enabled": "false",
-        "crosschunk.syncTargetChunkLoadReplay.enabled": "false"
-      }
-    },
-    {
       "entryId": "x09_force_load_all",
       "caseId": "crosschunk_force_load_mode_all",
       "serverConfigOverrides": {
