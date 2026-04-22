@@ -37,7 +37,7 @@ public final class ChunkActivatorNetworkClientHandlerSupport {
 				payload.blockPosLong(),
 				payload.selectedSlot(),
 				payload.displayAlias(),
-				payload.configSnapshot()
+				payload.configStateSnapshot()
 			)
 		);
 	}

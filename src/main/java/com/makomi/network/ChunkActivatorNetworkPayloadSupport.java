@@ -2,7 +2,9 @@ package com.makomi.network;
 
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.ChunkActivatorConfigSnapshot;
+import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorMode;
+import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasSavedData;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +17,7 @@ import net.minecraft.util.Mth;
 final class ChunkActivatorNetworkPayloadSupport {
 	private static final int DIMENSION_KEY_MAX_LENGTH = 128;
 	private static final int TARGET_KIND_TOKEN_MAX_LENGTH = 32;
+	private static final int ACTIVE_TYPE_TOKEN_MAX_LENGTH = 32;
 	private static final int MODE_TOKEN_MAX_LENGTH = 32;
 	private static final int DISPLAY_ALIAS_MAX_LENGTH = NodeAliasSavedData.maxAliasLength();
 	private static final int MESSAGE_KEY_MAX_LENGTH = 128;
@@ -31,14 +34,14 @@ final class ChunkActivatorNetworkPayloadSupport {
 		long blockPosLong,
 		int selectedSlot,
 		String displayAlias,
-		ChunkActivatorConfigSnapshot configSnapshot
+		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) {
 		buffer.writeUtf(targetKind == null ? "" : targetKind.token(), TARGET_KIND_TOKEN_MAX_LENGTH);
 		buffer.writeUtf(dimensionKey == null ? "" : dimensionKey, DIMENSION_KEY_MAX_LENGTH);
 		buffer.writeLong(blockPosLong);
 		buffer.writeInt(selectedSlot);
 		buffer.writeUtf(displayAlias == null ? "" : displayAlias, DISPLAY_ALIAS_MAX_LENGTH);
-		encodeConfigSnapshot(buffer, configSnapshot);
+		encodeConfigStateSnapshot(buffer, configStateSnapshot);
 	}
 
 	static DecodedOpenEditorPayload decodeOpenEditorPayload(FriendlyByteBuf buffer) {
@@ -55,7 +58,7 @@ final class ChunkActivatorNetworkPayloadSupport {
 			blockPosLong,
 			selectedSlot,
 			displayAlias,
-			decodeConfigSnapshot(buffer)
+			decodeConfigStateSnapshot(buffer)
 		);
 	}
 
@@ -66,9 +69,9 @@ final class ChunkActivatorNetworkPayloadSupport {
 		long blockPosLong,
 		int selectedSlot,
 		String displayAlias,
-		ChunkActivatorConfigSnapshot configSnapshot
+		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) {
-		encodeOpenEditorPayload(buffer, targetKind, dimensionKey, blockPosLong, selectedSlot, displayAlias, configSnapshot);
+		encodeOpenEditorPayload(buffer, targetKind, dimensionKey, blockPosLong, selectedSlot, displayAlias, configStateSnapshot);
 	}
 
 	static DecodedSavePayload decodeSavePayload(FriendlyByteBuf buffer) {
@@ -79,7 +82,7 @@ final class ChunkActivatorNetworkPayloadSupport {
 			decoded.blockPosLong(),
 			decoded.selectedSlot(),
 			decoded.displayAlias(),
-			decoded.configSnapshot()
+			decoded.configStateSnapshot()
 		);
 	}
 
@@ -109,7 +112,28 @@ final class ChunkActivatorNetworkPayloadSupport {
 		return new DecodedFeedbackPayload(success, messageKey, List.copyOf(messageArgs));
 	}
 
-	private static void encodeConfigSnapshot(FriendlyByteBuf buffer, ChunkActivatorConfigSnapshot configSnapshot) {
+	private static void encodeConfigStateSnapshot(FriendlyByteBuf buffer, ChunkActivatorConfigStateSnapshot configStateSnapshot) {
+		ChunkActivatorConfigStateSnapshot normalized = configStateSnapshot == null
+			? new ChunkActivatorConfigStateSnapshot(null, null, null)
+			: configStateSnapshot;
+		buffer.writeUtf(ChunkActivatorConfigStateSnapshot.toTypeToken(normalized.activeType()), ACTIVE_TYPE_TOKEN_MAX_LENGTH);
+		encodeSingleConfigSnapshot(buffer, normalized.triggerSourceConfig());
+		encodeSingleConfigSnapshot(buffer, normalized.coreConfig());
+	}
+
+	private static ChunkActivatorConfigStateSnapshot decodeConfigStateSnapshot(FriendlyByteBuf buffer) {
+		LinkNodeType activeType =
+			ChunkActivatorConfigStateSnapshot
+				.tryParseTypeToken(buffer.readUtf(ACTIVE_TYPE_TOKEN_MAX_LENGTH))
+				.orElseThrow(() -> new IllegalArgumentException("Unknown chunk activator active type"));
+		return new ChunkActivatorConfigStateSnapshot(
+			activeType,
+			decodeSingleConfigSnapshot(buffer),
+			decodeSingleConfigSnapshot(buffer)
+		);
+	}
+
+	private static void encodeSingleConfigSnapshot(FriendlyByteBuf buffer, ChunkActivatorConfigSnapshot configSnapshot) {
 		ChunkActivatorConfigSnapshot normalized = configSnapshot == null
 			? new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD)
 			: configSnapshot;
@@ -117,7 +141,7 @@ final class ChunkActivatorNetworkPayloadSupport {
 		buffer.writeUtf(normalized.mode().token(), MODE_TOKEN_MAX_LENGTH);
 	}
 
-	private static ChunkActivatorConfigSnapshot decodeConfigSnapshot(FriendlyByteBuf buffer) {
+	private static ChunkActivatorConfigSnapshot decodeSingleConfigSnapshot(FriendlyByteBuf buffer) {
 		String serialExpression = buffer.readUtf(RedstoneLinkConfig.command().linkSetMaxInputLength());
 		ChunkActivatorMode mode = ChunkActivatorMode
 			.tryParseToken(buffer.readUtf(MODE_TOKEN_MAX_LENGTH))
@@ -131,7 +155,7 @@ final class ChunkActivatorNetworkPayloadSupport {
 		long blockPosLong,
 		int selectedSlot,
 		String displayAlias,
-		ChunkActivatorConfigSnapshot configSnapshot
+		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) {
 	}
 
@@ -141,7 +165,7 @@ final class ChunkActivatorNetworkPayloadSupport {
 		long blockPosLong,
 		int selectedSlot,
 		String displayAlias,
-		ChunkActivatorConfigSnapshot configSnapshot
+		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) {
 	}
 

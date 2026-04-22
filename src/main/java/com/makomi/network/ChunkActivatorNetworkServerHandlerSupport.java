@@ -5,14 +5,15 @@ import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.ChunkActivatorConfigSnapshot;
+import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorItemData;
+import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.data.PlacedChunkActivatorSavedData;
 import com.makomi.item.ChunkActivatorBlockItem;
 import com.makomi.util.SerialParseUtil;
 import java.util.List;
-import java.util.Optional;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -46,37 +47,10 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 				return;
 			}
 		}
-		ChunkActivatorConfigSnapshot configSnapshot = payload.configSnapshot();
-		if (configSnapshot.serialExpression().length() > RedstoneLinkConfig.command().linkSetMaxInputLength()) {
-			sendFeedback(
-				player,
-				false,
-				"message.redstonelink.chunk_activator.input_too_long",
-				Integer.toString(RedstoneLinkConfig.command().linkSetMaxInputLength())
-			);
-			return;
-		}
 
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
-			configSnapshot.serialExpression(),
-			PlacedChunkActivatorSavedData.MAX_TRIGGER_SOURCE_COUNT
-		);
-		if (!parseResult.invalidEntries().isEmpty()) {
-			sendFeedback(
-				player,
-				false,
-				"message.redstonelink.pairing.invalid_tokens",
-				String.join(", ", parseResult.invalidEntries())
-			);
-			return;
-		}
-		if (parseResult.exceedLimit()) {
-			sendFeedback(
-				player,
-				false,
-				"message.redstonelink.chunk_activator.too_many_serials",
-				Integer.toString(PlacedChunkActivatorSavedData.MAX_TRIGGER_SOURCE_COUNT)
-			);
+		ChunkActivatorConfigStateSnapshot configStateSnapshot = payload.configStateSnapshot();
+		SerialParseUtil.OrderedTargetParseResult activeParseResult = validateConfigState(player, configStateSnapshot);
+		if (activeParseResult == null) {
 			return;
 		}
 
@@ -90,27 +64,78 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 				sendFeedback(player, false, "message.redstonelink.chunk_activator.target_missing");
 				return;
 			}
-			blockEntity.applyEditorState(normalizedDisplayAlias, configSnapshot);
+			blockEntity.applyEditorState(normalizedDisplayAlias, configStateSnapshot);
 		} else {
 			ItemStack heldStack = resolveHeldStack(player, payload);
 			if (heldStack.isEmpty()) {
 				sendFeedback(player, false, "message.redstonelink.chunk_activator.target_missing");
 				return;
 			}
-			ChunkActivatorItemData.write(heldStack, configSnapshot);
+			ChunkActivatorItemData.write(heldStack, configStateSnapshot);
 			ChunkActivatorItemData.setDisplayAlias(heldStack, normalizedDisplayAlias);
 		}
 
-		if (!parseResult.duplicateEntries().isEmpty()) {
+		if (!activeParseResult.duplicateEntries().isEmpty()) {
 			sendFeedback(
 				player,
 				true,
 				"message.redstonelink.duplicate_targets_deduped",
-				CommandTreeSupport.formatSerialCollection(parseResult.duplicateEntries())
+				CommandTreeSupport.formatSerialCollection(activeParseResult.duplicateEntries())
 			);
 			return;
 		}
 		sendFeedback(player, true, "message.redstonelink.chunk_activator.saved");
+	}
+
+	private static SerialParseUtil.OrderedTargetParseResult validateConfigState(
+		ServerPlayer player,
+		ChunkActivatorConfigStateSnapshot configStateSnapshot
+	) {
+		ChunkActivatorConfigStateSnapshot normalized = configStateSnapshot == null
+			? new ChunkActivatorConfigStateSnapshot(null, null, null)
+			: configStateSnapshot;
+		SerialParseUtil.OrderedTargetParseResult activeParseResult = null;
+		for (LinkNodeType type : new LinkNodeType[] { LinkNodeType.TRIGGER_SOURCE, LinkNodeType.CORE }) {
+			ChunkActivatorConfigSnapshot configSnapshot = normalized.configFor(type);
+			if (configSnapshot.serialExpression().length() > RedstoneLinkConfig.command().linkSetMaxInputLength()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.chunk_activator.input_too_long",
+					Integer.toString(RedstoneLinkConfig.command().linkSetMaxInputLength())
+				);
+				return null;
+			}
+
+			SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
+				configSnapshot.serialExpression(),
+				PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE
+			);
+			if (!parseResult.invalidEntries().isEmpty()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.pairing.invalid_tokens",
+					String.join(", ", parseResult.invalidEntries())
+				);
+				return null;
+			}
+			if (parseResult.exceedLimit()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.chunk_activator.too_many_serials",
+					Integer.toString(PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE)
+				);
+				return null;
+			}
+			if (type == normalized.activeType()) {
+				activeParseResult = parseResult;
+			}
+		}
+		return activeParseResult == null
+			? SerialParseUtil.parseTargetsOrdered("", PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE)
+			: activeParseResult;
 	}
 
 	private static LinkChunkActivatorBlockEntity resolveBlockEntity(

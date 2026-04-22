@@ -2,7 +2,7 @@ package com.makomi.network;
 
 import com.makomi.RedstoneLink;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
-import com.makomi.data.ChunkActivatorConfigSnapshot;
+import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorItemData;
 import com.makomi.data.NodeAliasDisplayUtil;
 import java.util.List;
@@ -77,7 +77,7 @@ public final class ChunkActivatorNetwork {
 		long blockPosLong,
 		int selectedSlot,
 		String displayAlias,
-		ChunkActivatorConfigSnapshot configSnapshot
+		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenChunkActivatorEditorPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_chunk_activator_editor")
@@ -90,7 +90,7 @@ public final class ChunkActivatorNetwork {
 				payload.blockPosLong(),
 				payload.selectedSlot(),
 				payload.displayAlias(),
-				payload.configSnapshot()
+				payload.configStateSnapshot()
 			),
 			buffer -> {
 				ChunkActivatorNetworkPayloadSupport.DecodedOpenEditorPayload decoded = ChunkActivatorNetworkPayloadSupport.decodeOpenEditorPayload(
@@ -102,7 +102,7 @@ public final class ChunkActivatorNetwork {
 					decoded.blockPosLong(),
 					decoded.selectedSlot(),
 					decoded.displayAlias(),
-					decoded.configSnapshot()
+					decoded.configStateSnapshot()
 				);
 			}
 		);
@@ -112,9 +112,9 @@ public final class ChunkActivatorNetwork {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			selectedSlot = targetKind.usesHeldMainHandTarget() ? Math.max(0, selectedSlot) : -1;
 			displayAlias = NodeAliasDisplayUtil.normalizeAlias(displayAlias);
-			configSnapshot = configSnapshot == null
-				? new ChunkActivatorConfigSnapshot("", null)
-				: configSnapshot;
+			configStateSnapshot = configStateSnapshot == null
+				? new ChunkActivatorConfigStateSnapshot(null, null, null)
+				: configStateSnapshot;
 		}
 
 		@Override
@@ -132,7 +132,7 @@ public final class ChunkActivatorNetwork {
 		long blockPosLong,
 		int selectedSlot,
 		String displayAlias,
-		ChunkActivatorConfigSnapshot configSnapshot
+		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SaveChunkActivatorPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_chunk_activator")
@@ -145,7 +145,7 @@ public final class ChunkActivatorNetwork {
 				payload.blockPosLong(),
 				payload.selectedSlot(),
 				payload.displayAlias(),
-				payload.configSnapshot()
+				payload.configStateSnapshot()
 			),
 			buffer -> {
 				ChunkActivatorNetworkPayloadSupport.DecodedSavePayload decoded = ChunkActivatorNetworkPayloadSupport.decodeSavePayload(
@@ -157,7 +157,7 @@ public final class ChunkActivatorNetwork {
 					decoded.blockPosLong(),
 					decoded.selectedSlot(),
 					decoded.displayAlias(),
-					decoded.configSnapshot()
+					decoded.configStateSnapshot()
 				);
 			}
 		);
@@ -167,9 +167,9 @@ public final class ChunkActivatorNetwork {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			selectedSlot = targetKind.usesHeldMainHandTarget() ? Math.max(0, selectedSlot) : -1;
 			displayAlias = NodeAliasDisplayUtil.normalizeAlias(displayAlias);
-			configSnapshot = configSnapshot == null
-				? new ChunkActivatorConfigSnapshot("", null)
-				: configSnapshot;
+			configStateSnapshot = configStateSnapshot == null
+				? new ChunkActivatorConfigStateSnapshot(null, null, null)
+				: configStateSnapshot;
 		}
 
 		@Override

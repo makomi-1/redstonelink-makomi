@@ -84,10 +84,14 @@ public final class CrossChunkEffectiveWhitelistService {
 		}
 		CrossChunkWhitelistSavedData whitelistSavedData = CrossChunkWhitelistSavedData.get(level);
 		whitelistSavedData.forEachResidentSerial(role, consumer);
-		if (role != LinkNodeSemantics.Role.SOURCE) {
+		PlacedChunkActivatorSavedData chunkActivatorSavedData = PlacedChunkActivatorSavedData.get(level);
+		if (role == LinkNodeSemantics.Role.SOURCE) {
+			chunkActivatorSavedData.forEachResidentSerial(LinkNodeType.TRIGGER_SOURCE, serial -> consumer.accept(LinkNodeType.TRIGGER_SOURCE, serial));
 			return;
 		}
-		PlacedChunkActivatorSavedData.get(level).forEachResidentTriggerSourceSerial(serial -> consumer.accept(LinkNodeType.TRIGGER_SOURCE, serial));
+		if (role == LinkNodeSemantics.Role.TARGET) {
+			chunkActivatorSavedData.forEachResidentSerial(LinkNodeType.CORE, serial -> consumer.accept(LinkNodeType.CORE, serial));
+		}
 	}
 
 	static boolean containsWhitelist(
@@ -129,15 +133,9 @@ public final class CrossChunkEffectiveWhitelistService {
 		PlacedChunkActivatorSavedData chunkActivatorSavedData,
 		boolean residentOnly
 	) {
-		if (
-			type != LinkNodeType.TRIGGER_SOURCE
-				|| role != LinkNodeSemantics.Role.SOURCE
-				|| chunkActivatorSavedData == null
-		) {
+		if (type == null || role == null || chunkActivatorSavedData == null || !LinkNodeSemantics.isAllowedForRole(type, role)) {
 			return false;
 		}
-		return residentOnly
-			? chunkActivatorSavedData.containsActiveResidentTriggerSource(serial)
-			: chunkActivatorSavedData.containsActiveForceLoadTriggerSource(serial);
+		return residentOnly ? chunkActivatorSavedData.containsActiveResident(type, serial) : chunkActivatorSavedData.containsActiveForceLoad(type, serial);
 	}
 }

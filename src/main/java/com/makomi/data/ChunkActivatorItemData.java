@@ -15,9 +15,14 @@ import net.minecraft.world.item.component.CustomData;
  * </p>
  */
 public final class ChunkActivatorItemData {
-	private static final String KEY_SERIAL_EXPRESSION = "rl_chunk_activator_serial_expression";
-	private static final String KEY_MODE = "rl_chunk_activator_mode";
+	private static final String KEY_ACTIVE_TYPE = "rl_chunk_activator_active_type";
+	private static final String KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION = "rl_chunk_activator_trigger_source_serial_expression";
+	private static final String KEY_TRIGGER_SOURCE_MODE = "rl_chunk_activator_trigger_source_mode";
+	private static final String KEY_CORE_SERIAL_EXPRESSION = "rl_chunk_activator_core_serial_expression";
+	private static final String KEY_CORE_MODE = "rl_chunk_activator_core_mode";
 	private static final String KEY_DISPLAY_ALIAS = "rl_chunk_activator_display_alias";
+	private static final String KEY_LEGACY_SERIAL_EXPRESSION = "rl_chunk_activator_serial_expression";
+	private static final String KEY_LEGACY_MODE = "rl_chunk_activator_mode";
 
 	private ChunkActivatorItemData() {
 	}
@@ -25,24 +30,44 @@ public final class ChunkActivatorItemData {
 	/**
 	 * 读取区块激活器物品配置。
 	 */
-	public static ChunkActivatorConfigSnapshot read(ItemStack stack) {
+	public static ChunkActivatorConfigStateSnapshot read(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		return new ChunkActivatorConfigSnapshot(
-			tag.getString(KEY_SERIAL_EXPRESSION),
-			ChunkActivatorMode.tryParseToken(tag.getString(KEY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD)
+		ChunkActivatorConfigSnapshot legacyConfig = new ChunkActivatorConfigSnapshot(
+			tag.getString(KEY_LEGACY_SERIAL_EXPRESSION),
+			ChunkActivatorMode.tryParseToken(tag.getString(KEY_LEGACY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD)
+		);
+		ChunkActivatorConfigSnapshot triggerSourceConfig = new ChunkActivatorConfigSnapshot(
+			readString(tag, KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, legacyConfig.serialExpression()),
+			ChunkActivatorMode.tryParseToken(readString(tag, KEY_TRIGGER_SOURCE_MODE, legacyConfig.mode().token()))
+				.orElse(legacyConfig.mode())
+		);
+		ChunkActivatorConfigSnapshot coreConfig = new ChunkActivatorConfigSnapshot(
+			readString(tag, KEY_CORE_SERIAL_EXPRESSION, ""),
+			ChunkActivatorMode.tryParseToken(readString(tag, KEY_CORE_MODE, ChunkActivatorMode.FORCE_LOAD.token()))
+				.orElse(ChunkActivatorMode.FORCE_LOAD)
+		);
+		return new ChunkActivatorConfigStateSnapshot(
+			ChunkActivatorConfigStateSnapshot.tryParseTypeToken(readString(tag, KEY_ACTIVE_TYPE, "")).orElse(LinkNodeType.TRIGGER_SOURCE),
+			triggerSourceConfig,
+			coreConfig
 		);
 	}
 
 	/**
 	 * 写入区块激活器物品配置。
 	 */
-	public static void write(ItemStack stack, ChunkActivatorConfigSnapshot snapshot) {
-		ChunkActivatorConfigSnapshot normalized = snapshot == null
-			? new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD)
+	public static void write(ItemStack stack, ChunkActivatorConfigStateSnapshot snapshot) {
+		ChunkActivatorConfigStateSnapshot normalized = snapshot == null
+			? new ChunkActivatorConfigStateSnapshot(LinkNodeType.TRIGGER_SOURCE, null, null)
 			: snapshot;
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
-			writeStringOrRemove(tag, KEY_SERIAL_EXPRESSION, normalized.serialExpression());
-			tag.putString(KEY_MODE, normalized.mode().token());
+			tag.putString(KEY_ACTIVE_TYPE, ChunkActivatorConfigStateSnapshot.toTypeToken(normalized.activeType()));
+			writeStringOrRemove(tag, KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, normalized.triggerSourceConfig().serialExpression());
+			tag.putString(KEY_TRIGGER_SOURCE_MODE, normalized.triggerSourceConfig().mode().token());
+			writeStringOrRemove(tag, KEY_CORE_SERIAL_EXPRESSION, normalized.coreConfig().serialExpression());
+			tag.putString(KEY_CORE_MODE, normalized.coreConfig().mode().token());
+			tag.remove(KEY_LEGACY_SERIAL_EXPRESSION);
+			tag.remove(KEY_LEGACY_MODE);
 		});
 	}
 
@@ -92,6 +117,13 @@ public final class ChunkActivatorItemData {
 	private static CompoundTag readTag(ItemStack stack) {
 		CustomData customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
 		return customData.copyTag();
+	}
+
+	private static String readString(CompoundTag tag, String key, String fallback) {
+		if (tag == null || !tag.contains(key, Tag.TAG_STRING)) {
+			return fallback;
+		}
+		return tag.getString(key);
 	}
 
 	/**

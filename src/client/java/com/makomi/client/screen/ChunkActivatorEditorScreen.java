@@ -1,6 +1,7 @@
 package com.makomi.client.screen;
 
 import com.makomi.data.ChunkActivatorConfigSnapshot;
+import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
@@ -11,9 +12,11 @@ import com.makomi.network.ChunkActivatorNetwork;
 import com.makomi.network.LinkFilterEditorTargetKind;
 import com.makomi.util.SerialParseUtil;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineEditBox;
+import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
@@ -50,11 +53,11 @@ public class ChunkActivatorEditorScreen extends Screen {
 		0xFFE0C2A8
 	);
 	private static final int SCREEN_EDGE_MARGIN = 16;
-	private static final int PANEL_CONTENT_HEIGHT = 202;
+	private static final int PANEL_CONTENT_HEIGHT = 228;
 	private static final int PANEL_PREFERRED_WIDTH = 320;
 	private static final int TITLE_TOP_MARGIN = 22;
 	private static final int GROUP_LABEL_MARGIN = 8;
-	private static final int SERIAL_INPUT_HEIGHT = 76;
+	private static final int SERIAL_INPUT_HEIGHT = 64;
 	private static final int BUTTON_HEIGHT = 20;
 	private static final int BUTTON_GAP = 4;
 	private static final int STATUS_MESSAGE_MARGIN = 10;
@@ -66,13 +69,14 @@ public class ChunkActivatorEditorScreen extends Screen {
 	private final String dimensionKey;
 	private final long blockPosLong;
 	private final int selectedSlot;
-	private final String initialDisplayAlias;
-	private final ChunkActivatorConfigSnapshot initialSnapshot;
 
 	private StyledEditBox aliasInput;
 	private MultiLineEditBox serialInputBox;
+	private Button[] typeButtons = new Button[0];
 	private Button[] modeButtons = new Button[0];
-	private ChunkActivatorMode currentMode;
+	private String draftDisplayAlias;
+	private ChunkActivatorConfigStateSnapshot configStateSnapshot;
+	private LinkNodeType currentType;
 	private Component statusMessage = Component.empty();
 
 	public ChunkActivatorEditorScreen(
@@ -81,49 +85,64 @@ public class ChunkActivatorEditorScreen extends Screen {
 		long blockPosLong,
 		int selectedSlot,
 		String initialDisplayAlias,
-		ChunkActivatorConfigSnapshot initialSnapshot
+		ChunkActivatorConfigStateSnapshot initialConfigStateSnapshot
 	) {
 		super(Component.translatable("screen.redstonelink.chunk_activator.title"));
 		this.targetKind = targetKind == null ? LinkFilterEditorTargetKind.BLOCK_ENTITY : targetKind;
 		this.dimensionKey = dimensionKey == null ? "" : dimensionKey;
 		this.blockPosLong = blockPosLong;
 		this.selectedSlot = this.targetKind.usesHeldMainHandTarget() ? Math.max(0, selectedSlot) : -1;
-		this.initialDisplayAlias = NodeAliasDisplayUtil.normalizeAlias(initialDisplayAlias);
-		this.initialSnapshot = initialSnapshot == null ? new ChunkActivatorConfigSnapshot("", null) : initialSnapshot;
-		currentMode = this.initialSnapshot.mode();
+		this.draftDisplayAlias = NodeAliasDisplayUtil.normalizeAlias(initialDisplayAlias);
+		this.configStateSnapshot = initialConfigStateSnapshot == null
+			? new ChunkActivatorConfigStateSnapshot(null, null, null)
+			: initialConfigStateSnapshot;
+		this.currentType = this.configStateSnapshot.activeType();
 	}
 
 	@Override
 	protected void init() {
 		super.init();
 		ChunkActivatorLayout layout = resolveLayout(width, height, font.lineHeight);
-		String preservedDisplayAlias = aliasInput == null ? initialDisplayAlias : aliasInput.getValue();
-		String preservedSerialExpression = serialInputBox == null ? initialSnapshot.serialExpression() : serialInputBox.getValue();
+		ChunkActivatorConfigSnapshot currentConfig = currentConfig();
 
 		aliasInput = createAliasInputBox(layout);
 		aliasInput.setMaxLength(NodeAliasSavedData.maxAliasLength());
 		aliasInput.setHint(Component.translatable("screen.redstonelink.pairing.alias_hint"));
-		aliasInput.setValue(preservedDisplayAlias);
+		aliasInput.setValue(draftDisplayAlias);
 		addRenderableWidget(aliasInput);
 
 		serialInputBox = createSerialInputBox(layout);
 		serialInputBox.setCharacterLimit(com.makomi.config.RedstoneLinkConfig.command().linkSetMaxInputLength());
-		serialInputBox.setValue(preservedSerialExpression);
+		serialInputBox.setValue(currentConfig.serialExpression());
 		addRenderableWidget(serialInputBox);
 
-		int doubleButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(layout.panelWidth(), BUTTON_GAP, 2);
+		int splitButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(layout.panelWidth(), BUTTON_GAP, 2);
+		typeButtons = new Button[] {
+			createOptionButton(
+				layout.panelLeft(),
+				layout.typeRowY(),
+				splitButtonWidth,
+				() -> requestSwitchType(LinkNodeType.TRIGGER_SOURCE)
+			),
+			createOptionButton(
+				layout.panelLeft() + splitButtonWidth + BUTTON_GAP,
+				layout.typeRowY(),
+				splitButtonWidth,
+				() -> requestSwitchType(LinkNodeType.CORE)
+			)
+		};
 		modeButtons = new Button[] {
 			createOptionButton(
 				layout.panelLeft(),
 				layout.modeRowY(),
-				doubleButtonWidth,
-				() -> currentMode = ChunkActivatorMode.FORCE_LOAD
+				splitButtonWidth,
+				() -> updateCurrentMode(ChunkActivatorMode.FORCE_LOAD)
 			),
 			createOptionButton(
-				layout.panelLeft() + doubleButtonWidth + BUTTON_GAP,
+				layout.panelLeft() + splitButtonWidth + BUTTON_GAP,
 				layout.modeRowY(),
-				doubleButtonWidth,
-				() -> currentMode = ChunkActivatorMode.RESIDENT
+				splitButtonWidth,
+				() -> updateCurrentMode(ChunkActivatorMode.RESIDENT)
 			)
 		};
 
@@ -141,8 +160,15 @@ public class ChunkActivatorEditorScreen extends Screen {
 			)
 		);
 
+		refreshTypeButtonMessages();
 		refreshModeButtonMessages();
 		setInitialFocus(serialInputBox);
+	}
+
+	@Override
+	public void resize(Minecraft minecraft, int width, int height) {
+		captureDraftStateFromWidgets();
+		super.resize(minecraft, width, height);
 	}
 
 	@Override
@@ -154,6 +180,14 @@ public class ChunkActivatorEditorScreen extends Screen {
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.chunk_activator.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
+		guiGraphics.drawString(
+			font,
+			Component.translatable("screen.redstonelink.chunk_activator.active_type"),
+			layout.panelLeft(),
+			layout.typeLabelY(),
+			0xFFFFFF,
+			false
+		);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.chunk_activator.mode"), layout.panelLeft(), layout.modeLabelY(), 0xFFFFFF, false);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.chunk_activator.serial_input"), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
 		if (!statusMessage.getString().isEmpty()) {
@@ -192,27 +226,14 @@ public class ChunkActivatorEditorScreen extends Screen {
 	}
 
 	private void saveAndClose() {
-		SerialInputSyntaxSupport.ValidationResult validation = SerialInputSyntaxSupport.validate(serialInputBox.getValue());
-		if (!validation.valid()) {
-			statusMessage = Component.translatable(
-				"screen.redstonelink.pairing.invalid_tokens",
-				String.join(", ", validation.invalidEntries())
-			);
-			return;
-		}
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
-			validation.normalizedExpression(),
-			PlacedChunkActivatorSavedData.MAX_TRIGGER_SOURCE_COUNT
-		);
-		if (parseResult.exceedLimit()) {
-			statusMessage = Component.translatable(
-				"message.redstonelink.chunk_activator.too_many_serials",
-				Integer.toString(PlacedChunkActivatorSavedData.MAX_TRIGGER_SOURCE_COUNT)
-			);
+		captureDraftStateFromWidgets();
+		Component validationMessage = validateDraftState();
+		if (validationMessage != null) {
+			statusMessage = validationMessage;
 			return;
 		}
 
-		String normalizedDisplayAlias = NodeAliasDisplayUtil.normalizeAlias(aliasInput == null ? "" : aliasInput.getValue());
+		String normalizedDisplayAlias = NodeAliasDisplayUtil.normalizeAlias(draftDisplayAlias);
 		statusMessage = Component.empty();
 		ClientPlayNetworking.send(
 			new ChunkActivatorNetwork.SaveChunkActivatorPayload(
@@ -221,25 +242,111 @@ public class ChunkActivatorEditorScreen extends Screen {
 				blockPosLong,
 				selectedSlot,
 				normalizedDisplayAlias,
-				new ChunkActivatorConfigSnapshot(validation.normalizedExpression(), currentMode)
+				configStateSnapshot.withActiveType(currentType)
 			)
 		);
 		onClose();
 	}
 
 	private void resetForm() {
+		draftDisplayAlias = "";
+		configStateSnapshot = configStateSnapshot.withConfig(currentType, new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD));
+		statusMessage = Component.empty();
 		if (aliasInput != null) {
 			aliasInput.setValue("");
 		}
 		if (serialInputBox != null) {
 			serialInputBox.setValue("");
 		}
-		currentMode = ChunkActivatorMode.FORCE_LOAD;
-		statusMessage = Component.empty();
 		refreshModeButtonMessages();
 	}
 
+	private void requestSwitchType(LinkNodeType requestedType) {
+		LinkNodeType normalizedType = ChunkActivatorConfigStateSnapshot.normalizeType(requestedType);
+		if (normalizedType == currentType) {
+			return;
+		}
+		captureDraftStateFromWidgets();
+		Minecraft minecraft = this.minecraft;
+		if (minecraft == null) {
+			currentType = normalizedType;
+			return;
+		}
+		minecraft.setScreen(
+			new ConfirmScreen(
+				confirmed -> {
+					if (confirmed) {
+						currentType = normalizedType;
+						statusMessage = Component.empty();
+					}
+					minecraft.setScreen(this);
+				},
+				Component.translatable("screen.redstonelink.chunk_activator.switch_type.confirm.title"),
+				Component.translatable(
+					"screen.redstonelink.chunk_activator.switch_type.confirm.message",
+					LinkNodeSemantics.toSemanticName(normalizedType)
+				)
+			)
+		);
+	}
+
+	private void updateCurrentMode(ChunkActivatorMode nextMode) {
+		configStateSnapshot = configStateSnapshot.withConfig(
+			currentType,
+			new ChunkActivatorConfigSnapshot(currentSerialExpression(), nextMode)
+		);
+		refreshModeButtonMessages();
+	}
+
+	private void captureDraftStateFromWidgets() {
+		if (aliasInput != null) {
+			draftDisplayAlias = aliasInput.getValue();
+		}
+		if (serialInputBox != null) {
+			configStateSnapshot = configStateSnapshot.withConfig(
+				currentType,
+				new ChunkActivatorConfigSnapshot(serialInputBox.getValue(), currentMode())
+			);
+		}
+	}
+
+	private Component validateDraftState() {
+		for (LinkNodeType type : new LinkNodeType[] { LinkNodeType.TRIGGER_SOURCE, LinkNodeType.CORE }) {
+			ChunkActivatorConfigSnapshot configSnapshot = configStateSnapshot.configFor(type);
+			SerialInputSyntaxSupport.ValidationResult validation = SerialInputSyntaxSupport.validate(configSnapshot.serialExpression());
+			if (!validation.valid()) {
+				return Component.translatable(
+					"screen.redstonelink.chunk_activator.invalid_tokens_for_type",
+					LinkNodeSemantics.toSemanticName(type),
+					String.join(", ", validation.invalidEntries())
+				);
+			}
+			SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
+				validation.normalizedExpression(),
+				PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE
+			);
+			if (parseResult.exceedLimit()) {
+				return Component.translatable(
+					"screen.redstonelink.chunk_activator.too_many_serials_for_type",
+					LinkNodeSemantics.toSemanticName(type),
+					Integer.toString(PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE)
+				);
+			}
+			configStateSnapshot = configStateSnapshot.withConfig(
+				type,
+				new ChunkActivatorConfigSnapshot(validation.normalizedExpression(), configSnapshot.mode())
+			);
+		}
+		return null;
+	}
+
+	private void refreshTypeButtonMessages() {
+		setOptionButtonMessage(typeButtons[0], currentType == LinkNodeType.TRIGGER_SOURCE, Component.literal("triggerSource"));
+		setOptionButtonMessage(typeButtons[1], currentType == LinkNodeType.CORE, Component.literal("core"));
+	}
+
 	private void refreshModeButtonMessages() {
+		ChunkActivatorMode currentMode = currentMode();
 		setOptionButtonMessage(
 			modeButtons[0],
 			currentMode == ChunkActivatorMode.FORCE_LOAD,
@@ -253,10 +360,7 @@ public class ChunkActivatorEditorScreen extends Screen {
 	}
 
 	private Button createOptionButton(int x, int y, int width, Runnable onPress) {
-		Button button = new StyledButton(x, y, width, BUTTON_HEIGHT, Component.empty(), value -> {
-			onPress.run();
-			refreshModeButtonMessages();
-		}, BUTTON_STYLE);
+		Button button = new StyledButton(x, y, width, BUTTON_HEIGHT, Component.empty(), value -> onPress.run(), BUTTON_STYLE);
 		addRenderableWidget(button);
 		return button;
 	}
@@ -290,6 +394,18 @@ public class ChunkActivatorEditorScreen extends Screen {
 		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, BUTTON_STYLE);
 	}
 
+	private ChunkActivatorConfigSnapshot currentConfig() {
+		return configStateSnapshot.configFor(currentType);
+	}
+
+	private ChunkActivatorMode currentMode() {
+		return currentConfig().mode();
+	}
+
+	private String currentSerialExpression() {
+		return serialInputBox == null ? currentConfig().serialExpression() : serialInputBox.getValue();
+	}
+
 	private static void setOptionButtonMessage(Button button, boolean selected, Component label) {
 		if (button != null) {
 			button.setMessage(Component.literal(selected ? "\u25CF " : "\u25CB ").append(label));
@@ -307,7 +423,9 @@ public class ChunkActivatorEditorScreen extends Screen {
 		int titleY = panelBox.top() + 6;
 		int aliasLabelY = titleY + TITLE_TOP_MARGIN;
 		int aliasInputY = aliasLabelY + GROUP_LABEL_MARGIN;
-		int modeLabelY = aliasInputY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
+		int typeLabelY = aliasInputY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
+		int typeRowY = typeLabelY + GROUP_LABEL_MARGIN;
+		int modeLabelY = typeRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
 		int modeRowY = modeLabelY + GROUP_LABEL_MARGIN;
 		int serialLabelY = modeRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
 		int serialInputY = serialLabelY + GROUP_LABEL_MARGIN;
@@ -320,6 +438,8 @@ public class ChunkActivatorEditorScreen extends Screen {
 			titleY,
 			aliasLabelY,
 			aliasInputY,
+			typeLabelY,
+			typeRowY,
 			modeLabelY,
 			modeRowY,
 			serialLabelY,
@@ -330,7 +450,9 @@ public class ChunkActivatorEditorScreen extends Screen {
 	}
 
 	private GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
-		return GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING;
+		return currentType == LinkNodeType.CORE
+			? GuiBackgroundRenderSupport.BackgroundPreset.CORE_PAIRING
+			: GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING;
 	}
 
 	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(ChunkActivatorLayout layout) {
@@ -354,6 +476,18 @@ public class ChunkActivatorEditorScreen extends Screen {
 		bounds =
 			bounds.include(
 				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.aliasInputY(), layout.panelWidth(), BUTTON_HEIGHT)
+			);
+		bounds =
+			bounds.include(
+				leftAlignedTextBounds(
+					Component.translatable("screen.redstonelink.chunk_activator.active_type"),
+					layout.panelLeft(),
+					layout.typeLabelY()
+				)
+			);
+		bounds =
+			bounds.include(
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.typeRowY(), layout.panelWidth(), BUTTON_HEIGHT)
 			);
 		bounds =
 			bounds.include(
@@ -395,10 +529,13 @@ public class ChunkActivatorEditorScreen extends Screen {
 			Component.translatable("screen.redstonelink.chunk_activator.title"),
 			Component.translatable(
 				"screen.redstonelink.chunk_activator.service_line",
-				LinkNodeSemantics.toSemanticName(LinkNodeType.TRIGGER_SOURCE)
+				LinkNodeSemantics.toSemanticName(currentType)
 			),
 			backgroundPreset().borderColor(),
-			new GuiHeaderRenderSupport.HeaderIcon(GuiHeaderRenderSupport.IconKind.TRIGGER_SOURCE, -10)
+			new GuiHeaderRenderSupport.HeaderIcon(
+				currentType == LinkNodeType.CORE ? GuiHeaderRenderSupport.IconKind.CORE : GuiHeaderRenderSupport.IconKind.TRIGGER_SOURCE,
+				-10
+			)
 		);
 	}
 
@@ -409,6 +546,8 @@ public class ChunkActivatorEditorScreen extends Screen {
 		int titleY,
 		int aliasLabelY,
 		int aliasInputY,
+		int typeLabelY,
+		int typeRowY,
 		int modeLabelY,
 		int modeRowY,
 		int serialLabelY,

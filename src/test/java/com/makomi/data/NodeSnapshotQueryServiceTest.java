@@ -155,14 +155,33 @@ class NodeSnapshotQueryServiceTest {
 		activatorSavedData.upsert(
 			net.minecraft.world.level.Level.OVERWORLD,
 			BlockPos.ZERO,
-			new ChunkActivatorConfigSnapshot("54", ChunkActivatorMode.FORCE_LOAD),
+			new ChunkActivatorConfigStateSnapshot(
+				LinkNodeType.TRIGGER_SOURCE,
+				new ChunkActivatorConfigSnapshot("54", ChunkActivatorMode.FORCE_LOAD),
+				new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD)
+			),
 			"",
 			true
 		);
 		activatorSavedData.upsert(
 			net.minecraft.world.level.Level.OVERWORLD,
 			new BlockPos(1, 64, 1),
-			new ChunkActivatorConfigSnapshot("91", ChunkActivatorMode.RESIDENT),
+			new ChunkActivatorConfigStateSnapshot(
+				LinkNodeType.TRIGGER_SOURCE,
+				new ChunkActivatorConfigSnapshot("91", ChunkActivatorMode.RESIDENT),
+				new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD)
+			),
+			"",
+			true
+		);
+		activatorSavedData.upsert(
+			net.minecraft.world.level.Level.OVERWORLD,
+			new BlockPos(2, 64, 2),
+			new ChunkActivatorConfigStateSnapshot(
+				LinkNodeType.CORE,
+				new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD),
+				new ChunkActivatorConfigSnapshot("34", ChunkActivatorMode.FORCE_LOAD)
+			),
 			"",
 			true
 		);
@@ -195,9 +214,24 @@ class NodeSnapshotQueryServiceTest {
 				Map.of()
 			)
 		);
+		CrossChunkNodeIdentity coreIdentity = NodeSnapshotQueryService.resolveCrossChunkNodeIdentity(
+			LinkNodeType.CORE,
+			34L,
+			new CrossChunkWhitelistSavedData(),
+			activatorSavedData,
+			crossChunkConfig(
+				true,
+				RedstoneLinkConfig.CrossChunkForceLoadMode.WHITELIST,
+				Set.of(LinkNodeType.TRIGGER_SOURCE),
+				Set.of(LinkNodeType.CORE),
+				Map.of(),
+				Map.of()
+			)
+		);
 
 		assertEquals(CrossChunkNodeIdentity.FORCE_LOAD, forceLoadIdentity);
 		assertEquals(CrossChunkNodeIdentity.RESIDENT, residentIdentity);
+		assertEquals(CrossChunkNodeIdentity.FORCE_LOAD, coreIdentity);
 	}
 
 	/**

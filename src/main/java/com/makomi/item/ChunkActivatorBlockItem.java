@@ -2,6 +2,7 @@ package com.makomi.item;
 
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.ChunkActivatorConfigSnapshot;
+import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorItemData;
 import com.makomi.data.ChunkActivatorMode;
 import com.makomi.data.LinkNodeSemantics;
@@ -62,7 +63,8 @@ public class ChunkActivatorBlockItem extends BlockItem {
 		TooltipFlag tooltipFlag
 	) {
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
-		ChunkActivatorConfigSnapshot snapshot = ChunkActivatorItemData.read(stack);
+		ChunkActivatorConfigStateSnapshot snapshot = ChunkActivatorItemData.read(stack);
+		ChunkActivatorConfigSnapshot activeConfig = snapshot.activeConfig();
 		String displayAlias = NodeAliasDisplayUtil.normalizeAlias(ChunkActivatorItemData.getDisplayAlias(stack));
 		tooltipComponents.add(
 			Component.translatable(
@@ -73,19 +75,19 @@ public class ChunkActivatorBlockItem extends BlockItem {
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.chunk_activator.service_target",
-				LinkNodeSemantics.toSemanticName(LinkNodeType.TRIGGER_SOURCE)
+				LinkNodeSemantics.toSemanticName(snapshot.activeType())
 			)
 		);
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.chunk_activator.mode",
-				modeLabel(snapshot.mode())
+				modeLabel(activeConfig.mode())
 			)
 		);
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.chunk_activator.serial_expression",
-				ChunkActivatorItemData.buildTooltipSerialExpressionText(snapshot, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
+				ChunkActivatorItemData.buildTooltipSerialExpressionText(activeConfig, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
 			)
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.chunk_activator.open_editor"));

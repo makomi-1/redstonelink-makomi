@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.LongConsumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
@@ -25,28 +26,33 @@ import net.minecraft.world.level.saveddata.SavedData;
 /**
  * 已放置区块激活器持久化数据。
  * <p>
- * 每个区块激活器独立保存其节点集真值，并维护：
+ * 每个区块激活器独立保存其 `triggerSource/core` 两套节点集真值，并维护：
  * </p>
  * <ul>
  * <li>区块激活器主表；</li>
- * <li>`triggerSource serial -> activatorKey` 反向索引；</li>
- * <li>激活态下 `forceLoad/resident` 两套聚合贡献计数。</li>
+ * <li>`triggerSource/core serial -> activatorKey` 反向索引；</li>
+ * <li>激活态下按当前作用类型生效的 `forceLoad/resident` 聚合贡献计数。</li>
  * </ul>
  * <p>
  * 普通区块卸载不会删除该真值；只有物理破坏时才移除条目。
  * </p>
  */
 public final class PlacedChunkActivatorSavedData extends SavedData {
-	public static final int MAX_TRIGGER_SOURCE_COUNT = 32;
+	public static final int MAX_NODE_SET_SIZE = 32;
 
 	private static final String DATA_NAME = "redstonelink_placed_chunk_activators";
 	private static final String KEY_ENTRIES = "entries";
 	private static final String KEY_DIMENSION = "dimension";
 	private static final String KEY_POS = "pos";
-	private static final String KEY_SERIAL_EXPRESSION = "serialExpression";
-	private static final String KEY_MODE = "mode";
+	private static final String KEY_ACTIVE_TYPE = "activeType";
+	private static final String KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION = "triggerSourceSerialExpression";
+	private static final String KEY_TRIGGER_SOURCE_MODE = "triggerSourceMode";
+	private static final String KEY_CORE_SERIAL_EXPRESSION = "coreSerialExpression";
+	private static final String KEY_CORE_MODE = "coreMode";
 	private static final String KEY_DISPLAY_ALIAS = "displayAlias";
 	private static final String KEY_ACTIVE = "active";
+	private static final String KEY_LEGACY_SERIAL_EXPRESSION = "serialExpression";
+	private static final String KEY_LEGACY_MODE = "mode";
 
 	private static final SavedData.Factory<PlacedChunkActivatorSavedData> FACTORY = new SavedData.Factory<>(
 		PlacedChunkActivatorSavedData::new,
@@ -56,8 +62,11 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 
 	private final Map<ActivatorEntryKey, ActivatorEntry> entriesByKey = new LinkedHashMap<>();
 	private final Map<Long, LinkedHashSet<ActivatorEntryKey>> triggerSourceSerialIndex = new LinkedHashMap<>();
-	private final Map<Long, Integer> forceLoadSourceRefCounts = new LinkedHashMap<>();
-	private final Map<Long, Integer> residentSourceRefCounts = new LinkedHashMap<>();
+	private final Map<Long, LinkedHashSet<ActivatorEntryKey>> coreSerialIndex = new LinkedHashMap<>();
+	private final Map<Long, Integer> forceLoadTriggerSourceRefCounts = new LinkedHashMap<>();
+	private final Map<Long, Integer> forceLoadCoreRefCounts = new LinkedHashMap<>();
+	private final Map<Long, Integer> residentTriggerSourceRefCounts = new LinkedHashMap<>();
+	private final Map<Long, Integer> residentCoreRefCounts = new LinkedHashMap<>();
 	private long residentStateVersion;
 
 	/**
@@ -92,18 +101,19 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 	public boolean upsert(
 		ResourceKey<Level> dimension,
 		BlockPos activatorPos,
-		ChunkActivatorConfigSnapshot configSnapshot,
+		ChunkActivatorConfigStateSnapshot configStateSnapshot,
 		String displayAlias,
 		boolean active
 	) {
-		if (dimension == null || activatorPos == null || configSnapshot == null) {
+		if (dimension == null || activatorPos == null || configStateSnapshot == null) {
 			return false;
 		}
 		ActivatorEntryKey key = new ActivatorEntryKey(dimension, activatorPos.immutable());
 		ActivatorEntry normalized = new ActivatorEntry(
 			key,
-			configSnapshot,
-			parseSerialExpression(configSnapshot.serialExpression()),
+			configStateSnapshot,
+			parseSerialExpression(configStateSnapshot.triggerSourceConfig().serialExpression()),
+			parseSerialExpression(configStateSnapshot.coreConfig().serialExpression()),
 			NodeAliasDisplayUtil.normalizeAlias(displayAlias),
 			active
 		);
@@ -157,24 +167,24 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 	}
 
 	/**
-	 * 判断指定 `triggerSource` 当前是否被激活态区块激活器纳入强加载集合。
+	 * 判断指定作用类型当前是否被激活态区块激活器纳入强加载集合。
 	 */
-	public boolean containsActiveForceLoadTriggerSource(long serial) {
-		return serial > 0L && forceLoadSourceRefCounts.getOrDefault(serial, 0) > 0;
+	public boolean containsActiveForceLoad(LinkNodeType type, long serial) {
+		return serial > 0L && refCountBucket(type, false).getOrDefault(serial, 0) > 0;
 	}
 
 	/**
-	 * 判断指定 `triggerSource` 当前是否被激活态区块激活器纳入 resident 集合。
+	 * 判断指定作用类型当前是否被激活态区块激活器纳入 resident 集合。
 	 */
-	public boolean containsActiveResidentTriggerSource(long serial) {
-		return serial > 0L && residentSourceRefCounts.getOrDefault(serial, 0) > 0;
+	public boolean containsActiveResident(LinkNodeType type, long serial) {
+		return serial > 0L && refCountBucket(type, true).getOrDefault(serial, 0) > 0;
 	}
 
 	/**
 	 * 当前是否仍存在 resident 区块激活器条目。
 	 */
 	public boolean hasResidents() {
-		return !residentSourceRefCounts.isEmpty();
+		return !residentTriggerSourceRefCounts.isEmpty() || !residentCoreRefCounts.isEmpty();
 	}
 
 	/**
@@ -188,13 +198,14 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 	}
 
 	/**
-	 * 遍历当前 resident `triggerSource` 序号。
+	 * 遍历当前 resident 指定作用类型序号。
 	 */
-	public void forEachResidentTriggerSourceSerial(TriggerSourceSerialConsumer consumer) {
-		if (consumer == null || residentSourceRefCounts.isEmpty()) {
+	public void forEachResidentSerial(LinkNodeType type, LongConsumer consumer) {
+		Map<Long, Integer> bucket = refCountBucket(type, true);
+		if (consumer == null || bucket.isEmpty()) {
 			return;
 		}
-		for (Long serial : residentSourceRefCounts.keySet()) {
+		for (Long serial : bucket.keySet()) {
 			if (serial != null && serial > 0L) {
 				consumer.accept(serial);
 			}
@@ -234,8 +245,11 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 			CompoundTag entryTag = new CompoundTag();
 			entryTag.putString(KEY_DIMENSION, entry.key().dimension().location().toString());
 			entryTag.putLong(KEY_POS, entry.key().activatorPos().asLong());
-			entryTag.putString(KEY_SERIAL_EXPRESSION, entry.configSnapshot().serialExpression());
-			entryTag.putString(KEY_MODE, entry.configSnapshot().mode().token());
+			entryTag.putString(KEY_ACTIVE_TYPE, ChunkActivatorConfigStateSnapshot.toTypeToken(entry.configStateSnapshot().activeType()));
+			entryTag.putString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, entry.configStateSnapshot().triggerSourceConfig().serialExpression());
+			entryTag.putString(KEY_TRIGGER_SOURCE_MODE, entry.configStateSnapshot().triggerSourceConfig().mode().token());
+			entryTag.putString(KEY_CORE_SERIAL_EXPRESSION, entry.configStateSnapshot().coreConfig().serialExpression());
+			entryTag.putString(KEY_CORE_MODE, entry.configStateSnapshot().coreConfig().mode().token());
 			if (!entry.displayAlias().isBlank()) {
 				entryTag.putString(KEY_DISPLAY_ALIAS, entry.displayAlias());
 			}
@@ -253,28 +267,13 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 	}
 
 	private void indexEntry(ActivatorEntry entry) {
-		for (Long serial : entry.serials()) {
-			if (serial == null || serial <= 0L) {
-				continue;
-			}
-			triggerSourceSerialIndex.computeIfAbsent(serial, ignored -> new LinkedHashSet<>()).add(entry.key());
-		}
+		indexSerials(entry.triggerSourceSerials(), triggerSourceSerialIndex, entry.key());
+		indexSerials(entry.coreSerials(), coreSerialIndex, entry.key());
 	}
 
 	private void unindexEntry(ActivatorEntry entry) {
-		for (Long serial : entry.serials()) {
-			if (serial == null || serial <= 0L) {
-				continue;
-			}
-			LinkedHashSet<ActivatorEntryKey> registrations = triggerSourceSerialIndex.get(serial);
-			if (registrations == null) {
-				continue;
-			}
-			registrations.remove(entry.key());
-			if (registrations.isEmpty()) {
-				triggerSourceSerialIndex.remove(serial);
-			}
-		}
+		unindexSerials(entry.triggerSourceSerials(), triggerSourceSerialIndex, entry.key());
+		unindexSerials(entry.coreSerials(), coreSerialIndex, entry.key());
 	}
 
 	private boolean applyContribution(ActivatorEntry entry) {
@@ -282,13 +281,14 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 			return false;
 		}
 		boolean residentChanged = false;
-		for (Long serial : entry.serials()) {
+		LinkNodeType activeType = entry.configStateSnapshot().activeType();
+		for (Long serial : entry.serialsFor(activeType)) {
 			if (serial == null || serial <= 0L) {
 				continue;
 			}
-			incrementRefCount(forceLoadSourceRefCounts, serial);
-			if (entry.configSnapshot().mode().contributesResident()) {
-				residentChanged |= incrementRefCount(residentSourceRefCounts, serial);
+			incrementRefCount(refCountBucket(activeType, false), serial);
+			if (entry.configStateSnapshot().activeConfig().mode().contributesResident()) {
+				residentChanged |= incrementRefCount(refCountBucket(activeType, true), serial);
 			}
 		}
 		return residentChanged;
@@ -299,16 +299,58 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 			return false;
 		}
 		boolean residentChanged = false;
-		for (Long serial : entry.serials()) {
+		LinkNodeType activeType = entry.configStateSnapshot().activeType();
+		for (Long serial : entry.serialsFor(activeType)) {
 			if (serial == null || serial <= 0L) {
 				continue;
 			}
-			decrementRefCount(forceLoadSourceRefCounts, serial);
-			if (entry.configSnapshot().mode().contributesResident()) {
-				residentChanged |= decrementRefCount(residentSourceRefCounts, serial);
+			decrementRefCount(refCountBucket(activeType, false), serial);
+			if (entry.configStateSnapshot().activeConfig().mode().contributesResident()) {
+				residentChanged |= decrementRefCount(refCountBucket(activeType, true), serial);
 			}
 		}
 		return residentChanged;
+	}
+
+	private Map<Long, Integer> refCountBucket(LinkNodeType type, boolean resident) {
+		LinkNodeType normalizedType = ChunkActivatorConfigStateSnapshot.normalizeType(type);
+		if (resident) {
+			return normalizedType == LinkNodeType.CORE ? residentCoreRefCounts : residentTriggerSourceRefCounts;
+		}
+		return normalizedType == LinkNodeType.CORE ? forceLoadCoreRefCounts : forceLoadTriggerSourceRefCounts;
+	}
+
+	private static void indexSerials(
+		Set<Long> serials,
+		Map<Long, LinkedHashSet<ActivatorEntryKey>> indexBucket,
+		ActivatorEntryKey key
+	) {
+		for (Long serial : serials) {
+			if (serial == null || serial <= 0L) {
+				continue;
+			}
+			indexBucket.computeIfAbsent(serial, ignored -> new LinkedHashSet<>()).add(key);
+		}
+	}
+
+	private static void unindexSerials(
+		Set<Long> serials,
+		Map<Long, LinkedHashSet<ActivatorEntryKey>> indexBucket,
+		ActivatorEntryKey key
+	) {
+		for (Long serial : serials) {
+			if (serial == null || serial <= 0L) {
+				continue;
+			}
+			LinkedHashSet<ActivatorEntryKey> registrations = indexBucket.get(serial);
+			if (registrations == null) {
+				continue;
+			}
+			registrations.remove(key);
+			if (registrations.isEmpty()) {
+				indexBucket.remove(serial);
+			}
+		}
 	}
 
 	private void bumpResidentStateVersion() {
@@ -322,23 +364,58 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
 		BlockPos activatorPos = BlockPos.of(entryTag.getLong(KEY_POS));
-		ChunkActivatorConfigSnapshot configSnapshot = new ChunkActivatorConfigSnapshot(
-			entryTag.getString(KEY_SERIAL_EXPRESSION),
-			ChunkActivatorMode.tryParseToken(entryTag.getString(KEY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD)
+		ChunkActivatorConfigSnapshot legacyConfig = new ChunkActivatorConfigSnapshot(
+			entryTag.contains(KEY_LEGACY_SERIAL_EXPRESSION, Tag.TAG_STRING) ? entryTag.getString(KEY_LEGACY_SERIAL_EXPRESSION) : "",
+			ChunkActivatorMode.tryParseToken(entryTag.getString(KEY_LEGACY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD)
+		);
+		ChunkActivatorConfigStateSnapshot configStateSnapshot = new ChunkActivatorConfigStateSnapshot(
+			ChunkActivatorConfigStateSnapshot.tryParseTypeToken(
+				entryTag.contains(KEY_ACTIVE_TYPE, Tag.TAG_STRING) ? entryTag.getString(KEY_ACTIVE_TYPE) : ""
+			).orElse(LinkNodeType.TRIGGER_SOURCE),
+			new ChunkActivatorConfigSnapshot(
+				entryTag.contains(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, Tag.TAG_STRING)
+					? entryTag.getString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION)
+					: legacyConfig.serialExpression(),
+				ChunkActivatorMode
+					.tryParseToken(
+						entryTag.contains(KEY_TRIGGER_SOURCE_MODE, Tag.TAG_STRING)
+							? entryTag.getString(KEY_TRIGGER_SOURCE_MODE)
+							: legacyConfig.mode().token()
+					)
+					.orElse(legacyConfig.mode())
+			),
+			new ChunkActivatorConfigSnapshot(
+				entryTag.contains(KEY_CORE_SERIAL_EXPRESSION, Tag.TAG_STRING)
+					? entryTag.getString(KEY_CORE_SERIAL_EXPRESSION)
+					: "",
+				ChunkActivatorMode
+					.tryParseToken(
+						entryTag.contains(KEY_CORE_MODE, Tag.TAG_STRING)
+							? entryTag.getString(KEY_CORE_MODE)
+							: ChunkActivatorMode.FORCE_LOAD.token()
+					)
+					.orElse(ChunkActivatorMode.FORCE_LOAD)
+			)
 		);
 		String displayAlias = entryTag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)
 			? NodeAliasDisplayUtil.normalizeAlias(entryTag.getString(KEY_DISPLAY_ALIAS))
 			: "";
 		boolean active = entryTag.getBoolean(KEY_ACTIVE);
 		ActivatorEntryKey key = new ActivatorEntryKey(dimension, activatorPos);
-		return Optional.of(new ActivatorEntry(key, configSnapshot, parseSerialExpression(configSnapshot.serialExpression()), displayAlias, active));
+		return Optional.of(
+			new ActivatorEntry(
+				key,
+				configStateSnapshot,
+				parseSerialExpression(configStateSnapshot.triggerSourceConfig().serialExpression()),
+				parseSerialExpression(configStateSnapshot.coreConfig().serialExpression()),
+				displayAlias,
+				active
+			)
+		);
 	}
 
 	private static Set<Long> parseSerialExpression(String rawExpression) {
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
-			rawExpression,
-			MAX_TRIGGER_SOURCE_COUNT
-		);
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(rawExpression, MAX_NODE_SET_SIZE);
 		if (parseResult.orderedTargets().isEmpty()) {
 			return Set.of();
 		}
@@ -371,36 +448,40 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 	 */
 	public record ActivatorEntry(
 		ActivatorEntryKey key,
-		ChunkActivatorConfigSnapshot configSnapshot,
-		Set<Long> serials,
+		ChunkActivatorConfigStateSnapshot configStateSnapshot,
+		Set<Long> triggerSourceSerials,
+		Set<Long> coreSerials,
 		String displayAlias,
 		boolean active
 	) {
 		public ActivatorEntry {
-			configSnapshot = configSnapshot == null
-				? new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD)
-				: configSnapshot;
-			serials = Set.copyOf(serials == null ? Set.of() : serials);
+			configStateSnapshot = configStateSnapshot == null
+				? new ChunkActivatorConfigStateSnapshot(null, null, null)
+				: configStateSnapshot;
+			triggerSourceSerials = Set.copyOf(triggerSourceSerials == null ? Set.of() : triggerSourceSerials);
+			coreSerials = Set.copyOf(coreSerials == null ? Set.of() : coreSerials);
 			displayAlias = NodeAliasDisplayUtil.normalizeAlias(displayAlias);
 		}
 
+		/**
+		 * 按作用类型读取当前条目的节点集。
+		 */
+		public Set<Long> serialsFor(LinkNodeType type) {
+			return ChunkActivatorConfigStateSnapshot.normalizeType(type) == LinkNodeType.CORE ? coreSerials : triggerSourceSerials;
+		}
+
 		boolean sameSerialIndex(ActivatorEntry other) {
-			return other != null && serials.equals(other.serials());
+			return other != null
+				&& triggerSourceSerials.equals(other.triggerSourceSerials())
+				&& coreSerials.equals(other.coreSerials());
 		}
 
 		boolean sameContribution(ActivatorEntry other) {
 			return other != null
 				&& active == other.active()
-				&& configSnapshot.mode() == other.configSnapshot().mode()
-				&& serials.equals(other.serials());
+				&& configStateSnapshot.activeType() == other.configStateSnapshot().activeType()
+				&& configStateSnapshot.activeConfig().mode() == other.configStateSnapshot().activeConfig().mode()
+				&& serialsFor(configStateSnapshot.activeType()).equals(other.serialsFor(other.configStateSnapshot().activeType()));
 		}
-	}
-
-	/**
-	 * resident `triggerSource` 序号遍历回调。
-	 */
-	@FunctionalInterface
-	public interface TriggerSourceSerialConsumer {
-		void accept(long serial);
 	}
 }

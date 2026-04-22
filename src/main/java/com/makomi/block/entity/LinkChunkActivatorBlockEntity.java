@@ -1,12 +1,11 @@
 package com.makomi.block.entity;
 
 import com.makomi.data.ChunkActivatorConfigSnapshot;
+import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorMode;
+import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.PlacedChunkActivatorSavedData;
-import com.makomi.util.SerialParseUtil;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -28,14 +27,19 @@ import net.minecraft.world.level.block.state.BlockState;
  * </p>
  */
 public class LinkChunkActivatorBlockEntity extends BlockEntity {
-	private static final String KEY_SERIAL_EXPRESSION = "serialExpression";
-	private static final String KEY_MODE = "mode";
+	private static final String KEY_ACTIVE_TYPE = "activeType";
+	private static final String KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION = "triggerSourceSerialExpression";
+	private static final String KEY_TRIGGER_SOURCE_MODE = "triggerSourceMode";
+	private static final String KEY_CORE_SERIAL_EXPRESSION = "coreSerialExpression";
+	private static final String KEY_CORE_MODE = "coreMode";
 	private static final String KEY_DISPLAY_ALIAS = "DisplayAlias";
 	private static final String KEY_ACTIVE = "active";
+	private static final String KEY_LEGACY_SERIAL_EXPRESSION = "serialExpression";
+	private static final String KEY_LEGACY_MODE = "mode";
 
-	private String serialExpression = "";
-	private ChunkActivatorMode mode = ChunkActivatorMode.FORCE_LOAD;
-	private Set<Long> serials = Set.of();
+	private LinkNodeType activeType = LinkNodeType.TRIGGER_SOURCE;
+	private ChunkActivatorConfigSnapshot triggerSourceConfig = new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD);
+	private ChunkActivatorConfigSnapshot coreConfig = new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD);
 	private String displayAlias = "";
 	private boolean active;
 	private final ChunkActivatorLifecycleState lifecycleState = new ChunkActivatorLifecycleState();
@@ -47,8 +51,8 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	/**
 	 * 返回当前配置快照。
 	 */
-	public final ChunkActivatorConfigSnapshot snapshot() {
-		return new ChunkActivatorConfigSnapshot(serialExpression, mode);
+	public final ChunkActivatorConfigStateSnapshot snapshot() {
+		return new ChunkActivatorConfigStateSnapshot(activeType, triggerSourceConfig, coreConfig);
 	}
 
 	/**
@@ -68,21 +72,21 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	/**
 	 * 应用新的区块激活器配置快照。
 	 */
-	public final void applySnapshot(ChunkActivatorConfigSnapshot configSnapshot) {
+	public final void applySnapshot(ChunkActivatorConfigStateSnapshot configSnapshot) {
 		applyEditorState(displayAlias, configSnapshot);
 	}
 
 	/**
 	 * 同时应用别名与区块激活器配置，并同步当前真值。
 	 */
-	public final void applyEditorState(String rawDisplayAlias, ChunkActivatorConfigSnapshot configSnapshot) {
-		ChunkActivatorConfigSnapshot normalized = configSnapshot == null
-			? new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD)
+	public final void applyEditorState(String rawDisplayAlias, ChunkActivatorConfigStateSnapshot configSnapshot) {
+		ChunkActivatorConfigStateSnapshot normalized = configSnapshot == null
+			? new ChunkActivatorConfigStateSnapshot(LinkNodeType.TRIGGER_SOURCE, null, null)
 			: configSnapshot;
 		displayAlias = NodeAliasDisplayUtil.normalizeAlias(rawDisplayAlias);
-		serialExpression = normalized.serialExpression();
-		mode = normalized.mode();
-		serials = parseSerialExpression(serialExpression);
+		activeType = ChunkActivatorConfigStateSnapshot.normalizeType(normalized.activeType());
+		triggerSourceConfig = normalized.triggerSourceConfig();
+		coreConfig = normalized.coreConfig();
 		syncToClient();
 		syncPlacedActivatorState();
 	}
@@ -109,17 +113,24 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	}
 
 	/**
-	 * @return 当前缓存的节点集表达式
+	 * @return 当前生效作用类型
 	 */
-	public final String serialExpression() {
-		return serialExpression;
+	public final LinkNodeType activeType() {
+		return activeType;
 	}
 
 	/**
-	 * @return 当前区块激活器模式
+	 * @return 指定作用类型的配置快照
 	 */
-	public final ChunkActivatorMode mode() {
-		return mode;
+	public final ChunkActivatorConfigSnapshot configFor(LinkNodeType type) {
+		return snapshot().configFor(type);
+	}
+
+	/**
+	 * @return 当前生效配置快照
+	 */
+	public final ChunkActivatorConfigSnapshot activeConfig() {
+		return snapshot().activeConfig();
 	}
 
 	/**
@@ -133,28 +144,58 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	@Override
 	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
 		super.loadAdditional(tag, provider);
-		serialExpression = tag.contains(KEY_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_SERIAL_EXPRESSION) : "";
-		mode = ChunkActivatorMode.tryParseToken(tag.getString(KEY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD);
+		ChunkActivatorConfigSnapshot legacyConfig = new ChunkActivatorConfigSnapshot(
+			tag.contains(KEY_LEGACY_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_LEGACY_SERIAL_EXPRESSION) : "",
+			ChunkActivatorMode.tryParseToken(tag.getString(KEY_LEGACY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD)
+		);
+		activeType =
+			ChunkActivatorConfigStateSnapshot
+				.tryParseTypeToken(tag.contains(KEY_ACTIVE_TYPE, Tag.TAG_STRING) ? tag.getString(KEY_ACTIVE_TYPE) : "")
+				.orElse(LinkNodeType.TRIGGER_SOURCE);
+		triggerSourceConfig = new ChunkActivatorConfigSnapshot(
+			tag.contains(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, Tag.TAG_STRING)
+				? tag.getString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION)
+				: legacyConfig.serialExpression(),
+			ChunkActivatorMode
+				.tryParseToken(
+					tag.contains(KEY_TRIGGER_SOURCE_MODE, Tag.TAG_STRING)
+						? tag.getString(KEY_TRIGGER_SOURCE_MODE)
+						: legacyConfig.mode().token()
+				)
+				.orElse(legacyConfig.mode())
+		);
+		coreConfig = new ChunkActivatorConfigSnapshot(
+			tag.contains(KEY_CORE_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_CORE_SERIAL_EXPRESSION) : "",
+			ChunkActivatorMode
+				.tryParseToken(
+					tag.contains(KEY_CORE_MODE, Tag.TAG_STRING)
+						? tag.getString(KEY_CORE_MODE)
+						: ChunkActivatorMode.FORCE_LOAD.token()
+				)
+				.orElse(ChunkActivatorMode.FORCE_LOAD)
+		);
 		displayAlias = tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)
 			? NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS))
 			: "";
 		active = tag.getBoolean(KEY_ACTIVE);
-		serials = parseSerialExpression(serialExpression);
 	}
 
 	@Override
 	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
 		super.saveAdditional(tag, provider);
-		if (!serialExpression.isBlank()) {
-			tag.putString(KEY_SERIAL_EXPRESSION, serialExpression);
-		}
-		tag.putString(KEY_MODE, mode.token());
+		tag.putString(KEY_ACTIVE_TYPE, ChunkActivatorConfigStateSnapshot.toTypeToken(activeType));
+		tag.putString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, triggerSourceConfig.serialExpression());
+		tag.putString(KEY_TRIGGER_SOURCE_MODE, triggerSourceConfig.mode().token());
+		tag.putString(KEY_CORE_SERIAL_EXPRESSION, coreConfig.serialExpression());
+		tag.putString(KEY_CORE_MODE, coreConfig.mode().token());
 		if (!displayAlias.isBlank()) {
 			tag.putString(KEY_DISPLAY_ALIAS, displayAlias);
 		}
 		if (active) {
 			tag.putBoolean(KEY_ACTIVE, true);
 		}
+		tag.remove(KEY_LEGACY_SERIAL_EXPRESSION);
+		tag.remove(KEY_LEGACY_MODE);
 	}
 
 	@Override
@@ -207,9 +248,7 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		PlacedChunkActivatorSavedData
-			.get(serverLevel)
-			.upsert(serverLevel.dimension(), worldPosition, snapshot(), displayAlias, active);
+		PlacedChunkActivatorSavedData.get(serverLevel).upsert(serverLevel.dimension(), worldPosition, snapshot(), displayAlias, active);
 	}
 
 	private void removePlacedActivatorState() {
@@ -217,16 +256,5 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 			return;
 		}
 		PlacedChunkActivatorSavedData.get(serverLevel).remove(serverLevel.dimension(), worldPosition);
-	}
-
-	private static Set<Long> parseSerialExpression(String rawExpression) {
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
-			rawExpression,
-			PlacedChunkActivatorSavedData.MAX_TRIGGER_SOURCE_COUNT
-		);
-		if (parseResult.orderedTargets().isEmpty()) {
-			return Set.of();
-		}
-		return Set.copyOf(new LinkedHashSet<>(parseResult.orderedTargets()));
 	}
 }

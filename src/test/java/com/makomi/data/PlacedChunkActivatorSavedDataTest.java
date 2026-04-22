@@ -19,92 +19,83 @@ import org.junit.jupiter.api.Test;
 @Tag("stable-core")
 class PlacedChunkActivatorSavedDataTest {
 	/**
-	 * 激活态区块激活器应按模式聚合强加载/resident 贡献，
-	 * 且 alias-only 更新不应推动 resident 版本。
+	 * 激活态区块激活器应按当前作用类型聚合强加载/resident 贡献，
+	 * 且切换到另一种作用类型时不能丢失未生效侧配置。
 	 */
 	@Test
-	void upsertShouldAggregateActiveContributionsByMode() {
+	void upsertShouldAggregateActiveContributionsByActiveTypeAndRetainInactiveConfig() {
 		PlacedChunkActivatorSavedData data = new PlacedChunkActivatorSavedData();
-		BlockPos forceLoadPos = new BlockPos(1, 64, 1);
-		BlockPos residentPos = new BlockPos(2, 64, 2);
-
-		assertTrue(
-			data.upsert(
-				Level.OVERWORLD,
-				forceLoadPos,
-				new ChunkActivatorConfigSnapshot("7/8/8", ChunkActivatorMode.FORCE_LOAD),
-				"force",
-				true
-			)
+		BlockPos activatorPos = new BlockPos(1, 64, 1);
+		ChunkActivatorConfigStateSnapshot triggerSourceActiveSnapshot = new ChunkActivatorConfigStateSnapshot(
+			LinkNodeType.TRIGGER_SOURCE,
+			new ChunkActivatorConfigSnapshot("7/8/8", ChunkActivatorMode.FORCE_LOAD),
+			new ChunkActivatorConfigSnapshot("31/32", ChunkActivatorMode.RESIDENT)
 		);
-		assertTrue(data.containsActiveForceLoadTriggerSource(7L));
-		assertTrue(data.containsActiveForceLoadTriggerSource(8L));
-		assertFalse(data.containsActiveResidentTriggerSource(7L));
+		ChunkActivatorConfigStateSnapshot coreActiveSnapshot = triggerSourceActiveSnapshot.withActiveType(LinkNodeType.CORE);
+
+		assertTrue(data.upsert(Level.OVERWORLD, activatorPos, triggerSourceActiveSnapshot, "force", true));
+		assertTrue(data.containsActiveForceLoad(LinkNodeType.TRIGGER_SOURCE, 7L));
+		assertTrue(data.containsActiveForceLoad(LinkNodeType.TRIGGER_SOURCE, 8L));
+		assertFalse(data.containsActiveResident(LinkNodeType.TRIGGER_SOURCE, 7L));
+		assertFalse(data.containsActiveForceLoad(LinkNodeType.CORE, 31L));
 		assertEquals(0L, data.residentStateVersion());
 		assertFalse(data.hasResidents());
 
-		assertTrue(
-			data.upsert(
-				Level.OVERWORLD,
-				residentPos,
-				new ChunkActivatorConfigSnapshot("8/9", ChunkActivatorMode.RESIDENT),
-				"resident",
-				true
-			)
-		);
-		assertTrue(data.containsActiveForceLoadTriggerSource(9L));
-		assertTrue(data.containsActiveResidentTriggerSource(8L));
-		assertTrue(data.containsActiveResidentTriggerSource(9L));
+		assertTrue(data.upsert(Level.OVERWORLD, activatorPos, coreActiveSnapshot, "core", true));
+		assertFalse(data.containsActiveForceLoad(LinkNodeType.TRIGGER_SOURCE, 7L));
+		assertFalse(data.containsActiveForceLoad(LinkNodeType.TRIGGER_SOURCE, 8L));
+		assertTrue(data.containsActiveForceLoad(LinkNodeType.CORE, 31L));
+		assertTrue(data.containsActiveForceLoad(LinkNodeType.CORE, 32L));
+		assertTrue(data.containsActiveResident(LinkNodeType.CORE, 31L));
+		assertTrue(data.containsActiveResident(LinkNodeType.CORE, 32L));
 		assertEquals(1L, data.residentStateVersion());
 		assertTrue(data.hasResidents());
-
-		assertTrue(
-			data.upsert(
-				Level.OVERWORLD,
-				residentPos,
-				new ChunkActivatorConfigSnapshot("8/9", ChunkActivatorMode.RESIDENT),
-				"resident-updated",
-				true
-			)
+		assertEquals(
+			"7/8/8",
+			data.findEntry(Level.OVERWORLD, activatorPos).orElseThrow().configStateSnapshot().triggerSourceConfig().serialExpression()
 		);
-		assertEquals(1L, data.residentStateVersion());
-		assertTrue(data.containsActiveResidentTriggerSource(8L));
-		assertTrue(data.containsActiveResidentTriggerSource(9L));
+		assertEquals(
+			"31/32",
+			data.findEntry(Level.OVERWORLD, activatorPos).orElseThrow().configStateSnapshot().coreConfig().serialExpression()
+		);
 
-		assertTrue(data.remove(Level.OVERWORLD, residentPos));
+		assertTrue(data.upsert(Level.OVERWORLD, activatorPos, coreActiveSnapshot, "core-updated", true));
+		assertEquals(1L, data.residentStateVersion());
+
+		assertTrue(data.remove(Level.OVERWORLD, activatorPos));
 		assertEquals(2L, data.residentStateVersion());
-		assertFalse(data.containsActiveResidentTriggerSource(8L));
-		assertFalse(data.containsActiveResidentTriggerSource(9L));
-		assertTrue(data.containsActiveForceLoadTriggerSource(8L));
-		assertFalse(data.containsActiveForceLoadTriggerSource(9L));
+		assertFalse(data.containsActiveResident(LinkNodeType.CORE, 31L));
+		assertFalse(data.containsActiveResident(LinkNodeType.CORE, 32L));
+		assertFalse(data.containsActiveForceLoad(LinkNodeType.CORE, 31L));
 		assertFalse(data.hasResidents());
 	}
 
 	/**
-	 * 反序列化时应恢复主表、索引与激活态贡献，并忽略非法维度。
+	 * 反序列化时应兼容旧单配置格式，并恢复新双配置格式的主表、索引与激活态贡献。
 	 */
 	@Test
-	void loadShouldRestoreEntriesIndexAndContributions() throws Exception {
+	void loadShouldRestoreLegacyAndDualConfigEntries() throws Exception {
 		CompoundTag root = new CompoundTag();
 		ListTag entries = new ListTag();
-		entries.add(entry("minecraft:overworld", BlockPos.ZERO, "11/12", "resident", "A", true));
-		entries.add(entry("minecraft:overworld", new BlockPos(4, 70, 4), "99", "force_load", "", false));
-		entries.add(entry("bad path", new BlockPos(8, 70, 8), "77", "resident", "", true));
+		entries.add(legacyEntry("minecraft:overworld", BlockPos.ZERO, "11/12", "resident", "A", true));
+		entries.add(dualEntry("minecraft:overworld", new BlockPos(4, 70, 4), "core", "", "force_load", "99", "resident", "", true));
+		entries.add(legacyEntry("bad path", new BlockPos(8, 70, 8), "77", "resident", "", true));
 		root.put("entries", entries);
 
 		PlacedChunkActivatorSavedData loaded = invokeLoad(root);
 
 		assertEquals(2, loaded.entriesSnapshot().size());
-		assertTrue(loaded.containsActiveForceLoadTriggerSource(11L));
-		assertTrue(loaded.containsActiveForceLoadTriggerSource(12L));
-		assertTrue(loaded.containsActiveResidentTriggerSource(11L));
-		assertTrue(loaded.containsActiveResidentTriggerSource(12L));
-		assertFalse(loaded.containsActiveForceLoadTriggerSource(99L));
-		assertFalse(loaded.containsActiveResidentTriggerSource(99L));
+		assertTrue(loaded.containsActiveForceLoad(LinkNodeType.TRIGGER_SOURCE, 11L));
+		assertTrue(loaded.containsActiveResident(LinkNodeType.TRIGGER_SOURCE, 11L));
+		assertTrue(loaded.containsActiveForceLoad(LinkNodeType.TRIGGER_SOURCE, 12L));
+		assertTrue(loaded.containsActiveResident(LinkNodeType.TRIGGER_SOURCE, 12L));
+		assertTrue(loaded.containsActiveForceLoad(LinkNodeType.CORE, 99L));
+		assertTrue(loaded.containsActiveResident(LinkNodeType.CORE, 99L));
+		assertFalse(loaded.containsActiveForceLoad(LinkNodeType.TRIGGER_SOURCE, 99L));
 		assertTrue(loaded.hasResidents());
 	}
 
-	private static CompoundTag entry(
+	private static CompoundTag legacyEntry(
 		String dimension,
 		BlockPos pos,
 		String serialExpression,
@@ -117,6 +108,32 @@ class PlacedChunkActivatorSavedDataTest {
 		entry.putLong("pos", pos.asLong());
 		entry.putString("serialExpression", serialExpression);
 		entry.putString("mode", mode);
+		if (!displayAlias.isBlank()) {
+			entry.putString("displayAlias", displayAlias);
+		}
+		entry.putBoolean("active", active);
+		return entry;
+	}
+
+	private static CompoundTag dualEntry(
+		String dimension,
+		BlockPos pos,
+		String activeType,
+		String triggerSourceSerialExpression,
+		String triggerSourceMode,
+		String coreSerialExpression,
+		String coreMode,
+		String displayAlias,
+		boolean active
+	) {
+		CompoundTag entry = new CompoundTag();
+		entry.putString("dimension", dimension);
+		entry.putLong("pos", pos.asLong());
+		entry.putString("activeType", activeType);
+		entry.putString("triggerSourceSerialExpression", triggerSourceSerialExpression);
+		entry.putString("triggerSourceMode", triggerSourceMode);
+		entry.putString("coreSerialExpression", coreSerialExpression);
+		entry.putString("coreMode", coreMode);
 		if (!displayAlias.isBlank()) {
 			entry.putString("displayAlias", displayAlias);
 		}
