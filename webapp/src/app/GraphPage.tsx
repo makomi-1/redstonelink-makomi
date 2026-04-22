@@ -21,6 +21,7 @@ type GraphPageProps = {
   graphEntries: StorageEntrySummary[];
   onDirtyStateChange: (dirty: boolean) => void;
   onGraphFileChange: (fileName: string) => void;
+  onGraphEntryReloaded?: (entry: StorageEntryPayload) => void;
   onLanguageChange: (language: AppLanguage) => void;
   onRefreshStorageIndex: () => void;
   onThemeChange: (themeId: WebThemeId) => void;
@@ -43,6 +44,7 @@ export default function GraphPage({
   graphEntries,
   onDirtyStateChange,
   onGraphFileChange,
+  onGraphEntryReloaded,
   onLanguageChange,
   onRefreshStorageIndex,
   onThemeChange,
@@ -195,6 +197,7 @@ export default function GraphPage({
               graphFileName={graphSelectedEntry?.fileName ?? ""}
               language={currentLanguage}
               onDirtyStateChange={onDirtyStateChange}
+              onGraphEntryReloaded={onGraphEntryReloaded}
             />
           </article>
         ) : null}

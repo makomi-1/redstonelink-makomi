@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildStorageEntrySummary,
   fetchBridgeStatus,
+  refreshGraphEntry,
   fetchStorageEntry,
   fetchStorageIndex,
   findStorageEntry,
@@ -30,6 +32,27 @@ describe('storageApi', () => {
     expect(findStorageEntry(storageIndex, 'graph', 'snapshot.json')).toEqual(targetEntry);
     expect(findStorageEntry(storageIndex, 'graph', 'missing.json')).toBeNull();
     expect(findStorageEntry(null, 'graph', 'snapshot.json')).toBeNull();
+  });
+
+  it('buildStorageEntrySummary 会从完整条目提取索引摘要字段', () => {
+    const entryPayload = createTestStorageEntryPayload({
+      kind: 'graph',
+      fileName: 'snapshot.json',
+      relativePath: 'graph/snapshot.json',
+      compressed: true,
+      sizeBytes: 512,
+      lastModifiedEpochMillis: 1712345678901,
+      textContent: '{"kind":"graphSnapshotBundle"}',
+    });
+
+    expect(buildStorageEntrySummary(entryPayload)).toEqual({
+      kind: 'graph',
+      fileName: 'snapshot.json',
+      relativePath: 'graph/snapshot.json',
+      compressed: true,
+      sizeBytes: 512,
+      lastModifiedEpochMillis: 1712345678901,
+    });
   });
 
   it('fetchBridgeStatus 成功时返回 ping payload，并使用 no-store', async () => {
@@ -68,5 +91,21 @@ describe('storageApi', () => {
         cache: 'no-store',
       },
     );
+  });
+
+  it('refreshGraphEntry 会使用 POST 拉取最新 graph 条目', async () => {
+    const entryPayload = createTestStorageEntryPayload({
+      kind: 'graph',
+      fileName: 'demo-graph.json',
+      textContent: '{"kind":"graphSnapshotBundle"}',
+    });
+    const fetchMock = vi.fn().mockResolvedValue(createJsonResponse(entryPayload));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(refreshGraphEntry()).resolves.toEqual(entryPayload);
+    expect(fetchMock).toHaveBeenCalledWith('./api/graph/refresh', {
+      method: 'POST',
+      cache: 'no-store',
+    });
   });
 });

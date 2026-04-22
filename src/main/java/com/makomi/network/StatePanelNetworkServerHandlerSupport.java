@@ -294,21 +294,31 @@ final class StatePanelNetworkServerHandlerSupport {
 		if (player == null) {
 			return;
 		}
+		boolean backgroundRefresh = payload != null && !payload.requestId().isBlank();
 		if (!WebFeaturePermissionService.canUseGraphFeature(player)) {
-			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.permission.insufficient"));
+			if (!backgroundRefresh) {
+				sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.permission.insufficient"));
+			}
 			return;
 		}
 		try {
 			boolean forceTransfer = payload != null && payload.forceTransfer();
+			boolean autoOpenWeb = payload == null || payload.autoOpenWeb();
+			String requestId = payload == null ? "" : payload.requestId();
 			GraphSnapshotExportService.ExportBundle exportBundle = GraphExportNetworkSupport.exportVisibleSerialGraph(
 				player,
 				forceTransfer,
-				true
+				autoOpenWeb,
+				requestId
 			);
-			sendFeedback(player, QuickLinkOperationFeedback.success("message.redstonelink.graph.export.done", exportBundle.fileName()));
+			if (!backgroundRefresh) {
+				sendFeedback(player, QuickLinkOperationFeedback.success("message.redstonelink.graph.export.done", exportBundle.fileName()));
+			}
 		} catch (IOException | RuntimeException exception) {
 			com.makomi.RedstoneLink.LOGGER.warn("导出图快照失败: player={}", player.getScoreboardName(), exception);
-			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.graph.export.failed"));
+			if (!backgroundRefresh) {
+				sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.graph.export.failed"));
+			}
 		}
 	}
 

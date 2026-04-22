@@ -109,40 +109,24 @@ class GraphWriteJsonSupportTest {
 	}
 
 	/**
-	 * applied 回包应只保留 OCC 所需的最小 updatedNodes 字段，避免大批量保存时响应体膨胀。
+	 * applied 回包应收敛为最小摘要字段，避免大批量保存时响应体膨胀。
 	 */
 	@Test
-	void buildAppliedResponseShouldKeepMinimalUpdatedNodeFields() {
+	void buildAppliedResponseShouldExposeSummaryFields() {
 		String responseJson = GraphWriteJsonSupport.buildAppliedResponse(
 			"已保存。",
 			21L,
-			List.of(
-				new GraphWriteJsonSupport.UpdatedNodeState(
-					"triggerSource:12",
-					LinkNodeType.TRIGGER_SOURCE,
-					12L,
-					"alpha",
-					"alpha(#12)",
-					"serial",
-					0L,
-					7L,
-					0L
-				)
-			)
+			3,
+			true
 		);
 
 		JsonObject response = JsonParser.parseString(responseJson).getAsJsonObject();
-		JsonObject updatedNode = response.getAsJsonArray("updatedNodes").get(0).getAsJsonObject();
 
 		assertEquals("applied", response.get("result").getAsString());
 		assertEquals(21L, response.get("graphRevision").getAsLong());
-		assertEquals("triggerSource:12", updatedNode.get("nodeKey").getAsString());
-		assertEquals(7L, updatedNode.get("sourceRevision").getAsLong());
-		assertEquals(0L, updatedNode.get("coreRevision").getAsLong());
-		assertFalse(updatedNode.has("alias"));
-		assertFalse(updatedNode.has("displayText"));
-		assertFalse(updatedNode.has("connectionMode"));
-		assertFalse(updatedNode.has("channel"));
+		assertEquals(3, response.get("changedNodeCount").getAsInt());
+		assertTrue(response.get("refreshRequired").getAsBoolean());
+		assertFalse(response.has("updatedNodes"));
 	}
 
 	/**

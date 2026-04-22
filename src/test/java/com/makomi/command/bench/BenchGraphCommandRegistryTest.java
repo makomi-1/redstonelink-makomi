@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.makomi.data.GraphSnapshotBundle;
 import com.makomi.data.GraphWriteJsonSupport;
-import com.makomi.data.LinkNodeType;
 import java.util.List;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -59,37 +58,15 @@ class BenchGraphCommandRegistryTest {
 	}
 
 	/**
-	 * applied summary 应稳定暴露最小 updatedNodes 数量与 applied outcome。
+	 * applied summary 应稳定暴露最小 changedNodeCount 摘要与 applied outcome。
 	 */
 	@Test
 	void buildWriteSummaryShouldExposeAppliedFields() {
 		String responseJson = GraphWriteJsonSupport.buildAppliedResponse(
 			"已保存。",
 			22L,
-			List.of(
-				new GraphWriteJsonSupport.UpdatedNodeState(
-					"triggerSource:5",
-					LinkNodeType.TRIGGER_SOURCE,
-					5L,
-					"",
-					"",
-					"",
-					0L,
-					9L,
-					0L
-				),
-				new GraphWriteJsonSupport.UpdatedNodeState(
-					"core:8",
-					LinkNodeType.CORE,
-					8L,
-					"",
-					"",
-					"",
-					0L,
-					0L,
-					3L
-				)
-			)
+			2,
+			true
 		);
 
 		assertEquals(

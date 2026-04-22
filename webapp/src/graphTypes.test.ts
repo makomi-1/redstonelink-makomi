@@ -87,6 +87,8 @@ describe('graphTypes', () => {
       reason: '  limited  ',
       message: '  blocked  ',
       graphRevision: 17,
+      changedNodeCount: 0,
+      refreshRequired: false,
       updatedNodes: [
         {
           nodeKey: 'core:2',
@@ -128,6 +130,8 @@ describe('graphTypes', () => {
       reason: 'limited',
       message: 'blocked',
       graphRevision: 17,
+      changedNodeCount: 0,
+      refreshRequired: false,
       updatedNodes: [
         {
           nodeKey: 'core:2',
@@ -164,6 +168,30 @@ describe('graphTypes', () => {
         graphWaitTicks: 7,
         canSave: false,
       },
+    });
+  });
+
+  it('parseGraphWriteResponse 会解析 applied 摘要字段并允许缺省 updatedNodes', () => {
+    expect(
+      parseGraphWriteResponse({
+        status: 'ok',
+        result: 'applied',
+        reason: 'applied',
+        message: '已保存',
+        graphRevision: 18,
+        changedNodeCount: 7,
+        refreshRequired: true,
+      }),
+    ).toEqual({
+      status: 'ok',
+      result: 'applied',
+      reason: 'applied',
+      message: '已保存',
+      graphRevision: 18,
+      changedNodeCount: 7,
+      refreshRequired: true,
+      updatedNodes: [],
+      preview: null,
     });
   });
 });

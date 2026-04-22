@@ -86,9 +86,19 @@ public final class GraphWriteJsonSupport {
 	public static String buildAppliedResponse(
 		String message,
 		long graphRevision,
-		List<UpdatedNodeState> updatedNodes
+		int changedNodeCount,
+		boolean refreshRequired
 	) {
-		return buildResultResponse("applied", "applied", message, graphRevision, updatedNodes, null, true);
+		return buildResultResponse(
+			"applied",
+			"applied",
+			message,
+			graphRevision,
+			List.of(),
+			null,
+			false,
+			new AppliedSummary(changedNodeCount, refreshRequired)
+		);
 	}
 
 	/**
@@ -99,7 +109,7 @@ public final class GraphWriteJsonSupport {
 		long graphRevision,
 		PreviewState previewState
 	) {
-		return buildResultResponse("preview", "preview", message, graphRevision, List.of(), previewState, false);
+		return buildResultResponse("preview", "preview", message, graphRevision, List.of(), previewState, false, null);
 	}
 
 	/**
@@ -118,7 +128,8 @@ public final class GraphWriteJsonSupport {
 			graphRevision,
 			updatedNodes,
 			null,
-			false
+			false,
+			null
 		);
 	}
 
@@ -138,7 +149,8 @@ public final class GraphWriteJsonSupport {
 			graphRevision,
 			updatedNodes,
 			null,
-			false
+			false,
+			null
 		);
 	}
 
@@ -149,7 +161,8 @@ public final class GraphWriteJsonSupport {
 		long graphRevision,
 		List<UpdatedNodeState> updatedNodes,
 		PreviewState previewState,
-		boolean minimalUpdatedNodes
+		boolean minimalUpdatedNodes,
+		AppliedSummary appliedSummary
 	) {
 		StringBuilder builder = new StringBuilder(1024);
 		builder.append('{');
@@ -162,8 +175,15 @@ public final class GraphWriteJsonSupport {
 		appendQuotedField(builder, "message", normalizeText(message, ""));
 		builder.append(',');
 		appendNumberField(builder, "graphRevision", Math.max(0L, graphRevision));
-		builder.append(',');
-		appendUpdatedNodes(builder, updatedNodes, minimalUpdatedNodes);
+		if (appliedSummary != null) {
+			builder.append(',');
+			appendNumberField(builder, "changedNodeCount", appliedSummary.changedNodeCount());
+			builder.append(',');
+			appendBooleanField(builder, "refreshRequired", appliedSummary.refreshRequired());
+		} else {
+			builder.append(',');
+			appendUpdatedNodes(builder, updatedNodes, minimalUpdatedNodes);
+		}
 		if (previewState != null) {
 			builder.append(',');
 			appendPreviewState(builder, previewState);
@@ -526,6 +546,15 @@ public final class GraphWriteJsonSupport {
 			graphWriteUnitCount = Math.max(0, graphWriteUnitCount);
 			aliasWaitTicks = Math.max(0L, aliasWaitTicks);
 			graphWaitTicks = Math.max(0L, graphWaitTicks);
+		}
+	}
+
+	/**
+	 * 成功保存回包使用的最小摘要。
+	 */
+	private record AppliedSummary(int changedNodeCount, boolean refreshRequired) {
+		private AppliedSummary {
+			changedNodeCount = Math.max(0, changedNodeCount);
 		}
 	}
 }

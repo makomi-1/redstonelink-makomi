@@ -32,7 +32,7 @@ import net.minecraft.server.level.ServerPlayer;
  * <li>请求解析与基础合法性校验；</li>
  * <li>权限、限流、写控与 OCC 校验；</li>
  * <li>别名修改与 `triggerSource -> core` 覆盖写入；</li>
- * <li>返回网页端所需的最新节点 revision / alias 快照。</li>
+ * <li>返回网页端所需的保存摘要，以及冲突场景下的最小节点真值。</li>
  * </ul>
  */
 public final class GraphWriteService {
@@ -63,22 +63,17 @@ public final class GraphWriteService {
 			}
 
 			acquireRateLimitsOrThrow(requestContext.rateLimitSource(), requestContext.savedData(), preparedPlan);
-			List<UpdatedNodeState> updatedNodeStates = new ArrayList<>();
+			Set<String> changedNodeKeys = new LinkedHashSet<>();
 			int appliedAliasCount = 0;
 			int appliedReplaceCount = 0;
 			int appliedChannelCount = 0;
+			boolean refreshRequired = false;
 
 			for (ValidatedAliasOperation validatedAliasOperation : preparedPlan.validatedAliasOperations()) {
 				if (applyAliasOperation(requestContext.level(), validatedAliasOperation)) {
 					appliedAliasCount++;
+					changedNodeKeys.add(buildNodeKey(validatedAliasOperation.nodeType(), validatedAliasOperation.serial()));
 				}
-				updatedNodeStates.add(
-					buildAppliedUpdatedNodeState(
-						requestContext.savedData(),
-						validatedAliasOperation.nodeType(),
-						validatedAliasOperation.serial()
-					)
-				);
 			}
 
 			ValidatedChannelBatchOperation validatedChannelBatchOperation = preparedPlan.validatedChannelBatchOperation();
@@ -87,34 +82,25 @@ public final class GraphWriteService {
 				validatedChannelBatchOperation.plan() != null &&
 				validatedChannelBatchOperation.plan().hasChanges()
 			) {
+				refreshRequired = true;
 				LinkChannelEditingService.applyPreparedBatchSetChannel(validatedChannelBatchOperation.plan());
 				appliedChannelCount = validatedChannelBatchOperation.plan().changedChannelNodeCount();
 				for (ChannelOverride override : validatedChannelBatchOperation.plan().overrides()) {
-					updatedNodeStates.add(
-						buildAppliedUpdatedNodeState(requestContext.savedData(), override.nodeType(), override.serial())
-					);
+					changedNodeKeys.add(buildNodeKey(override.nodeType(), override.serial()));
 				}
 				for (Long triggerSourceSerialValue : validatedChannelBatchOperation.affectedTriggerSourceSerials()) {
 					long triggerSourceSerial = triggerSourceSerialValue == null ? 0L : triggerSourceSerialValue;
 					if (triggerSourceSerial <= 0L) {
 						continue;
 					}
-					updatedNodeStates.add(
-						buildAppliedUpdatedNodeState(
-							requestContext.savedData(),
-							LinkNodeType.TRIGGER_SOURCE,
-							triggerSourceSerial
-						)
-					);
+					changedNodeKeys.add(buildNodeKey(LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial));
 				}
 				for (Long coreSerialValue : validatedChannelBatchOperation.affectedCoreSerials()) {
 					long coreSerial = coreSerialValue == null ? 0L : coreSerialValue;
 					if (coreSerial <= 0L) {
 						continue;
 					}
-					updatedNodeStates.add(
-						buildAppliedUpdatedNodeState(requestContext.savedData(), LinkNodeType.CORE, coreSerial)
-					);
+					changedNodeKeys.add(buildNodeKey(LinkNodeType.CORE, coreSerial));
 				}
 			}
 
@@ -122,23 +108,16 @@ public final class GraphWriteService {
 				if (!validatedReplaceOperation.actualGraphWrite()) {
 					continue;
 				}
+				refreshRequired = true;
 				LinkSetExecutionService.applyPreparedReplace(validatedReplaceOperation.operation());
 				appliedReplaceCount++;
-				updatedNodeStates.add(
-					buildAppliedUpdatedNodeState(
-						requestContext.savedData(),
-						LinkNodeType.TRIGGER_SOURCE,
-						validatedReplaceOperation.operation().sourceSerial()
-					)
-				);
+				changedNodeKeys.add(buildNodeKey(LinkNodeType.TRIGGER_SOURCE, validatedReplaceOperation.operation().sourceSerial()));
 				for (Long targetSerialValue : validatedReplaceOperation.affectedCoreSerials()) {
 					long targetSerial = targetSerialValue == null ? 0L : targetSerialValue;
 					if (targetSerial <= 0L) {
 						continue;
 					}
-					updatedNodeStates.add(
-						buildAppliedUpdatedNodeState(requestContext.savedData(), LinkNodeType.CORE, targetSerial)
-					);
+					changedNodeKeys.add(buildNodeKey(LinkNodeType.CORE, targetSerial));
 				}
 			}
 
@@ -146,7 +125,8 @@ public final class GraphWriteService {
 			return GraphWriteJsonSupport.buildAppliedResponse(
 				message,
 				requestContext.savedData().graphRevision(),
-				GraphWriteJsonSupport.dedupeUpdatedNodes(updatedNodeStates)
+				changedNodeKeys.size(),
+				refreshRequired
 			);
 		} catch (GraphWriteRejectedException exception) {
 			return exception.responseJson();
@@ -798,24 +778,10 @@ public final class GraphWriteService {
 	}
 
 	/**
-	 * 保存成功回包只回传 OCC 所需的最小 revision 补丁，避免大批量编辑时响应体过大。
+	 * 统一构造 `triggerSource/core` 语义节点键，供成功保存摘要统计变更节点数量。
 	 */
-	private static UpdatedNodeState buildAppliedUpdatedNodeState(
-		LinkSavedData savedData,
-		LinkNodeType nodeType,
-		long serial
-	) {
-		return new UpdatedNodeState(
-			LinkNodeSemantics.toSemanticName(nodeType) + ":" + Math.max(0L, serial),
-			nodeType,
-			serial,
-			"",
-			"",
-			"",
-			0L,
-			savedData.sourceRevision(nodeType, serial),
-			nodeType == LinkNodeType.CORE ? savedData.coreRevision(serial) : 0L
-		);
+	private static String buildNodeKey(LinkNodeType nodeType, long serial) {
+		return LinkNodeSemantics.toSemanticName(nodeType) + ":" + Math.max(0L, serial);
 	}
 
 	/**

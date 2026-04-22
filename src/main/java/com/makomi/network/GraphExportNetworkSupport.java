@@ -24,11 +24,23 @@ public final class GraphExportNetworkSupport {
 		boolean forceTransfer,
 		boolean autoOpenWeb
 	) throws java.io.IOException {
+		return exportVisibleSerialGraph(player, forceTransfer, autoOpenWeb, "");
+	}
+
+	/**
+	 * 导出当前玩家可见的 serial graph，并立即通过现有客户端 graph 资产链路回传。
+	 */
+	public static GraphSnapshotExportService.ExportBundle exportVisibleSerialGraph(
+		ServerPlayer player,
+		boolean forceTransfer,
+		boolean autoOpenWeb,
+		String requestId
+	) throws java.io.IOException {
 		GraphSnapshotExportService.ExportBundle exportBundle = GraphSnapshotExportService.exportVisibleSerialGraph(
 			player,
 			forceTransfer
 		);
-		sendGraphExport(player, exportBundle, autoOpenWeb);
+		sendGraphExport(player, exportBundle, autoOpenWeb, requestId);
 		return exportBundle;
 	}
 
@@ -40,6 +52,18 @@ public final class GraphExportNetworkSupport {
 		GraphSnapshotExportService.ExportBundle exportBundle,
 		boolean autoOpenWeb
 	) {
+		sendGraphExport(player, exportBundle, autoOpenWeb, "");
+	}
+
+	/**
+	 * 分块发送 graph 快照结果，避免单包体积过大。
+	 */
+	public static void sendGraphExport(
+		ServerPlayer player,
+		GraphSnapshotExportService.ExportBundle exportBundle,
+		boolean autoOpenWeb,
+		String requestId
+	) {
 		byte[] compressedBytes = exportBundle == null ? null : exportBundle.compressedBytes();
 		if (player == null || exportBundle == null) {
 			return;
@@ -48,6 +72,7 @@ public final class GraphExportNetworkSupport {
 			ServerPlayNetworking.send(
 				player,
 				new StatePanelNetwork.StatePanelGraphExportChunkPayload(
+					requestId,
 					exportBundle.fileName(),
 					0,
 					0,
@@ -70,6 +95,7 @@ public final class GraphExportNetworkSupport {
 			ServerPlayNetworking.send(
 				player,
 				new StatePanelNetwork.StatePanelGraphExportChunkPayload(
+					requestId,
 					exportBundle.fileName(),
 					chunkIndex,
 					totalChunks,

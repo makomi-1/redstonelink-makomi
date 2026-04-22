@@ -16,7 +16,11 @@ import type {
   GraphSnapshotBundle,
   GraphWriteResponse,
 } from "../graphTypes";
-import { createGraphNodeKey, createInitialGraphDraft } from "../graphTypes";
+import {
+  createGraphNodeKey,
+  createInitialGraphDraft,
+  parseGraphSnapshotBundle,
+} from "../graphTypes";
 import {
   buildAggregateOutlineFlowNodes,
   buildAutoLayoutPositions,
@@ -31,7 +35,6 @@ import {
   applyBatchEditToDraft,
   applyChannelEditToDraft,
   applyDraftToGraph,
-  applyUpdatedNodeStates,
   buildDraftDiff,
   buildDraftFileName,
   formatEditModeInstruction,
@@ -65,12 +68,15 @@ import {
   matchesSearchType,
 } from "./graphViewer/search";
 import { pickLocalizedText, type AppLanguage } from "../app/i18n";
+import { refreshGraphEntry } from "../app/storageApi";
+import type { StorageEntryPayload } from "../app/types";
 
 type GraphViewerProps = {
   graphBundle: GraphSnapshotBundle;
   graphFileName: string;
   language: AppLanguage;
   onDirtyStateChange?: (dirty: boolean) => void;
+  onGraphEntryReloaded?: (entry: StorageEntryPayload) => void;
 };
 
 type SavePreviewPhase = "idle" | "checking" | "ready" | "error";
@@ -256,11 +262,27 @@ function buildCanvasStructureSignature(
   return `${nodeTokens.join("|")}::${edgeTokens.join("|")}`;
 }
 
+function buildLocallyAppliedBaseGraphBundle(
+  graphBundle: GraphSnapshotBundle,
+  graphDraft: GraphDraft,
+  graphWriteResponse: GraphWriteResponse,
+): GraphSnapshotBundle {
+  const nextGraphBundle = applyDraftToGraph(graphBundle, graphDraft);
+  return {
+    ...nextGraphBundle,
+    graphRevision:
+      graphWriteResponse.graphRevision > 0
+        ? graphWriteResponse.graphRevision
+        : nextGraphBundle.graphRevision,
+  };
+}
+
 export default function GraphViewer({
   graphBundle,
   graphFileName,
   language,
   onDirtyStateChange,
+  onGraphEntryReloaded,
 }: GraphViewerProps) {
   const text = (chineseText: string, englishText: string) =>
     pickLocalizedText(language, chineseText, englishText);
@@ -347,6 +369,14 @@ export default function GraphViewer({
   const releaseAutoViewportFitFrameRef = useRef<number | null>(null);
   const previewRequestSequenceRef = useRef(0);
   const previousCanvasStructureSignatureRef = useRef("");
+  const pendingSavedMessageAfterGraphSyncRef = useRef<string | null>(null);
+  const pendingDisplayModeAfterGraphSyncRef = useRef<GraphDisplayMode | null>(
+    null,
+  );
+  const pendingSerialContentModeAfterGraphSyncRef =
+    useRef<GraphDisplayContentMode | null>(null);
+  const pendingChannelContentModeAfterGraphSyncRef =
+    useRef<GraphDisplayContentMode | null>(null);
 
   const draftFileName = useMemo(
     () => buildDraftFileName(graphFileName, graphBundle.snapshotId),
@@ -947,16 +977,26 @@ export default function GraphViewer({
 
   useEffect(() => {
     let disposed = false;
+    const preservedSaveMessage = pendingSavedMessageAfterGraphSyncRef.current;
+    const preservedDisplayMode = pendingDisplayModeAfterGraphSyncRef.current;
+    const preservedSerialContentMode =
+      pendingSerialContentModeAfterGraphSyncRef.current;
+    const preservedChannelContentMode =
+      pendingChannelContentModeAfterGraphSyncRef.current;
+    pendingSavedMessageAfterGraphSyncRef.current = null;
+    pendingDisplayModeAfterGraphSyncRef.current = null;
+    pendingSerialContentModeAfterGraphSyncRef.current = null;
+    pendingChannelContentModeAfterGraphSyncRef.current = null;
     setDraftLoading(true);
     setDraftError("");
     setSavePhase("idle");
-    setSaveMessage("");
+    setSaveMessage(preservedSaveMessage ?? "");
     setSavePreviewPhase("idle");
     setSavePreviewMessage("");
     setSavePreviewResponse(null);
-    setDisplayMode("serial");
-    setSerialContentMode("topology");
-    setChannelContentMode("topology");
+    setDisplayMode(preservedDisplayMode ?? "serial");
+    setSerialContentMode(preservedSerialContentMode ?? "topology");
+    setChannelContentMode(preservedChannelContentMode ?? "topology");
     setActiveSidebarPanel("details");
     setEditMode("view");
     setSelectedEditSourceSerials([]);
@@ -2241,17 +2281,70 @@ export default function GraphViewer({
         setSavePreviewRefreshToken((currentValue) => currentValue + 1);
         return;
       }
-      const nextBaseGraphBundle = applyUpdatedNodeStates(
-        applyDraftToGraph(baseGraphBundle, graphDraft),
+      const successMessage =
+        graphWriteResponse.message || text("已保存。", "Saved.");
+      const nextBaseGraphBundle = buildLocallyAppliedBaseGraphBundle(
+        baseGraphBundle,
+        graphDraft,
         graphWriteResponse,
       );
+      if (graphWriteResponse.refreshRequired) {
+        try {
+          const refreshedEntry = await refreshGraphEntry();
+          const refreshedGraphBundle = parseGraphSnapshotBundle(
+            refreshedEntry.textContent,
+            refreshedEntry.kind,
+          );
+          if (refreshedGraphBundle == null) {
+            throw new Error(
+              text(
+                "自动刷新的 graph 文件不是合法快照。",
+                "The refreshed graph file is not a valid snapshot.",
+              ),
+            );
+          }
+          setBaseGraphBundle(refreshedGraphBundle);
+          setGraphDraft(createInitialGraphDraft(refreshedGraphBundle));
+          setUndoDraftHistory([]);
+          setSavePhase("idle");
+          setSaveMessage(successMessage);
+          setSavePreviewPhase("idle");
+          setSavePreviewMessage("");
+          setSavePreviewResponse(null);
+          if (onGraphEntryReloaded) {
+            pendingSavedMessageAfterGraphSyncRef.current = successMessage;
+            pendingDisplayModeAfterGraphSyncRef.current = displayMode;
+            pendingSerialContentModeAfterGraphSyncRef.current =
+              serialContentMode;
+            pendingChannelContentModeAfterGraphSyncRef.current =
+              channelContentMode;
+            onGraphEntryReloaded(refreshedEntry);
+          }
+          return;
+        } catch (error) {
+          const refreshFailureMessage =
+            error instanceof Error ? error.message : "unknown error";
+          setBaseGraphBundle(nextBaseGraphBundle);
+          setGraphDraft(createInitialGraphDraft(nextBaseGraphBundle));
+          setUndoDraftHistory([]);
+          setSavePhase("error");
+          setSaveMessage(
+            text(
+              `保存已生效，但自动刷新最新 graph 失败：${refreshFailureMessage}。请手动重新加载最新 graph 后再继续编辑。`,
+              `The save succeeded, but refreshing the latest graph failed: ${refreshFailureMessage}. Reload the latest graph before continuing to edit.`,
+            ),
+          );
+          setSavePreviewPhase("idle");
+          setSavePreviewMessage("");
+          setSavePreviewResponse(null);
+          return;
+        }
+      }
       setBaseGraphBundle(nextBaseGraphBundle);
       setGraphDraft(createInitialGraphDraft(nextBaseGraphBundle));
       setUndoDraftHistory([]);
       setSavePhase("idle");
-      setSaveMessage(
-        graphWriteResponse.message || text("已保存。", "Saved."),
-      );
+      setSaveMessage(successMessage);
       setSavePreviewPhase("idle");
       setSavePreviewMessage("");
       setSavePreviewResponse(null);

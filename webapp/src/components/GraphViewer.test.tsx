@@ -8,6 +8,7 @@ import {
   createTestGraphDraft,
   createTestGraphEdge,
   createTestGraphNode,
+  createTestStorageEntryPayload,
 } from '../test/factories';
 import { createJsonResponse } from '../test/http';
 import { serializeGraphDraft } from '../graphTypes';
@@ -120,6 +121,8 @@ vi.mock('reactflow', async () => {
 
 type GraphViewerFetchMockOptions = {
   draftText?: string | null;
+  saveResponse?: Record<string, unknown>;
+  refreshEntry?: ReturnType<typeof createTestStorageEntryPayload> | null;
 };
 
 function createGraphViewerFetchMock(options: GraphViewerFetchMockOptions = {}) {
@@ -149,6 +152,8 @@ function createGraphViewerFetchMock(options: GraphViewerFetchMockOptions = {}) {
         reason: '',
         message: '预检通过',
         graphRevision: 1,
+        changedNodeCount: 0,
+        refreshRequired: false,
         updatedNodes: [],
         preview: {
           aliasCost: 1,
@@ -165,15 +170,22 @@ function createGraphViewerFetchMock(options: GraphViewerFetchMockOptions = {}) {
       });
     }
     if (url === './api/graph/save') {
-      return createJsonResponse({
+      return createJsonResponse(options.saveResponse ?? {
         status: 'ok',
         result: 'applied',
         reason: '',
         message: '已保存',
         graphRevision: 2,
-        updatedNodes: [],
+        changedNodeCount: 1,
+        refreshRequired: false,
         preview: null,
       });
+    }
+    if (url === './api/graph/refresh') {
+      if (options.refreshEntry != null) {
+        return createJsonResponse(options.refreshEntry);
+      }
+      throw new Error(`unexpected graph refresh request: ${method} ${url}`);
     }
     throw new Error(`unexpected fetch url: ${method} ${url}`);
   });
@@ -451,6 +463,98 @@ describe('GraphViewer', () => {
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
     );
     expect(screen.getByRole('button', { name: '撤回草稿' })).toBeDisabled();
+    expect(screen.getByLabelText('Alias')).toHaveValue('saved-name');
+  });
+
+  it('需要刷新最新 graph 时会调用 refresh 接口并回调父层同步新条目', async () => {
+    const user = userEvent.setup();
+    const onGraphEntryReloaded = vi.fn();
+    const refreshedGraphBundle = createTestGraphBundle({
+      snapshotId: 'snapshot-2',
+      graphRevision: 3,
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 1,
+          alias: 'saved-name',
+          displayText: 'saved-name(#1)',
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 2,
+          alias: 'beta',
+          displayText: 'beta(#2)',
+        }),
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 3,
+          alias: 'gamma',
+          displayText: 'gamma(#3)',
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 4,
+          alias: 'delta',
+          displayText: 'delta(#4)',
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+      ],
+      edges: [createTestGraphEdge({ sourceSerial: 1, targetSerial: 2 })],
+    });
+    const refreshedEntry = createTestStorageEntryPayload({
+      kind: 'graph',
+      fileName: 'demo-graph-r3.json',
+      textContent: JSON.stringify(refreshedGraphBundle),
+    });
+    const fetchMock = createGraphViewerFetchMock({
+      saveResponse: {
+        status: 'ok',
+        result: 'applied',
+        reason: 'applied',
+        message: '已保存',
+        graphRevision: 3,
+        changedNodeCount: 4,
+        refreshRequired: true,
+        preview: null,
+      },
+      refreshEntry: refreshedEntry,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+        language="zh-CN"
+        onGraphEntryReloaded={onGraphEntryReloaded}
+      />,
+    );
+
+    const aliasInput = await screen.findByLabelText('Alias');
+    await user.clear(aliasInput);
+    await user.type(aliasInput, 'saved-name');
+    await user.click(screen.getByRole('button', { name: '应用到草稿' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('./api/graph/refresh', {
+        method: 'POST',
+        cache: 'no-store',
+      }),
+    );
+    await waitFor(() =>
+      expect(onGraphEntryReloaded).toHaveBeenCalledWith(refreshedEntry),
+    );
+    await waitFor(() =>
+      expect(screen.getByText('已保存')).toBeInTheDocument(),
+    );
     expect(screen.getByLabelText('Alias')).toHaveValue('saved-name');
   });
 

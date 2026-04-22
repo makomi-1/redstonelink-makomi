@@ -7,6 +7,7 @@ import {
   saveWebPreferences,
 } from './app/preferencesApi';
 import {
+  buildStorageEntrySummary,
   fetchBridgeStatus,
   fetchStorageEntry,
   fetchStorageIndex,
@@ -26,10 +27,70 @@ import {
 import type {
   AppLocation,
   StorageEntryPayload,
+  StorageEntrySummary,
   StorageIndexPayload,
 } from './app/types';
 import { parseGraphSnapshotBundle } from './graphTypes';
 import { parseRecordingBundle } from './recordingTypes';
+
+function compareStorageEntrySummary(
+  left: StorageEntrySummary,
+  right: StorageEntrySummary,
+): number {
+  if (left.lastModifiedEpochMillis !== right.lastModifiedEpochMillis) {
+    return right.lastModifiedEpochMillis - left.lastModifiedEpochMillis;
+  }
+  return left.fileName.localeCompare(right.fileName);
+}
+
+function upsertStorageEntryIntoIndex(
+  storageIndex: StorageIndexPayload | null,
+  entry: StorageEntryPayload,
+): StorageIndexPayload | null {
+  if (storageIndex == null) {
+    return storageIndex;
+  }
+  const entrySummary = buildStorageEntrySummary(entry);
+  let graphCategoryFound = false;
+  const nextCategories = storageIndex.categories.map((category) => {
+    if (category.kind !== entry.kind) {
+      return category;
+    }
+    graphCategoryFound = true;
+    const nextEntries = [
+      ...category.entries.filter(
+        (currentEntry) =>
+          !(
+            currentEntry.kind === entrySummary.kind &&
+            currentEntry.fileName === entrySummary.fileName
+          ),
+      ),
+      entrySummary,
+    ].sort(compareStorageEntrySummary);
+    return {
+      ...category,
+      compressed: entry.compressed,
+      entryCount: nextEntries.length,
+      entries: nextEntries,
+    };
+  });
+  if (!graphCategoryFound) {
+    nextCategories.push({
+      kind: entry.kind,
+      label: entry.label,
+      directoryName: entry.kind,
+      fileExtension: entry.compressed ? '.json.gz' : '.json',
+      compressed: entry.compressed,
+      entryCount: 1,
+      entries: [entrySummary],
+    });
+  }
+  return {
+    ...storageIndex,
+    refreshedAtEpochMillis: Date.now(),
+    categories: nextCategories,
+  };
+}
 
 /**
  * 网页主入口。
@@ -277,6 +338,21 @@ export default function App() {
     }
   }
 
+  function handleGraphEntryReloaded(entry: StorageEntryPayload) {
+    setStorageIndex((currentValue) => upsertStorageEntryIntoIndex(currentValue, entry));
+    setGraphEntryError('');
+    setGraphSelectedEntry(entry);
+    setGraphSelectedEntryKey(buildEntryKey(entry.kind, entry.fileName));
+    syncAppLocation(
+      {
+        page: 'graph',
+        kind: entry.kind,
+        fileName: entry.fileName,
+      },
+      'replace',
+    );
+  }
+
   function syncAppLocation(nextLocation: AppLocation, mode: 'push' | 'replace') {
     if (typeof window !== 'undefined') {
       const nextHref = buildAppHref(nextLocation);
@@ -360,6 +436,7 @@ export default function App() {
       graphPageDirty={graphPageDirty}
       graphSelectedEntry={graphSelectedEntry}
       onDirtyStateChange={setGraphPageDirty}
+      onGraphEntryReloaded={handleGraphEntryReloaded}
       onGraphFileChange={handleGraphFileChange}
       onLanguageChange={handleLanguageChange}
       onRefreshStorageIndex={() => void loadStorageIndexState()}

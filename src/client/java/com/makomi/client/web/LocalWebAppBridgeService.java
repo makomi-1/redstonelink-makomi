@@ -179,6 +179,7 @@ public final class LocalWebAppBridgeService {
 			httpServer.createContext("/api/preferences", LocalWebAppBridgeService::handlePreferencesRequest);
 			httpServer.createContext("/api/graph/save", LocalWebAppBridgeService::handleGraphSaveRequest);
 			httpServer.createContext("/api/graph/preview", LocalWebAppBridgeService::handleGraphPreviewRequest);
+			httpServer.createContext("/api/graph/refresh", LocalWebAppBridgeService::handleGraphRefreshRequest);
 			httpServer.createContext("/api/graph/draft", LocalWebAppBridgeService::handleGraphDraftRequest);
 			httpServer.createContext("/", LocalWebAppBridgeService::handleStaticRequest);
 			httpServer.start();
@@ -334,6 +335,30 @@ public final class LocalWebAppBridgeService {
 		} catch (RuntimeException exception) {
 			LOGGER.warn("处理 graph preview 请求失败", exception);
 			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload("Failed to process graph preview request."));
+		}
+	}
+
+	/**
+	 * 主动刷新最新 graph 文件，并返回刷新后的本地资产内容。
+	 */
+	private static void handleGraphRefreshRequest(HttpExchange exchange) throws IOException {
+		if (!isWriteMethod(exchange, "POST")) {
+			sendJsonResponse(exchange, 405, LocalWebJsonSupport.buildErrorPayload("Method Not Allowed"));
+			return;
+		}
+		try {
+			String fileName = LocalWebGraphRefreshRpc.refreshLatestGraphAndAwait();
+			StorageEntryContent entryContent = ASSET_REPOSITORY.readEntry(LocalWebAssetKind.GRAPH, fileName);
+			if (entryContent == null) {
+				sendJsonResponse(exchange, 404, LocalWebJsonSupport.buildErrorPayload("Refreshed graph entry was not found."));
+				return;
+			}
+			sendJsonResponse(exchange, 200, LocalWebJsonSupport.buildStorageEntryPayload(entryContent));
+		} catch (IOException exception) {
+			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload(exception.getMessage()));
+		} catch (RuntimeException exception) {
+			LOGGER.warn("刷新最新 graph 失败", exception);
+			sendJsonResponse(exchange, 500, LocalWebJsonSupport.buildErrorPayload("Failed to refresh latest graph."));
 		}
 	}
 

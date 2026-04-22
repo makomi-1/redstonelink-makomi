@@ -88,6 +88,8 @@ function buildPreviewResponse(graphRevision: number): GraphWriteResponse {
     reason: '',
     message: '预检通过',
     graphRevision,
+    changedNodeCount: 0,
+    refreshRequired: false,
     updatedNodes: [],
     preview: {
       aliasCost: 1,
@@ -111,6 +113,8 @@ function buildSaveResponse(graphRevision: number): GraphWriteResponse {
     reason: '',
     message: '已保存。',
     graphRevision,
+    changedNodeCount: 1,
+    refreshRequired: false,
     updatedNodes: [],
     preview: null,
   };
@@ -215,6 +219,11 @@ export async function installMockApi(page: Page, options: MockApiOptions = {}) {
       return;
     }
 
+    if (pathName === '/api/graph/refresh' && method === 'POST') {
+      await fulfillJson(route, graphEntryPayload);
+      return;
+    }
+
     await fulfillJson(route, { status: 'notFound', pathName, method }, 404);
   });
 }
@@ -226,6 +235,8 @@ export function createPreviewErrorResponse(message: string): GraphWriteResponse 
     reason: 'previewError',
     message,
     graphRevision: DEFAULT_GRAPH_BUNDLE.graphRevision,
+    changedNodeCount: 0,
+    refreshRequired: false,
     updatedNodes: [],
     preview: null,
   };
@@ -238,6 +249,8 @@ export function createSaveErrorResponse(message: string): GraphWriteResponse {
     reason: 'saveError',
     message,
     graphRevision: DEFAULT_GRAPH_BUNDLE.graphRevision,
+    changedNodeCount: 0,
+    refreshRequired: false,
     updatedNodes: [],
     preview: null,
   };

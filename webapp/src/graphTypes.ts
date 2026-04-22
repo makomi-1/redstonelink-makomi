@@ -101,6 +101,8 @@ export type GraphWriteResponse = {
   reason: string;
   message: string;
   graphRevision: number;
+  changedNodeCount: number;
+  refreshRequired: boolean;
   updatedNodes: GraphUpdatedNodeState[];
   preview: GraphWritePreview | null;
 };
@@ -332,6 +334,8 @@ export function parseGraphWriteResponse(payload: unknown): GraphWriteResponse {
     reason: normalizeText(record.reason),
     message: normalizeText(record.message),
     graphRevision: normalizeNumber(record.graphRevision),
+    changedNodeCount: normalizeNumber(record.changedNodeCount),
+    refreshRequired: normalizeBoolean(record.refreshRequired),
     updatedNodes,
     preview: previewRecord
       ? {

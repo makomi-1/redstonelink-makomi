@@ -322,6 +322,7 @@ final class StatePanelNetworkPayloadSupport {
 	 */
 	static void encodeGraphExportChunkPayload(
 		FriendlyByteBuf buffer,
+		String requestId,
 		String fileName,
 		int chunkIndex,
 		int totalChunks,
@@ -329,6 +330,7 @@ final class StatePanelNetworkPayloadSupport {
 		byte[] chunkBytes
 	) {
 		byte[] normalizedChunkBytes = chunkBytes == null ? new byte[0] : chunkBytes;
+		buffer.writeUtf(requestId == null ? "" : requestId, GRAPH_SAVE_REQUEST_ID_MAX_LENGTH);
 		buffer.writeUtf(fileName == null ? "" : fileName, GRAPH_FILE_NAME_MAX_LENGTH);
 		buffer.writeVarInt(Math.max(0, chunkIndex));
 		buffer.writeVarInt(Math.max(0, totalChunks));
@@ -341,6 +343,7 @@ final class StatePanelNetworkPayloadSupport {
 	 */
 	static DecodedGraphExportChunkPayload decodeGraphExportChunkPayload(FriendlyByteBuf buffer) {
 		return new DecodedGraphExportChunkPayload(
+			buffer.readUtf(GRAPH_SAVE_REQUEST_ID_MAX_LENGTH),
 			buffer.readUtf(GRAPH_FILE_NAME_MAX_LENGTH),
 			Math.max(0, buffer.readVarInt()),
 			Math.max(0, buffer.readVarInt()),
@@ -352,15 +355,21 @@ final class StatePanelNetworkPayloadSupport {
 	/**
 	 * 编码 graph 导出请求。
 	 */
-	static void encodeExportGraphPayload(FriendlyByteBuf buffer, boolean forceTransfer) {
+	static void encodeExportGraphPayload(FriendlyByteBuf buffer, String requestId, boolean forceTransfer, boolean autoOpenWeb) {
+		buffer.writeUtf(requestId == null ? "" : requestId, GRAPH_SAVE_REQUEST_ID_MAX_LENGTH);
 		buffer.writeBoolean(forceTransfer);
+		buffer.writeBoolean(autoOpenWeb);
 	}
 
 	/**
 	 * 解码 graph 导出请求。
 	 */
 	static DecodedExportGraphPayload decodeExportGraphPayload(FriendlyByteBuf buffer) {
-		return new DecodedExportGraphPayload(buffer.readBoolean());
+		return new DecodedExportGraphPayload(
+			buffer.readUtf(GRAPH_SAVE_REQUEST_ID_MAX_LENGTH),
+			buffer.readBoolean(),
+			buffer.readBoolean()
+		);
 	}
 
 	/**
@@ -470,6 +479,7 @@ final class StatePanelNetworkPayloadSupport {
 	 * 图快照结果分块解码结果。
 	 */
 	record DecodedGraphExportChunkPayload(
+		String requestId,
 		String fileName,
 		int chunkIndex,
 		int totalChunks,
@@ -481,7 +491,7 @@ final class StatePanelNetworkPayloadSupport {
 	/**
 	 * graph 导出请求解码结果。
 	 */
-	record DecodedExportGraphPayload(boolean forceTransfer) {
+	record DecodedExportGraphPayload(String requestId, boolean forceTransfer, boolean autoOpenWeb) {
 	}
 
 	/**

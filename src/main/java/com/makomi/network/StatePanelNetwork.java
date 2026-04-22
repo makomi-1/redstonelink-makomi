@@ -260,17 +260,39 @@ public final class StatePanelNetwork {
 	/**
 	 * 客户端请求导出当前可见图快照。
 	 */
-	public record ExportStatePanelGraphPayload(boolean forceTransfer) implements CustomPacketPayload {
+	public record ExportStatePanelGraphPayload(String requestId, boolean forceTransfer, boolean autoOpenWeb) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ExportStatePanelGraphPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "export_state_panel_graph")
 		);
 		public static final StreamCodec<FriendlyByteBuf, ExportStatePanelGraphPayload> CODEC = CustomPacketPayload.codec(
-			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeExportGraphPayload(buffer, payload.forceTransfer()),
-			buffer -> new ExportStatePanelGraphPayload(StatePanelNetworkPayloadSupport.decodeExportGraphPayload(buffer).forceTransfer())
+			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeExportGraphPayload(
+				buffer,
+				payload.requestId(),
+				payload.forceTransfer(),
+				payload.autoOpenWeb()
+			),
+			buffer -> {
+				StatePanelNetworkPayloadSupport.DecodedExportGraphPayload decoded = StatePanelNetworkPayloadSupport.decodeExportGraphPayload(
+					buffer
+				);
+				return new ExportStatePanelGraphPayload(decoded.requestId(), decoded.forceTransfer(), decoded.autoOpenWeb());
+			}
 		);
 
 		public ExportStatePanelGraphPayload() {
-			this(false);
+			this("", false, true);
+		}
+
+		public ExportStatePanelGraphPayload(boolean forceTransfer) {
+			this("", forceTransfer, true);
+		}
+
+		public ExportStatePanelGraphPayload(boolean forceTransfer, boolean autoOpenWeb) {
+			this("", forceTransfer, autoOpenWeb);
+		}
+
+		public ExportStatePanelGraphPayload {
+			requestId = requestId == null ? "" : requestId;
 		}
 
 		@Override
@@ -542,6 +564,7 @@ public final class StatePanelNetwork {
 	 * 服务端返回的图快照结果分块。
 	 */
 	public record StatePanelGraphExportChunkPayload(
+		String requestId,
 		String fileName,
 		int chunkIndex,
 		int totalChunks,
@@ -554,6 +577,7 @@ public final class StatePanelNetwork {
 		public static final StreamCodec<FriendlyByteBuf, StatePanelGraphExportChunkPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphExportChunkPayload(
 				buffer,
+				payload.requestId(),
 				payload.fileName(),
 				payload.chunkIndex(),
 				payload.totalChunks(),
@@ -565,6 +589,7 @@ public final class StatePanelNetwork {
 					buffer
 				);
 				return new StatePanelGraphExportChunkPayload(
+					decoded.requestId(),
 					decoded.fileName(),
 					decoded.chunkIndex(),
 					decoded.totalChunks(),
@@ -575,6 +600,7 @@ public final class StatePanelNetwork {
 		);
 
 		public StatePanelGraphExportChunkPayload {
+			requestId = requestId == null ? "" : requestId;
 			fileName = fileName == null ? "" : fileName;
 			chunkIndex = Math.max(0, chunkIndex);
 			totalChunks = Math.max(0, totalChunks);

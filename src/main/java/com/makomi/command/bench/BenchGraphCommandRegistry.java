@@ -297,6 +297,7 @@ public final class BenchGraphCommandRegistry {
 			JsonArray updatedNodes = root.has("updatedNodes") && root.get("updatedNodes").isJsonArray()
 				? root.getAsJsonArray("updatedNodes")
 				: new JsonArray();
+			int changedNodeCount = root.has("changedNodeCount") ? (int) readLong(root, "changedNodeCount") : updatedNodes.size();
 			JsonObject preview = root.has("preview") && root.get("preview").isJsonObject()
 				? root.getAsJsonObject("preview")
 				: null;
@@ -305,7 +306,7 @@ public final class BenchGraphCommandRegistry {
 				readString(root, "result", ""),
 				readString(root, "reason", ""),
 				readLong(root, "graphRevision"),
-				updatedNodes.size(),
+				changedNodeCount,
 				preview == null ? "-" : Boolean.toString(readBoolean(preview, "canSave")),
 				preview == null ? 0 : (int) readLong(preview, "graphCost"),
 				preview == null ? 0 : (int) readLong(preview, "graphWriteUnitCount")

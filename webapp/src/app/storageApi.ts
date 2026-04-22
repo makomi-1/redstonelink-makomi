@@ -20,6 +20,19 @@ export function findStorageEntry(
   );
 }
 
+export function buildStorageEntrySummary(
+  entry: StorageEntryPayload,
+): StorageEntrySummary {
+  return {
+    kind: entry.kind,
+    fileName: entry.fileName,
+    relativePath: entry.relativePath,
+    compressed: entry.compressed,
+    sizeBytes: entry.sizeBytes,
+    lastModifiedEpochMillis: entry.lastModifiedEpochMillis,
+  };
+}
+
 export async function fetchBridgeStatus(): Promise<BridgePingPayload> {
   const response = await fetch('./api/ping', {
     cache: 'no-store',
@@ -50,6 +63,17 @@ export async function fetchStorageEntry(
       cache: 'no-store',
     },
   );
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return (await response.json()) as StorageEntryPayload;
+}
+
+export async function refreshGraphEntry(): Promise<StorageEntryPayload> {
+  const response = await fetch('./api/graph/refresh', {
+    method: 'POST',
+    cache: 'no-store',
+  });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }

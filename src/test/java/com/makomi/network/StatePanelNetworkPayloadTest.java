@@ -216,18 +216,52 @@ class StatePanelNetworkPayloadTest {
 	}
 
 	/**
-	 * graph 导出请求编解码应保留强制重传标记。
+	 * graph 导出请求编解码应保留请求关联字段与强制重传标记。
 	 */
 	@Test
-	void exportGraphPayloadCodecRoundTripShouldPreserveForceTransfer() {
-		StatePanelNetwork.ExportStatePanelGraphPayload original = new StatePanelNetwork.ExportStatePanelGraphPayload(true);
+	void exportGraphPayloadCodecRoundTripShouldPreserveRequestFields() {
+		StatePanelNetwork.ExportStatePanelGraphPayload original = new StatePanelNetwork.ExportStatePanelGraphPayload(
+			"graph-refresh-1",
+			true,
+			false
+		);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
 		StatePanelNetwork.ExportStatePanelGraphPayload.CODEC.encode(buffer, original);
 		StatePanelNetwork.ExportStatePanelGraphPayload decoded = StatePanelNetwork.ExportStatePanelGraphPayload.CODEC.decode(buffer);
 
+		assertEquals(original.requestId(), decoded.requestId());
 		assertEquals(original.forceTransfer(), decoded.forceTransfer());
+		assertEquals(original.autoOpenWeb(), decoded.autoOpenWeb());
 		assertEquals(StatePanelNetwork.ExportStatePanelGraphPayload.TYPE, decoded.type());
+	}
+
+	/**
+	 * graph 导出结果分块编解码应保留 requestId 与文件信息。
+	 */
+	@Test
+	void graphExportChunkPayloadCodecRoundTripShouldPreserveRequestFields() {
+		StatePanelNetwork.StatePanelGraphExportChunkPayload original = new StatePanelNetwork.StatePanelGraphExportChunkPayload(
+			"graph-refresh-1",
+			"graph-serial-r1-demo.json.gz",
+			2,
+			5,
+			false,
+			new byte[] { 9, 8, 7 }
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		StatePanelNetwork.StatePanelGraphExportChunkPayload.CODEC.encode(buffer, original);
+		StatePanelNetwork.StatePanelGraphExportChunkPayload decoded = StatePanelNetwork.StatePanelGraphExportChunkPayload.CODEC.decode(
+			buffer
+		);
+
+		assertEquals(original.requestId(), decoded.requestId());
+		assertEquals(original.fileName(), decoded.fileName());
+		assertEquals(original.chunkIndex(), decoded.chunkIndex());
+		assertEquals(original.totalChunks(), decoded.totalChunks());
+		assertEquals(original.autoOpenWeb(), decoded.autoOpenWeb());
+		assertArrayEquals(original.chunkBytes(), decoded.chunkBytes());
 	}
 
 	/**

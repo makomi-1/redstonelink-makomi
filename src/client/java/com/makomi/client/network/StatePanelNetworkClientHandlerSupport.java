@@ -6,6 +6,7 @@ import com.makomi.client.screen.StatePanelToolScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.client.web.LocalWebAssetKind;
 import com.makomi.client.web.LocalWebAssetRepository;
+import com.makomi.client.web.LocalWebGraphRefreshRpc;
 import com.makomi.client.web.LocalWebGraphSaveRpc;
 import com.makomi.network.StatePanelNetwork;
 import java.io.ByteArrayOutputStream;
@@ -153,10 +154,19 @@ public final class StatePanelNetworkClientHandlerSupport {
 		try {
 			LocalWebAssetRepository repository = LocalWebAssetRepository.createDefault();
 			repository.writeAssetBytes(LocalWebAssetKind.GRAPH, payload.fileName(), pendingRecordingExport.joinBytes());
-			applyFeedback(true, "message.redstonelink.graph.export.saved", List.of(payload.fileName()));
+			if (payload.requestId().isBlank()) {
+				applyFeedback(true, "message.redstonelink.graph.export.saved", List.of(payload.fileName()));
+			}
+			LocalWebGraphRefreshRpc.completeResponse(payload.requestId(), payload.fileName());
 		} catch (IOException | RuntimeException exception) {
 			RedstoneLink.LOGGER.warn("客户端写入 graph snapshot 失败: file={}", payload.fileName(), exception);
-			applyFeedback(false, "message.redstonelink.graph.export.write_failed", List.of(payload.fileName()));
+			if (payload.requestId().isBlank()) {
+				applyFeedback(false, "message.redstonelink.graph.export.write_failed", List.of(payload.fileName()));
+			}
+			LocalWebGraphRefreshRpc.failResponse(
+				payload.requestId(),
+				"Failed to write refreshed graph snapshot `%s`.".formatted(payload.fileName())
+			);
 			return;
 		}
 		if (pendingRecordingExport.autoOpenWeb()) {
@@ -177,28 +187,35 @@ public final class StatePanelNetworkClientHandlerSupport {
 			LocalWebAssetRepository repository = LocalWebAssetRepository.createDefault();
 			LocalWebAssetRepository.StorageEntryContent entryContent = repository.readEntry(LocalWebAssetKind.GRAPH, payload.fileName());
 			if (entryContent == null) {
-				requestForcedGraphTransfer(payload.fileName());
+				requestForcedGraphTransfer(payload.fileName(), payload.autoOpenWeb(), payload.requestId());
 				return;
 			}
 			PENDING_GRAPH_FORCE_TRANSFERS.remove(payload.fileName());
+			LocalWebGraphRefreshRpc.completeResponse(payload.requestId(), payload.fileName());
 			if (payload.autoOpenWeb()) {
 				LocalWebAppBridgeService.openAssetEntry(LocalWebAssetKind.GRAPH, payload.fileName());
 			}
 		} catch (IOException | RuntimeException exception) {
 			RedstoneLink.LOGGER.warn("客户端复用 graph snapshot 失败: file={}", payload.fileName(), exception);
-			requestForcedGraphTransfer(payload.fileName());
+			requestForcedGraphTransfer(payload.fileName(), payload.autoOpenWeb(), payload.requestId());
 		}
 	}
 
 	/**
 	 * 本地 graph 文件缺失时，自动回源请求一次强制重传，避免跨重启复用链路卡死。
 	 */
-	private static void requestForcedGraphTransfer(String fileName) {
+	private static void requestForcedGraphTransfer(String fileName, boolean autoOpenWeb, String requestId) {
 		if (!PENDING_GRAPH_FORCE_TRANSFERS.add(fileName)) {
-			applyFeedback(false, "message.redstonelink.graph.export.write_failed", List.of(fileName));
+			if (requestId.isBlank()) {
+				applyFeedback(false, "message.redstonelink.graph.export.write_failed", List.of(fileName));
+			}
+			LocalWebGraphRefreshRpc.failResponse(
+				requestId,
+				"Failed to force transfer refreshed graph snapshot `%s`.".formatted(fileName)
+			);
 			return;
 		}
-		ClientPlayNetworking.send(new StatePanelNetwork.ExportStatePanelGraphPayload(true));
+		ClientPlayNetworking.send(new StatePanelNetwork.ExportStatePanelGraphPayload(requestId, true, autoOpenWeb));
 	}
 
 	/**
