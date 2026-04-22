@@ -8,7 +8,7 @@
     {
       "dimension": "minecraft:overworld",
       "from": [256, 63, 718],
-      "to": [273, 66, 722]
+      "to": [273, 66, 719]
     }
   ],
   "observation": {
@@ -40,8 +40,8 @@
       "layout": {
         "shape": "cuboid",
         "dimension": "minecraft:overworld",
-        "from": [256, 64, 722],
-        "to": [256, 64, 722]
+        "from": [256, 64, 719],
+        "to": [256, 64, 719]
       }
     }
   ],
@@ -56,7 +56,7 @@
     {
       "templateRef": "command_assert",
       "name": "configure_chunk_activator_resident_core",
-      "commandTemplate": "data merge block 272 64 718 {activeType:\"core\",triggerSourceSerialExpression:\"\",triggerSourceMode:\"force_load\",coreSerialExpression:\"{{targets:core_chunk_activator_resident_core_targets}}\",coreMode:\"resident\",DisplayAlias:\"bench-resident-core\"}",
+      "commandTemplate": "data merge block 272 64 718 {activeType:\"core\",triggerSourceSerialExpression:\"\",triggerSourceMode:\"force_load\",coreSerialExpression:\"{{targets:range}}\",coreMode:\"resident\",DisplayAlias:\"bench-resident-core\"}",
       "commandDimension": "minecraft:overworld"
     },
     {
