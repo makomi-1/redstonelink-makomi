@@ -450,9 +450,7 @@ public class ChunkActivatorEditorScreen extends Screen {
 	}
 
 	private GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
-		return currentType == LinkNodeType.CORE
-			? GuiBackgroundRenderSupport.BackgroundPreset.CORE_PAIRING
-			: GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING;
+		return GuiBackgroundRenderSupport.BackgroundPreset.CHUNK_ACTIVATOR;
 	}
 
 	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(ChunkActivatorLayout layout) {
@@ -531,12 +529,21 @@ public class ChunkActivatorEditorScreen extends Screen {
 				"screen.redstonelink.chunk_activator.service_line",
 				LinkNodeSemantics.toSemanticName(currentType)
 			),
-			backgroundPreset().borderColor(),
+			resolveHeaderSubtitleColor(),
 			new GuiHeaderRenderSupport.HeaderIcon(
 				currentType == LinkNodeType.CORE ? GuiHeaderRenderSupport.IconKind.CORE : GuiHeaderRenderSupport.IconKind.TRIGGER_SOURCE,
 				-10
 			)
 		);
+	}
+
+	/**
+	 * 区块激活器界面固定使用专属背景，但副标题仍沿用当前作用类型语义色。
+	 */
+	private int resolveHeaderSubtitleColor() {
+		return currentType == LinkNodeType.CORE
+			? GuiBackgroundRenderSupport.BackgroundPreset.CORE_PAIRING.borderColor()
+			: GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING.borderColor();
 	}
 
 	static record ChunkActivatorLayout(

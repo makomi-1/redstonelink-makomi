@@ -2,7 +2,10 @@ package com.makomi.client.render;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.data.ChunkActivatorConfigSnapshot;
+import com.makomi.data.ChunkActivatorMode;
 import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkFilterConfigSnapshot;
@@ -54,6 +57,10 @@ final class LinkSerialHudOverlayTextSupport {
 	private static final String KEY_NEAR_OVERLAY_FILTER_NODE_SET_LINE = "hud.redstonelink.near_overlay.filter_node_set_line";
 	private static final String KEY_NEAR_OVERLAY_FILTER_MODE_LINE = "hud.redstonelink.near_overlay.filter_mode_line";
 	private static final String KEY_NEAR_OVERLAY_FILTER_THRESHOLD_LINE = "hud.redstonelink.near_overlay.filter_threshold_line";
+	private static final String KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_TITLE_LINE = "hud.redstonelink.near_overlay.chunk_activator_title_line";
+	private static final String KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_SERVICE_LINE = "hud.redstonelink.near_overlay.chunk_activator_service_line";
+	private static final String KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_MODE_LINE = "hud.redstonelink.near_overlay.chunk_activator_mode_line";
+	private static final String KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_NODE_SET_LINE = "hud.redstonelink.near_overlay.chunk_activator_node_set_line";
 	private static final int LINKS_LINE_MAX_WIDTH = 280;
 	/**
 	 * 近外显文本缓存，避免每帧重复格式化连接信息。
@@ -194,6 +201,34 @@ final class LinkSerialHudOverlayTextSupport {
 	}
 
 	/**
+	 * 生成区块激活器近外显文本。
+	 */
+	static List<String> buildNearOverlayLines(LinkChunkActivatorBlockEntity chunkActivatorBlockEntity, Font font) {
+		if (chunkActivatorBlockEntity == null || font == null) {
+			return List.of();
+		}
+		ChunkActivatorConfigSnapshot activeConfig = chunkActivatorBlockEntity.activeConfig();
+		String titleText = composeChunkActivatorTitleText(
+			LinkSerialOverlayRenderCommon.resolveChunkActivatorTitle(chunkActivatorBlockEntity.getBlockState()),
+			chunkActivatorBlockEntity.displayAlias()
+		);
+		List<Long> orderedSerials = SerialParseUtil.parseTargetsOrdered(activeConfig.serialExpression(), 0).orderedTargets();
+		return List.of(
+			translate(KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_TITLE_LINE, titleText),
+			translate(
+				KEY_NEAR_OVERLAY_STATUS_LINE,
+				resolveActivationStatusText(chunkActivatorBlockEntity.active() ? ActivationStatusToken.ON : ActivationStatusToken.OFF)
+			),
+			translate(
+				KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_SERVICE_LINE,
+				LinkNodeSemantics.toSemanticName(chunkActivatorBlockEntity.activeType())
+			),
+			translate(KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_MODE_LINE, resolveChunkActivatorModeText(activeConfig.mode())),
+			translate(KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_NODE_SET_LINE, buildCurrentLinksText(font, orderedSerials))
+		);
+	}
+
+	/**
 	 * 读取过滤器当前外显激活状态。
 	 * <p>
 	 * 过滤器当前用方块状态 `powered` 表达是否被激活，因此这里直接复用该布尔外显语义。
@@ -238,6 +273,21 @@ final class LinkSerialHudOverlayTextSupport {
 	 * 组合过滤器近外显标题：保留方块标题，并在存在别名时附加别名。
 	 */
 	static String composeFilterTitleText(String itemPrefix, String rawDisplayAlias) {
+		String normalizedPrefix = itemPrefix == null ? "" : itemPrefix;
+		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(rawDisplayAlias);
+		if (normalizedAlias.isEmpty()) {
+			return normalizedPrefix;
+		}
+		if (normalizedPrefix.isBlank()) {
+			return normalizedAlias;
+		}
+		return normalizedPrefix + " " + normalizedAlias;
+	}
+
+	/**
+	 * 组合区块激活器近外显标题：保留方块标题，并在存在别名时附加别名。
+	 */
+	private static String composeChunkActivatorTitleText(String itemPrefix, String rawDisplayAlias) {
 		String normalizedPrefix = itemPrefix == null ? "" : itemPrefix;
 		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(rawDisplayAlias);
 		if (normalizedAlias.isEmpty()) {
@@ -433,6 +483,17 @@ final class LinkSerialHudOverlayTextSupport {
 		return switch (normalizedThresholdSource) {
 			case FIXED_INPUT -> translate("screen.redstonelink.link_filter.threshold_source.fixed_input");
 			case NEIGHBOR_MAX_INPUT -> translate("screen.redstonelink.link_filter.threshold_source.neighbor_max_input");
+		};
+	}
+
+	/**
+	 * 解析区块激活器激活模式文本。
+	 */
+	private static String resolveChunkActivatorModeText(ChunkActivatorMode mode) {
+		ChunkActivatorMode normalizedMode = mode == null ? ChunkActivatorMode.FORCE_LOAD : mode;
+		return switch (normalizedMode) {
+			case FORCE_LOAD -> translate("screen.redstonelink.chunk_activator.mode.force_load");
+			case RESIDENT -> translate("screen.redstonelink.chunk_activator.mode.resident");
 		};
 	}
 

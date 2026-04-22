@@ -1,6 +1,7 @@
 package com.makomi.client.render;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.data.LinkFilterKind;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.LinkNodeType;
@@ -74,18 +75,35 @@ public final class LinkSerialOverlayRenderCommon {
 		if (blockEntity == null || blockEntity.filterKind() == null) {
 			return "";
 		}
-		return composeFilterDisplayText(resolveFilterTitle(blockEntity.getBlockState(), blockEntity.filterKind()), blockEntity.displayAlias());
+		return composeAliasedDisplayText(resolveFilterTitle(blockEntity.getBlockState(), blockEntity.filterKind()), blockEntity.displayAlias());
 	}
 
 	/**
-	 * 组合过滤器显示文本；优先显示别名，空别名回退标题。
+	 * 读取区块激活器 far overlay 文本：优先别名，空别名回退区块激活器标题。
 	 */
-	static String composeFilterDisplayText(String fallbackTitle, String rawDisplayAlias) {
+	public static String resolveChunkActivatorDisplayText(LinkChunkActivatorBlockEntity blockEntity) {
+		if (blockEntity == null) {
+			return "";
+		}
+		return composeAliasedDisplayText(resolveChunkActivatorTitle(blockEntity.getBlockState()), blockEntity.displayAlias());
+	}
+
+	/**
+	 * 组合“别名优先”的显示文本；空别名时回退到方块标题。
+	 */
+	static String composeAliasedDisplayText(String fallbackTitle, String rawDisplayAlias) {
 		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(rawDisplayAlias);
 		if (!normalizedAlias.isEmpty()) {
 			return normalizedAlias;
 		}
 		return fallbackTitle == null ? "" : fallbackTitle;
+	}
+
+	/**
+	 * 兼容既有测试与调用点的过滤器显示文本组合入口。
+	 */
+	static String composeFilterDisplayText(String fallbackTitle, String rawDisplayAlias) {
+		return composeAliasedDisplayText(fallbackTitle, rawDisplayAlias);
 	}
 
 	/**
@@ -119,9 +137,16 @@ public final class LinkSerialOverlayRenderCommon {
 	}
 
 	/**
+	 * 解析区块激活器标题回退文本。
+	 */
+	static String resolveChunkActivatorTitle(BlockState state) {
+		return resolveBlockDisplayName(state, "block.redstonelink.link_chunk_activator");
+	}
+
+	/**
 	 * 统一解析方块标题文本。
 	 */
-	private static String resolveBlockDisplayName(BlockState state, String fallbackTranslationKey) {
+	static String resolveBlockDisplayName(BlockState state, String fallbackTranslationKey) {
 		if (state == null) {
 			return net.minecraft.network.chat.Component.translatable(fallbackTranslationKey).getString();
 		}

@@ -10,6 +10,7 @@ import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.client.network.PairingNetworkClientHandlerSupport;
 import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
 import com.makomi.client.network.StatePanelNetworkClientHandlerSupport;
+import com.makomi.client.render.ChunkActivatorFarOverlayRenderer;
 import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
@@ -114,6 +115,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SEND_FILTER, LinkFilterAreaRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_RECEIVE_FILTER, LinkFilterAreaRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_CHUNK_ACTIVATOR, ChunkActivatorFarOverlayRenderer::new);
 	}
 
 	/**

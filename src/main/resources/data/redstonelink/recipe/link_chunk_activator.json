@@ -2,17 +2,17 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "key": {
-    "B": {
-      "item": "redstonelink:link_send_filter"
-    },
-    "L": {
+    "C": {
       "item": "redstonelink:redstone_link_component"
+    },
+    "D": {
+      "item": "minecraft:dirt"
     }
   },
   "pattern": [
-    "   ",
-    "BL ",
-    "   "
+    "DDD",
+    "DCD",
+    "DDD"
   ],
   "result": {
     "count": 1,

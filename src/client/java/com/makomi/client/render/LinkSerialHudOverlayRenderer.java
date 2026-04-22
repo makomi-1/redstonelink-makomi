@@ -1,6 +1,7 @@
 package com.makomi.client.render;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
@@ -119,6 +120,10 @@ public final class LinkSerialHudOverlayRenderer {
 		}
 		if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
 			renderFilterOverlay(guiGraphics, minecraft, filterBlockEntity);
+			return;
+		}
+		if (blockEntity instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
+			renderChunkActivatorOverlay(guiGraphics, minecraft, chunkActivatorBlockEntity);
 		}
 	}
 
@@ -196,6 +201,30 @@ public final class LinkSerialHudOverlayRenderer {
 			minecraft.font,
 			displayLines,
 			LinkSerialOverlayRenderCommon.resolveFilterTextColor(filterBlockEntity.filterKind()),
+			RedstoneLinkClientDisplayConfig.overlay().fontScale()
+		);
+	}
+
+	/**
+	 * 绘制区块激活器近外显。
+	 */
+	private static void renderChunkActivatorOverlay(
+		GuiGraphics guiGraphics,
+		Minecraft minecraft,
+		LinkChunkActivatorBlockEntity chunkActivatorBlockEntity
+	) {
+		List<String> displayLines = LinkSerialHudOverlayTextSupport.buildNearOverlayLines(
+			chunkActivatorBlockEntity,
+			minecraft.font
+		);
+		if (displayLines.isEmpty()) {
+			return;
+		}
+		LinkSerialHudOverlayDrawSupport.drawCenteredWithDeepBackground(
+			guiGraphics,
+			minecraft.font,
+			displayLines,
+			LinkSerialOverlayRenderCommon.resolveNodeTextColor(chunkActivatorBlockEntity.activeType()),
 			RedstoneLinkClientDisplayConfig.overlay().fontScale()
 		);
 	}
