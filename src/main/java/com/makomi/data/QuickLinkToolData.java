@@ -162,7 +162,7 @@ public final class QuickLinkToolData {
 			current.mode(),
 			current.serialCacheType(),
 			"",
-			"",
+			current.mode() == Mode.CHANNEL ? "0" : "",
 			current.applyEditMode()
 		);
 		write(stack, cleared);

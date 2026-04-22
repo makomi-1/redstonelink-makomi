@@ -163,6 +163,31 @@ class QuickLinkToolDataTest {
 	}
 
 	/**
+	 * 频道模式清空缓存应把频道值重置为 `0`，而不是移除缓存字段。
+	 */
+	@Test
+	void clearCachesShouldResetChannelModeCacheToZero() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		QuickLinkToolData.write(
+			stack,
+			new QuickLinkToolData.Snapshot(
+				QuickLinkToolData.Mode.CHANNEL,
+				LinkNodeType.CORE,
+				"1:3/5",
+				"23",
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+
+		QuickLinkToolData.Snapshot cleared = QuickLinkToolData.clearCaches(stack);
+		assertEquals(QuickLinkToolData.Mode.CHANNEL, cleared.mode());
+		assertEquals(LinkNodeType.CORE, cleared.serialCacheType());
+		assertEquals("", cleared.serialCacheExpression());
+		assertEquals("0", cleared.channelCache());
+		assertEquals(QuickLinkToolData.ApplyEditMode.REPLACE, cleared.applyEditMode());
+	}
+
+	/**
 	 * 模式镜像应驱动物品贴图切换。
 	 */
 	@Test

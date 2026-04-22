@@ -1,6 +1,7 @@
 package com.makomi.client.network;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.render.QuickLinkFeedbackOverlayRenderer;
 import com.makomi.client.screen.QuickLinkToolScreen;
@@ -22,6 +23,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * 快速连接工具客户端接包与交互壳。
  */
 public final class QuickLinkNetworkClientHandlerSupport {
+	private static final String QUICK_LINK_CHUNK_ACTIVATOR_TARGET_TOKEN = "chunk_activator";
 	private static boolean collectTriggeredForCurrentAttack;
 	private static boolean applyTriggeredForCurrentUse;
 	private static PendingApplyBaselineRequest pendingApplyBaselineRequest;
@@ -200,6 +202,14 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				minecraft.level.dimension().location().toString(),
 				blockPos.asLong(),
 				filterBlockEntity.filterKind().token(),
+				0L
+			);
+		}
+		if (allowFilters && blockEntity instanceof LinkChunkActivatorBlockEntity) {
+			return new ResolvedQuickLinkTarget(
+				minecraft.level.dimension().location().toString(),
+				blockPos.asLong(),
+				QUICK_LINK_CHUNK_ACTIVATOR_TARGET_TOKEN,
 				0L
 			);
 		}

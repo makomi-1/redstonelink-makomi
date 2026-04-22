@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.link.LinkChannelEditingService;
@@ -51,6 +52,17 @@ public final class QuickLinkApplyService {
 			return applyToFilterFromCache(
 				player,
 				filterBlockEntity,
+				snapshot.mode(),
+				snapshot.serialCacheType(),
+				snapshot.serialCacheExpression(),
+				snapshot.channelCache(),
+				snapshot.applyEditMode()
+			).feedback();
+		}
+		if (blockEntity instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
+			return applyToChunkActivatorFromCache(
+				player,
+				chunkActivatorBlockEntity,
 				snapshot.mode(),
 				snapshot.serialCacheType(),
 				snapshot.serialCacheExpression(),
@@ -133,9 +145,6 @@ public final class QuickLinkApplyService {
 		}
 		if (resolvedMode == QuickLinkToolData.Mode.CHANNEL) {
 			long parsedChannel = new QuickLinkToolData.ChannelCacheValue(channelCache).parseChannelOrZero();
-			if (parsedChannel <= 0L) {
-				return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_channel_cache");
-			}
 			filterBlockEntity.applySnapshot(buildChannelFilterSnapshotForAppliedCache(filterBlockEntity.snapshot(), parsedChannel));
 			return new ApplyFromCacheResult(
 				QuickLinkOperationFeedback.success(
@@ -185,6 +194,106 @@ public final class QuickLinkApplyService {
 			QuickLinkOperationFeedback.success(
 				filterApplySuccessMessageKey(filterBlockEntity.filterKind()),
 				Integer.toString(nextOrderedSerials.size())
+			),
+			0,
+			nextOrderedSerials.size()
+		);
+	}
+
+	/**
+	 * 将当前缓存应用到命中区块激活器。
+	 * <p>
+	 * quick-link 对区块激活器只允许写当前生效服务对象对应的节点集，
+	 * 并保持另一套 `triggerSource/core` 配置、别名与激活模式不变。
+	 * </p>
+	 */
+	public static ApplyFromCacheResult applyToChunkActivatorFromCache(
+		ServerPlayer player,
+		LinkChunkActivatorBlockEntity chunkActivatorBlockEntity,
+		QuickLinkToolData.Mode mode,
+		LinkNodeType cacheType,
+		String serialCacheExpression,
+		String channelCache,
+		QuickLinkToolData.ApplyEditMode applyEditMode
+	) {
+		if (player == null || chunkActivatorBlockEntity == null || !(chunkActivatorBlockEntity.getLevel() instanceof ServerLevel serverLevel)) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+			return ApplyFromCacheResult.failure("message.redstonelink.permission.insufficient");
+		}
+		QuickLinkToolData.Mode resolvedMode = mode == null ? QuickLinkToolData.Mode.SERIAL : mode;
+		if (resolvedMode != QuickLinkToolData.Mode.SERIAL) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.chunk_activator_requires_serial");
+		}
+		if (!isCacheTypeCompatibleWithChunkActivator(cacheType, chunkActivatorBlockEntity.activeType())) {
+			return ApplyFromCacheResult.failure(
+				"message.redstonelink.quick_link.apply.invalid_target_type",
+				LinkNodeSemantics.toSemanticName(cacheType),
+				LinkNodeSemantics.toSemanticName(ChunkActivatorConfigStateSnapshot.normalizeType(chunkActivatorBlockEntity.activeType()))
+			);
+		}
+
+		String normalizedExpression = serialCacheExpression == null ? "" : serialCacheExpression.trim();
+		if (!allowsEmptySerialCacheApply(applyEditMode) && normalizedExpression.isBlank()) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
+		}
+		int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
+		if (normalizedExpression.length() > maxInputLength) {
+			return ApplyFromCacheResult.failure("message.redstonelink.chunk_activator.input_too_long", Integer.toString(maxInputLength));
+		}
+
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
+			normalizedExpression,
+			PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE
+		);
+		if (!parseResult.invalidEntries().isEmpty()) {
+			return ApplyFromCacheResult.failure(
+				"message.redstonelink.pairing.invalid_tokens",
+				String.join(", ", parseResult.invalidEntries())
+			);
+		}
+		if (parseResult.exceedLimit()) {
+			return ApplyFromCacheResult.failure(
+				"message.redstonelink.chunk_activator.too_many_serials",
+				Integer.toString(PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE)
+			);
+		}
+
+		List<Long> nextOrderedSerials = buildNextChunkActivatorOrderedSerials(
+			chunkActivatorBlockEntity.snapshot(),
+			parseResult.orderedTargets(),
+			applyEditMode
+		);
+		if (nextOrderedSerials.size() > PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE) {
+			return ApplyFromCacheResult.failure(
+				"message.redstonelink.chunk_activator.too_many_serials",
+				Integer.toString(PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE)
+			);
+		}
+
+		ChunkActivatorConfigStateSnapshot nextSnapshot = buildChunkActivatorSnapshotForAppliedCache(
+			chunkActivatorBlockEntity.snapshot(),
+			nextOrderedSerials
+		);
+		if (nextSnapshot.activeConfig().serialExpression().length() > maxInputLength) {
+			return ApplyFromCacheResult.failure("message.redstonelink.chunk_activator.input_too_long", Integer.toString(maxInputLength));
+		}
+		QuickLinkOperationFeedback residentCapacityFeedback = validateChunkActivatorResidentCapacity(
+			serverLevel,
+			chunkActivatorBlockEntity,
+			nextSnapshot
+		);
+		if (residentCapacityFeedback != null) {
+			return new ApplyFromCacheResult(residentCapacityFeedback, 0, 0);
+		}
+
+		chunkActivatorBlockEntity.applySnapshot(nextSnapshot);
+		return new ApplyFromCacheResult(
+			QuickLinkOperationFeedback.success(
+				"message.redstonelink.quick_link.apply.done.chunk_activator",
+				Integer.toString(nextOrderedSerials.size()),
+				LinkNodeSemantics.toSemanticName(nextSnapshot.activeType())
 			),
 			0,
 			nextOrderedSerials.size()
@@ -270,9 +379,6 @@ public final class QuickLinkApplyService {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
 		}
 		long channel = new QuickLinkToolData.ChannelCacheValue(channelCache).parseChannelOrZero();
-		if (channel <= 0L) {
-			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_channel_cache");
-		}
 
 		LinkChannelEditingService.PreparationResult preparationResult = LinkChannelEditingService.prepareConfirmedSetChannel(
 			level,
@@ -288,14 +394,29 @@ public final class QuickLinkApplyService {
 		}
 
 		LinkChannelEditingService.ApplyResult applyResult = LinkChannelEditingService.applyPreparedSetChannel(preparationResult.plan());
-		String messageKey = targetNodeType == LinkNodeType.TRIGGER_SOURCE
-			? "message.redstonelink.quick_link.apply.done.trigger_source_channel"
-			: "message.redstonelink.quick_link.apply.done.core_channel";
+		if (channel > 0L) {
+			String messageKey = targetNodeType == LinkNodeType.TRIGGER_SOURCE
+				? "message.redstonelink.quick_link.apply.done.trigger_source_channel"
+				: "message.redstonelink.quick_link.apply.done.core_channel";
+			return new ApplyFromCacheResult(
+				QuickLinkOperationFeedback.success(
+					messageKey,
+					Long.toString(targetNodeSerial),
+					Long.toString(channel),
+					Integer.toString(applyResult.currentLinkedPeerCount())
+				),
+				applyResult.appliedOperationCount(),
+				applyResult.currentLinkedPeerCount()
+			);
+		}
+
+		String clearedMessageKey = targetNodeType == LinkNodeType.TRIGGER_SOURCE
+			? "message.redstonelink.quick_link.apply.done.trigger_source_serial_mode"
+			: "message.redstonelink.quick_link.apply.done.core_serial_mode";
 		return new ApplyFromCacheResult(
 			QuickLinkOperationFeedback.success(
-				messageKey,
+				clearedMessageKey,
 				Long.toString(targetNodeSerial),
-				Long.toString(channel),
 				Integer.toString(applyResult.currentLinkedPeerCount())
 			),
 			applyResult.appliedOperationCount(),
@@ -453,6 +574,13 @@ public final class QuickLinkApplyService {
 	}
 
 	/**
+	 * 判断当前缓存类型是否能应用到区块激活器当前生效服务对象。
+	 */
+	static boolean isCacheTypeCompatibleWithChunkActivator(LinkNodeType cacheType, LinkNodeType activatorActiveType) {
+		return cacheType != null && cacheType == ChunkActivatorConfigStateSnapshot.normalizeType(activatorActiveType);
+	}
+
+	/**
 	 * 基于当前过滤器配置，仅替换序号表达式并保留其余运行参数。
 	 */
 	static LinkFilterConfigSnapshot buildFilterSnapshotForAppliedCache(
@@ -491,6 +619,42 @@ public final class QuickLinkApplyService {
 			normalizedSnapshot.signalThresholdSource(),
 			normalizedSnapshot.fixedSignalThreshold(),
 			normalizedSnapshot.signalMode()
+		);
+	}
+
+	/**
+	 * 计算区块激活器当前生效节点集在 quick-link 三态应用后的结果。
+	 */
+	static List<Long> buildNextChunkActivatorOrderedSerials(
+		ChunkActivatorConfigStateSnapshot currentSnapshot,
+		List<Long> cachedOrderedSerials,
+		QuickLinkToolData.ApplyEditMode applyEditMode
+	) {
+		ChunkActivatorConfigStateSnapshot normalizedSnapshot = currentSnapshot == null
+			? new ChunkActivatorConfigStateSnapshot(LinkNodeType.TRIGGER_SOURCE, null, null)
+			: currentSnapshot;
+		return buildNextFilterOrderedSerials(
+			parseFilterOrderedSerials(normalizedSnapshot.activeConfig().serialExpression()),
+			cachedOrderedSerials,
+			applyEditMode
+		);
+	}
+
+	/**
+	 * 基于当前区块激活器快照，仅覆盖当前生效服务对象对应的节点集。
+	 */
+	static ChunkActivatorConfigStateSnapshot buildChunkActivatorSnapshotForAppliedCache(
+		ChunkActivatorConfigStateSnapshot currentSnapshot,
+		List<Long> nextOrderedSerials
+	) {
+		ChunkActivatorConfigStateSnapshot normalizedSnapshot = currentSnapshot == null
+			? new ChunkActivatorConfigStateSnapshot(LinkNodeType.TRIGGER_SOURCE, null, null)
+			: currentSnapshot;
+		LinkNodeType activeType = normalizedSnapshot.activeType();
+		ChunkActivatorConfigSnapshot activeConfig = normalizedSnapshot.activeConfig();
+		return normalizedSnapshot.withConfig(
+			activeType,
+			new ChunkActivatorConfigSnapshot(buildFilterSerialExpression(nextOrderedSerials), activeConfig.mode())
 		);
 	}
 
@@ -626,6 +790,35 @@ public final class QuickLinkApplyService {
 			builder.append(orderedSerial);
 		}
 		return builder.toString();
+	}
+
+	/**
+	 * 校验区块激活器应用后是否会超过 resident 总上限。
+	 */
+	private static QuickLinkOperationFeedback validateChunkActivatorResidentCapacity(
+		ServerLevel level,
+		LinkChunkActivatorBlockEntity chunkActivatorBlockEntity,
+		ChunkActivatorConfigStateSnapshot nextSnapshot
+	) {
+		if (level == null || chunkActivatorBlockEntity == null || nextSnapshot == null) {
+			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+		int effectiveResidents = CrossChunkEffectiveWhitelistService.countDistinctResidentsAfterActivatorChange(
+			level,
+			level.dimension(),
+			chunkActivatorBlockEntity.getBlockPos(),
+			nextSnapshot,
+			chunkActivatorBlockEntity.active()
+		);
+		int residentLimit = RedstoneLinkConfig.crossChunk().residentMaxEntries();
+		if (effectiveResidents <= residentLimit) {
+			return null;
+		}
+		return QuickLinkOperationFeedback.failure(
+			"message.redstonelink.chunk_activator.resident.limit_exceeded",
+			Integer.toString(effectiveResidents),
+			Integer.toString(residentLimit)
+		);
 	}
 
 	/**

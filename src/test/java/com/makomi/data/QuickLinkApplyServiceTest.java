@@ -284,6 +284,78 @@ class QuickLinkApplyServiceTest {
 	}
 
 	/**
+	 * 过滤器频道缓存应用应允许 `0` 透传，以便与 quick-link 的清空语义保持一致。
+	 */
+	@Test
+	void buildChannelFilterSnapshotForAppliedCacheShouldAllowZeroChannel() {
+		LinkFilterConfigSnapshot nextSnapshot = QuickLinkApplyService.buildChannelFilterSnapshotForAppliedCache(
+			new LinkFilterConfigSnapshot("3/5", null, null, 15, null),
+			0L
+		);
+
+		assertEquals(LinkFilterTargetMode.CHANNEL, nextSnapshot.targetMode());
+		assertEquals(0L, nextSnapshot.channel());
+		assertEquals("", nextSnapshot.serialExpression());
+	}
+
+	/**
+	 * 区块激活器应用必须要求缓存类型与当前生效服务对象一致。
+	 */
+	@Test
+	void chunkActivatorCompatibilityShouldFollowActiveType() {
+		assertTrue(QuickLinkApplyService.isCacheTypeCompatibleWithChunkActivator(LinkNodeType.TRIGGER_SOURCE, LinkNodeType.TRIGGER_SOURCE));
+		assertFalse(QuickLinkApplyService.isCacheTypeCompatibleWithChunkActivator(LinkNodeType.CORE, LinkNodeType.TRIGGER_SOURCE));
+		assertTrue(QuickLinkApplyService.isCacheTypeCompatibleWithChunkActivator(LinkNodeType.CORE, LinkNodeType.CORE));
+		assertFalse(QuickLinkApplyService.isCacheTypeCompatibleWithChunkActivator(LinkNodeType.TRIGGER_SOURCE, LinkNodeType.CORE));
+	}
+
+	/**
+	 * 区块激活器 quick-link 应只修改当前生效服务对象的节点集，并保留另一套配置与模式。
+	 */
+	@Test
+	void buildChunkActivatorSnapshotForAppliedCacheShouldOnlyTouchActiveConfig() {
+		ChunkActivatorConfigStateSnapshot currentSnapshot = new ChunkActivatorConfigStateSnapshot(
+			LinkNodeType.CORE,
+			new ChunkActivatorConfigSnapshot("1/2", ChunkActivatorMode.FORCE_LOAD),
+			new ChunkActivatorConfigSnapshot("7/9", ChunkActivatorMode.RESIDENT)
+		);
+
+		ChunkActivatorConfigStateSnapshot replacedSnapshot = QuickLinkApplyService.buildChunkActivatorSnapshotForAppliedCache(
+			currentSnapshot,
+			QuickLinkApplyService.buildNextChunkActivatorOrderedSerials(
+				currentSnapshot,
+				List.of(9L, 11L),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertEquals(LinkNodeType.CORE, replacedSnapshot.activeType());
+		assertEquals("1/2", replacedSnapshot.triggerSourceConfig().serialExpression());
+		assertEquals(ChunkActivatorMode.FORCE_LOAD, replacedSnapshot.triggerSourceConfig().mode());
+		assertEquals("9/11", replacedSnapshot.coreConfig().serialExpression());
+		assertEquals(ChunkActivatorMode.RESIDENT, replacedSnapshot.coreConfig().mode());
+
+		ChunkActivatorConfigStateSnapshot appendedSnapshot = QuickLinkApplyService.buildChunkActivatorSnapshotForAppliedCache(
+			currentSnapshot,
+			QuickLinkApplyService.buildNextChunkActivatorOrderedSerials(
+				currentSnapshot,
+				List.of(11L, 7L),
+				QuickLinkToolData.ApplyEditMode.APPEND
+			)
+		);
+		assertEquals("7/9/11", appendedSnapshot.coreConfig().serialExpression());
+
+		ChunkActivatorConfigStateSnapshot removedSnapshot = QuickLinkApplyService.buildChunkActivatorSnapshotForAppliedCache(
+			currentSnapshot,
+			QuickLinkApplyService.buildNextChunkActivatorOrderedSerials(
+				currentSnapshot,
+				List.of(7L, 15L),
+				QuickLinkToolData.ApplyEditMode.REMOVE
+			)
+		);
+		assertEquals("9", removedSnapshot.coreConfig().serialExpression());
+	}
+
+	/**
 	 * 构造 `1/2/3/...` 形式的序号表达式。
 	 */
 	private static String buildSerialExpression(int count) {

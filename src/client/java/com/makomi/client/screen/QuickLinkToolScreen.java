@@ -127,7 +127,7 @@ public class QuickLinkToolScreen extends Screen {
 		);
 		addRenderableWidget(
 			createActionButton(CLEAR, layout.actionButtonX(1), buttonRowY, actionButtonWidth, button -> {
-				inputBox.setValue("");
+				inputBox.setValue(isSerialMode() ? "" : "0");
 				statusMessage = Component.empty();
 			})
 		);
