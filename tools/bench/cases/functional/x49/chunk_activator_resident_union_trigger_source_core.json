@@ -1,0 +1,238 @@
+{
+  "id": "chunk_activator_resident_union_trigger_source_core",
+  "description": "验证两个激活态区块激活器分别作用于 triggerSource/core 且均为 resident 时，贡献按并集生效；重新加载并失活后两侧贡献同时撤销。",
+  "layer": "X",
+  "scenarioId": "X49",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [256, 63, 738],
+      "to": [290, 66, 739]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [248, 63, 732],
+        "clearTo": [308, 66, 744]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_chunk_activator_union_core_targets",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [288, 64, 738],
+      "to": [290, 64, 738]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_chunk_activator_union_sources",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [256, 64, 738],
+        "to": [258, 64, 738]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "place_chunk_activator_union_trigger_source",
+      "command": "setblock 272 64 738 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_chunk_activator_union_trigger_source",
+      "commandTemplate": "data merge block 272 64 738 {activeType:\"triggerSource\",triggerSourceSerialExpression:\"{{source:sync_chunk_activator_union_sources}}\",triggerSourceMode:\"resident\",coreSerialExpression:\"\",coreMode:\"force_load\",DisplayAlias:\"bench-union-source\"}",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_chunk_activator_union_core",
+      "command": "setblock 272 64 739 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_chunk_activator_union_core",
+      "commandTemplate": "data merge block 272 64 739 {activeType:\"core\",triggerSourceSerialExpression:\"\",triggerSourceMode:\"force_load\",coreSerialExpression:\"{{targets:range}}\",coreMode:\"resident\",DisplayAlias:\"bench-union-core\"}",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_chunk_activator_union_trigger_source",
+      "command": "setblock 273 64 738 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_chunk_activator_union_core",
+      "command": "setblock 273 64 739 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_union_activation",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_union_source_forceload",
+      "command": "forceload remove 256 738 256 738",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_union_target_forceload",
+      "command": "forceload remove 288 738 288 738",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_union_self_forceload",
+      "command": "forceload remove 272 738 272 738",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_union_hold",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_source_0_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_union_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_source_1_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_union_sources[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_source_2_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_union_sources[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_target_0_should_stay_online",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_target_1_should_stay_online",
+      "commandTemplate": "redstonelink node get core {{targets[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_target_2_should_stay_online",
+      "commandTemplate": "redstonelink node get core {{targets[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_chunk_activator_union_self_forceload",
+      "command": "forceload add 272 738 272 738",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_union_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "unpower_chunk_activator_union_trigger_source",
+      "command": "setblock 273 64 738 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "unpower_chunk_activator_union_core",
+      "command": "setblock 273 64 739 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_union_unpower_sync",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_union_self_forceload_after_unpower",
+      "command": "forceload remove 272 738 272 738",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_union_release",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_source_0_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_union_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_source_1_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_union_sources[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_source_2_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_union_sources[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_target_0_should_turn_offline",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_target_1_should_turn_offline",
+      "commandTemplate": "redstonelink node get core {{targets[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_union_target_2_should_turn_offline",
+      "commandTemplate": "redstonelink node get core {{targets[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    }
+  ]
+}

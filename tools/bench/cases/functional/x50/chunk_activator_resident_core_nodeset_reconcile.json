@@ -1,0 +1,223 @@
+{
+  "id": "chunk_activator_resident_core_nodeset_reconcile",
+  "description": "验证激活态 core/resident 区块激活器在节点集从 [0,1] 切换到 [1,2] 后，旧节点失效、保留节点持续在线、新节点生效。",
+  "layer": "X",
+  "scenarioId": "X50",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [256, 63, 778],
+      "to": [271, 66, 779]
+    },
+    {
+      "dimension": "minecraft:overworld",
+      "from": [320, 63, 778],
+      "to": [335, 66, 779]
+    },
+    {
+      "dimension": "minecraft:overworld",
+      "from": [384, 63, 778],
+      "to": [399, 66, 779]
+    },
+    {
+      "dimension": "minecraft:overworld",
+      "from": [448, 63, 778],
+      "to": [463, 66, 779]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [248, 63, 772],
+        "clearTo": [468, 66, 784]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_chunk_activator_nodeset_targets",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [256, 64, 778],
+      "to": [384, 64, 778],
+      "step": [64, 1, 1]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_chunk_activator_nodeset_placeholder",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [448, 64, 779],
+        "to": [448, 64, 779]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "place_chunk_activator_nodeset_core",
+      "command": "setblock 448 64 778 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_chunk_activator_nodeset_core_initial",
+      "commandTemplate": "data merge block 448 64 778 {activeType:\"core\",triggerSourceSerialExpression:\"\",triggerSourceMode:\"force_load\",coreSerialExpression:\"{{targets[0,1]:mixed}}\",coreMode:\"resident\",DisplayAlias:\"bench-nodeset-core\"}",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_chunk_activator_nodeset_core",
+      "command": "setblock 449 64 778 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_nodeset_core_activation",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_nodeset_target_0_forceload",
+      "command": "forceload remove 256 778 256 778",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_nodeset_target_1_forceload",
+      "command": "forceload remove 320 778 320 778",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_nodeset_target_2_forceload",
+      "command": "forceload remove 384 778 384 778",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_nodeset_self_forceload",
+      "command": "forceload remove 448 778 448 778",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_nodeset_initial_hold",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_nodeset_target_0_should_stay_online_initial",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_nodeset_target_1_should_stay_online_initial",
+      "commandTemplate": "redstonelink node get core {{targets[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_nodeset_target_2_should_stay_offline_initial",
+      "commandTemplate": "redstonelink node get core {{targets[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_chunk_activator_nodeset_self_forceload",
+      "command": "forceload add 448 778 448 778",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_chunk_activator_nodeset_target_2_forceload",
+      "command": "forceload add 384 778 384 778",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_nodeset_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "reconfigure_chunk_activator_nodeset_core_shift_to_1_2",
+      "commandTemplate": "data merge block 448 64 778 {activeType:\"core\",triggerSourceSerialExpression:\"\",triggerSourceMode:\"force_load\",coreSerialExpression:\"{{targets[1,2]:mixed}}\",coreMode:\"resident\",DisplayAlias:\"bench-nodeset-core\"}",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_nodeset_reconfigure_tag_merge",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_chunk_activator_nodeset_reconfigure_neighbor_place",
+      "command": "setblock 448 64 777 minecraft:stone",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "refresh_chunk_activator_nodeset_reconfigure_neighbor_remove",
+      "command": "setblock 448 64 777 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_nodeset_reconfigure_refresh",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_nodeset_target_2_forceload_after_reconfigure",
+      "command": "forceload remove 384 778 384 778",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_nodeset_self_forceload_after_reconfigure",
+      "command": "forceload remove 448 778 448 778",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_nodeset_reconfigure_hold",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_nodeset_target_0_should_turn_offline_after_reconfigure",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_nodeset_target_1_should_stay_online_after_reconfigure",
+      "commandTemplate": "redstonelink node get core {{targets[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_nodeset_target_2_should_turn_online_after_reconfigure",
+      "commandTemplate": "redstonelink node get core {{targets[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    }
+  ]
+}
