@@ -1,0 +1,172 @@
+{
+  "id": "chunk_activator_resident_physical_remove_three_sources",
+  "description": "验证激活态区块激活器在自身区块卸载后，仍可让 3 个 triggerSource 保持 resident 在线；重新加载并物理破坏后贡献删除。",
+  "layer": "X",
+  "scenarioId": "X46",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [256, 63, 678],
+      "to": [273, 66, 682]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [248, 63, 672],
+        "clearTo": [276, 66, 684]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_chunk_activator_resident_remove_placeholder",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [272, 64, 682],
+      "to": [272, 64, 682]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_chunk_activator_resident_remove_sources",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [256, 64, 678],
+        "to": [258, 64, 678]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_resident_remove_placeholder_core",
+      "command": "setblock 272 64 682 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_chunk_activator_resident_remove",
+      "command": "setblock 272 64 678 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_chunk_activator_resident_remove",
+      "commandTemplate": "data merge block 272 64 678 {serialExpression:\"{{source:sync_chunk_activator_resident_remove_sources}}\",mode:\"resident\",DisplayAlias:\"bench-remove\"}",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_chunk_activator_resident_remove",
+      "command": "setblock 273 64 678 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_remove_activation",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_resident_remove_source_forceload",
+      "command": "forceload remove 256 678 256 678",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_resident_remove_self_forceload",
+      "command": "forceload remove 272 678 272 678",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_remove_hold",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_remove_source_0_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_remove_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_remove_source_1_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_remove_sources[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_remove_source_2_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_remove_sources[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_chunk_activator_resident_remove_self_forceload",
+      "command": "forceload add 272 678 272 678",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_remove_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "physically_remove_chunk_activator_resident_remove",
+      "command": "setblock 272 64 678 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_remove_sync",
+      "ticks": 6
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_resident_remove_self_forceload_after_physical_remove",
+      "command": "forceload remove 272 678 272 678",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_remove_release",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_remove_source_0_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_remove_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_remove_source_1_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_remove_sources[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_remove_source_2_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_remove_sources[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+{
+  "id": "chunk_activator_force_load_three_sources",
+  "description": "验证激活态区块激活器在自身区块卸载后，仍可对白名单口径贡献 force_load；每个激活器节点集固定作用于 3 个 triggerSource。",
+  "layer": "X",
+  "scenarioId": "X44",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [256, 63, 638],
+      "to": [273, 66, 638]
+    },
+    {
+      "dimension": "minecraft:the_nether",
+      "from": [96, 63, 318],
+      "to": [98, 66, 318]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [248, 63, 632],
+        "clearTo": [276, 66, 644]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [88, 63, 312],
+        "clearTo": [104, 66, 324]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_chunk_activator_force_targets",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_nether",
+      "from": [96, 64, 318],
+      "to": [98, 64, 318]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_chunk_activator_force_sources",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [256, 64, 638],
+        "to": [258, 64, 638]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_chunk_activator_force_sources",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "place_chunk_activator_force_load",
+      "command": "setblock 272 64 638 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_chunk_activator_force_load",
+      "commandTemplate": "data merge block 272 64 638 {serialExpression:\"{{source:sync_chunk_activator_force_sources}}\",mode:\"force_load\",DisplayAlias:\"bench-force\"}",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_chunk_activator_force_load",
+      "command": "setblock 273 64 638 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_force_activation",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_force_target_forceload",
+      "command": "forceload remove 96 318 96 318",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_force_self_forceload",
+      "command": "forceload remove 272 638 272 638",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_force_chunks_unload",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_force_target_should_be_offline_before_input",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "input_start_square_triggerSource",
+      "name": "start_chunk_activator_force_square",
+      "serialRef": "sync_chunk_activator_force_sources",
+      "serialFormat": "slash_list",
+      "periodTicks": 100,
+      "highTicks": 80,
+      "highPower": 15,
+      "lowPower": 0,
+      "phaseTicks": 0,
+      "totalTicks": 120
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_force_auto_load",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_force_target_0_should_be_online_and_active",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_force_target_1_should_be_online_and_active",
+      "commandTemplate": "redstonelink node get core {{targets[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_force_target_2_should_be_online_and_active",
+      "commandTemplate": "redstonelink node get core {{targets[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_chunk_activator_force_jobs"
+    }
+  ]
+}

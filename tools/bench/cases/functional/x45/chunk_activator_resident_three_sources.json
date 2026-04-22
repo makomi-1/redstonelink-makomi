@@ -1,0 +1,172 @@
+{
+  "id": "chunk_activator_resident_three_sources",
+  "description": "验证激活态区块激活器在自身区块卸载后，仍可让 3 个 triggerSource 保持 resident 在线；重新加载并失活后贡献撤销。",
+  "layer": "X",
+  "scenarioId": "X45",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [256, 63, 658],
+      "to": [273, 66, 662]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:overworld"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [248, 63, 652],
+        "clearTo": [276, 66, 664]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_chunk_activator_resident_placeholder",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [272, 64, 662],
+      "to": [272, 64, 662]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_chunk_activator_resident_sources",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [256, 64, 658],
+        "to": [258, 64, 658]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_resident_placeholder_core",
+      "command": "setblock 272 64 662 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_chunk_activator_resident",
+      "command": "setblock 272 64 658 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_chunk_activator_resident",
+      "commandTemplate": "data merge block 272 64 658 {serialExpression:\"{{source:sync_chunk_activator_resident_sources}}\",mode:\"resident\",DisplayAlias:\"bench-resident\"}",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_chunk_activator_resident",
+      "command": "setblock 273 64 658 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_activation",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_resident_source_forceload",
+      "command": "forceload remove 256 658 256 658",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_resident_self_forceload",
+      "command": "forceload remove 272 658 272 658",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_hold",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_source_0_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_source_1_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_sources[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_source_2_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_sources[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "readd_chunk_activator_resident_self_forceload",
+      "command": "forceload add 272 658 272 658",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_reload",
+      "ticks": 20
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "unpower_chunk_activator_resident",
+      "command": "setblock 273 64 658 minecraft:air",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_unpower_sync",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_chunk_activator_resident_self_forceload_after_unpower",
+      "command": "forceload remove 272 658 272 658",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_chunk_activator_resident_release",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_source_0_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_source_1_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_sources[1]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "chunk_activator_resident_source_2_should_turn_offline",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_resident_sources[2]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    }
+  ]
+}
