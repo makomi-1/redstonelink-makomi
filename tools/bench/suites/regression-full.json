@@ -198,6 +198,42 @@
       }
     },
     {
+      "entryId": "x51_chunk_activator_trigger_source_force_load_auto_replay",
+      "caseId": "chunk_activator_trigger_source_force_load_auto_replay",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "whitelist"
+      }
+    },
+    {
+      "entryId": "x52_chunk_activator_trigger_source_resident_auto_replay",
+      "caseId": "chunk_activator_trigger_source_resident_auto_replay",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "whitelist"
+      }
+    },
+    {
+      "entryId": "x53_chunk_activator_core_force_load_auto_replay",
+      "caseId": "chunk_activator_core_force_load_auto_replay",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "whitelist"
+      }
+    },
+    {
+      "entryId": "x54_chunk_activator_core_resident_auto_replay",
+      "caseId": "chunk_activator_core_resident_auto_replay",
+      "serverConfigOverrides": {
+        "crosschunk.queue.enabled": "false",
+        "crosschunk.forceLoad.enabled": "true",
+        "crosschunk.forceLoad.mode": "whitelist"
+      }
+    },
+    {
       "entryId": "x11_reload_template_world_boot",
       "caseId": "reload_template_world_boot_basic",
       "templateWorldPath": "{{param:reloadTemplateWorld}}"

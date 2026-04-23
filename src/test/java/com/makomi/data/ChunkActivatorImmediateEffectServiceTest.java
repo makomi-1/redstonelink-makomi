@@ -44,10 +44,10 @@ class ChunkActivatorImmediateEffectServiceTest {
 	}
 
 	/**
-	 * triggerSource 节点集新增成员时，应同时进入“resident bootstrap”和“补发当前真值”两条路径。
+	 * triggerSource/resident 节点集新增成员时，只应进入 resident bootstrap，而不补发当前真值。
 	 */
 	@Test
-	void buildPlanShouldReplayOnlyNewTriggerSourceMembers() {
+	void buildPlanShouldOnlyBootstrapNewResidentTriggerSourceMembers() {
 		PlacedChunkActivatorSavedData.ActivatorEntry previousEntry = activatorEntry(
 			LinkNodeType.TRIGGER_SOURCE,
 			new ChunkActivatorConfigSnapshot("11", ChunkActivatorMode.FORCE_LOAD),
@@ -69,7 +69,36 @@ class ChunkActivatorImmediateEffectServiceTest {
 		assertEquals(Set.of(12L), plan.residentTriggerSources());
 		assertEquals(Set.of(), plan.residentCores());
 		assertEquals(Set.of(), plan.replayCores());
-		assertEquals(Set.of(12L), plan.replayTriggerSources());
+		assertEquals(Set.of(), plan.replayTriggerSources());
+	}
+
+	/**
+	 * triggerSource/force_load 节点集新增成员时，应进入“补发当前真值”路径，而不贡献 resident。
+	 */
+	@Test
+	void buildPlanShouldReplayOnlyNewForceLoadTriggerSourceMembers() {
+		PlacedChunkActivatorSavedData.ActivatorEntry previousEntry = activatorEntry(
+			LinkNodeType.TRIGGER_SOURCE,
+			new ChunkActivatorConfigSnapshot("31", ChunkActivatorMode.FORCE_LOAD),
+			new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD),
+			true
+		);
+		PlacedChunkActivatorSavedData.ActivatorEntry nextEntry = activatorEntry(
+			LinkNodeType.TRIGGER_SOURCE,
+			new ChunkActivatorConfigSnapshot("31/32", ChunkActivatorMode.FORCE_LOAD),
+			new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD),
+			true
+		);
+
+		ChunkActivatorImmediateEffectService.ImmediateEffectPlan plan = ChunkActivatorImmediateEffectService.buildPlan(
+			previousEntry,
+			nextEntry
+		);
+
+		assertEquals(Set.of(), plan.residentTriggerSources());
+		assertEquals(Set.of(), plan.residentCores());
+		assertEquals(Set.of(), plan.replayCores());
+		assertEquals(Set.of(32L), plan.replayTriggerSources());
 	}
 
 	/**

@@ -1,0 +1,172 @@
+{
+  "id": "chunk_activator_trigger_source_resident_auto_replay",
+  "description": "验证 triggerSource/resident 区块激活器在 core 已离线后、triggerSource 才发生一次高态变化且之后保持不变时，只会把新增 triggerSource 所在区块拉起并保持在线，不把补发作为当前用例口径。",
+  "layer": "X",
+  "scenarioId": "X52",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [256, 63, 918],
+      "to": [257, 66, 918]
+    },
+    {
+      "dimension": "minecraft:the_nether",
+      "from": [96, 63, 458],
+      "to": [113, 66, 458]
+    },
+    {
+      "dimension": "minecraft:the_end",
+      "from": [32, 69, 242],
+      "to": [32, 72, 242]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [248, 63, 912],
+        "clearTo": [264, 66, 924]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [88, 63, 452],
+        "clearTo": [120, 66, 464]
+      },
+      {
+        "dimension": "minecraft:the_end",
+        "clearFrom": [24, 69, 236],
+        "clearTo": [40, 72, 248]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_chunk_activator_trigger_source_resident_auto_replay_targets",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_end",
+      "from": [32, 70, 242],
+      "to": [32, 70, 242]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_chunk_activator_trigger_source_resident_auto_replay_sources",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [256, 64, 918],
+        "to": [256, 64, 918]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_chunk_activator_trigger_source_resident_auto_replay_sources",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "remove_trigger_source_resident_replay_target_forceload",
+      "command": "forceload remove 32 242 32 242",
+      "commandDimension": "minecraft:the_end"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_trigger_source_resident_replay_target_unload_before_source_change",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "trigger_source_resident_replay_target_should_be_offline_before_source_change",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_trigger_source_resident_replay_source_after_target_offline",
+      "command": "setblock 257 64 918 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_trigger_source_resident_replay_high_commit_after_target_offline",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "trigger_source_resident_replay_target_should_stay_offline_after_source_change_before_activator",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_trigger_source_resident_replay_source_forceload_after_target_offline",
+      "command": "forceload remove 256 918 256 918",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_trigger_source_resident_replay_source_unload_before_activator",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "trigger_source_resident_replay_source_should_be_offline_before_activator",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_trigger_source_resident_auto_replay_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_trigger_source_resident_replay_activator",
+      "command": "setblock 112 64 458 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_trigger_source_resident_replay_activator",
+      "commandTemplate": "data merge block 112 64 458 {activeType:\"triggerSource\",triggerSourceSerialExpression:\"{{source:sync_chunk_activator_trigger_source_resident_auto_replay_sources}}\",triggerSourceMode:\"resident\",coreSerialExpression:\"\",coreMode:\"force_load\",DisplayAlias:\"bench-src-resident-replay\"}",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_trigger_source_resident_replay_activator",
+      "command": "setblock 113 64 458 minecraft:redstone_block",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_trigger_source_resident_replay_activator_effect",
+      "ticks": 30
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "trigger_source_resident_replay_source_should_auto_load_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_trigger_source_resident_auto_replay_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_trigger_source_resident_replay_resident_hold",
+      "ticks": 100
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "trigger_source_resident_replay_source_should_stay_online",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_trigger_source_resident_auto_replay_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=true|在线=true)"
+    }
+  ]
+}

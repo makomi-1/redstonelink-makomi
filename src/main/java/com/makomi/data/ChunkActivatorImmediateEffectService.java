@@ -13,7 +13,7 @@ import net.minecraft.server.level.ServerLevel;
  * <ul>
  * <li>`resident`：立即补 resident 常驻票；</li>
  * <li>`force_load + core`：立即按真实 `triggerSource -> core` 补发一次 sync，使其进入标准跨区块队列；</li>
- * <li>`triggerSource`：立即按当前/持久化真值补发一次 sync。</li>
+ * <li>`force_load + triggerSource`：立即按当前/持久化真值补发一次 sync。</li>
  * </ul>
  */
 public final class ChunkActivatorImmediateEffectService {
@@ -90,7 +90,10 @@ public final class ChunkActivatorImmediateEffectService {
 		Set<Long> replayCores = nextActiveType == LinkNodeType.CORE && !nextSnapshot.activeConfig().mode().contributesResident()
 			? newlyAddedActiveSerials
 			: Set.of();
-		Set<Long> replayTriggerSources = nextActiveType == LinkNodeType.TRIGGER_SOURCE ? newlyAddedActiveSerials : Set.of();
+		Set<Long> replayTriggerSources =
+			nextActiveType == LinkNodeType.TRIGGER_SOURCE && !nextSnapshot.activeConfig().mode().contributesResident()
+				? newlyAddedActiveSerials
+				: Set.of();
 		return new ImmediateEffectPlan(residentTriggerSources, residentCores, replayCores, replayTriggerSources);
 	}
 

@@ -223,13 +223,10 @@ final class CrossChunkDispatchTicketSupport {
 		) {
 			return;
 		}
-		LinkSavedData.RuntimeOnlineProbeResult probeResult = linkSavedData.probeRuntimeOnlineNodeNonBlocking(
-			contextLevel,
-			type,
-			serial
-		);
-		LinkSavedData.LinkNode node = probeResult.node();
-		if (!probeResult.ready() || node == null) {
+		// resident 的职责是把已登记节点所在区块拉起，因此期望票据必须基于持久化登记位置，
+		// 不能按 runtime-ready 过滤离线节点，否则会在真正拉起前把票据自己删掉。
+		LinkSavedData.LinkNode node = linkSavedData.findNode(type, serial).orElse(null);
+		if (node == null) {
 			return;
 		}
 		int chunkX = node.pos().getX() >> 4;

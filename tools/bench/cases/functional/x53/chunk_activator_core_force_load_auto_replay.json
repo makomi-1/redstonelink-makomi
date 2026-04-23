@@ -1,0 +1,170 @@
+{
+  "id": "chunk_activator_core_force_load_auto_replay",
+  "description": "验证 core/force_load 区块激活器在 core 已离线后、triggerSource 才发生一次高态变化且之后保持不变时，仍会自动拉起目标 core 并补发当前高态。",
+  "layer": "X",
+  "scenarioId": "X53",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [256, 63, 938],
+      "to": [257, 66, 938]
+    },
+    {
+      "dimension": "minecraft:the_nether",
+      "from": [96, 63, 478],
+      "to": [113, 66, 478]
+    },
+    {
+      "dimension": "minecraft:the_end",
+      "from": [32, 69, 262],
+      "to": [32, 72, 262]
+    }
+  ],
+  "observation": {
+    "dimension": "minecraft:the_nether"
+  },
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [248, 63, 932],
+        "clearTo": [264, 66, 944]
+      },
+      {
+        "dimension": "minecraft:the_nether",
+        "clearFrom": [88, 63, 472],
+        "clearTo": [120, 66, 484]
+      },
+      {
+        "dimension": "minecraft:the_end",
+        "clearFrom": [24, 69, 256],
+        "clearTo": [40, 72, 268]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_chunk_activator_core_force_load_auto_replay_targets",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:the_end",
+      "from": [32, 70, 262],
+      "to": [32, 70, 262]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_chunk_activator_core_force_load_auto_replay_sources",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [256, 64, 938],
+        "to": [256, 64, 938]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_chunk_activator_core_force_load_auto_replay_sources",
+      "mapping": "zip"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "remove_core_force_load_replay_target_forceload",
+      "command": "forceload remove 32 262 32 262",
+      "commandDimension": "minecraft:the_end"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_core_force_load_replay_target_unload_before_source_change",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "core_force_load_replay_target_should_be_offline_before_source_change",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_core_force_load_replay_source_after_target_offline",
+      "command": "setblock 257 64 938 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_core_force_load_replay_high_commit_after_target_offline",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "core_force_load_replay_target_should_stay_offline_after_source_change_before_activator",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_core_force_load_replay_source_forceload_after_target_offline",
+      "command": "forceload remove 256 938 256 938",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_core_force_load_replay_source_unload_before_activator",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "core_force_load_replay_source_should_be_offline_before_activator",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_core_force_load_auto_replay_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_core_force_load_replay_activator",
+      "command": "setblock 112 64 478 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_core_force_load_replay_activator",
+      "commandTemplate": "data merge block 112 64 478 {activeType:\"core\",triggerSourceSerialExpression:\"\",triggerSourceMode:\"force_load\",coreSerialExpression:\"{{targets[0]:mixed}}\",coreMode:\"force_load\",DisplayAlias:\"bench-core-force-replay\"}",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_core_force_load_replay_activator",
+      "command": "setblock 113 64 478 minecraft:redstone_block",
+      "commandDimension": "minecraft:the_nether"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_core_force_load_replay_activator_effect",
+      "ticks": 30
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "core_force_load_replay_source_should_stay_offline_after_activator",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_chunk_activator_core_force_load_auto_replay_sources[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "core_force_load_replay_target_should_auto_load_high",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    }
+  ]
+}
