@@ -78,6 +78,7 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 			}
 			ChunkActivatorItemData.write(heldStack, configStateSnapshot);
 			ChunkActivatorItemData.setDisplayAlias(heldStack, normalizedDisplayAlias);
+			ChunkActivatorItemData.syncNodeSetDisplayTexts(heldStack, player.serverLevel());
 		}
 
 		if (!activeParseResult.duplicateEntries().isEmpty()) {

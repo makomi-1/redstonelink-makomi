@@ -187,6 +187,7 @@ public final class NodeSnapshotQueryService {
 		return new NodeLinksSnapshot(
 			normalizedSnapshot.sourceIdentity(),
 			normalizedSnapshot.visibleTargets(),
+			normalizedSnapshot.visibleTargetDisplayTexts(),
 			normalizedSnapshot.masked(),
 			resolveGraphRevision(savedData),
 			resolveSourceRevision(savedData, nodeType, serial),

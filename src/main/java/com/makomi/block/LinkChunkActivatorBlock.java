@@ -95,6 +95,9 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 			if (drop.is(asItem())) {
 				ChunkActivatorItemData.write(drop, blockEntity.snapshot());
 				ChunkActivatorItemData.setDisplayAlias(drop, blockEntity.displayAlias());
+				if (blockEntity.getLevel() instanceof ServerLevel serverLevel) {
+					ChunkActivatorItemData.syncNodeSetDisplayTexts(drop, serverLevel);
+				}
 			}
 		}
 		return drops;

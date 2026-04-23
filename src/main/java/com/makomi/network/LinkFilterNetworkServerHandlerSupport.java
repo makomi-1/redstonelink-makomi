@@ -127,6 +127,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 			}
 			LinkFilterItemData.write(heldFilterStack, configSnapshot);
 			LinkFilterItemData.setDisplayAlias(heldFilterStack, normalizedDisplayAlias);
+			LinkFilterItemData.syncNodeSetDisplayTexts(heldFilterStack, player.serverLevel(), payload.filterKind().servicedNodeType());
 		}
 
 		if (configSnapshot.nodeSetMode() == LinkFilterNodeSetMode.WHITELIST && isWhitelistTargetEmpty(configSnapshot, parseResult)) {

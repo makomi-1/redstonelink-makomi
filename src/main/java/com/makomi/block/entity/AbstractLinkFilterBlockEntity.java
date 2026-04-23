@@ -8,17 +8,23 @@ import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
 import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.util.SerialParseUtil;
 import com.makomi.util.SignalStrengths;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -40,11 +46,13 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	private static final String KEY_FIXED_SIGNAL_THRESHOLD = "fixedSignalThreshold";
 	private static final String KEY_SIGNAL_MODE = "signalMode";
 	private static final String KEY_DISPLAY_ALIAS = "DisplayAlias";
+	private static final String KEY_NODE_SET_DISPLAY_TEXTS = "nodeSetDisplayTexts";
 
 	private String serialExpression = "";
 	private LinkFilterTargetMode targetMode = LinkFilterTargetMode.SERIAL;
 	private long channel;
 	private Set<Long> serials = Set.of();
+	private List<String> nodeSetDisplayTexts = List.of();
 	private LinkFilterNodeSetMode nodeSetMode = LinkFilterNodeSetMode.DISABLED;
 	private LinkFilterSignalThresholdSource signalThresholdSource = LinkFilterSignalThresholdSource.FIXED_INPUT;
 	private int fixedSignalThreshold = 15;
@@ -88,6 +96,13 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	}
 
 	/**
+	 * @return 客户端近外显使用的节点集展示文本快照
+	 */
+	public final List<String> nodeSetDisplayTexts() {
+		return nodeSetDisplayTexts;
+	}
+
+	/**
 	 * 应用一份新的配置快照，并同步客户端与运行时索引。
 	 *
 	 * @param configSnapshot 新配置快照
@@ -112,6 +127,9 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 		fixedSignalThreshold = SignalStrengths.clamp(normalized.fixedSignalThreshold());
 		signalMode = normalized.signalMode();
 		serials = targetMode == LinkFilterTargetMode.SERIAL ? parseSerialExpression(serialExpression) : Set.of();
+		nodeSetDisplayTexts = targetMode == LinkFilterTargetMode.SERIAL
+			? NodeAliasDisplayUtil.normalizeDisplayTexts(parseOrderedSerials(serialExpression), nodeSetDisplayTexts)
+			: List.of();
 		syncToClient();
 		LinkDispatchFilterService.refreshFilterWithCurrentNeighborSignal(this);
 	}
@@ -213,6 +231,7 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 			? NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS))
 			: "";
 		serials = targetMode == LinkFilterTargetMode.SERIAL ? parseSerialExpression(serialExpression) : Set.of();
+		nodeSetDisplayTexts = readDisplayTexts(tag, KEY_NODE_SET_DISPLAY_TEXTS, parseOrderedSerials(serialExpression));
 	}
 
 	@Override
@@ -256,7 +275,16 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 
 	@Override
 	public CompoundTag getUpdateTag(HolderLookup.Provider provider) {
-		return saveWithoutMetadata(provider);
+		CompoundTag tag = saveWithoutMetadata(provider);
+		writeDisplayTexts(tag, KEY_NODE_SET_DISPLAY_TEXTS, resolveNodeSetDisplayTextsForSync());
+		return tag;
+	}
+
+	/**
+	 * 强制刷新客户端外显同步包。
+	 */
+	public final void forceSyncToClient() {
+		syncToClient();
 	}
 
 	/**
@@ -274,11 +302,22 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	 * 解析序号表达式，统一过滤非法与重复项。
 	 */
 	private static Set<Long> parseSerialExpression(String rawExpression) {
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(rawExpression, 0);
-		if (parseResult.orderedTargets().isEmpty()) {
+		List<Long> orderedTargets = parseOrderedSerials(rawExpression);
+		if (orderedTargets.isEmpty()) {
 			return Set.of();
 		}
-		return Set.copyOf(new LinkedHashSet<>(parseResult.orderedTargets()));
+		return Set.copyOf(new LinkedHashSet<>(orderedTargets));
+	}
+
+	/**
+	 * 按用户输入顺序解析节点集序号。
+	 */
+	private static List<Long> parseOrderedSerials(String rawExpression) {
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(rawExpression, 0);
+		if (parseResult.orderedTargets().isEmpty()) {
+			return List.of();
+		}
+		return List.copyOf(parseResult.orderedTargets());
 	}
 
 	/**
@@ -289,5 +328,64 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 			return LinkFilterTargetMode.CHANNEL;
 		}
 		return LinkFilterTargetMode.SERIAL;
+	}
+
+	private List<String> resolveNodeSetDisplayTextsForSync() {
+		List<Long> orderedSerials = parseOrderedSerials(serialExpression);
+		if (targetMode != LinkFilterTargetMode.SERIAL || orderedSerials.isEmpty()) {
+			return List.of();
+		}
+		if (!(level instanceof ServerLevel serverLevel)) {
+			return NodeAliasDisplayUtil.normalizeDisplayTexts(orderedSerials, nodeSetDisplayTexts);
+		}
+		return resolveDisplayTexts(serverLevel, filterKind().servicedNodeType(), orderedSerials);
+	}
+
+	private static List<String> resolveDisplayTexts(ServerLevel level, com.makomi.data.LinkNodeType nodeType, List<Long> serials) {
+		if (serials == null || serials.isEmpty()) {
+			return List.of();
+		}
+		List<String> displayTexts = new ArrayList<>(serials.size());
+		for (long serial : serials) {
+			displayTexts.add(NodeAliasServerSupport.resolveDisplayText(level, nodeType, serial));
+		}
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
+	}
+
+	private static void writeDisplayTexts(CompoundTag tag, String key, List<String> displayTexts) {
+		if (tag == null || key == null || key.isBlank()) {
+			return;
+		}
+		if (displayTexts == null || displayTexts.isEmpty()) {
+			tag.remove(key);
+			return;
+		}
+		ListTag listTag = new ListTag();
+		for (String displayText : displayTexts) {
+			String normalizedText = NodeAliasDisplayUtil.normalizeAlias(displayText);
+			if (!normalizedText.isEmpty()) {
+				listTag.add(StringTag.valueOf(normalizedText));
+			}
+		}
+		if (listTag.isEmpty()) {
+			tag.remove(key);
+			return;
+		}
+		tag.put(key, listTag);
+	}
+
+	private static List<String> readDisplayTexts(CompoundTag tag, String key, List<Long> serials) {
+		if (serials == null || serials.isEmpty()) {
+			return List.of();
+		}
+		if (tag == null || key == null || key.isBlank() || !tag.contains(key, Tag.TAG_LIST)) {
+			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
+		}
+		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
+		List<String> displayTexts = new ArrayList<>(listTag.size());
+		for (int index = 0; index < listTag.size(); index++) {
+			displayTexts.add(listTag.getString(index));
+		}
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}
 }

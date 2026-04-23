@@ -109,7 +109,11 @@ public class LinkFilterBlockItem extends BlockItem {
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.link_filter.target_value",
-				LinkFilterItemData.buildTooltipTargetText(snapshot, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
+				LinkFilterItemData.buildTooltipTargetText(
+					snapshot,
+					LinkFilterItemData.getNodeSetDisplayTexts(stack),
+					TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
+				)
 			)
 		);
 		tooltipComponents.add(

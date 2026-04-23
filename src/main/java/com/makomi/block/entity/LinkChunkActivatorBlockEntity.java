@@ -6,11 +6,17 @@ import com.makomi.data.ChunkActivatorImmediateEffectService;
 import com.makomi.data.ChunkActivatorMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.PlacedChunkActivatorSavedData;
+import com.makomi.util.SerialParseUtil;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -38,10 +44,14 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	private static final String KEY_ACTIVE = "active";
 	private static final String KEY_LEGACY_SERIAL_EXPRESSION = "serialExpression";
 	private static final String KEY_LEGACY_MODE = "mode";
+	private static final String KEY_TRIGGER_SOURCE_NODE_SET_DISPLAY_TEXTS = "triggerSourceNodeSetDisplayTexts";
+	private static final String KEY_CORE_NODE_SET_DISPLAY_TEXTS = "coreNodeSetDisplayTexts";
 
 	private LinkNodeType activeType = LinkNodeType.TRIGGER_SOURCE;
 	private ChunkActivatorConfigSnapshot triggerSourceConfig = new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD);
 	private ChunkActivatorConfigSnapshot coreConfig = new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD);
+	private List<String> triggerSourceNodeSetDisplayTexts = List.of();
+	private List<String> coreNodeSetDisplayTexts = List.of();
 	private String displayAlias = "";
 	private boolean active;
 	private final ChunkActivatorLifecycleState lifecycleState = new ChunkActivatorLifecycleState();
@@ -136,6 +146,22 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	}
 
 	/**
+	 * @return 当前生效节点集的客户端展示文本快照
+	 */
+	public final List<String> activeNodeSetDisplayTexts() {
+		return nodeSetDisplayTextsFor(activeType);
+	}
+
+	/**
+	 * 按节点类型读取客户端展示文本快照。
+	 */
+	public final List<String> nodeSetDisplayTextsFor(LinkNodeType type) {
+		return ChunkActivatorConfigStateSnapshot.normalizeType(type) == LinkNodeType.CORE
+			? coreNodeSetDisplayTexts
+			: triggerSourceNodeSetDisplayTexts;
+	}
+
+	/**
 	 * @return 采样到的邻居最大输入强度
 	 */
 	public final int sampleNeighborSignalStrength() {
@@ -180,6 +206,16 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 			? NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS))
 			: "";
 		active = tag.getBoolean(KEY_ACTIVE);
+		triggerSourceNodeSetDisplayTexts = readDisplayTexts(
+			tag,
+			KEY_TRIGGER_SOURCE_NODE_SET_DISPLAY_TEXTS,
+			parseOrderedSerials(triggerSourceConfig.serialExpression())
+		);
+		coreNodeSetDisplayTexts = readDisplayTexts(
+			tag,
+			KEY_CORE_NODE_SET_DISPLAY_TEXTS,
+			parseOrderedSerials(coreConfig.serialExpression())
+		);
 	}
 
 	@Override
@@ -222,7 +258,21 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 
 	@Override
 	public CompoundTag getUpdateTag(HolderLookup.Provider provider) {
-		return saveWithoutMetadata(provider);
+		CompoundTag tag = saveWithoutMetadata(provider);
+		writeDisplayTexts(
+			tag,
+			KEY_TRIGGER_SOURCE_NODE_SET_DISPLAY_TEXTS,
+			resolveNodeSetDisplayTextsForSync(LinkNodeType.TRIGGER_SOURCE)
+		);
+		writeDisplayTexts(tag, KEY_CORE_NODE_SET_DISPLAY_TEXTS, resolveNodeSetDisplayTextsForSync(LinkNodeType.CORE));
+		return tag;
+	}
+
+	/**
+	 * 强制刷新客户端外显同步包。
+	 */
+	public final void forceSyncToClient() {
+		syncToClient();
 	}
 
 	/**
@@ -268,5 +318,69 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 			return;
 		}
 		PlacedChunkActivatorSavedData.get(serverLevel).remove(serverLevel.dimension(), worldPosition);
+	}
+
+	private List<String> resolveNodeSetDisplayTextsForSync(LinkNodeType type) {
+		LinkNodeType normalizedType = ChunkActivatorConfigStateSnapshot.normalizeType(type);
+		List<Long> orderedSerials = parseOrderedSerials(configFor(normalizedType).serialExpression());
+		if (orderedSerials.isEmpty()) {
+			return List.of();
+		}
+		if (!(level instanceof ServerLevel serverLevel)) {
+			return NodeAliasDisplayUtil.normalizeDisplayTexts(orderedSerials, nodeSetDisplayTextsFor(normalizedType));
+		}
+		List<String> displayTexts = new ArrayList<>(orderedSerials.size());
+		for (long serial : orderedSerials) {
+			displayTexts.add(NodeAliasServerSupport.resolveDisplayText(serverLevel, normalizedType, serial));
+		}
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(orderedSerials, displayTexts);
+	}
+
+	private static List<Long> parseOrderedSerials(String rawExpression) {
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(
+			rawExpression,
+			PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE
+		);
+		if (parseResult.orderedTargets().isEmpty()) {
+			return List.of();
+		}
+		return List.copyOf(parseResult.orderedTargets());
+	}
+
+	private static void writeDisplayTexts(CompoundTag tag, String key, List<String> displayTexts) {
+		if (tag == null || key == null || key.isBlank()) {
+			return;
+		}
+		if (displayTexts == null || displayTexts.isEmpty()) {
+			tag.remove(key);
+			return;
+		}
+		ListTag listTag = new ListTag();
+		for (String displayText : displayTexts) {
+			String normalizedText = NodeAliasDisplayUtil.normalizeAlias(displayText);
+			if (!normalizedText.isEmpty()) {
+				listTag.add(StringTag.valueOf(normalizedText));
+			}
+		}
+		if (listTag.isEmpty()) {
+			tag.remove(key);
+			return;
+		}
+		tag.put(key, listTag);
+	}
+
+	private static List<String> readDisplayTexts(CompoundTag tag, String key, List<Long> serials) {
+		if (serials == null || serials.isEmpty()) {
+			return List.of();
+		}
+		if (tag == null || key == null || key.isBlank() || !tag.contains(key, Tag.TAG_LIST)) {
+			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
+		}
+		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
+		List<String> displayTexts = new ArrayList<>(listTag.size());
+		for (int index = 0; index < listTag.size(); index++) {
+			displayTexts.add(listTag.getString(index));
+		}
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}
 }

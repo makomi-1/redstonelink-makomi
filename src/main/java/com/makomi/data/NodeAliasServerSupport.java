@@ -1,6 +1,11 @@
 package com.makomi.data;
 
+import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.item.ChunkActivatorBlockItem;
+import com.makomi.item.LinkFilterBlockItem;
+import com.makomi.util.SerialParseUtil;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.server.MinecraftServer;
@@ -41,6 +46,7 @@ public final class NodeAliasServerSupport {
 			return;
 		}
 		syncOnlineNodeBlockEntity(level, type, serial);
+		syncOnlineConfiguredNodeSetBlockEntities(level, type, serial);
 		syncOnlinePlayerItemAliases(level.getServer(), type, serial);
 	}
 
@@ -83,6 +89,50 @@ public final class NodeAliasServerSupport {
 		}
 	}
 
+	/**
+	 * 刷新当前已加载的过滤器与区块激活器节点集别名外显。
+	 */
+	private static void syncOnlineConfiguredNodeSetBlockEntities(ServerLevel level, LinkNodeType type, long serial) {
+		if (level == null || type == null || serial <= 0L || level.getServer() == null) {
+			return;
+		}
+		syncOnlineFilterNodeSetDisplays(level, type, serial);
+		syncOnlineChunkActivatorNodeSetDisplays(level, type, serial);
+	}
+
+	private static void syncOnlineFilterNodeSetDisplays(ServerLevel level, LinkNodeType type, long serial) {
+		for (PlacedLinkFilterSavedData.FilterEntry entry : PlacedLinkFilterSavedData.get(level).entriesSnapshot()) {
+			if (entry == null || entry.filterKind().servicedNodeType() != type || !entry.serials().contains(serial)) {
+				continue;
+			}
+			ServerLevel entryLevel = level.getServer().getLevel(entry.dimension());
+			if (entryLevel == null || !entryLevel.isLoaded(entry.filterPos())) {
+				continue;
+			}
+			if (!(entryLevel.getBlockEntity(entry.filterPos()) instanceof AbstractLinkFilterBlockEntity filterBlockEntity)) {
+				continue;
+			}
+			if (filterBlockEntity.filterKind() == entry.filterKind()) {
+				filterBlockEntity.forceSyncToClient();
+			}
+		}
+	}
+
+	private static void syncOnlineChunkActivatorNodeSetDisplays(ServerLevel level, LinkNodeType type, long serial) {
+		for (PlacedChunkActivatorSavedData.ActivatorEntry entry : PlacedChunkActivatorSavedData.get(level).entriesSnapshot()) {
+			if (entry == null || !entry.serialsFor(type).contains(serial)) {
+				continue;
+			}
+			ServerLevel entryLevel = level.getServer().getLevel(entry.dimension());
+			if (entryLevel == null || !entryLevel.isLoaded(entry.activatorPos())) {
+				continue;
+			}
+			if (entryLevel.getBlockEntity(entry.activatorPos()) instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
+				chunkActivatorBlockEntity.forceSyncToClient();
+			}
+		}
+	}
+
 	private static boolean syncPlayerInventoryAliases(ServerPlayer player, LinkNodeType type, long serial) {
 		if (player == null || type == null || serial <= 0L) {
 			return false;
@@ -109,21 +159,64 @@ public final class NodeAliasServerSupport {
 	}
 
 	private static boolean syncItemAliasOrLinkedDisplayText(ServerPlayer player, ItemStack stack, LinkNodeType type, long serial) {
-		if (player == null || stack == null || stack.isEmpty() || LinkItemData.getSerialCount(stack) != 1) {
+		if (player == null || stack == null || stack.isEmpty()) {
 			return false;
 		}
 		boolean changed = false;
-		if (matchesNodeItem(stack, type, serial)) {
-			String beforeAlias = LinkItemData.getDisplayAlias(stack);
-			LinkItemData.syncDisplayAliasIfSingle(stack, player.serverLevel());
-			changed |= !beforeAlias.equals(LinkItemData.getDisplayAlias(stack));
+		if (LinkItemData.getSerialCount(stack) == 1) {
+			if (matchesNodeItem(stack, type, serial)) {
+				String beforeAlias = LinkItemData.getDisplayAlias(stack);
+				LinkItemData.syncDisplayAliasIfSingle(stack, player.serverLevel());
+				changed |= !beforeAlias.equals(LinkItemData.getDisplayAlias(stack));
+			}
+			if (linksToAliasedNode(stack, type, serial)) {
+				List<String> beforeDisplayTexts = LinkItemData.getLinkedDisplayTexts(stack);
+				LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, player.serverLevel());
+				changed |= !beforeDisplayTexts.equals(LinkItemData.getLinkedDisplayTexts(stack));
+			}
 		}
-		if (linksToAliasedNode(stack, type, serial)) {
-			List<String> beforeDisplayTexts = LinkItemData.getLinkedDisplayTexts(stack);
-			LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, player.serverLevel());
-			changed |= !beforeDisplayTexts.equals(LinkItemData.getLinkedDisplayTexts(stack));
-		}
+		changed |= syncFilterItemNodeSetDisplayTexts(player, stack, type, serial);
+		changed |= syncChunkActivatorItemNodeSetDisplayTexts(player, stack, type, serial);
 		return changed;
+	}
+
+	/**
+	 * 别名变更后，刷新过滤器物品缓存的节点集展示文本。
+	 */
+	private static boolean syncFilterItemNodeSetDisplayTexts(ServerPlayer player, ItemStack stack, LinkNodeType type, long serial) {
+		if (
+			player == null ||
+			stack == null ||
+			stack.isEmpty() ||
+			!(stack.getItem() instanceof LinkFilterBlockItem filterBlockItem) ||
+			filterBlockItem.filterKind().servicedNodeType() != type
+		) {
+			return false;
+		}
+		LinkFilterConfigSnapshot snapshot = LinkFilterItemData.read(stack);
+		if (!snapshot.usesSerialTarget() || !parseOrderedSerials(snapshot.serialExpression()).contains(serial)) {
+			return false;
+		}
+		List<String> beforeDisplayTexts = LinkFilterItemData.getNodeSetDisplayTexts(stack);
+		LinkFilterItemData.syncNodeSetDisplayTexts(stack, player.serverLevel(), type);
+		return !beforeDisplayTexts.equals(LinkFilterItemData.getNodeSetDisplayTexts(stack));
+	}
+
+	/**
+	 * 别名变更后，刷新区块激活器物品缓存的节点集展示文本。
+	 */
+	private static boolean syncChunkActivatorItemNodeSetDisplayTexts(ServerPlayer player, ItemStack stack, LinkNodeType type, long serial) {
+		if (player == null || stack == null || stack.isEmpty() || !(stack.getItem() instanceof ChunkActivatorBlockItem)) {
+			return false;
+		}
+		LinkNodeType normalizedType = ChunkActivatorConfigStateSnapshot.normalizeType(type);
+		ChunkActivatorConfigStateSnapshot snapshot = ChunkActivatorItemData.read(stack);
+		if (!parseOrderedSerials(snapshot.configFor(normalizedType).serialExpression()).contains(serial)) {
+			return false;
+		}
+		List<String> beforeDisplayTexts = ChunkActivatorItemData.getNodeSetDisplayTexts(stack, normalizedType);
+		ChunkActivatorItemData.syncNodeSetDisplayTexts(stack, player.serverLevel());
+		return !beforeDisplayTexts.equals(ChunkActivatorItemData.getNodeSetDisplayTexts(stack, normalizedType));
 	}
 
 	private static boolean matchesNodeItem(ItemStack stack, LinkNodeType type, long serial) {
@@ -145,5 +238,12 @@ public final class NodeAliasServerSupport {
 			return false;
 		}
 		return LinkItemData.getLinkedSerials(stack).contains(serial);
+	}
+
+	/**
+	 * 解析有序序号列表，仅用于缓存命中判断。
+	 */
+	private static List<Long> parseOrderedSerials(String serialExpression) {
+		return SerialParseUtil.parseTargetsOrdered(serialExpression, 0).orderedTargets();
 	}
 }

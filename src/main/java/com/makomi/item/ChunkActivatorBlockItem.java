@@ -89,7 +89,11 @@ public class ChunkActivatorBlockItem extends BlockItem {
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.chunk_activator.serial_expression",
-				ChunkActivatorItemData.buildTooltipSerialExpressionText(activeConfig, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
+				ChunkActivatorItemData.buildTooltipSerialExpressionText(
+					activeConfig,
+					ChunkActivatorItemData.getActiveNodeSetDisplayTexts(stack),
+					TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
+				)
 			)
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.chunk_activator.open_editor"));

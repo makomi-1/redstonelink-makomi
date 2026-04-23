@@ -2,6 +2,7 @@ package com.makomi.data;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.List;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
@@ -97,10 +98,10 @@ class LinkFilterItemDataTest {
 	}
 
 	/**
-	 * tooltip 节点集文本应转为结构化表达式并按上限截断。
+	 * tooltip 节点集文本在无别名缓存时应回退为 `#序号` 列表，并按上限截断。
 	 */
 	@Test
-	void tooltipSerialExpressionShouldBeStructuredAndTruncated() {
+	void tooltipSerialExpressionShouldFallbackToSerialTokensAndTruncate() {
 		LinkFilterConfigSnapshot snapshot = new LinkFilterConfigSnapshot(
 			"1/2/3/4/5/6/7/8/9/10",
 			LinkFilterNodeSetMode.WHITELIST,
@@ -109,8 +110,8 @@ class LinkFilterItemDataTest {
 			LinkFilterSignalMode.DISABLED
 		);
 
-		assertEquals("1:10", LinkFilterItemData.buildTooltipSerialExpressionText(snapshot, 48));
-		assertEquals("1:10", LinkFilterItemData.buildTooltipSerialExpressionText(snapshot, 6));
+		assertEquals("#1/#2/#3/#4/#5/#6/#7/#8/#9/#10", LinkFilterItemData.buildTooltipSerialExpressionText(snapshot, 48));
+		assertEquals("#1(+9)", LinkFilterItemData.buildTooltipSerialExpressionText(snapshot, 6));
 	}
 
 	/**
@@ -129,5 +130,45 @@ class LinkFilterItemDataTest {
 		);
 
 		assertEquals("77", LinkFilterItemData.buildTooltipTargetText(snapshot, 48));
+	}
+
+	/**
+	 * 节点集展示文本缓存应支持独立读写，并供 tooltip 优先使用别名文本。
+	 */
+	@Test
+	void nodeSetDisplayTextsShouldRoundTripAndFeedTooltip() {
+		ItemStack stack = new ItemStack(Items.STONE);
+		LinkFilterConfigSnapshot snapshot = new LinkFilterConfigSnapshot(
+			"3/7",
+			LinkFilterNodeSetMode.WHITELIST,
+			LinkFilterSignalThresholdSource.FIXED_INPUT,
+			15,
+			LinkFilterSignalMode.DISABLED
+		);
+
+		LinkFilterItemData.write(stack, snapshot);
+		LinkFilterItemData.setNodeSetDisplayTexts(stack, snapshot, List.of("中控A(#3)", "#7"));
+
+		assertEquals(List.of("中控A(#3)", "#7"), LinkFilterItemData.getNodeSetDisplayTexts(stack));
+		assertEquals(
+			"中控A(#3)/#7",
+			LinkFilterItemData.buildTooltipTargetText(snapshot, LinkFilterItemData.getNodeSetDisplayTexts(stack), 64)
+		);
+	}
+
+	/**
+	 * 节点集展示文本缓存数量错位时，应回退到 `#序号`，避免 tooltip 错位显示。
+	 */
+	@Test
+	void tooltipTargetTextShouldFallbackToSerialTokensWhenDisplayTextsMismatch() {
+		LinkFilterConfigSnapshot snapshot = new LinkFilterConfigSnapshot(
+			"3/7",
+			LinkFilterNodeSetMode.WHITELIST,
+			LinkFilterSignalThresholdSource.FIXED_INPUT,
+			15,
+			LinkFilterSignalMode.DISABLED
+		);
+
+		assertEquals("#3/#7", LinkFilterItemData.buildTooltipTargetText(snapshot, List.of("中控A(#3)"), 64));
 	}
 }

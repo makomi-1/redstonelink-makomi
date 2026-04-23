@@ -113,4 +113,36 @@ class LinkSerialHudOverlayTextSupportTest {
 			)
 		);
 	}
+
+	/**
+	 * 过滤器/区块激活器节点集 HUD 应优先使用服务端同步的别名展示文本。
+	 */
+	@Test
+	void buildCurrentLinksTextShouldPreferSyncedDisplayTexts() {
+		assertEquals(
+			"中控A(#3)/#7",
+			LinkSerialHudOverlayTextSupport.buildCurrentLinksText(
+				java.util.List.of(3L, 7L),
+				java.util.List.of("中控A(#3)", "#7"),
+				64,
+				String::length
+			)
+		);
+	}
+
+	/**
+	 * 展示文本缺失或数量不匹配时仍应回退到 `#序号`，兼容旧同步状态。
+	 */
+	@Test
+	void buildCurrentLinksTextShouldFallbackToSerialsWhenDisplayTextsMissing() {
+		assertEquals(
+			"#3/#7",
+			LinkSerialHudOverlayTextSupport.buildCurrentLinksText(
+				java.util.List.of(3L, 7L),
+				java.util.List.of("中控A(#3)"),
+				64,
+				String::length
+			)
+		);
+	}
 }

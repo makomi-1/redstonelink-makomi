@@ -1,10 +1,16 @@
 package com.makomi.data;
 
-import com.makomi.util.SerialDisplayFormatUtil;
+import com.makomi.util.DisplayTextListFormatUtil;
 import com.makomi.util.SerialParseUtil;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
@@ -24,6 +30,7 @@ public final class LinkFilterItemData {
 	private static final String KEY_FIXED_SIGNAL_THRESHOLD = "rl_filter_fixed_signal_threshold";
 	private static final String KEY_SIGNAL_MODE = "rl_filter_signal_mode";
 	private static final String KEY_DISPLAY_ALIAS = "rl_filter_display_alias";
+	private static final String KEY_NODE_SET_DISPLAY_TEXTS = "rl_filter_node_set_display_texts";
 
 	private LinkFilterItemData() {
 	}
@@ -65,6 +72,7 @@ public final class LinkFilterItemData {
 			tag.putString(KEY_SIGNAL_THRESHOLD_SOURCE, normalized.signalThresholdSource().token());
 			tag.putInt(KEY_FIXED_SIGNAL_THRESHOLD, normalized.fixedSignalThreshold());
 			tag.putString(KEY_SIGNAL_MODE, normalized.signalMode().token());
+			tag.remove(KEY_NODE_SET_DISPLAY_TEXTS);
 		});
 	}
 
@@ -94,27 +102,92 @@ public final class LinkFilterItemData {
 	}
 
 	/**
+	 * 读取过滤器物品缓存的节点集展示文本。
+	 */
+	public static List<String> getNodeSetDisplayTexts(ItemStack stack) {
+		LinkFilterConfigSnapshot snapshot = read(stack);
+		if (!snapshot.usesSerialTarget()) {
+			return List.of();
+		}
+		List<Long> orderedSerials = parseOrderedSerials(snapshot.serialExpression());
+		if (orderedSerials.isEmpty()) {
+			return List.of();
+		}
+		return readDisplayTexts(readTag(stack), KEY_NODE_SET_DISPLAY_TEXTS, orderedSerials);
+	}
+
+	/**
+	 * 覆盖写入过滤器物品的节点集展示文本缓存。
+	 */
+	public static void setNodeSetDisplayTexts(
+		ItemStack stack,
+		LinkFilterConfigSnapshot snapshot,
+		Collection<String> displayTexts
+	) {
+		LinkFilterConfigSnapshot normalized = snapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : snapshot;
+		List<Long> orderedSerials = normalized.usesSerialTarget() ? parseOrderedSerials(normalized.serialExpression()) : List.of();
+		List<String> normalizedDisplayTexts = NodeAliasDisplayUtil.normalizeDisplayTexts(orderedSerials, displayTexts);
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> writeDisplayTexts(tag, KEY_NODE_SET_DISPLAY_TEXTS, normalizedDisplayTexts));
+	}
+
+	/**
+	 * 按服务端别名真值刷新过滤器物品节点集展示文本缓存。
+	 */
+	public static void syncNodeSetDisplayTexts(ItemStack stack, ServerLevel level, LinkNodeType nodeType) {
+		LinkFilterConfigSnapshot snapshot = read(stack);
+		if (level == null || nodeType == null || !snapshot.usesSerialTarget()) {
+			setNodeSetDisplayTexts(stack, snapshot, List.of());
+			return;
+		}
+		List<Long> orderedSerials = parseOrderedSerials(snapshot.serialExpression());
+		List<String> displayTexts = resolveDisplayTexts(level, nodeType, orderedSerials);
+		setNodeSetDisplayTexts(stack, snapshot, displayTexts);
+	}
+
+	/**
 	 * 为 tooltip 构建节点集结构化文本，保持 `N / A:B` 风格。
 	 */
 	public static String buildTooltipSerialExpressionText(LinkFilterConfigSnapshot snapshot, int maxChars) {
+		return buildTooltipSerialExpressionText(snapshot, List.of(), maxChars);
+	}
+
+	/**
+	 * 为 tooltip 构建节点集展示文本，优先使用别名展示文本。
+	 */
+	public static String buildTooltipSerialExpressionText(
+		LinkFilterConfigSnapshot snapshot,
+		Collection<String> displayTexts,
+		int maxChars
+	) {
 		LinkFilterConfigSnapshot normalized = snapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : snapshot;
 		String serialExpression = normalized.serialExpression().trim();
 		if (serialExpression.isEmpty()) {
 			return "-";
 		}
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(serialExpression, 0);
-		return SerialDisplayFormatUtil.buildText(parseResult.orderedTargets(), maxChars);
+		List<Long> orderedSerials = parseOrderedSerials(serialExpression);
+		return DisplayTextListFormatUtil.buildText(NodeAliasDisplayUtil.normalizeDisplayTexts(orderedSerials, displayTexts), maxChars);
 	}
 
 	/**
 	 * 为 tooltip 构建过滤目标文本；序号模式使用结构化序号组，频道模式输出频道号。
 	 */
 	public static String buildTooltipTargetText(LinkFilterConfigSnapshot snapshot, int maxChars) {
+		return buildTooltipTargetText(snapshot, List.of(), maxChars);
+	}
+
+	/**
+	 * 为 tooltip 构建过滤目标文本；序号模式优先显示别名展示文本。
+	 */
+	public static String buildTooltipTargetText(
+		LinkFilterConfigSnapshot snapshot,
+		Collection<String> displayTexts,
+		int maxChars
+	) {
 		LinkFilterConfigSnapshot normalized = snapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : snapshot;
 		if (normalized.usesChannelTarget()) {
 			return normalized.channel() > 0L ? Long.toString(normalized.channel()) : "-";
 		}
-		return buildTooltipSerialExpressionText(normalized, maxChars);
+		return buildTooltipSerialExpressionText(normalized, displayTexts, maxChars);
 	}
 
 	/**
@@ -134,5 +207,61 @@ public final class LinkFilterItemData {
 			return;
 		}
 		tag.putString(key, value);
+	}
+
+	private static List<Long> parseOrderedSerials(String serialExpression) {
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(serialExpression, 0);
+		if (parseResult.orderedTargets().isEmpty()) {
+			return List.of();
+		}
+		return List.copyOf(parseResult.orderedTargets());
+	}
+
+	private static List<String> resolveDisplayTexts(ServerLevel level, LinkNodeType nodeType, List<Long> serials) {
+		if (level == null || nodeType == null || serials == null || serials.isEmpty()) {
+			return List.of();
+		}
+		List<String> displayTexts = new ArrayList<>(serials.size());
+		for (long serial : serials) {
+			displayTexts.add(NodeAliasServerSupport.resolveDisplayText(level, nodeType, serial));
+		}
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
+	}
+
+	private static void writeDisplayTexts(CompoundTag tag, String key, List<String> displayTexts) {
+		if (tag == null || key == null || key.isBlank()) {
+			return;
+		}
+		if (displayTexts == null || displayTexts.isEmpty()) {
+			tag.remove(key);
+			return;
+		}
+		ListTag listTag = new ListTag();
+		for (String displayText : displayTexts) {
+			String normalizedText = NodeAliasDisplayUtil.normalizeAlias(displayText);
+			if (!normalizedText.isEmpty()) {
+				listTag.add(StringTag.valueOf(normalizedText));
+			}
+		}
+		if (listTag.isEmpty()) {
+			tag.remove(key);
+			return;
+		}
+		tag.put(key, listTag);
+	}
+
+	private static List<String> readDisplayTexts(CompoundTag tag, String key, List<Long> serials) {
+		if (serials == null || serials.isEmpty()) {
+			return List.of();
+		}
+		if (tag == null || key == null || key.isBlank() || !tag.contains(key, Tag.TAG_LIST)) {
+			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
+		}
+		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
+		List<String> displayTexts = new ArrayList<>(listTag.size());
+		for (int index = 0; index < listTag.size(); index++) {
+			displayTexts.add(listTag.getString(index));
+		}
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}
 }

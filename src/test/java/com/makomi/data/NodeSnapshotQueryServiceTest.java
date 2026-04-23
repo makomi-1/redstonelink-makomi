@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkCrossChunkConfig;
 import com.makomi.config.RedstoneLinkCrossChunkRetryConfig;
+import java.lang.reflect.Method;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,43 @@ class NodeSnapshotQueryServiceTest {
 		assertEquals(1L, snapshot.graphRevision());
 		assertEquals(0L, snapshot.sourceRevision());
 		assertEquals(1L, snapshot.coreRevision());
+	}
+
+	/**
+	 * 补充 revision 时应保留已解析的目标展示文本，避免 GUI/HUD 当前连接退回裸 `#序号`。
+	 */
+	@Test
+	void withRevisionsShouldPreserveVisibleTargetDisplayTexts() throws Exception {
+		LinkSavedData savedData = new LinkSavedData();
+		savedData.toggleTriggerSourceCoreLink(12L, 3L);
+		NodeIdentitySnapshot identity = new NodeIdentitySnapshot(
+			LinkNodeType.TRIGGER_SOURCE,
+			12L,
+			true,
+			false,
+			true,
+			null,
+			null
+		);
+		NodeLinksSnapshot sourceSnapshot = new NodeLinksSnapshot(
+			identity,
+			List.of(3L, 7L),
+			List.of("中控A(#3)", "中控B(#7)"),
+			false
+		);
+
+		NodeLinksSnapshot revisedSnapshot = invokeWithRevisions(
+			sourceSnapshot,
+			savedData,
+			LinkNodeType.TRIGGER_SOURCE,
+			12L
+		);
+
+		assertEquals(List.of(3L, 7L), revisedSnapshot.visibleTargets());
+		assertEquals(List.of("中控A(#3)", "中控B(#7)"), revisedSnapshot.visibleTargetDisplayTexts());
+		assertEquals(1L, revisedSnapshot.graphRevision());
+		assertEquals(1L, revisedSnapshot.sourceRevision());
+		assertEquals(0L, revisedSnapshot.coreRevision());
 	}
 
 	/**
@@ -317,5 +355,22 @@ class NodeSnapshotQueryServiceTest {
 			mergedPresetTargets,
 			new RedstoneLinkCrossChunkRetryConfig(200, 1000, 2000, 99, 1, 499, 5, 999, 20, 100)
 		);
+	}
+
+	private static NodeLinksSnapshot invokeWithRevisions(
+		NodeLinksSnapshot snapshot,
+		LinkSavedData savedData,
+		LinkNodeType nodeType,
+		long serial
+	) throws Exception {
+		Method method = NodeSnapshotQueryService.class.getDeclaredMethod(
+			"withRevisions",
+			NodeLinksSnapshot.class,
+			LinkSavedData.class,
+			LinkNodeType.class,
+			long.class
+		);
+		method.setAccessible(true);
+		return (NodeLinksSnapshot) method.invoke(null, snapshot, savedData, nodeType, serial);
 	}
 }

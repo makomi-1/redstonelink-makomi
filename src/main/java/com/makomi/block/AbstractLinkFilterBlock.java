@@ -87,6 +87,9 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 			if (drop.is(asItem())) {
 				LinkFilterItemData.write(drop, filterBlockEntity.snapshot());
 				LinkFilterItemData.setDisplayAlias(drop, filterBlockEntity.displayAlias());
+				if (filterBlockEntity.getLevel() instanceof ServerLevel serverLevel) {
+					LinkFilterItemData.syncNodeSetDisplayTexts(drop, serverLevel, filterBlockEntity.filterKind().servicedNodeType());
+				}
 			}
 		}
 		return drops;

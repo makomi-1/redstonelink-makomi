@@ -20,6 +20,7 @@ import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.ToIntFunction;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
@@ -186,7 +187,7 @@ final class LinkSerialHudOverlayTextSupport {
 				KEY_NEAR_OVERLAY_FILTER_SERVICE_LINE,
 				LinkNodeSemantics.toSemanticName(filterBlockEntity.filterKind().servicedNodeType())
 			),
-			translate(resolveFilterTargetLineTranslationKey(snapshot), resolveFilterTargetText(font, snapshot)),
+			translate(resolveFilterTargetLineTranslationKey(snapshot), resolveFilterTargetText(font, snapshot, filterBlockEntity.nodeSetDisplayTexts())),
 			translate(
 				KEY_NEAR_OVERLAY_FILTER_MODE_LINE,
 				resolveFilterNodeSetModeText(snapshot.nodeSetMode()),
@@ -225,7 +226,10 @@ final class LinkSerialHudOverlayTextSupport {
 				LinkNodeSemantics.toSemanticName(chunkActivatorBlockEntity.activeType())
 			),
 			translate(KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_MODE_LINE, resolveChunkActivatorModeText(activeConfig.mode())),
-			translate(KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_NODE_SET_LINE, buildCurrentLinksText(font, orderedSerials))
+			translate(
+				KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_NODE_SET_LINE,
+				buildCurrentLinksText(font, orderedSerials, chunkActivatorBlockEntity.activeNodeSetDisplayTexts())
+			)
 		);
 	}
 
@@ -303,13 +307,13 @@ final class LinkSerialHudOverlayTextSupport {
 	/**
 	 * 解析过滤器当前目标文本；序号模式显示结构化序号组，频道模式显示频道值。
 	 */
-	private static String resolveFilterTargetText(Font font, LinkFilterConfigSnapshot snapshot) {
+	private static String resolveFilterTargetText(Font font, LinkFilterConfigSnapshot snapshot, List<String> nodeSetDisplayTexts) {
 		LinkFilterConfigSnapshot normalized = snapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : snapshot;
 		if (normalized.targetMode() == LinkFilterTargetMode.CHANNEL) {
 			return resolveChannelValueText(normalized.channel());
 		}
 		List<Long> orderedSerials = SerialParseUtil.parseTargetsOrdered(normalized.serialExpression(), 0).orderedTargets();
-		return buildCurrentLinksText(font, orderedSerials);
+		return buildCurrentLinksText(font, orderedSerials, nodeSetDisplayTexts);
 	}
 
 	/**
@@ -439,20 +443,48 @@ final class LinkSerialHudOverlayTextSupport {
 	 * 构建第四行“当前连接”文本，复用 GUI 的结构化展示规则（N / A:B + / + (+n)）。
 	 */
 	private static String buildCurrentLinksDisplayText(Font font, List<String> linkedTargetDisplayTexts) {
+		return buildCurrentLinksDisplayText(linkedTargetDisplayTexts, LINKS_LINE_MAX_WIDTH, font::width);
+	}
+
+	private static String buildCurrentLinksDisplayText(
+		List<String> linkedTargetDisplayTexts,
+		int maxWidth,
+		ToIntFunction<String> measure
+	) {
 		if (linkedTargetDisplayTexts == null || linkedTargetDisplayTexts.isEmpty()) {
 			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
 		}
-		return com.makomi.util.DisplayTextListFormatUtil.buildText(linkedTargetDisplayTexts, LINKS_LINE_MAX_WIDTH, font::width);
+		return com.makomi.util.DisplayTextListFormatUtil.buildText(linkedTargetDisplayTexts, maxWidth, measure);
 	}
 
 	/**
 	 * 构建节点集文本，未携带别名快照时按序号展示。
 	 */
 	private static String buildCurrentLinksText(Font font, List<Long> linkedTargets) {
+		return buildCurrentLinksText(font, linkedTargets, List.of());
+	}
+
+	/**
+	 * 构建节点集文本，优先使用服务端同步的别名展示文本，缺失时按序号展示。
+	 */
+	static String buildCurrentLinksText(Font font, List<Long> linkedTargets, List<String> linkedTargetDisplayTexts) {
+		return buildCurrentLinksText(linkedTargets, linkedTargetDisplayTexts, LINKS_LINE_MAX_WIDTH, font::width);
+	}
+
+	static String buildCurrentLinksText(
+		List<Long> linkedTargets,
+		List<String> linkedTargetDisplayTexts,
+		int maxWidth,
+		ToIntFunction<String> measure
+	) {
 		if (linkedTargets == null || linkedTargets.isEmpty()) {
 			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
 		}
-		return buildCurrentLinksDisplayText(font, NodeAliasDisplayUtil.normalizeDisplayTexts(linkedTargets, List.of()));
+		return buildCurrentLinksDisplayText(
+			NodeAliasDisplayUtil.normalizeDisplayTexts(linkedTargets, linkedTargetDisplayTexts),
+			maxWidth,
+			measure
+		);
 	}
 
 	/**
