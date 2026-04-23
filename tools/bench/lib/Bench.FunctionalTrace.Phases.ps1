@@ -645,20 +645,16 @@ function Invoke-FunctionalOccChannelPartitionPhase {
 	$executedCommandCount = 0
 	$firstChannel = $null
 	$lastChannel = $null
-	$commandBatchCount = 0
-	for ($index = 0; $index -lt $serials.Count; $index++) {
-		$serial = [long]$serials[$index]
-		$channel = [long]($channelBase + [Math]::Floor($index / [double]$partitionSize))
-		if ($null -eq $firstChannel) {
-			$firstChannel = $channel
-		}
-		$lastChannel = $channel
+	if ($serials.Count -gt 0) {
+		$firstChannel = $channelBase
+		$lastChannel = [long]($channelBase + [Math]::Floor((($serials.Count - 1) / [double]$partitionSize)))
 		$commandText = (
-			"redstonelink bench occ pairing submit {0} {1} {2} channel {3} {4}={5}" -f
+			"redstonelink bench occ pairing submit {0} batch {1} {2} channel_partition {3} {4} {5}={6}" -f
 			$typeToken,
-			$serial,
+			$serialText,
 			$peerTypeToken,
-			$channel,
+			$partitionSize,
+			$channelBase,
 			$expectedRevisionKey,
 			$expectedRevision
 		)
@@ -670,14 +666,9 @@ function Invoke-FunctionalOccChannelPartitionPhase {
 		Assert-BenchCommandResponse `
 			-Command $command `
 			-ResponseText ([string]$response) `
-			-ExpectedPrefix "[RedstoneLink/Bench] occ_pairing_submit outcome=applied" `
-			-ExpectedRegex ("type={0}\s+serial={1}\b" -f $typeToken, $serial)
-		$executedCommandCount++
-		$commandBatchCount++
-		if ($batchPauseMs -gt 0 -and $commandBatchCount -ge $chunkSize -and $index -lt ($serials.Count - 1)) {
-			Start-Sleep -Milliseconds $batchPauseMs
-			$commandBatchCount = 0
-		}
+			-ExpectedPrefix "[RedstoneLink/Bench] occ_channel_partition_submit outcome=applied" `
+			-ExpectedRegex ("type={0}\s+requestedCount={1}\b" -f $typeToken, $serials.Count)
+		$executedCommandCount = 1
 	}
 
 	$channelCount = if ($serials.Count -le 0) {

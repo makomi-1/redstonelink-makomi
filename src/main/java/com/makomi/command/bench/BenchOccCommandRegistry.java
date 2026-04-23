@@ -1,21 +1,29 @@
 package com.makomi.command.bench;
 
+import com.makomi.command.CommandRateLimitService;
 import com.makomi.command.CommandTreeSupport;
 import com.makomi.command.argument.KeyValueTokenArgumentType;
 import com.makomi.command.argument.SerialBatchArgumentType;
+import com.makomi.command.link.LinkChannelEditingService;
 import com.makomi.command.link.LinkSetExecutionService;
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.LinkSavedDataChannelSupport.ChannelOverride;
 import com.makomi.data.QuickLinkOccSubmissionSupport;
 import com.makomi.data.QuickLinkOperationFeedback;
 import com.makomi.network.PairingOccSubmissionSupport;
+import com.makomi.util.SerialParseUtil;
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.commands.CommandSourceStack;
@@ -65,6 +73,23 @@ public final class BenchOccCommandRegistry {
 								Commands
 									.literal("triggerSource")
 									.then(
+										Commands.literal("batch").then(
+											Commands.argument("serials", SerialBatchArgumentType.serialBatch()).then(
+												Commands.literal("core").then(
+													Commands.literal("channel_partition").then(
+														Commands.argument("partition_size", IntegerArgumentType.integer(1)).then(
+															Commands.argument("channel_base", LongArgumentType.longArg(1L)).then(
+																Commands
+																	.argument("expected_source_revision_spec", KeyValueTokenArgumentType.keyValueToken())
+																	.executes(BenchOccCommandRegistry::executeTriggerSourceChannelPartitionSubmit)
+															)
+														)
+													)
+												)
+											)
+										)
+									)
+									.then(
 										Commands.argument("serial", LongArgumentType.longArg(1L)).then(
 											Commands
 												.literal("core")
@@ -90,6 +115,23 @@ public final class BenchOccCommandRegistry {
 							.then(
 								Commands
 									.literal("core")
+									.then(
+										Commands.literal("batch").then(
+											Commands.argument("serials", SerialBatchArgumentType.serialBatch()).then(
+												Commands.literal("triggerSource").then(
+													Commands.literal("channel_partition").then(
+														Commands.argument("partition_size", IntegerArgumentType.integer(1)).then(
+															Commands.argument("channel_base", LongArgumentType.longArg(1L)).then(
+																Commands
+																	.argument("expected_core_revision_spec", KeyValueTokenArgumentType.keyValueToken())
+																	.executes(BenchOccCommandRegistry::executeCoreChannelPartitionSubmit)
+															)
+														)
+													)
+												)
+											)
+										)
+									)
 									.then(
 										Commands.argument("serial", LongArgumentType.longArg(1L)).then(
 											Commands
@@ -268,6 +310,29 @@ public final class BenchOccCommandRegistry {
 	}
 
 	/**
+	 * 提交 `triggerSource` 视角的批量频道 partition 写入。
+	 */
+	private static int executeTriggerSourceChannelPartitionSubmit(CommandContext<CommandSourceStack> context) {
+		return executeChannelPartitionSubmit(
+			context,
+			LinkNodeType.TRIGGER_SOURCE,
+			"expectedSourceRevision"
+		);
+	}
+
+	/**
+	 * 提交 `core` 视角的批量频道 partition 写入。
+	 */
+	private static int executeCoreChannelPartitionSubmit(CommandContext<CommandSourceStack> context) {
+		return executeChannelPartitionSubmit(
+			context,
+			LinkNodeType.CORE,
+			"expectedCoreRevision",
+			"expectedGraphRevision"
+		);
+	}
+
+	/**
 	 * 提交 `core` 视角的 pairing OCC 覆盖写入。
 	 */
 	private static int executeCorePairingSubmit(CommandContext<CommandSourceStack> context) {
@@ -353,6 +418,180 @@ public final class BenchOccCommandRegistry {
 			resolveSubmissionOutcome(result.applied(), result.conflict())
 		);
 		return sendSubmissionSummary(source, result.applied(), result.conflict() != null, summary);
+	}
+
+	/**
+	 * 执行批量频道 partition 提交。
+	 */
+	private static int executeChannelPartitionSubmit(
+		CommandContext<CommandSourceStack> context,
+		LinkNodeType nodeType,
+		String expectedRevisionKey,
+		String... aliasKeys
+	) {
+		CommandSourceStack source = context.getSource();
+		ServerLevel level = source.getLevel();
+		ServerPlayer player = source.getPlayer();
+		String rawSerials = SerialBatchArgumentType.getSerialBatch(context, "serials");
+		List<Long> orderedSerials = parseOrderedUniqueSerialBatch(source, rawSerials);
+		if (orderedSerials.isEmpty()) {
+			return 0;
+		}
+
+		int partitionSize = IntegerArgumentType.getInteger(context, "partition_size");
+		long channelBase = LongArgumentType.getLong(context, "channel_base");
+		long expectedRevision = parseNamedLongSpec(
+			source,
+			StringArgumentType.getString(context, nodeType == LinkNodeType.TRIGGER_SOURCE
+				? "expected_source_revision_spec"
+				: "expected_core_revision_spec"),
+			expectedRevisionKey,
+			aliasKeys
+		);
+		if (expectedRevision < 0L) {
+			return 0;
+		}
+
+		ChannelPartitionBatchSubmissionResult result = submitChannelPartitionBatch(
+			source,
+			player,
+			level,
+			nodeType,
+			orderedSerials,
+			partitionSize,
+			channelBase,
+			expectedRevision
+		);
+		String summary = buildChannelPartitionSummary(
+			nodeType,
+			orderedSerials.size(),
+			partitionSize,
+			channelBase,
+			nodeType == LinkNodeType.CORE ? expectedRevision : 0L,
+			nodeType == LinkNodeType.TRIGGER_SOURCE ? expectedRevision : 0L,
+			result
+		);
+		return sendSubmissionSummary(source, result.applied(), result.conflict() != null, summary);
+	}
+
+	/**
+	 * 提交一批按 partition 递增频道的 bench OCC 写入。
+	 */
+	private static ChannelPartitionBatchSubmissionResult submitChannelPartitionBatch(
+		CommandSourceStack commandSource,
+		ServerPlayer player,
+		ServerLevel level,
+		LinkNodeType nodeType,
+		List<Long> orderedSerials,
+		int partitionSize,
+		long channelBase,
+		long expectedRevision
+	) {
+		if (
+			commandSource == null
+				|| level == null
+				|| nodeType == null
+				|| orderedSerials == null
+				|| orderedSerials.isEmpty()
+				|| partitionSize <= 0
+				|| channelBase <= 0L
+		) {
+			return ChannelPartitionBatchSubmissionResult.rejected("message.redstonelink.invalid_channel");
+		}
+
+		LinkSavedData savedData = LinkSavedData.get(level);
+		for (Long serial : orderedSerials) {
+			if (serial == null || serial <= 0L) {
+				return ChannelPartitionBatchSubmissionResult.rejected("message.redstonelink.invalid_channel");
+			}
+			LinkOccSupport.OccConflict conflict = nodeType == LinkNodeType.TRIGGER_SOURCE
+				? LinkOccSupport.resolveTriggerSourceConflict(savedData, serial, expectedRevision)
+				: LinkOccSupport.resolveCoreConflict(savedData, serial, expectedRevision);
+			if (conflict != null) {
+				return ChannelPartitionBatchSubmissionResult.conflict(conflict);
+			}
+		}
+
+		List<ChannelOverride> overrides = buildChannelPartitionOverrides(nodeType, orderedSerials, partitionSize, channelBase);
+		LinkChannelEditingService.BatchPreparationResult preparationResult = LinkChannelEditingService.prepareConfirmedBatchSetChannel(
+			level,
+			player,
+			overrides,
+			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+		);
+		if (!preparationResult.successful()) {
+			return ChannelPartitionBatchSubmissionResult.rejected(resolvePrimaryOperationFeedbackKey(preparationResult.feedbacks()));
+		}
+
+		LinkChannelEditingService.PreparedChannelBatchUpdate plan = preparationResult.plan();
+		if (!plan.hasChanges()) {
+			return ChannelPartitionBatchSubmissionResult.applied(
+				plan.changedChannelNodeCount(),
+				plan.changedTriggerSourceCount(),
+				0,
+				resolvePrimaryOperationFeedbackKey(preparationResult.feedbacks())
+			);
+		}
+		if (
+			plan.totalCommandCost() > 0 &&
+			!CommandRateLimitService.tryAcquire(commandSource, CommandRateLimitService.CommandGroup.LINK_RW, plan.totalCommandCost())
+		) {
+			return ChannelPartitionBatchSubmissionResult.rejected("message.redstonelink.command.rate_limit.exceeded");
+		}
+
+		LinkChannelEditingService.BatchApplyResult applyResult = LinkChannelEditingService.applyPreparedBatchSetChannel(plan);
+		return ChannelPartitionBatchSubmissionResult.applied(
+			applyResult.changedChannelNodeCount(),
+			plan.changedTriggerSourceCount(),
+			applyResult.appliedOperationCount(),
+			resolvePrimaryOperationFeedbackKey(preparationResult.feedbacks())
+		);
+	}
+
+	/**
+	 * 将 ordered serial 列表映射为批量频道覆盖。
+	 */
+	private static List<ChannelOverride> buildChannelPartitionOverrides(
+		LinkNodeType nodeType,
+		List<Long> orderedSerials,
+		int partitionSize,
+		long channelBase
+	) {
+		if (nodeType == null || orderedSerials == null || orderedSerials.isEmpty() || partitionSize <= 0 || channelBase <= 0L) {
+			return List.of();
+		}
+		List<ChannelOverride> overrides = new ArrayList<>(orderedSerials.size());
+		for (int index = 0; index < orderedSerials.size(); index++) {
+			Long serial = orderedSerials.get(index);
+			if (serial == null || serial <= 0L) {
+				continue;
+			}
+			long channel = channelBase + Math.floorDiv(index, partitionSize);
+			overrides.add(new ChannelOverride(nodeType, serial, channel));
+		}
+		return overrides.isEmpty() ? List.of() : List.copyOf(overrides);
+	}
+
+	/**
+	 * 解析 bench 使用的 ordered serial batch，并做顺序去重。
+	 */
+	private static List<Long> parseOrderedUniqueSerialBatch(CommandSourceStack source, String rawSerials) {
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(rawSerials, 0);
+		if (parseResult == null || parseResult.orderedTargets().isEmpty()) {
+			source.sendFailure(
+				Component.literal("[RedstoneLink/Bench] Invalid serial batch: empty resolved set, got " + rawSerials)
+			);
+			return List.of();
+		}
+		LinkedHashSet<Long> orderedDistinct = new LinkedHashSet<>(parseResult.orderedTargets());
+		if (orderedDistinct.isEmpty()) {
+			source.sendFailure(
+				Component.literal("[RedstoneLink/Bench] Invalid serial batch: empty resolved set, got " + rawSerials)
+			);
+			return List.of();
+		}
+		return List.copyOf(orderedDistinct);
 	}
 
 	/**
@@ -639,6 +878,52 @@ public final class BenchOccCommandRegistry {
 	}
 
 	/**
+	 * 构造批量频道 partition 提交 summary。
+	 */
+	static String buildChannelPartitionSummary(
+		LinkNodeType nodeType,
+		int requestedCount,
+		int partitionSize,
+		long channelBase,
+		long expectedCoreRevision,
+		long expectedSourceRevision,
+		ChannelPartitionBatchSubmissionResult result
+	) {
+		int normalizedRequestedCount = Math.max(0, requestedCount);
+		int normalizedPartitionSize = Math.max(1, partitionSize);
+		long normalizedChannelBase = Math.max(0L, channelBase);
+		long firstChannel = normalizedRequestedCount <= 0 ? 0L : normalizedChannelBase;
+		long lastChannel = normalizedRequestedCount <= 0
+			? 0L
+			: normalizedChannelBase + Math.floorDiv(normalizedRequestedCount - 1, normalizedPartitionSize);
+		int channelCount = normalizedRequestedCount <= 0 ? 0 : (int) (lastChannel - firstChannel + 1L);
+		LinkOccSupport.OccConflict conflict = result == null ? null : result.conflict();
+		String outcome = result == null ? "rejected" : resolveSubmissionOutcome(result.applied(), conflict);
+		return String.format(
+			Locale.ROOT,
+			"[RedstoneLink/Bench] occ_channel_partition_submit outcome=%s type=%s requestedCount=%d partitionSize=%d channelBase=%d firstChannel=%d lastChannel=%d channelCount=%d expectedCoreRevision=%d expectedSourceRevision=%d currentGraphRevision=%d currentSourceRevision=%d currentCoreRevision=%d conflictSerial=%d changedChannelNodeCount=%d changedTriggerSourceCount=%d appliedOperationCount=%d messageKey=%s",
+			outcome,
+			CommandTreeSupport.typeCommandName(nodeType),
+			normalizedRequestedCount,
+			normalizedPartitionSize,
+			normalizedChannelBase,
+			firstChannel,
+			lastChannel,
+			channelCount,
+			conflict == null ? Math.max(0L, expectedCoreRevision) : conflict.expectedCoreRevision(),
+			conflict == null ? Math.max(0L, expectedSourceRevision) : conflict.expectedSourceRevision(),
+			conflict == null ? -1L : conflict.currentGraphRevision(),
+			conflict == null ? -1L : conflict.currentSourceRevision(),
+			conflict == null ? -1L : conflict.currentCoreRevision(),
+			conflict == null ? 0L : conflict.targetNodeSerial(),
+			result == null ? 0 : Math.max(0, result.changedChannelNodeCount()),
+			result == null ? 0 : Math.max(0, result.changedTriggerSourceCount()),
+			result == null ? 0 : Math.max(0, result.appliedOperationCount()),
+			formatMessageKey(conflict == null ? (result == null ? "-" : result.messageKey()) : conflict.messageKey())
+		);
+	}
+
+	/**
 	 * 解析 bench summary 使用的提交结果类别。
 	 */
 	static String resolveSubmissionOutcome(boolean applied, LinkOccSupport.OccConflict conflict) {
@@ -705,5 +990,48 @@ public final class BenchOccCommandRegistry {
 		return nodeType == LinkNodeType.TRIGGER_SOURCE
 			? "message.redstonelink.source_serial_retired"
 			: "message.redstonelink.target_serial_retired";
+	}
+
+	/**
+	 * 批量频道 partition 提交结果。
+	 */
+	record ChannelPartitionBatchSubmissionResult(
+		boolean applied,
+		LinkOccSupport.OccConflict conflict,
+		int changedChannelNodeCount,
+		int changedTriggerSourceCount,
+		int appliedOperationCount,
+		String messageKey
+	) {
+		ChannelPartitionBatchSubmissionResult {
+			changedChannelNodeCount = Math.max(0, changedChannelNodeCount);
+			changedTriggerSourceCount = Math.max(0, changedTriggerSourceCount);
+			appliedOperationCount = Math.max(0, appliedOperationCount);
+			messageKey = formatMessageKey(messageKey);
+		}
+
+		static ChannelPartitionBatchSubmissionResult applied(
+			int changedChannelNodeCount,
+			int changedTriggerSourceCount,
+			int appliedOperationCount,
+			String messageKey
+		) {
+			return new ChannelPartitionBatchSubmissionResult(
+				true,
+				null,
+				changedChannelNodeCount,
+				changedTriggerSourceCount,
+				appliedOperationCount,
+				messageKey
+			);
+		}
+
+		static ChannelPartitionBatchSubmissionResult rejected(String messageKey) {
+			return new ChannelPartitionBatchSubmissionResult(false, null, 0, 0, 0, messageKey);
+		}
+
+		static ChannelPartitionBatchSubmissionResult conflict(LinkOccSupport.OccConflict conflict) {
+			return new ChannelPartitionBatchSubmissionResult(false, conflict, 0, 0, 0, conflict == null ? "-" : conflict.messageKey());
+		}
 	}
 }

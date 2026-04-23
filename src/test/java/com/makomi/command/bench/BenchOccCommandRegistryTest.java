@@ -90,4 +90,23 @@ class BenchOccCommandRegistryTest {
 			)
 		);
 	}
+
+	/**
+	 * 批量频道 partition summary 应稳定暴露批量规模与频道范围。
+	 */
+	@Test
+	void buildChannelPartitionSummaryShouldExposeStableBatchFields() {
+		assertEquals(
+			"[RedstoneLink/Bench] occ_channel_partition_submit outcome=applied type=triggerSource requestedCount=5 partitionSize=2 channelBase=7 firstChannel=7 lastChannel=9 channelCount=3 expectedCoreRevision=0 expectedSourceRevision=4 currentGraphRevision=-1 currentSourceRevision=-1 currentCoreRevision=-1 conflictSerial=0 changedChannelNodeCount=5 changedTriggerSourceCount=3 appliedOperationCount=3 messageKey=-",
+			BenchOccCommandRegistry.buildChannelPartitionSummary(
+				LinkNodeType.TRIGGER_SOURCE,
+				5,
+				2,
+				7L,
+				0L,
+				4L,
+				new BenchOccCommandRegistry.ChannelPartitionBatchSubmissionResult(true, null, 5, 3, 3, "-")
+			)
+		);
+	}
 }
