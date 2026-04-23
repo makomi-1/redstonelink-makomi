@@ -631,9 +631,7 @@ export async function loadDraft(draftFileName: string): Promise<GraphDraft | nul
 
 export async function persistDraft(draftFileName: string, graphDraft: GraphDraft): Promise<void> {
   if (graphDraft.operations.length === 0) {
-    await fetch(`./api/graph/draft?name=${encodeURIComponent(draftFileName)}`, {
-      method: 'DELETE',
-    });
+    await deleteDraft(draftFileName);
     return;
   }
   const response = await fetch(`./api/graph/draft?name=${encodeURIComponent(draftFileName)}`, {
@@ -642,6 +640,21 @@ export async function persistDraft(draftFileName: string, graphDraft: GraphDraft
       'Content-Type': 'application/json',
     },
     body: serializeGraphDraft(graphDraft),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+}
+
+/**
+ * 显式删除当前 graph 对应的本地 draft 文件。
+ * <p>
+ * 供“重置草稿”和“重新导出最新 graph”直接复用，避免只能依赖自动 debounce 删除。
+ * </p>
+ */
+export async function deleteDraft(draftFileName: string): Promise<void> {
+  const response = await fetch(`./api/graph/draft?name=${encodeURIComponent(draftFileName)}`, {
+    method: 'DELETE',
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);

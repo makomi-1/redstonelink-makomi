@@ -466,6 +466,62 @@ describe('GraphViewer', () => {
     expect(screen.getByLabelText('Alias')).toHaveValue('saved-name');
   });
 
+  it('重置草稿会删除当前草稿文件并恢复到当前基线图', async () => {
+    const user = userEvent.setup();
+    const restoredDraftText = serializeGraphDraft(
+      createTestGraphDraft({
+        baseSnapshotId: graphBundle.snapshotId,
+        dirty: true,
+        operations: [
+          {
+            type: 'RenameNodeAlias',
+            nodeType: 'triggerSource',
+            serial: 1,
+            alias: 'restored',
+          },
+        ],
+      }),
+    );
+    const fetchMock = createGraphViewerFetchMock({
+      draftText: restoredDraftText,
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+        language="zh-CN"
+      />,
+    );
+
+    const aliasInput = await screen.findByLabelText('Alias');
+    await waitFor(() => expect(aliasInput).toHaveValue('restored'));
+
+    await user.click(screen.getByRole('button', { name: '重置草稿' }));
+
+    await waitFor(() =>
+      expect(confirmSpy).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input, init]) =>
+          String(input).startsWith('./api/graph/draft?name=') &&
+          (init as RequestInit | undefined)?.method === 'DELETE'),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(screen.getByText('已重置当前本地草稿。')).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
+    );
+    expect(screen.getByLabelText('Alias')).toHaveValue('alpha');
+
+    confirmSpy.mockRestore();
+  });
+
   it('需要刷新最新 graph 时会调用 refresh 接口并回调父层同步新条目', async () => {
     const user = userEvent.setup();
     const onGraphEntryReloaded = vi.fn();
@@ -556,6 +612,108 @@ describe('GraphViewer', () => {
       expect(screen.getByText('已保存')).toBeInTheDocument(),
     );
     expect(screen.getByLabelText('Alias')).toHaveValue('saved-name');
+  });
+
+  it('有未保存草稿时手动重新导出最新 graph 会先确认并替换当前基线', async () => {
+    const user = userEvent.setup();
+    const onGraphEntryReloaded = vi.fn();
+    const refreshedGraphBundle = createTestGraphBundle({
+      snapshotId: 'snapshot-refresh',
+      graphRevision: 4,
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 1,
+          alias: 'fresh-alpha',
+          displayText: 'fresh-alpha(#1)',
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 2,
+          alias: 'beta',
+          displayText: 'beta(#2)',
+        }),
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 3,
+          alias: 'gamma',
+          displayText: 'gamma(#3)',
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 4,
+          alias: 'delta',
+          displayText: 'delta(#4)',
+          connectionMode: 'channel',
+          channel: 7,
+        }),
+      ],
+      edges: [createTestGraphEdge({ sourceSerial: 1, targetSerial: 2 })],
+    });
+    const refreshedEntry = createTestStorageEntryPayload({
+      kind: 'graph',
+      fileName: 'demo-graph-r4.json',
+      textContent: JSON.stringify(refreshedGraphBundle),
+    });
+    const fetchMock = createGraphViewerFetchMock({
+      refreshEntry: refreshedEntry,
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <GraphViewer
+        graphBundle={graphBundle}
+        graphFileName="demo-graph.json"
+        language="zh-CN"
+        onGraphEntryReloaded={onGraphEntryReloaded}
+      />,
+    );
+
+    const aliasInput = await screen.findByLabelText('Alias');
+    await user.clear(aliasInput);
+    await user.type(aliasInput, 'stale-name');
+    await user.click(screen.getByRole('button', { name: '应用到草稿' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: '重新导出最新 graph' }),
+    );
+
+    await waitFor(() =>
+      expect(confirmSpy).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input, init]) =>
+          String(input).startsWith('./api/graph/draft?name=') &&
+          (init as RequestInit | undefined)?.method === 'DELETE'),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('./api/graph/refresh', {
+        method: 'POST',
+        cache: 'no-store',
+      }),
+    );
+    await waitFor(() =>
+      expect(onGraphEntryReloaded).toHaveBeenCalledWith(refreshedEntry),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText('已重新导出并载入最新 graph。'),
+      ).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
+    );
+    expect(screen.getByLabelText('Alias')).toHaveValue('fresh-alpha');
+
+    confirmSpy.mockRestore();
   });
 
   it('可将另一模式节点应用到草稿并并入当前模式的后续编辑集合', async () => {

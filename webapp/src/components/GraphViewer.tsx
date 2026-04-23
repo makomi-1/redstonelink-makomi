@@ -37,6 +37,7 @@ import {
   applyDraftToGraph,
   buildDraftDiff,
   buildDraftFileName,
+  deleteDraft,
   formatEditModeInstruction,
   formatEditModeLabel,
   loadDraft,
@@ -80,6 +81,7 @@ type GraphViewerProps = {
 };
 
 type SavePreviewPhase = "idle" | "checking" | "ready" | "error";
+type GraphSyncPhase = "idle" | "resettingDraft" | "refreshingGraph";
 const GRAPH_DRAFT_UNDO_HISTORY_LIMIT = 10;
 
 /**
@@ -305,6 +307,8 @@ export default function GraphViewer({
   const [savePreviewMessage, setSavePreviewMessage] = useState("");
   const [savePreviewResponse, setSavePreviewResponse] =
     useState<GraphWriteResponse | null>(null);
+  const [graphSyncPhase, setGraphSyncPhase] =
+    useState<GraphSyncPhase>("idle");
   const [savePreviewRefreshToken, setSavePreviewRefreshToken] = useState(0);
   const [displayMode, setDisplayMode] = useState<GraphDisplayMode>("serial");
   const [serialContentMode, setSerialContentMode] =
@@ -392,6 +396,8 @@ export default function GraphViewer({
   );
   const activeContentMode =
     displayMode === "serial" ? serialContentMode : channelContentMode;
+  const graphActionBusy =
+    savePhase === "saving" || graphSyncPhase !== "idle";
   const canEditCurrentView = activeContentMode === "topology";
   const selectionEnabled = canEditCurrentView && editMode !== "view";
   const nodeByKey = useMemo(
@@ -1849,6 +1855,160 @@ export default function GraphViewer({
     );
   }
 
+  /**
+   * 将当前编辑页回退到给定基线图，并清空本地 draft 相关的临时状态。
+   * <p>
+   * 这里刻意保留当前显示模式与已选节点，只清理会继续污染后续编辑的草稿、预检和批量选择状态。
+   * </p>
+   */
+  function resetDraftStateToBaseGraph(
+    nextBaseGraphBundle: GraphSnapshotBundle,
+    nextMessage: string,
+  ) {
+    setDraftPersistError("");
+    setSavePhase("idle");
+    setBaseGraphBundle(nextBaseGraphBundle);
+    setGraphDraft(createInitialGraphDraft(nextBaseGraphBundle));
+    setUndoDraftHistory([]);
+    setSavePreviewPhase("idle");
+    setSavePreviewMessage("");
+    setSavePreviewResponse(null);
+    setSaveMessage(nextMessage);
+    setEditMode("view");
+    setChannelBatchDraftValue("0");
+    resetBatchSelectionState();
+    resetCrossModeSelectionState();
+  }
+
+  /**
+   * 将刷新得到的最新 graph 条目替换为当前页面基线，并在父层同步当前 graph 文件。
+   */
+  function applyRefreshedGraphEntry(
+    refreshedEntry: StorageEntryPayload,
+    successMessage: string,
+  ) {
+    const refreshedGraphBundle = parseGraphSnapshotBundle(
+      refreshedEntry.textContent,
+      refreshedEntry.kind,
+    );
+    if (refreshedGraphBundle == null) {
+      throw new Error(
+        text(
+          "自动刷新的 graph 文件不是合法快照。",
+          "The refreshed graph file is not a valid snapshot.",
+        ),
+      );
+    }
+    resetDraftStateToBaseGraph(refreshedGraphBundle, successMessage);
+    if (onGraphEntryReloaded) {
+      pendingSavedMessageAfterGraphSyncRef.current = successMessage;
+      pendingDisplayModeAfterGraphSyncRef.current = displayMode;
+      pendingSerialContentModeAfterGraphSyncRef.current =
+        serialContentMode;
+      pendingChannelContentModeAfterGraphSyncRef.current =
+        channelContentMode;
+      onGraphEntryReloaded(refreshedEntry);
+    }
+  }
+
+  /**
+   * 强制删除当前 graph 对应的本地 draft 文件，并同步清空内存中的草稿状态。
+   */
+  async function resetCurrentDraft(
+    progressMessage: string,
+    nextBaseGraphBundle: GraphSnapshotBundle = baseGraphBundle,
+  ) {
+    resetDraftStateToBaseGraph(nextBaseGraphBundle, progressMessage);
+    await deleteDraft(draftFileName);
+  }
+
+  async function handleResetDraft() {
+    if (graphActionBusy || draftLoading) {
+      return;
+    }
+    if (
+      (graphDraft.dirty || undoDraftHistory.length > 0) &&
+      !window.confirm(
+        text(
+          "当前有未保存的本地草稿，重置后会删除当前草稿文件并丢弃本地修改，是否继续？",
+          "There is an unsaved local draft. Resetting will delete the current draft file and discard local edits. Continue?",
+        ),
+      )
+    ) {
+      return;
+    }
+    setGraphSyncPhase("resettingDraft");
+    const progressMessage = text(
+      "正在重置当前本地草稿...",
+      "Resetting the current local draft...",
+    );
+    setSaveMessage(progressMessage);
+    try {
+      await resetCurrentDraft(progressMessage);
+      setSaveMessage(
+        text("已重置当前本地草稿。", "The current local draft has been reset."),
+      );
+    } catch (error) {
+      const failureMessage =
+        error instanceof Error ? error.message : "unknown error";
+      setDraftPersistError(failureMessage);
+      setSaveMessage(
+        text(
+          `重置本地草稿失败：${failureMessage}`,
+          `Failed to reset the local draft: ${failureMessage}`,
+        ),
+      );
+    } finally {
+      setGraphSyncPhase("idle");
+    }
+  }
+
+  async function handleRefreshLatestGraph() {
+    if (graphActionBusy || draftLoading) {
+      return;
+    }
+    if (
+      (graphDraft.dirty || undoDraftHistory.length > 0) &&
+      !window.confirm(
+        text(
+          "当前有未保存的本地草稿，重新导出最新 graph 会删除当前草稿文件并丢弃本地修改，是否继续？",
+          "There is an unsaved local draft. Re-exporting the latest graph will delete the current draft file and discard local edits. Continue?",
+        ),
+      )
+    ) {
+      return;
+    }
+    setGraphSyncPhase("refreshingGraph");
+    const progressMessage = text(
+      "正在重新导出并载入最新 graph...",
+      "Re-exporting and loading the latest graph...",
+    );
+    setSaveMessage(progressMessage);
+    try {
+      await resetCurrentDraft(progressMessage);
+      const refreshedEntry = await refreshGraphEntry();
+      applyRefreshedGraphEntry(
+        refreshedEntry,
+        text(
+          "已重新导出并载入最新 graph。",
+          "The latest graph has been re-exported and loaded.",
+        ),
+      );
+    } catch (error) {
+      const failureMessage =
+        error instanceof Error ? error.message : "unknown error";
+      setDraftPersistError(failureMessage);
+      setSaveMessage(
+        text(
+          `重新导出最新 graph 失败：${failureMessage}`,
+          `Failed to re-export the latest graph: ${failureMessage}`,
+        ),
+      );
+    } finally {
+      setGraphSyncPhase("idle");
+    }
+  }
+
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
       if (
@@ -2244,7 +2404,7 @@ export default function GraphViewer({
   }
 
   async function handleSave() {
-    if (!graphDraft.dirty || savePhase === "saving") {
+    if (!graphDraft.dirty || graphActionBusy) {
       return;
     }
     setSavePhase("saving");
@@ -2291,63 +2451,28 @@ export default function GraphViewer({
       if (graphWriteResponse.refreshRequired) {
         try {
           const refreshedEntry = await refreshGraphEntry();
-          const refreshedGraphBundle = parseGraphSnapshotBundle(
-            refreshedEntry.textContent,
-            refreshedEntry.kind,
-          );
-          if (refreshedGraphBundle == null) {
-            throw new Error(
-              text(
-                "自动刷新的 graph 文件不是合法快照。",
-                "The refreshed graph file is not a valid snapshot.",
-              ),
-            );
-          }
-          setBaseGraphBundle(refreshedGraphBundle);
-          setGraphDraft(createInitialGraphDraft(refreshedGraphBundle));
-          setUndoDraftHistory([]);
           setSavePhase("idle");
-          setSaveMessage(successMessage);
-          setSavePreviewPhase("idle");
-          setSavePreviewMessage("");
-          setSavePreviewResponse(null);
-          if (onGraphEntryReloaded) {
-            pendingSavedMessageAfterGraphSyncRef.current = successMessage;
-            pendingDisplayModeAfterGraphSyncRef.current = displayMode;
-            pendingSerialContentModeAfterGraphSyncRef.current =
-              serialContentMode;
-            pendingChannelContentModeAfterGraphSyncRef.current =
-              channelContentMode;
-            onGraphEntryReloaded(refreshedEntry);
-          }
+          applyRefreshedGraphEntry(refreshedEntry, successMessage);
           return;
         } catch (error) {
           const refreshFailureMessage =
             error instanceof Error ? error.message : "unknown error";
-          setBaseGraphBundle(nextBaseGraphBundle);
-          setGraphDraft(createInitialGraphDraft(nextBaseGraphBundle));
-          setUndoDraftHistory([]);
-          setSavePhase("error");
-          setSaveMessage(
+          resetDraftStateToBaseGraph(
+            nextBaseGraphBundle,
             text(
               `保存已生效，但自动刷新最新 graph 失败：${refreshFailureMessage}。请手动重新加载最新 graph 后再继续编辑。`,
               `The save succeeded, but refreshing the latest graph failed: ${refreshFailureMessage}. Reload the latest graph before continuing to edit.`,
             ),
           );
+          setSavePhase("error");
           setSavePreviewPhase("idle");
           setSavePreviewMessage("");
           setSavePreviewResponse(null);
           return;
         }
       }
-      setBaseGraphBundle(nextBaseGraphBundle);
-      setGraphDraft(createInitialGraphDraft(nextBaseGraphBundle));
-      setUndoDraftHistory([]);
       setSavePhase("idle");
-      setSaveMessage(successMessage);
-      setSavePreviewPhase("idle");
-      setSavePreviewMessage("");
-      setSavePreviewResponse(null);
+      resetDraftStateToBaseGraph(nextBaseGraphBundle, successMessage);
     } catch (error) {
       setSavePhase("error");
       setSaveMessage(error instanceof Error ? error.message : "unknown error");
@@ -2477,7 +2602,15 @@ export default function GraphViewer({
               <button
                 type="button"
                 className="action-button"
-                disabled={undoDraftHistory.length === 0}
+                disabled={graphActionBusy || draftLoading}
+                onClick={() => void handleRefreshLatestGraph()}
+              >
+                {text("重新导出最新 graph", "Re-export Latest Graph")}
+              </button>
+              <button
+                type="button"
+                className="action-button"
+                disabled={undoDraftHistory.length === 0 || graphActionBusy}
                 onClick={handleUndoDraft}
               >
                 {text("撤回草稿", "Undo Draft")}
@@ -2485,6 +2618,15 @@ export default function GraphViewer({
               <button
                 type="button"
                 className="action-button"
+                disabled={graphActionBusy || draftLoading}
+                onClick={() => void handleResetDraft()}
+              >
+                {text("重置草稿", "Reset Draft")}
+              </button>
+              <button
+                type="button"
+                className="action-button"
+                disabled={graphActionBusy}
                 onClick={handleAutoLayout}
               >
                 {text("重新布局", "Relayout")}
@@ -2492,7 +2634,7 @@ export default function GraphViewer({
               <button
                 type="button"
                 className="action-button"
-                disabled={!graphDraft.dirty || savePhase === "saving"}
+                disabled={!graphDraft.dirty || graphActionBusy}
                 onClick={() => void handleSave()}
               >
                 Save
