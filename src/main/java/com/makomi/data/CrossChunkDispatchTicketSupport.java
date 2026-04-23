@@ -285,6 +285,23 @@ final class CrossChunkDispatchTicketSupport {
 		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending,
 		long gameTime
 	) {
+		ServerLevel targetLevel = server.getLevel(pending.dimension());
+		if (targetLevel == null) {
+			return;
+		}
+
+		int chunkX = pending.pos().getX() >> 4;
+		int chunkZ = pending.pos().getZ() >> 4;
+		CrossChunkDispatchService.ForcedChunkKey forcedChunkKey =
+			new CrossChunkDispatchService.ForcedChunkKey(targetLevel.dimension(), chunkX, chunkZ);
+		long expireTick = gameTime + Math.max(1L, RedstoneLinkConfig.crossChunk().forceLoadTicketTicks());
+		long previousExpireTick = state.forcedChunksUntilTick.getOrDefault(forcedChunkKey, Long.MIN_VALUE);
+		if (previousExpireTick != Long.MIN_VALUE) {
+			// 已持票 chunk 仅续期，不再重复扣除本 tick 的强制加载预算。
+			state.forcedChunksUntilTick.put(forcedChunkKey, Math.max(previousExpireTick, expireTick));
+			return;
+		}
+
 		resetForceLoadWindow(state, gameTime);
 
 		int maxPerTick = RedstoneLinkConfig.crossChunk().forceLoadMaxPerTick();
@@ -298,20 +315,8 @@ final class CrossChunkDispatchTicketSupport {
 			return;
 		}
 
-		ServerLevel targetLevel = server.getLevel(pending.dimension());
-		if (targetLevel == null) {
-			return;
-		}
-
-		int chunkX = pending.pos().getX() >> 4;
-		int chunkZ = pending.pos().getZ() >> 4;
 		addTransientTicket(targetLevel, chunkX, chunkZ);
-
-		CrossChunkDispatchService.ForcedChunkKey forcedChunkKey =
-			new CrossChunkDispatchService.ForcedChunkKey(targetLevel.dimension(), chunkX, chunkZ);
-		long expireTick = gameTime + Math.max(1L, RedstoneLinkConfig.crossChunk().forceLoadTicketTicks());
-		long previousExpireTick = state.forcedChunksUntilTick.getOrDefault(forcedChunkKey, Long.MIN_VALUE);
-		state.forcedChunksUntilTick.put(forcedChunkKey, Math.max(previousExpireTick, expireTick));
+		state.forcedChunksUntilTick.put(forcedChunkKey, expireTick);
 
 		state.forceLoadCountThisTick++;
 		state.forceLoadCountBySource.put(sourceKey, sourceUsed + 1);

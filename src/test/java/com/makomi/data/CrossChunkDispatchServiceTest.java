@@ -13,6 +13,8 @@ import com.makomi.config.RedstoneLinkConfigTestHelper;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -21,16 +23,21 @@ import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.dedicated.DedicatedServer;
+import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.DimensionDataStorage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import sun.misc.Unsafe;
 
 /**
  * CrossChunkDispatchService 参数守卫与状态机测试。
@@ -281,6 +288,53 @@ class CrossChunkDispatchServiceTest {
 		assertEquals(201L, windowTickField.getLong(state));
 		assertEquals(0, countField.getInt(state));
 		assertTrue(bySource.isEmpty());
+	}
+
+	/**
+	 * 已持票 chunk 再次命中强制加载时，只应续期，不应重复扣除本 tick 的 force-load 预算。
+	 */
+	@Test
+	void tryForceLoadShouldRenewExistingChunkWithoutChargingBudget(@TempDir Path tempDir) throws Exception {
+		ServerLevel level = createServerLevel(tempDir);
+		CrossChunkDispatchService.DispatchState state = new CrossChunkDispatchService.DispatchState();
+		CrossChunkDispatchQueueSavedData.PendingDispatchEntry pending = new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(
+			new CrossChunkDispatchQueueSavedData.DispatchKey(
+				LinkNodeType.TRIGGER_SOURCE,
+				15L,
+				LinkNodeType.CORE,
+				105L,
+				CrossChunkDispatchQueueSavedData.DispatchKind.SYNC_SIGNAL
+			),
+			CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT,
+			Level.OVERWORLD,
+			new BlockPos(32, 64, 32),
+			ActivationMode.TOGGLE,
+			15,
+			80L,
+			0,
+			200L,
+			1L
+		);
+		CrossChunkDispatchService.SourceKey sourceKey = new CrossChunkDispatchService.SourceKey(LinkNodeType.TRIGGER_SOURCE, 15L);
+		CrossChunkDispatchService.ForcedChunkKey forcedChunkKey = new CrossChunkDispatchService.ForcedChunkKey(Level.OVERWORLD, 2, 2);
+		Properties properties = new Properties();
+
+		withCrossChunkConfig(properties, () -> {
+			assertNotNull(level.getServer());
+			assertNotNull(level.getServer().getLevel(Level.OVERWORLD));
+			state.forceLoadWindowTick = 300L;
+			state.forceLoadCountThisTick = 1;
+			assertEquals(1, state.forceLoadCountThisTick);
+			state.forceLoadCountBySource.put(sourceKey, 1);
+			state.forcedChunksUntilTick.put(forcedChunkKey, 360L);
+			long firstExpireTick = state.forcedChunksUntilTick.get(forcedChunkKey);
+
+			CrossChunkDispatchService.tryForceLoad(level.getServer(), state, pending, 301L);
+			assertEquals(1, state.forceLoadCountThisTick);
+			assertEquals(1, state.forceLoadCountBySource.size());
+			assertEquals(1, state.forcedChunksUntilTick.size());
+			assertTrue(state.forcedChunksUntilTick.get(forcedChunkKey) > firstExpireTick);
+		});
 	}
 
 	/**
@@ -1113,6 +1167,92 @@ class CrossChunkDispatchServiceTest {
 
 	private static void withCrossChunkConfig(Properties properties, ThrowingRunnable action) throws Exception {
 		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, action::run);
+	}
+
+	/**
+	 * 构造强制加载计费测试所需的最小 ServerLevel。
+	 */
+	private static ServerLevel createServerLevel(Path tempDir) throws Exception {
+		Unsafe unsafe = unsafe();
+		ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);
+		DedicatedServer server = (DedicatedServer) unsafe.allocateInstance(DedicatedServer.class);
+		ServerChunkCache chunkCache = (ServerChunkCache) unsafe.allocateInstance(ServerChunkCache.class);
+		DimensionDataStorage dataStorage = new DimensionDataStorage(tempDir.toFile(), null, null);
+		Object levelDataProxy = createLevelDataProxy();
+
+		setField(Level.class, level, "isClientSide", false);
+		setField(Level.class, level, "dimension", Level.OVERWORLD);
+		setField(Level.class, level, "levelData", levelDataProxy);
+		setField(ServerLevel.class, level, "server", server);
+		setField(ServerLevel.class, level, "serverLevelData", levelDataProxy);
+		setField(ServerLevel.class, level, "chunkSource", chunkCache);
+		setField(ServerChunkCache.class, chunkCache, "level", level);
+		setField(ServerChunkCache.class, chunkCache, "dataStorage", dataStorage);
+		setField(MinecraftServer.class, server, "levels", Map.of(Level.OVERWORLD, level));
+		return level;
+	}
+
+	/**
+	 * 只实现当前计费测试会访问到的 levelData 读接口。
+	 */
+	private static Object createLevelDataProxy() throws Exception {
+		Class<?> levelDataType = Level.class.getDeclaredField("levelData").getType();
+		Class<?> serverLevelDataType = ServerLevel.class.getDeclaredField("serverLevelData").getType();
+		return Proxy.newProxyInstance(
+			CrossChunkDispatchServiceTest.class.getClassLoader(),
+			new Class<?>[] { levelDataType, serverLevelDataType },
+			(proxy, method, args) -> switch (method.getName()) {
+				case "getGameTime", "getDayTime" -> 0L;
+				case "isHardcore", "isFlatWorld", "isRaining", "isThundering" -> false;
+				default -> defaultValue(method.getReturnType());
+			}
+		);
+	}
+
+	/**
+	 * 通过反射写入最小测试夹具字段。
+	 */
+	private static void setField(Class<?> owner, Object target, String fieldName, Object value) throws Exception {
+		Field field = owner.getDeclaredField(fieldName);
+		field.setAccessible(true);
+		field.set(target, value);
+	}
+
+	private static Object defaultValue(Class<?> returnType) {
+		if (returnType == null || !returnType.isPrimitive()) {
+			return null;
+		}
+		if (returnType == boolean.class) {
+			return false;
+		}
+		if (returnType == long.class) {
+			return 0L;
+		}
+		if (returnType == int.class) {
+			return 0;
+		}
+		if (returnType == short.class) {
+			return (short) 0;
+		}
+		if (returnType == byte.class) {
+			return (byte) 0;
+		}
+		if (returnType == float.class) {
+			return 0.0F;
+		}
+		if (returnType == double.class) {
+			return 0.0D;
+		}
+		if (returnType == char.class) {
+			return '\0';
+		}
+		return null;
+	}
+
+	private static Unsafe unsafe() throws Exception {
+		Field field = Unsafe.class.getDeclaredField("theUnsafe");
+		field.setAccessible(true);
+		return (Unsafe) field.get(null);
 	}
 
 	@SuppressWarnings("unchecked")

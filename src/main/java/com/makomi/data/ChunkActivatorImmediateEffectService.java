@@ -1,6 +1,5 @@
 package com.makomi.data;
 
-import com.makomi.config.RedstoneLinkConfig;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import net.minecraft.server.MinecraftServer;
@@ -13,7 +12,7 @@ import net.minecraft.server.level.ServerLevel;
  * </p>
  * <ul>
  * <li>`resident`：立即补 resident 常驻票；</li>
- * <li>`force_load + core`：立即补 transient 临时票；</li>
+ * <li>`force_load + core`：立即按真实 `triggerSource -> core` 补发一次 sync，使其进入标准跨区块队列；</li>
  * <li>`triggerSource`：立即按当前/持久化真值补发一次 sync。</li>
  * </ul>
  */
@@ -43,8 +42,8 @@ public final class ChunkActivatorImmediateEffectService {
 		for (Long serial : plan.residentCores()) {
 			bootstrapResidentTicket(contextLevel, LinkNodeType.CORE, serial);
 		}
-		for (Long serial : plan.forceLoadCores()) {
-			bootstrapTransientCoreChunk(contextLevel, serial);
+		for (Long serial : plan.replayCores()) {
+			replayCoreCurrentTruth(contextLevel, serial);
 		}
 		for (Long serial : plan.replayTriggerSources()) {
 			replayTriggerSourceCurrentTruth(contextLevel, serial);
@@ -88,11 +87,11 @@ public final class ChunkActivatorImmediateEffectService {
 			}
 		}
 
-		Set<Long> forceLoadCores = nextActiveType == LinkNodeType.CORE && !nextSnapshot.activeConfig().mode().contributesResident()
+		Set<Long> replayCores = nextActiveType == LinkNodeType.CORE && !nextSnapshot.activeConfig().mode().contributesResident()
 			? newlyAddedActiveSerials
 			: Set.of();
 		Set<Long> replayTriggerSources = nextActiveType == LinkNodeType.TRIGGER_SOURCE ? newlyAddedActiveSerials : Set.of();
-		return new ImmediateEffectPlan(residentTriggerSources, residentCores, forceLoadCores, replayTriggerSources);
+		return new ImmediateEffectPlan(residentTriggerSources, residentCores, replayCores, replayTriggerSources);
 	}
 
 	private static void bootstrapResidentTicket(ServerLevel contextLevel, LinkNodeType type, long serial) {
@@ -122,30 +121,26 @@ public final class ChunkActivatorImmediateEffectService {
 		state.residentSyncArmed = true;
 	}
 
-	private static void bootstrapTransientCoreChunk(ServerLevel contextLevel, long coreSerial) {
+	private static void replayCoreCurrentTruth(ServerLevel contextLevel, long coreSerial) {
 		if (contextLevel == null || coreSerial <= 0L) {
 			return;
 		}
-		LinkSavedData.LinkNode node = LinkSavedData.get(contextLevel).findNode(LinkNodeType.CORE, coreSerial).orElse(null);
-		if (node == null) {
+		LinkSavedData savedData = LinkSavedData.get(contextLevel);
+		Set<Long> linkedTriggerSources = savedData.getLinkedPeersByNodeType(LinkNodeType.CORE, coreSerial);
+		if (linkedTriggerSources.isEmpty()) {
 			return;
 		}
-		ServerLevel targetLevel = contextLevel.getServer().getLevel(node.dimension());
-		if (targetLevel == null || targetLevel.isLoaded(node.pos())) {
-			return;
+		for (Long triggerSourceSerial : linkedTriggerSources) {
+			if (triggerSourceSerial == null || triggerSourceSerial <= 0L) {
+				continue;
+			}
+			InternalDispatchDeltaRuleSupport.publishTriggerSourceCurrentOrPersistedSyncReplay(
+				contextLevel,
+				triggerSourceSerial,
+				Set.of(coreSerial),
+				InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH
+			);
 		}
-		int chunkX = node.pos().getX() >> 4;
-		int chunkZ = node.pos().getZ() >> 4;
-		CrossChunkDispatchTicketSupport.addTransientTicket(targetLevel, chunkX, chunkZ);
-		CrossChunkDispatchService.DispatchState state = CrossChunkDispatchService.getOrCreateState(contextLevel.getServer());
-		CrossChunkDispatchService.ForcedChunkKey forcedChunkKey = new CrossChunkDispatchService.ForcedChunkKey(
-			targetLevel.dimension(),
-			chunkX,
-			chunkZ
-		);
-		long expireTick = targetLevel.getGameTime() + Math.max(1L, RedstoneLinkConfig.crossChunk().forceLoadTicketTicks());
-		long previousExpireTick = state.forcedChunksUntilTick.getOrDefault(forcedChunkKey, Long.MIN_VALUE);
-		state.forcedChunksUntilTick.put(forcedChunkKey, Math.max(previousExpireTick, expireTick));
 	}
 
 	private static void replayTriggerSourceCurrentTruth(ServerLevel contextLevel, long triggerSourceSerial) {
@@ -190,7 +185,7 @@ public final class ChunkActivatorImmediateEffectService {
 	record ImmediateEffectPlan(
 		Set<Long> residentTriggerSources,
 		Set<Long> residentCores,
-		Set<Long> forceLoadCores,
+		Set<Long> replayCores,
 		Set<Long> replayTriggerSources
 	) {
 		private static ImmediateEffectPlan empty() {
@@ -200,14 +195,14 @@ public final class ChunkActivatorImmediateEffectService {
 		ImmediateEffectPlan {
 			residentTriggerSources = residentTriggerSources == null ? Set.of() : Set.copyOf(residentTriggerSources);
 			residentCores = residentCores == null ? Set.of() : Set.copyOf(residentCores);
-			forceLoadCores = forceLoadCores == null ? Set.of() : Set.copyOf(forceLoadCores);
+			replayCores = replayCores == null ? Set.of() : Set.copyOf(replayCores);
 			replayTriggerSources = replayTriggerSources == null ? Set.of() : Set.copyOf(replayTriggerSources);
 		}
 
 		private boolean isEmpty() {
 			return residentTriggerSources.isEmpty()
 				&& residentCores.isEmpty()
-				&& forceLoadCores.isEmpty()
+				&& replayCores.isEmpty()
 				&& replayTriggerSources.isEmpty();
 		}
 	}

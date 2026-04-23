@@ -39,7 +39,7 @@ class ChunkActivatorImmediateEffectServiceTest {
 
 		assertEquals(Set.of(), plan.residentTriggerSources());
 		assertEquals(Set.of(3L), plan.residentCores());
-		assertEquals(Set.of(), plan.forceLoadCores());
+		assertEquals(Set.of(), plan.replayCores());
 		assertEquals(Set.of(), plan.replayTriggerSources());
 	}
 
@@ -68,15 +68,15 @@ class ChunkActivatorImmediateEffectServiceTest {
 
 		assertEquals(Set.of(12L), plan.residentTriggerSources());
 		assertEquals(Set.of(), plan.residentCores());
-		assertEquals(Set.of(), plan.forceLoadCores());
+		assertEquals(Set.of(), plan.replayCores());
 		assertEquals(Set.of(12L), plan.replayTriggerSources());
 	}
 
 	/**
-	 * force_load core 新增成员时，只应补 transient ticket，不应误进 resident 或 replay 路径。
+	 * force_load core 新增成员时，应进入“定向 replay 到新 core”路径，而不是 resident 或 triggerSource replay。
 	 */
 	@Test
-	void buildPlanShouldForceLoadOnlyNewCoreMembers() {
+	void buildPlanShouldReplayOnlyNewForceLoadCoreMembers() {
 		PlacedChunkActivatorSavedData.ActivatorEntry previousEntry = activatorEntry(
 			LinkNodeType.CORE,
 			new ChunkActivatorConfigSnapshot("", ChunkActivatorMode.FORCE_LOAD),
@@ -97,7 +97,7 @@ class ChunkActivatorImmediateEffectServiceTest {
 
 		assertEquals(Set.of(), plan.residentTriggerSources());
 		assertEquals(Set.of(), plan.residentCores());
-		assertEquals(Set.of(22L), plan.forceLoadCores());
+		assertEquals(Set.of(22L), plan.replayCores());
 		assertEquals(Set.of(), plan.replayTriggerSources());
 	}
 
