@@ -53,6 +53,7 @@ class PairingNetworkDispatchTest {
 		);
 		assertEquals(11L, typedPayload.sourceSerial());
 		assertEquals(List.of(3L, 7L), typedPayload.targets());
+		assertEquals(List.of("#3", "#7"), typedPayload.targetDisplayTexts());
 	}
 
 	/**
@@ -64,6 +65,7 @@ class PairingNetworkDispatchTest {
 		PairingNetwork.OpenCorePairingPayload typedPayload = assertInstanceOf(PairingNetwork.OpenCorePairingPayload.class, payload);
 		assertEquals(22L, typedPayload.sourceSerial());
 		assertEquals(List.of(5L), typedPayload.targets());
+		assertEquals(List.of("#5"), typedPayload.targetDisplayTexts());
 	}
 
 	private static CustomPacketPayload invokeBuildPayload(LinkNodeType sourceType, long sourceSerial, List<Long> targets)

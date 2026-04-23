@@ -33,6 +33,7 @@ class AbstractMultiPairingScreenLayoutTest {
 		int secondButtonRight = layout.actionButtonX(1) + layout.actionButtonWidth();
 		assertTrue(secondButtonRight <= layout.panelLeft() + layout.panelWidth());
 		assertTrue(layout.currentLinksY() > layout.aliasInputY());
+		assertTrue(layout.currentLinksValueY() > layout.currentLinksY());
 		assertTrue(layout.currentLinksY() > layout.titleY());
 		assertTrue(layout.inputY() > layout.inputLabelY());
 		assertTrue(layout.statusMessageY() > layout.actionButtonY());

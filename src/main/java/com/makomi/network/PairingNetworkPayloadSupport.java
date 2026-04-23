@@ -56,6 +56,7 @@ final class PairingNetworkPayloadSupport {
 			return new PairingNetwork.OpenTriggerSourcePairingPayload(
 				sourceSerial,
 				normalizedSnapshot.visibleTargets(),
+				normalizedSnapshot.visibleTargetDisplayTexts(),
 				normalizedSnapshot.graphRevision(),
 				normalizedSnapshot.sourceRevision(),
 				normalizedSnapshot.coreRevision(),
@@ -69,6 +70,7 @@ final class PairingNetworkPayloadSupport {
 		return new PairingNetwork.OpenCorePairingPayload(
 			sourceSerial,
 			normalizedSnapshot.visibleTargets(),
+			normalizedSnapshot.visibleTargetDisplayTexts(),
 			normalizedSnapshot.graphRevision(),
 			normalizedSnapshot.sourceRevision(),
 			normalizedSnapshot.coreRevision(),
@@ -87,6 +89,7 @@ final class PairingNetworkPayloadSupport {
 		FriendlyByteBuf buffer,
 		long sourceSerial,
 		List<Long> targets,
+		List<String> targetDisplayTexts,
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
@@ -101,6 +104,7 @@ final class PairingNetworkPayloadSupport {
 		for (long target : targets) {
 			buffer.writeVarLong(target);
 		}
+		writeDisplayTexts(buffer, targetDisplayTexts);
 		buffer.writeVarLong(Math.max(0L, graphRevision));
 		buffer.writeVarLong(Math.max(0L, sourceRevision));
 		buffer.writeVarLong(Math.max(0L, coreRevision));
@@ -119,6 +123,7 @@ final class PairingNetworkPayloadSupport {
 		return new PairingNetwork.OpenTriggerSourcePairingPayload(
 			payload.sourceSerial(),
 			payload.targets(),
+			payload.targetDisplayTexts(),
 			payload.graphRevision(),
 			payload.sourceRevision(),
 			payload.coreRevision(),
@@ -138,6 +143,7 @@ final class PairingNetworkPayloadSupport {
 		return new PairingNetwork.OpenCorePairingPayload(
 			payload.sourceSerial(),
 			payload.targets(),
+			payload.targetDisplayTexts(),
 			payload.graphRevision(),
 			payload.sourceRevision(),
 			payload.coreRevision(),
@@ -326,6 +332,7 @@ final class PairingNetworkPayloadSupport {
 		String sourceType,
 		long sourceSerial,
 		List<Long> targets,
+		List<String> targetDisplayTexts,
 		String connectionModeToken,
 		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
@@ -338,6 +345,7 @@ final class PairingNetworkPayloadSupport {
 		for (long target : targets) {
 			buffer.writeVarLong(target);
 		}
+		writeDisplayTexts(buffer, targetDisplayTexts);
 		buffer.writeUtf(LinkConnectionMode.fromToken(connectionModeToken).token(), MODE_TOKEN_MAX_LENGTH);
 		buffer.writeVarLong(Math.max(0L, channel));
 		buffer.writeUtf(normalizeCrossChunkIdentity(crossChunkIdentity).payloadToken(), CROSS_CHUNK_IDENTITY_TOKEN_MAX_LENGTH);
@@ -354,6 +362,7 @@ final class PairingNetworkPayloadSupport {
 			payload.sourceType(),
 			payload.sourceSerial(),
 			payload.targets(),
+			payload.targetDisplayTexts(),
 			payload.connectionModeToken(),
 			payload.channel(),
 			payload.crossChunkIdentity()
@@ -418,9 +427,11 @@ final class PairingNetworkPayloadSupport {
 		for (int i = 0; i < size; i++) {
 			targets.add(buffer.readVarLong());
 		}
+		List<String> targetDisplayTexts = readDisplayTexts(buffer);
 		return new DecodedPayload(
 			sourceSerial,
 			targets,
+			targetDisplayTexts,
 			buffer.readVarLong(),
 			buffer.readVarLong(),
 			buffer.readVarLong(),
@@ -453,6 +464,7 @@ final class PairingNetworkPayloadSupport {
 		for (int i = 0; i < size; i++) {
 			targets.add(buffer.readVarLong());
 		}
+		List<String> targetDisplayTexts = readDisplayTexts(buffer);
 		String connectionModeToken = buffer.readUtf(MODE_TOKEN_MAX_LENGTH);
 		long channel = buffer.readVarLong();
 		CrossChunkNodeIdentity crossChunkIdentity = CrossChunkNodeIdentity.fromPayloadToken(
@@ -464,6 +476,7 @@ final class PairingNetworkPayloadSupport {
 			payload.sourceType(),
 			payload.sourceSerial(),
 			targets,
+			targetDisplayTexts,
 			connectionModeToken,
 			channel,
 			crossChunkIdentity
@@ -475,6 +488,23 @@ final class PairingNetworkPayloadSupport {
 	 */
 	private static CrossChunkNodeIdentity normalizeCrossChunkIdentity(CrossChunkNodeIdentity crossChunkIdentity) {
 		return crossChunkIdentity == null ? CrossChunkNodeIdentity.NORMAL : crossChunkIdentity;
+	}
+
+	private static void writeDisplayTexts(FriendlyByteBuf buffer, List<String> targetDisplayTexts) {
+		List<String> normalizedDisplayTexts = targetDisplayTexts == null ? List.of() : List.copyOf(targetDisplayTexts);
+		buffer.writeVarInt(normalizedDisplayTexts.size());
+		for (String displayText : normalizedDisplayTexts) {
+			buffer.writeUtf(displayText == null ? "" : displayText, DISPLAY_TEXT_MAX_LENGTH);
+		}
+	}
+
+	private static List<String> readDisplayTexts(FriendlyByteBuf buffer) {
+		int size = buffer.readVarInt();
+		List<String> displayTexts = new ArrayList<>(size);
+		for (int index = 0; index < size; index++) {
+			displayTexts.add(buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH));
+		}
+		return List.copyOf(displayTexts);
 	}
 
 	/**
@@ -528,6 +558,7 @@ final class PairingNetworkPayloadSupport {
 	private record DecodedPayload(
 		long sourceSerial,
 		List<Long> targets,
+		List<String> targetDisplayTexts,
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
@@ -568,6 +599,7 @@ final class PairingNetworkPayloadSupport {
 		String sourceType,
 		long sourceSerial,
 		List<Long> targets,
+		List<String> targetDisplayTexts,
 		String connectionModeToken,
 		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity

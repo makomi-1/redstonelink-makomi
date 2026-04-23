@@ -1,5 +1,6 @@
 package com.makomi.item;
 
+import com.makomi.util.DisplayTextListFormatUtil;
 import com.makomi.util.SerialDisplayFormatUtil;
 import java.util.List;
 
@@ -27,6 +28,17 @@ public final class TooltipTextTruncateUtil {
 	 */
 	public static String buildTargetsText(List<Long> targets, int maxChars) {
 		return SerialDisplayFormatUtil.buildText(targets, maxChars);
+	}
+
+	/**
+	 * 根据最大字符数构建展示文本目标列表。
+	 *
+	 * @param targetDisplayTexts 目标展示文本列表
+	 * @param maxChars 最大允许字符数
+	 * @return 处理后的文本，空列表返回 `-`
+	 */
+	public static String buildTargetDisplayTextsText(List<String> targetDisplayTexts, int maxChars) {
+		return DisplayTextListFormatUtil.buildText(targetDisplayTexts, maxChars);
 	}
 
 	/**

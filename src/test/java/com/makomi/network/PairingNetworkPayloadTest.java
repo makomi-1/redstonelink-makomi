@@ -40,12 +40,15 @@ class PairingNetworkPayloadTest {
 
 		assertNotSame(source, payload.targets());
 		assertEquals(List.of(7L, 3L, 9L), payload.targets());
+		assertEquals(List.of("#7", "#3", "#9"), payload.targetDisplayTexts());
 		assertEquals(LinkConnectionMode.SERIAL.token(), payload.connectionModeToken());
 		assertEquals(0L, payload.channel());
 
 		source.add(11L);
 		assertEquals(List.of(7L, 3L, 9L), payload.targets());
+		assertEquals(List.of("#7", "#3", "#9"), payload.targetDisplayTexts());
 		assertThrows(UnsupportedOperationException.class, () -> payload.targets().add(12L));
+		assertThrows(UnsupportedOperationException.class, () -> payload.targetDisplayTexts().add("#12"));
 	}
 
 	/**
@@ -67,12 +70,15 @@ class PairingNetworkPayloadTest {
 
 		assertNotSame(source, payload.targets());
 		assertEquals(List.of(2L, 5L), payload.targets());
+		assertEquals(List.of("#2", "#5"), payload.targetDisplayTexts());
 		assertEquals(LinkConnectionMode.SERIAL.token(), payload.connectionModeToken());
 		assertEquals(0L, payload.channel());
 
 		source.clear();
 		assertEquals(List.of(2L, 5L), payload.targets());
+		assertEquals(List.of("#2", "#5"), payload.targetDisplayTexts());
 		assertThrows(UnsupportedOperationException.class, () -> payload.targets().add(6L));
+		assertThrows(UnsupportedOperationException.class, () -> payload.targetDisplayTexts().add("#6"));
 	}
 
 	/**
@@ -183,6 +189,7 @@ class PairingNetworkPayloadTest {
 		PairingNetwork.OpenTriggerSourcePairingPayload original = new PairingNetwork.OpenTriggerSourcePairingPayload(
 			123L,
 			List.of(1L, 4L, 9L),
+			List.of("入口(#1)", "#4", "脉冲(#9)"),
 			21L,
 			13L,
 			0L,
@@ -199,6 +206,7 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targets(), decoded.targets());
+		assertEquals(original.targetDisplayTexts(), decoded.targetDisplayTexts());
 		assertEquals(original.graphRevision(), decoded.graphRevision());
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(original.coreRevision(), decoded.coreRevision());
@@ -230,6 +238,7 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targets(), decoded.targets());
+		assertEquals(original.targetDisplayTexts(), decoded.targetDisplayTexts());
 		assertEquals(original.graphRevision(), decoded.graphRevision());
 		assertEquals(original.sourceRevision(), decoded.sourceRevision());
 		assertEquals(original.coreRevision(), decoded.coreRevision());
@@ -364,6 +373,7 @@ class PairingNetworkPayloadTest {
 
 		assertEquals(77L, decoded.sourceSerial());
 		assertEquals(List.of(), decoded.targets());
+		assertEquals(List.of(), decoded.targetDisplayTexts());
 		assertEquals("", decoded.sourceAlias());
 		assertEquals(NodeAliasDisplayUtil.formatDisplayText("", 77L), decoded.sourceDisplayText());
 	}
@@ -379,6 +389,7 @@ class PairingNetworkPayloadTest {
 			"triggerSource",
 			88L,
 			List.of(3L, 7L),
+			List.of("门厅(#3)", "#7"),
 			LinkConnectionMode.CHANNEL.token(),
 			66L,
 			CrossChunkNodeIdentity.FORCE_LOAD
@@ -393,6 +404,7 @@ class PairingNetworkPayloadTest {
 		assertEquals(original.sourceType(), decoded.sourceType());
 		assertEquals(original.sourceSerial(), decoded.sourceSerial());
 		assertEquals(original.targets(), decoded.targets());
+		assertEquals(original.targetDisplayTexts(), decoded.targetDisplayTexts());
 		assertEquals(original.connectionModeToken(), decoded.connectionModeToken());
 		assertEquals(original.channel(), decoded.channel());
 		assertEquals(original.crossChunkIdentity(), decoded.crossChunkIdentity());

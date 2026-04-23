@@ -9,6 +9,7 @@ import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorItemData;
 import com.makomi.data.CrossChunkEffectiveWhitelistService;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.LinkSavedData;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.data.PlacedChunkActivatorSavedData;
@@ -95,6 +96,7 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 		ServerPlayer player,
 		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) {
+		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
 		ChunkActivatorConfigStateSnapshot normalized = configStateSnapshot == null
 			? new ChunkActivatorConfigStateSnapshot(null, null, null)
 			: configStateSnapshot;
@@ -130,6 +132,26 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 					false,
 					"message.redstonelink.chunk_activator.too_many_serials",
 					Integer.toString(PlacedChunkActivatorSavedData.MAX_NODE_SET_SIZE)
+				);
+				return null;
+			}
+			NetworkActiveSerialValidationSupport.ValidationResult validationResult =
+				NetworkActiveSerialValidationSupport.collectInvalidSerials(savedData, type, parseResult.orderedTargets());
+			if (validationResult.hasUnallocated()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.invalid_target_unallocated",
+					String.join(", ", validationResult.unallocatedSerials())
+				);
+				return null;
+			}
+			if (validationResult.hasRetired()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.invalid_target_retired",
+					String.join(", ", validationResult.retiredSerials())
 				);
 				return null;
 			}

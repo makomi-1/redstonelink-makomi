@@ -70,6 +70,7 @@ class NodeSnapshotReadModelTest {
 
 		assertNotNull(snapshot.sourceIdentity());
 		assertEquals(List.of(3L, 5L), snapshot.visibleTargets());
+		assertEquals(List.of("#3", "#5"), snapshot.visibleTargetDisplayTexts());
 		assertEquals(Set.of(3L, 5L), snapshot.visibleTargetSet());
 		assertEquals(2, snapshot.visibleTargetCount());
 		assertTrue(snapshot.masked());

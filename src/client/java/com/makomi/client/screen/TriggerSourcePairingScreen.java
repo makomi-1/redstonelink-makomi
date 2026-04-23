@@ -61,6 +61,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	public TriggerSourcePairingScreen(
 		long sourceSerial,
 		List<Long> currentTargets,
+		List<String> currentTargetDisplayTexts,
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
@@ -76,6 +77,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 			sourceAlias,
 			sourceDisplayText,
 			currentTargets,
+			currentTargetDisplayTexts,
 			graphRevision,
 			sourceRevision,
 			coreRevision,
@@ -99,6 +101,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		this(
 			sourceSerial,
 			currentTargets,
+			List.of(),
 			graphRevision,
 			sourceRevision,
 			coreRevision,
@@ -114,6 +117,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		this(
 			sourceSerial,
 			currentTargets,
+			List.of(),
 			graphRevision,
 			sourceRevision,
 			0L,
@@ -137,6 +141,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	public TriggerSourcePairingScreen(InteractionHand hand) {
 		this(
 			resolveHeldSerial(hand),
+			List.of(),
 			List.of(),
 			0L,
 			0L,
@@ -168,13 +173,12 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	/**
 	 * 组装“当前连接”展示文本。
 	 *
-	 * @param currentTargets 当前目标序列号列表
+	 * @param currentLinksText 当前连接文本
 	 * @return 本地化后的连接文本
 	 */
 	@Override
-	protected Component currentLinksLine(List<Long> currentTargets) {
-		String linkedText = currentTargets.isEmpty() ? "-" : buildCurrentLinksText(currentTargets);
-		return Component.translatable("screen.redstonelink.trigger_source_pairing.current_links", linkedText);
+	protected Component currentLinksLine(String currentLinksText) {
+		return Component.translatable("screen.redstonelink.trigger_source_pairing.current_links", currentLinksText);
 	}
 
 	@Override

@@ -88,6 +88,20 @@ class LinkItemDataTest {
 
 		LinkItemData.setLinkedSerials(stack, input);
 		assertEquals(List.of(3L, 5L, 9L), LinkItemData.getLinkedSerials(stack));
+		assertEquals(List.of("#3", "#5", "#9"), LinkItemData.getLinkedDisplayTexts(stack));
+	}
+
+	/**
+	 * linked snapshot 应同时保存目标序号和展示文本。
+	 */
+	@Test
+	void linkedSnapshotShouldStoreDisplayTexts() {
+		ItemStack stack = new ItemStack(Items.STONE);
+
+		LinkItemData.setLinkedSnapshot(stack, List.of(3L, 5L), List.of("门厅(#3)", "#5"));
+
+		assertEquals(List.of(3L, 5L), LinkItemData.getLinkedSerials(stack));
+		assertEquals(List.of("门厅(#3)", "#5"), LinkItemData.getLinkedDisplayTexts(stack));
 	}
 
 	/**
@@ -125,10 +139,12 @@ class LinkItemDataTest {
 
 		LinkItemData.setSerial(stack, 11L);
 		LinkItemData.setChannel(stack, 29L);
+		LinkItemData.setLinkedSnapshot(stack, List.of(31L), List.of("中控(#31)"));
 		assertEquals(29L, LinkItemData.getChannel(stack));
 
 		LinkItemData.setSerial(stack, 12L);
 		assertEquals(0L, LinkItemData.getChannel(stack));
+		assertEquals(List.of("#31"), LinkItemData.getLinkedDisplayTexts(stack));
 	}
 
 	/**
@@ -160,10 +176,12 @@ class LinkItemDataTest {
 
 		LinkItemData.setSerial(stack, 31L);
 		LinkItemData.setChannel(stack, 66L);
+		LinkItemData.setLinkedSnapshot(stack, List.of(41L), List.of("目标(#41)"));
 		assertEquals(66L, LinkItemData.getChannel(stack));
 
 		LinkItemData.setSerialGroup(stack, List.of(41L, 42L));
 		assertEquals(0L, LinkItemData.getChannel(stack));
+		assertEquals(List.of(), LinkItemData.getLinkedDisplayTexts(stack));
 	}
 
 	/**

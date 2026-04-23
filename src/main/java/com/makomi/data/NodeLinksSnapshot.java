@@ -16,6 +16,7 @@ import java.util.Set;
 public record NodeLinksSnapshot(
 	NodeIdentitySnapshot sourceIdentity,
 	List<Long> visibleTargets,
+	List<String> visibleTargetDisplayTexts,
 	boolean masked,
 	long graphRevision,
 	long sourceRevision,
@@ -26,9 +27,35 @@ public record NodeLinksSnapshot(
 			? new NodeIdentitySnapshot(LinkNodeType.CORE, 0L, false, false, false, null, null)
 			: sourceIdentity;
 		visibleTargets = normalizeTargets(visibleTargets);
+		visibleTargetDisplayTexts = NodeAliasDisplayUtil.normalizeDisplayTexts(visibleTargets, visibleTargetDisplayTexts);
 		graphRevision = Math.max(0L, graphRevision);
 		sourceRevision = Math.max(0L, sourceRevision);
 		coreRevision = Math.max(0L, coreRevision);
+	}
+
+	public NodeLinksSnapshot(
+		NodeIdentitySnapshot sourceIdentity,
+		List<Long> visibleTargets,
+		boolean masked,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision
+	) {
+		this(sourceIdentity, visibleTargets, List.of(), masked, graphRevision, sourceRevision, coreRevision);
+	}
+
+	/**
+	 * 兼容旧调用方仅传入 `graphRevision/sourceRevision` 的场景。
+	 */
+	public NodeLinksSnapshot(
+		NodeIdentitySnapshot sourceIdentity,
+		List<Long> visibleTargets,
+		List<String> visibleTargetDisplayTexts,
+		boolean masked,
+		long graphRevision,
+		long sourceRevision
+	) {
+		this(sourceIdentity, visibleTargets, visibleTargetDisplayTexts, masked, graphRevision, sourceRevision, 0L);
 	}
 
 	/**
@@ -41,14 +68,26 @@ public record NodeLinksSnapshot(
 		long graphRevision,
 		long sourceRevision
 	) {
-		this(sourceIdentity, visibleTargets, masked, graphRevision, sourceRevision, 0L);
+		this(sourceIdentity, visibleTargets, List.of(), masked, graphRevision, sourceRevision, 0L);
+	}
+
+	/**
+	 * 兼容仅关心可见目标列表与展示文本的调用方。
+	 */
+	public NodeLinksSnapshot(
+		NodeIdentitySnapshot sourceIdentity,
+		List<Long> visibleTargets,
+		List<String> visibleTargetDisplayTexts,
+		boolean masked
+	) {
+		this(sourceIdentity, visibleTargets, visibleTargetDisplayTexts, masked, 0L, 0L, 0L);
 	}
 
 	/**
 	 * 兼容仅关心可见目标列表的旧调用方。
 	 */
 	public NodeLinksSnapshot(NodeIdentitySnapshot sourceIdentity, List<Long> visibleTargets, boolean masked) {
-		this(sourceIdentity, visibleTargets, masked, 0L, 0L, 0L);
+		this(sourceIdentity, visibleTargets, List.of(), masked, 0L, 0L, 0L);
 	}
 
 	/**

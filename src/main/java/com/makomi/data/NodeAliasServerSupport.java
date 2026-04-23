@@ -93,11 +93,7 @@ public final class NodeAliasServerSupport {
 		changed |= syncItemList(player, inventory.offhand, type, serial);
 		changed |= syncItemList(player, inventory.armor, type, serial);
 		ItemStack carried = player.containerMenu.getCarried();
-		if (matchesNodeItem(carried, type, serial)) {
-			String beforeAlias = LinkItemData.getDisplayAlias(carried);
-			LinkItemData.syncDisplayAliasIfSingle(carried, player.serverLevel());
-			changed |= !beforeAlias.equals(LinkItemData.getDisplayAlias(carried));
-		}
+		changed |= syncItemAliasOrLinkedDisplayText(player, carried, type, serial);
 		return changed;
 	}
 
@@ -107,12 +103,25 @@ public final class NodeAliasServerSupport {
 		}
 		boolean changed = false;
 		for (ItemStack stack : stacks) {
-			if (!matchesNodeItem(stack, type, serial)) {
-				continue;
-			}
+			changed |= syncItemAliasOrLinkedDisplayText(player, stack, type, serial);
+		}
+		return changed;
+	}
+
+	private static boolean syncItemAliasOrLinkedDisplayText(ServerPlayer player, ItemStack stack, LinkNodeType type, long serial) {
+		if (player == null || stack == null || stack.isEmpty() || LinkItemData.getSerialCount(stack) != 1) {
+			return false;
+		}
+		boolean changed = false;
+		if (matchesNodeItem(stack, type, serial)) {
 			String beforeAlias = LinkItemData.getDisplayAlias(stack);
 			LinkItemData.syncDisplayAliasIfSingle(stack, player.serverLevel());
 			changed |= !beforeAlias.equals(LinkItemData.getDisplayAlias(stack));
+		}
+		if (linksToAliasedNode(stack, type, serial)) {
+			List<String> beforeDisplayTexts = LinkItemData.getLinkedDisplayTexts(stack);
+			LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, player.serverLevel());
+			changed |= !beforeDisplayTexts.equals(LinkItemData.getLinkedDisplayTexts(stack));
 		}
 		return changed;
 	}
@@ -125,5 +134,16 @@ public final class NodeAliasServerSupport {
 			return false;
 		}
 		return LinkItemData.getNodeType(stack).orElse(null) == type;
+	}
+
+	private static boolean linksToAliasedNode(ItemStack stack, LinkNodeType type, long serial) {
+		if (stack == null || stack.isEmpty() || type == null || serial <= 0L || LinkItemData.getSerialCount(stack) != 1) {
+			return false;
+		}
+		LinkNodeType itemType = LinkItemData.getNodeType(stack).orElse(null);
+		if (LinkNodeSemantics.resolveLinkedPeerType(itemType) != type) {
+			return false;
+		}
+		return LinkItemData.getLinkedSerials(stack).contains(serial);
 	}
 }

@@ -8,6 +8,7 @@ import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterItemData;
 import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterTargetMode;
+import com.makomi.data.LinkSavedData;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.item.LinkFilterBlockItem;
@@ -78,6 +79,30 @@ final class LinkFilterNetworkServerHandlerSupport {
 					false,
 					"message.redstonelink.link_filter.too_many_serials",
 					Integer.toString(RedstoneLinkConfig.general().maxTargetsPerSetLinks())
+				);
+				return;
+			}
+			NetworkActiveSerialValidationSupport.ValidationResult validationResult =
+				NetworkActiveSerialValidationSupport.collectInvalidSerials(
+					LinkSavedData.get(player.serverLevel()),
+					payload.filterKind().servicedNodeType(),
+					parseResult.orderedTargets()
+				);
+			if (validationResult.hasUnallocated()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.invalid_target_unallocated",
+					String.join(", ", validationResult.unallocatedSerials())
+				);
+				return;
+			}
+			if (validationResult.hasRetired()) {
+				sendFeedback(
+					player,
+					false,
+					"message.redstonelink.invalid_target_retired",
+					String.join(", ", validationResult.retiredSerials())
 				);
 				return;
 			}

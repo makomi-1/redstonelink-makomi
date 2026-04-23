@@ -5,6 +5,7 @@ import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.PairingNetwork;
 import com.makomi.util.SerialCollectionFormatUtil;
 import java.util.HashMap;
@@ -85,6 +86,7 @@ final class LinkSerialHudOverlaySnapshotSupport {
 		String sourceType,
 		long sourceSerial,
 		List<Long> linkedTargets,
+		List<String> linkedTargetDisplayTexts,
 		String connectionModeToken,
 		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
@@ -100,6 +102,7 @@ final class LinkSerialHudOverlaySnapshotSupport {
 			new CachedCurrentLinksSnapshot(
 				now + CURRENT_LINKS_CACHE_TTL_MILLIS,
 				normalizeLinkedTargets(linkedTargets),
+				NodeAliasDisplayUtil.normalizeDisplayTexts(normalizeLinkedTargets(linkedTargets), linkedTargetDisplayTexts),
 				normalizeConnectionMode(connectionModeToken),
 				Math.max(0L, channel),
 				normalizeCrossChunkIdentity(crossChunkIdentity)
@@ -364,12 +367,14 @@ final class LinkSerialHudOverlaySnapshotSupport {
 	record CachedCurrentLinksSnapshot(
 		long expireAtMillis,
 		List<Long> linkedTargets,
+		List<String> linkedTargetDisplayTexts,
 		LinkConnectionMode connectionMode,
 		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
 	) {
 		private static final CachedCurrentLinksSnapshot EMPTY = new CachedCurrentLinksSnapshot(
 			0L,
+			List.of(),
 			List.of(),
 			LinkConnectionMode.SERIAL,
 			0L,

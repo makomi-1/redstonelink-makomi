@@ -34,6 +34,7 @@ class NodeSnapshotQueryServiceTest {
 		assertEquals(LinkNodeType.TRIGGER_SOURCE, snapshot.sourceIdentity().nodeType());
 		assertEquals(12L, snapshot.sourceIdentity().serial());
 		assertEquals(java.util.List.of(3L, 7L), snapshot.visibleTargets());
+		assertEquals(java.util.List.of("#3", "#7"), snapshot.visibleTargetDisplayTexts());
 		assertFalse(snapshot.masked());
 		assertEquals(0L, snapshot.graphRevision());
 		assertEquals(0L, snapshot.sourceRevision());

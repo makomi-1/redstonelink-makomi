@@ -56,6 +56,7 @@ class LinkSerialHudOverlayTextSupportTest {
 				new LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot(
 					100L,
 					java.util.List.of(1L, 2L),
+					java.util.List.of("#1", "#2"),
 					LinkConnectionMode.CHANNEL,
 					9L,
 					CrossChunkNodeIdentity.NORMAL
@@ -67,6 +68,7 @@ class LinkSerialHudOverlayTextSupportTest {
 				new LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot(
 					100L,
 					java.util.List.of(1L, 2L),
+					java.util.List.of("#1", "#2"),
 					LinkConnectionMode.SERIAL,
 					0L,
 					CrossChunkNodeIdentity.NORMAL

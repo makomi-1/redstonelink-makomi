@@ -197,6 +197,7 @@ public final class PairingNetwork {
 	public record OpenTriggerSourcePairingPayload(
 		long sourceSerial,
 		List<Long> targets,
+		List<String> targetDisplayTexts,
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
@@ -214,6 +215,7 @@ public final class PairingNetwork {
 				buffer,
 				payload.sourceSerial(),
 				payload.targets(),
+				payload.targetDisplayTexts(),
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
@@ -228,6 +230,7 @@ public final class PairingNetwork {
 
 		public OpenTriggerSourcePairingPayload {
 			targets = List.copyOf(targets);
+			targetDisplayTexts = NodeAliasDisplayUtil.normalizeDisplayTexts(targets, targetDisplayTexts);
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
@@ -247,11 +250,40 @@ public final class PairingNetwork {
 			String connectionModeToken,
 			long channel,
 			String displayContextToken,
+			String sourceAlias,
 			String sourceDisplayText
 		) {
 			this(
 				sourceSerial,
 				targets,
+				List.of(),
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				connectionModeToken,
+				channel,
+				displayContextToken,
+				sourceAlias,
+				sourceDisplayText
+			);
+		}
+
+		public OpenTriggerSourcePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			List<String> targetDisplayTexts,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String connectionModeToken,
+			long channel,
+			String displayContextToken,
+			String sourceDisplayText
+		) {
+			this(
+				sourceSerial,
+				targets,
+				targetDisplayTexts,
 				graphRevision,
 				sourceRevision,
 				coreRevision,
@@ -259,6 +291,32 @@ public final class PairingNetwork {
 				channel,
 				displayContextToken,
 				"",
+				sourceDisplayText
+			);
+		}
+
+		public OpenTriggerSourcePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			List<String> targetDisplayTexts,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String displayContextToken,
+			String sourceAlias,
+			String sourceDisplayText
+		) {
+			this(
+				sourceSerial,
+				targets,
+				targetDisplayTexts,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				LinkConnectionMode.SERIAL.token(),
+				0L,
+				displayContextToken,
+				sourceAlias,
 				sourceDisplayText
 			);
 		}
@@ -276,6 +334,7 @@ public final class PairingNetwork {
 			this(
 				sourceSerial,
 				targets,
+				List.of(),
 				graphRevision,
 				sourceRevision,
 				coreRevision,
@@ -324,6 +383,7 @@ public final class PairingNetwork {
 	public record OpenCorePairingPayload(
 		long sourceSerial,
 		List<Long> targets,
+		List<String> targetDisplayTexts,
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
@@ -341,6 +401,7 @@ public final class PairingNetwork {
 				buffer,
 				payload.sourceSerial(),
 				payload.targets(),
+				payload.targetDisplayTexts(),
 				payload.graphRevision(),
 				payload.sourceRevision(),
 				payload.coreRevision(),
@@ -355,6 +416,7 @@ public final class PairingNetwork {
 
 		public OpenCorePairingPayload {
 			targets = List.copyOf(targets);
+			targetDisplayTexts = NodeAliasDisplayUtil.normalizeDisplayTexts(targets, targetDisplayTexts);
 			graphRevision = Math.max(0L, graphRevision);
 			sourceRevision = Math.max(0L, sourceRevision);
 			coreRevision = Math.max(0L, coreRevision);
@@ -374,11 +436,40 @@ public final class PairingNetwork {
 			String connectionModeToken,
 			long channel,
 			String displayContextToken,
+			String sourceAlias,
 			String sourceDisplayText
 		) {
 			this(
 				sourceSerial,
 				targets,
+				List.of(),
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				connectionModeToken,
+				channel,
+				displayContextToken,
+				sourceAlias,
+				sourceDisplayText
+			);
+		}
+
+		public OpenCorePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			List<String> targetDisplayTexts,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String connectionModeToken,
+			long channel,
+			String displayContextToken,
+			String sourceDisplayText
+		) {
+			this(
+				sourceSerial,
+				targets,
+				targetDisplayTexts,
 				graphRevision,
 				sourceRevision,
 				coreRevision,
@@ -386,6 +477,32 @@ public final class PairingNetwork {
 				channel,
 				displayContextToken,
 				"",
+				sourceDisplayText
+			);
+		}
+
+		public OpenCorePairingPayload(
+			long sourceSerial,
+			List<Long> targets,
+			List<String> targetDisplayTexts,
+			long graphRevision,
+			long sourceRevision,
+			long coreRevision,
+			String displayContextToken,
+			String sourceAlias,
+			String sourceDisplayText
+		) {
+			this(
+				sourceSerial,
+				targets,
+				targetDisplayTexts,
+				graphRevision,
+				sourceRevision,
+				coreRevision,
+				LinkConnectionMode.SERIAL.token(),
+				0L,
+				displayContextToken,
+				sourceAlias,
 				sourceDisplayText
 			);
 		}
@@ -403,6 +520,7 @@ public final class PairingNetwork {
 			this(
 				sourceSerial,
 				targets,
+				List.of(),
 				graphRevision,
 				sourceRevision,
 				coreRevision,
@@ -720,6 +838,7 @@ public final class PairingNetwork {
 		String sourceType,
 		long sourceSerial,
 		List<Long> targets,
+		List<String> targetDisplayTexts,
 		String connectionModeToken,
 		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
@@ -735,6 +854,7 @@ public final class PairingNetwork {
 				payload.sourceType(),
 				payload.sourceSerial(),
 				payload.targets(),
+				payload.targetDisplayTexts(),
 				payload.connectionModeToken(),
 				payload.channel(),
 				payload.crossChunkIdentity()
@@ -746,9 +866,33 @@ public final class PairingNetwork {
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			sourceType = sourceType == null ? "" : sourceType;
 			targets = List.copyOf(targets);
+			targetDisplayTexts = NodeAliasDisplayUtil.normalizeDisplayTexts(targets, targetDisplayTexts);
 			connectionModeToken = LinkConnectionMode.fromToken(connectionModeToken).token();
 			channel = Math.max(0L, channel);
 			crossChunkIdentity = crossChunkIdentity == null ? CrossChunkNodeIdentity.NORMAL : crossChunkIdentity;
+		}
+
+		public CurrentLinksSnapshotPayload(
+			String dimensionKey,
+			long blockPos,
+			String sourceType,
+			long sourceSerial,
+			List<Long> targets,
+			String connectionModeToken,
+			long channel,
+			CrossChunkNodeIdentity crossChunkIdentity
+		) {
+			this(
+				dimensionKey,
+				blockPos,
+				sourceType,
+				sourceSerial,
+				targets,
+				List.of(),
+				connectionModeToken,
+				channel,
+				crossChunkIdentity
+			);
 		}
 
 		@Override

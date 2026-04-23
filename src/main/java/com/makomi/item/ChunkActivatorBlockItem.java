@@ -10,6 +10,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.ChunkActivatorNetwork;
 import java.util.List;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -84,6 +85,7 @@ public class ChunkActivatorBlockItem extends BlockItem {
 				modeLabel(activeConfig.mode())
 			)
 		);
+		tooltipComponents.add(modeDetailTooltip(activeConfig.mode()));
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.chunk_activator.serial_expression",
@@ -110,5 +112,17 @@ public class ChunkActivatorBlockItem extends BlockItem {
 			case FORCE_LOAD -> Component.translatable("screen.redstonelink.chunk_activator.mode.force_load");
 			case RESIDENT -> Component.translatable("screen.redstonelink.chunk_activator.mode.resident");
 		};
+	}
+
+	/**
+	 * 构建当前激活模式的附加说明，便于物品 tooltip 直接解释运行语义。
+	 */
+	static Component modeDetailTooltip(ChunkActivatorMode mode) {
+		ChunkActivatorMode normalizedMode = mode == null ? ChunkActivatorMode.FORCE_LOAD : mode;
+		String translationKey = switch (normalizedMode) {
+			case FORCE_LOAD -> "tooltip.redstonelink.chunk_activator.mode_detail.force_load";
+			case RESIDENT -> "tooltip.redstonelink.chunk_activator.mode_detail.resident";
+		};
+		return Component.translatable(translationKey).withStyle(ChatFormatting.GRAY);
 	}
 }

@@ -7,6 +7,7 @@ import com.makomi.network.StatePanelNetwork;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -194,6 +195,7 @@ public class StatePanelToolScreen extends Screen {
 
 		renderHeader(guiGraphics, layout);
 		renderList(guiGraphics, layout);
+		renderStatusHeaderTooltip(guiGraphics, layout, mouseX, mouseY);
 
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.drawString(font, statusMessage, layout.panelLeft(), layout.statusMessageY(), statusMessageColor, false);
@@ -384,6 +386,21 @@ public class StatePanelToolScreen extends Screen {
 			HEADER_TEXT_COLOR,
 			false
 		);
+	}
+
+	/**
+	 * 为“状态”列表头提供字段释义 tooltip，帮助理解状态缩写。
+	 */
+	private void renderStatusHeaderTooltip(GuiGraphics guiGraphics, StatePanelLayout layout, int mouseX, int mouseY) {
+		String visibleHeaderText = clipTextToWidth(HEADER_STATUS.getString(), layout.statusWidth());
+		int hoverWidth = font.width(visibleHeaderText);
+		if (hoverWidth <= 0) {
+			return;
+		}
+		if (!isMouseOver(layout.statusX(), layout.headerY() + LIST_ROW_TEXT_OFFSET_Y, hoverWidth, font.lineHeight, mouseX, mouseY)) {
+			return;
+		}
+		guiGraphics.renderTooltip(font, buildStatusHeaderTooltipLines(), Optional.empty(), mouseX, mouseY);
 	}
 
 	/**
@@ -706,6 +723,26 @@ public class StatePanelToolScreen extends Screen {
 			return "";
 		}
 		return font.plainSubstrByWidth(text, maxWidth);
+	}
+
+	/**
+	 * 构建“状态”列表头 tooltip 内容，解释状态串中每个缩写字段。
+	 */
+	static List<Component> buildStatusHeaderTooltipLines() {
+		return List.of(
+			Component.translatable("screen.redstonelink.state_panel.header_status.tooltip.on_off"),
+			Component.translatable("screen.redstonelink.state_panel.header_status.tooltip.act_idle"),
+			Component.translatable("screen.redstonelink.state_panel.header_status.tooltip.ret_live"),
+			Component.translatable("screen.redstonelink.state_panel.header_status.tooltip.input_power"),
+			Component.translatable("screen.redstonelink.state_panel.header_status.tooltip.output_power")
+		);
+	}
+
+	/**
+	 * 判断鼠标是否位于指定矩形区域内。
+	 */
+	private static boolean isMouseOver(int x, int y, int width, int height, int mouseX, int mouseY) {
+		return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
 	}
 
 	/**

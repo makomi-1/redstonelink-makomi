@@ -7,7 +7,6 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
-import com.makomi.data.NodeSnapshotQueryService;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -88,10 +87,7 @@ public class SyncLinkerItem extends LinkerItem {
 		LinkItemData.setSyncLinkerSignalStrength(stack, nextSignalStrength);
 		savedData.putTriggerSourceReplaySyncSnapshot(serial, EventMeta.now(level), nextSignalStrength);
 
-		LinkItemData.setLinkedSerials(
-			stack,
-			NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial).visibleTargetSet()
-		);
+		LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, serverLevel);
 		LinkedTargetDispatchService.DispatchSummary dispatchSummary = LinkedTargetDispatchService.dispatchSyncSignal(
 			serverLevel,
 			LinkNodeType.TRIGGER_SOURCE,

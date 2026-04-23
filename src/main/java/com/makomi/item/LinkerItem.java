@@ -10,7 +10,6 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
 import com.makomi.data.NodeAliasDisplayUtil;
-import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
 import net.minecraft.network.chat.Component;
@@ -178,7 +177,7 @@ public class LinkerItem extends Item implements PairableItem {
 		}
 
 		long serial = LinkItemData.getSerial(stack);
-		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
+		List<String> linkedDisplayTexts = LinkItemData.getLinkedDisplayTexts(stack);
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.serial",
@@ -186,8 +185,8 @@ public class LinkerItem extends Item implements PairableItem {
 			)
 		);
 		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
-		String linkedText = TooltipTextTruncateUtil.buildTargetsText(
-			linkedSerials,
+		String linkedText = TooltipTextTruncateUtil.buildTargetDisplayTextsText(
+			linkedDisplayTexts,
 			TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.links", linkedText));
@@ -318,10 +317,7 @@ public class LinkerItem extends Item implements PairableItem {
 			serial,
 			LinkGuiDisplayContext.resolvePairingContextToken(stack, LinkNodeType.TRIGGER_SOURCE)
 		);
-		LinkItemData.setLinkedSerials(
-			stack,
-			NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial).visibleTargetSet()
-		);
+		LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, serverLevel);
 	}
 
 	/**
@@ -347,10 +343,7 @@ public class LinkerItem extends Item implements PairableItem {
 		}
 
 		// 每次触发后都回写最新连接列表，确保物品提示信息与存档状态一致。
-		LinkItemData.setLinkedSerials(
-			stack,
-			NodeSnapshotQueryService.queryItemSnapshotLinks(serverLevel, LinkNodeType.TRIGGER_SOURCE, serial).visibleTargetSet()
-		);
+		LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, serverLevel);
 		LinkedTargetDispatchService.DispatchSummary dispatchSummary = LinkedTargetDispatchService.dispatchActivation(
 			serverLevel,
 			LinkNodeType.TRIGGER_SOURCE,

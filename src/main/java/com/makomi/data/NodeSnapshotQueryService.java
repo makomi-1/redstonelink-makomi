@@ -2,6 +2,9 @@ package com.makomi.data;
 
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkCrossChunkConfig;
+import com.makomi.util.SerialCollectionFormatUtil;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.server.MinecraftServer;
@@ -164,6 +167,7 @@ public final class NodeSnapshotQueryService {
 		return new NodeLinksSnapshot(
 			identity,
 			rawTargets == null ? java.util.List.of() : java.util.List.copyOf(rawTargets),
+			resolveVisibleTargetDisplayTexts(level, nodeType, rawTargets),
 			false,
 			resolveGraphRevision(savedData),
 			resolveSourceRevision(savedData, nodeType, serial),
@@ -206,6 +210,36 @@ public final class NodeSnapshotQueryService {
 			return 0L;
 		}
 		return savedData.coreRevision(serial);
+	}
+
+	/**
+	 * 按来源节点类型解析其当前连接目标的展示文本列表。
+	 */
+	static java.util.List<String> resolveVisibleTargetDisplayTexts(
+		ServerLevel level,
+		LinkNodeType sourceType,
+		Collection<Long> visibleTargets
+	) {
+		java.util.List<Long> normalizedTargets = SerialCollectionFormatUtil.normalizePositiveDistinctSorted(visibleTargets);
+		if (normalizedTargets.isEmpty()) {
+			return java.util.List.of();
+		}
+		LinkNodeType targetType = LinkNodeSemantics.resolveLinkedPeerType(sourceType);
+		java.util.List<String> displayTexts = new ArrayList<>(normalizedTargets.size());
+		for (long targetSerial : normalizedTargets) {
+			displayTexts.add(resolveTargetDisplayText(level, targetType, targetSerial));
+		}
+		return java.util.List.copyOf(displayTexts);
+	}
+
+	private static String resolveTargetDisplayText(ServerLevel level, LinkNodeType targetType, long targetSerial) {
+		if (targetSerial <= 0L) {
+			return NodeAliasDisplayUtil.formatDisplayText("", targetSerial);
+		}
+		if (level == null || targetType == null) {
+			return NodeAliasDisplayUtil.formatDisplayText("", targetSerial);
+		}
+		return NodeAliasServerSupport.resolveDisplayText(level, targetType, targetSerial);
 	}
 
 	/**

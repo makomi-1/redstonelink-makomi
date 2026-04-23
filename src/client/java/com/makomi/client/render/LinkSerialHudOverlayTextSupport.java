@@ -17,7 +17,6 @@ import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
-import com.makomi.util.SerialDisplayFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.List;
@@ -143,7 +142,9 @@ final class LinkSerialHudOverlayTextSupport {
 			resolveRuntimeHudPowerText(runtimeHudSnapshot, true),
 			resolveRuntimeHudPowerText(runtimeHudSnapshot, false)
 		));
-		lines.add(translate(KEY_NEAR_OVERLAY_LINKS_LINE, buildCurrentLinksText(font, currentLinksSnapshot.linkedTargets())));
+		lines.add(
+			translate(KEY_NEAR_OVERLAY_LINKS_LINE, buildCurrentLinksDisplayText(font, currentLinksSnapshot.linkedTargetDisplayTexts()))
+		);
 		if (shouldRenderChannelLine(currentLinksSnapshot)) {
 			lines.add(translate(KEY_NEAR_OVERLAY_CHANNEL_LINE, resolveChannelValueText(currentLinksSnapshot.channel())));
 		}
@@ -437,29 +438,21 @@ final class LinkSerialHudOverlayTextSupport {
 	/**
 	 * 构建第四行“当前连接”文本，复用 GUI 的结构化展示规则（N / A:B + / + (+n)）。
 	 */
+	private static String buildCurrentLinksDisplayText(Font font, List<String> linkedTargetDisplayTexts) {
+		if (linkedTargetDisplayTexts == null || linkedTargetDisplayTexts.isEmpty()) {
+			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
+		}
+		return com.makomi.util.DisplayTextListFormatUtil.buildText(linkedTargetDisplayTexts, LINKS_LINE_MAX_WIDTH, font::width);
+	}
+
+	/**
+	 * 构建节点集文本，未携带别名快照时按序号展示。
+	 */
 	private static String buildCurrentLinksText(Font font, List<Long> linkedTargets) {
 		if (linkedTargets == null || linkedTargets.isEmpty()) {
 			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
 		}
-		SerialDisplayFormatUtil.StructuredExpression expression = SerialDisplayFormatUtil.buildExpression(linkedTargets);
-		if (expression.isEmpty()) {
-			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
-		}
-
-		int displaySegments = expression.segments().size();
-		while (displaySegments > 0) {
-			String base = String.join("/", expression.segments().subList(0, displaySegments));
-			int remaining = SerialDisplayFormatUtil.countRemainingSerials(expression, displaySegments);
-			String text = remaining > 0 ? base + SerialDisplayFormatUtil.buildRemainingSuffix(remaining) : base;
-			if (font.width(text) <= LINKS_LINE_MAX_WIDTH) {
-				return text;
-			}
-			displaySegments -= 1;
-		}
-
-		int remainingAll = SerialDisplayFormatUtil.countRemainingSerials(expression, 0);
-		String suffixOnly = SerialDisplayFormatUtil.buildRemainingSuffix(remainingAll);
-		return font.width(suffixOnly) <= LINKS_LINE_MAX_WIDTH ? suffixOnly : translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
+		return buildCurrentLinksDisplayText(font, NodeAliasDisplayUtil.normalizeDisplayTexts(linkedTargets, List.of()));
 	}
 
 	/**

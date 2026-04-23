@@ -136,7 +136,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		}
 
 		long serial = LinkItemData.getSerial(stack);
-		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
+		List<String> linkedDisplayTexts = LinkItemData.getLinkedDisplayTexts(stack);
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.serial",
@@ -153,8 +153,8 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			);
 		}
 		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
-		String linkedText = TooltipTextTruncateUtil.buildTargetsText(
-			linkedSerials,
+		String linkedText = TooltipTextTruncateUtil.buildTargetDisplayTextsText(
+			linkedDisplayTexts,
 			TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
 		);
 		tooltipComponents.add(

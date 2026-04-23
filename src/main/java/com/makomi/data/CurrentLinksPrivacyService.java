@@ -154,11 +154,12 @@ public final class CurrentLinksPrivacyService {
 			: sourceIdentity;
 		List<Long> normalizedTargets = SerialCollectionFormatUtil.normalizePositiveDistinctSorted(linkedTargets);
 		if (!canViewCurrentLinks(level, sourceType, sourceSerial, hasViewPermission)) {
-			return new NodeLinksSnapshot(normalizedIdentity, List.of(), true);
+			return new NodeLinksSnapshot(normalizedIdentity, List.of(), List.of(), true);
 		}
 		List<Long> visibleTargets = filterVisibleTargetSerials(level, sourceType, linkedTargets, hasViewPermission);
+		List<String> visibleTargetDisplayTexts = NodeSnapshotQueryService.resolveVisibleTargetDisplayTexts(level, sourceType, visibleTargets);
 		boolean masked = visibleTargets.size() != normalizedTargets.size();
-		return new NodeLinksSnapshot(normalizedIdentity, visibleTargets, masked);
+		return new NodeLinksSnapshot(normalizedIdentity, visibleTargets, visibleTargetDisplayTexts, masked);
 	}
 
 	/**

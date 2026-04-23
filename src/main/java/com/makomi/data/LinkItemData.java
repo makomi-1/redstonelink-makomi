@@ -10,6 +10,8 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -38,6 +40,7 @@ public final class LinkItemData {
 	private static final String KEY_DISPLAY_ALIAS = "rl_display_alias";
 	private static final String KEY_PAIR = "rl_pair";
 	private static final String KEY_LINKS = "rl_links";
+	private static final String KEY_LINK_DISPLAY_TEXTS = "rl_link_display_texts";
 	private static final String KEY_CHANNEL = "rl_channel";
 	private static final String KEY_DESTROY_RETIRE = "rl_destroy_retire";
 	private static final String KEY_SYNC_LINKER_SIGNAL = "rl_sync_linker_signal";
@@ -244,6 +247,7 @@ public final class LinkItemData {
 			}
 			tag.remove(KEY_SERIAL_GROUP);
 			tag.remove(KEY_DISPLAY_ALIAS);
+			tag.remove(KEY_LINK_DISPLAY_TEXTS);
 			tag.remove(KEY_CHANNEL);
 		});
 	}
@@ -323,12 +327,36 @@ public final class LinkItemData {
 	}
 
 	/**
+	 * 读取当前连接目标展示文本快照。
+	 * <p>
+	 * 当旧栈未携带展示文本字段，或字段数量与序号数量不一致时，统一回退为 `#序号`。
+	 * </p>
+	 */
+	public static List<String> getLinkedDisplayTexts(ItemStack stack) {
+		List<Long> linkedSerials = getLinkedSerials(stack);
+		if (linkedSerials.isEmpty()) {
+			return List.of();
+		}
+		CompoundTag tag = readTag(stack);
+		if (!tag.contains(KEY_LINK_DISPLAY_TEXTS, Tag.TAG_LIST)) {
+			return NodeAliasDisplayUtil.normalizeDisplayTexts(linkedSerials, List.of());
+		}
+		ListTag listTag = tag.getList(KEY_LINK_DISPLAY_TEXTS, Tag.TAG_STRING);
+		List<String> displayTexts = new ArrayList<>(listTag.size());
+		for (int index = 0; index < listTag.size(); index++) {
+			displayTexts.add(listTag.getString(index));
+		}
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(linkedSerials, displayTexts);
+	}
+
+	/**
 	 * 覆盖写入关联目标核心序列号集合。
 	 */
 	public static void setLinkedSerials(ItemStack stack, Set<Long> linkedSerials) {
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
 			if (linkedSerials == null || linkedSerials.isEmpty()) {
 				tag.remove(KEY_LINKS);
+				tag.remove(KEY_LINK_DISPLAY_TEXTS);
 				return;
 			}
 
@@ -339,8 +367,40 @@ public final class LinkItemData {
 				.toArray();
 			if (values.length == 0) {
 				tag.remove(KEY_LINKS);
+				tag.remove(KEY_LINK_DISPLAY_TEXTS);
 			} else {
 				tag.putLongArray(KEY_LINKS, values);
+				tag.remove(KEY_LINK_DISPLAY_TEXTS);
+			}
+		});
+	}
+
+	/**
+	 * 覆盖写入当前连接目标快照（序号 + 展示文本）。
+	 */
+	public static void setLinkedSnapshot(
+		ItemStack stack,
+		java.util.Collection<Long> linkedSerials,
+		java.util.Collection<String> linkedDisplayTexts
+	) {
+		List<Long> normalizedSerials = normalizePositiveSerials(linkedSerials);
+		List<String> normalizedDisplayTexts = NodeAliasDisplayUtil.normalizeDisplayTexts(normalizedSerials, linkedDisplayTexts);
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+			if (normalizedSerials.isEmpty()) {
+				tag.remove(KEY_LINKS);
+				tag.remove(KEY_LINK_DISPLAY_TEXTS);
+				return;
+			}
+
+			tag.putLongArray(KEY_LINKS, SerialNbtCodecUtil.toSortedLongArray(normalizedSerials));
+			ListTag displayTextTag = new ListTag();
+			for (String displayText : normalizedDisplayTexts) {
+				displayTextTag.add(StringTag.valueOf(displayText));
+			}
+			if (displayTextTag.isEmpty()) {
+				tag.remove(KEY_LINK_DISPLAY_TEXTS);
+			} else {
+				tag.put(KEY_LINK_DISPLAY_TEXTS, displayTextTag);
 			}
 		});
 	}
@@ -391,7 +451,8 @@ public final class LinkItemData {
 		if (serial <= 0L) {
 			return;
 		}
-		setLinkedSerials(stack, NodeSnapshotQueryService.queryItemSnapshotLinks(level, nodeType.get(), serial).visibleTargetSet());
+		NodeLinksSnapshot linksSnapshot = NodeSnapshotQueryService.queryItemSnapshotLinks(level, nodeType.get(), serial);
+		setLinkedSnapshot(stack, linksSnapshot.visibleTargets(), linksSnapshot.visibleTargetDisplayTexts());
 		syncDisplayAliasIfSingle(stack, level);
 		syncChannelIfSingle(stack, level);
 	}
@@ -572,6 +633,7 @@ public final class LinkItemData {
 			tag.remove(KEY_DISPLAY_ALIAS);
 			tag.remove(KEY_PAIR);
 			tag.remove(KEY_LINKS);
+			tag.remove(KEY_LINK_DISPLAY_TEXTS);
 			tag.remove(KEY_CHANNEL);
 			return;
 		}
@@ -585,6 +647,7 @@ public final class LinkItemData {
 		tag.remove(KEY_DISPLAY_ALIAS);
 		tag.remove(KEY_PAIR);
 		tag.remove(KEY_LINKS);
+		tag.remove(KEY_LINK_DISPLAY_TEXTS);
 		tag.remove(KEY_CHANNEL);
 	}
 

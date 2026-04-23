@@ -14,6 +14,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.data.NodeAliasServerSupport;
+import com.makomi.data.NodeLinksSnapshot;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
 import java.util.HashMap;
@@ -229,7 +230,7 @@ final class PairingNetworkServerHandlerSupport {
 			return;
 		}
 
-		List<Long> visibleTargets = List.of();
+		NodeLinksSnapshot linksSnapshot = new NodeLinksSnapshot(null, List.of(), List.of(), false);
 		LinkConnectionMode connectionMode = LinkConnectionMode.SERIAL;
 		long channel = 0L;
 		CrossChunkNodeIdentity crossChunkIdentity = CrossChunkNodeIdentity.NORMAL;
@@ -241,9 +242,7 @@ final class PairingNetworkServerHandlerSupport {
 			payload.sourceSerial()
 		);
 		if (pairableNode != null) {
-			visibleTargets = NodeSnapshotQueryService
-				.queryLinks(player, pairableNode.getLinkNodeType(), pairableNode.getSerial())
-				.visibleTargets();
+			linksSnapshot = NodeSnapshotQueryService.queryLinks(player, pairableNode.getLinkNodeType(), pairableNode.getSerial());
 			if (pairableNode.getLevel() instanceof net.minecraft.server.level.ServerLevel requestedLevel) {
 				LinkSavedData savedData = LinkSavedData.get(requestedLevel);
 				connectionMode = savedData.getConnectionMode(pairableNode.getLinkNodeType(), pairableNode.getSerial());
@@ -256,7 +255,7 @@ final class PairingNetworkServerHandlerSupport {
 			}
 		}
 
-		sendCurrentLinksSnapshot(player, payload, visibleTargets, connectionMode, channel, crossChunkIdentity);
+		sendCurrentLinksSnapshot(player, payload, linksSnapshot, connectionMode, channel, crossChunkIdentity);
 	}
 
 	/**
@@ -462,11 +461,12 @@ final class PairingNetworkServerHandlerSupport {
 	private static void sendCurrentLinksSnapshot(
 		ServerPlayer player,
 		PairingNetwork.RequestCurrentLinksPayload payload,
-		List<Long> visibleTargets,
+		NodeLinksSnapshot linksSnapshot,
 		LinkConnectionMode connectionMode,
 		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
 	) {
+		NodeLinksSnapshot normalizedSnapshot = linksSnapshot == null ? new NodeLinksSnapshot(null, List.of(), List.of(), false) : linksSnapshot;
 		ServerPlayNetworking.send(
 			player,
 			new PairingNetwork.CurrentLinksSnapshotPayload(
@@ -474,7 +474,8 @@ final class PairingNetworkServerHandlerSupport {
 				payload.blockPos(),
 				payload.sourceType(),
 				payload.sourceSerial(),
-				visibleTargets,
+				normalizedSnapshot.visibleTargets(),
+				normalizedSnapshot.visibleTargetDisplayTexts(),
 				connectionMode == null ? LinkConnectionMode.SERIAL.token() : connectionMode.token(),
 				Math.max(0L, channel),
 				crossChunkIdentity

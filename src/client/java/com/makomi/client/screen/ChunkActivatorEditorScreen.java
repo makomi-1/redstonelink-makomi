@@ -11,6 +11,8 @@ import com.makomi.data.PlacedChunkActivatorSavedData;
 import com.makomi.network.ChunkActivatorNetwork;
 import com.makomi.network.LinkFilterEditorTargetKind;
 import com.makomi.util.SerialParseUtil;
+import java.util.List;
+import java.util.Optional;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -202,6 +204,7 @@ public class ChunkActivatorEditorScreen extends Screen {
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
+		renderModeButtonTooltip(guiGraphics, mouseX, mouseY);
 	}
 
 	@Override
@@ -366,6 +369,34 @@ public class ChunkActivatorEditorScreen extends Screen {
 			currentMode == ChunkActivatorMode.RESIDENT,
 			Component.translatable("screen.redstonelink.chunk_activator.mode.resident")
 		);
+	}
+
+	/**
+	 * 为强加载/常驻模式按钮渲染悬停提示，直接解释当前模式的跨区块语义。
+	 */
+	private void renderModeButtonTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (modeButtons.length < 2) {
+			return;
+		}
+		if (modeButtons[0] != null && modeButtons[0].isMouseOver(mouseX, mouseY)) {
+			guiGraphics.renderTooltip(font, buildModeTooltipLines(ChunkActivatorMode.FORCE_LOAD), Optional.empty(), mouseX, mouseY);
+			return;
+		}
+		if (modeButtons[1] != null && modeButtons[1].isMouseOver(mouseX, mouseY)) {
+			guiGraphics.renderTooltip(font, buildModeTooltipLines(ChunkActivatorMode.RESIDENT), Optional.empty(), mouseX, mouseY);
+		}
+	}
+
+	/**
+	 * 构建模式按钮 tooltip 文案。
+	 */
+	static List<Component> buildModeTooltipLines(ChunkActivatorMode mode) {
+		ChunkActivatorMode normalizedMode = mode == null ? ChunkActivatorMode.FORCE_LOAD : mode;
+		String translationKey = switch (normalizedMode) {
+			case FORCE_LOAD -> "screen.redstonelink.chunk_activator.mode.tooltip.force_load";
+			case RESIDENT -> "screen.redstonelink.chunk_activator.mode.tooltip.resident";
+		};
+		return List.of(Component.translatable(translationKey));
 	}
 
 	private Button createOptionButton(int x, int y, int width, Runnable onPress) {

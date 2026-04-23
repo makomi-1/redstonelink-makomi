@@ -7,11 +7,10 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.PairingNetwork;
-import com.makomi.util.SerialDisplayFormatUtil;
+import com.makomi.util.DisplayTextListFormatUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -127,6 +126,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	protected String sourceAlias;
 	protected String sourceDisplayText;
 	protected final List<Long> currentTargets;
+	protected final List<String> currentTargetDisplayTexts;
 	protected final long graphRevision;
 	protected final long sourceRevision;
 	protected final long coreRevision;
@@ -145,6 +145,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		String sourceAlias,
 		String sourceDisplayText,
 		List<Long> currentTargets,
+		List<String> currentTargetDisplayTexts,
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision,
@@ -156,6 +157,9 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		this.sourceAlias = normalizeSourceAlias(sourceAlias);
 		this.sourceDisplayText = normalizeSourceDisplayText(sourceSerial, this.sourceAlias, sourceDisplayText);
 		this.currentTargets = new ArrayList<>(currentTargets);
+		this.currentTargetDisplayTexts = new ArrayList<>(
+			NodeAliasDisplayUtil.normalizeDisplayTexts(this.currentTargets, currentTargetDisplayTexts)
+		);
 		this.graphRevision = Math.max(0L, graphRevision);
 		this.sourceRevision = Math.max(0L, sourceRevision);
 		this.coreRevision = Math.max(0L, coreRevision);
@@ -169,6 +173,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		String sourceAlias,
 		String sourceDisplayText,
 		List<Long> currentTargets,
+		List<String> currentTargetDisplayTexts,
 		long graphRevision,
 		long sourceRevision
 	) {
@@ -178,6 +183,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			sourceAlias,
 			sourceDisplayText,
 			currentTargets,
+			currentTargetDisplayTexts,
 			graphRevision,
 			sourceRevision,
 			0L,
@@ -186,8 +192,20 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		);
 	}
 
+	protected AbstractMultiPairingScreen(
+		Component title,
+		long sourceSerial,
+		String sourceAlias,
+		String sourceDisplayText,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision
+	) {
+		this(title, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, List.of(), graphRevision, sourceRevision);
+	}
+
 	protected AbstractMultiPairingScreen(Component title, long sourceSerial, String sourceAlias, String sourceDisplayText, List<Long> currentTargets) {
-		this(title, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, 0L, 0L);
+		this(title, sourceSerial, sourceAlias, sourceDisplayText, currentTargets, List.of(), 0L, 0L);
 	}
 
 	protected AbstractMultiPairingScreen(
@@ -195,6 +213,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		long sourceSerial,
 		String sourceDisplayText,
 		List<Long> currentTargets,
+		List<String> currentTargetDisplayTexts,
 		long graphRevision,
 		long sourceRevision,
 		long coreRevision
@@ -205,6 +224,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			"",
 			sourceDisplayText,
 			currentTargets,
+			currentTargetDisplayTexts,
 			graphRevision,
 			sourceRevision,
 			coreRevision,
@@ -219,6 +239,19 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		String sourceDisplayText,
 		List<Long> currentTargets,
 		long graphRevision,
+		long sourceRevision,
+		long coreRevision
+	) {
+		this(title, sourceSerial, sourceDisplayText, currentTargets, List.of(), graphRevision, sourceRevision, coreRevision);
+	}
+
+	protected AbstractMultiPairingScreen(
+		Component title,
+		long sourceSerial,
+		String sourceDisplayText,
+		List<Long> currentTargets,
+		List<String> currentTargetDisplayTexts,
+		long graphRevision,
 		long sourceRevision
 	) {
 		this(
@@ -227,6 +260,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			"",
 			sourceDisplayText,
 			currentTargets,
+			currentTargetDisplayTexts,
 			graphRevision,
 			sourceRevision,
 			0L,
@@ -235,8 +269,19 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		);
 	}
 
+	protected AbstractMultiPairingScreen(
+		Component title,
+		long sourceSerial,
+		String sourceDisplayText,
+		List<Long> currentTargets,
+		long graphRevision,
+		long sourceRevision
+	) {
+		this(title, sourceSerial, sourceDisplayText, currentTargets, List.of(), graphRevision, sourceRevision);
+	}
+
 	protected AbstractMultiPairingScreen(Component title, long sourceSerial, String sourceDisplayText, List<Long> currentTargets) {
-		this(title, sourceSerial, "", sourceDisplayText, currentTargets, 0L, 0L);
+		this(title, sourceSerial, "", sourceDisplayText, currentTargets, List.of(), 0L, 0L);
 	}
 
 	@Override
@@ -292,12 +337,16 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int baseY = layout.titleY();
 		int currentLinksX = layout.panelLeft();
 		int currentLinksY = layout.currentLinksY();
+		int currentLinksValueY = layout.currentLinksValueY();
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, baseY, baseContentBounds);
 		guiGraphics.drawString(font, aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY(), currentLinksTextColor(), false);
-		Component currentLinksLine = currentLinksLine(currentTargets);
-		guiGraphics.drawString(font, currentLinksLine, currentLinksX, currentLinksY, currentLinksTextColor(), false);
+		String currentLinksText = buildCurrentLinksText(currentTargetDisplayTexts);
+		Component currentLinksLabel = currentLinksLine("");
+		Component currentLinksValue = Component.literal(currentLinksText);
+		guiGraphics.drawString(font, currentLinksLabel, currentLinksX, currentLinksY, currentLinksTextColor(), false);
+		guiGraphics.drawString(font, currentLinksValue, currentLinksX, currentLinksValueY, currentLinksTextColor(), false);
 		guiGraphics.drawString(font, inputLabel(), currentLinksX, layout.inputLabelY(), 0xFFFFFF, false);
 
 		if (!statusMessage.getString().isEmpty()) {
@@ -310,10 +359,17 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 				guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
 			}
 		} else if (
-			!currentTargets.isEmpty()
-				&& isMouseOver(currentLinksX, currentLinksY, font.width(currentLinksLine), font.lineHeight, mouseX, mouseY)
+			!currentTargetDisplayTexts.isEmpty()
+				&& isMouseOver(
+					currentLinksX,
+					currentLinksY,
+					layout.panelWidth(),
+					currentLinksValueY - currentLinksY + font.lineHeight,
+					mouseX,
+					mouseY
+				)
 		) {
-			List<Component> tooltipLines = buildTooltipLines(currentTargets);
+			List<Component> tooltipLines = buildTooltipLines(currentTargetDisplayTexts);
 			if (!tooltipLines.isEmpty()) {
 				guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
 			}
@@ -365,7 +421,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 	protected abstract Component invalidInput();
 
-	protected abstract Component currentLinksLine(List<Long> currentTargets);
+	protected abstract Component currentLinksLine(String currentLinksText);
 
 	/**
 	 * @return 当前界面头部标题；子类可覆写为更具体的双语标题
@@ -497,9 +553,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * @param currentTargets 当前目标序号列表
 	 * @return 主界面显示文本
 	 */
-	protected final String buildCurrentLinksText(List<Long> currentTargets) {
-		int maxItems = currentTargets == null ? 0 : currentTargets.size();
-		return buildTargetsText(currentTargets, maxItems, CURRENT_LINKS_LIST_MAX_WIDTH);
+	protected final String buildCurrentLinksText(List<String> currentTargetDisplayTexts) {
+		return DisplayTextListFormatUtil.buildText(currentTargetDisplayTexts, CURRENT_LINKS_LIST_MAX_WIDTH, font::width);
 	}
 
 	/**
@@ -508,150 +563,20 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * @param currentTargets 当前目标序号列表
 	 * @return tooltip 文本行
 	 */
-	protected final List<Component> buildTooltipLines(List<Long> currentTargets) {
-		if (currentTargets == null || currentTargets.isEmpty() || TOOLTIP_MAX_ITEMS <= 0 || TOOLTIP_MAX_WIDTH <= 0) {
+	protected final List<Component> buildTooltipLines(List<String> currentTargetDisplayTexts) {
+		if (
+			currentTargetDisplayTexts == null
+				|| currentTargetDisplayTexts.isEmpty()
+				|| TOOLTIP_MAX_ITEMS <= 0
+				|| TOOLTIP_MAX_WIDTH <= 0
+		) {
 			return List.of();
 		}
-
-		SerialDisplayFormatUtil.StructuredExpression expression = SerialDisplayFormatUtil.buildExpression(currentTargets);
-		if (expression.isEmpty()) {
-			return List.of();
-		}
-
-		int displaySegments = Math.min(expression.segments().size(), TOOLTIP_MAX_ITEMS);
-		List<String> lines = new ArrayList<>();
-		StringBuilder currentLine = new StringBuilder();
-		for (int i = 0; i < displaySegments; i++) {
-			String segment = expression.segments().get(i);
-			if (currentLine.isEmpty()) {
-				if (font.width(segment) <= TOOLTIP_MAX_WIDTH) {
-					currentLine.append(segment);
-				} else {
-					lines.add(truncateTextByWidth(segment, TOOLTIP_MAX_WIDTH));
-				}
-				continue;
-			}
-
-			String candidate = currentLine + "/" + segment;
-			if (font.width(candidate) <= TOOLTIP_MAX_WIDTH) {
-				currentLine.append("/").append(segment);
-				continue;
-			}
-
-			lines.add(currentLine.toString());
-			currentLine.setLength(0);
-			if (font.width(segment) <= TOOLTIP_MAX_WIDTH) {
-				currentLine.append(segment);
-			} else {
-				lines.add(truncateTextByWidth(segment, TOOLTIP_MAX_WIDTH));
-			}
-		}
-		if (currentLine.length() > 0) {
-			lines.add(currentLine.toString());
-		}
-
-		int remaining = SerialDisplayFormatUtil.countRemainingSerials(expression, displaySegments);
-		if (remaining > 0) {
-			appendRemainingSuffix(lines, remaining);
-		}
-		return lines.stream().map(Component::literal).collect(Collectors.toList());
-	}
-
-	/**
-	 * 按结构化分段和宽度限制构建文本，并在超出时附加 `(+n)`。
-	 *
-	 * @param targets 目标序号列表
-	 * @param maxItems 最大分段数
-	 * @param maxWidth 最大宽度（像素）
-	 * @return 展示文本
-	 */
-	private String buildTargetsText(List<Long> targets, int maxItems, int maxWidth) {
-		if (targets == null || targets.isEmpty() || maxItems <= 0 || maxWidth <= 0) {
-			return "-";
-		}
-
-		SerialDisplayFormatUtil.StructuredExpression expression = SerialDisplayFormatUtil.buildExpression(targets);
-		if (expression.isEmpty()) {
-			return "-";
-		}
-
-		int displaySegments = Math.min(expression.segments().size(), maxItems);
-		while (displaySegments > 0) {
-			String base = String.join("/", expression.segments().subList(0, displaySegments));
-			int remaining = SerialDisplayFormatUtil.countRemainingSerials(expression, displaySegments);
-			String text = remaining > 0 ? base + buildRemainingSuffix(remaining) : base;
-			if (font.width(text) <= maxWidth) {
-				return text;
-			}
-			displaySegments -= 1;
-		}
-
-		int remainingAll = SerialDisplayFormatUtil.countRemainingSerials(expression, 0);
-		if (remainingAll > 0) {
-			String suffixOnly = buildRemainingSuffix(remainingAll);
-			if (font.width(suffixOnly) <= maxWidth) {
-				return suffixOnly;
-			}
-		}
-		return "-";
-	}
-
-	/**
-	 * 生成剩余数量提示文本。
-	 *
-	 * @param remaining 剩余数量
-	 * @return 提示文本（`(+n)`）
-	 */
-	private String buildRemainingSuffix(int remaining) {
-		return SerialDisplayFormatUtil.buildRemainingSuffix(remaining);
-	}
-
-	/**
-	 * 将剩余数量提示拼接到最后一行，必要时另起一行。
-	 *
-	 * @param lines 已构建行
-	 * @param remaining 剩余数量
-	 */
-	private void appendRemainingSuffix(List<String> lines, int remaining) {
-		String suffix = buildRemainingSuffix(remaining);
-		if (lines.isEmpty()) {
-			lines.add(suffix);
-			return;
-		}
-		int lastIndex = lines.size() - 1;
-		String lastLine = lines.get(lastIndex);
-		String combined = lastLine + suffix;
-		if (font.width(combined) <= TOOLTIP_MAX_WIDTH) {
-			lines.set(lastIndex, combined);
-			return;
-		}
-		if (font.width(suffix) <= TOOLTIP_MAX_WIDTH) {
-			lines.add(suffix);
-			return;
-		}
-		lines.add(truncateTextByWidth(suffix, TOOLTIP_MAX_WIDTH));
-	}
-
-	/**
-	 * 按宽度截断单行文本，末尾追加省略号。
-	 *
-	 * @param text 原文本
-	 * @param maxWidth 最大宽度
-	 * @return 截断后的文本
-	 */
-	private String truncateTextByWidth(String text, int maxWidth) {
-		if (font.width(text) <= maxWidth) {
-			return text;
-		}
-		String ellipsis = "...";
-		if (font.width(ellipsis) > maxWidth) {
-			return "";
-		}
-		int end = text.length();
-		while (end > 0 && font.width(text.substring(0, end) + ellipsis) > maxWidth) {
-			end -= 1;
-		}
-		return text.substring(0, end) + ellipsis;
+		return DisplayTextListFormatUtil
+			.buildWrappedLines(currentTargetDisplayTexts, TOOLTIP_MAX_WIDTH, TOOLTIP_MAX_ITEMS, font::width)
+			.stream()
+			.map(text -> (Component) Component.literal(text))
+			.toList();
 	}
 
 	/**
@@ -837,7 +762,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * 解析不含头部图标的基础内容包围盒，用于给图标提供整体组件锚点。
 	 */
 	private GuiBackgroundRenderSupport.RegionBounds resolveBaseContentBounds(MultiPairingLayout layout) {
-		Component currentLinksLine = currentLinksLine(currentTargets);
+		Component currentLinksLabel = currentLinksLine("");
+		Component currentLinksValue = Component.literal(buildCurrentLinksText(currentTargetDisplayTexts));
 		GuiBackgroundRenderSupport.RegionBounds bounds = GuiHeaderRenderSupport.resolveCenteredHeaderTextBounds(
 			font,
 			headerSpec(),
@@ -849,7 +775,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.aliasInputY(), aliasInputWidth(layout), ALIAS_INPUT_HEIGHT)
 			);
 		bounds = bounds.include(leftAlignedTextBounds(aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY()));
-		bounds = bounds.include(leftAlignedTextBounds(currentLinksLine, layout.panelLeft(), layout.currentLinksY()));
+		bounds = bounds.include(leftAlignedTextBounds(currentLinksLabel, layout.panelLeft(), layout.currentLinksY()));
+		bounds = bounds.include(leftAlignedTextBounds(currentLinksValue, layout.panelLeft(), layout.currentLinksValueY()));
 		bounds =
 			bounds.include(
 				new GuiBackgroundRenderSupport.RegionBounds(
@@ -900,11 +827,12 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int titleY = panelBox.top();
 		int aliasInputY = titleY + 30;
 		int aliasSuffixY = aliasInputY + Math.max(0, (ALIAS_INPUT_HEIGHT - fontLineHeight) / 2) + 1;
-		int currentLinksY = aliasInputY + ALIAS_INPUT_HEIGHT + 6;
-		int modeButtonY = currentLinksY + fontLineHeight + 6;
-		int inputLabelY = modeButtonY + ACTION_BUTTON_HEIGHT + 8;
+		int currentLinksY = aliasInputY + ALIAS_INPUT_HEIGHT + 4;
+		int currentLinksValueY = currentLinksY + fontLineHeight + 1;
+		int modeButtonY = currentLinksValueY + fontLineHeight + 2;
+		int inputLabelY = modeButtonY + ACTION_BUTTON_HEIGHT + 5;
 		int inputY = inputLabelY + fontLineHeight + INPUT_LABEL_MARGIN;
-		int actionButtonY = inputY + INPUT_BOX_HEIGHT + BUTTON_ROW_MARGIN + 4;
+		int actionButtonY = inputY + INPUT_BOX_HEIGHT + BUTTON_ROW_MARGIN - 2;
 		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelBox.width(), ACTION_BUTTON_GAP, ACTION_BUTTON_COUNT);
 		int statusMessageY = actionButtonY + ACTION_BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
 		return new MultiPairingLayout(
@@ -915,6 +843,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			aliasInputY,
 			aliasSuffixY,
 			currentLinksY,
+			currentLinksValueY,
 			modeButtonY,
 			inputLabelY,
 			inputY,
@@ -935,6 +864,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int aliasInputY,
 		int aliasSuffixY,
 		int currentLinksY,
+		int currentLinksValueY,
 		int modeButtonY,
 		int inputLabelY,
 		int inputY,

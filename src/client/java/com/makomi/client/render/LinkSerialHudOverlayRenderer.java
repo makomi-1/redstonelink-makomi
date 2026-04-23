@@ -42,6 +42,7 @@ public final class LinkSerialHudOverlayRenderer {
 		String sourceType,
 		long sourceSerial,
 		List<Long> linkedTargets,
+		List<String> linkedTargetDisplayTexts,
 		String connectionModeToken,
 		long channel,
 		CrossChunkNodeIdentity crossChunkIdentity
@@ -52,6 +53,7 @@ public final class LinkSerialHudOverlayRenderer {
 			sourceType,
 			sourceSerial,
 			linkedTargets,
+			linkedTargetDisplayTexts,
 			connectionModeToken,
 			channel,
 			crossChunkIdentity
