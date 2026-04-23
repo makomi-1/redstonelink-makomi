@@ -722,6 +722,75 @@ final class InternalDispatchDeltaRuleSupport {
 	}
 
 	/**
+	 * 按“当前真值优先、持久化 replay 快照兜底”补发一次来源 sync。
+	 * <p>
+	 * 用于区块激活器节点集新增场景：若来源区块当前已加载，则优先按 live truth 重放；
+	 * 若来源区块未加载，则回退到最近一次已持久化的 replay 快照。
+	 * </p>
+	 */
+	static void publishTriggerSourceCurrentOrPersistedSyncReplay(
+		ServerLevel sourceLevel,
+		long sourceSerial,
+		Set<Long> targetSerials,
+		InternalDispatchDeltaEvents.DeliveryMode deliveryMode
+	) {
+		if (sourceLevel == null || sourceSerial <= 0L || targetSerials == null || targetSerials.isEmpty()) {
+			return;
+		}
+		LinkSavedData savedData = LinkSavedData.get(sourceLevel);
+		LinkSavedData.LinkNode triggerSourceNode = savedData.findNode(LinkNodeType.TRIGGER_SOURCE, sourceSerial).orElse(null);
+		if (triggerSourceNode == null) {
+			return;
+		}
+
+		int liveReplayStrength = resolveReplaySyncStrength(sourceLevel, LinkNodeType.TRIGGER_SOURCE, sourceSerial);
+		EventMeta liveReplayMeta = liveReplayStrength >= 0 ? EventMeta.now(sourceLevel) : null;
+		SyncReplaySourceBlockEntity.ReplaySyncSnapshot fallbackReplaySnapshot = liveReplayStrength >= 0
+			? null
+			: resolveReplaySyncSnapshot(sourceLevel, LinkNodeType.TRIGGER_SOURCE, sourceSerial);
+		if (liveReplayStrength < 0 && fallbackReplaySnapshot == null) {
+			return;
+		}
+
+		Map<Long, LinkSavedData.LinkNode> triggerSourceNodeBySerial = new HashMap<>();
+		Map<Long, LinkSavedData.LinkNode> coreNodeBySerial = new HashMap<>();
+		triggerSourceNodeBySerial.put(sourceSerial, triggerSourceNode);
+		int filterStrength = liveReplayStrength >= 0 ? liveReplayStrength : fallbackReplaySnapshot.signalStrength();
+		for (Long targetSerial : targetSerials) {
+			if (targetSerial == null || targetSerial <= 0L) {
+				continue;
+			}
+			if (
+				!allowsLinkAttachedReplayByPersistedFilters(
+					sourceLevel,
+					savedData,
+					sourceSerial,
+					targetSerial,
+					filterStrength,
+					triggerSourceNodeBySerial,
+					coreNodeBySerial
+				)
+			) {
+				continue;
+			}
+			if (liveReplayStrength >= 0) {
+				publishSourceRebuildUpsertResolved(
+					sourceLevel,
+					LinkNodeType.TRIGGER_SOURCE,
+					sourceSerial,
+					LinkNodeType.CORE,
+					targetSerial,
+					liveReplayMeta,
+					liveReplayStrength,
+					deliveryMode
+				);
+				continue;
+			}
+			publishResolvedTargetChunkLoadSyncReplay(sourceLevel, sourceSerial, targetSerial, fallbackReplaySnapshot, deliveryMode);
+		}
+	}
+
+	/**
 	 * 尝试解析来源的“可恢复同步强度”。
 	 */
 	static int resolveReplaySyncStrength(ServerLevel contextLevel, LinkNodeType sourceType, long sourceSerial) {
@@ -738,7 +807,15 @@ final class InternalDispatchDeltaRuleSupport {
 			return -1;
 		}
 		ServerChunkCache chunkSource = sourceNodeLevel.getChunkSource();
-		LevelChunk sourceChunk = chunkSource.getChunkNow(sourceNode.pos().getX() >> 4, sourceNode.pos().getZ() >> 4);
+		if (chunkSource == null) {
+			return -1;
+		}
+		LevelChunk sourceChunk;
+		try {
+			sourceChunk = chunkSource.getChunkNow(sourceNode.pos().getX() >> 4, sourceNode.pos().getZ() >> 4);
+		} catch (RuntimeException ex) {
+			return -1;
+		}
 		if (sourceChunk == null) {
 			return -1;
 		}
@@ -777,7 +854,14 @@ final class InternalDispatchDeltaRuleSupport {
 			return null;
 		}
 		ServerChunkCache chunkSource = sourceNodeLevel.getChunkSource();
-		LevelChunk sourceChunk = chunkSource.getChunkNow(sourceNode.pos().getX() >> 4, sourceNode.pos().getZ() >> 4);
+		LevelChunk sourceChunk = null;
+		if (chunkSource != null) {
+			try {
+				sourceChunk = chunkSource.getChunkNow(sourceNode.pos().getX() >> 4, sourceNode.pos().getZ() >> 4);
+			} catch (RuntimeException ex) {
+				sourceChunk = null;
+			}
+		}
 		if (sourceChunk != null) {
 			BlockEntity sourceBlockEntity = sourceChunk.getBlockEntity(sourceNode.pos(), LevelChunk.EntityCreationType.CHECK);
 			if (sourceBlockEntity instanceof SyncReplaySourceBlockEntity syncReplaySourceBlockEntity) {

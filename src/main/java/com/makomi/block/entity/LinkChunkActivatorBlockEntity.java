@@ -2,10 +2,12 @@ package com.makomi.block.entity;
 
 import com.makomi.data.ChunkActivatorConfigSnapshot;
 import com.makomi.data.ChunkActivatorConfigStateSnapshot;
+import com.makomi.data.ChunkActivatorImmediateEffectService;
 import com.makomi.data.ChunkActivatorMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.PlacedChunkActivatorSavedData;
+import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -248,7 +250,17 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		PlacedChunkActivatorSavedData.get(serverLevel).upsert(serverLevel.dimension(), worldPosition, snapshot(), displayAlias, active);
+		PlacedChunkActivatorSavedData savedData = PlacedChunkActivatorSavedData.get(serverLevel);
+		Optional<PlacedChunkActivatorSavedData.ActivatorEntry> previousEntry = savedData.findEntry(serverLevel.dimension(), worldPosition);
+		boolean changed = savedData.upsert(serverLevel.dimension(), worldPosition, snapshot(), displayAlias, active);
+		if (!changed) {
+			return;
+		}
+		ChunkActivatorImmediateEffectService.applyAfterUpsert(
+			serverLevel,
+			previousEntry.orElse(null),
+			savedData.findEntry(serverLevel.dimension(), worldPosition).orElse(null)
+		);
 	}
 
 	private void removePlacedActivatorState() {

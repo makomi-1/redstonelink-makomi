@@ -342,49 +342,15 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (linkedPeers.isEmpty()) {
 			return;
 		}
-		LinkSavedData.LinkNode triggerSourceNode = savedData.findNode(nodeType, serial).orElse(null);
-		if (triggerSourceNode == null) {
+		if (nodeType != LinkNodeType.TRIGGER_SOURCE) {
 			return;
 		}
-		int replayStrength = InternalDispatchDeltaRuleSupport.resolveReplaySyncStrength(level, nodeType, serial);
-		if (replayStrength < 0) {
-			return;
-		}
-		EventMeta replayEventMeta = EventMeta.now(level);
-		for (Long linkedCoreSerial : linkedPeers) {
-			if (linkedCoreSerial == null || linkedCoreSerial <= 0L) {
-				continue;
-			}
-			LinkSavedData.LinkNode coreNode = savedData.findNode(LinkNodeType.CORE, linkedCoreSerial).orElse(null);
-			if (coreNode == null) {
-				continue;
-			}
-			// source attach replay 同样先按持久化过滤器真值补判，再发布恢复事件。
-			if (
-				!LinkDispatchFilterService.allowsReplayByPersistedFilters(
-					level.getServer(),
-					triggerSourceNode.dimension(),
-					triggerSourceNode.pos(),
-					serial,
-					coreNode.dimension(),
-					coreNode.pos(),
-					linkedCoreSerial,
-					replayStrength
-				)
-			) {
-				continue;
-			}
-			InternalDispatchDeltaRuleSupport.publishSourceRebuildUpsertResolved(
-				level,
-				LinkNodeType.TRIGGER_SOURCE,
-				serial,
-				LinkNodeType.CORE,
-				linkedCoreSerial,
-				replayEventMeta,
-				replayStrength,
-				InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH
-			);
-		}
+		InternalDispatchDeltaRuleSupport.publishTriggerSourceCurrentOrPersistedSyncReplay(
+			level,
+			serial,
+			linkedPeers,
+			InternalDispatchDeltaEvents.DeliveryMode.ASYNC_BATCH
+		);
 	}
 
 	private static void enqueueTask(MinecraftServer server, NodeLifecycleTask task) {

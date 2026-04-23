@@ -287,6 +287,34 @@ class InternalDispatchDeltaEventsTest {
 	}
 
 	/**
+	 * 当前真值不可读时，应回退到已持久化 replay 快照补发一次 sync。
+	 */
+	@Test
+	void publishTriggerSourceCurrentOrPersistedSyncReplayShouldFallbackToPersistedSnapshot(@TempDir Path tempDir) throws Exception {
+		ServerLevel level = createServerLevel(tempDir);
+		LinkSavedData savedData = LinkSavedData.get(level);
+		savedData.registerNode(15L, Level.OVERWORLD, new BlockPos(1, 64, 1), LinkNodeType.TRIGGER_SOURCE);
+		savedData.registerNode(105L, Level.OVERWORLD, new BlockPos(33, 64, 33), LinkNodeType.CORE);
+		savedData.putTriggerSourceReplaySyncSnapshot(15L, EventMeta.of(711L, 0, 35L), 6);
+
+		AtomicReference<InternalDispatchDeltaEvents.DispatchDeltaEvent> published = new AtomicReference<>();
+		InternalDispatchDeltaEvents.register(published::set);
+
+		InternalDispatchDeltaRuleSupport.publishTriggerSourceCurrentOrPersistedSyncReplay(
+			level,
+			15L,
+			Set.of(105L),
+			InternalDispatchDeltaEvents.DeliveryMode.IMMEDIATE
+		);
+
+		assertEquals(ActivatableTargetBlockEntity.DeltaKind.SYNC_SIGNAL, published.get().deltaKind());
+		assertEquals(15L, published.get().sourceSerial());
+		assertEquals(105L, published.get().targetSerial());
+		assertEquals(EventMeta.of(711L, 0, 35L), published.get().eventMeta());
+		assertEquals(6, published.get().syncSignalStrength());
+	}
+
+	/**
 	 * 新增边 attach replay 遇到 send 过滤器拦截时，应直接拒绝补发。
 	 */
 	@Test
