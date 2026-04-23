@@ -10,7 +10,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 /**
  * 节点退役统一协调入口。
  * <p>
- * 负责将“退役主流程”与“白名单强同步清理”收口到单一入口，
+ * 负责将“退役主流程”与“白名单/别名等副作用清理”收口到单一入口，
  * 避免调用方遗漏副作用处理。
  * </p>
  */
@@ -20,7 +20,7 @@ public final class LinkRetireCoordinator {
 	}
 
 	/**
-	 * 执行节点退役，并强同步清理跨区块白名单（含 resident）中的对应条目。
+	 * 执行节点退役，并强同步清理跨区块白名单（含 resident）与节点别名占用。
 	 *
 	 * @param level 服务端维度上下文
 	 * @param type 节点类型
@@ -44,6 +44,10 @@ public final class LinkRetireCoordinator {
 		CrossChunkWhitelistSavedData.get(level).removeFromAllRoles(type, serial);
 		CurrentLinksPrivacySavedData.get(level).remove(type, serial);
 		LinkWriteProtectedSavedData.get(level).remove(type, serial);
+		NodeAliasSavedData.RemoveResult aliasRemoveResult = NodeAliasSavedData.get(level).remove(type, serial);
+		if (aliasRemoveResult.removed()) {
+			NodeAliasServerSupport.syncDisplaysAfterAliasChanged(level, type, serial);
+		}
 		if (hasRetireChanges(retireResult)) {
 			InternalDispatchDeltaEvents.publishLinkDetached(
 				level,

@@ -487,6 +487,8 @@
 ### 跨区块白名单常驻标签（resident）
 - linker不可作为触发源常驻对象
 - `resident` 负责长期持有已成功建票的白名单节点区块；票据本身不等于凭空补发一次 `sync`
+- `force-load` / `resident` 按目标中心区块建票，但不等于物理只加载一个区块。当前底层使用 `addRegionTicket(..., radius=2, ...)`，目标是让中心区块达到 `ENTITY_TICKING`；原版区块系统可能同步拉起周边支撑区块。即使改成 `radius=1`，也只是降低中心区块 tick 级别要求，不保证只加载单个区块。
+- 区块边界上的邻居更新不会主动强拉未加载的相邻区块；跨区块邻居扇出遇到未加载相邻区块会跳过。若相邻区块被实际更新，说明它已经由玩家、票据或其它加载来源保持加载。
 - `whitelist add <role> <type> <serial> resident`：新增白名单并设置 `resident=on`。
 - `whitelist add <role> <type> <serial>`：按严格命令语义写入并设置 `resident=off`（用于清零常驻）。
 - `whitelist set <role> <type> <serials> confirm`：批量覆盖并统一 `resident=off`。
@@ -498,6 +500,7 @@
 - 已放置区块激活器受邻居红石控制；仅在激活态下，按当前作用类型把节点集贡献到跨区块有效白名单。
 - 同时维护 `triggerSource/core` 两套节点集与各自模式，当前只生效一套；切换作用类型不会清空另一套配置，每套容量 `32`。
 - `force-load` 模式只贡献强加载资格；`resident` 模式会同时贡献强加载资格与 resident 常驻集合。
+- 它贡献的是目标中心区块的跨区块加载资格或常驻票据；实际加载范围仍遵循上面的 `addRegionTicket(..., radius=2, ...)` 规则，不应按严格单区块估算。
 - 真值会持久化到世界级数据；普通区块卸载不会清空配置，只有物理破坏才会移除条目。
 
 ### 区块激活器与 sync 补发边界

@@ -72,7 +72,7 @@ public final class NodeAliasServerSupport {
 	 * 刷新所有在线玩家背包中命中该节点的单件物品别名缓存。
 	 */
 	public static void syncOnlinePlayerItemAliases(MinecraftServer server, LinkNodeType type, long serial) {
-		if (server == null || type == null || serial <= 0L) {
+		if (server == null || server.getPlayerList() == null || type == null || serial <= 0L) {
 			return;
 		}
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {

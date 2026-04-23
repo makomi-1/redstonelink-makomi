@@ -100,6 +100,10 @@ Cross-chunk takeover is not a single mechanism. It is a three-layer combination:
 - `force-load`: attach temporary tickets to the target chunk so it can be brought up and delivered sooner.
 - `resident`: long-term holding for whitelisted targets, suitable for always-on cross-chunk infrastructure.
 
+Tickets are keyed by the target center chunk, but this does not mean that only one physical chunk is loaded. Both `force-load` and `resident` currently call `addRegionTicket(..., radius=2, ...)` for the target center chunk. The intended center effect is to bring that chunk to `ENTITY_TICKING`; vanilla chunk loading may also bring up surrounding support chunks for the region ticket. Load cost should therefore be understood as "one center-chunk ticket plus vanilla support chunks", not as a strict single-chunk load. Changing the radius to `1` would only lower the center chunk's ticking requirement; it still would not guarantee that only one physical chunk is loaded.
+
+Neighbor updates at chunk borders do not bypass this boundary. Cross-chunk neighbor fanout skips an unloaded neighbor chunk instead of force-loading it just because a block is on a chunk edge. If the neighbor chunk is actually updated, it was already loaded by a player, a ticket, or another loading source.
+
 ### 5.3 Queue Truth
 
 `CrossChunkDispatchQueueSavedData` stores pending entries using `sourceType/sourceSerial/targetType/targetSerial/dispatchKind` as the key:

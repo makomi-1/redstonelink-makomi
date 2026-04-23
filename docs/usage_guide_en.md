@@ -478,6 +478,8 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ### Cross-Chunk Whitelist Resident Labels
 - A linker cannot be used as a resident `triggerSource`.
 - Once resident is enabled, the source or target chunk will be force-loaded on the next server tick, without needing a trigger event.
+- `force-load` / `resident` create tickets for the target center chunk, but this does not mean that only one physical chunk is loaded. The current implementation uses `addRegionTicket(..., radius=2, ...)`, whose center effect is to bring the target chunk to `ENTITY_TICKING`; vanilla chunk loading may also bring up surrounding support chunks. Changing the radius to `1` would only lower the center chunk's ticking requirement and would still not guarantee a strict single-chunk load.
+- Neighbor updates on chunk borders do not force-load unloaded neighbor chunks by themselves. Cross-chunk neighbor fanout skips unloaded neighbor chunks; if a neighbor chunk is actually updated, it was already loaded by a player, a ticket, or another loading source.
 - `whitelist add <role> <type> <serial> resident`: add a whitelist entry and set `resident=on`.
 - `whitelist add <role> <type> <serial>`: write by strict command semantics and set `resident=off` explicitly.
 - `whitelist set <role> <type> <serials> confirm`: batch overwrite and set `resident=off`.
@@ -489,6 +491,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - A placed chunk activator is controlled by neighbor redstone. Only while active does it contribute its current node set to the effective cross-chunk whitelist based on the selected active type.
 - It keeps two independent `triggerSource/core` node sets and their modes. Only one set is effective at a time; switching the active type does not clear the other set. Each set can hold up to `32` nodes.
 - `force-load` mode contributes only force-load eligibility. `resident` mode contributes both force-load eligibility and the resident set.
+- What it contributes is cross-chunk loading eligibility or a resident ticket for the target center chunk; the actual loaded area still follows the `addRegionTicket(..., radius=2, ...)` behavior above and should not be estimated as a strict single-chunk load.
 - Its truth is persisted in world-level saved data. Normal chunk unload does not clear the config; only physically breaking the block removes the entry.
 
 ### Chunk Activator and `sync` Replay Boundaries
