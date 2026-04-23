@@ -1,6 +1,7 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
+import com.makomi.block.entity.PlacedPairableNodeGuiOpenSupport;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
@@ -271,7 +272,7 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 	/**
 	 * 打开核心配对界面。
 	 * <p>
-	 * 若节点尚无序列号，会先分配序列号再下发打开界面网络包。
+	 * reopen 时会先自愈已退役/失效 serial，再下发打开界面网络包。
 	 * </p>
 	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
@@ -279,8 +280,7 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 			return;
 		}
 		if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
-			ensureCoreSerialAssigned(serverLevel, coreBlockEntity);
-			long serial = coreBlockEntity.getSerial();
+			long serial = PlacedPairableNodeGuiOpenSupport.ensureSerialReadyForPairingOpen(serverLevel, pos, coreBlockEntity);
 			if (serial > 0L) {
 				PairingNetwork.openCorePairing(
 					serverPlayer,

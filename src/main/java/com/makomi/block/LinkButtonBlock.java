@@ -1,11 +1,11 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
+import com.makomi.block.entity.PlacedPairableNodeGuiOpenSupport;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
-import com.makomi.data.LinkSavedData;
 import com.makomi.network.PairingNetwork;
 import java.util.ArrayList;
 import java.util.List;
@@ -146,18 +146,18 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	}
 
 	/**
-	 * 打开 triggerSource 配对界面；若尚未分配序列号则先分配。
+	 * 打开 triggerSource 配对界面，并在 reopen 时自愈已退役/失效 serial。
 	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
 		}
 		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
-			long serial = triggerSourceBlockEntity.getSerial();
-			if (serial <= 0L) {
-				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-				triggerSourceBlockEntity.setLinkData(serial);
-			}
+			long serial = PlacedPairableNodeGuiOpenSupport.ensureSerialReadyForPairingOpen(
+				serverLevel,
+				pos,
+				triggerSourceBlockEntity
+			);
 			if (serial > 0L) {
 				PairingNetwork.openTriggerSourcePairing(
 					serverPlayer,

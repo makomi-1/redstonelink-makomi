@@ -2,11 +2,11 @@ package com.makomi.block;
 
 import com.mojang.serialization.MapCodec;
 import com.makomi.block.entity.LinkCoreBlockEntity;
+import com.makomi.block.entity.PlacedPairableNodeGuiOpenSupport;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
-import com.makomi.data.LinkSavedData;
 import com.makomi.network.PairingNetwork;
 import com.makomi.util.NeighborFanoutUtil;
 import java.util.ArrayList;
@@ -167,18 +167,14 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	}
 
 	/**
-	 * 打开核心配对界面；若尚未分配序列号则先分配。
+	 * 打开核心配对界面，并在 reopen 时自愈已退役/失效 serial。
 	 */
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
 		if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
 		}
 		if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
-			long serial = coreBlockEntity.getSerial();
-			if (serial <= 0L) {
-				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.CORE);
-				coreBlockEntity.setLinkData(serial);
-			}
+			long serial = PlacedPairableNodeGuiOpenSupport.ensureSerialReadyForPairingOpen(serverLevel, pos, coreBlockEntity);
 			if (serial > 0L) {
 				PairingNetwork.openCorePairing(
 					serverPlayer,

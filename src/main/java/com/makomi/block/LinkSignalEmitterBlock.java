@@ -1,11 +1,11 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
+import com.makomi.block.entity.PlacedPairableNodeGuiOpenSupport;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
-import com.makomi.data.LinkSavedData;
 import com.makomi.network.PairingNetwork;
 import java.util.ArrayList;
 import java.util.List;
@@ -170,11 +170,11 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 			return;
 		}
 		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
-			long serial = triggerSourceBlockEntity.getSerial();
-			if (serial <= 0L) {
-				serial = LinkSavedData.get(serverLevel).allocateSerial(LinkNodeType.TRIGGER_SOURCE);
-				triggerSourceBlockEntity.setLinkData(serial);
-			}
+			long serial = PlacedPairableNodeGuiOpenSupport.ensureSerialReadyForPairingOpen(
+				serverLevel,
+				pos,
+				triggerSourceBlockEntity
+			);
 			if (serial > 0L) {
 				PairingNetwork.openTriggerSourcePairing(
 					serverPlayer,
