@@ -485,6 +485,18 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - `resident` depends strictly on whitelist membership and cannot exist independently. `whitelist list` prints the resident list as extra output.
 - Resident chunk loading only uses this mod's own ticket type and stays isolated from force-load systems used by other mods.
 
+### Chunk Activator
+- A placed chunk activator is controlled by neighbor redstone. Only while active does it contribute its current node set to the effective cross-chunk whitelist based on the selected active type.
+- It keeps two independent `triggerSource/core` node sets and their modes. Only one set is effective at a time; switching the active type does not clear the other set. Each set can hold up to `32` nodes.
+- `force-load` mode contributes only force-load eligibility. `resident` mode contributes both force-load eligibility and the resident set.
+- Its truth is persisted in world-level saved data. Normal chunk unload does not clear the config; only physically breaking the block removes the entry.
+
+### Chunk Activator and `sync` Replay Boundaries
+- For `sync`, automatic replay is not triggered by "having resident / transient force-load" by itself. It is triggered only when a real offline `sync` propagation event has been generated. Tickets only make the target processable; what is actually replayed is that offline `sync` event.
+- When a new link is created while the target chunk is unloaded, the server first attempts an attach replay with the current recoverable `sync` state from the source. If the target is still offline, the dispatch goes into the offline queue and is replayed later automatically.
+- If the signal changes while the target is offline, it automatically becomes offline `sync` propagation. `0 -> 15`, `15 -> 0`, and any strength change all count; once the target is brought up or comes back naturally, the update lands automatically.
+- Changing only the whitelist, only turning on the activator, or only adding `resident` does not create a replay out of nowhere if no new `sync` event happened together with it.
+
 ### Cross-Chunk Takeover Notifications (2026-03-13)
 - The source side is notified only when force-load takeover actually takes effect. Persistent-queue forwarding does not emit a notification.
 - Config keys (`config/redstonelink-server.properties`):

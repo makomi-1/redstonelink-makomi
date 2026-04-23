@@ -891,10 +891,7 @@
             zh: ['放置后受邻居红石控制；潜行右键打开编辑器。', '同时维护 `triggerSource/core` 两套节点集与模式，当前只生效一套；切换作用类型不会清空另一套配置。', '每套节点集容量为 32；普通区块卸载不会丢失配置，挖掘破坏才会移除持久化条目。'],
             en: ['After placement it is controlled by neighboring redstone; sneak right-click opens the editor.', 'It keeps separate `triggerSource/core` node sets and modes while only one set is active at a time; switching the active type does not clear the other configuration.', 'Each node set holds up to 32 entries; normal chunk unload does not discard the config, while physical breaking removes the persisted entry.']
           },
-          note: {
-            zh: '只改白名单、只开激活器或只加 resident，不会凭空补发一次 sync；真正的自动补发仍以离线 sync 传播事件为触发条件。',
-            en: 'Changing whitelist state, toggling the activator, or adding resident alone does not fabricate a new sync replay; automatic resend still requires an actual offline sync propagation event.'
-          }
+          
         },
         {
           path: 'quick_link_tool',

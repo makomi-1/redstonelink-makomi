@@ -182,7 +182,15 @@ When the target attaches, `LinkNodeLifecycleDispatchEvents` will:
 This ensures replay restores the original source state, not a fake "new event on load".
 For the default config, this is also the recommended relay/recovery path for `sync`; stable cross-chunk state chains do not need `pulse/toggle` relay as the mainline.
 
-### 7.4 Non-Blocking Rule
+### 7.4 True Trigger for Automatic `sync` Replay
+
+For `sync`, automatic replay is not triggered by "having resident / transient force-load" by itself. It is triggered only when a real offline `sync` propagation event has been generated:
+
+- `force-load` / `resident` tickets only make the target chunk processable; what actually gets released / replayed is the offline `sync` event that was already queued or already generated.
+- When a new link is created while the target is offline, the system attempts an attach replay first. If the target is still offline, the dispatch is converted into pending and replayed automatically later.
+- If the source signal changes while the target is offline, including `0 -> 15`, `15 -> 0`, or any strength change, a new offline `sync` propagation event is generated. Once the target is brought up or comes back naturally, that update lands automatically.
+
+### 7.5 Non-Blocking Rule
 
 The replay path explicitly avoids blocking chunk access on critical startup paths:
 
@@ -192,7 +200,7 @@ The replay path explicitly avoids blocking chunk access on critical startup path
 
 This is a hard boundary in the current cross-chunk recovery design.
 
-### 7.5 Runtime Filter Reconciliation
+### 7.6 Runtime Filter Reconciliation
 
 Send/receive filters are not another topology truth layer. They are a filtering layer attached to dispatch:
 
