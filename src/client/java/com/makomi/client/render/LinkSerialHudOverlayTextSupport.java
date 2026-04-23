@@ -185,7 +185,7 @@ final class LinkSerialHudOverlayTextSupport {
 				KEY_NEAR_OVERLAY_FILTER_SERVICE_LINE,
 				LinkNodeSemantics.toSemanticName(filterBlockEntity.filterKind().servicedNodeType())
 			),
-			translate(KEY_NEAR_OVERLAY_FILTER_NODE_SET_LINE, resolveFilterTargetText(font, snapshot)),
+			translate(resolveFilterTargetLineTranslationKey(snapshot), resolveFilterTargetText(font, snapshot)),
 			translate(
 				KEY_NEAR_OVERLAY_FILTER_MODE_LINE,
 				resolveFilterNodeSetModeText(snapshot.nodeSetMode()),
@@ -309,6 +309,19 @@ final class LinkSerialHudOverlayTextSupport {
 		}
 		List<Long> orderedSerials = SerialParseUtil.parseTargetsOrdered(normalized.serialExpression(), 0).orderedTargets();
 		return buildCurrentLinksText(font, orderedSerials);
+	}
+
+	/**
+	 * 解析过滤器近外显目标行标签。
+	 * <p>
+	 * 频道模式展示的是频道值，因此应复用通用频道行文案；序号模式才展示节点集。
+	 * </p>
+	 */
+	static String resolveFilterTargetLineTranslationKey(LinkFilterConfigSnapshot snapshot) {
+		LinkFilterConfigSnapshot normalized = snapshot == null ? new LinkFilterConfigSnapshot("", null, null, 15, null) : snapshot;
+		return normalized.targetMode() == LinkFilterTargetMode.CHANNEL
+			? KEY_NEAR_OVERLAY_CHANNEL_LINE
+			: KEY_NEAR_OVERLAY_FILTER_NODE_SET_LINE;
 	}
 
 	/**

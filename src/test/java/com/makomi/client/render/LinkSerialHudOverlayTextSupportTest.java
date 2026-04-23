@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkConnectionMode;
+import com.makomi.data.LinkFilterConfigSnapshot;
+import com.makomi.data.LinkFilterTargetMode;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -89,5 +91,24 @@ class LinkSerialHudOverlayTextSupportTest {
 	void composeFilterTitleTextShouldAppendAliasWhenPresent() {
 		assertEquals("发送过滤器 门厅A", LinkSerialHudOverlayTextSupport.composeFilterTitleText("发送过滤器", " 门厅A "));
 		assertEquals("发送过滤器", LinkSerialHudOverlayTextSupport.composeFilterTitleText("发送过滤器", "   "));
+	}
+
+	/**
+	 * 过滤器频道模式应使用频道行标签，序号模式应继续使用节点集标签。
+	 */
+	@Test
+	void resolveFilterTargetLineTranslationKeyShouldFollowTargetMode() {
+		assertEquals(
+			"hud.redstonelink.near_overlay.channel_line",
+			LinkSerialHudOverlayTextSupport.resolveFilterTargetLineTranslationKey(
+				new LinkFilterConfigSnapshot("", LinkFilterTargetMode.CHANNEL, 12L, null, null, 15, null)
+			)
+		);
+		assertEquals(
+			"hud.redstonelink.near_overlay.filter_node_set_line",
+			LinkSerialHudOverlayTextSupport.resolveFilterTargetLineTranslationKey(
+				new LinkFilterConfigSnapshot("1/3", LinkFilterTargetMode.SERIAL, 0L, null, null, 15, null)
+			)
+		);
 	}
 }
