@@ -47,6 +47,8 @@
   "tooltip.redstonelink.pair": "Last Target Serial: %s",
   "tooltip.redstonelink.links": "Current Links: %s",
   "tooltip.redstonelink.open_pairing": "Sneak with empty offhand, then right-click to open pairing UI",
+  "tooltip.redstonelink.trigger_source.signal_semantic.event": "This is an event signal with no full lifecycle or cross-chunk support",
+  "tooltip.redstonelink.trigger_source.signal_semantic.state": "This is a state signal with full lifecycle and cross-chunk support",
   "tooltip.redstonelink.link_filter.alias": "Alias: %s",
   "tooltip.redstonelink.link_filter.service_target": "Service target: %s",
   "tooltip.redstonelink.link_filter.serial_expression": "Node Set: %s",

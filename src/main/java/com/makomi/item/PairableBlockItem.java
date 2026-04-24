@@ -7,8 +7,10 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.network.PairingNetwork;
+import com.makomi.registry.ModItems;
 import java.util.List;
 import java.util.Objects;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -130,6 +132,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 					TooltipTextTruncateUtil.buildSerialsText(serialGroup, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
 				)
 			);
+			appendTriggerSourceSignalSemanticTooltipIfNeeded(stack, tooltipComponents);
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_single_only"));
 			super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 			return;
@@ -170,6 +173,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 				)
 			);
 		}
+		appendTriggerSourceSignalSemanticTooltipIfNeeded(stack, tooltipComponents);
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 
@@ -219,6 +223,34 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	 */
 	private boolean canOpenPairingUi(Player player, InteractionHand hand) {
 		return RedstoneLinkConfig.canOpenPairingByHeldItem(player, hand);
+	}
+
+	/**
+	 * 仅为 triggerSource 物品补充“事件信号 / 状态信号”语义说明。
+	 */
+	private void appendTriggerSourceSignalSemanticTooltipIfNeeded(ItemStack stack, List<Component> tooltipComponents) {
+		if (nodeType != LinkNodeType.TRIGGER_SOURCE) {
+			return;
+		}
+		tooltipComponents.add(buildTriggerSourceSignalSemanticTooltip(stack));
+	}
+
+	/**
+	 * 根据当前 triggerSource 物品类型构建对应的信号语义说明。
+	 */
+	private static Component buildTriggerSourceSignalSemanticTooltip(ItemStack stack) {
+		String translationKey = isSyncTriggerSourceItem(stack)
+			? "tooltip.redstonelink.trigger_source.signal_semantic.state"
+			: "tooltip.redstonelink.trigger_source.signal_semantic.event";
+		return Component.translatable(translationKey).withStyle(ChatFormatting.GRAY);
+	}
+
+	/**
+	 * 判断当前 triggerSource 是否属于 sync 状态信号类型。
+	 */
+	private static boolean isSyncTriggerSourceItem(ItemStack stack) {
+		Item item = stack.getItem();
+		return item == ModItems.LINK_SYNC_LEVER || item == ModItems.LINK_SYNC_EMITTER;
 	}
 
 	/**

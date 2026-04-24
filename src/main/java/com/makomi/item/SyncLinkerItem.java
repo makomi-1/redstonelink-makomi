@@ -7,6 +7,7 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkedTargetDispatchService;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -46,6 +47,11 @@ public class SyncLinkerItem extends LinkerItem {
 	@Override
 	protected Component buildPrimaryUseTooltip() {
 		return Component.translatable("tooltip.redstonelink.sync_linker");
+	}
+
+	@Override
+	protected Component buildSignalSemanticTooltip() {
+		return Component.translatable("tooltip.redstonelink.trigger_source.signal_semantic.state").withStyle(ChatFormatting.GRAY);
 	}
 
 	@Override
