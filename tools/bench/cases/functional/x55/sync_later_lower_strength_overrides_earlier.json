@@ -1,0 +1,137 @@
+{
+  "id": "sync_later_lower_strength_overrides_earlier",
+  "description": "验证纯 sync 场景下，更晚 tick 的较低强度来源会覆盖更早 tick 的较高强度来源，而不是继续保留旧高态。",
+  "layer": "X",
+  "scenarioId": "X55",
+  "arena": {
+    "clearFrom": [-8, 63, 600],
+    "clearTo": [20, 66, 608]
+  },
+  "targets": {
+    "id": "core_sync_later_lower",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 602],
+      "to": [12, 64, 602]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_earlier_high",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 600],
+        "to": [0, 64, 600]
+      }
+    },
+    {
+      "id": "sync_later_low",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [4, 64, 600],
+        "to": [4, 64, 600]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_earlier_high",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_later_low",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "sync_later_lower_target_should_link_both_sources",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=2(?:,|，)",
+        "(?i)targets=.*{{source:sync_earlier_high[0]}}",
+        "(?i)targets=.*{{source:sync_later_low[0]}}"
+      ]
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_sync_earlier_high_constant",
+      "serialRef": "sync_earlier_high",
+      "serialFormat": "slash_list",
+      "sequence": "15",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_sync_earlier_high_constant",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "sync_later_lower_target_should_start_at_high_strength",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "sync_later_lower_target_should_use_earlier_high_as_max_source",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)",
+        "(?i)maxSources={{source:sync_earlier_high[0]}}(?:\\.|。)"
+      ]
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_sync_later_low_constant",
+      "serialRef": "sync_later_low",
+      "serialFormat": "slash_list",
+      "sequence": "7",
+      "phaseTicks": 0,
+      "totalTicks": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_sync_later_low_constant",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "sync_later_lower_target_should_switch_to_later_low_strength",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 7
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "sync_later_lower_target_should_use_later_low_as_max_source",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)",
+        "(?i)maxSources={{source:sync_later_low[0]}}(?:\\.|。)"
+      ]
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_sync_later_lower_jobs"
+    }
+  ]
+}

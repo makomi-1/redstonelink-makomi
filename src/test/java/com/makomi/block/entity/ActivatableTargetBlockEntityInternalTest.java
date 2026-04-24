@@ -302,6 +302,39 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
+	 * 更晚 tick 的较低强度 `sync` 应覆盖更早 tick 的较高强度 `sync`。
+	 */
+	@Test
+	void laterSyncShouldOverrideEarlierHigherStrengthWithinSyncOnly() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(1L), getLongSetField(target, "syncSignalMaxSources"));
+
+		target.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+		assertEquals(7, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(Set.of(2L), getLongSetField(target, "syncSignalMaxSources"));
+		assertEquals(Set.of(ActivatableTargetBlockEntity.TimeKey.of(11L, 0)), getConcurrentBucketField(target, "syncConcurrentBuckets").keySet());
+	}
+
+	/**
+	 * 最新 tick 的 `sync` 被移除后，不应回露更早 tick 的旧 `sync`。
+	 */
+	@Test
+	void removingLatestSyncShouldNotRevealEarlierTickSync() {
+		TestTargetEntity target = createTarget();
+		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		target.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+
+		target.syncBySource(2L, 0, ActivatableTargetBlockEntity.EventMeta.of(12L, 0, 3L));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
+		assertTrue(getLongSetField(target, "syncSignalMaxSources").isEmpty());
+		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+	}
+
+	/**
 	 * 更晚的 `pulse` 会覆盖更早 `toggle`，脉冲结束后保持其自身回落结果。
 	 */
 	@Test
@@ -592,6 +625,28 @@ class ActivatableTargetBlockEntityInternalTest {
 		assertEquals(12, getIntField(restored, "resolvedOutputPower"));
 		assertTrue(getBooleanField(restored, "active"));
 		assertEquals(3, getLongIntMapField(restored, "syncSignalStrengthBySource").size());
+	}
+
+	/**
+	 * 落盘与读档都应只保留最新 tick 的 `sync` 帧，不再回带更早 tick 的高强度结果。
+	 */
+	@Test
+	void saveAndLoadShouldPreserveLatestSyncFrameOnly() {
+		TestTargetEntity source = createTarget();
+		source.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+		source.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+
+		CompoundTag tag = new CompoundTag();
+		source.saveForTest(tag);
+		assertEquals(Map.of(2L, 7), readSyncStrengthsFromTag(tag));
+		assertEquals(Set.of(2L), Set.copyOf(longArrayToBoxedSet(tag.getLongArray("SyncMaxSources"))));
+
+		TestTargetEntity restored = createTarget();
+		restored.loadForTest(tag);
+		assertEquals(7, getIntField(restored, "syncSignalMaxStrength"));
+		assertEquals(Set.of(2L), getLongSetField(restored, "syncSignalMaxSources"));
+		assertEquals(7, getIntField(restored, "resolvedOutputPower"));
+		assertTrue(getBooleanField(restored, "active"));
 	}
 
 	/**

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "description": "纯 sync 覆盖与重算专项：验证跨 tick later low 覆盖 earlier high，以及同 tick 高强度失效后重算到低强度 surviving sync。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false",
+      "crosschunk.directSyncBatching": "all_sync",
+      "crosschunk.dispatch.batchWindowTicks": "0"
+    }
+  },
+  "entries": [
+    {
+      "entryId": "x55_sync_later_lower_strength_overrides_earlier",
+      "title": "纯 sync 跨 tick：later low 覆盖 earlier high",
+      "caseId": "sync_later_lower_strength_overrides_earlier"
+    },
+    {
+      "entryId": "x56_sync_same_tick_high_removed_recompute_to_low",
+      "title": "纯 sync 同 tick：高强度失效后重算到低强度",
+      "caseId": "sync_same_tick_high_removed_recompute_to_low"
+    }
+  ]
+}
