@@ -42,6 +42,10 @@ final class GuiBackgroundRenderSupport {
 		RedstoneLink.MOD_ID,
 		"textures/gui/chunk_activator_background.png"
 	);
+	private static final ResourceLocation REPEATER_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+		RedstoneLink.MOD_ID,
+		"textures/gui/repeater_background.png"
+	);
 
 	private GuiBackgroundRenderSupport() {
 	}
@@ -264,7 +268,8 @@ final class GuiBackgroundRenderSupport {
 		QUICK_LINK_SERIAL(new BackgroundStyle(QUICK_LINK_SERIAL_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF610000),
 		QUICK_LINK_CHANNEL(new BackgroundStyle(QUICK_LINK_CHANNEL_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF294879),
 		STATE_PANEL(new BackgroundStyle(STATE_PANEL_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF9D0000),
-		CHUNK_ACTIVATOR(new BackgroundStyle(CHUNK_ACTIVATOR_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF572186);
+		CHUNK_ACTIVATOR(new BackgroundStyle(CHUNK_ACTIVATOR_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF572186),
+		REPEATER(new BackgroundStyle(REPEATER_BACKGROUND_TEXTURE, 180, 200, 4, 4, 4, 4), 0xFF12651A);
 
 		private final BackgroundStyle style;
 		private final int borderColor;

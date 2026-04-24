@@ -198,16 +198,25 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 
 	@Override
 	protected StyledMultiLineEditBox.Style inputBoxStyle() {
+		if (isRepeaterContext()) {
+			return RepeaterPairingThemeSupport.inputBoxStyle();
+		}
 		return TRIGGER_SOURCE_INPUT_BOX_STYLE;
 	}
 
 	@Override
 	protected StyledEditBox.Style aliasInputStyle() {
+		if (isRepeaterContext()) {
+			return RepeaterPairingThemeSupport.aliasInputStyle();
+		}
 		return TRIGGER_SOURCE_ALIAS_INPUT_STYLE;
 	}
 
 	@Override
 	protected StyledButton.Style actionButtonStyle(ActionButtonKind kind) {
+		if (isRepeaterContext()) {
+			return RepeaterPairingThemeSupport.actionButtonStyle();
+		}
 		return TRIGGER_SOURCE_ACTION_BUTTON_STYLE;
 	}
 
@@ -218,7 +227,17 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 
 	@Override
 	protected GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
+		if (isRepeaterContext()) {
+			return RepeaterPairingThemeSupport.backgroundPreset();
+		}
 		return GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING;
+	}
+
+	/**
+	 * @return 当前 GUI 是否由转发器入口打开
+	 */
+	private boolean isRepeaterContext() {
+		return LinkGuiDisplayContext.LINK_REPEATER.equals(displayContextToken);
 	}
 
 	/**

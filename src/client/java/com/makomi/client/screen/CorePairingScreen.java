@@ -174,16 +174,25 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 
 	@Override
 	protected StyledMultiLineEditBox.Style inputBoxStyle() {
+		if (isRepeaterContext()) {
+			return RepeaterPairingThemeSupport.inputBoxStyle();
+		}
 		return CORE_INPUT_BOX_STYLE;
 	}
 
 	@Override
 	protected StyledEditBox.Style aliasInputStyle() {
+		if (isRepeaterContext()) {
+			return RepeaterPairingThemeSupport.aliasInputStyle();
+		}
 		return CORE_ALIAS_INPUT_STYLE;
 	}
 
 	@Override
 	protected StyledButton.Style actionButtonStyle(ActionButtonKind kind) {
+		if (isRepeaterContext()) {
+			return RepeaterPairingThemeSupport.actionButtonStyle();
+		}
 		return CORE_ACTION_BUTTON_STYLE;
 	}
 
@@ -194,7 +203,17 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 
 	@Override
 	protected GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
+		if (isRepeaterContext()) {
+			return RepeaterPairingThemeSupport.backgroundPreset();
+		}
 		return GuiBackgroundRenderSupport.BackgroundPreset.CORE_PAIRING;
+	}
+
+	/**
+	 * @return 当前 GUI 是否由转发器入口打开
+	 */
+	private boolean isRepeaterContext() {
+		return LinkGuiDisplayContext.LINK_REPEATER.equals(displayContextToken);
 	}
 
 	/**

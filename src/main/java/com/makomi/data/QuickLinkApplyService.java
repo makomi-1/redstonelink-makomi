@@ -2,6 +2,7 @@ package com.makomi.data;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.command.link.CoreLinkEditingService;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.command.link.LinkChannelEditingService;
@@ -48,6 +49,17 @@ public final class QuickLinkApplyService {
 		}
 
 		BlockEntity blockEntity = level.getBlockEntity(blockPos);
+		if (blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity) {
+			return applyToRepeaterFromCache(
+				player,
+				repeaterBlockEntity,
+				snapshot.mode(),
+				snapshot.serialCacheType(),
+				snapshot.serialCacheExpression(),
+				snapshot.channelCache(),
+				snapshot.applyEditMode()
+			).feedback();
+		}
 		if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
 			return applyToFilterFromCache(
 				player,
@@ -294,6 +306,76 @@ public final class QuickLinkApplyService {
 				"message.redstonelink.quick_link.apply.done.chunk_activator",
 				Integer.toString(nextOrderedSerials.size()),
 				LinkNodeSemantics.toSemanticName(nextSnapshot.activeType())
+			),
+			0,
+			nextOrderedSerials.size()
+		);
+	}
+
+	/**
+	 * 将当前缓存应用到命中转发器。
+	 * <p>
+	 * quick-link 对转发器只允许写入 `serial` 模式缓存：
+	 * `triggerSource` 缓存写输入配置，`core` 缓存写输出配置。
+	 * </p>
+	 */
+	public static ApplyFromCacheResult applyToRepeaterFromCache(
+		ServerPlayer player,
+		LinkRepeaterBlockEntity repeaterBlockEntity,
+		QuickLinkToolData.Mode mode,
+		LinkNodeType cacheType,
+		String serialCacheExpression,
+		String channelCache,
+		QuickLinkToolData.ApplyEditMode applyEditMode
+	) {
+		if (player == null || repeaterBlockEntity == null) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+			return ApplyFromCacheResult.failure("message.redstonelink.permission.insufficient");
+		}
+		QuickLinkToolData.Mode resolvedMode = mode == null ? QuickLinkToolData.Mode.SERIAL : mode;
+		if (resolvedMode != QuickLinkToolData.Mode.SERIAL) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.repeater_requires_serial");
+		}
+		if (!isCacheTypeCompatibleWithRepeater(cacheType)) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+
+		String normalizedExpression = serialCacheExpression == null ? "" : serialCacheExpression.trim();
+		if (!allowsEmptySerialCacheApply(applyEditMode) && normalizedExpression.isBlank()) {
+			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
+		}
+		int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
+		if (normalizedExpression.length() > maxInputLength) {
+			return ApplyFromCacheResult.failure("message.redstonelink.link.set.input_too_long", Integer.toString(maxInputLength));
+		}
+
+		int maxTargets = RedstoneLinkConfig.general().maxTargetsPerSetLinks();
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(normalizedExpression, maxTargets);
+		if (!parseResult.invalidEntries().isEmpty()) {
+			return ApplyFromCacheResult.failure(
+				"message.redstonelink.pairing.invalid_tokens",
+				String.join(", ", parseResult.invalidEntries())
+			);
+		}
+		if (parseResult.exceedLimit()) {
+			return ApplyFromCacheResult.failure("message.redstonelink.too_many_targets", Integer.toString(maxTargets));
+		}
+
+		List<Long> nextOrderedSerials = buildNextRepeaterOrderedSerials(
+			repeaterBlockEntity.snapshot(),
+			cacheType,
+			parseResult.orderedTargets(),
+			applyEditMode
+		);
+		repeaterBlockEntity.applyEditorState(
+			buildRepeaterSnapshotForAppliedCache(repeaterBlockEntity.snapshot(), cacheType, nextOrderedSerials)
+		);
+		return new ApplyFromCacheResult(
+			QuickLinkOperationFeedback.success(
+				repeaterApplySuccessMessageKey(cacheType),
+				Integer.toString(nextOrderedSerials.size())
 			),
 			0,
 			nextOrderedSerials.size()
@@ -581,6 +663,16 @@ public final class QuickLinkApplyService {
 	}
 
 	/**
+	 * 判断当前缓存类型是否能应用到转发器。
+	 * <p>
+	 * `triggerSource` 写输入配置，`core` 写输出配置。
+	 * </p>
+	 */
+	static boolean isCacheTypeCompatibleWithRepeater(LinkNodeType cacheType) {
+		return cacheType == LinkNodeType.TRIGGER_SOURCE || cacheType == LinkNodeType.CORE;
+	}
+
+	/**
 	 * 基于当前过滤器配置，仅替换序号表达式并保留其余运行参数。
 	 */
 	static LinkFilterConfigSnapshot buildFilterSnapshotForAppliedCache(
@@ -659,6 +751,46 @@ public final class QuickLinkApplyService {
 	}
 
 	/**
+	 * 计算转发器指定配置侧在 quick-link 三态应用后的结果。
+	 */
+	static List<Long> buildNextRepeaterOrderedSerials(
+		RepeaterConfigSnapshot currentSnapshot,
+		LinkNodeType cacheType,
+		List<Long> cachedOrderedSerials,
+		QuickLinkToolData.ApplyEditMode applyEditMode
+	) {
+		RepeaterConfigSnapshot normalizedSnapshot = currentSnapshot == null ? RepeaterConfigSnapshot.empty() : currentSnapshot;
+		String currentExpression = cacheType == LinkNodeType.TRIGGER_SOURCE
+			? normalizedSnapshot.inputSerialExpression()
+			: normalizedSnapshot.outputSerialExpression();
+		return buildNextFilterOrderedSerials(parseFilterOrderedSerials(currentExpression), cachedOrderedSerials, applyEditMode);
+	}
+
+	/**
+	 * 基于当前转发器配置，仅覆盖命中缓存类型对应的一侧表达式，并保留延迟与另一侧配置。
+	 */
+	static RepeaterConfigSnapshot buildRepeaterSnapshotForAppliedCache(
+		RepeaterConfigSnapshot currentSnapshot,
+		LinkNodeType cacheType,
+		List<Long> nextOrderedSerials
+	) {
+		RepeaterConfigSnapshot normalizedSnapshot = currentSnapshot == null ? RepeaterConfigSnapshot.empty() : currentSnapshot;
+		String nextExpression = buildFilterSerialExpression(nextOrderedSerials);
+		if (cacheType == LinkNodeType.TRIGGER_SOURCE) {
+			return new RepeaterConfigSnapshot(
+				nextExpression,
+				normalizedSnapshot.outputSerialExpression(),
+				normalizedSnapshot.delay()
+			);
+		}
+		return new RepeaterConfigSnapshot(
+			normalizedSnapshot.inputSerialExpression(),
+			nextExpression,
+			normalizedSnapshot.delay()
+		);
+	}
+
+	/**
 	 * 解析过滤器应用成功反馈的翻译键。
 	 */
 	static String filterApplySuccessMessageKey(LinkFilterKind filterKind) {
@@ -674,6 +806,15 @@ public final class QuickLinkApplyService {
 		return filterKind == LinkFilterKind.RECEIVE
 			? "message.redstonelink.quick_link.apply.done.receive_filter_channel"
 			: "message.redstonelink.quick_link.apply.done.send_filter_channel";
+	}
+
+	/**
+	 * 解析转发器 quick-link 应用成功反馈的翻译键。
+	 */
+	static String repeaterApplySuccessMessageKey(LinkNodeType cacheType) {
+		return cacheType == LinkNodeType.TRIGGER_SOURCE
+			? "message.redstonelink.quick_link.apply.done.repeater_input"
+			: "message.redstonelink.quick_link.apply.done.repeater_output";
 	}
 
 	/**

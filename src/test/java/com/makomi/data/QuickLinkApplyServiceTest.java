@@ -310,6 +310,108 @@ class QuickLinkApplyServiceTest {
 	}
 
 	/**
+	 * 转发器 quick-link 应允许 `triggerSource/core` 两类缓存类型，分别写入输入/输出配置。
+	 */
+	@Test
+	void repeaterCompatibilityShouldAllowTriggerSourceAndCoreCaches() {
+		assertTrue(QuickLinkApplyService.isCacheTypeCompatibleWithRepeater(LinkNodeType.TRIGGER_SOURCE));
+		assertTrue(QuickLinkApplyService.isCacheTypeCompatibleWithRepeater(LinkNodeType.CORE));
+		assertFalse(QuickLinkApplyService.isCacheTypeCompatibleWithRepeater(null));
+	}
+
+	/**
+	 * 转发器输入侧 quick-link 应只修改输入表达式，并保留输出表达式与延迟配置。
+	 */
+	@Test
+	void buildRepeaterSnapshotForAppliedCacheShouldOnlyTouchInputExpressionForTriggerSourceCache() {
+		RepeaterConfigSnapshot currentSnapshot = new RepeaterConfigSnapshot("1/2", "7/9", RepeaterDelay.TWO_TICKS);
+
+		RepeaterConfigSnapshot replacedSnapshot = QuickLinkApplyService.buildRepeaterSnapshotForAppliedCache(
+			currentSnapshot,
+			LinkNodeType.TRIGGER_SOURCE,
+			QuickLinkApplyService.buildNextRepeaterOrderedSerials(
+				currentSnapshot,
+				LinkNodeType.TRIGGER_SOURCE,
+				List.of(9L, 11L),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertEquals("9/11", replacedSnapshot.inputSerialExpression());
+		assertEquals("7/9", replacedSnapshot.outputSerialExpression());
+		assertEquals(RepeaterDelay.TWO_TICKS, replacedSnapshot.delay());
+
+		RepeaterConfigSnapshot appendedSnapshot = QuickLinkApplyService.buildRepeaterSnapshotForAppliedCache(
+			currentSnapshot,
+			LinkNodeType.TRIGGER_SOURCE,
+			QuickLinkApplyService.buildNextRepeaterOrderedSerials(
+				currentSnapshot,
+				LinkNodeType.TRIGGER_SOURCE,
+				List.of(11L, 2L),
+				QuickLinkToolData.ApplyEditMode.APPEND
+			)
+		);
+		assertEquals("1/2/11", appendedSnapshot.inputSerialExpression());
+
+		RepeaterConfigSnapshot removedSnapshot = QuickLinkApplyService.buildRepeaterSnapshotForAppliedCache(
+			currentSnapshot,
+			LinkNodeType.TRIGGER_SOURCE,
+			QuickLinkApplyService.buildNextRepeaterOrderedSerials(
+				currentSnapshot,
+				LinkNodeType.TRIGGER_SOURCE,
+				List.of(1L, 99L),
+				QuickLinkToolData.ApplyEditMode.REMOVE
+			)
+		);
+		assertEquals("2", removedSnapshot.inputSerialExpression());
+	}
+
+	/**
+	 * 转发器输出侧 quick-link 应只修改输出表达式，并保留输入表达式与延迟配置。
+	 */
+	@Test
+	void buildRepeaterSnapshotForAppliedCacheShouldOnlyTouchOutputExpressionForCoreCache() {
+		RepeaterConfigSnapshot currentSnapshot = new RepeaterConfigSnapshot("1/2", "7/9", RepeaterDelay.ONE_TICK);
+
+		RepeaterConfigSnapshot replacedSnapshot = QuickLinkApplyService.buildRepeaterSnapshotForAppliedCache(
+			currentSnapshot,
+			LinkNodeType.CORE,
+			QuickLinkApplyService.buildNextRepeaterOrderedSerials(
+				currentSnapshot,
+				LinkNodeType.CORE,
+				List.of(15L),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertEquals("1/2", replacedSnapshot.inputSerialExpression());
+		assertEquals("15", replacedSnapshot.outputSerialExpression());
+		assertEquals(RepeaterDelay.ONE_TICK, replacedSnapshot.delay());
+
+		RepeaterConfigSnapshot appendedSnapshot = QuickLinkApplyService.buildRepeaterSnapshotForAppliedCache(
+			currentSnapshot,
+			LinkNodeType.CORE,
+			QuickLinkApplyService.buildNextRepeaterOrderedSerials(
+				currentSnapshot,
+				LinkNodeType.CORE,
+				List.of(15L, 7L),
+				QuickLinkToolData.ApplyEditMode.APPEND
+			)
+		);
+		assertEquals("7/9/15", appendedSnapshot.outputSerialExpression());
+
+		RepeaterConfigSnapshot removedSnapshot = QuickLinkApplyService.buildRepeaterSnapshotForAppliedCache(
+			currentSnapshot,
+			LinkNodeType.CORE,
+			QuickLinkApplyService.buildNextRepeaterOrderedSerials(
+				currentSnapshot,
+				LinkNodeType.CORE,
+				List.of(7L, 42L),
+				QuickLinkToolData.ApplyEditMode.REMOVE
+			)
+		);
+		assertEquals("9", removedSnapshot.outputSerialExpression());
+	}
+
+	/**
 	 * 区块激活器 quick-link 应只修改当前生效服务对象的节点集，并保留另一套配置与模式。
 	 */
 	@Test

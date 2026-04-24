@@ -24,6 +24,7 @@ public final class LinkSerialOverlayRenderCommon {
 	private static final int TRIGGER_SOURCE_TEXT_COLOR = 0xFFFFC66A;
 	private static final int FILTER_TEXT_COLOR = 0xFFFF7AA8;
 	private static final int CHUNK_ACTIVATOR_TEXT_COLOR = 0xFFB36DE9;
+	private static final int REPEATER_TEXT_COLOR = 0xFF96FF9F;
 	private static final int DEFAULT_TEXT_COLOR = 0xFFFFFFFF;
 
 	private LinkSerialOverlayRenderCommon() {
@@ -63,6 +64,13 @@ public final class LinkSerialOverlayRenderCommon {
 	 */
 	public static int resolveChunkActivatorTextColor() {
 		return CHUNK_ACTIVATOR_TEXT_COLOR;
+	}
+
+	/**
+	 * 转发器近外显统一使用亮绿色主题。
+	 */
+	public static int resolveRepeaterTextColor() {
+		return REPEATER_TEXT_COLOR;
 	}
 
 	/**
@@ -149,6 +157,13 @@ public final class LinkSerialOverlayRenderCommon {
 	 */
 	static String resolveChunkActivatorTitle(BlockState state) {
 		return resolveBlockDisplayName(state, "block.redstonelink.link_chunk_activator");
+	}
+
+	/**
+	 * 解析转发器标题回退文本。
+	 */
+	static String resolveRepeaterTitle(BlockState state) {
+		return resolveBlockDisplayName(state, "block.redstonelink.link_repeater");
 	}
 
 	/**

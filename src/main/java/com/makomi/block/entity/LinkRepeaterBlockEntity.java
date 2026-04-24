@@ -214,7 +214,6 @@ public class LinkRepeaterBlockEntity extends ActivatableTargetBlockEntity {
 	@Override
 	public void clearRemoved() {
 		super.clearRemoved();
-		syncRepeaterActiveBlockState(dispatchedOutputPower > 0);
 		if (level instanceof ServerLevel serverLevel && pendingDispatchArmed) {
 			int delayTicks = Math.max(1, (int) Math.max(0L, pendingDispatchTick - serverLevel.getGameTime()));
 			serverLevel.scheduleTick(worldPosition, getBlockState().getBlock(), delayTicks);
@@ -232,12 +231,15 @@ public class LinkRepeaterBlockEntity extends ActivatableTargetBlockEntity {
 
 	@Override
 	protected void syncBlockStateFromDerivedState(boolean active) {
-		// 转发器外显由“已派发输出态”驱动，而不是输入侧即时真值。
+		// 转发器外显由“已派发输出态”驱动，而不是输入侧即时真值；
+		// 加载后静默校正也必须遵守这一语义。
+		syncRepeaterActiveBlockState(shouldRenderActiveFromDispatchedOutput());
 	}
 
 	@Override
 	protected boolean shouldQueueLoadBlockStateSync(boolean active) {
-		return false;
+		BlockState state = getBlockState();
+		return state.getBlock() instanceof LinkRepeaterBlock && state.getValue(LinkRepeaterBlock.ACTIVE) != shouldRenderActiveFromDispatchedOutput();
 	}
 
 	@Override
@@ -249,6 +251,10 @@ public class LinkRepeaterBlockEntity extends ActivatableTargetBlockEntity {
 
 	@Override
 	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
+		// 基类会在 `super.loadAdditional(...)` 末尾按当前派生态决定是否登记
+		// 加载后静默 blockstate 校正；转发器的可见态又取决于“已派发输出”，
+		// 因此必须先把该持久化字段恢复出来，避免误用默认值 0。
+		dispatchedOutputPower = readPersistedDispatchedOutputPower(tag);
 		super.loadAdditional(tag, provider);
 		configSnapshot = new RepeaterConfigSnapshot(
 			tag.contains(KEY_INPUT_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_INPUT_SERIAL_EXPRESSION) : "",
@@ -265,7 +271,6 @@ public class LinkRepeaterBlockEntity extends ActivatableTargetBlockEntity {
 			KEY_OUTPUT_DISPLAY_TEXTS,
 			parseOrderedSerials(configSnapshot.outputSerialExpression())
 		);
-		dispatchedOutputPower = SignalStrengths.clamp(tag.getInt(KEY_DISPATCHED_OUTPUT_POWER));
 		lastDispatchTick = Math.max(0L, tag.getLong(KEY_LAST_DISPATCH_TICK));
 		lastDispatchSlot = Math.max(0, tag.getInt(KEY_LAST_DISPATCH_SLOT));
 		lastDispatchSeq = Math.max(0L, tag.getLong(KEY_LAST_DISPATCH_SEQ));
@@ -415,6 +420,16 @@ public class LinkRepeaterBlockEntity extends ActivatableTargetBlockEntity {
 		);
 	}
 
+	/**
+	 * 解析转发器当前应呈现给方块状态的可见激活态。
+	 * <p>
+	 * 该可见态固定跟随“已派发输出”，而不是输入侧即时解析真值。
+	 * </p>
+	 */
+	private boolean shouldRenderActiveFromDispatchedOutput() {
+		return dispatchedOutputPower > 0;
+	}
+
 	private BlockState syncRepeaterActiveBlockState(boolean active) {
 		if (level == null) {
 			return getBlockState();
@@ -478,5 +493,9 @@ public class LinkRepeaterBlockEntity extends ActivatableTargetBlockEntity {
 			displayTexts.add(listTag.getString(index));
 		}
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
+	}
+
+	private static int readPersistedDispatchedOutputPower(CompoundTag tag) {
+		return SignalStrengths.clamp(tag.getInt(KEY_DISPATCHED_OUTPUT_POWER));
 	}
 }

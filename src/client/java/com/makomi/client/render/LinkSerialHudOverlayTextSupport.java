@@ -3,6 +3,7 @@ package com.makomi.client.render;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.ChunkActivatorConfigSnapshot;
 import com.makomi.data.ChunkActivatorMode;
@@ -17,6 +18,8 @@ import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
+import com.makomi.data.RepeaterConfigSnapshot;
+import com.makomi.data.RepeaterDelay;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +64,10 @@ final class LinkSerialHudOverlayTextSupport {
 	private static final String KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_SERVICE_LINE = "hud.redstonelink.near_overlay.chunk_activator_service_line";
 	private static final String KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_MODE_LINE = "hud.redstonelink.near_overlay.chunk_activator_mode_line";
 	private static final String KEY_NEAR_OVERLAY_CHUNK_ACTIVATOR_NODE_SET_LINE = "hud.redstonelink.near_overlay.chunk_activator_node_set_line";
+	private static final String KEY_NEAR_OVERLAY_REPEATER_TITLE_LINE = "hud.redstonelink.near_overlay.repeater_title_line";
+	private static final String KEY_NEAR_OVERLAY_REPEATER_DELAY_LINE = "hud.redstonelink.near_overlay.repeater_delay_line";
+	private static final String KEY_NEAR_OVERLAY_REPEATER_INPUT_LINE = "hud.redstonelink.near_overlay.repeater_input_line";
+	private static final String KEY_NEAR_OVERLAY_REPEATER_OUTPUT_LINE = "hud.redstonelink.near_overlay.repeater_output_line";
 	private static final int LINKS_LINE_MAX_WIDTH = 280;
 	/**
 	 * 近外显文本缓存，避免每帧重复格式化连接信息。
@@ -234,6 +241,33 @@ final class LinkSerialHudOverlayTextSupport {
 	}
 
 	/**
+	 * 生成转发器近外显文本。
+	 */
+	static List<String> buildNearOverlayLines(LinkRepeaterBlockEntity repeaterBlockEntity, Font font) {
+		if (repeaterBlockEntity == null || font == null) {
+			return List.of();
+		}
+		RepeaterConfigSnapshot snapshot = repeaterBlockEntity.snapshot();
+		List<Long> inputSerials = SerialParseUtil.parseTargetsOrdered(snapshot.inputSerialExpression(), 0).orderedTargets();
+		List<Long> outputSerials = SerialParseUtil.parseTargetsOrdered(snapshot.outputSerialExpression(), 0).orderedTargets();
+		String titleText = composeRepeaterTitleText(
+			LinkSerialOverlayRenderCommon.resolveRepeaterTitle(repeaterBlockEntity.getBlockState()),
+			repeaterBlockEntity.getSerialDisplayText()
+		);
+		return List.of(
+			translate(KEY_NEAR_OVERLAY_REPEATER_TITLE_LINE, titleText),
+			translate(KEY_NEAR_OVERLAY_REPEATER_DELAY_LINE, resolveRepeaterDelayText(snapshot.delay())),
+			translate(KEY_NEAR_OVERLAY_REPEATER_INPUT_LINE, buildCurrentLinksText(font, inputSerials, repeaterBlockEntity.inputDisplayTexts())),
+			translate(KEY_NEAR_OVERLAY_REPEATER_OUTPUT_LINE, buildCurrentLinksText(font, outputSerials, repeaterBlockEntity.outputDisplayTexts())),
+			translate(
+				KEY_NEAR_OVERLAY_FINAL_IO_LINE,
+				Integer.toString(repeaterBlockEntity.getCurrentInputPower()),
+				Integer.toString(repeaterBlockEntity.getCurrentDispatchedOutputPower())
+			)
+		);
+	}
+
+	/**
 	 * 读取过滤器当前外显激活状态。
 	 * <p>
 	 * 过滤器当前用方块状态 `powered` 表达是否被激活，因此这里直接复用该布尔外显语义。
@@ -302,6 +336,21 @@ final class LinkSerialHudOverlayTextSupport {
 			return normalizedAlias;
 		}
 		return normalizedPrefix + " " + normalizedAlias;
+	}
+
+	/**
+	 * 组合转发器 HUD 标题：保留方块标题，并附加序号展示文本。
+	 */
+	private static String composeRepeaterTitleText(String itemPrefix, String serialDisplayText) {
+		String normalizedPrefix = itemPrefix == null ? "" : itemPrefix;
+		String normalizedSerialDisplayText = serialDisplayText == null ? "" : serialDisplayText.trim();
+		if (normalizedSerialDisplayText.isEmpty()) {
+			return normalizedPrefix;
+		}
+		if (normalizedPrefix.isBlank()) {
+			return normalizedSerialDisplayText;
+		}
+		return normalizedPrefix + " " + normalizedSerialDisplayText;
 	}
 
 	/**
@@ -532,6 +581,17 @@ final class LinkSerialHudOverlayTextSupport {
 		return switch (normalizedMode) {
 			case FORCE_LOAD -> translate("screen.redstonelink.chunk_activator.mode.force_load");
 			case RESIDENT -> translate("screen.redstonelink.chunk_activator.mode.resident");
+		};
+	}
+
+	/**
+	 * 解析转发器延迟档位文本。
+	 */
+	private static String resolveRepeaterDelayText(RepeaterDelay delay) {
+		RepeaterDelay normalizedDelay = delay == null ? RepeaterDelay.ONE_TICK : delay;
+		return switch (normalizedDelay) {
+			case ONE_TICK -> translate("screen.redstonelink.repeater.delay.one_tick");
+			case TWO_TICKS -> translate("screen.redstonelink.repeater.delay.two_ticks");
 		};
 	}
 

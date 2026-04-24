@@ -2,6 +2,7 @@ package com.makomi.client.render;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
@@ -116,6 +117,10 @@ public final class LinkSerialHudOverlayRenderer {
 		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
 			return;
 		}
+		if (blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity) {
+			renderRepeaterOverlay(guiGraphics, minecraft, repeaterBlockEntity);
+			return;
+		}
 		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
 			renderNodeOverlay(guiGraphics, minecraft, blockHitResult, pairableNodeBlockEntity);
 			return;
@@ -127,6 +132,28 @@ public final class LinkSerialHudOverlayRenderer {
 		if (blockEntity instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
 			renderChunkActivatorOverlay(guiGraphics, minecraft, chunkActivatorBlockEntity);
 		}
+	}
+
+	/**
+	 * 绘制转发器近外显。
+	 */
+	private static void renderRepeaterOverlay(
+		GuiGraphics guiGraphics,
+		Minecraft minecraft,
+		LinkRepeaterBlockEntity repeaterBlockEntity
+	) {
+		List<String> displayLines = LinkSerialHudOverlayTextSupport.buildNearOverlayLines(repeaterBlockEntity, minecraft.font);
+		if (displayLines.isEmpty()) {
+			return;
+		}
+		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
+			guiGraphics,
+			minecraft.font,
+			displayLines,
+			LinkSerialOverlayRenderCommon.resolveRepeaterTextColor(),
+			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
+			LinkSerialHudOverlayDrawSupport.PanelStyle.REPEATER
+		);
 	}
 
 	/**
@@ -171,12 +198,13 @@ public final class LinkSerialHudOverlayRenderer {
 			return;
 		}
 		int textColor = LinkSerialOverlayRenderCommon.resolveNodeTextColor(nodeType);
-		LinkSerialHudOverlayDrawSupport.drawCenteredWithDeepBackground(
+		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
 			guiGraphics,
 			minecraft.font,
 			displayLines,
 			textColor,
-			RedstoneLinkClientDisplayConfig.overlay().fontScale()
+			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
+			LinkSerialHudOverlayDrawSupport.resolveNodePanelStyle(nodeType)
 		);
 	}
 
@@ -198,12 +226,13 @@ public final class LinkSerialHudOverlayRenderer {
 		if (displayLines.isEmpty()) {
 			return;
 		}
-		LinkSerialHudOverlayDrawSupport.drawCenteredWithDeepBackground(
+		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
 			guiGraphics,
 			minecraft.font,
 			displayLines,
 			LinkSerialOverlayRenderCommon.resolveFilterTextColor(filterBlockEntity.filterKind()),
-			RedstoneLinkClientDisplayConfig.overlay().fontScale()
+			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
+			LinkSerialHudOverlayDrawSupport.resolveFilterPanelStyle()
 		);
 	}
 
@@ -222,12 +251,13 @@ public final class LinkSerialHudOverlayRenderer {
 		if (displayLines.isEmpty()) {
 			return;
 		}
-		LinkSerialHudOverlayDrawSupport.drawCenteredWithDeepBackground(
+		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
 			guiGraphics,
 			minecraft.font,
 			displayLines,
 			LinkSerialOverlayRenderCommon.resolveChunkActivatorTextColor(),
-			RedstoneLinkClientDisplayConfig.overlay().fontScale()
+			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
+			LinkSerialHudOverlayDrawSupport.resolveChunkActivatorPanelStyle()
 		);
 	}
 }

@@ -1,6 +1,7 @@
 package com.makomi.client.render;
 
 import com.makomi.block.LinkRedstoneDustCoreBlock;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.LinkNodeType;
@@ -63,7 +64,9 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 		}
 		LinkNodeType nodeType = blockEntity.getLinkNodeType();
 		String displayText = serialText;
-		int textColor = LinkSerialOverlayRenderCommon.resolveNodeTextColor(nodeType);
+		int textColor = blockEntity instanceof LinkRepeaterBlockEntity
+			? LinkSerialOverlayRenderCommon.resolveRepeaterTextColor()
+			: LinkSerialOverlayRenderCommon.resolveNodeTextColor(nodeType);
 		int backgroundGlyphColor = withAlpha(textColor, 0x00);
 
 		Minecraft minecraft = Minecraft.getInstance();

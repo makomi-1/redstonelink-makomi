@@ -30,25 +30,33 @@ public class RepeaterEditorScreen extends Screen {
 	private static final int BACKGROUND_HORIZONTAL_PADDING = 12;
 	private static final int BACKGROUND_TOP_PADDING = 16;
 	private static final int BACKGROUND_BOTTOM_PADDING = 22;
-	private static final int THEME_BORDER_COLOR = GuiBackgroundRenderSupport.BackgroundPreset.CHUNK_ACTIVATOR.borderColor();
+	private static final int THEME_BORDER_COLOR = GuiBackgroundRenderSupport.BackgroundPreset.REPEATER.borderColor();
+	private static final int THEME_FILL_COLOR = 0xCC47BF53;
+	private static final int THEME_HOVER_FILL_COLOR = 0xE05AD868;
+	private static final int THEME_DISABLED_FILL_COLOR = 0x9949844E;
+	private static final int THEME_FOCUSED_BORDER_COLOR = 0xFF96FF9F;
+	private static final int THEME_DISABLED_BORDER_COLOR = 0xFF2F7C37;
+	private static final int THEME_TEXT_COLOR = 0xFFF4FFF4;
+	private static final int THEME_DISABLED_TEXT_COLOR = 0xFFCBE6CE;
+	private static final int THEME_VALUE_TEXT_COLOR = 0xFF96FF9F;
 	private static final StyledEditBox.Style EDIT_BOX_STYLE = new StyledEditBox.Style(
-		0xCC8641C0,
+		THEME_FILL_COLOR,
 		THEME_BORDER_COLOR,
-		0xFFB36DE9,
-		0x9957257B,
-		0xFF6C3A99,
-		0xFFFFF5FF,
-		0xFFDCC7EE
+		THEME_FOCUSED_BORDER_COLOR,
+		THEME_DISABLED_FILL_COLOR,
+		THEME_DISABLED_BORDER_COLOR,
+		THEME_TEXT_COLOR,
+		THEME_DISABLED_TEXT_COLOR
 	);
 	private static final StyledButton.Style BUTTON_STYLE = new StyledButton.Style(
-		0xE08641C0,
-		0xF09B4BDD,
-		0x9957257B,
+		0xE047BF53,
+		THEME_HOVER_FILL_COLOR,
+		THEME_DISABLED_FILL_COLOR,
 		THEME_BORDER_COLOR,
-		0xFFB36DE9,
-		0xFF6C3A99,
-		0xFFFFF5FF,
-		0xFFDCC7EE
+		THEME_FOCUSED_BORDER_COLOR,
+		THEME_DISABLED_BORDER_COLOR,
+		THEME_TEXT_COLOR,
+		THEME_DISABLED_TEXT_COLOR
 	);
 
 	private final LinkFilterEditorTargetKind targetKind;
@@ -350,11 +358,11 @@ public class RepeaterEditorScreen extends Screen {
 	}
 
 	private GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
-		return GuiBackgroundRenderSupport.BackgroundPreset.CHUNK_ACTIVATOR;
+		return GuiBackgroundRenderSupport.BackgroundPreset.REPEATER;
 	}
 
 	private int themeTextColor() {
-		return backgroundPreset().borderColor();
+		return THEME_VALUE_TEXT_COLOR;
 	}
 
 	private GuiBackgroundRenderSupport.RegionBounds resolveContentBounds(RepeaterLayout layout) {
