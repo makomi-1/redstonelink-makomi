@@ -53,6 +53,7 @@
     "cases/functional/x54/chunk_activator_core_resident_auto_replay.json",
     "cases/functional/x55/sync_later_lower_strength_overrides_earlier.json",
     "cases/functional/x56/sync_same_tick_high_removed_recompute_to_low.json",
+    "cases/functional/x57/repeater_samechunk_delay_tick_assert.json",
     "cases/functional/x11/reload_template_world_boot_basic.json",
     "cases/functional/x12/crosschunk_sync_source_attach_replay_enabled.json",
     "cases/functional/x13/crosschunk_sync_source_attach_replay_disabled.json",

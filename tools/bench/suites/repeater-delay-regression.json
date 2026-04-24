@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "description": "转发器延迟专项：在 directBatching=off 且 batchWindowTicks=0 下验证转发器输出相对上游 source 的 1tick/2tick 固定延迟，并确认下游 core 不叠加额外 tick。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false",
+      "crosschunk.directBatching": "off",
+      "crosschunk.dispatch.batchWindowTicks": 0
+    }
+  },
+  "entries": [
+    {
+      "entryId": "x57_repeater_delay_1tick",
+      "summaryCaseId": "x57_repeater_delay_1tick",
+      "title": "转发器延迟：1tick",
+      "caseId": "repeater_samechunk_delay_tick_assert",
+      "parameters": {
+        "repeaterDelayToken": "1tick",
+        "repeaterDelayTicks": 1
+      }
+    },
+    {
+      "entryId": "x58_repeater_delay_2tick",
+      "summaryCaseId": "x58_repeater_delay_2tick",
+      "title": "转发器延迟：2tick",
+      "caseId": "repeater_samechunk_delay_tick_assert",
+      "parameters": {
+        "repeaterDelayToken": "2tick",
+        "repeaterDelayTicks": 2
+      }
+    }
+  ]
+}

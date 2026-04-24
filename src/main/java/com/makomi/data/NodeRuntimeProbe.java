@@ -2,6 +2,7 @@ package com.makomi.data;
 
 import com.makomi.block.LinkSignalEmitterBlock;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.LinkPulseEmitterBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
 import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
@@ -56,7 +57,8 @@ public final class NodeRuntimeProbe {
 	 * 解析当前节点可用的探针类型，并返回即时快照。
 	 * <p>
 	 * `core` 可在离线状态下直接解析为 `CORE` 探针；
-	 * `triggerSource` 仅当当前在线且为受支持的按钮/拉杆/发射器来源时才返回可用结果。
+	 * `triggerSource` 仅当当前在线且为受支持的按钮/拉杆/发射器来源，
+	 * 或者为转发器暴露的虚拟 `triggerSource` 输出态时才返回可用结果。
 	 * </p>
 	 */
 	public static Optional<ProbeResolution> resolveCurrent(MinecraftServer server, LinkNodeType nodeType, long serial) {
@@ -70,6 +72,14 @@ public final class NodeRuntimeProbe {
 		OnlineNodeContext onlineContext = resolveOnlineNodeContext(server, nodeType, serial).orElse(null);
 		if (onlineContext == null) {
 			return Optional.empty();
+		}
+		if (onlineContext.blockEntity() instanceof LinkRepeaterBlockEntity) {
+			return Optional.of(
+				new ProbeResolution(
+					TraceNodeKind.SYNC_TRIGGER_SOURCE,
+					snapshot(server, nodeType, serial, TraceNodeKind.SYNC_TRIGGER_SOURCE)
+				)
+			);
 		}
 		if (onlineContext.blockEntity() instanceof SyncReplaySourceBlockEntity) {
 			return Optional.of(
@@ -155,6 +165,17 @@ public final class NodeRuntimeProbe {
 				nodeLevel,
 				identity.pos(),
 				traceKind,
+				identity,
+				sampleTick
+			);
+		}
+		if (
+			traceKind == TraceNodeKind.SYNC_TRIGGER_SOURCE
+				&& blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity
+		) {
+			return buildRepeaterTriggerSourceSnapshot(
+				nodeLevel,
+				repeaterBlockEntity,
 				identity,
 				sampleTick
 			);
@@ -306,6 +327,49 @@ public final class NodeRuntimeProbe {
 			List.of(),
 			lastObservedInputPower,
 			lastDispatchedPower
+		);
+	}
+
+	/**
+	 * 构建转发器虚拟 `triggerSource` 输出侧快照。
+	 * <p>
+	 * 输入侧仍读取转发器当前 `core` 聚合真值，
+	 * 输出侧则读取已延迟派发的对外功率，确保 trace/node get 观察的是同一条真实输出链路。
+	 * </p>
+	 */
+	private static NodeRuntimeSnapshot buildRepeaterTriggerSourceSnapshot(
+		ServerLevel nodeLevel,
+		LinkRepeaterBlockEntity repeaterBlockEntity,
+		NodeIdentitySnapshot identity,
+		long sampleTick
+	) {
+		int currentInputPower = repeaterBlockEntity.getCurrentInputPower();
+		int dispatchedOutputPower = repeaterBlockEntity.replaySyncSnapshot()
+			.map(SyncReplaySourceBlockEntity.ReplaySyncSnapshot::signalStrength)
+			.orElse(repeaterBlockEntity.getCurrentDispatchedOutputPower());
+		boolean visiblePowered = dispatchedOutputPower > 0;
+		return new NodeRuntimeSnapshot(
+			TraceNodeKind.SYNC_TRIGGER_SOURCE,
+			new NodeIdentitySnapshot(
+				identity.nodeType(),
+				identity.serial(),
+				identity.allocated(),
+				identity.retired(),
+				true,
+				nodeLevel.dimension(),
+				repeaterBlockEntity.getBlockPos()
+			),
+			sampleTick,
+			0,
+			visiblePowered,
+			currentInputPower,
+			dispatchedOutputPower,
+			"sync",
+			"sync",
+			dispatchedOutputPower,
+			List.of(),
+			currentInputPower,
+			dispatchedOutputPower
 		);
 	}
 

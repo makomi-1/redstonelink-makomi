@@ -1,0 +1,293 @@
+{
+  "id": "repeater_samechunk_delay_tick_assert",
+  "description": "同区块 sync -> repeater -> core 延迟专项，验证转发器输出相对上游 source 固定延迟 {{param:repeaterDelayTicks}} tick，且下游 core 不额外叠加 tick。",
+  "parameters": {
+    "repeaterDelayToken": "1tick",
+    "repeaterDelayTicks": 1
+  },
+  "layer": "X",
+  "scenarioId": "X57",
+  "arena": {
+    "clearFrom": [-8, 63, 640],
+    "clearTo": [20, 66, 648]
+  },
+  "targets": {
+    "id": "core_repeater_delay_target",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 642],
+      "to": [12, 64, 642]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_repeater_delay_source",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 642],
+        "to": [0, 64, 642]
+      }
+    },
+    {
+      "id": "repeater_delay_node",
+      "kind": "repeater_block",
+      "layout": {
+        "shape": "cuboid",
+        "from": [4, 64, 642],
+        "to": [4, 64, 642]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_repeater_delay_mount",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_delay_token",
+      "commandTemplate": "data merge block 4 64 642 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_repeater_core_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot core {{source:repeater_delay_node[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=core"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)\\s+coreRevision=(?<coreRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_sync_source_to_repeater_core",
+      "commandTemplate": "redstonelink bench occ pairing submit core {{source:repeater_delay_node[0]}} triggerSource {{source:sync_repeater_delay_source[0]:mixed}} expectedCoreRevision={{phase:snapshot_repeater_core_baseline.captures.coreRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_pairing_submit",
+        "(?i)outcome=applied",
+        "(?i)type=core"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_repeater_trigger_source_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot triggerSource {{source:repeater_delay_node[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=triggerSource"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_repeater_trigger_source_to_target_core",
+      "commandTemplate": "redstonelink bench occ pairing submit triggerSource {{source:repeater_delay_node[0]}} core {{targets[0]:mixed}} expectedSourceRevision={{phase:snapshot_repeater_trigger_source_baseline.captures.sourceRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_pairing_submit",
+        "(?i)outcome=applied",
+        "(?i)type=triggerSource"
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_delay_pairing_apply",
+      "ticks": 8
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_core_should_link_sync_source",
+      "commandTemplate": "redstonelink node get core {{source:repeater_delay_node[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:sync_repeater_delay_source[0]}}"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_trigger_source_should_link_target",
+      "commandTemplate": "redstonelink link get triggerSource {{source:repeater_delay_node[0]}}",
+      "expectedPrefix": "[RedstoneLink/Link]",
+      "expectedRegexes": [
+        "(?i)(target_count=1|目标数=1)",
+        "(?i)(targets=|目标列表=)[^\\r\\n]*?(?<!\\d){{targets[0]}}(?!\\d)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_target_core_should_link_repeater_only",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:repeater_delay_node[0]}}"
+      ],
+      "rejectRegex": "(?i)targets=.*{{source:sync_repeater_delay_source[0]}}"
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_mixed",
+      "name": "mount_repeater_delay_source_trace",
+      "serialRef": "sync_repeater_delay_source",
+      "serialFormat": "mixed",
+      "capacity": 64,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_mixed",
+      "name": "mount_repeater_delay_output_trace",
+      "serialRef": "repeater_delay_node",
+      "serialFormat": "mixed",
+      "capacity": 64,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_core_mixed",
+      "name": "mount_repeater_delay_target_trace",
+      "serialRef": "targets",
+      "serialFormat": "mixed",
+      "capacity": 64,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_repeater_delay_trace_mount",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_repeater_delay_source_wave",
+      "serialRef": "sync_repeater_delay_source",
+      "serialFormat": "mixed",
+      "sequence": "15/15/0/0/15/15/0/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_repeater_delay_trace_ticks",
+      "ticks": 16
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_repeater_delay_source_latency",
+      "serialRef": "sync_repeater_delay_source",
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_delay_source_trace",
+      "anchorRef": "start_repeater_delay_source_wave",
+      "anchorTickStrategy": "start",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 4,
+      "expectedDelayTicks": 1,
+      "windowCoverageChecks": [
+        {
+          "windowTicks": 0,
+          "expectedMaximum": 0.0
+        },
+        {
+          "windowTicks": 1,
+          "expectedMinimum": 1.0,
+          "expectedMaximum": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_delay_source_wave"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_repeater_delay_output_latency",
+      "serialRef": "repeater_delay_node",
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_delay_output_trace",
+      "anchorRef": "start_repeater_delay_source_wave",
+      "anchorTickStrategy": "start",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 6,
+      "expectedDelayTicks": "{{param:repeaterDelayTicks}}",
+      "windowCoverageChecks": [
+        {
+          "windowTicks": "{{param:repeaterDelayTicks}}",
+          "expectedMinimum": 1.0,
+          "expectedMaximum": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_delay_source_wave"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_core_range",
+      "name": "collect_repeater_delay_target_latency",
+      "serialRef": "targets",
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_delay_target_trace",
+      "anchorRef": "start_repeater_delay_source_wave",
+      "anchorTickStrategy": "start",
+      "referencePhaseRef": "collect_repeater_delay_output_latency",
+      "referenceStartStrategy": "min",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 4,
+      "expectedDelayTicks": 0,
+      "windowCoverageChecks": [
+        {
+          "windowTicks": 0,
+          "expectedMinimum": 1.0,
+          "expectedMaximum": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_delay_source_wave"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_repeater_delay_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_mixed",
+      "name": "unmount_repeater_delay_source_trace",
+      "serialRef": "sync_repeater_delay_source",
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_mixed",
+      "name": "unmount_repeater_delay_output_trace",
+      "serialRef": "repeater_delay_node",
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_core_mixed",
+      "name": "unmount_repeater_delay_target_trace",
+      "serialRef": "targets",
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    }
+  ]
+}

@@ -77,6 +77,7 @@ function Get-BlockIdByKind {
 		"sync_emitter" { return "redstonelink:link_sync_emitter" }
 		"toggle_emitter" { return "redstonelink:link_toggle_emitter" }
 		"pulse_emitter" { return "redstonelink:link_pulse_emitter" }
+		"repeater_block" { return "redstonelink:link_repeater" }
 		"core_block" { return "redstonelink:link_redstone_core" }
 		"core_dust" { return "redstonelink:link_redstone_dust_core" }
 		default { throw "Unsupported node kind: $Kind" }

@@ -29,6 +29,7 @@ function Get-NodeTypeNameByKind {
 		"sync_emitter" { return "triggerSource" }
 		"toggle_emitter" { return "triggerSource" }
 		"pulse_emitter" { return "triggerSource" }
+		"repeater_block" { return "core" }
 		"core_block" { return "core" }
 		"core_dust" { return "core" }
 		default { throw "Unsupported node kind for semantic type resolution: $Kind" }
