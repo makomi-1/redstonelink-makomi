@@ -727,14 +727,14 @@ public final class GraphWriteService {
 		if (level == null || validatedAliasOperation == null || validatedAliasOperation.nodeType() == null || validatedAliasOperation.serial() <= 0L) {
 			return false;
 		}
-		NodeAliasSavedData aliasSavedData = NodeAliasSavedData.get(level);
 		if (validatedAliasOperation.alias().isEmpty()) {
-			NodeAliasSavedData.RemoveResult removeResult = aliasSavedData.remove(
+			NodeAliasSavedData.RemoveResult removeResult = RepeaterAliasMirrorSupport.remove(
+				level,
 				validatedAliasOperation.nodeType(),
 				validatedAliasOperation.serial()
 			);
 			if (removeResult.removed()) {
-				NodeAliasServerSupport.syncDisplaysAfterAliasChanged(
+				RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(
 					level,
 					validatedAliasOperation.nodeType(),
 					validatedAliasOperation.serial()
@@ -742,13 +742,14 @@ public final class GraphWriteService {
 			}
 			return removeResult.removed();
 		}
-		NodeAliasSavedData.UpsertResult upsertResult = aliasSavedData.upsert(
+		NodeAliasSavedData.UpsertResult upsertResult = RepeaterAliasMirrorSupport.upsert(
+			level,
 			validatedAliasOperation.nodeType(),
 			validatedAliasOperation.serial(),
 			validatedAliasOperation.alias()
 		);
 		if (upsertResult.changed()) {
-			NodeAliasServerSupport.syncDisplaysAfterAliasChanged(
+			RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(
 				level,
 				validatedAliasOperation.nodeType(),
 				validatedAliasOperation.serial()

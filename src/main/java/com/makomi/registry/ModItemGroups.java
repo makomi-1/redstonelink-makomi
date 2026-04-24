@@ -34,6 +34,7 @@ public final class ModItemGroups {
 				output.accept(ModItems.LINK_SEND_FILTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_RECEIVE_FILTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_CHUNK_ACTIVATOR, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.LINK_REPEATER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_TOGGLE_LINKER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_PULSE_LINKER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_SYNC_LINKER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);

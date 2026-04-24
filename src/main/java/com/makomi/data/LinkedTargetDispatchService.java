@@ -364,7 +364,7 @@ public final class LinkedTargetDispatchService {
 				savedData.removeNode(targetType, targetSerial);
 				continue;
 			}
-			if (targetBlockEntity.getSerial() != targetSerial || targetBlockEntity.getLinkNodeType() != targetType) {
+			if (!targetBlockEntity.matchesNodeIdentity(targetType, targetSerial)) {
 				// 节点快照命中了错误实体时，同样视为脏在线节点。
 				savedData.removeNode(targetType, targetSerial);
 				continue;

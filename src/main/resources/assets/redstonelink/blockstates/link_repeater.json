@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "active=false": {
+      "model": "redstonelink:block/link_repeater"
+    },
+    "active=true": {
+      "model": "redstonelink:block/link_repeater_bright"
+    }
+  }
+}

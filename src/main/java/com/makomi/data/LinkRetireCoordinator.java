@@ -37,6 +37,41 @@ public final class LinkRetireCoordinator {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
+		if (savedData.isRepeaterSerial(serial)) {
+			return retireRepeater(level, type, serial, savedData);
+		}
+		return retireSingle(level, type, serial, savedData);
+	}
+
+	/**
+	 * 退役转发器统一序号：对 `core/triggerSource` 双身份一起清理。
+	 */
+	private static LinkSavedData.RetireResult retireRepeater(
+		ServerLevel level,
+		LinkNodeType type,
+		long serial,
+		LinkSavedData savedData
+	) {
+		LinkSavedData.RetireResult firstResult = retireSingle(level, type, serial, savedData);
+		LinkNodeType peerType = type == LinkNodeType.CORE ? LinkNodeType.TRIGGER_SOURCE : LinkNodeType.CORE;
+		LinkSavedData.RetireResult secondResult = retireSingle(level, peerType, serial, savedData);
+		savedData.unmarkRepeaterSerial(serial);
+		return new LinkSavedData.RetireResult(
+			(firstResult != null && firstResult.nodeRemoved()) || (secondResult != null && secondResult.nodeRemoved()),
+			(firstResult == null ? 0 : firstResult.linksRemoved()) + (secondResult == null ? 0 : secondResult.linksRemoved()),
+			(firstResult != null && firstResult.retiredMarked()) || (secondResult != null && secondResult.retiredMarked())
+		);
+	}
+
+	/**
+	 * 对单一节点身份执行一次原子退役，并同步白名单/别名副作用。
+	 */
+	private static LinkSavedData.RetireResult retireSingle(
+		ServerLevel level,
+		LinkNodeType type,
+		long serial,
+		LinkSavedData savedData
+	) {
 		// 退役前仅抓取退役源节点在线快照，避免向受影响目标集合逐个强同步。
 		LinkSavedData.LinkNode sourceNodeSnapshot = savedData.findNode(type, serial).orElse(null);
 		Set<Long> detachedSerials = new HashSet<>(savedData.getLinkedPeersByNodeType(type, serial));
@@ -44,9 +79,9 @@ public final class LinkRetireCoordinator {
 		CrossChunkWhitelistSavedData.get(level).removeFromAllRoles(type, serial);
 		CurrentLinksPrivacySavedData.get(level).remove(type, serial);
 		LinkWriteProtectedSavedData.get(level).remove(type, serial);
-		NodeAliasSavedData.RemoveResult aliasRemoveResult = NodeAliasSavedData.get(level).remove(type, serial);
+		NodeAliasSavedData.RemoveResult aliasRemoveResult = RepeaterAliasMirrorSupport.remove(level, type, serial);
 		if (aliasRemoveResult.removed()) {
-			NodeAliasServerSupport.syncDisplaysAfterAliasChanged(level, type, serial);
+			RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(level, type, serial);
 		}
 		if (hasRetireChanges(retireResult)) {
 			InternalDispatchDeltaEvents.publishLinkDetached(

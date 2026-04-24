@@ -64,14 +64,7 @@ final class PairableNodeRequestValidationSupport {
 		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
 			return null;
 		}
-		if (
-			!matchesExpectedNodeIdentity(
-				pairableNodeBlockEntity.getLinkNodeType(),
-				pairableNodeBlockEntity.getSerial(),
-				expectedType,
-				expectedSerial
-			)
-		) {
+		if (!pairableNodeBlockEntity.matchesNodeIdentity(expectedType, expectedSerial)) {
 			return null;
 		}
 		return pairableNodeBlockEntity;

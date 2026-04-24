@@ -7,6 +7,7 @@ import com.makomi.block.LinkPulseEmitterBlock;
 import com.makomi.block.LinkPulseButtonBlock;
 import com.makomi.block.LinkReceiveFilterBlock;
 import com.makomi.block.LinkRedstoneDustCoreBlock;
+import com.makomi.block.LinkRepeaterBlock;
 import com.makomi.block.LinkSendFilterBlock;
 import com.makomi.block.LinkSyncEmitterBlock;
 import com.makomi.block.LinkTransparentCoreBlock;
@@ -89,6 +90,11 @@ public final class ModBlocks {
 	public static final LinkChunkActivatorBlock LINK_CHUNK_ACTIVATOR = register(
 		"link_chunk_activator",
 		new LinkChunkActivatorBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+	);
+
+	public static final LinkRepeaterBlock LINK_REPEATER = register(
+		"link_repeater",
+		new LinkRepeaterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
 	);
 
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(

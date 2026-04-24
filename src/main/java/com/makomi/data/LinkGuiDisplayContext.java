@@ -25,6 +25,7 @@ public final class LinkGuiDisplayContext {
 	public static final String LINK_TOGGLE_EMITTER = "link_toggle_emitter";
 	public static final String LINK_PULSE_EMITTER = "link_pulse_emitter";
 	public static final String LINK_SYNC_EMITTER = "link_sync_emitter";
+	public static final String LINK_REPEATER = "link_repeater";
 	public static final String REDSTONELINK_TOGGLE_LINKER = "redstonelink_toggle_linker";
 	public static final String REDSTONELINK_PULSE_LINKER = "redstonelink_pulse_linker";
 	public static final String REDSTONELINK_SYNC_LINKER = "redstonelink_sync_linker";
@@ -119,6 +120,7 @@ public final class LinkGuiDisplayContext {
 			case LINK_TOGGLE_EMITTER -> LINK_TOGGLE_EMITTER;
 			case LINK_PULSE_EMITTER -> LINK_PULSE_EMITTER;
 			case LINK_SYNC_EMITTER -> LINK_SYNC_EMITTER;
+			case LINK_REPEATER -> LINK_REPEATER;
 			case REDSTONELINK_TOGGLE_LINKER -> REDSTONELINK_TOGGLE_LINKER;
 			case REDSTONELINK_PULSE_LINKER -> REDSTONELINK_PULSE_LINKER;
 			case REDSTONELINK_SYNC_LINKER -> REDSTONELINK_SYNC_LINKER;

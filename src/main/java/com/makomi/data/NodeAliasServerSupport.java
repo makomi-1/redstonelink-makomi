@@ -68,7 +68,7 @@ public final class NodeAliasServerSupport {
 		if (!(nodeLevel.getBlockEntity(node.pos()) instanceof PairableNodeBlockEntity pairableNode)) {
 			return;
 		}
-		if (pairableNode.getLinkNodeType() != type || pairableNode.getSerial() != serial) {
+		if (!pairableNode.matchesNodeIdentity(type, serial)) {
 			return;
 		}
 		pairableNode.forceSyncToClient();
@@ -163,6 +163,7 @@ public final class NodeAliasServerSupport {
 			return false;
 		}
 		boolean changed = false;
+		changed |= syncRepeaterItemDisplays(player, stack, serial);
 		if (LinkItemData.getSerialCount(stack) == 1) {
 			if (matchesNodeItem(stack, type, serial)) {
 				String beforeAlias = LinkItemData.getDisplayAlias(stack);
@@ -178,6 +179,20 @@ public final class NodeAliasServerSupport {
 		changed |= syncFilterItemNodeSetDisplayTexts(player, stack, type, serial);
 		changed |= syncChunkActivatorItemNodeSetDisplayTexts(player, stack, type, serial);
 		return changed;
+	}
+
+	/**
+	 * 别名变更后，刷新转发器物品缓存的统一别名与输入/输出摘要。
+	 */
+	private static boolean syncRepeaterItemDisplays(ServerPlayer player, ItemStack stack, long serial) {
+		if (player == null || stack == null || stack.isEmpty() || LinkItemData.getSerialCount(stack) != 1) {
+			return false;
+		}
+		if (!(stack.getItem() instanceof com.makomi.item.RepeaterBlockItem) || LinkItemData.getSerial(stack) != serial) {
+			return false;
+		}
+		RepeaterGraphSnapshotSupport.syncItemSnapshot(stack, player.serverLevel());
+		return true;
 	}
 
 	/**

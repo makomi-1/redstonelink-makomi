@@ -370,10 +370,7 @@ final class CrossChunkDispatchRuntimeSupport {
 				}
 				return TargetLocatorResult.invalid(targetLevel);
 			}
-			if (
-				targetBlockEntity.getSerial() != pending.key().targetSerial()
-					|| targetBlockEntity.getLinkNodeType() != pending.key().targetType()
-			) {
+			if (!targetBlockEntity.matchesNodeIdentity(pending.key().targetType(), pending.key().targetSerial())) {
 				return TargetLocatorResult.invalid(targetLevel);
 			}
 			return TargetLocatorResult.ready(targetLevel, targetBlockEntity);
@@ -595,8 +592,10 @@ final class CrossChunkDispatchRuntimeSupport {
 					|| targetBlockEntity.isRemoved()
 					|| targetBlockEntity.getLevel() == null
 					|| targetBlockEntity.getLevel().isClientSide
-					|| targetBlockEntity.getSerial() != readyDrainTargetKey.targetSerial()
-					|| targetBlockEntity.getLinkNodeType() != readyDrainTargetKey.targetType()
+					|| !targetBlockEntity.matchesNodeIdentity(
+						readyDrainTargetKey.targetType(),
+						readyDrainTargetKey.targetSerial()
+					)
 					|| stagedBatchableDispatches.isEmpty()
 			) {
 				return;

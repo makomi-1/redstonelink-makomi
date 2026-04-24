@@ -66,18 +66,11 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (nodeBlockEntity == null || !(nodeBlockEntity.getLevel() instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		long serial = nodeBlockEntity.getSerial();
-		if (serial <= 0L) {
-			return;
-		}
-		enqueueTask(
-			serverLevel.getServer(),
-			NodeLifecycleTask.attach(
-				serverLevel.dimension(),
-				nodeBlockEntity.getLinkNodeType(),
-				serial,
-				nodeBlockEntity.getBlockPos().immutable(),
-				0
+		BlockPos blockPos = nodeBlockEntity.getBlockPos().immutable();
+		nodeBlockEntity.forEachNodeIdentity((nodeType, serial) ->
+			enqueueTask(
+				serverLevel.getServer(),
+				NodeLifecycleTask.attach(serverLevel.dimension(), nodeType, serial, blockPos, 0)
 			)
 		);
 	}
@@ -184,7 +177,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (!(blockEntity instanceof PairableNodeBlockEntity nodeBlockEntity)) {
 			return chunk.getBlockState(task.blockPos()).hasBlockEntity() ? ConsumeResult.DEFERRED : ConsumeResult.DROPPED;
 		}
-		if (nodeBlockEntity.getLinkNodeType() != task.nodeType() || nodeBlockEntity.getSerial() != task.serial()) {
+		if (!nodeBlockEntity.matchesNodeIdentity(task.nodeType(), task.serial())) {
 			return ConsumeResult.DROPPED;
 		}
 

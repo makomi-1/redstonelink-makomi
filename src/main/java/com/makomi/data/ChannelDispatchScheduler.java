@@ -299,8 +299,7 @@ public final class ChannelDispatchScheduler {
 					|| targetBlockEntity.isRemoved()
 					|| targetBlockEntity.getLevel() == null
 					|| targetBlockEntity.getLevel().isClientSide
-					|| targetBlockEntity.getSerial() != targetSerial
-					|| targetBlockEntity.getLinkNodeType() != targetType
+					|| !targetBlockEntity.matchesNodeIdentity(targetType, targetSerial)
 					|| stagedEntries.isEmpty()
 			) {
 				stagedEntries.clear();

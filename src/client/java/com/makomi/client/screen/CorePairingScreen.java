@@ -188,6 +188,11 @@ public class CorePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	@Override
+	protected boolean allowChannelMode() {
+		return !LinkGuiDisplayContext.LINK_REPEATER.equals(displayContextToken);
+	}
+
+	@Override
 	protected GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
 		return GuiBackgroundRenderSupport.BackgroundPreset.CORE_PAIRING;
 	}

@@ -135,6 +135,7 @@ final class LinkSavedDataCodecSupport {
 			LinkSavedData.KEY_RETIRED_TRIGGER_SOURCE_SERIALS,
 			data.retiredTriggerSourceSerials
 		);
+		SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_REPEATER_SERIALS, data.repeaterSerials);
 		LinkSavedDataSerialSupport.ensureKnownSerialsAllocated(data);
 		LinkSavedDataSerialSupport.correctNextSerials(data);
 		return data;
@@ -156,6 +157,7 @@ final class LinkSavedDataCodecSupport {
 			LinkSavedData.KEY_RETIRED_TRIGGER_SOURCE_SERIALS,
 			SerialNbtCodecUtil.toSortedLongArray(data.retiredTriggerSourceSerials)
 		);
+		tag.putLongArray(LinkSavedData.KEY_REPEATER_SERIALS, SerialNbtCodecUtil.toSortedLongArray(data.repeaterSerials));
 
 		ListTag nodesTag = new ListTag();
 		saveNodeMap(nodesTag, data.coreNodes);

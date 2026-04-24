@@ -61,7 +61,7 @@ final class LinkSavedDataQuerySupport {
 		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
 			return Optional.empty();
 		}
-		if (pairableNodeBlockEntity.getLinkNodeType() != type || pairableNodeBlockEntity.getSerial() != serial) {
+		if (!pairableNodeBlockEntity.matchesNodeIdentity(type, serial)) {
 			return Optional.empty();
 		}
 		return Optional.of(node);
@@ -107,7 +107,7 @@ final class LinkSavedDataQuerySupport {
 		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
 			return LinkSavedData.RuntimeOnlineProbeResult.mismatch(node);
 		}
-		if (pairableNodeBlockEntity.getLinkNodeType() != type || pairableNodeBlockEntity.getSerial() != serial) {
+		if (!pairableNodeBlockEntity.matchesNodeIdentity(type, serial)) {
 			return LinkSavedData.RuntimeOnlineProbeResult.mismatch(node);
 		}
 		return LinkSavedData.RuntimeOnlineProbeResult.ready(node);

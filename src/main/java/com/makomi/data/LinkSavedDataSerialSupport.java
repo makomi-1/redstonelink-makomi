@@ -29,6 +29,18 @@ final class LinkSavedDataSerialSupport {
 	}
 
 	/**
+	 * 为转发器分配统一序号，并同步登记到 `core/triggerSource` 双侧已分配集合。
+	 */
+	static long allocateRepeaterSerial(LinkSavedData data) {
+		long serial = allocateRepeaterFromCounters(data);
+		markAllocatedInternal(data, LinkNodeType.CORE, serial);
+		markAllocatedInternal(data, LinkNodeType.TRIGGER_SOURCE, serial);
+		markRepeaterInternal(data, serial);
+		data.setDirty();
+		return serial;
+	}
+
+	/**
 	 * 解析放置场景下最终可用的序列号。
 	 */
 	static long resolvePlacementSerial(
@@ -55,6 +67,44 @@ final class LinkSavedDataSerialSupport {
 			markAllocatedInternal(data, type, serial);
 			changed = true;
 		}
+
+		if (changed) {
+			data.setDirty();
+		}
+		return serial;
+	}
+
+	/**
+	 * 解析转发器放置场景下最终可用的统一序号。
+	 */
+	static long resolveRepeaterPlacementSerial(
+		LinkSavedData data,
+		long preferredSerial,
+		ResourceKey<Level> dimension,
+		BlockPos pos
+	) {
+		long serial = preferredSerial;
+		boolean changed = false;
+
+		if (
+			serial <= 0L
+				|| isSerialRetired(data, LinkNodeType.CORE, serial)
+				|| isSerialRetired(data, LinkNodeType.TRIGGER_SOURCE, serial)
+		) {
+			serial = allocateRepeaterFromCounters(data);
+			changed = true;
+		}
+
+		LinkSavedData.LinkNode existingCore = data.nodeMap(LinkNodeType.CORE).get(serial);
+		LinkSavedData.LinkNode existingTriggerSource = data.nodeMap(LinkNodeType.TRIGGER_SOURCE).get(serial);
+		if (isNodeOccupiedByOtherPosition(existingCore, dimension, pos) || isNodeOccupiedByOtherPosition(existingTriggerSource, dimension, pos)) {
+			serial = allocateRepeaterFromCounters(data);
+			changed = true;
+		}
+
+		changed |= markAllocatedInternal(data, LinkNodeType.CORE, serial);
+		changed |= markAllocatedInternal(data, LinkNodeType.TRIGGER_SOURCE, serial);
+		changed |= markRepeaterInternal(data, serial);
 
 		if (changed) {
 			data.setDirty();
@@ -169,6 +219,43 @@ final class LinkSavedDataSerialSupport {
 	}
 
 	/**
+	 * 手动登记序列号为“转发器统一序号”。
+	 */
+	static boolean markRepeaterSerial(LinkSavedData data, long serial) {
+		if (serial <= 0L) {
+			return false;
+		}
+		boolean changed = markRepeaterInternal(data, serial);
+		if (changed) {
+			markAllocatedInternal(data, LinkNodeType.CORE, serial);
+			markAllocatedInternal(data, LinkNodeType.TRIGGER_SOURCE, serial);
+			data.setDirty();
+		}
+		return changed;
+	}
+
+	/**
+	 * 从“转发器统一序号”集合中移除指定序号。
+	 */
+	static boolean unmarkRepeaterSerial(LinkSavedData data, long serial) {
+		if (serial <= 0L) {
+			return false;
+		}
+		boolean changed = data.repeaterSerialSet().remove(serial);
+		if (changed) {
+			data.setDirty();
+		}
+		return changed;
+	}
+
+	/**
+	 * 判断指定序号是否登记为转发器统一序号。
+	 */
+	static boolean isRepeaterSerial(LinkSavedData data, long serial) {
+		return serial > 0L && data.repeaterSerialSet().contains(serial);
+	}
+
+	/**
 	 * 更新 triggerSource 最近一次真实 sync replay 快照。
 	 */
 	static void putTriggerSourceReplaySyncSnapshot(
@@ -216,9 +303,11 @@ final class LinkSavedDataSerialSupport {
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.retiredTriggerSourceSerials));
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.triggerSourceReplaySyncSnapshots.keySet()));
 		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.triggerSourceChannelConfigs.keySet()));
+		maxTriggerSourceSerial = Math.max(maxTriggerSourceSerial, maxValue(data.repeaterSerialSet()));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.allocatedCoreSerials));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.retiredCoreSerials));
 		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.coreChannelConfigs.keySet()));
+		maxCoreSerial = Math.max(maxCoreSerial, maxValue(data.repeaterSerialSet()));
 
 		data.nextTriggerSourceSerial = Math.max(data.nextTriggerSourceSerial, maxTriggerSourceSerial + 1L);
 		data.nextCoreSerial = Math.max(data.nextCoreSerial, maxCoreSerial + 1L);
@@ -257,10 +346,30 @@ final class LinkSavedDataSerialSupport {
 	}
 
 	/**
+	 * 为转发器选择一个对 `core/triggerSource` 双侧都未占用的统一序号。
+	 */
+	static long allocateRepeaterFromCounters(LinkSavedData data) {
+		long candidate = Math.max(data.nextCoreSerial, data.nextTriggerSourceSerial);
+		while (isRepeaterSerialUnavailable(data, candidate)) {
+			candidate++;
+		}
+		data.nextCoreSerial = Math.max(data.nextCoreSerial, candidate + 1L);
+		data.nextTriggerSourceSerial = Math.max(data.nextTriggerSourceSerial, candidate + 1L);
+		return candidate;
+	}
+
+	/**
 	 * 标记序列号进入“已分配”集合。
 	 */
 	static boolean markAllocatedInternal(LinkSavedData data, LinkNodeType type, long serial) {
 		return data.allocatedSerialSet(type).add(serial);
+	}
+
+	/**
+	 * 标记序列号进入“转发器统一序号”集合。
+	 */
+	static boolean markRepeaterInternal(LinkSavedData data, long serial) {
+		return data.repeaterSerialSet().add(serial);
 	}
 
 	/**
@@ -289,6 +398,8 @@ final class LinkSavedDataSerialSupport {
 		data.allocatedTriggerSourceSerials.addAll(data.triggerSourceReplaySyncSnapshots.keySet());
 		data.allocatedTriggerSourceSerials.addAll(data.triggerSourceChannelConfigs.keySet());
 		data.allocatedCoreSerials.addAll(data.coreChannelConfigs.keySet());
+		data.allocatedTriggerSourceSerials.addAll(data.repeaterSerialSet());
+		data.allocatedCoreSerials.addAll(data.repeaterSerialSet());
 	}
 
 	/**
@@ -300,5 +411,31 @@ final class LinkSavedDataSerialSupport {
 			max = Math.max(max, value);
 		}
 		return max;
+	}
+
+	/**
+	 * 判断给定统一序号是否已被任一节点身份占用。
+	 */
+	private static boolean isRepeaterSerialUnavailable(LinkSavedData data, long serial) {
+		if (serial <= 0L) {
+			return true;
+		}
+		return data.nodeMap(LinkNodeType.CORE).containsKey(serial)
+			|| data.nodeMap(LinkNodeType.TRIGGER_SOURCE).containsKey(serial)
+			|| data.allocatedSerialSet(LinkNodeType.CORE).contains(serial)
+			|| data.allocatedSerialSet(LinkNodeType.TRIGGER_SOURCE).contains(serial)
+			|| data.retiredSerialSet(LinkNodeType.CORE).contains(serial)
+			|| data.retiredSerialSet(LinkNodeType.TRIGGER_SOURCE).contains(serial);
+	}
+
+	/**
+	 * 判断在线节点是否占用了其他物理位置。
+	 */
+	private static boolean isNodeOccupiedByOtherPosition(
+		LinkSavedData.LinkNode node,
+		ResourceKey<Level> dimension,
+		BlockPos pos
+	) {
+		return node != null && (!node.dimension().equals(dimension) || !node.pos().equals(pos));
 	}
 }

@@ -212,6 +212,11 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	@Override
+	protected boolean allowChannelMode() {
+		return !LinkGuiDisplayContext.LINK_REPEATER.equals(displayContextToken);
+	}
+
+	@Override
 	protected GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
 		return GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING;
 	}

@@ -9,6 +9,7 @@ import com.makomi.item.LinkerItem;
 import com.makomi.item.LinkFilterBlockItem;
 import com.makomi.item.PairableBlockItem;
 import com.makomi.item.QuickLinkToolItem;
+import com.makomi.item.RepeaterBlockItem;
 import com.makomi.item.RedstoneLinkComponentItem;
 import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.StatePanelToolItem;
@@ -130,6 +131,11 @@ public final class ModItems {
 	public static final Item LINK_CHUNK_ACTIVATOR = register(
 		"link_chunk_activator",
 		new ChunkActivatorBlockItem(ModBlocks.LINK_CHUNK_ACTIVATOR, new Item.Properties().stacksTo(1))
+	);
+
+	public static final Item LINK_REPEATER = register(
+		"link_repeater",
+		new RepeaterBlockItem(ModBlocks.LINK_REPEATER, new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item REDSTONELINK_TOGGLE_LINKER = register(

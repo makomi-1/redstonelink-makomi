@@ -17,6 +17,7 @@ import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeLinksSnapshot;
 import com.makomi.data.NodeRuntimeSnapshot;
 import com.makomi.data.NodeSnapshotQueryService;
+import com.makomi.data.RepeaterAliasMirrorSupport;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -166,16 +167,16 @@ final class PairingNetworkServerHandlerSupport {
 			return;
 		}
 
-		NodeAliasSavedData aliasSavedData = NodeAliasSavedData.get(player.serverLevel());
 		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(payload.sourceAlias());
 		if (normalizedAlias.isEmpty()) {
+			NodeAliasSavedData aliasSavedData = NodeAliasSavedData.get(player.serverLevel());
 			String previousAlias = aliasSavedData.getAlias(sourceType, payload.sourceSerial()).orElse("");
 			NodeAliasSavedData.RemoveResult removeResult = previousAlias.isEmpty()
 				? new NodeAliasSavedData.RemoveResult(false, "")
-				: aliasSavedData.remove(sourceType, payload.sourceSerial());
-			String currentAlias = aliasSavedData.getAlias(sourceType, payload.sourceSerial()).orElse("");
+				: RepeaterAliasMirrorSupport.remove(player.serverLevel(), sourceType, payload.sourceSerial());
+			String currentAlias = NodeAliasSavedData.get(player.serverLevel()).getAlias(sourceType, payload.sourceSerial()).orElse("");
 			if (removeResult.removed()) {
-				NodeAliasServerSupport.syncDisplaysAfterAliasChanged(player.serverLevel(), sourceType, payload.sourceSerial());
+				RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(player.serverLevel(), sourceType, payload.sourceSerial());
 			}
 			sendPairingAliasState(player, sourceType, payload.sourceSerial(), currentAlias);
 			sendPairingFeedback(
@@ -190,7 +191,12 @@ final class PairingNetworkServerHandlerSupport {
 			);
 			return;
 		}
-		NodeAliasSavedData.UpsertResult result = aliasSavedData.upsert(sourceType, payload.sourceSerial(), payload.sourceAlias());
+		NodeAliasSavedData.UpsertResult result = RepeaterAliasMirrorSupport.upsert(
+			player.serverLevel(),
+			sourceType,
+			payload.sourceSerial(),
+			payload.sourceAlias()
+		);
 		if (!result.valid()) {
 			sendPairingFeedback(player, buildAliasValidationFeedback(payload.sourceAlias(), result.validation()));
 			return;
@@ -201,7 +207,7 @@ final class PairingNetworkServerHandlerSupport {
 		}
 
 		if (result.changed()) {
-			NodeAliasServerSupport.syncDisplaysAfterAliasChanged(player.serverLevel(), sourceType, payload.sourceSerial());
+			RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(player.serverLevel(), sourceType, payload.sourceSerial());
 		}
 		sendPairingAliasState(player, sourceType, payload.sourceSerial(), result.alias());
 		sendPairingFeedback(
@@ -241,16 +247,18 @@ final class PairingNetworkServerHandlerSupport {
 			requestedType.get(),
 			payload.sourceSerial()
 		);
+		LinkNodeType requestedNodeType = requestedType.get();
+		long requestedNodeSerial = payload.sourceSerial();
 		if (pairableNode != null) {
-			linksSnapshot = NodeSnapshotQueryService.queryLinks(player, pairableNode.getLinkNodeType(), pairableNode.getSerial());
+			linksSnapshot = NodeSnapshotQueryService.queryLinks(player, requestedNodeType, requestedNodeSerial);
 			if (pairableNode.getLevel() instanceof net.minecraft.server.level.ServerLevel requestedLevel) {
 				LinkSavedData savedData = LinkSavedData.get(requestedLevel);
-				connectionMode = savedData.getConnectionMode(pairableNode.getLinkNodeType(), pairableNode.getSerial());
-				channel = savedData.getChannel(pairableNode.getLinkNodeType(), pairableNode.getSerial());
+				connectionMode = savedData.getConnectionMode(requestedNodeType, requestedNodeSerial);
+				channel = savedData.getChannel(requestedNodeType, requestedNodeSerial);
 				crossChunkIdentity = NodeSnapshotQueryService.resolveCrossChunkNodeIdentity(
 					requestedLevel,
-					pairableNode.getLinkNodeType(),
-					pairableNode.getSerial()
+					requestedNodeType,
+					requestedNodeSerial
 				);
 			}
 		}
@@ -284,9 +292,11 @@ final class PairingNetworkServerHandlerSupport {
 			requestedType.get(),
 			payload.sourceSerial()
 		);
+		LinkNodeType requestedNodeType = requestedType.get();
+		long requestedNodeSerial = payload.sourceSerial();
 		if (pairableNode != null) {
 			NodeRuntimeSnapshot snapshot = NodeSnapshotQueryService
-				.resolveRuntimeSnapshot(player.getServer(), pairableNode.getLinkNodeType(), pairableNode.getSerial())
+				.resolveRuntimeSnapshot(player.getServer(), requestedNodeType, requestedNodeSerial)
 				.orElse(null);
 			if (snapshot != null) {
 				runtimeSnapshot = new ResolvedRuntimeHudSnapshot(true, snapshot.inputPower(), snapshot.outputPower());

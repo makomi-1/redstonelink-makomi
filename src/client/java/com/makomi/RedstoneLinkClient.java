@@ -9,6 +9,7 @@ import com.makomi.client.network.LinkFilterNetworkClientHandlerSupport;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.client.network.PairingNetworkClientHandlerSupport;
 import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
+import com.makomi.client.network.RepeaterNetworkClientHandlerSupport;
 import com.makomi.client.network.StatePanelNetworkClientHandlerSupport;
 import com.makomi.client.render.ChunkActivatorFarOverlayRenderer;
 import com.makomi.client.render.LinkFilterAreaRenderer;
@@ -75,6 +76,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerStatePanelClientHooks();
 		registerLinkFilterClientHooks();
 		registerChunkActivatorClientHooks();
+		registerRepeaterClientHooks();
 		BenchClientAutomationController.initialize();
 		RedstoneLink.LOGGER.info("RedstoneLink client initialized");
 	}
@@ -95,6 +97,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SEND_FILTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_RECEIVE_FILTER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_CHUNK_ACTIVATOR, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REPEATER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.translucent());
 	}
 
@@ -116,6 +119,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SEND_FILTER, LinkFilterAreaRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_RECEIVE_FILTER, LinkFilterAreaRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_CHUNK_ACTIVATOR, ChunkActivatorFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.LINK_REPEATER, LinkNodeFarOverlayRenderer::new);
 	}
 
 	/**
@@ -450,5 +454,12 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerChunkActivatorClientHooks() {
 		ChunkActivatorNetworkClientHandlerSupport.registerReceivers();
+	}
+
+	/**
+	 * 注册转发器编辑器客户端接包。
+	 */
+	private static void registerRepeaterClientHooks() {
+		RepeaterNetworkClientHandlerSupport.registerReceivers();
 	}
 }

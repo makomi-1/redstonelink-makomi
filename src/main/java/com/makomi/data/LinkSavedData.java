@@ -44,6 +44,7 @@ public final class LinkSavedData extends SavedData {
 	static final String KEY_ALLOCATED_TRIGGER_SOURCE_SERIALS = "allocatedTriggerSourceSerials";
 	static final String KEY_RETIRED_CORE_SERIALS = "retiredCoreSerials";
 	static final String KEY_RETIRED_TRIGGER_SOURCE_SERIALS = "retiredTriggerSourceSerials";
+	static final String KEY_REPEATER_SERIALS = "repeaterSerials";
 	static final String KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS = "triggerSourceReplaySyncSnapshots";
 	static final String KEY_TRIGGER_SOURCE_CHANNEL_CONFIGS = "triggerSourceChannelConfigs";
 	static final String KEY_CORE_CHANNEL_CONFIGS = "coreChannelConfigs";
@@ -69,6 +70,7 @@ public final class LinkSavedData extends SavedData {
 	final Set<Long> allocatedTriggerSourceSerials = new HashSet<>();
 	final Set<Long> retiredCoreSerials = new HashSet<>();
 	final Set<Long> retiredTriggerSourceSerials = new HashSet<>();
+	final Set<Long> repeaterSerials = new HashSet<>();
 	final Map<Long, Long> triggerSourceChannelConfigs = new HashMap<>();
 	final Map<Long, Long> coreChannelConfigs = new HashMap<>();
 	final Map<Long, Set<Long>> channelToTriggerSources = new HashMap<>();
@@ -106,10 +108,24 @@ public final class LinkSavedData extends SavedData {
 	}
 
 	/**
+	 * 为转发器分配一个同时绑定 `core/triggerSource` 的统一序号。
+	 */
+	public long allocateRepeaterSerial() {
+		return LinkSavedDataSerialSupport.allocateRepeaterSerial(this);
+	}
+
+	/**
 	 * 解析放置场景下最终可用的序列号。
 	 */
 	public long resolvePlacementSerial(LinkNodeType type, long preferredSerial, ResourceKey<Level> dimension, BlockPos pos) {
 		return LinkSavedDataSerialSupport.resolvePlacementSerial(this, type, preferredSerial, dimension, pos);
+	}
+
+	/**
+	 * 解析转发器放置场景下最终可用的统一序号。
+	 */
+	public long resolveRepeaterPlacementSerial(long preferredSerial, ResourceKey<Level> dimension, BlockPos pos) {
+		return LinkSavedDataSerialSupport.resolveRepeaterPlacementSerial(this, preferredSerial, dimension, pos);
 	}
 
 	/**
@@ -238,6 +254,27 @@ public final class LinkSavedData extends SavedData {
 	 */
 	public boolean markSerialAllocated(LinkNodeType type, long serial) {
 		return LinkSavedDataSerialSupport.markSerialAllocated(this, type, serial);
+	}
+
+	/**
+	 * 将指定序号标记为转发器统一序号。
+	 */
+	public boolean markRepeaterSerial(long serial) {
+		return LinkSavedDataSerialSupport.markRepeaterSerial(this, serial);
+	}
+
+	/**
+	 * 将指定序号从转发器统一序号集合中移除。
+	 */
+	public boolean unmarkRepeaterSerial(long serial) {
+		return LinkSavedDataSerialSupport.unmarkRepeaterSerial(this, serial);
+	}
+
+	/**
+	 * 判断指定序号是否登记为转发器统一序号。
+	 */
+	public boolean isRepeaterSerial(long serial) {
+		return LinkSavedDataSerialSupport.isRepeaterSerial(this, serial);
 	}
 
 	/**
@@ -397,6 +434,13 @@ public final class LinkSavedData extends SavedData {
 	 */
 	Set<Long> retiredSerialSet(LinkNodeType type) {
 		return type == LinkNodeType.TRIGGER_SOURCE ? retiredTriggerSourceSerials : retiredCoreSerials;
+	}
+
+	/**
+	 * 获取转发器统一序号集合。
+	 */
+	Set<Long> repeaterSerialSet() {
+		return repeaterSerials;
 	}
 
 	/**

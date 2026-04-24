@@ -17,8 +17,23 @@ public final class QuickLinkCollectService {
 	/**
 	 * 将当前命中节点采集到工具缓存。
 	 */
-	public static QuickLinkOperationFeedback collect(ServerPlayer player, ServerLevel level, BlockPos blockPos, ItemStack stack) {
-		if (player == null || level == null || blockPos == null || stack == null || stack.isEmpty()) {
+	public static QuickLinkOperationFeedback collect(
+		ServerPlayer player,
+		ServerLevel level,
+		BlockPos blockPos,
+		ItemStack stack,
+		LinkNodeType targetNodeType,
+		long targetNodeSerial
+	) {
+		if (
+			player == null
+				|| level == null
+				|| blockPos == null
+				|| stack == null
+				|| stack.isEmpty()
+				|| targetNodeType == null
+				|| targetNodeSerial <= 0L
+		) {
 			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.collect.invalid_target");
 		}
 
@@ -26,16 +41,16 @@ public final class QuickLinkCollectService {
 		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
 			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.collect.invalid_target");
 		}
-		if (pairableNodeBlockEntity.getLinkNodeType() == null || pairableNodeBlockEntity.getSerial() <= 0L) {
+		if (!pairableNodeBlockEntity.matchesNodeIdentity(targetNodeType, targetNodeSerial)) {
 			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.collect.invalid_target");
 		}
 
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(stack);
 		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
 			LinkSavedData savedData = LinkSavedData.get(level);
-			long channel = savedData.getChannel(pairableNodeBlockEntity.getLinkNodeType(), pairableNodeBlockEntity.getSerial());
+			long channel = savedData.getChannel(targetNodeType, targetNodeSerial);
 			if (
-				savedData.getConnectionMode(pairableNodeBlockEntity.getLinkNodeType(), pairableNodeBlockEntity.getSerial()) != LinkConnectionMode.CHANNEL ||
+				savedData.getConnectionMode(targetNodeType, targetNodeSerial) != LinkConnectionMode.CHANNEL ||
 				channel <= 0L
 			) {
 				return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.collect.channel_missing");
@@ -55,8 +70,8 @@ public final class QuickLinkCollectService {
 
 		QuickLinkToolData.SerialCollectOutcome outcome = QuickLinkToolData.collectSerial(
 			stack,
-			pairableNodeBlockEntity.getLinkNodeType(),
-			pairableNodeBlockEntity.getSerial()
+			targetNodeType,
+			targetNodeSerial
 		);
 
 		return switch (outcome.action()) {

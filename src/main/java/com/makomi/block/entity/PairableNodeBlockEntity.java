@@ -12,6 +12,7 @@ import com.makomi.data.LinkRetireCoordinator;
 import com.makomi.data.LinkSavedData;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -75,6 +76,34 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	 */
 	public final LinkNodeType getLinkNodeType() {
 		return getNodeType();
+	}
+
+	/**
+	 * 判断当前物理实体是否承载指定的节点身份。
+	 * <p>
+	 * 默认实现仍保持“单实体 = 单身份”语义；
+	 * 若后续存在一个方块实体同时承载多个 `type + serial`，可覆盖该方法扩展匹配范围。
+	 * </p>
+	 */
+	public boolean matchesNodeIdentity(LinkNodeType nodeType, long serial) {
+		return nodeType == getNodeType() && serial > 0L && this.serial == serial;
+	}
+
+	/**
+	 * 枚举当前物理实体承载的全部节点身份。
+	 * <p>
+	 * 默认仅暴露主身份；多身份节点可覆盖该方法，把附加身份一并发布给生命周期与校验链路。
+	 * </p>
+	 */
+	public void forEachNodeIdentity(BiConsumer<LinkNodeType, Long> consumer) {
+		if (consumer == null) {
+			return;
+		}
+		LinkNodeType nodeType = getNodeType();
+		if (nodeType == null || serial <= 0L) {
+			return;
+		}
+		consumer.accept(nodeType, serial);
 	}
 
 	/**
@@ -242,11 +271,9 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 		if (!shouldPublishDetach || !(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		LinkNodeLifecycleDispatchEvents.publishNodeContextDetached(
-			serverLevel,
-			getNodeType(),
-			serial,
-			worldPosition.immutable()
+		BlockPos detachedPos = worldPosition.immutable();
+		forEachNodeIdentity((nodeType, nodeSerial) ->
+			LinkNodeLifecycleDispatchEvents.publishNodeContextDetached(serverLevel, nodeType, nodeSerial, detachedPos)
 		);
 	}
 

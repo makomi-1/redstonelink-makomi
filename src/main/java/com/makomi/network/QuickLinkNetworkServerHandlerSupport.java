@@ -86,8 +86,16 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return;
 		}
 
+		LinkNodeType expectedNodeType = LinkNodeSemantics.tryParseCanonicalType(payload.expectedNodeTypeToken()).orElse(null);
 		BlockPos blockPos = requestedNode.getBlockPos();
-		QuickLinkOperationFeedback feedback = QuickLinkCollectService.collect(player, player.serverLevel(), blockPos, mainHandItem);
+		QuickLinkOperationFeedback feedback = QuickLinkCollectService.collect(
+			player,
+			player.serverLevel(),
+			blockPos,
+			mainHandItem,
+			expectedNodeType,
+			payload.expectedNodeSerial()
+		);
 		if (feedback.success()) {
 			player.containerMenu.broadcastChanges();
 		}
@@ -174,6 +182,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return;
 		}
 		PairableNodeBlockEntity requestedNode = requestedTarget.nodeBlockEntity();
+		LinkNodeType requestedNodeType = LinkNodeSemantics.tryParseCanonicalType(requestedTarget.expectedTargetToken()).orElse(null);
 		sendFeedback(
 			player,
 			QuickLinkOccSubmissionSupport
@@ -181,8 +190,8 @@ final class QuickLinkNetworkServerHandlerSupport {
 					player.createCommandSourceStack(),
 					player,
 					player.serverLevel(),
-					requestedNode.getLinkNodeType(),
-					requestedNode.getSerial(),
+					requestedNodeType,
+					requestedTarget.expectedTargetSerial(),
 					snapshot.mode(),
 					snapshot.serialCacheType(),
 					snapshot.serialCacheExpression(),
@@ -218,21 +227,22 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return;
 		}
 		PairableNodeBlockEntity requestedNode = requestedTarget.nodeBlockEntity();
-		if (requestedNode == null || requestedNode.getLinkNodeType() == null || requestedNode.getSerial() <= 0L) {
+		LinkNodeType requestedNodeType = LinkNodeSemantics.tryParseCanonicalType(requestedTarget.expectedTargetToken()).orElse(null);
+		if (requestedNode == null || requestedNodeType == null || requestedTarget.expectedTargetSerial() <= 0L) {
 			return;
 		}
 		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(
 			LinkSavedData.get(player.serverLevel()),
-			requestedNode.getLinkNodeType(),
-			requestedNode.getSerial()
+			requestedNodeType,
+			requestedTarget.expectedTargetSerial()
 		);
 		ServerPlayNetworking.send(
 			player,
 			new QuickLinkNetwork.ApplyQuickLinkBaselinePayload(
-				requestedNode.getLevel().dimension().location().toString(),
-				requestedNode.getBlockPos().asLong(),
-				LinkNodeSemantics.toSemanticName(requestedNode.getLinkNodeType()),
-				requestedNode.getSerial(),
+				requestedTarget.dimensionKey(),
+				requestedTarget.blockPosLong(),
+				requestedTarget.expectedTargetToken(),
+				requestedTarget.expectedTargetSerial(),
 				baseline.graphRevision(),
 				baseline.sourceRevision(),
 				baseline.coreRevision()
@@ -308,7 +318,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 				sendFeedback(player, QuickLinkOperationFeedback.failure(invalidMessageKey));
 				return null;
 			}
-			return ResolvedQuickLinkApplyTarget.forNode(requestedNode);
+			return ResolvedQuickLinkApplyTarget.forNode(requestedNode, expectedNodeType, expectedTargetSerial);
 		}
 
 		LinkFilterKind expectedFilterKind = LinkFilterKind.tryParseToken(expectedTargetToken).orElse(null);
@@ -455,12 +465,16 @@ final class QuickLinkNetworkServerHandlerSupport {
 		AbstractLinkFilterBlockEntity filterBlockEntity,
 		LinkChunkActivatorBlockEntity chunkActivatorBlockEntity
 	) {
-		static ResolvedQuickLinkApplyTarget forNode(PairableNodeBlockEntity nodeBlockEntity) {
+		static ResolvedQuickLinkApplyTarget forNode(
+			PairableNodeBlockEntity nodeBlockEntity,
+			LinkNodeType expectedNodeType,
+			long expectedNodeSerial
+		) {
 			return new ResolvedQuickLinkApplyTarget(
 				nodeBlockEntity.getLevel().dimension().location().toString(),
 				nodeBlockEntity.getBlockPos().asLong(),
-				LinkNodeSemantics.toSemanticName(nodeBlockEntity.getLinkNodeType()),
-				nodeBlockEntity.getSerial(),
+				LinkNodeSemantics.toSemanticName(expectedNodeType),
+				expectedNodeSerial,
 				nodeBlockEntity,
 				null,
 				null

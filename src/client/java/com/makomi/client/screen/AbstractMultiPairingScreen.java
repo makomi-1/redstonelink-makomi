@@ -287,6 +287,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	@Override
 	protected void init() {
 		super.init();
+		if (!allowChannelMode()) {
+			currentConnectionMode = LinkConnectionMode.SERIAL;
+			currentChannel = 0L;
+		}
 		String preservedAlias = aliasInput == null ? sourceAlias : aliasInput.getValue();
 		String preservedInput = serialInput == null ? initialInputValue() : serialInput.getValue();
 		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
@@ -306,17 +310,21 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		}
 		setInitialFocus(serialInput);
 		addRenderableWidget(serialInput);
-		modeButton =
-			addRenderableWidget(
-				createActionButton(
-					ActionButtonKind.MODE,
-					modeButtonLabel(),
-					layout.panelLeft(),
-					layout.modeButtonY(),
-					layout.panelWidth(),
-					button -> toggleConnectionMode()
-				)
-			);
+		if (allowChannelMode()) {
+			modeButton =
+				addRenderableWidget(
+					createActionButton(
+						ActionButtonKind.MODE,
+						modeButtonLabel(),
+						layout.panelLeft(),
+						layout.modeButtonY(),
+						layout.panelWidth(),
+						button -> toggleConnectionMode()
+					)
+				);
+		} else {
+			modeButton = null;
+		}
 
 		int buttonRowY = layout.actionButtonY();
 		int actionButtonWidth = layout.actionButtonWidth();
@@ -493,6 +501,13 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
+	 * @return 当前上下文是否允许切换到频道模式
+	 */
+	protected boolean allowChannelMode() {
+		return true;
+	}
+
+	/**
 	 * @return `link set` 命令的来源类型（triggerSource/core 语义入口）
 	 */
 	protected abstract LinkNodeType sourceType();
@@ -608,7 +623,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	private List<Component> buildInputTooltipLines() {
 		List<Component> lines = new ArrayList<>(2);
-		if (isChannelMode()) {
+		if (allowChannelMode() && isChannelMode()) {
 			lines.add(Component.translatable("screen.redstonelink.pairing.channel_input_tooltip_rule"));
 			return lines;
 		}
@@ -777,15 +792,17 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		bounds = bounds.include(leftAlignedTextBounds(aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY()));
 		bounds = bounds.include(leftAlignedTextBounds(currentLinksLabel, layout.panelLeft(), layout.currentLinksY()));
 		bounds = bounds.include(leftAlignedTextBounds(currentLinksValue, layout.panelLeft(), layout.currentLinksValueY()));
-		bounds =
-			bounds.include(
-				new GuiBackgroundRenderSupport.RegionBounds(
-					layout.panelLeft(),
-					layout.modeButtonY(),
-					layout.panelWidth(),
-					ACTION_BUTTON_HEIGHT
-				)
-			);
+		if (modeButton != null) {
+			bounds =
+				bounds.include(
+					new GuiBackgroundRenderSupport.RegionBounds(
+						layout.panelLeft(),
+						layout.modeButtonY(),
+						layout.panelWidth(),
+						ACTION_BUTTON_HEIGHT
+					)
+				);
+		}
 		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
 		bounds =
 			bounds.include(
@@ -954,6 +971,11 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	private void toggleConnectionMode() {
+		if (!allowChannelMode()) {
+			currentConnectionMode = LinkConnectionMode.SERIAL;
+			currentChannel = 0L;
+			return;
+		}
 		currentConnectionMode = currentConnectionMode.next();
 		currentChannel = 0L;
 		statusMessage = Component.empty();

@@ -9,6 +9,7 @@ import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
+import com.makomi.data.RepeaterGraphSnapshotSupport;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.commands.CommandSourceStack;
@@ -94,6 +95,7 @@ public final class PairingOccSubmissionSupport {
 
 		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>(preparationResult.feedbacks());
 		LinkSetExecutionService.ApplyResult applyResult = LinkSetExecutionService.applyPreparedReplace(operation);
+		syncRepeaterItemsIfNeeded(level, sourceSerial);
 		feedbacks.addAll(applyResult.feedbacks());
 		return SubmissionResult.applied(feedbacks, 1, applyResult.currentTargetCount());
 	}
@@ -214,6 +216,7 @@ public final class PairingOccSubmissionSupport {
 		}
 
 		CoreLinkEditingService.ApplyResult applyResult = CoreLinkEditingService.applyPreparedReplace(plan);
+		syncRepeaterItemsIfNeeded(level, coreSerial);
 		feedbacks.add(
 			LinkSetExecutionService.OperationFeedback.success(
 				"message.redstonelink.core_pairing.apply.done",
@@ -302,6 +305,7 @@ public final class PairingOccSubmissionSupport {
 		}
 
 		LinkChannelEditingService.ApplyResult applyResult = LinkChannelEditingService.applyPreparedSetChannel(plan);
+		syncRepeaterItemsIfNeeded(level, sourceSerial);
 		feedbacks.add(
 			LinkSetExecutionService.OperationFeedback.success(
 				"message.redstonelink.pairing.channel.done.trigger_source",
@@ -367,6 +371,7 @@ public final class PairingOccSubmissionSupport {
 		}
 
 		LinkChannelEditingService.ApplyResult applyResult = LinkChannelEditingService.applyPreparedSetChannel(plan);
+		syncRepeaterItemsIfNeeded(level, coreSerial);
 		feedbacks.add(
 			LinkSetExecutionService.OperationFeedback.success(
 				"message.redstonelink.pairing.channel.done.core",
@@ -376,6 +381,19 @@ public final class PairingOccSubmissionSupport {
 			)
 		);
 		return SubmissionResult.applied(feedbacks, applyResult.appliedOperationCount(), applyResult.currentLinkedPeerCount());
+	}
+
+	/**
+	 * 若当前节点是转发器统一序号，则把在线物品摘要同步回图真值。
+	 */
+	private static void syncRepeaterItemsIfNeeded(ServerLevel level, long serial) {
+		if (level == null || serial <= 0L) {
+			return;
+		}
+		if (!LinkSavedData.get(level).isRepeaterSerial(serial)) {
+			return;
+		}
+		RepeaterGraphSnapshotSupport.syncOnlineRepeaterItems(level.getServer(), serial);
 	}
 
 	/**

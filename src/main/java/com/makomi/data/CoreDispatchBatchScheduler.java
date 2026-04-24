@@ -361,7 +361,7 @@ public final class CoreDispatchBatchScheduler {
 		if (targetBlockEntity.getLevel() == null || targetBlockEntity.getLevel().isClientSide) {
 			return null;
 		}
-		if (targetBlockEntity.getSerial() != targetSerial || targetBlockEntity.getLinkNodeType() != targetType) {
+		if (!targetBlockEntity.matchesNodeIdentity(targetType, targetSerial)) {
 			return null;
 		}
 		SchedulerState state = STATE_BY_SERVER.computeIfAbsent(server, ignored -> new SchedulerState());

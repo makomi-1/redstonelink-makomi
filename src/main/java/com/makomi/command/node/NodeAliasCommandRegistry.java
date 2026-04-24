@@ -8,6 +8,7 @@ import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeIdentitySnapshot;
+import com.makomi.data.RepeaterAliasMirrorSupport;
 import com.makomi.data.LinkSavedData;
 import com.makomi.util.ServerSerialValidationUtil;
 import com.mojang.brigadier.Command;
@@ -84,8 +85,7 @@ public final class NodeAliasCommandRegistry {
 		}
 
 		String rawAlias = StringArgumentType.getString(context, "alias");
-		NodeAliasSavedData aliasSavedData = NodeAliasSavedData.get(source.getLevel());
-		NodeAliasSavedData.UpsertResult result = aliasSavedData.upsert(type, serial, rawAlias);
+		NodeAliasSavedData.UpsertResult result = RepeaterAliasMirrorSupport.upsert(source.getLevel(), type, serial, rawAlias);
 		if (!result.valid()) {
 			sendAliasValidationFailure(source, rawAlias, result.validation());
 			return 0;
@@ -113,7 +113,7 @@ public final class NodeAliasCommandRegistry {
 			return Command.SINGLE_SUCCESS;
 		}
 
-		NodeAliasServerSupport.syncDisplaysAfterAliasChanged(source.getLevel(), type, serial);
+		RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(source.getLevel(), type, serial);
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.node.alias.set",
@@ -136,7 +136,7 @@ public final class NodeAliasCommandRegistry {
 			return 0;
 		}
 		long serial = LongArgumentType.getLong(context, "serial");
-		NodeAliasSavedData.RemoveResult result = NodeAliasSavedData.get(source.getLevel()).remove(type, serial);
+		NodeAliasSavedData.RemoveResult result = RepeaterAliasMirrorSupport.remove(source.getLevel(), type, serial);
 		if (!result.removed()) {
 			source.sendFailure(
 				Component.translatable(
@@ -148,7 +148,7 @@ public final class NodeAliasCommandRegistry {
 			return 0;
 		}
 
-		NodeAliasServerSupport.syncDisplaysAfterAliasChanged(source.getLevel(), type, serial);
+		RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(source.getLevel(), type, serial);
 		source.sendSuccess(
 			() -> Component.translatable(
 				"message.redstonelink.node.alias.removed",

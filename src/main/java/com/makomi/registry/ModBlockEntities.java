@@ -7,6 +7,7 @@ import com.makomi.block.entity.LinkPulseButtonBlockEntity;
 import com.makomi.block.entity.LinkPulseEmitterBlockEntity;
 import com.makomi.block.entity.LinkReceiveFilterBlockEntity;
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.LinkSendFilterBlockEntity;
 import com.makomi.block.entity.LinkSyncEmitterBlockEntity;
 import com.makomi.block.entity.LinkTransparentCoreBlockEntity;
@@ -76,6 +77,11 @@ public final class ModBlockEntities {
 	public static final BlockEntityType<LinkChunkActivatorBlockEntity> LINK_CHUNK_ACTIVATOR = register(
 		"link_chunk_activator",
 		BlockEntityType.Builder.of(LinkChunkActivatorBlockEntity::new, ModBlocks.LINK_CHUNK_ACTIVATOR).build(null)
+	);
+
+	public static final BlockEntityType<LinkRepeaterBlockEntity> LINK_REPEATER = register(
+		"link_repeater",
+		BlockEntityType.Builder.of(LinkRepeaterBlockEntity::new, ModBlocks.LINK_REPEATER).build(null)
 	);
 
 	public static final BlockEntityType<LinkRedstoneDustCoreBlockEntity> LINK_REDSTONE_DUST_CORE = register(

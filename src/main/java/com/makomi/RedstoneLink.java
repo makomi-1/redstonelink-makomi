@@ -19,6 +19,7 @@ import com.makomi.network.ChunkActivatorNetwork;
 import com.makomi.network.LinkFilterNetwork;
 import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
+import com.makomi.network.RepeaterNetwork;
 import com.makomi.network.StatePanelNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
@@ -47,6 +48,7 @@ public class RedstoneLink implements ModInitializer {
 		QuickLinkNetwork.register();
 		LinkFilterNetwork.register();
 		ChunkActivatorNetwork.register();
+		RepeaterNetwork.register();
 		ModBlocks.register();
 		ModBlockEntities.register();
 		ModItems.register();
