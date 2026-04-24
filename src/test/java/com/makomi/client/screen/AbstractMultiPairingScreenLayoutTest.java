@@ -38,4 +38,23 @@ class AbstractMultiPairingScreenLayoutTest {
 		assertTrue(layout.inputY() > layout.inputLabelY());
 		assertTrue(layout.statusMessageY() > layout.actionButtonY());
 	}
+
+	/**
+	 * 转发器上下文应使用紧凑布局，提前输入区并收紧整体高度。
+	 */
+	@Test
+	void resolveLayoutShouldCompactRepeaterContext() {
+		AbstractMultiPairingScreen.MultiPairingLayout defaultLayout = AbstractMultiPairingScreen.resolveLayout(320, 240, 9);
+		AbstractMultiPairingScreen.MultiPairingLayout compactLayout = AbstractMultiPairingScreen.resolveLayout(
+			320,
+			240,
+			9,
+			AbstractMultiPairingScreen.LayoutDensity.COMPACT
+		);
+
+		assertTrue(compactLayout.inputLabelY() < defaultLayout.inputLabelY());
+		assertTrue(compactLayout.actionButtonY() < defaultLayout.actionButtonY());
+		assertTrue(compactLayout.statusMessageY() > compactLayout.actionButtonY());
+		assertTrue(compactLayout.actionButtonX(1) + compactLayout.actionButtonWidth() <= compactLayout.panelLeft() + compactLayout.panelWidth());
+	}
 }

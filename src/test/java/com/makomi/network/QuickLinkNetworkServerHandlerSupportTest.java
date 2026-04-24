@@ -89,4 +89,20 @@ class QuickLinkNetworkServerHandlerSupportTest {
 			)
 		);
 	}
+
+	/**
+	 * 转发器输入配置写入应按 `core` 侧 OCC 语义校验。
+	 */
+	@Test
+	void resolveRepeaterOccTargetTypeShouldMapTriggerSourceCacheToCore() {
+		assertEquals(LinkNodeType.CORE, QuickLinkNetworkServerHandlerSupport.resolveRepeaterOccTargetType(LinkNodeType.TRIGGER_SOURCE));
+	}
+
+	/**
+	 * 转发器输出配置写入应按 `triggerSource` 侧 OCC 语义校验。
+	 */
+	@Test
+	void resolveRepeaterOccTargetTypeShouldMapCoreCacheToTriggerSource() {
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, QuickLinkNetworkServerHandlerSupport.resolveRepeaterOccTargetType(LinkNodeType.CORE));
+	}
 }

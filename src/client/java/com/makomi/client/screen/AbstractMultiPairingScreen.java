@@ -98,6 +98,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	private static final int PANEL_CONTENT_HEIGHT = 212;
 	/**
+	 * 转发器入口下的紧凑布局高度（像素）。
+	 */
+	private static final int COMPACT_PANEL_CONTENT_HEIGHT = 188;
+	/**
 	 * 主操作按钮数量。
 	 */
 	private static final int ACTION_BUTTON_COUNT = 2;
@@ -293,7 +297,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		}
 		String preservedAlias = aliasInput == null ? sourceAlias : aliasInput.getValue();
 		String preservedInput = serialInput == null ? initialInputValue() : serialInput.getValue();
-		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
+		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight, layoutDensity());
 		aliasInput = createAliasInputBox(layout);
 		aliasInput.setMaxLength(NodeAliasSavedData.maxAliasLength());
 		aliasInput.setHint(Component.translatable("screen.redstonelink.pairing.alias_hint"));
@@ -340,7 +344,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
+		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight, layoutDensity());
 		int centerX = width / 2;
 		int baseY = layout.titleY();
 		int currentLinksX = layout.panelLeft();
@@ -387,7 +391,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	@Override
 	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		// 配对界面背景只包裹实际内容区域，并通过更大的垂直留白形成稳定的表单容器感。
-		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight);
+		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight, layoutDensity());
 		GuiBackgroundRenderSupport.renderWrappedRegion(
 			guiGraphics,
 			backgroundPreset(),
@@ -505,6 +509,13 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	protected boolean allowChannelMode() {
 		return true;
+	}
+
+	/**
+	 * @return 当前界面的布局密度；默认保留完整模式切换行
+	 */
+	protected LayoutDensity layoutDensity() {
+		return LayoutDensity.DEFAULT;
 	}
 
 	/**
@@ -834,11 +845,19 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * 按当前屏幕尺寸解析 pairing 界面布局。
 	 */
 	static MultiPairingLayout resolveLayout(int screenWidth, int screenHeight, int fontLineHeight) {
+		return resolveLayout(screenWidth, screenHeight, fontLineHeight, LayoutDensity.DEFAULT);
+	}
+
+	/**
+	 * 按当前屏幕尺寸与布局密度解析 pairing 界面布局。
+	 */
+	static MultiPairingLayout resolveLayout(int screenWidth, int screenHeight, int fontLineHeight, LayoutDensity layoutDensity) {
+		LayoutDensity resolvedDensity = layoutDensity == null ? LayoutDensity.DEFAULT : layoutDensity;
 		CenteredFormLayoutSupport.CenteredPanelBox panelBox = CenteredFormLayoutSupport.resolvePanelBox(
 			screenWidth,
 			screenHeight,
 			PANEL_PREFERRED_WIDTH,
-			PANEL_CONTENT_HEIGHT,
+			resolvedDensity == LayoutDensity.COMPACT ? COMPACT_PANEL_CONTENT_HEIGHT : PANEL_CONTENT_HEIGHT,
 			SCREEN_EDGE_MARGIN
 		);
 		int titleY = panelBox.top();
@@ -847,7 +866,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int currentLinksY = aliasInputY + ALIAS_INPUT_HEIGHT + 4;
 		int currentLinksValueY = currentLinksY + fontLineHeight + 1;
 		int modeButtonY = currentLinksValueY + fontLineHeight + 2;
-		int inputLabelY = modeButtonY + ACTION_BUTTON_HEIGHT + 5;
+		int inputLabelY = modeButtonY + (resolvedDensity == LayoutDensity.COMPACT ? 0 : ACTION_BUTTON_HEIGHT + 5);
 		int inputY = inputLabelY + fontLineHeight + INPUT_LABEL_MARGIN;
 		int actionButtonY = inputY + INPUT_BOX_HEIGHT + BUTTON_ROW_MARGIN - 2;
 		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelBox.width(), ACTION_BUTTON_GAP, ACTION_BUTTON_COUNT);
@@ -892,6 +911,14 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int actionButtonX(int index) {
 			return panelLeft + (actionButtonWidth + ACTION_BUTTON_GAP) * Math.max(0, index);
 		}
+	}
+
+	/**
+	 * pairing 布局密度枚举。
+	 */
+	protected enum LayoutDensity {
+		DEFAULT,
+		COMPACT,
 	}
 
 	/**

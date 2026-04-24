@@ -226,6 +226,11 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	@Override
+	protected LayoutDensity layoutDensity() {
+		return isRepeaterContext() ? LayoutDensity.COMPACT : super.layoutDensity();
+	}
+
+	@Override
 	protected GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
 		if (isRepeaterContext()) {
 			return RepeaterPairingThemeSupport.backgroundPreset();

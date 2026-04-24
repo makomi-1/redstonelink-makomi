@@ -2,9 +2,11 @@ package com.makomi.client.network;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.render.QuickLinkFeedbackOverlayRenderer;
 import com.makomi.client.screen.QuickLinkToolScreen;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
@@ -186,6 +188,17 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			return null;
 		}
 		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockPos);
+		if (allowFilters && blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity) {
+			if (repeaterBlockEntity.getSerial() <= 0L) {
+				return null;
+			}
+			return new ResolvedQuickLinkTarget(
+				minecraft.level.dimension().location().toString(),
+				blockPos.asLong(),
+				LinkGuiDisplayContext.LINK_REPEATER,
+				repeaterBlockEntity.getSerial()
+			);
+		}
 		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
 			if (pairableNodeBlockEntity.getLinkNodeType() == null || pairableNodeBlockEntity.getSerial() <= 0L) {
 				return null;

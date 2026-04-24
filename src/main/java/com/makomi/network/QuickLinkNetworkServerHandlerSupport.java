@@ -2,10 +2,12 @@ package com.makomi.network;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkFilterKind;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
@@ -28,6 +30,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 final class QuickLinkNetworkServerHandlerSupport {
 	private static final int QUICK_LINK_REQUEST_MAX_DISTANCE = PairableNodeRequestValidationSupport.DEFAULT_MAX_INTERACTION_DISTANCE;
 	private static final String QUICK_LINK_CHUNK_ACTIVATOR_TARGET_TOKEN = "chunk_activator";
+	private static final String QUICK_LINK_REPEATER_TARGET_TOKEN = LinkGuiDisplayContext.LINK_REPEATER;
 
 	private QuickLinkNetworkServerHandlerSupport() {
 	}
@@ -124,7 +127,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (requestedTarget == null) {
 			return;
 		}
-		sendApplyBaseline(player, requestedTarget);
+		sendApplyBaseline(player, requestedTarget, QuickLinkToolData.read(mainHandItem));
 	}
 
 	/**
@@ -181,6 +184,19 @@ final class QuickLinkNetworkServerHandlerSupport {
 			);
 			return;
 		}
+		if (requestedTarget.repeaterBlockEntity() != null) {
+			sendFeedback(
+				player,
+				applyQuickLinkToRepeater(
+					player,
+					requestedTarget.repeaterBlockEntity(),
+					snapshot,
+					payload.expectedCoreRevision(),
+					payload.expectedSourceRevision()
+				)
+			);
+			return;
+		}
 		PairableNodeBlockEntity requestedNode = requestedTarget.nodeBlockEntity();
 		LinkNodeType requestedNodeType = LinkNodeSemantics.tryParseCanonicalType(requestedTarget.expectedTargetToken()).orElse(null);
 		sendFeedback(
@@ -207,7 +223,11 @@ final class QuickLinkNetworkServerHandlerSupport {
 	/**
 	 * 基于命中节点回传 quick-link apply 所需的 revision 基线。
 	 */
-	private static void sendApplyBaseline(ServerPlayer player, ResolvedQuickLinkApplyTarget requestedTarget) {
+	private static void sendApplyBaseline(
+		ServerPlayer player,
+		ResolvedQuickLinkApplyTarget requestedTarget,
+		QuickLinkToolData.Snapshot snapshot
+	) {
 		if (player == null || requestedTarget == null) {
 			return;
 		}
@@ -222,6 +242,29 @@ final class QuickLinkNetworkServerHandlerSupport {
 					0L,
 					0L,
 					0L
+				)
+			);
+			return;
+		}
+		if (requestedTarget.repeaterBlockEntity() != null) {
+			LinkNodeType occTargetType = resolveRepeaterOccTargetType(snapshot);
+			LinkOccSupport.RevisionBaseline baseline = occTargetType == null
+				? new LinkOccSupport.RevisionBaseline(0L, 0L, 0L)
+				: LinkOccSupport.readBaseline(
+					LinkSavedData.get(player.serverLevel()),
+					occTargetType,
+					requestedTarget.expectedTargetSerial()
+				);
+			ServerPlayNetworking.send(
+				player,
+				new QuickLinkNetwork.ApplyQuickLinkBaselinePayload(
+					requestedTarget.dimensionKey(),
+					requestedTarget.blockPosLong(),
+					requestedTarget.expectedTargetToken(),
+					requestedTarget.expectedTargetSerial(),
+					baseline.graphRevision(),
+					baseline.sourceRevision(),
+					baseline.coreRevision()
 				)
 			);
 			return;
@@ -335,6 +378,19 @@ final class QuickLinkNetworkServerHandlerSupport {
 			}
 			return ResolvedQuickLinkApplyTarget.forFilter(requestedFilter);
 		}
+		if (QUICK_LINK_REPEATER_TARGET_TOKEN.equals(expectedTargetToken) && expectedTargetSerial > 0L) {
+			LinkRepeaterBlockEntity requestedRepeater = resolveRequestedRepeater(
+				player,
+				dimensionKey,
+				blockPosLong,
+				expectedTargetSerial
+			);
+			if (requestedRepeater == null) {
+				sendFeedback(player, QuickLinkOperationFeedback.failure(invalidMessageKey));
+				return null;
+			}
+			return ResolvedQuickLinkApplyTarget.forRepeater(requestedRepeater);
+		}
 
 		if (!QUICK_LINK_CHUNK_ACTIVATOR_TARGET_TOKEN.equals(expectedTargetToken) || expectedTargetSerial != 0L) {
 			sendFeedback(player, QuickLinkOperationFeedback.failure(invalidMessageKey));
@@ -393,6 +449,46 @@ final class QuickLinkNetworkServerHandlerSupport {
 	}
 
 	/**
+	 * 校验客户端上报的转发器目标是否仍在当前服务端视图内有效。
+	 */
+	private static LinkRepeaterBlockEntity resolveRequestedRepeater(
+		ServerPlayer player,
+		String dimensionKey,
+		long blockPosLong,
+		long expectedTargetSerial
+	) {
+		if (player == null || dimensionKey == null || dimensionKey.isBlank() || expectedTargetSerial <= 0L) {
+			return null;
+		}
+		ServerLevel serverLevel = player.serverLevel();
+		if (serverLevel == null || !serverLevel.dimension().location().toString().equals(dimensionKey)) {
+			return null;
+		}
+
+		BlockPos blockPos = BlockPos.of(blockPosLong);
+		if (!serverLevel.isLoaded(blockPos)) {
+			return null;
+		}
+		if (
+			!PairableNodeRequestValidationSupport.isWithinInteractionDistance(
+				player.getX(),
+				player.getY(),
+				player.getZ(),
+				blockPos,
+				QUICK_LINK_REQUEST_MAX_DISTANCE
+			)
+		) {
+			return null;
+		}
+
+		BlockEntity blockEntity = serverLevel.getBlockEntity(blockPos);
+		if (!(blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity)) {
+			return null;
+		}
+		return repeaterBlockEntity.getSerial() == expectedTargetSerial ? repeaterBlockEntity : null;
+	}
+
+	/**
 	 * 校验客户端上报的区块激活器目标是否仍在当前服务端视图内有效。
 	 */
 	private static LinkChunkActivatorBlockEntity resolveRequestedChunkActivator(
@@ -426,6 +522,72 @@ final class QuickLinkNetworkServerHandlerSupport {
 
 		BlockEntity blockEntity = serverLevel.getBlockEntity(blockPos);
 		return blockEntity instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity ? chunkActivatorBlockEntity : null;
+	}
+
+	/**
+	 * 将 quick-link 缓存应用到转发器，并按“输入写 core / 输出写 triggerSource”做 OCC 校验。
+	 */
+	private static QuickLinkOperationFeedback applyQuickLinkToRepeater(
+		ServerPlayer player,
+		LinkRepeaterBlockEntity repeaterBlockEntity,
+		QuickLinkToolData.Snapshot snapshot,
+		long expectedCoreRevision,
+		long expectedSourceRevision
+	) {
+		if (player == null || repeaterBlockEntity == null || snapshot == null) {
+			return QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.apply.invalid_target");
+		}
+		LinkNodeType occTargetType = resolveRepeaterOccTargetType(snapshot);
+		if (occTargetType != null) {
+			LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveTargetConflict(
+				LinkSavedData.get(player.serverLevel()),
+				occTargetType,
+				repeaterBlockEntity.getSerial(),
+				expectedCoreRevision,
+				expectedSourceRevision
+			);
+			if (conflict != null) {
+				return LinkOccSupport.toQuickLinkFeedback(conflict);
+			}
+		}
+		return QuickLinkApplyService
+			.applyToRepeaterFromCache(
+				player,
+				repeaterBlockEntity,
+				snapshot.mode(),
+				snapshot.serialCacheType(),
+				snapshot.serialCacheExpression(),
+				snapshot.channelCache(),
+				snapshot.applyEditMode()
+			)
+			.feedback();
+	}
+
+	/**
+	 * 根据缓存类型解析转发器应走哪一侧 OCC 语义。
+	 * <p>
+	 * `triggerSource` 缓存写输入配置，因此按 `core` 侧冲突口径校验；
+	 * `core` 缓存写输出配置，因此按 `triggerSource` 侧冲突口径校验。
+	 * </p>
+	 */
+	static LinkNodeType resolveRepeaterOccTargetType(LinkNodeType cacheType) {
+		if (cacheType == LinkNodeType.TRIGGER_SOURCE) {
+			return LinkNodeType.CORE;
+		}
+		if (cacheType == LinkNodeType.CORE) {
+			return LinkNodeType.TRIGGER_SOURCE;
+		}
+		return null;
+	}
+
+	/**
+	 * 仅在转发器可实际进入 serial 写入路径时返回 OCC 目标类型。
+	 */
+	private static LinkNodeType resolveRepeaterOccTargetType(QuickLinkToolData.Snapshot snapshot) {
+		if (snapshot == null || snapshot.mode() != QuickLinkToolData.Mode.SERIAL) {
+			return null;
+		}
+		return resolveRepeaterOccTargetType(snapshot.serialCacheType());
 	}
 
 	/**
@@ -463,7 +625,8 @@ final class QuickLinkNetworkServerHandlerSupport {
 		long expectedTargetSerial,
 		PairableNodeBlockEntity nodeBlockEntity,
 		AbstractLinkFilterBlockEntity filterBlockEntity,
-		LinkChunkActivatorBlockEntity chunkActivatorBlockEntity
+		LinkChunkActivatorBlockEntity chunkActivatorBlockEntity,
+		LinkRepeaterBlockEntity repeaterBlockEntity
 	) {
 		static ResolvedQuickLinkApplyTarget forNode(
 			PairableNodeBlockEntity nodeBlockEntity,
@@ -477,6 +640,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 				expectedNodeSerial,
 				nodeBlockEntity,
 				null,
+				null,
 				null
 			);
 		}
@@ -489,6 +653,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 				0L,
 				null,
 				filterBlockEntity,
+				null,
 				null
 			);
 		}
@@ -501,7 +666,21 @@ final class QuickLinkNetworkServerHandlerSupport {
 				0L,
 				null,
 				null,
-				chunkActivatorBlockEntity
+				chunkActivatorBlockEntity,
+				null
+			);
+		}
+
+		static ResolvedQuickLinkApplyTarget forRepeater(LinkRepeaterBlockEntity repeaterBlockEntity) {
+			return new ResolvedQuickLinkApplyTarget(
+				repeaterBlockEntity.getLevel().dimension().location().toString(),
+				repeaterBlockEntity.getBlockPos().asLong(),
+				QUICK_LINK_REPEATER_TARGET_TOKEN,
+				repeaterBlockEntity.getSerial(),
+				null,
+				null,
+				null,
+				repeaterBlockEntity
 			);
 		}
 	}
