@@ -1,0 +1,147 @@
+{
+  "id": "sync_same_tick_high_removed_recompute_to_low",
+  "description": "验证同 tick 多个 sync 并发时，高强度来源失效后会重算到同 tick 仍有效的较低强度来源。",
+  "layer": "X",
+  "scenarioId": "X56",
+  "arena": {
+    "clearFrom": [-8, 63, 620],
+    "clearTo": [20, 66, 628]
+  },
+  "targets": {
+    "id": "core_sync_same_tick_recompute",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [12, 64, 622],
+      "to": [12, 64, 622]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_same_tick_high_removed",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 620],
+        "to": [0, 64, 620]
+      }
+    },
+    {
+      "id": "sync_same_tick_low_survivor",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [4, 64, 620],
+        "to": [4, 64, 620]
+      }
+    }
+  ],
+  "links": [
+    {
+      "sourceGroup": "sync_same_tick_high_removed",
+      "mapping": "fan_in_first"
+    },
+    {
+      "sourceGroup": "sync_same_tick_low_survivor",
+      "mapping": "fan_in_first"
+    }
+  ],
+  "phases": [
+    {
+      "templateRef": "command_assert",
+      "name": "sync_same_tick_recompute_target_should_link_both_sources",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=2(?:,|，)",
+        "(?i)targets=.*{{source:sync_same_tick_high_removed[0]}}",
+        "(?i)targets=.*{{source:sync_same_tick_low_survivor[0]}}"
+      ]
+    },
+    {
+      "templateRef": "input_start_custom_batch_triggerSource",
+      "name": "start_sync_same_tick_high_and_low_constant",
+      "phaseTicks": 0,
+      "totalTicks": 0,
+      "entries": [
+        {
+          "serialRef": "sync_same_tick_high_removed",
+          "serialFormat": "slash_list",
+          "sequence": "15"
+        },
+        {
+          "serialRef": "sync_same_tick_low_survivor",
+          "serialFormat": "slash_list",
+          "sequence": "7"
+        }
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_sync_same_tick_high_and_low_constant",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "sync_same_tick_recompute_target_should_start_at_high_strength",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 15
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "sync_same_tick_recompute_target_should_use_high_source_first",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)",
+        "(?i)maxSources={{source:sync_same_tick_high_removed[0]}}(?:\\.|。)"
+      ]
+    },
+    {
+      "templateRef": "link_command",
+      "name": "remove_sync_same_tick_high_source_link",
+      "action": "remove",
+      "sourceRef": "sync_same_tick_high_removed",
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_sync_same_tick_high_removed_recompute",
+      "ticks": 4
+    },
+    {
+      "templateRef": "trace_latest_assert_core",
+      "name": "sync_same_tick_recompute_target_should_fall_back_to_low_strength",
+      "serialFormat": "slash_list",
+      "expect": {
+        "active": true,
+        "effectiveMode": "sync",
+        "resolvedStrength": 7
+      }
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "sync_same_tick_recompute_target_should_only_keep_low_source",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:sync_same_tick_low_survivor[0]}}",
+        "(?i)maxSources={{source:sync_same_tick_low_survivor[0]}}(?:\\.|。)"
+      ]
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_sync_same_tick_recompute_jobs"
+    }
+  ]
+}

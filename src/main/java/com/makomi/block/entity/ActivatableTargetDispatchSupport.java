@@ -195,6 +195,7 @@ final class ActivatableTargetDispatchSupport {
 		boolean bucketChanged = false;
 		if (!removeOnly && normalizedStrength > 0) {
 			bucketChanged |= concurrentComponent().pruneOlderFramesForIncoming(normalizedMeta.timeKey(), EffectiveMode.SYNC);
+			bucketChanged |= concurrentComponent().clearRuntimeSimulatedSyncTruthBefore(normalizedMeta.timeKey());
 		}
 		if (removeOnly || normalizedStrength <= 0) {
 			bucketChanged |= concurrentComponent().removeRuntimeSimulatedSyncConcurrentSource(sourceKey);
@@ -350,6 +351,7 @@ final class ActivatableTargetDispatchSupport {
 		boolean bucketChanged = false;
 		if (deltaAction != DeltaAction.REMOVE && normalizedStrength > 0) {
 			bucketChanged |= concurrentComponent().pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
+			bucketChanged |= concurrentComponent().clearSyncTruthBefore(eventMeta.timeKey());
 		}
 		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
 			bucketChanged |= concurrentComponent().removeSyncConcurrentSource(sourceKey);

@@ -257,7 +257,8 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	/**
 	 * 按源端当前输入强度同步目标状态。
 	 * <p>
-	 * 该路径不执行 TOGGLE/PULSE 语义转换；多同步源按 max 强度聚合，避免最后写入覆盖。
+	 * 该路径不执行 TOGGLE/PULSE 语义转换；
+	 * 同 tick 内多个 `sync` 来源按强度 `max` 聚合，跨 tick 则仅保留最新一帧。
 	 * </p>
 	 *
 	 * @param sourceSerial 来源序号
@@ -643,7 +644,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	/**
-	 * 从同步并发桶重建 SYNC 真值（来源表 + max + maxSources）。
+	 * 从最新 `sync` 帧重建 SYNC 真值（来源表 + max + maxSources）。
 	 */
 	void recomputeSyncTruthFromConcurrentBuckets() {
 		concurrentComponent.recomputeSyncTruthFromConcurrentBuckets();

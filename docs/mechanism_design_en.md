@@ -69,7 +69,7 @@ Each event carries `EventMeta`. Its key time axis is `tick + slot`, with `seq` u
 
 ### 4.3 How the Three Semantics Merge
 
-- `sync`: a state signal, not "last write wins". It aggregates source strengths and takes `max` as the final sync strength, while preserving the tied max-source list for observation. It also has source-level invalidation, resend, and replay support, and is the default and recommended mainline for stable redstone machines.
+- `sync`: a state signal. Within the same tick it aggregates source strengths and takes `max`, while across ticks only the latest sync frame remains effective; the tied max-source list is preserved for observation within that frame. It also has source-level invalidation, resend, and replay support, and is the default and recommended mainline for stable redstone machines.
 - `pulse`: an event signal. It keeps a target-local effective pulse window. It overrides older event results, but a same-tick or later `sync` clears its persisted event result.
 - `toggle`: an event signal whose semantic is "invert the current resolved target state". It keeps only the latest event result and no longer survives as a long-lived source-level fallback.
 - `pulse/toggle` share one event domain: within the same tick only one event result is retained, with fixed priority `PULSE > TOGGLE`; a later event overrides an earlier one.

@@ -245,7 +245,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - `sync` expresses the state the target should currently align to, can forward exact redstone strength, and has source-level invalidation, resend, and replay support. It is the recommended mainline for stable redstone machines, latches, and long automation chains.
 - `pulse/toggle` express only target-side event results: `pulse` is a short-window event, and `toggle` means "invert the current resolved target state". They do not participate in the default relay/replay mainline.
 - The target still uses a "compare time first, then fixed same-tick priority" arbitration model, with class priority fixed as `sync > pulse > toggle`.
-- Within the same tick, `sync` aggregates by strength (`max`); `pulse/toggle` share one event domain, and only one event result is kept, with `pulse` higher than `toggle`.
+- Within the same tick, `sync` aggregates by strength (`max`), while across ticks only the latest `sync` frame remains effective; `pulse/toggle` share one event domain, and only one event result is kept, with `pulse` higher than `toggle`.
 - A same-tick or later `sync` clears event persistence. Because of that, when `sync` becomes invalid, the target only falls back to remaining `sync` and never re-exposes older `pulse/toggle` events.
 - Compared with wireless redstone mods that treat every trigger as the same kind of event, RedstoneLink keeps a strict split between state signals and event signals, so the default config is better suited for repeatable and maintainable machine-state transport.
 
