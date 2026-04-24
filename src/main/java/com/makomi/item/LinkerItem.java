@@ -12,6 +12,7 @@ import com.makomi.data.LinkedTargetDispatchService;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.PairingNetwork;
 import java.util.List;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -171,6 +172,7 @@ public class LinkerItem extends Item implements PairableItem {
 					TooltipTextTruncateUtil.buildSerialsText(serialGroup, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
 				)
 			);
+			tooltipComponents.add(buildSignalSemanticTooltip());
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_single_only"));
 			super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 			return;
@@ -190,6 +192,7 @@ public class LinkerItem extends Item implements PairableItem {
 			TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.links", linkedText));
+		tooltipComponents.add(buildSignalSemanticTooltip());
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
 		tooltipComponents.add(buildPrimaryUseTooltip());
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
@@ -246,6 +249,13 @@ public class LinkerItem extends Item implements PairableItem {
 		}
 		// 副手必须为空，防止与副手物品交互语义冲突。
 		return player.getOffhandItem().isEmpty();
+	}
+
+	/**
+	 * 构建当前 triggerSource 工具的信号语义说明。
+	 */
+	protected Component buildSignalSemanticTooltip() {
+		return Component.translatable("tooltip.redstonelink.trigger_source.signal_semantic.event").withStyle(ChatFormatting.GRAY);
 	}
 
 	/**

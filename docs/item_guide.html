@@ -647,8 +647,8 @@
             en: 'Acts as a triggerSource node; each trigger sends a toggle event to linked cores.'
           },
           usage: {
-            zh: ['放置后作为来源节点使用。', '潜行右键可打开配对界面配置目标 core。', '按下按钮可远程切换目标 core 状态。'],
-            en: ['Place it as a source node.', 'Sneak right-click to open pairing UI and configure core targets.', 'Press to remotely toggle linked core states.']
+            zh: ['放置后作为来源节点使用。', '潜行右键可打开配对界面配置目标 core。', '按下按钮可远程切换目标 core 状态。', '此类为事件信号，没有完整生命周期和跨区块支持。'],
+            en: ['Place it as a source node.', 'Sneak right-click to open pairing UI and configure core targets.', 'Press to remotely toggle linked core states.', 'This is an event signal with no full lifecycle or cross-chunk support.']
           }
         },
         {
@@ -662,8 +662,8 @@
             en: 'Acts as a triggerSource node and emits a pulse event to linked cores.'
           },
           usage: {
-            zh: ['放置后作为来源节点。', '潜行右键打开配对界面。', '按下按钮后触发一次短脉冲，适合瞬时触发场景。'],
-            en: ['Place as a source node.', 'Sneak right-click to open pairing UI.', 'Press to send a one-shot pulse, ideal for momentary triggers.']
+            zh: ['放置后作为来源节点。', '潜行右键打开配对界面。', '按下按钮后触发一次短脉冲，适合瞬时触发场景。', '此类为事件信号，没有完整生命周期和跨区块支持。'],
+            en: ['Place as a source node.', 'Sneak right-click to open pairing UI.', 'Press to send a one-shot pulse, ideal for momentary triggers.', 'This is an event signal with no full lifecycle or cross-chunk support.']
           }
         },
         {
@@ -677,8 +677,8 @@
             en: 'Acts as a triggerSource node and synchronizes linked cores using ON=15 / OFF=0.'
           },
           usage: {
-            zh: ['放置后作为来源节点。', '潜行右键打开配对界面。', '拨动拉杆后，目标 core 同步到当前状态。'],
-            en: ['Place as a source node.', 'Sneak right-click to open pairing UI.', 'Flip lever to sync core targets to current state.']
+            zh: ['放置后作为来源节点。', '潜行右键打开配对界面。', '拨动拉杆后，目标 core 同步到当前状态。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
+            en: ['Place as a source node.', 'Sneak right-click to open pairing UI.', 'Flip lever to sync core targets to current state.', 'This is a state signal with full lifecycle and cross-chunk support.']
           }
         },
         {
@@ -692,8 +692,8 @@
             en: 'Receives local redstone input and dispatches toggle-style activation to remote cores.'
           },
           usage: {
-            zh: ['接入本地红石线路作为输入。', '潜行右键打开配对界面配置目标。', '适合把本地红石变化映射到远端开关。'],
-            en: ['Wire it into local redstone as input.', 'Sneak right-click to pair target cores.', 'Use it to map local transitions to remote toggle control.']
+            zh: ['接入本地红石线路作为输入。', '潜行右键打开配对界面配置目标。', '适合把本地红石变化映射到远端开关。', '此类为事件信号，没有完整生命周期和跨区块支持。'],
+            en: ['Wire it into local redstone as input.', 'Sneak right-click to pair target cores.', 'Use it to map local transitions to remote toggle control.', 'This is an event signal with no full lifecycle or cross-chunk support.']
           }
         },
         {
@@ -707,8 +707,8 @@
             en: 'On input, sends pulse activation to linked cores.'
           },
           usage: {
-            zh: ['接入红石输入。', '潜行右键打开配对界面。', '触发时发出一次脉冲，适合脉冲门与计数逻辑。'],
-            en: ['Connect to redstone input.', 'Sneak right-click to open pairing UI.', 'Emits one pulse per trigger, useful for pulse/counter logic.']
+            zh: ['接入红石输入。', '潜行右键打开配对界面。', '触发时发出一次脉冲，适合脉冲门与计数逻辑。', '此类为事件信号，没有完整生命周期和跨区块支持。'],
+            en: ['Connect to redstone input.', 'Sneak right-click to open pairing UI.', 'Emits one pulse per trigger, useful for pulse/counter logic.', 'This is an event signal with no full lifecycle or cross-chunk support.']
           }
         },
         {
@@ -722,8 +722,8 @@
             en: 'Mirrors local input strength (0~15) and synchronizes highest strength to linked cores.'
           },
           usage: {
-            zh: ['接入红石输入，支持强度同步。', '潜行右键打开配对界面。', '强度变化时才重新分发，避免无效重复触发。'],
-            en: ['Wire to redstone input for strength sync.', 'Sneak right-click to open pairing UI.', 'Redispatches only when state/strength changes.']
+            zh: ['接入红石输入，支持强度同步。', '潜行右键打开配对界面。', '强度变化时才重新分发，避免无效重复触发。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
+            en: ['Wire to redstone input for strength sync.', 'Sneak right-click to open pairing UI.', 'Redispatches only when state/strength changes.', 'This is a state signal with full lifecycle and cross-chunk support.']
           }
         },
         {
@@ -839,8 +839,8 @@
             en: 'Handheld triggerSource-style tool that remotely toggles linked cores.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：触发已连接 core。'],
-            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: trigger linked cores.']
+            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：触发已连接 core。', '此类为事件信号，没有完整生命周期和跨区块支持。'],
+            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: trigger linked cores.', 'This is an event signal with no full lifecycle or cross-chunk support.']
           }
         },
         {
@@ -854,8 +854,8 @@
             en: 'Handheld triggerSource-style tool that sends pulse activation to linked cores.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：触发一次脉冲。'],
-            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: send one pulse.']
+            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：触发一次脉冲。', '此类为事件信号，没有完整生命周期和跨区块支持。'],
+            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: send one pulse.', 'This is an event signal with no full lifecycle or cross-chunk support.']
           }
         },
         {
@@ -869,8 +869,8 @@
             en: 'Handheld sync triggerSource tool that flips between 15/0 and synchronizes linked cores.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：切换 15/0 并同步派发。'],
-            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: flip 15/0 and dispatch sync signal.']
+            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：切换 15/0 并同步派发。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
+            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: flip 15/0 and dispatch sync signal.', 'This is a state signal with full lifecycle and cross-chunk support.']
           },
           note: {
             zh: '物品贴图会随当前状态切换（关闭/开启）。',
