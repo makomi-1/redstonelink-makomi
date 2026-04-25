@@ -451,6 +451,7 @@
             material: '合成材料',
             triggerSource: 'triggerSource（来源）',
             core: 'core（目标）',
+            repeater: '转发器（复合节点）',
             filter: '过滤器',
             utility: '工具',
             internal: '内部资源'
@@ -467,6 +468,10 @@
             core: {
               title: 'core 节点',
               note: '只能作为目标节点，接收 triggerSource 的激活与同步信号。'
+            },
+            repeater: {
+              title: '转发器',
+              note: '同时承载 triggerSource/core 双身份，用于固定延迟状态转发。'
             },
             filters: {
               title: '过滤器',
@@ -499,6 +504,7 @@
             material: 'Crafting Material',
             triggerSource: 'triggerSource (Source)',
             core: 'core (Target)',
+            repeater: 'Repeater (Composite Node)',
             filter: 'Filter',
             utility: 'Utility Tool',
             internal: 'Internal Asset'
@@ -515,6 +521,10 @@
             core: {
               title: 'core Nodes',
               note: 'Target-only nodes that consume activation/sync signals from triggerSource nodes.'
+            },
+            repeater: {
+              title: 'Repeaters',
+              note: 'Composite nodes carrying both triggerSource/core identities for fixed-delay state forwarding.'
             },
             filters: {
               title: 'Filters',
@@ -540,6 +550,7 @@
         'link_redstone_dust_core': 'redstonelink:item/link_redstone_dust_core_blue',
         'link_redstone_dust_core_transparent': 'redstonelink:item/link_redstone_dust_core_transparent_blue',
         'link_chunk_activator': 'redstonelink:block/chunk_activator',
+        'link_repeater': 'redstonelink:block/reapter',
         'link_receive_filter': 'redstonelink:block/link_receive_filter',
         'link_send_filter': 'redstonelink:block/link_send_filter',
         'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
@@ -571,6 +582,7 @@
         'link_sync_emitter': 'redstonelink:block/component_core_block',
         'link_toggle_emitter': 'redstonelink:block/component_core_block',
         'link_chunk_activator': 'redstonelink:block/component_core_block',
+        'link_repeater': 'redstonelink:block/component_core_block',
         'link_send_filter': 'redstonelink:block/component_core_block',
         'link_receive_filter': 'redstonelink:block/component_core_block'
       };
@@ -592,6 +604,10 @@
         'link_chunk_activator': [
           'redstonelink:block/chunk_activator',
           'redstonelink:block/chunk_activator_bright'
+        ],
+        'link_repeater': [
+          'redstonelink:block/reapter',
+          'redstonelink:block/reapter_bright'
         ],
         'link_redstone_core': [
           'redstonelink:block/link_redstone_core',
@@ -618,7 +634,7 @@
       var iconRotationIntervalMs = 1400;
       var activeVisualIntervals = [];
 
-      var categoryOrder = ['component', 'triggerSource', 'core', 'filters', 'tools', 'internal'];
+      var categoryOrder = ['component', 'triggerSource', 'core', 'repeater', 'filters', 'tools', 'internal'];
 
       var items = [
         {
@@ -724,6 +740,25 @@
           usage: {
             zh: ['接入红石输入，支持强度同步。', '潜行右键打开配对界面。', '强度变化时才重新分发，避免无效重复触发。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
             en: ['Wire to redstone input for strength sync.', 'Sneak right-click to open pairing UI.', 'Redispatches only when state/strength changes.', 'This is a state signal with full lifecycle and cross-chunk support.']
+          }
+        },
+        {
+          path: 'link_repeater',
+          category: 'repeater',
+          role: 'repeater',
+          render: 'block',
+          name: { zh: '转发器', en: 'Link Repeater' },
+          effect: {
+            zh: '兼具输入 triggerSource 与输出 core 身份的状态转发节点，可把输入状态按固定延迟转发到输出侧。',
+            en: 'A state-forwarding composite node that carries triggerSource input and core output identities, forwarding input state with fixed delay.'
+          },
+          usage: {
+            zh: ['放置后作为复合节点使用。', '潜行右键可打开转发器编辑器，并分别编辑输入 triggerSource 与输出 core。', '固定延迟仅支持 1 tick 与 2 ticks 两档。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
+            en: ['Place it as a composite node.', 'Sneak right-click to open the repeater editor and edit triggerSource input / core output separately.', 'Fixed delay currently supports only 1 tick and 2 ticks.', 'This is a state signal with full lifecycle and cross-chunk support.']
+          },
+          note: {
+            zh: '转发器使用统一序号同时承载 core/triggerSource 双身份，内部自连会被自动隔离。',
+            en: 'The repeater uses one shared serial for both core/triggerSource identities, and internal self-links are automatically isolated.'
           }
         },
         {

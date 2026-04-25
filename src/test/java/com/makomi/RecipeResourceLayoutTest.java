@@ -29,6 +29,7 @@ class RecipeResourceLayoutTest {
 		"link_pulse_emitter.json",
 		"link_push_button.json",
 		"link_receive_filter.json",
+		"link_repeater.json",
 		"link_redstone_core_from_transparent.json",
 		"link_redstone_core_transparent.json",
 		"link_redstone_core.json",

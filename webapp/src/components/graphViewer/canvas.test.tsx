@@ -157,6 +157,61 @@ describe('graphViewer/canvas', () => {
     );
   });
 
+  it('buildAutoLayoutPositions 会让展开态转发器呈现 core / repeater / triggerSource 的局部左右中布局', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({ type: 'triggerSource', serial: 1 }),
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          alias: 'relay',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          alias: 'relay',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({ type: 'core', serial: 20 }),
+      ],
+      edges: [
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 10 }),
+        createTestGraphEdge({ sourceSerial: 10, targetSerial: 20 }),
+      ],
+    });
+
+    const expandedView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(),
+      new Set<string>(['repeater:10']),
+      'serial',
+    );
+    const positionByNodeKey = buildAutoLayoutPositions(
+      expandedView.canvasNodes,
+      expandedView.layoutEdges,
+    );
+
+    const repeaterX = positionByNodeKey.get('repeater:10')?.x ?? 0;
+    const repeaterCoreX = positionByNodeKey.get('core:10')?.x ?? 0;
+    const repeaterTriggerSourceX =
+      positionByNodeKey.get('triggerSource:10')?.x ?? 0;
+    const upstreamTriggerSourceX =
+      positionByNodeKey.get('triggerSource:1')?.x ?? 0;
+    const downstreamCoreX = positionByNodeKey.get('core:20')?.x ?? 0;
+    const internalLeftGap = repeaterX - repeaterCoreX;
+    const externalLeftGap = repeaterCoreX - upstreamTriggerSourceX;
+    const internalRightGap = repeaterTriggerSourceX - repeaterX;
+    const externalRightGap = downstreamCoreX - repeaterTriggerSourceX;
+
+    expect(repeaterCoreX).toBeLessThan(repeaterX);
+    expect(repeaterTriggerSourceX).toBeGreaterThan(repeaterX);
+    expect(upstreamTriggerSourceX).toBeLessThan(repeaterCoreX);
+    expect(downstreamCoreX).toBeGreaterThan(repeaterTriggerSourceX);
+    expect(internalLeftGap).toBeLessThan(externalLeftGap);
+    expect(internalRightGap).toBeLessThan(externalRightGap);
+  });
+
   it('buildGraphCanvasView 在频道模式下会生成 channelHub 节点', () => {
     const graphBundle = createTestGraphBundle({
       nodes: [

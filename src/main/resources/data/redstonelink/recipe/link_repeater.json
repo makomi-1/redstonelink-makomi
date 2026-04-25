@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "C": {
+      "item": "redstonelink:link_redstone_core"
+    },
+    "L": {
+      "item": "redstonelink:redstone_link_component"
+    },
+    "S": {
+      "item": "redstonelink:link_sync_emitter"
+    }
+  },
+  "pattern": [
+    "CLS",
+    "   ",
+    "   "
+  ],
+  "result": {
+    "count": 1,
+    "id": "redstonelink:link_repeater"
+  }
+}

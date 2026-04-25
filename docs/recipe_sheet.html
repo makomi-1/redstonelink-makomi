@@ -341,6 +341,23 @@
 </table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:link_chunk_activator</div><div class='count'>数量 x1</div></div></div></section>
 <section class='card'><div class='row'><table class='grid'>
 <tr>
+<td>redstonelink:link_redstone_core</td>
+<td>redstonelink:redstone_link_component</td>
+<td>redstonelink:link_sync_emitter</td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+</table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:link_repeater</div><div class='count'>数量 x1</div></div></div></section>
+<section class='card'><div class='row'><table class='grid'>
+<tr>
 <td class='empty'></td>
 <td class='empty'></td>
 <td class='empty'></td>
@@ -444,6 +461,17 @@
 			}
 		},
 		{
+			key: 'repeater',
+			title: {
+				zh: '转发器',
+				en: 'Repeaters'
+			},
+			note: {
+				zh: '这些配方产出同时承载 triggerSource/core 双身份的固定延迟转发节点。',
+				en: 'These recipes craft fixed-delay repeater nodes that carry both triggerSource/core identities.'
+			}
+		},
+		{
 			key: 'filters',
 			title: {
 				zh: '过滤器',
@@ -486,6 +514,7 @@
 		'link_redstone_dust_core': 'redstonelink:item/link_redstone_dust_core_blue',
 		'link_redstone_dust_core_transparent': 'redstonelink:item/link_redstone_dust_core_transparent_blue',
 		'link_chunk_activator': 'redstonelink:block/chunk_activator',
+		'link_repeater': 'redstonelink:block/reapter',
 		'link_receive_filter': 'redstonelink:block/link_receive_filter',
 		'link_send_filter': 'redstonelink:block/link_send_filter',
 		'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
@@ -580,6 +609,7 @@
 		'link_redstone_dust_core': true,
 		'link_redstone_dust_core_transparent': true,
 		'link_chunk_activator': true,
+		'link_repeater': true,
 		'link_receive_filter': true,
 		'link_send_filter': true,
 		'link_sync_emitter': true,
@@ -652,6 +682,7 @@
 		'redstonelink:link_sync_emitter': 'redstonelink:block/component_core_block',
 		'redstonelink:link_toggle_emitter': 'redstonelink:block/component_core_block',
 		'redstonelink:link_chunk_activator': 'redstonelink:block/component_core_block',
+		'redstonelink:link_repeater': 'redstonelink:block/component_core_block',
 		'redstonelink:link_send_filter': 'redstonelink:block/component_core_block',
 		'redstonelink:link_receive_filter': 'redstonelink:block/component_core_block'
 	};
@@ -662,6 +693,7 @@
 		'link_redstone_core_transparent': ['连接核心块（透明）', 'Linked Redstone Core (Transparent)'],
 		'link_redstone_dust_core': ['连接核心片', 'Linked Redstone Dust Core'],
 		'link_redstone_dust_core_transparent': ['连接核心片（透明）', 'Linked Redstone Dust Core (Transparent)'],
+		'link_repeater': ['转发器', 'Link Repeater'],
 		'link_send_filter': ['发送过滤器', 'Send Filter'],
 		'link_receive_filter': ['接收过滤器', 'Receive Filter'],
 		'link_toggle_button': ['切换按钮', 'Linked Toggle Button'],
@@ -1660,6 +1692,10 @@
 			outputId === 'redstonelink:link_redstone_dust_core_transparent'
 		) {
 			return 'core';
+		}
+
+		if (outputId === 'redstonelink:link_repeater') {
+			return 'repeater';
 		}
 
 		if (outputId === 'redstonelink:link_send_filter' || outputId === 'redstonelink:link_receive_filter') {

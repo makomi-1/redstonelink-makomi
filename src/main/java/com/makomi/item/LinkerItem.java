@@ -173,6 +173,7 @@ public class LinkerItem extends Item implements PairableItem {
 				)
 			);
 			tooltipComponents.add(buildSignalSemanticTooltip());
+			tooltipComponents.add(buildCrossChunkCapabilityTooltip());
 			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_single_only"));
 			super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 			return;
@@ -193,6 +194,7 @@ public class LinkerItem extends Item implements PairableItem {
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.links", linkedText));
 		tooltipComponents.add(buildSignalSemanticTooltip());
+		tooltipComponents.add(buildCrossChunkCapabilityTooltip());
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
 		tooltipComponents.add(buildPrimaryUseTooltip());
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
@@ -256,6 +258,23 @@ public class LinkerItem extends Item implements PairableItem {
 	 */
 	protected Component buildSignalSemanticTooltip() {
 		return Component.translatable("tooltip.redstonelink.trigger_source.signal_semantic.event").withStyle(ChatFormatting.GRAY);
+	}
+
+	/**
+	 * 构建遥控器的跨区块能力边界说明。
+	 * <p>
+	 * 遥控器可参与强加载接管链路，但自身不是可常驻的在线节点对象。
+	 * </p>
+	 */
+	static Component crossChunkCapabilityTooltip() {
+		return Component.translatable("tooltip.redstonelink.linker.crosschunk.force_load_only").withStyle(ChatFormatting.GRAY);
+	}
+
+	/**
+	 * 构建遥控器的跨区块能力边界说明。
+	 */
+	protected Component buildCrossChunkCapabilityTooltip() {
+		return crossChunkCapabilityTooltip();
 	}
 
 	/**

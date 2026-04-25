@@ -34,6 +34,7 @@ import {
   AUTO_LAYOUT_START_Y,
   COMPONENT_BLOCK_GAP_X,
   COMPONENT_BLOCK_GAP_Y,
+  EXPANDED_REPEATER_INTERNAL_LAYER_GAP_X,
   COMPONENT_LANE_COLUMN_GAP_X,
   COMPONENT_LANE_MAX_ROW_COUNT,
   COMPONENT_LANE_MIN_ROW_COUNT,
@@ -441,7 +442,12 @@ function compareNodeType(
   return left === "triggerSource" ? -1 : 1;
 }
 
-type GraphCanvasLaneType = GraphNodeTypeToken | "channelHub" | "repeater";
+type GraphCanvasLaneType =
+  | GraphNodeTypeToken
+  | "channelHub"
+  | "repeater"
+  | "repeaterCoreMember"
+  | "repeaterTriggerSourceMember";
 
 function compareCanvasLaneType(
   left: GraphCanvasLaneType,
@@ -449,11 +455,29 @@ function compareCanvasLaneType(
 ): number {
   const orderByType: Record<GraphCanvasLaneType, number> = {
     triggerSource: 0,
-    repeater: 1,
-    channelHub: 2,
-    core: 3,
+    repeaterCoreMember: 1,
+    repeater: 2,
+    repeaterTriggerSourceMember: 3,
+    core: 4,
+    channelHub: 5,
   };
   return orderByType[left] - orderByType[right];
+}
+
+/**
+ * 展开态转发器内部三列需要比普通列更紧凑，外部列距保持全局默认值。
+ */
+function resolveComponentLaneGapX(
+  left: GraphCanvasLaneType,
+  right: GraphCanvasLaneType,
+): number {
+  if (
+    (left === "repeaterCoreMember" && right === "repeater") ||
+    (left === "repeater" && right === "repeaterTriggerSourceMember")
+  ) {
+    return EXPANDED_REPEATER_INTERNAL_LAYER_GAP_X;
+  }
+  return COMPONENT_LAYER_GAP_X;
 }
 
 export function toggleStringSelection(
@@ -526,6 +550,22 @@ function resolveCanvasNodeLaneType(
     return "channelHub";
   }
   return node.aggregateRole;
+}
+
+type ExpandedRepeaterMemberLane =
+  | "repeaterCoreMember"
+  | "repeaterTriggerSourceMember";
+
+function resolveComponentLayoutLaneType(
+  node: GraphCanvasNodeInfo,
+  expandedRepeaterMemberLaneByNodeKey: Map<string, ExpandedRepeaterMemberLane>,
+): GraphCanvasLaneType {
+  if (node.kind === "actual") {
+    return (
+      expandedRepeaterMemberLaneByNodeKey.get(node.nodeKey) ?? node.graphNode.type
+    );
+  }
+  return resolveCanvasNodeLaneType(node);
 }
 
 function resolveCanvasNodeSortSerial(node: GraphCanvasNodeInfo): number {
@@ -1821,6 +1861,23 @@ function buildComponentLayout(
   componentNodes: GraphCanvasNodeInfo[],
   componentEdges: GraphCanvasEdgeInfo[],
 ): GraphLayoutComponent {
+  const expandedRepeaterMemberLaneByNodeKey = new Map<
+    string,
+    ExpandedRepeaterMemberLane
+  >();
+  componentNodes.forEach((node) => {
+    if (node.kind !== "repeater" || !node.expanded) {
+      return;
+    }
+    expandedRepeaterMemberLaneByNodeKey.set(
+      node.coreNodeKey,
+      "repeaterCoreMember",
+    );
+    expandedRepeaterMemberLaneByNodeKey.set(
+      node.triggerSourceNodeKey,
+      "repeaterTriggerSourceMember",
+    );
+  });
   const hasExpandedAggregateNode = componentNodes.some(
     (node) => node.kind === "aggregate" && node.expanded,
   );
@@ -1846,11 +1903,35 @@ function buildComponentLayout(
     return compareCanvasNodeIdentity(left, right);
   };
   const triggerSourceNodes = componentNodes
-    .filter((node) => resolveCanvasNodeLaneType(node) === "triggerSource")
+    .filter(
+      (node) =>
+        resolveComponentLayoutLaneType(
+          node,
+          expandedRepeaterMemberLaneByNodeKey,
+        ) === "triggerSource",
+    )
+    .sort(compareCanvasNodeIdentity);
+  const repeaterCoreMemberNodes = componentNodes
+    .filter(
+      (node) =>
+        resolveComponentLayoutLaneType(
+          node,
+          expandedRepeaterMemberLaneByNodeKey,
+        ) === "repeaterCoreMember",
+    )
     .sort(compareCanvasNodeIdentity);
   const repeaterNodes = componentNodes
     .filter(
       (node): node is GraphCanvasRepeaterNode => node.kind === "repeater",
+    )
+    .sort(compareCanvasNodeIdentity);
+  const repeaterTriggerSourceMemberNodes = componentNodes
+    .filter(
+      (node) =>
+        resolveComponentLayoutLaneType(
+          node,
+          expandedRepeaterMemberLaneByNodeKey,
+        ) === "repeaterTriggerSourceMember",
     )
     .sort(compareCanvasNodeIdentity);
   const channelHubNodes = componentNodes
@@ -1860,18 +1941,27 @@ function buildComponentLayout(
     .sort(compareChannelNodeOrder);
   if (channelHubNodes.length > 0) {
     const coreNodes = componentNodes
-      .filter((node) => resolveCanvasNodeLaneType(node) === "core")
+      .filter(
+        (node) =>
+          resolveComponentLayoutLaneType(
+            node,
+            expandedRepeaterMemberLaneByNodeKey,
+          ) === "core",
+      )
       .sort(compareChannelNodeOrder);
     const laneLayouts = [
       {
+        laneType: "triggerSource" as const,
         layout: buildLaneLayout(triggerSourceNodes, false),
         nodes: triggerSourceNodes,
       },
       {
+        laneType: "channelHub" as const,
         layout: buildLaneLayout(channelHubNodes, false),
         nodes: channelHubNodes,
       },
       {
+        laneType: "core" as const,
         layout: buildLaneLayout(coreNodes, false),
         nodes: coreNodes,
       },
@@ -1893,7 +1983,10 @@ function buildComponentLayout(
       });
       currentX += lane.layout.width;
       if (laneIndex < laneLayouts.length - 1) {
-        currentX += COMPONENT_LAYER_GAP_X;
+        currentX += resolveComponentLaneGapX(
+          lane.laneType,
+          laneLayouts[laneIndex + 1].laneType,
+        );
       }
     });
     return {
@@ -1904,7 +1997,9 @@ function buildComponentLayout(
     };
   }
   const sourceOrderByNodeKey = new Map(
-    triggerSourceNodes.map((node, index) => [node.nodeKey, index] as const),
+    [...triggerSourceNodes, ...repeaterTriggerSourceMemberNodes].map(
+      (node, index) => [node.nodeKey, index] as const,
+    ),
   );
   const connectedSourceOrdersByNodeKey = new Map<string, number[]>();
   componentEdges.forEach((edge) => {
@@ -1928,7 +2023,13 @@ function buildComponentLayout(
     ]);
   });
   const coreNodes = componentNodes
-    .filter((node) => resolveCanvasNodeLaneType(node) === "core")
+    .filter(
+      (node) =>
+        resolveComponentLayoutLaneType(
+          node,
+          expandedRepeaterMemberLaneByNodeKey,
+        ) === "core",
+    )
     .sort((left, right) => {
       const leftAnchorStats = resolveNodeAnchorStats(
         connectedSourceOrdersByNodeKey.get(left.nodeKey) ?? [],
@@ -1946,14 +2047,33 @@ function buildComponentLayout(
     });
   const laneLayouts = [
     {
+      laneType: "triggerSource" as const,
       layout: buildLaneLayout(triggerSourceNodes, !hasExpandedAggregateNode),
       nodes: triggerSourceNodes,
     },
     {
+      laneType: "repeaterCoreMember" as const,
+      layout: buildLaneLayout(
+        repeaterCoreMemberNodes,
+        !hasExpandedAggregateNode,
+      ),
+      nodes: repeaterCoreMemberNodes,
+    },
+    {
+      laneType: "repeater" as const,
       layout: buildLaneLayout(repeaterNodes, !hasExpandedAggregateNode),
       nodes: repeaterNodes,
     },
     {
+      laneType: "repeaterTriggerSourceMember" as const,
+      layout: buildLaneLayout(
+        repeaterTriggerSourceMemberNodes,
+        !hasExpandedAggregateNode,
+      ),
+      nodes: repeaterTriggerSourceMemberNodes,
+    },
+    {
+      laneType: "core" as const,
       layout: buildLaneLayout(coreNodes, !hasExpandedAggregateNode),
       nodes: coreNodes,
     },
@@ -1975,7 +2095,10 @@ function buildComponentLayout(
     });
     currentX += lane.layout.width;
     if (laneIndex < laneLayouts.length - 1) {
-      currentX += COMPONENT_LAYER_GAP_X;
+      currentX += resolveComponentLaneGapX(
+        lane.laneType,
+        laneLayouts[laneIndex + 1].laneType,
+      );
     }
   });
 

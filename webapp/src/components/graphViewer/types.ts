@@ -11,6 +11,7 @@ export const GRAPH_NODE_HEIGHT = 60;
 export const AUTO_LAYOUT_START_X = 72;
 export const AUTO_LAYOUT_START_Y = 64;
 export const COMPONENT_LAYER_GAP_X = 364;
+export const EXPANDED_REPEATER_INTERNAL_LAYER_GAP_X = 196;
 export const COMPONENT_LANE_COLUMN_GAP_X = 70;
 export const COMPONENT_NODE_GAP_Y = 104;
 export const COMPONENT_BLOCK_GAP_X = 156;

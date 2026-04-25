@@ -15,7 +15,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ## I. Quick Start for Players
 
 - Best for: players using the mod for the first time and only wanting everyday linking plus state checks.
-- Recommended reading order: `Quick Link Tool` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `State Panel Tool` -> `Graph Visual Editor` -> `Batch Serial Input Format for Commands/GUI`.
+- Recommended reading order: `Quick Link Tool` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `Link Repeater` -> `State Panel Tool` -> `Graph Visual Editor` -> `Batch Serial Input Format for Commands/GUI`.
 
 ### Quick Link Tool
 - Item name: `Quick Link Tool`.
@@ -126,6 +126,28 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - If one sync emitter receives multiple redstone inputs at once, it only forwards the current maximum input strength (`max`).
 - If the emitter stays powered and the maximum input strength does not change, it will not resend. It dispatches again only when the powered state changes or the max strength changes.
 - `sync` is a state signal: although it still reaches the target through dispatch, it expresses the state the target should align to. `pulse/toggle` are the actual event signals.
+
+### Link Repeater
+- Item name: `Link Repeater`.
+- Basic interaction:
+1. Place it as a repeater node; sneak and right-click with an empty offhand to open the repeater editor.
+2. The editor exposes separate `triggerSource` input and `core` output sides, both edited against current graph truth.
+3. Fixed delay currently supports only `1 tick / 2 ticks`.
+- Runtime semantics:
+1. The repeater uses one shared serial while carrying both `triggerSource/core` identities; the real external direction still stays `triggerSource -> core`.
+2. Its input side expresses “which triggerSources point into this repeater”, while its output side expresses “which cores this repeater points to”.
+3. It forwards the observed input-side state to downstream `core` nodes with a fixed `1/2 tick` delay, making it suitable as a buffering and fixed-latency node.
+4. The repeater runs on the state-signal path, so it keeps full lifecycle and cross-chunk support.
+5. Internal self-links are automatically isolated; invalid same-serial `triggerSource -> core` self-links are not kept.
+- Crafting recipe:
+1. `Linked Redstone Core + Redstone Link Component + Linked Sync Emitter -> Link Repeater`
+2. Pattern:
+   `CLS`
+   `   `
+   `   `
+   `C = redstonelink:link_redstone_core`
+   `L = redstonelink:redstone_link_component`
+   `S = redstonelink:link_sync_emitter`
 
 ### State Panel Tool
 - Item name: `State Panel Tool`.
