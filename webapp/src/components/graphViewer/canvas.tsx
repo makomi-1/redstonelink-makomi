@@ -1295,6 +1295,9 @@ function buildSerialGraphCanvasView(
           (originalEdgeCountByNodeKey.get(node.nodeKey) ?? 0) === 0,
       )
       .sort(compareGraphNodeIdentity),
+    isolatedRepeaterNodes: resolvedRepeaterNodes
+      .filter((node) => node.connectedNodeKeys.length === 0)
+      .sort((left, right) => left.serial - right.serial),
     repeaterNodes: resolvedRepeaterNodes,
     aggregateNodes: canvasNodes.filter(
       (node): node is GraphCanvasAggregateNode => node.kind === "aggregate",
@@ -1596,6 +1599,7 @@ function buildChannelGraphCanvasView(
     visibleActualNodeKeys,
     isolatedTriggerSourceNodes: [],
     isolatedCoreNodes: [],
+    isolatedRepeaterNodes: [],
     repeaterNodes: [],
     aggregateNodes: canvasNodes.filter(
       (node): node is GraphCanvasAggregateNode => node.kind === "aggregate",

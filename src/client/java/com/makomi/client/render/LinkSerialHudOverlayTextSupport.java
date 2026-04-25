@@ -20,6 +20,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.RepeaterConfigSnapshot;
 import com.makomi.data.RepeaterDelay;
+import com.makomi.util.CurrentLinksDisplayFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.List;
@@ -152,7 +153,14 @@ final class LinkSerialHudOverlayTextSupport {
 			resolveRuntimeHudPowerText(runtimeHudSnapshot, false)
 		));
 		lines.add(
-			translate(KEY_NEAR_OVERLAY_LINKS_LINE, buildCurrentLinksDisplayText(font, currentLinksSnapshot.linkedTargetDisplayTexts()))
+			translate(
+				KEY_NEAR_OVERLAY_LINKS_LINE,
+				buildCurrentLinksDisplayText(
+					font,
+					currentLinksSnapshot.linkedTargets(),
+					currentLinksSnapshot.linkedTargetDisplayTexts()
+				)
+			)
 		);
 		if (shouldRenderChannelLine(currentLinksSnapshot)) {
 			lines.add(translate(KEY_NEAR_OVERLAY_CHANNEL_LINE, resolveChannelValueText(currentLinksSnapshot.channel())));
@@ -504,19 +512,24 @@ final class LinkSerialHudOverlayTextSupport {
 	/**
 	 * 构建第四行“当前连接”文本，复用 GUI 的结构化展示规则（N / A:B + / + (+n)）。
 	 */
-	private static String buildCurrentLinksDisplayText(Font font, List<String> linkedTargetDisplayTexts) {
-		return buildCurrentLinksDisplayText(linkedTargetDisplayTexts, LINKS_LINE_MAX_WIDTH, font::width);
+	private static String buildCurrentLinksDisplayText(
+		Font font,
+		List<Long> linkedTargets,
+		List<String> linkedTargetDisplayTexts
+	) {
+		return buildCurrentLinksDisplayText(linkedTargets, linkedTargetDisplayTexts, LINKS_LINE_MAX_WIDTH, font::width);
 	}
 
 	private static String buildCurrentLinksDisplayText(
+		List<Long> linkedTargets,
 		List<String> linkedTargetDisplayTexts,
 		int maxWidth,
 		ToIntFunction<String> measure
 	) {
-		if (linkedTargetDisplayTexts == null || linkedTargetDisplayTexts.isEmpty()) {
+		if (linkedTargets == null || linkedTargets.isEmpty()) {
 			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
 		}
-		return com.makomi.util.DisplayTextListFormatUtil.buildText(linkedTargetDisplayTexts, maxWidth, measure);
+		return CurrentLinksDisplayFormatUtil.buildText(linkedTargets, linkedTargetDisplayTexts, maxWidth, measure);
 	}
 
 	/**
@@ -542,7 +555,7 @@ final class LinkSerialHudOverlayTextSupport {
 		if (linkedTargets == null || linkedTargets.isEmpty()) {
 			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
 		}
-		return buildCurrentLinksDisplayText(
+		return com.makomi.util.DisplayTextListFormatUtil.buildText(
 			NodeAliasDisplayUtil.normalizeDisplayTexts(linkedTargets, linkedTargetDisplayTexts),
 			maxWidth,
 			measure

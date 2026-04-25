@@ -157,6 +157,40 @@ describe('graphViewer/canvas', () => {
     );
   });
 
+  it('buildGraphCanvasView 会把无外部连接的转发器放入孤立转发器池', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          alias: 'relay',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          alias: 'relay',
+          capabilityFlags: ['repeater'],
+        }),
+      ],
+    });
+
+    const canvasView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(),
+      new Set<string>(),
+      'serial',
+    );
+
+    expect(canvasView.isolatedTriggerSourceNodes).toEqual([]);
+    expect(canvasView.isolatedCoreNodes).toEqual([]);
+    expect(canvasView.isolatedRepeaterNodes).toHaveLength(1);
+    expect(canvasView.isolatedRepeaterNodes[0]).toMatchObject({
+      nodeKey: 'repeater:10',
+      serial: 10,
+    });
+  });
+
   it('buildAutoLayoutPositions 会让展开态转发器呈现 core / repeater / triggerSource 的局部左右中布局', () => {
     const graphBundle = createTestGraphBundle({
       nodes: [
@@ -457,6 +491,7 @@ describe('graphViewer/canvas', () => {
       visibleActualNodeKeys: new Set<string>(['triggerSource:1', 'core:10']),
       isolatedTriggerSourceNodes: [],
       isolatedCoreNodes: [],
+      isolatedRepeaterNodes: [],
       repeaterNodes: [],
       aggregateNodes: [],
       channelHubNodes: [],

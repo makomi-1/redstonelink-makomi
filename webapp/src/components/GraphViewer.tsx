@@ -83,6 +83,7 @@ type GraphViewerProps = {
 
 type SavePreviewPhase = "idle" | "checking" | "ready" | "error";
 type GraphSyncPhase = "idle" | "resettingDraft" | "refreshingGraph";
+type GraphIsolatedPoolKind = "triggerSource" | "core" | "repeater";
 const GRAPH_DRAFT_UNDO_HISTORY_LIMIT = 10;
 
 /**
@@ -110,6 +111,15 @@ function formatCanvasNodeDisplayText(canvasNode: GraphCanvasNodeInfo): string {
 function formatCompactGraphNodeDisplayText(node: GraphNodeInfo): string {
   const normalizedAlias = node.alias.trim();
   return normalizedAlias ? `#${node.serial} (${normalizedAlias})` : `#${node.serial}`;
+}
+
+function formatCompactRepeaterDisplayText(repeaterNode: GraphCanvasRepeaterNode): string {
+  const normalizedDisplayText = repeaterNode.displayText.trim();
+  const aliasMatch = /^(.*)\(#\d+\)$/.exec(normalizedDisplayText);
+  const normalizedAlias = aliasMatch?.[1]?.trim() ?? "";
+  return normalizedAlias
+    ? `#${repeaterNode.serial} (${normalizedAlias})`
+    : `#${repeaterNode.serial}`;
 }
 
 /**
@@ -353,6 +363,8 @@ export default function GraphViewer({
   const [pinnedIsolatedNodeKeys, setPinnedIsolatedNodeKeys] = useState<
     string[]
   >([]);
+  const [isolatedPoolKind, setIsolatedPoolKind] =
+    useState<GraphIsolatedPoolKind>("triggerSource");
   const [pendingAggregateFocusNodeKey, setPendingAggregateFocusNodeKey] =
     useState("");
   const [pendingFocusNodeKey, setPendingFocusNodeKey] = useState("");
@@ -859,6 +871,55 @@ export default function GraphViewer({
       ).length,
     [edgeCountByNodeKey, pinnedIsolatedNodeKeys],
   );
+  const crossModePanelLabel =
+    displayMode === "serial"
+      ? text("频道节点池", "Channel Node Pool")
+      : text("序号节点池", "Serial Node Pool");
+  const isolatedPoolOptions = useMemo<
+    Array<{ kind: GraphIsolatedPoolKind; label: string; count: number }>
+  >(
+    () => [
+      {
+        kind: "triggerSource",
+        label: text("triggerSource", "triggerSource"),
+        count: graphCanvasView.isolatedTriggerSourceNodes.length,
+      },
+      {
+        kind: "core",
+        label: text("core", "core"),
+        count: graphCanvasView.isolatedCoreNodes.length,
+      },
+      {
+        kind: "repeater",
+        label: text("转发器", "repeater"),
+        count: graphCanvasView.isolatedRepeaterNodes.length,
+      },
+    ],
+    [
+      graphCanvasView.isolatedCoreNodes.length,
+      graphCanvasView.isolatedRepeaterNodes.length,
+      graphCanvasView.isolatedTriggerSourceNodes.length,
+      language,
+    ],
+  );
+  const isolatedPoolTitle =
+    isolatedPoolKind === "triggerSource"
+      ? text("孤立的 triggerSource", "Isolated TriggerSources")
+      : isolatedPoolKind === "core"
+        ? text("孤立的 core", "Isolated Cores")
+        : text("孤立的转发器", "Isolated Repeaters");
+  const isolatedPoolCount =
+    isolatedPoolKind === "triggerSource"
+      ? graphCanvasView.isolatedTriggerSourceNodes.length
+      : isolatedPoolKind === "core"
+        ? graphCanvasView.isolatedCoreNodes.length
+        : graphCanvasView.isolatedRepeaterNodes.length;
+  const isolatedPoolEmptyText =
+    isolatedPoolKind === "triggerSource"
+      ? text("当前没有孤立的 triggerSource。", "There are no isolated triggerSources.")
+      : isolatedPoolKind === "core"
+        ? text("当前没有孤立的 core。", "There are no isolated cores.")
+        : text("当前没有孤立的转发器。", "There are no isolated repeaters.");
   const hasCanvasNodes = graphCanvasView.canvasNodes.length > 0;
   const displayNodes = useMemo(
     () =>
@@ -871,15 +932,15 @@ export default function GraphViewer({
         ? [
             ["details", text("详情", "Details")],
             ["isolated", text("孤立节点池", "Isolated Pool")],
-            ["crossMode", text("另一模式节点池", "Other-mode Pool")],
+            ["crossMode", crossModePanelLabel],
             ["batch", text("批量编辑", "Batch Edit")],
           ]
         : [
             ["details", text("详情", "Details")],
-            ["crossMode", text("另一模式节点池", "Other-mode Pool")],
+            ["crossMode", crossModePanelLabel],
             ["batch", text("批量编辑", "Batch Edit")],
           ],
-    [displayMode, language],
+    [crossModePanelLabel, displayMode, language],
   );
   const hasPendingSearchChanges =
     searchDraftText !== appliedSearchText ||
@@ -1069,6 +1130,7 @@ export default function GraphViewer({
     setUndoDraftHistory([]);
     setExpandedAggregateNodeKeys([]);
     setPinnedIsolatedNodeKeys([]);
+    setIsolatedPoolKind("triggerSource");
     setPendingAggregateFocusNodeKey("");
     setPendingFocusNodeKey("");
     setAggregateOutlineNodes([]);
@@ -3022,66 +3084,73 @@ export default function GraphViewer({
                   </button>
                 </div>
               </div>
-              <div className="graph-batch-selection-grid">
-                <section className="graph-target-editor">
-                  <div className="graph-target-editor-header">
-                    <strong>Isolated TriggerSources</strong>
-                    <span>
-                      {text("数量 ", "Count ")}
-                      {graphCanvasView.isolatedTriggerSourceNodes.length}
-                    </span>
-                  </div>
-                  <div className="graph-target-list">
-                    {graphCanvasView.isolatedTriggerSourceNodes.length === 0 ? (
-                      <p className="empty-state">
-                        {text("当前没有孤立的 triggerSource。", "There are no isolated triggerSources.")}
-                      </p>
-                    ) : (
-                      graphCanvasView.isolatedTriggerSourceNodes.map(
-                        (isolatedNode) => (
-                          <button
-                            key={isolatedNode.nodeKey}
-                            type="button"
-                            className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? " is-selected" : ""}`}
-                            onClick={() =>
-                              handleRevealIsolatedNode(isolatedNode.nodeKey)
-                            }
-                          >
-                            {formatCompactGraphNodeDisplayText(isolatedNode)}
-                          </button>
-                        ),
-                      )
-                    )}
-                  </div>
-                </section>
-                <section className="graph-target-editor">
-                  <div className="graph-target-editor-header">
-                    <strong>Isolated Cores</strong>
-                    <span>
-                      {text("数量 ", "Count ")}
-                      {graphCanvasView.isolatedCoreNodes.length}
-                    </span>
-                  </div>
-                  <div className="graph-target-list">
-                    {graphCanvasView.isolatedCoreNodes.length === 0 ? (
-                      <p className="empty-state">{text("当前没有孤立的 core。", "There are no isolated cores.")}</p>
-                    ) : (
-                      graphCanvasView.isolatedCoreNodes.map((isolatedNode) => (
-                        <button
-                          key={isolatedNode.nodeKey}
-                          type="button"
-                          className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? " is-selected" : ""}`}
-                          onClick={() =>
-                            handleRevealIsolatedNode(isolatedNode.nodeKey)
-                          }
-                        >
-                          {formatCompactGraphNodeDisplayText(isolatedNode)}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </section>
+              <div className="chip-group graph-detail-tabs">
+                {isolatedPoolOptions.map((option) => (
+                  <button
+                    key={option.kind}
+                    type="button"
+                    className={`metric-chip${isolatedPoolKind === option.kind ? " is-active" : ""}`}
+                    onClick={() => setIsolatedPoolKind(option.kind)}
+                  >
+                    {option.label}
+                    {text(" ", " ")}
+                    {option.count}
+                  </button>
+                ))}
               </div>
+              <section className="graph-target-editor">
+                <div className="graph-target-editor-header">
+                  <strong>{isolatedPoolTitle}</strong>
+                  <span>
+                    {text("数量 ", "Count ")}
+                    {isolatedPoolCount}
+                  </span>
+                </div>
+                <div className="graph-target-list">
+                  {isolatedPoolCount === 0 ? (
+                    <p className="empty-state">{isolatedPoolEmptyText}</p>
+                  ) : isolatedPoolKind === "triggerSource" ? (
+                    graphCanvasView.isolatedTriggerSourceNodes.map((isolatedNode) => (
+                      <button
+                        key={isolatedNode.nodeKey}
+                        type="button"
+                        className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? " is-selected" : ""}`}
+                        onClick={() =>
+                          handleRevealIsolatedNode(isolatedNode.nodeKey)
+                        }
+                      >
+                        {formatCompactGraphNodeDisplayText(isolatedNode)}
+                      </button>
+                    ))
+                  ) : isolatedPoolKind === "core" ? (
+                    graphCanvasView.isolatedCoreNodes.map((isolatedNode) => (
+                      <button
+                        key={isolatedNode.nodeKey}
+                        type="button"
+                        className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? " is-selected" : ""}`}
+                        onClick={() =>
+                          handleRevealIsolatedNode(isolatedNode.nodeKey)
+                        }
+                      >
+                        {formatCompactGraphNodeDisplayText(isolatedNode)}
+                      </button>
+                    ))
+                  ) : (
+                    graphCanvasView.isolatedRepeaterNodes.map((isolatedNode) => (
+                      <button
+                        key={isolatedNode.nodeKey}
+                        type="button"
+                        className={`graph-target-item graph-target-chip${pinnedIsolatedNodeKeys.includes(isolatedNode.nodeKey) ? " is-selected" : ""}`}
+                        onClick={() =>
+                          handleRevealIsolatedNode(isolatedNode.nodeKey)
+                        }
+                      >
+                        {formatCompactRepeaterDisplayText(isolatedNode)}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </section>
             </section>
           ) : null}
 
@@ -3089,7 +3158,7 @@ export default function GraphViewer({
             <section className="graph-isolated-panel">
               <div className="graph-isolated-panel-header">
                 <div>
-                  <strong>{text("另一模式节点池", "Other-mode Node Pool")}</strong>
+                  <strong>{crossModePanelLabel}</strong>
                   <p className="graph-batch-editor-caption">
                     {crossModePoolCaption}
                   </p>

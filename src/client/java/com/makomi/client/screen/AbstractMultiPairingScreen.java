@@ -7,7 +7,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasSavedData;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.PairingNetwork;
-import com.makomi.util.DisplayTextListFormatUtil;
+import com.makomi.util.CurrentLinksDisplayFormatUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -354,7 +354,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, baseY, baseContentBounds);
 		guiGraphics.drawString(font, aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY(), currentLinksTextColor(), false);
-		String currentLinksText = buildCurrentLinksText(currentTargetDisplayTexts);
+		String currentLinksText = buildCurrentLinksText(currentTargets, currentTargetDisplayTexts);
 		Component currentLinksLabel = currentLinksLine("");
 		Component currentLinksValue = Component.literal(currentLinksText);
 		guiGraphics.drawString(font, currentLinksLabel, currentLinksX, currentLinksY, currentLinksTextColor(), false);
@@ -381,7 +381,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 					mouseY
 				)
 		) {
-			List<Component> tooltipLines = buildTooltipLines(currentTargetDisplayTexts);
+			List<Component> tooltipLines = buildTooltipLines(currentTargets, currentTargetDisplayTexts);
 			if (!tooltipLines.isEmpty()) {
 				guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
 			}
@@ -574,13 +574,18 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	/**
-	 * 构建主界面“当前连接”结构化文本（`N`/`A:B` + `/`）。
+	 * 构建主界面“当前连接”结构化文本（`#N`/`#A:#B` + `/`）。
 	 *
 	 * @param currentTargets 当前目标序号列表
 	 * @return 主界面显示文本
 	 */
-	protected final String buildCurrentLinksText(List<String> currentTargetDisplayTexts) {
-		return DisplayTextListFormatUtil.buildText(currentTargetDisplayTexts, CURRENT_LINKS_LIST_MAX_WIDTH, font::width);
+	protected final String buildCurrentLinksText(List<Long> currentTargets, List<String> currentTargetDisplayTexts) {
+		return CurrentLinksDisplayFormatUtil.buildText(
+			currentTargets,
+			currentTargetDisplayTexts,
+			CURRENT_LINKS_LIST_MAX_WIDTH,
+			font::width
+		);
 	}
 
 	/**
@@ -589,17 +594,19 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * @param currentTargets 当前目标序号列表
 	 * @return tooltip 文本行
 	 */
-	protected final List<Component> buildTooltipLines(List<String> currentTargetDisplayTexts) {
+	protected final List<Component> buildTooltipLines(List<Long> currentTargets, List<String> currentTargetDisplayTexts) {
 		if (
-			currentTargetDisplayTexts == null
+			currentTargets == null
+				|| currentTargets.isEmpty()
+				|| currentTargetDisplayTexts == null
 				|| currentTargetDisplayTexts.isEmpty()
 				|| TOOLTIP_MAX_ITEMS <= 0
 				|| TOOLTIP_MAX_WIDTH <= 0
 		) {
 			return List.of();
 		}
-		return DisplayTextListFormatUtil
-			.buildWrappedLines(currentTargetDisplayTexts, TOOLTIP_MAX_WIDTH, TOOLTIP_MAX_ITEMS, font::width)
+		return CurrentLinksDisplayFormatUtil
+			.buildWrappedLines(currentTargets, currentTargetDisplayTexts, TOOLTIP_MAX_WIDTH, TOOLTIP_MAX_ITEMS, font::width)
 			.stream()
 			.map(text -> (Component) Component.literal(text))
 			.toList();
@@ -789,7 +796,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	private GuiBackgroundRenderSupport.RegionBounds resolveBaseContentBounds(MultiPairingLayout layout) {
 		Component currentLinksLabel = currentLinksLine("");
-		Component currentLinksValue = Component.literal(buildCurrentLinksText(currentTargetDisplayTexts));
+		Component currentLinksValue = Component.literal(buildCurrentLinksText(currentTargets, currentTargetDisplayTexts));
 		GuiBackgroundRenderSupport.RegionBounds bounds = GuiHeaderRenderSupport.resolveCenteredHeaderTextBounds(
 			font,
 			headerSpec(),

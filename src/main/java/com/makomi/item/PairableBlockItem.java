@@ -139,6 +139,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		}
 
 		long serial = LinkItemData.getSerial(stack);
+		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
 		List<String> linkedDisplayTexts = LinkItemData.getLinkedDisplayTexts(stack);
 		tooltipComponents.add(
 			Component.translatable(
@@ -155,8 +156,9 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 				)
 			);
 		}
-		// 约定无连接时显示 -，超长时按字符数截断并补充 …(+N)。
+		// 当前连接摘要优先压缩连续 `#序号` 区间，别名节点保持原样并在其处断开。
 		String linkedText = TooltipTextTruncateUtil.buildTargetDisplayTextsText(
+			linkedSerials,
 			linkedDisplayTexts,
 			TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
 		);

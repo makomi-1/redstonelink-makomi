@@ -729,7 +729,7 @@ describe('GraphViewer', () => {
     );
 
     await user.click(screen.getByRole('button', { name: '覆盖' }));
-    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.click(screen.getByRole('button', { name: '频道节点池' }));
     await user.click(screen.getByRole('button', { name: '#3 (gamma)' }));
     await user.click(screen.getByRole('button', { name: '#4 (delta)' }));
     await user.click(screen.getByRole('button', { name: '应用到草稿' }));
@@ -763,7 +763,7 @@ describe('GraphViewer', () => {
 
     expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('2');
 
-    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.click(screen.getByRole('button', { name: '频道节点池' }));
     await user.click(screen.getByRole('button', { name: '#3 (gamma)' }));
     await user.click(screen.getByRole('button', { name: '#4 (delta)' }));
     await user.click(screen.getByRole('button', { name: '应用到草稿' }));
@@ -795,7 +795,7 @@ describe('GraphViewer', () => {
 
     expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('2');
 
-    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.click(screen.getByRole('button', { name: '频道节点池' }));
     await user.click(screen.getByRole('button', { name: '#3 (gamma)' }));
     await user.click(screen.getByRole('button', { name: '#4 (delta)' }));
     await user.click(screen.getByRole('button', { name: '应用到草稿' }));
@@ -875,6 +875,42 @@ describe('GraphViewer', () => {
     expect(screen.getByText('repeater:10')).toBeInTheDocument();
   });
 
+  it('孤立节点池可切换到转发器池并显示孤立转发器', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+    const repeaterGraphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          alias: 'relay',
+          displayText: 'relay(#10)',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          alias: 'relay',
+          displayText: 'relay(#10)',
+          capabilityFlags: ['repeater'],
+        }),
+      ],
+    });
+
+    render(
+      <GraphViewer
+        graphBundle={repeaterGraphBundle}
+        graphFileName="isolated-repeater-graph.json"
+        language="zh-CN"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '孤立节点池' }));
+    await user.click(screen.getByRole('button', { name: '转发器 1' }));
+
+    expect(screen.getByRole('button', { name: '#10 (relay)' })).toBeInTheDocument();
+  });
+
   it('频道模式在查看态应用另一模式节点后会恢复 triggerSource 聚合显示', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createGraphViewerFetchMock());
@@ -912,7 +948,7 @@ describe('GraphViewer', () => {
     );
 
     await user.click(screen.getByRole('button', { name: '频道' }));
-    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.click(screen.getByRole('button', { name: '序号节点池' }));
     await user.clear(screen.getByLabelText('迁入目标频道号'));
     await user.type(screen.getByLabelText('迁入目标频道号'), '9');
     await user.click(screen.getByRole('button', { name: '#1 (alpha)' }));
@@ -932,7 +968,7 @@ describe('GraphViewer', () => {
     );
   });
 
-  it('频道模式的另一模式节点池会自动排除 repeater 节点', async () => {
+  it('频道模式的序号节点池会自动排除 repeater 节点', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createGraphViewerFetchMock());
     const channelGraphBundle = createTestGraphBundle({
@@ -983,7 +1019,7 @@ describe('GraphViewer', () => {
     );
 
     await user.click(screen.getByRole('button', { name: '频道' }));
-    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+    await user.click(screen.getByRole('button', { name: '序号节点池' }));
 
     expect(screen.getByRole('button', { name: '#1 (alpha)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '#2 (beta)' })).toBeInTheDocument();

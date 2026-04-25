@@ -1867,8 +1867,8 @@ body {
 .recording-chart-tooltip {
   position: absolute;
   z-index: 4;
-  width: min(236px, calc(100% - 24px));
-  padding: 10px 12px;
+  width: min(360px, calc(100% - 24px));
+  padding: 12px 14px;
   border: 1px solid var(--app-control-border-strong);
   border-radius: 12px;
   background: var(--app-surface-strong);
@@ -1884,9 +1884,9 @@ body {
 
 .recording-chart-tooltip-header,
 .recording-chart-tooltip-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
 }
 
@@ -1908,22 +1908,25 @@ body {
 
 .recording-chart-tooltip-label {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   min-width: 0;
   font-size: 0.84rem;
+  line-height: 1.35;
   color: var(--app-text-secondary);
 }
 
 .recording-chart-tooltip-label > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .recording-chart-tooltip-value {
   flex: none;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
   color: var(--app-text-strong);
 }
 

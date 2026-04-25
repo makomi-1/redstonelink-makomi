@@ -131,6 +131,7 @@ export type GraphCanvasView = {
   visibleActualNodeKeys: Set<string>;
   isolatedTriggerSourceNodes: GraphNodeInfo[];
   isolatedCoreNodes: GraphNodeInfo[];
+  isolatedRepeaterNodes: GraphCanvasRepeaterNode[];
   repeaterNodes: GraphCanvasRepeaterNode[];
   aggregateNodes: GraphCanvasAggregateNode[];
   channelHubNodes: GraphCanvasChannelHubNode[];
