@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.item.PairableItem;
+import com.makomi.util.SignalStrengths;
 import com.makomi.util.SerialNbtCodecUtil;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,7 +46,6 @@ public final class LinkItemData {
 	private static final String KEY_DESTROY_RETIRE = "rl_destroy_retire";
 	private static final String KEY_SYNC_LINKER_SIGNAL = "rl_sync_linker_signal";
 	private static final int SYNC_LINKER_SIGNAL_OFF = 0;
-	private static final int SYNC_LINKER_SIGNAL_ON = 15;
 	private static final int SYNC_LINKER_MODEL_ACTIVE = 1;
 
 	private LinkItemData() {
@@ -533,7 +533,7 @@ public final class LinkItemData {
 	/**
 	 * 读取同步遥控器当前缓存的同步强度。
 	 * <p>
-	 * 同步遥控器只存在 `0/15` 两态，任何正值都会折叠为 15。
+	 * 返回值始终会被归一到原版红石有效范围 `0~15`。
 	 * </p>
 	 */
 	public static int getSyncLinkerSignalStrength(ItemStack stack) {
@@ -676,9 +676,9 @@ public final class LinkItemData {
 	}
 
 	/**
-	 * 同步遥控器仅支持 `0/15` 两态。
+	 * 统一将同步遥控器强度约束到原版红石有效范围。
 	 */
 	private static int normalizeSyncLinkerSignalStrength(int signalStrength) {
-		return signalStrength > SYNC_LINKER_SIGNAL_OFF ? SYNC_LINKER_SIGNAL_ON : SYNC_LINKER_SIGNAL_OFF;
+		return SignalStrengths.clamp(signalStrength);
 	}
 }

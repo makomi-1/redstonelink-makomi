@@ -6,6 +6,7 @@ import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkConnectionMode;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeLinksSnapshot;
+import com.makomi.util.SignalStrengths;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.network.FriendlyByteBuf;
@@ -229,6 +230,21 @@ final class PairingNetworkPayloadSupport {
 			buffer.readVarLong(),
 			buffer.readUtf(ALIAS_TEXT_MAX_LENGTH)
 		);
+	}
+
+	/**
+	 * 编码同步遥控器强度保存提交包。
+	 */
+	static void encodeSaveSyncLinkerSignalStrengthPayload(FriendlyByteBuf buffer, long expectedSerial, int signalStrength) {
+		buffer.writeVarLong(Math.max(0L, expectedSerial));
+		buffer.writeVarInt(SignalStrengths.clamp(signalStrength));
+	}
+
+	/**
+	 * 解码同步遥控器强度保存提交包。
+	 */
+	static PairingNetwork.SaveSyncLinkerSignalStrengthPayload decodeSaveSyncLinkerSignalStrengthPayload(FriendlyByteBuf buffer) {
+		return new PairingNetwork.SaveSyncLinkerSignalStrengthPayload(buffer.readVarLong(), buffer.readVarInt());
 	}
 
 	/**

@@ -23,13 +23,10 @@ import net.minecraft.world.level.Level;
  * <p>
  * 交互手势与现有遥控器保持一致：
  * 1. 潜行 + 主手右键：打开配对界面；
- * 2. 站立 + 主手右键 + 副手空：在 15/0 间切换并将当前同步强度派发到已连接 core。
+ * 2. 站立 + 主手右键 + 副手空：将当前设定同步强度派发到已连接 core。
  * </p>
  */
 public class SyncLinkerItem extends LinkerItem {
-	private static final int SIGNAL_OFF = 0;
-	private static final int SIGNAL_ON = 15;
-
 	/**
 	 * @param properties 物品属性
 	 */
@@ -67,7 +64,7 @@ public class SyncLinkerItem extends LinkerItem {
 	/**
 	 * 执行同步遥控器主动作。
 	 * <p>
-	 * 每次右键都在 `15/0` 两态之间切换，并复用同步拉杆的派发链路。
+	 * 每次右键都按当前缓存强度发送一次同步信号，并复用同步拉杆的派发链路。
 	 * </p>
 	 */
 	private static void syncLinkedTargets(Level level, Player player, ItemStack stack) {
@@ -89,9 +86,10 @@ public class SyncLinkerItem extends LinkerItem {
 			return;
 		}
 
-		int nextSignalStrength = LinkItemData.getSyncLinkerSignalStrength(stack) > SIGNAL_OFF ? SIGNAL_OFF : SIGNAL_ON;
-		LinkItemData.setSyncLinkerSignalStrength(stack, nextSignalStrength);
-		savedData.putTriggerSourceReplaySyncSnapshot(serial, EventMeta.now(level), nextSignalStrength);
+		int currentSignalStrength = LinkItemData.getSyncLinkerSignalStrength(stack);
+		// 将旧栈中的异常值回写为规范化后的 `0~15` 真值，同时保持贴图镜像同步。
+		LinkItemData.setSyncLinkerSignalStrength(stack, currentSignalStrength);
+		savedData.putTriggerSourceReplaySyncSnapshot(serial, EventMeta.now(level), currentSignalStrength);
 
 		LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, serverLevel);
 		LinkedTargetDispatchService.DispatchSummary dispatchSummary = LinkedTargetDispatchService.dispatchSyncSignal(
@@ -99,7 +97,7 @@ public class SyncLinkerItem extends LinkerItem {
 			LinkNodeType.TRIGGER_SOURCE,
 			serial,
 			LinkNodeType.CORE,
-			nextSignalStrength
+			currentSignalStrength
 		);
 		if (dispatchSummary.totalTargets() == 0) {
 			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.target_not_set"));

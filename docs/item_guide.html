@@ -627,7 +627,8 @@
         ],
         'quick_link_tool': [
           'redstonelink:item/fast_link_tool_sd',
-          'redstonelink:item/fast_link_tool_cp'
+          'redstonelink:item/fast_link_tool_cp',
+          'redstonelink:item/fast_link_tool_vs'
         ]
       };
 
@@ -900,16 +901,16 @@
           render: 'item',
           name: { zh: '同步遥控器', en: 'Linked Sync Linker' },
           effect: {
-            zh: '手持工具版同步 triggerSource，在 15/0 两态间切换并同步到已连接 core。',
-            en: 'Handheld sync triggerSource tool that flips between 15/0 and synchronizes linked cores.'
+            zh: '手持工具版同步 triggerSource，可向已连接 core 发送一次当前设定的 0~15 同步强度。',
+            en: 'Handheld sync triggerSource tool that sends the currently configured 0~15 sync power to linked cores once.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：切换 15/0 并同步派发。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
-            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: flip 15/0 and dispatch sync signal.', 'This is a state signal with full lifecycle and cross-chunk support.']
+            zh: ['潜行且左手为空右键：打开配对界面。', '站立且左手为空右键：向已连接 core 发送一次当前设定同步强度。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
+            en: ['Sneak + empty offhand + right-click: open pairing UI.', 'Stand + empty offhand + right-click: send the current configured sync power to linked cores once.', 'This is a state signal with full lifecycle and cross-chunk support.']
           },
           note: {
-            zh: '物品贴图会随当前状态切换（关闭/开启）。',
-            en: 'Item texture changes with current state (off/on).'
+            zh: '当前强度可在配对 GUI 内调整，也支持手持时按住 Ctrl 配合鼠标滚轮快速修改；GUI 中间只显示数值，物品贴图仍按 0/非 0 二态切换。',
+            en: 'Power can be adjusted in the pairing UI or quickly while held with Ctrl + mouse wheel; the center GUI value is numeric-only, while the item texture still uses a 0/non-zero binary mirror.'
           }
         },
         {
@@ -939,12 +940,12 @@
             en: 'Uses serial or channel cache for batch collect/apply workflows and faster pairing operations.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：打开缓存编辑器。', '按模式键（默认 B）可切换 serial/channel；潜行按会清空序号缓存与频道缓存。', '左键命中节点：按当前模式采集序号组或频道；命中过滤器不会采集。', '鼠标中键：在 serial 模式下循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：把当前缓存应用到命中对象。'],
-            en: ['Sneak + empty offhand + right-click: open cache editor.', 'Press the mode key (default `B`) to switch `serial/channel`; press it while sneaking to clear both serial and channel caches.', 'Left-click a node to collect serials or a channel value according to the current mode; filters are never collectible.', 'Middle mouse cycles `replace/append/remove` in serial mode.', 'Stand + right-click a node or matching filter to apply the current cache to the hit target.']
+            zh: ['潜行且左手为空右键：在 serial/channel 下打开缓存编辑器；visualize 下不会打开编辑器。', '按模式键（默认 B）可切换 serial/channel/visualize；潜行按会清空当前模式数据，visualize 下会清空显示对象列表。', '左键命中节点：serial 采集序号、channel 采集频道、visualize 添加显示对象并查询连接；命中过滤器不会采集。', '鼠标中键：仅在 serial 模式下循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：serial/channel 把当前缓存应用到命中对象；visualize 会移除该显示对象。'],
+            en: ['Sneak + empty offhand + right-click opens the cache editor in serial/channel; visualize does not open the editor.', 'Press the mode key (default `B`) to switch `serial/channel/visualize`; press it while sneaking to clear current-mode data, and in visualize this clears the displayed object list.', 'Left-click a node to collect serials in serial, collect channel in channel, or add a displayed object and query links in visualize; filters are never collectible.', 'Middle mouse cycles `replace/append/remove` only in serial mode.', 'Stand + right-click a node or matching filter to apply the current cache in serial/channel; in visualize it removes that displayed object.']
           },
           note: {
-            zh: 'channel 模式是当前真实功能：只能采集已在频道模式且频道大于 0 的节点，应用到节点时会切到频道模式并按频道映射重建普通边；命中过滤器时描边为亮红色。',
-            en: 'Channel mode is live: it only collects nodes already in channel mode with a channel value greater than 0, and applying to a node switches it into channel mode while rebuilding ordinary edges from channel mapping; filters are outlined in bright red.'
+            zh: '三种模式分别使用 `_sd/_cp/_vs` 贴图与对应主题；channel 模式只能采集已在频道模式且频道大于 0 的节点，visualize 模式会对显示对象去重并给穿墙连线分配颜色。',
+            en: 'The three modes use `_sd/_cp/_vs` textures and matching themes; channel only collects nodes already in channel mode with a channel value greater than 0, while visualize deduplicates displayed objects and assigns colors to through-wall links.'
           }
         },
         {
@@ -1191,6 +1192,7 @@
         if (path === 'quick_link_tool') {
           appendUniqueCandidates(candidates, modTextureCandidates('item', 'fast_link_tool_sd'));
           appendUniqueCandidates(candidates, modTextureCandidates('item', 'fast_link_tool_cp'));
+          appendUniqueCandidates(candidates, modTextureCandidates('item', 'fast_link_tool_vs'));
         }
 
         if (preferBlock) {

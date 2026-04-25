@@ -57,4 +57,24 @@ class AbstractMultiPairingScreenLayoutTest {
 		assertTrue(compactLayout.statusMessageY() > compactLayout.actionButtonY());
 		assertTrue(compactLayout.actionButtonX(1) + compactLayout.actionButtonWidth() <= compactLayout.panelLeft() + compactLayout.panelWidth());
 	}
+
+	/**
+	 * 附加控制行应把输入区整体下推，避免与新增按钮行发生重叠。
+	 */
+	@Test
+	void resolveLayoutShouldPushInputDownWhenSupplementalRowExists() {
+		AbstractMultiPairingScreen.MultiPairingLayout defaultLayout = AbstractMultiPairingScreen.resolveLayout(320, 240, 9);
+		AbstractMultiPairingScreen.MultiPairingLayout supplementalLayout = AbstractMultiPairingScreen.resolveLayout(
+			320,
+			240,
+			9,
+			AbstractMultiPairingScreen.LayoutDensity.DEFAULT,
+			true,
+			true
+		);
+
+		assertTrue(supplementalLayout.supplementalButtonY() > supplementalLayout.modeButtonY());
+		assertTrue(supplementalLayout.inputLabelY() > defaultLayout.inputLabelY());
+		assertTrue(supplementalLayout.actionButtonY() > defaultLayout.actionButtonY());
+	}
 }

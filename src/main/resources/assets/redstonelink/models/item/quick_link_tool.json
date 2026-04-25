@@ -9,6 +9,12 @@
         "custom_model_data": 1
       },
       "model": "redstonelink:item/quick_link_tool_channel"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 2
+      },
+      "model": "redstonelink:item/quick_link_tool_visualize"
     }
   ]
 }

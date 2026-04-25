@@ -82,6 +82,7 @@ describe('RecordingChart', () => {
       <RecordingChart
         language="zh-CN"
         nodeSeriesGroups={[]}
+        maxSelectableNodeCount={5}
         startedTick={10}
         xMode="relative"
         renderMode="linear"
@@ -114,6 +115,7 @@ describe('RecordingChart', () => {
             ],
           },
         ]}
+        maxSelectableNodeCount={5}
         startedTick={10}
         xMode="relative"
         renderMode="linear"

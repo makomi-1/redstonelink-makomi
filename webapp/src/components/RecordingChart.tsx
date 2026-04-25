@@ -22,6 +22,7 @@ type RecordingSample = {
 type RecordingChartProps = {
   language: AppLanguage;
   nodeSeriesGroups: RecordingChartNodeSeriesGroup[];
+  maxSelectableNodeCount: number;
   startedTick: number;
   xMode: RecordingXAxisMode;
   renderMode: RecordingChartRenderMode;
@@ -70,7 +71,7 @@ const CHART_HEIGHT = 420;
 const MIN_CHART_WIDTH = 320;
 const KEYBOARD_ZOOM_FACTOR = 0.85;
 const WHEEL_ZOOM_FACTOR = 0.82;
-const TOOLTIP_WIDTH = 360;
+const TOOLTIP_WIDTH = 520;
 const TOOLTIP_SIDE_MARGIN = 12;
 const TOOLTIP_CURSOR_OFFSET = 16;
 
@@ -94,6 +95,7 @@ function formatRecordingSeriesLabel(
 export default function RecordingChart({
   language,
   nodeSeriesGroups,
+  maxSelectableNodeCount,
   startedTick,
   xMode,
   renderMode,
@@ -126,7 +128,10 @@ export default function RecordingChart({
   );
   const emptyStateMessage =
     nodeSeriesGroups.length === 0
-      ? text('请先在左侧选择 1~5 个节点。', 'Select 1 to 5 nodes on the left first.')
+      ? text(
+          `请先在左侧选择 1~${maxSelectableNodeCount} 个节点。`,
+          `Select 1 to ${maxSelectableNodeCount} nodes on the left first.`,
+        )
       : visibleMetrics.length === 0
         ? text('请至少启用一条功率曲线。', 'Enable at least one power series.')
         : chartNodeSeriesGroups.length === 0

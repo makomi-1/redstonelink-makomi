@@ -19,13 +19,13 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 
 ### Quick Link Tool
 - Item name: `Quick Link Tool`.
-- In the current version, both `serial` and `channel` caches are live. `channel` mode can collect the current channel from a node already using channel mode, then apply that channel cache to nodes or filters.
+- The current version provides `serial/channel/visualize` modes: `serial` is for batch collect/apply through serial cache, `channel` is for batch collect/apply through channel cache, and `visualize` adds nodes or repeaters into a displayed-object list with through-wall link rendering. The three modes use `_sd/_cp/_vs` item textures and matching themes.
 - Basic interaction:
-1. Sneak and right-click with an empty offhand: open the Quick Link Tool cache editor.
-2. Left-click a valid link node: collect that node into the current cache.
-3. Right-click a valid link node or the matching filter while standing: apply the current cache to the hit target.
-4. Middle-click (same binding as vanilla `pick item`): cycle apply edit mode `replace -> append -> remove -> replace`.
-5. Quick Link mode key: default `B`; press while standing to switch `serial/channel`, press while sneaking to clear both serial and channel caches.
+1. Sneak and right-click with an empty offhand: open the Quick Link Tool cache editor in `serial/channel`; `visualize` does not open the editor.
+2. Left-click a valid link node: `serial` collects that node serial into cache, `channel` collects its current channel into cache, and `visualize` adds the hit node or repeater into the displayed-object list while querying its real links.
+3. Right-click a valid link node or the matching filter while standing: `serial/channel` applies the current cache to the hit target, while `visualize` removes that displayed object.
+4. Middle-click (same binding as vanilla `pick item`): cycle apply edit mode `replace -> append -> remove -> replace` only in `serial`.
+5. Quick Link mode key: default `B`; press while standing to switch `serial/channel/visualize`, press while sneaking to clear current-mode data, and in `visualize` this clears the whole displayed-object list.
 - Collect rules:
 1. In `serial` mode, the tool automatically switches the current serial-cache type based on the hit node: hit `core` -> cache type becomes `core`; hit `triggerSource` -> cache type becomes `triggerSource`.
 2. If the tool is still in `serial` mode and the cache type matches, collect appends incrementally and deduplicates automatically.
@@ -49,10 +49,10 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 13. Filter `serialExpression` supports `replace/append/remove`; channel apply directly overwrites the channel target and does not use incremental semantics.
 14. Filter apply does not participate in link OCC; the baseline round-trip still happens, but the server returns zero revisions and writes the filter config directly.
 - Clear rules:
-1. `Sneak + B` clears both the serial cache and the channel cache.
+1. `Sneak + B` clears the current-mode data: serial cache in `serial`, channel cache in `channel`, and the displayed-object list in `visualize`.
 2. Clearing keeps the current mode, current serial-cache type, and current apply edit mode. It does not forcibly reset them.
 - UI and feedback:
-1. The GUI allows manual editing of the serial cache. After switching to `channel`, the channel input is also editable and participates in real collect/apply.
+1. The GUI allows manual editing of the serial cache. After switching to `channel`, the channel input is also editable and participates in real collect/apply. `visualize` does not open the cache editor and instead uses left-click/right-click/sneak + mode-key interactions only.
 2. The latest collect/apply/clear/mode-limit message is shown in the action bar, in the same area used by the `B` mode-switch hint.
 3. The GUI-side serial cache input length is controlled by client config `client.quickLinkSerialCacheMaxLength`, default `1024`.
 4. Channel cache must be a positive `long`; `0` or empty means there is currently no valid channel cache.
@@ -60,11 +60,11 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 6. While holding the Quick Link Tool and targeting an object, an outline is shown: `core` is bright blue, `triggerSource` is bright orange, and filters are bright red.
 - Recommended usage order:
 1. Hold the Quick Link Tool in the main hand.
-2. Use `B` to choose whether you are working in `serial` mode or `channel` mode.
-3. Left-click to collect a batch of `core` / `triggerSource` serials, or a single channel value.
-4. If you are in `serial` mode, use middle mouse to choose `replace`, `append`, or `remove`.
-5. Right-click while standing to apply the cache to a valid target in the legal direction, or to a filter.
-6. Press `Sneak + B` to clear caches if you want to start over.
+2. Use `B` to choose whether you are working in `serial`, `channel`, or `visualize`.
+3. In `serial/channel`, left-click to collect cache data; in `visualize`, left-click to add displayed objects.
+4. If you are in `serial`, use middle mouse to choose `replace`, `append`, or `remove`.
+5. In `serial/channel`, right-click while standing to apply the cache to a valid target or filter; in `visualize`, right-click removes displayed objects.
+6. Press `Sneak + B` to clear the current-mode data if you want to start over.
 - Crafting recipe:
 1. `Redstone Link Component + Stick + Stick -> Quick Link Tool`
 2. Pattern:
@@ -107,11 +107,13 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Item name: `Linked Sync Linker`.
 - Basic interaction is the same as the other linkers:
 1. Sneak and right-click with an empty offhand: open the pairing UI.
-2. Right-click while standing with an empty offhand: toggle between `15/0` and dispatch the current sync strength to linked `core` nodes.
+2. Right-click while standing with an empty offhand: send the currently configured sync power to linked `core` nodes once.
 - Behavior:
 1. The Linked Sync Linker always acts as a `triggerSource`, and the real write direction is still `triggerSource -> core`.
 2. It uses the same dispatch path as the Linked Sync Lever. It synchronizes the current strength, not `TOGGLE/PULSE` activation semantics.
-3. The item texture follows the current state: state `0` shows the off texture, state `15` shows the on texture.
+3. The current power range is `0~15`; you can adjust it in the pairing UI or quickly while holding the item with `Ctrl + mouse wheel`, and the action bar reports the new value.
+4. The center value area in the pairing UI is numeric-only and no longer shows a `Current Power` field label.
+5. The item texture still follows a binary `0/non-zero` mirror: state `0` shows the off texture, while any non-zero power shows the on texture.
 - Crafting recipe:
 1. `Linked Sync Lever + Lever -> Linked Sync Linker`
 2. Pattern:

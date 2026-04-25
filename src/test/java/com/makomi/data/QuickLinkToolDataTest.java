@@ -209,6 +209,18 @@ class QuickLinkToolDataTest {
 		QuickLinkToolData.write(
 			stack,
 			new QuickLinkToolData.Snapshot(
+				QuickLinkToolData.Mode.VISUALIZE,
+				LinkNodeType.CORE,
+				"",
+				"",
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+		assertEquals(new CustomModelData(2), stack.get(DataComponents.CUSTOM_MODEL_DATA));
+
+		QuickLinkToolData.write(
+			stack,
+			new QuickLinkToolData.Snapshot(
 				QuickLinkToolData.Mode.SERIAL,
 				LinkNodeType.CORE,
 				"",

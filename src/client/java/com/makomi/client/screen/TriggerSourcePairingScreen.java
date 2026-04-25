@@ -6,8 +6,10 @@ import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.PairingNetwork;
+import com.makomi.util.SignalStrengths;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -51,6 +53,10 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	private static final Component CHANNEL_INPUT_LABEL = Component.translatable("screen.redstonelink.pairing.channel_input");
 	private static final Component INVALID_CHANNEL_INPUT = Component.translatable("screen.redstonelink.pairing.invalid_channel");
 	private final String displayContextToken;
+	private int currentSyncSignalStrength;
+	private Button decreaseSignalButton;
+	private Button signalValueButton;
+	private Button increaseSignalButton;
 
 	/**
 	 * 基于明确来源序列号与当前连接初始化界面。
@@ -85,6 +91,7 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 			channel
 		);
 		this.displayContextToken = LinkGuiDisplayContext.normalizePairingContextToken(displayContextToken, SOURCE_TYPE);
+		this.currentSyncSignalStrength = resolveInitialSyncLinkerSignalStrength(this.displayContextToken, sourceSerial);
 	}
 
 	public TriggerSourcePairingScreen(
@@ -231,6 +238,11 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 	}
 
 	@Override
+	protected boolean hasSupplementalButtonRow() {
+		return isSyncLinkerContext();
+	}
+
+	@Override
 	protected GuiBackgroundRenderSupport.BackgroundPreset backgroundPreset() {
 		if (isRepeaterContext()) {
 			return RepeaterPairingThemeSupport.backgroundPreset();
@@ -238,11 +250,61 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		return GuiBackgroundRenderSupport.BackgroundPreset.TRIGGER_SOURCE_PAIRING;
 	}
 
+	@Override
+	protected void initSupplementalButtonRow(MultiPairingLayout layout) {
+		int buttonWidth = CenteredFormLayoutSupport.resolveSplitWidth(layout.panelWidth(), actionButtonGap(), 3);
+		int buttonHeight = actionButtonHeight();
+		int rowY = layout.supplementalButtonY();
+		decreaseSignalButton =
+			addRenderableWidget(
+				createActionButton(
+					ActionButtonKind.CONFIRM,
+					Component.empty(),
+					layout.panelLeft(),
+					rowY,
+					buttonWidth,
+					button -> adjustSyncSignalStrength(-1)
+				)
+			);
+		signalValueButton =
+			addRenderableWidget(
+				createActionButton(
+					ActionButtonKind.CONFIRM,
+					Component.empty(),
+					layout.panelLeft() + buttonWidth + actionButtonGap(),
+					rowY,
+					buttonWidth,
+					button -> {}
+				)
+			);
+		increaseSignalButton =
+			addRenderableWidget(
+				createActionButton(
+					ActionButtonKind.CONFIRM,
+					Component.empty(),
+					layout.panelLeft() + (buttonWidth + actionButtonGap()) * 2,
+					rowY,
+					buttonWidth,
+					button -> adjustSyncSignalStrength(1)
+				)
+			);
+		signalValueButton.active = false;
+		signalValueButton.setHeight(buttonHeight);
+		refreshSyncSignalButtons();
+	}
+
 	/**
 	 * @return 当前 GUI 是否由转发器入口打开
 	 */
 	private boolean isRepeaterContext() {
 		return LinkGuiDisplayContext.LINK_REPEATER.equals(displayContextToken);
+	}
+
+	/**
+	 * @return 当前 GUI 是否由同步遥控器入口打开
+	 */
+	private boolean isSyncLinkerContext() {
+		return LinkGuiDisplayContext.REDSTONELINK_SYNC_LINKER.equals(displayContextToken);
 	}
 
 	/**
@@ -275,6 +337,43 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 				sourceRevision
 			)
 		);
+	}
+
+	/**
+	 * 调整同步遥控器当前缓存强度，并立即同步到本地主手物品与服务端真值。
+	 */
+	private void adjustSyncSignalStrength(int delta) {
+		int nextSignalStrength = SignalStrengths.clamp(currentSyncSignalStrength + delta);
+		if (delta == 0) {
+			return;
+		}
+		currentSyncSignalStrength = nextSignalStrength;
+		ItemStack held = resolveHeldSyncLinkerStack(sourceSerial);
+		long expectedSerial = sourceSerial;
+		if (!held.isEmpty()) {
+			expectedSerial = LinkItemData.getSerial(held);
+			LinkItemData.setSyncLinkerSignalStrength(held, currentSyncSignalStrength);
+		}
+		ClientPlayNetworking.send(new PairingNetwork.SaveSyncLinkerSignalStrengthPayload(expectedSerial, currentSyncSignalStrength));
+		refreshSyncSignalButtons();
+	}
+
+	/**
+	 * 按当前强度刷新同步遥控器附加按钮的文案与可用状态。
+	 */
+	private void refreshSyncSignalButtons() {
+		if (decreaseSignalButton != null) {
+			decreaseSignalButton.setMessage(Component.translatable("screen.redstonelink.sync_linker.signal_strength.decrease"));
+			decreaseSignalButton.active = currentSyncSignalStrength > 0;
+		}
+		if (signalValueButton != null) {
+			signalValueButton.setMessage(Component.literal(Integer.toString(currentSyncSignalStrength)));
+			signalValueButton.active = false;
+		}
+		if (increaseSignalButton != null) {
+			increaseSignalButton.setMessage(Component.translatable("screen.redstonelink.sync_linker.signal_strength.increase"));
+			increaseSignalButton.active = currentSyncSignalStrength < 15;
+		}
 	}
 
 	/**
@@ -323,5 +422,37 @@ public class TriggerSourcePairingScreen extends AbstractMultiPairingScreen {
 		}
 		ItemStack held = net.minecraft.client.Minecraft.getInstance().player.getItemInHand(hand);
 		return NodeAliasDisplayUtil.formatDisplayText(resolveHeldSourceAlias(hand), serial);
+	}
+
+	/**
+	 * 解析同步遥控器打开 GUI 时的初始缓存强度。
+	 */
+	private static int resolveInitialSyncLinkerSignalStrength(String displayContextToken, long sourceSerial) {
+		if (!LinkGuiDisplayContext.REDSTONELINK_SYNC_LINKER.equals(displayContextToken)) {
+			return 0;
+		}
+		ItemStack held = resolveHeldSyncLinkerStack(sourceSerial);
+		if (held.isEmpty()) {
+			return 0;
+		}
+		return LinkItemData.getSyncLinkerSignalStrength(held);
+	}
+
+	/**
+	 * 解析当前主手同步遥控器，并校验序号与当前 GUI 来源一致。
+	 */
+	private static ItemStack resolveHeldSyncLinkerStack(long sourceSerial) {
+		if (net.minecraft.client.Minecraft.getInstance().player == null) {
+			return ItemStack.EMPTY;
+		}
+		ItemStack held = net.minecraft.client.Minecraft.getInstance().player.getMainHandItem();
+		if (held.isEmpty() || !(held.getItem() instanceof com.makomi.item.SyncLinkerItem)) {
+			return ItemStack.EMPTY;
+		}
+		long heldSerial = LinkItemData.getSerial(held);
+		if (sourceSerial > 0L && heldSerial > 0L && heldSerial != sourceSerial) {
+			return ItemStack.EMPTY;
+		}
+		return held;
 	}
 }

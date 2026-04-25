@@ -10,6 +10,7 @@ import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.data.LinkSavedData;
+import com.makomi.util.SignalStrengths;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
@@ -670,6 +671,33 @@ public final class PairingNetwork {
 		public SubmitPairingAliasPayload {
 			sourceType = sourceType == null ? "" : sourceType;
 			sourceAlias = normalizeSourceAlias(sourceAlias);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 同步遥控器强度保存提交包。
+	 */
+	public record SaveSyncLinkerSignalStrengthPayload(long expectedSerial, int signalStrength) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<SaveSyncLinkerSignalStrengthPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_sync_linker_signal_strength")
+		);
+		public static final StreamCodec<FriendlyByteBuf, SaveSyncLinkerSignalStrengthPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSaveSyncLinkerSignalStrengthPayload(
+				buffer,
+				payload.expectedSerial(),
+				payload.signalStrength()
+			),
+			PairingNetworkPayloadSupport::decodeSaveSyncLinkerSignalStrengthPayload
+		);
+
+		public SaveSyncLinkerSignalStrengthPayload {
+			expectedSerial = Math.max(0L, expectedSerial);
+			signalStrength = SignalStrengths.clamp(signalStrength);
 		}
 
 		@Override

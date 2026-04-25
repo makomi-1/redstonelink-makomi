@@ -14,10 +14,11 @@ import net.minecraft.world.item.component.CustomData;
  * 快速连接工具缓存数据读写工具。
  * <p>
  * 该工具只负责维护物品上的本地缓存，不直接承担真实连接写入逻辑。
- * 第一阶段固定保留两类模式：
+ * 当前阶段保留三类模式：
  * </p>
  * <br/>1) `serial`：可真正用于快速应用；
- * <br/>2) `channel`：保存正 long 频道号，并在服务端展开为真实普通边。
+ * <br/>2) `channel`：保存正 long 频道号，并在服务端展开为真实普通边；
+ * <br/>3) `visualize`：只负责客户端显示对象管理，不承载真实缓存编辑。
  */
 public final class QuickLinkToolData {
 	private static final String KEY_MODE = "rl_quick_link_mode";
@@ -26,6 +27,7 @@ public final class QuickLinkToolData {
 	private static final String KEY_CHANNEL_CACHE = "rl_quick_link_channel_cache";
 	private static final String KEY_APPLY_EDIT_MODE = "rl_quick_link_apply_edit_mode";
 	private static final int QUICK_LINK_TOOL_CHANNEL_MODEL = 1;
+	private static final int QUICK_LINK_TOOL_VISUALIZE_MODEL = 2;
 
 	private QuickLinkToolData() {
 	}
@@ -172,7 +174,8 @@ public final class QuickLinkToolData {
 	/**
 	 * 按当前 quick-link 模式同步物品贴图镜像。
 	 * <p>
-	 * `serial` 使用默认 `_sd` 贴图；`channel` 通过 `CustomModelData=1` 切到 `_cp`。
+	 * `serial` 使用默认 `_sd` 贴图；`channel` 通过 `CustomModelData=1` 切到 `_cp`；
+	 * `visualize` 通过 `CustomModelData=2` 切到 `_vs`。
 	 * </p>
 	 */
 	public static void syncQuickLinkToolModelState(ItemStack stack) {
@@ -183,8 +186,13 @@ public final class QuickLinkToolData {
 			stack.remove(DataComponents.CUSTOM_MODEL_DATA);
 			return;
 		}
-		if (read(stack).mode() == Mode.CHANNEL) {
+		Mode currentMode = read(stack).mode();
+		if (currentMode == Mode.CHANNEL) {
 			stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(QUICK_LINK_TOOL_CHANNEL_MODEL));
+			return;
+		}
+		if (currentMode == Mode.VISUALIZE) {
+			stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(QUICK_LINK_TOOL_VISUALIZE_MODEL));
 			return;
 		}
 		stack.remove(DataComponents.CUSTOM_MODEL_DATA);

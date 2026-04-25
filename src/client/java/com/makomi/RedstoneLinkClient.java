@@ -18,12 +18,16 @@ import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.render.QuickLinkOutlineRenderer;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
+import com.makomi.data.LinkItemData;
 import com.makomi.data.QuickLinkToolData;
+import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.QuickLinkToolItem;
+import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
 import com.makomi.network.StatePanelNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
+import com.makomi.util.SignalStrengths;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.context.CommandContext;
 import java.net.URI;
@@ -41,9 +45,14 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWScrollCallback;
+import org.lwjgl.glfw.GLFWScrollCallbackI;
 
 /**
  * RedstoneLink 客户端入口。
@@ -59,6 +68,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	private static KeyMapping toggleSerialOverlayKey;
 	private static KeyMapping toggleQuickLinkModeKey;
 	private static boolean quickLinkClearKeyWasDown;
+	private static long syncLinkerScrollHookWindowHandle;
+	private static GLFWScrollCallback syncLinkerScrollCallback;
+	private static GLFWScrollCallbackI previousSyncLinkerScrollCallback;
 
 	@Override
 	public void onInitializeClient() {
@@ -156,6 +168,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		);
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			ensureSyncLinkerScrollHookInstalled(client);
 			while (toggleSerialOverlayKey.consumeClick()) {
 				RedstoneLinkClientDisplayConfig.SerialOverlayMode mode = RedstoneLinkClientDisplayConfig.cycleSerialOverlayMode();
 				if (client.player != null) {
@@ -295,6 +308,64 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	}
 
 	/**
+	 * 确保客户端窗口已安装同步遥控器滚轮快捷调节钩子。
+	 */
+	private static void ensureSyncLinkerScrollHookInstalled(Minecraft client) {
+		if (client == null || client.getWindow() == null) {
+			return;
+		}
+		long windowHandle = client.getWindow().getWindow();
+		if (windowHandle == 0L || windowHandle == syncLinkerScrollHookWindowHandle) {
+			return;
+		}
+		if (syncLinkerScrollCallback == null) {
+			syncLinkerScrollCallback = GLFWScrollCallback.create((callbackWindow, horizontalAmount, verticalAmount) -> {
+				if (
+					!handleSyncLinkerMouseScroll(Minecraft.getInstance(), horizontalAmount, verticalAmount)
+						&& previousSyncLinkerScrollCallback != null
+				) {
+					previousSyncLinkerScrollCallback.invoke(callbackWindow, horizontalAmount, verticalAmount);
+				}
+			});
+		}
+		previousSyncLinkerScrollCallback = GLFW.glfwSetScrollCallback(windowHandle, syncLinkerScrollCallback);
+		syncLinkerScrollHookWindowHandle = windowHandle;
+	}
+
+	/**
+	 * 处理同步遥控器的 `Ctrl + 鼠标滚轮` 快捷调强度。
+	 */
+	private static boolean handleSyncLinkerMouseScroll(Minecraft client, double horizontalAmount, double verticalAmount) {
+		if (client == null || client.player == null || client.screen != null || !Screen.hasControlDown()) {
+			return false;
+		}
+		if (verticalAmount == 0.0D) {
+			return false;
+		}
+		ItemStack mainHandItem = client.player.getMainHandItem();
+		if (mainHandItem.isEmpty() || !(mainHandItem.getItem() instanceof SyncLinkerItem)) {
+			return false;
+		}
+		int delta = verticalAmount > 0.0D ? 1 : -1;
+		int currentSignalStrength = LinkItemData.getSyncLinkerSignalStrength(mainHandItem);
+		int nextSignalStrength = SignalStrengths.clamp(currentSignalStrength + delta);
+		LinkItemData.setSyncLinkerSignalStrength(mainHandItem, nextSignalStrength);
+		if (client.getConnection() != null) {
+			ClientPlayNetworking.send(
+				new PairingNetwork.SaveSyncLinkerSignalStrengthPayload(LinkItemData.getSerial(mainHandItem), nextSignalStrength)
+			);
+		}
+		client.player.displayClientMessage(
+			Component.translatable(
+				"message.redstonelink.sync_linker.signal_strength_changed",
+				Integer.toString(nextSignalStrength)
+			),
+			true
+		);
+		return true;
+	}
+
+	/**
 	 * 注册客户端独立命令根：
 	 * <p>
 	 * `/rlclient display far_overlay occluded|see_through` 仅影响本地显示配置；
@@ -349,7 +420,15 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 * 注册客户端生命周期钩子，用于在退出时关闭本地网页桥接服务。
 	 */
 	private static void registerClientLifecycleHooks() {
-		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> LocalWebAppBridgeService.stop());
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+			LocalWebAppBridgeService.stop();
+			if (syncLinkerScrollCallback != null) {
+				syncLinkerScrollCallback.free();
+				syncLinkerScrollCallback = null;
+			}
+			previousSyncLinkerScrollCallback = null;
+			syncLinkerScrollHookWindowHandle = 0L;
+		});
 	}
 
 	/**

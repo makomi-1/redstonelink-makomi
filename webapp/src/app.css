@@ -123,6 +123,16 @@ body {
   --recording-series-4-output: #e0c8ff;
   --recording-series-5-input: #ffd45f;
   --recording-series-5-output: #ffebb0;
+  --recording-series-6-input: #ff82b8;
+  --recording-series-6-output: #ffc6de;
+  --recording-series-7-input: #71f0dc;
+  --recording-series-7-output: #b9faf1;
+  --recording-series-8-input: #ff8e57;
+  --recording-series-8-output: #ffd1b4;
+  --recording-series-9-input: #8cb4ff;
+  --recording-series-9-output: #cfe0ff;
+  --recording-series-10-input: #c6f26b;
+  --recording-series-10-output: #e8f9b8;
   --graph-node-radius: 16px;
   --graph-repeater-node-radius: 18px;
   --graph-aggregate-node-radius: 16px;
@@ -237,6 +247,16 @@ body {
   --recording-series-4-output: #ddd5ff;
   --recording-series-5-input: #d6eaff;
   --recording-series-5-output: #f3f8ff;
+  --recording-series-6-input: #ff82cf;
+  --recording-series-6-output: #ffd0eb;
+  --recording-series-7-input: #54f2d4;
+  --recording-series-7-output: #b8fff0;
+  --recording-series-8-input: #ff9a66;
+  --recording-series-8-output: #ffd7bf;
+  --recording-series-9-input: #7fb4ff;
+  --recording-series-9-output: #d2e5ff;
+  --recording-series-10-input: #b8f58d;
+  --recording-series-10-output: #e4ffd2;
   --graph-node-radius: 0px;
   --graph-repeater-node-radius: 0px;
   --graph-aggregate-node-radius: 0px;
@@ -1867,7 +1887,7 @@ body {
 .recording-chart-tooltip {
   position: absolute;
   z-index: 4;
-  width: min(360px, calc(100% - 24px));
+  width: min(520px, calc(100% - 24px));
   padding: 12px 14px;
   border: 1px solid var(--app-control-border-strong);
   border-radius: 12px;

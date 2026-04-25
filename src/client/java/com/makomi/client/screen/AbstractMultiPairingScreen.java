@@ -70,6 +70,10 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	private static final int ACTION_BUTTON_GAP = 4;
 	/**
+	 * 控制行与下一组内容之间的垂直间距（像素）。
+	 */
+	private static final int CONTROL_ROW_GAP = 5;
+	/**
 	 * pairing 面板的首选宽度（像素）。
 	 */
 	private static final int PANEL_PREFERRED_WIDTH = ACTION_BUTTON_WIDTH * 2 + ACTION_BUTTON_GAP;
@@ -297,7 +301,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		}
 		String preservedAlias = aliasInput == null ? sourceAlias : aliasInput.getValue();
 		String preservedInput = serialInput == null ? initialInputValue() : serialInput.getValue();
-		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight, layoutDensity());
+		MultiPairingLayout layout = resolveLayoutForCurrentContext();
 		aliasInput = createAliasInputBox(layout);
 		aliasInput.setMaxLength(NodeAliasSavedData.maxAliasLength());
 		aliasInput.setHint(Component.translatable("screen.redstonelink.pairing.alias_hint"));
@@ -329,6 +333,9 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		} else {
 			modeButton = null;
 		}
+		if (hasSupplementalButtonRow()) {
+			initSupplementalButtonRow(layout);
+		}
 
 		int buttonRowY = layout.actionButtonY();
 		int actionButtonWidth = layout.actionButtonWidth();
@@ -344,7 +351,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight, layoutDensity());
+		MultiPairingLayout layout = resolveLayoutForCurrentContext();
 		int centerX = width / 2;
 		int baseY = layout.titleY();
 		int currentLinksX = layout.panelLeft();
@@ -391,7 +398,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	@Override
 	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		// 配对界面背景只包裹实际内容区域，并通过更大的垂直留白形成稳定的表单容器感。
-		MultiPairingLayout layout = resolveLayout(width, height, font.lineHeight, layoutDensity());
+		MultiPairingLayout layout = resolveLayoutForCurrentContext();
 		GuiBackgroundRenderSupport.renderWrappedRegion(
 			guiGraphics,
 			backgroundPreset(),
@@ -516,6 +523,19 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	protected LayoutDensity layoutDensity() {
 		return LayoutDensity.DEFAULT;
+	}
+
+	/**
+	 * @return 当前界面是否需要在模式按钮下方插入附加控制行
+	 */
+	protected boolean hasSupplementalButtonRow() {
+		return false;
+	}
+
+	/**
+	 * 初始化模式按钮下方的附加控制行。
+	 */
+	protected void initSupplementalButtonRow(MultiPairingLayout layout) {
 	}
 
 	/**
@@ -764,7 +784,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	/**
 	 * 根据当前界面样式创建操作按钮。
 	 */
-	private Button createActionButton(
+	protected final Button createActionButton(
 		ActionButtonKind kind,
 		Component message,
 		int x,
@@ -777,6 +797,27 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			return Button.builder(message, onPress).bounds(x, y, width, ACTION_BUTTON_HEIGHT).build();
 		}
 		return new StyledButton(x, y, width, ACTION_BUTTON_HEIGHT, message, onPress, style);
+	}
+
+	/**
+	 * @return 当前 pairing 行内按钮高度，供子类追加控制行时复用
+	 */
+	protected final int actionButtonHeight() {
+		return ACTION_BUTTON_HEIGHT;
+	}
+
+	/**
+	 * @return 当前 pairing 行内按钮间距，供子类追加控制行时复用
+	 */
+	protected final int actionButtonGap() {
+		return ACTION_BUTTON_GAP;
+	}
+
+	/**
+	 * 解析当前界面上下文实际使用的布局。
+	 */
+	private MultiPairingLayout resolveLayoutForCurrentContext() {
+		return resolveLayout(width, height, font.lineHeight, layoutDensity(), allowChannelMode(), hasSupplementalButtonRow());
 	}
 
 	/**
@@ -821,6 +862,17 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 					)
 				);
 		}
+		if (hasSupplementalButtonRow()) {
+			bounds =
+				bounds.include(
+					new GuiBackgroundRenderSupport.RegionBounds(
+						layout.panelLeft(),
+						layout.supplementalButtonY(),
+						layout.panelWidth(),
+						ACTION_BUTTON_HEIGHT
+					)
+				);
+		}
 		bounds = bounds.include(leftAlignedTextBounds(inputLabel(), layout.panelLeft(), layout.inputLabelY()));
 		bounds =
 			bounds.include(
@@ -852,7 +904,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 * 按当前屏幕尺寸解析 pairing 界面布局。
 	 */
 	static MultiPairingLayout resolveLayout(int screenWidth, int screenHeight, int fontLineHeight) {
-		return resolveLayout(screenWidth, screenHeight, fontLineHeight, LayoutDensity.DEFAULT);
+		return resolveLayout(screenWidth, screenHeight, fontLineHeight, LayoutDensity.DEFAULT, true, false);
 	}
 
 	/**
@@ -860,11 +912,33 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	 */
 	static MultiPairingLayout resolveLayout(int screenWidth, int screenHeight, int fontLineHeight, LayoutDensity layoutDensity) {
 		LayoutDensity resolvedDensity = layoutDensity == null ? LayoutDensity.DEFAULT : layoutDensity;
+		return resolveLayout(screenWidth, screenHeight, fontLineHeight, resolvedDensity, resolvedDensity != LayoutDensity.COMPACT, false);
+	}
+
+	/**
+	 * 按当前屏幕尺寸、布局密度与实际控制行数量解析 pairing 界面布局。
+	 */
+	static MultiPairingLayout resolveLayout(
+		int screenWidth,
+		int screenHeight,
+		int fontLineHeight,
+		LayoutDensity layoutDensity,
+		boolean showModeButton,
+		boolean showSupplementalButtonRow
+	) {
+		LayoutDensity resolvedDensity = layoutDensity == null ? LayoutDensity.DEFAULT : layoutDensity;
+		int preferredContentHeight = resolvedDensity == LayoutDensity.COMPACT ? COMPACT_PANEL_CONTENT_HEIGHT : PANEL_CONTENT_HEIGHT;
+		if (!showModeButton && resolvedDensity != LayoutDensity.COMPACT) {
+			preferredContentHeight -= ACTION_BUTTON_HEIGHT + CONTROL_ROW_GAP;
+		}
+		if (showSupplementalButtonRow) {
+			preferredContentHeight += ACTION_BUTTON_HEIGHT + CONTROL_ROW_GAP;
+		}
 		CenteredFormLayoutSupport.CenteredPanelBox panelBox = CenteredFormLayoutSupport.resolvePanelBox(
 			screenWidth,
 			screenHeight,
 			PANEL_PREFERRED_WIDTH,
-			resolvedDensity == LayoutDensity.COMPACT ? COMPACT_PANEL_CONTENT_HEIGHT : PANEL_CONTENT_HEIGHT,
+			preferredContentHeight,
 			SCREEN_EDGE_MARGIN
 		);
 		int titleY = panelBox.top();
@@ -872,8 +946,12 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int aliasSuffixY = aliasInputY + Math.max(0, (ALIAS_INPUT_HEIGHT - fontLineHeight) / 2) + 1;
 		int currentLinksY = aliasInputY + ALIAS_INPUT_HEIGHT + 4;
 		int currentLinksValueY = currentLinksY + fontLineHeight + 1;
-		int modeButtonY = currentLinksValueY + fontLineHeight + 2;
-		int inputLabelY = modeButtonY + (resolvedDensity == LayoutDensity.COMPACT ? 0 : ACTION_BUTTON_HEIGHT + 5);
+		int controlRowBaseY = currentLinksValueY + fontLineHeight + 2;
+		int modeButtonY = controlRowBaseY;
+		int supplementalButtonY = showModeButton ? modeButtonY + ACTION_BUTTON_HEIGHT + CONTROL_ROW_GAP : controlRowBaseY;
+		int inputLabelY = showSupplementalButtonRow
+			? supplementalButtonY + ACTION_BUTTON_HEIGHT + CONTROL_ROW_GAP
+			: showModeButton ? modeButtonY + ACTION_BUTTON_HEIGHT + CONTROL_ROW_GAP : controlRowBaseY;
 		int inputY = inputLabelY + fontLineHeight + INPUT_LABEL_MARGIN;
 		int actionButtonY = inputY + INPUT_BOX_HEIGHT + BUTTON_ROW_MARGIN - 2;
 		int actionButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(panelBox.width(), ACTION_BUTTON_GAP, ACTION_BUTTON_COUNT);
@@ -888,6 +966,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			currentLinksY,
 			currentLinksValueY,
 			modeButtonY,
+			supplementalButtonY,
 			inputLabelY,
 			inputY,
 			actionButtonY,
@@ -909,6 +988,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		int currentLinksY,
 		int currentLinksValueY,
 		int modeButtonY,
+		int supplementalButtonY,
 		int inputLabelY,
 		int inputY,
 		int actionButtonY,

@@ -7,6 +7,7 @@ import com.makomi.command.link.LinkSetExecutionService;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkConnectionMode;
+import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
@@ -27,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * `PairingNetwork` 的服务端请求处理壳。
@@ -216,6 +218,25 @@ final class PairingNetworkServerHandlerSupport {
 				? buildAliasSavedFeedback(sourceType, payload.sourceSerial(), result)
 				: buildAliasUnchangedFeedback(sourceType, payload.sourceSerial(), result)
 		);
+	}
+
+	/**
+	 * 保存当前主手同步遥控器的缓存强度。
+	 */
+	static void handleSaveSyncLinkerSignalStrength(ServerPlayer player, PairingNetwork.SaveSyncLinkerSignalStrengthPayload payload) {
+		if (player == null || payload == null) {
+			return;
+		}
+		ItemStack mainHandItem = player.getMainHandItem();
+		if (mainHandItem.isEmpty() || !(mainHandItem.getItem() instanceof com.makomi.item.SyncLinkerItem)) {
+			return;
+		}
+		long heldSerial = LinkItemData.getSerial(mainHandItem);
+		if (payload.expectedSerial() > 0L && heldSerial > 0L && heldSerial != payload.expectedSerial()) {
+			return;
+		}
+		LinkItemData.setSyncLinkerSignalStrength(mainHandItem, payload.signalStrength());
+		player.containerMenu.broadcastChanges();
 	}
 
 	/**

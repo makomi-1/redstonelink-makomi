@@ -17,7 +17,7 @@ import type { WebThemeId } from '../app/theme';
 import { pickLocalizedText, type AppLanguage } from '../app/i18n';
 
 const DEFAULT_VISIBLE_METRICS: RecordingMetricKey[] = ['inputPower', 'outputPower'];
-const MAX_SELECTED_RECORDING_NODES = 5;
+const MAX_VISIBLE_RECORDING_LINES = 10;
 const RECORDING_NODE_COLORS = [
   {
     inputColor: 'var(--recording-series-1-input)',
@@ -38,6 +38,26 @@ const RECORDING_NODE_COLORS = [
   {
     inputColor: 'var(--recording-series-5-input)',
     outputColor: 'var(--recording-series-5-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-6-input)',
+    outputColor: 'var(--recording-series-6-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-7-input)',
+    outputColor: 'var(--recording-series-7-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-8-input)',
+    outputColor: 'var(--recording-series-8-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-9-input)',
+    outputColor: 'var(--recording-series-9-output)',
+  },
+  {
+    inputColor: 'var(--recording-series-10-input)',
+    outputColor: 'var(--recording-series-10-output)',
   },
 ] as const;
 
@@ -78,20 +98,24 @@ export default function RecordingViewer({
   >(DEFAULT_VISIBLE_METRICS);
   const [recordingWindow, setRecordingWindow] =
     useState<RecordingChartWindow | null>(null);
+  const maxSelectableRecordingNodes = Math.max(
+    1,
+    Math.floor(MAX_VISIBLE_RECORDING_LINES / Math.max(1, visibleRecordingMetrics.length)),
+  );
 
   useEffect(() => {
     const availableNodeKeys = new Set(recordingBundle.nodes.map((node) => node.nodeKey));
     setSelectedRecordingNodeKeys((currentKeys) => {
       const nextKeys = currentKeys
         .filter((nodeKey) => availableNodeKeys.has(nodeKey))
-        .slice(0, MAX_SELECTED_RECORDING_NODES);
+        .slice(0, maxSelectableRecordingNodes);
       if (nextKeys.length > 0) {
         return nextKeys;
       }
       const firstNodeKey = recordingBundle.nodes[0]?.nodeKey;
       return firstNodeKey ? [firstNodeKey] : [];
     });
-  }, [recordingBundle]);
+  }, [maxSelectableRecordingNodes, recordingBundle]);
 
   useEffect(() => {
     setRecordingWindow(null);
@@ -165,7 +189,7 @@ export default function RecordingViewer({
       if (currentNodeKeys.includes(nodeKey)) {
         return currentNodeKeys.filter((currentNodeKey) => currentNodeKey !== nodeKey);
       }
-      if (currentNodeKeys.length >= MAX_SELECTED_RECORDING_NODES) {
+      if (currentNodeKeys.length >= maxSelectableRecordingNodes) {
         return currentNodeKeys;
       }
       return [...currentNodeKeys, nodeKey];
@@ -229,14 +253,14 @@ export default function RecordingViewer({
           <div className="recording-section-header">
             <span className="section-tag">Nodes</span>
             <h3>
-              {text('录制节点', 'Recording Nodes')} ({selectedRecordingNodeKeys.length}/{MAX_SELECTED_RECORDING_NODES})
+              {text('录制节点', 'Recording Nodes')} ({selectedRecordingNodeKeys.length}/{maxSelectableRecordingNodes})
             </h3>
           </div>
           {recordingBundle.nodes.map((node) => {
             const isSelected = selectedRecordingNodeKeys.includes(node.nodeKey);
             const disabled =
               !isSelected &&
-              selectedRecordingNodeKeys.length >= MAX_SELECTED_RECORDING_NODES;
+              selectedRecordingNodeKeys.length >= maxSelectableRecordingNodes;
             return (
               <button
                 key={node.nodeKey}
@@ -267,7 +291,12 @@ export default function RecordingViewer({
               </div>
               <div>
                 <dt>Chart Limit</dt>
-                <dd>{MAX_SELECTED_RECORDING_NODES}</dd>
+                <dd>
+                  {text(
+                    `${MAX_VISIBLE_RECORDING_LINES} 条线 / ${maxSelectableRecordingNodes} 节点`,
+                    `${MAX_VISIBLE_RECORDING_LINES} lines / ${maxSelectableRecordingNodes} nodes`,
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>Series With Samples</dt>
@@ -319,6 +348,7 @@ export default function RecordingViewer({
               toggleMetric={toggleMetric}
               recordingWindow={activeRecordingWindow}
               fullRecordingDomain={fullRecordingDomain}
+              maxSelectableNodeCount={maxSelectableRecordingNodes}
               onWindowChange={setRecordingWindow}
               onResetWindow={() => setRecordingWindow(null)}
             />
@@ -353,6 +383,7 @@ type RecordingSeriesPanelProps = {
   toggleMetric: (metric: RecordingMetricKey) => void;
   recordingWindow: RecordingChartWindow;
   fullRecordingDomain: RecordingChartWindow;
+  maxSelectableNodeCount: number;
   onWindowChange: (nextWindow: RecordingChartWindow) => void;
   onResetWindow: () => void;
 };
@@ -371,6 +402,7 @@ function RecordingSeriesPanel({
   toggleMetric,
   recordingWindow,
   fullRecordingDomain,
+  maxSelectableNodeCount,
   onWindowChange,
   onResetWindow,
 }: RecordingSeriesPanelProps) {
@@ -436,6 +468,7 @@ function RecordingSeriesPanel({
         <RecordingChart
           language={language}
           nodeSeriesGroups={chartNodeSeriesGroups}
+          maxSelectableNodeCount={maxSelectableNodeCount}
           startedTick={recordingBundle.manifest.startedTick}
           xMode={recordingXAxisMode}
           renderMode={recordingChartRenderMode}

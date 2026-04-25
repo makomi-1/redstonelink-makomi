@@ -241,7 +241,7 @@ class LinkItemDataTest {
 	}
 
 	/**
-	 * 同步遥控器状态应镜像到自定义模型数据，便于切换贴图。
+	 * 同步遥控器强度应支持 `0~15`，并继续镜像到二态贴图状态。
 	 */
 	@Test
 	void syncLinkerSignalStrengthShouldMirrorCustomModelData() {
@@ -251,11 +251,24 @@ class LinkItemDataTest {
 		assertEquals(0, LinkItemData.getSyncLinkerSignalStrength(stack));
 		assertNull(stack.get(DataComponents.CUSTOM_MODEL_DATA));
 
+		LinkItemData.setSyncLinkerSignalStrength(stack, 7);
+		assertEquals(7, LinkItemData.getSyncLinkerSignalStrength(stack));
+		CustomModelData mediumModelData = stack.get(DataComponents.CUSTOM_MODEL_DATA);
+		assertNotNull(mediumModelData);
+		assertEquals(1, mediumModelData.value());
+
 		LinkItemData.setSyncLinkerSignalStrength(stack, 15);
 		assertEquals(15, LinkItemData.getSyncLinkerSignalStrength(stack));
 		CustomModelData activeModelData = stack.get(DataComponents.CUSTOM_MODEL_DATA);
 		assertNotNull(activeModelData);
 		assertEquals(1, activeModelData.value());
+
+		LinkItemData.setSyncLinkerSignalStrength(stack, 999);
+		assertEquals(15, LinkItemData.getSyncLinkerSignalStrength(stack));
+
+		LinkItemData.setSyncLinkerSignalStrength(stack, -3);
+		assertEquals(0, LinkItemData.getSyncLinkerSignalStrength(stack));
+		assertNull(stack.get(DataComponents.CUSTOM_MODEL_DATA));
 
 		LinkItemData.setSyncLinkerSignalStrength(stack, 0);
 		assertEquals(0, LinkItemData.getSyncLinkerSignalStrength(stack));
