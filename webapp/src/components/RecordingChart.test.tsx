@@ -104,6 +104,7 @@ describe('RecordingChart', () => {
         nodeSeriesGroups={[
           {
             nodeKey: 'node-a',
+            nodeType: 'triggerSource',
             label: '节点A',
             inputColor: '#66ccff',
             outputColor: '#ffaa66',
@@ -136,8 +137,8 @@ describe('RecordingChart', () => {
       });
     });
 
-    expect(await screen.findByText('节点A · 输入')).toBeInTheDocument();
-    expect(screen.getByText('节点A · 输出')).toBeInTheDocument();
+    expect(await screen.findByText('triggerSource · 节点A · 输入')).toBeInTheDocument();
+    expect(screen.getByText('triggerSource · 节点A · 输出')).toBeInTheDocument();
     expect(screen.getByText('Tick 差值')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
     expect(screen.getByText('6')).toBeInTheDocument();

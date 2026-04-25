@@ -100,6 +100,63 @@ describe('graphViewer/canvas', () => {
     );
   });
 
+  it('buildGraphCanvasView 在序号模式下会把转发器双身份组合成 repeater 节点', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({ type: 'triggerSource', serial: 1 }),
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          alias: 'relay',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          alias: 'relay',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({ type: 'core', serial: 20 }),
+      ],
+      edges: [
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 10 }),
+        createTestGraphEdge({ sourceSerial: 10, targetSerial: 20 }),
+      ],
+    });
+
+    const collapsedView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(),
+      new Set<string>(),
+      'serial',
+    );
+
+    expect(collapsedView.repeaterNodes).toHaveLength(1);
+    expect(collapsedView.repeaterNodes[0]).toMatchObject({
+      serial: 10,
+      inputSerials: [1],
+      outputSerials: [20],
+      memberNodeKeys: ['triggerSource:10', 'core:10'],
+      expanded: false,
+    });
+    expect(collapsedView.canvasNodes.map((node) => node.nodeKey)).toContain('repeater:10');
+    expect(collapsedView.canvasNodes.map((node) => node.nodeKey)).not.toEqual(
+      expect.arrayContaining(['triggerSource:10', 'core:10']),
+    );
+
+    const expandedView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(),
+      new Set<string>(['repeater:10']),
+      'serial',
+    );
+
+    expect(expandedView.repeaterNodes[0]?.expanded).toBe(true);
+    expect(expandedView.canvasNodes.map((node) => node.nodeKey)).toEqual(
+      expect.arrayContaining(['repeater:10', 'triggerSource:10', 'core:10']),
+    );
+  });
+
   it('buildGraphCanvasView 在频道模式下会生成 channelHub 节点', () => {
     const graphBundle = createTestGraphBundle({
       nodes: [
@@ -136,6 +193,58 @@ describe('graphViewer/canvas', () => {
       'channel-edge:channelHub:3:core:10',
       'channel-edge:triggerSource:1:channelHub:3',
     ]);
+  });
+
+  it('buildGraphCanvasView 在频道模式下会自动排除 repeater 节点', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 1,
+          connectionMode: 'channel',
+          channel: 3,
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 2,
+          connectionMode: 'channel',
+          channel: 3,
+        }),
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          connectionMode: 'channel',
+          channel: 3,
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          connectionMode: 'channel',
+          channel: 3,
+          capabilityFlags: ['repeater'],
+        }),
+      ],
+    });
+
+    const canvasView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(),
+      new Set<string>(),
+      'channel',
+    );
+
+    expect(canvasView.repeaterNodes).toEqual([]);
+    expect(canvasView.channelHubNodes).toHaveLength(1);
+    expect(canvasView.channelHubNodes[0]).toMatchObject({
+      channel: 3,
+      sourceSerials: [1],
+      coreSerials: [2],
+      memberCount: 2,
+    });
+    expect(canvasView.canvasNodes.map((node) => node.nodeKey)).not.toEqual(
+      expect.arrayContaining(['triggerSource:10', 'core:10', 'repeater:10']),
+    );
   });
 
   it('buildAutoLayoutPositions 与 buildGraphFlowNodes 会为画布节点生成稳定位置和节点状态', () => {
@@ -293,6 +402,7 @@ describe('graphViewer/canvas', () => {
       visibleActualNodeKeys: new Set<string>(['triggerSource:1', 'core:10']),
       isolatedTriggerSourceNodes: [],
       isolatedCoreNodes: [],
+      repeaterNodes: [],
       aggregateNodes: [],
       channelHubNodes: [],
     };

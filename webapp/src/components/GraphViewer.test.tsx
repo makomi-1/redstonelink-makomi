@@ -815,6 +815,66 @@ describe('GraphViewer', () => {
     );
   });
 
+  it('点击 repeater 节点后会展开内部成员并显示转发器详情', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+    const repeaterGraphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 1,
+          alias: 'alpha',
+          displayText: 'alpha(#1)',
+        }),
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          alias: 'relay',
+          displayText: 'relay(#10)',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          alias: 'relay',
+          displayText: 'relay(#10)',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 20,
+          alias: 'omega',
+          displayText: 'omega(#20)',
+        }),
+      ],
+      edges: [
+        createTestGraphEdge({ sourceSerial: 1, targetSerial: 10 }),
+        createTestGraphEdge({ sourceSerial: 10, targetSerial: 20 }),
+      ],
+    });
+
+    render(
+      <GraphViewer
+        graphBundle={repeaterGraphBundle}
+        graphFileName="repeater-graph.json"
+        language="zh-CN"
+      />,
+    );
+
+    expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('3');
+
+    await user.click(screen.getByTestId('rf-click:repeater:10'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('6'),
+    );
+    expect(screen.getByTestId('rf-click:triggerSource:10')).toBeInTheDocument();
+    expect(screen.getByTestId('rf-click:core:10')).toBeInTheDocument();
+    expect(screen.getByText('Input Nodes')).toBeInTheDocument();
+    expect(screen.getByText('Output Nodes')).toBeInTheDocument();
+    expect(screen.getByText('repeater:10')).toBeInTheDocument();
+  });
+
   it('频道模式在查看态应用另一模式节点后会恢复 triggerSource 聚合显示', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createGraphViewerFetchMock());
@@ -870,5 +930,70 @@ describe('GraphViewer', () => {
     await waitFor(() =>
       expect(screen.getByTestId('reactflow-node-count')).toHaveTextContent('3'),
     );
+  });
+
+  it('频道模式的另一模式节点池会自动排除 repeater 节点', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createGraphViewerFetchMock());
+    const channelGraphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 1,
+          alias: 'alpha',
+          displayText: 'alpha(#1)',
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 2,
+          alias: 'beta',
+          displayText: 'beta(#2)',
+        }),
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          alias: 'relay',
+          displayText: 'relay(#10)',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          alias: 'relay',
+          displayText: 'relay(#10)',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 30,
+          alias: 'channel-core',
+          displayText: 'channel-core(#30)',
+          connectionMode: 'channel',
+          channel: 9,
+        }),
+      ],
+    });
+
+    render(
+      <GraphViewer
+        graphBundle={channelGraphBundle}
+        graphFileName="channel-repeater-graph.json"
+        language="zh-CN"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '频道' }));
+    await user.click(screen.getByRole('button', { name: '另一模式节点池' }));
+
+    expect(screen.getByRole('button', { name: '#1 (alpha)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '#2 (beta)' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '#10 (relay)' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        '这里列出当前仍处于序号模式的节点。先选择要迁入当前频道模式的节点，点击“应用到草稿”后，它们才会并入当前频道编辑上下文；转发器不支持频道模式，已自动排除。',
+      ),
+    ).toBeInTheDocument();
   });
 });

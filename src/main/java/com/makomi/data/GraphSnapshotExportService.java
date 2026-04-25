@@ -229,14 +229,22 @@ public final class GraphSnapshotExportService {
 			savedData.getChannel(nodeType, serial),
 			savedData.sourceRevision(nodeType, serial),
 			nodeType == LinkNodeType.CORE ? savedData.coreRevision(serial) : 0L,
-			resolveCapabilityFlags(nodeType, connectionMode)
+			resolveCapabilityFlags(savedData, nodeType, serial, connectionMode)
 		);
 	}
 
-	private static List<String> resolveCapabilityFlags(LinkNodeType nodeType, LinkConnectionMode connectionMode) {
-		List<String> capabilityFlags = new ArrayList<>(3);
+	private static List<String> resolveCapabilityFlags(
+		LinkSavedData savedData,
+		LinkNodeType nodeType,
+		long serial,
+		LinkConnectionMode connectionMode
+	) {
+		List<String> capabilityFlags = new ArrayList<>(4);
 		capabilityFlags.add(nodeType == LinkNodeType.TRIGGER_SOURCE ? "outbound" : "inbound");
 		capabilityFlags.add("readonly");
+		if (savedData != null && savedData.isRepeaterSerial(serial)) {
+			capabilityFlags.add("repeater");
+		}
 		if (connectionMode == LinkConnectionMode.CHANNEL) {
 			capabilityFlags.add("channel");
 		}

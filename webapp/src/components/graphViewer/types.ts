@@ -52,6 +52,22 @@ export type GraphCanvasActualNode = {
   graphNode: GraphNodeInfo;
 };
 
+export type GraphCanvasRepeaterNode = {
+  kind: "repeater";
+  nodeKey: string;
+  serial: number;
+  displayText: string;
+  triggerSourceNodeKey: string;
+  coreNodeKey: string;
+  memberNodeKeys: string[];
+  inputNodeKeys: string[];
+  inputSerials: number[];
+  outputNodeKeys: string[];
+  outputSerials: number[];
+  connectedNodeKeys: string[];
+  expanded: boolean;
+};
+
 export type GraphAggregateRole = "core" | "triggerSource";
 
 export type GraphCanvasAggregateNode = {
@@ -86,6 +102,7 @@ export type GraphCanvasChannelHubNode = {
 
 export type GraphCanvasNodeInfo =
   | GraphCanvasActualNode
+  | GraphCanvasRepeaterNode
   | GraphCanvasAggregateNode
   | GraphCanvasChannelHubNode;
 
@@ -113,6 +130,7 @@ export type GraphCanvasView = {
   visibleActualNodeKeys: Set<string>;
   isolatedTriggerSourceNodes: GraphNodeInfo[];
   isolatedCoreNodes: GraphNodeInfo[];
+  repeaterNodes: GraphCanvasRepeaterNode[];
   aggregateNodes: GraphCanvasAggregateNode[];
   channelHubNodes: GraphCanvasChannelHubNode[];
 };

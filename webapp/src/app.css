@@ -74,6 +74,8 @@ body {
   --graph-trigger-bg: rgba(255, 181, 140, 0.22);
   --graph-core-border: rgba(108, 230, 255, 0.82);
   --graph-core-bg: rgba(108, 230, 255, 0.2);
+  --graph-repeater-border: rgba(143, 240, 180, 0.82);
+  --graph-repeater-bg: rgba(143, 240, 180, 0.18);
   --graph-channel-border: rgba(239, 216, 139, 0.82);
   --graph-channel-bg: rgba(239, 216, 139, 0.2);
   --graph-aggregate-border: rgba(140, 213, 255, 0.82);
@@ -89,6 +91,9 @@ body {
   --graph-node-draft-accent: #8ef0b8;
   --graph-node-base-border: rgba(255, 214, 191, 0.22);
   --graph-node-text: #fff4eb;
+  --graph-repeater-accent: #8ef0b8;
+  --graph-repeater-surface:
+    linear-gradient(180deg, rgba(143, 240, 180, 0.18), rgba(43, 115, 86, 0.08));
   --graph-aggregate-accent: #8ad8ff;
   --graph-aggregate-surface:
     linear-gradient(180deg, rgba(98, 198, 255, 0.18), rgba(83, 148, 255, 0.08));
@@ -102,6 +107,7 @@ body {
   --graph-grid-color: rgba(255, 214, 191, 0.12);
   --graph-minimap-trigger: rgba(255, 181, 140, 0.82);
   --graph-minimap-core: rgba(108, 230, 255, 0.8);
+  --graph-minimap-repeater: rgba(143, 240, 180, 0.88);
   --graph-minimap-channel: rgba(239, 216, 139, 0.9);
   --graph-minimap-aggregate: rgba(140, 213, 255, 0.86);
   --graph-minimap-mask: rgba(10, 12, 18, 0.28);
@@ -118,6 +124,7 @@ body {
   --recording-series-5-input: #ffd45f;
   --recording-series-5-output: #ffebb0;
   --graph-node-radius: 16px;
+  --graph-repeater-node-radius: 18px;
   --graph-aggregate-node-radius: 16px;
   --graph-channel-node-radius: 18px;
   position: relative;
@@ -181,6 +188,8 @@ body {
   --graph-trigger-bg: rgba(255, 120, 140, 0.18);
   --graph-core-border: rgba(116, 220, 255, 0.82);
   --graph-core-bg: rgba(116, 220, 255, 0.16);
+  --graph-repeater-border: rgba(143, 240, 184, 0.78);
+  --graph-repeater-bg: rgba(143, 240, 184, 0.14);
   --graph-channel-border: rgba(207, 229, 255, 0.76);
   --graph-channel-bg: rgba(207, 229, 255, 0.12);
   --graph-aggregate-border: rgba(127, 207, 255, 0.8);
@@ -196,6 +205,9 @@ body {
   --graph-node-draft-accent: #8ef0b8;
   --graph-node-base-border: rgba(157, 194, 241, 0.22);
   --graph-node-text: #f5f9ff;
+  --graph-repeater-accent: #8ef0b8;
+  --graph-repeater-surface:
+    linear-gradient(180deg, rgba(143, 240, 184, 0.18), rgba(44, 118, 110, 0.08));
   --graph-aggregate-accent: #79d2ff;
   --graph-aggregate-surface:
     linear-gradient(180deg, rgba(85, 173, 255, 0.16), rgba(59, 112, 198, 0.08));
@@ -209,6 +221,7 @@ body {
   --graph-grid-color: rgba(157, 194, 241, 0.12);
   --graph-minimap-trigger: rgba(255, 120, 140, 0.84);
   --graph-minimap-core: rgba(116, 220, 255, 0.82);
+  --graph-minimap-repeater: rgba(143, 240, 184, 0.82);
   --graph-minimap-channel: rgba(207, 229, 255, 0.82);
   --graph-minimap-aggregate: rgba(127, 207, 255, 0.82);
   --graph-minimap-mask: rgba(4, 10, 20, 0.32);
@@ -225,6 +238,7 @@ body {
   --recording-series-5-input: #d6eaff;
   --recording-series-5-output: #f3f8ff;
   --graph-node-radius: 0px;
+  --graph-repeater-node-radius: 0px;
   --graph-aggregate-node-radius: 0px;
   --graph-channel-node-radius: 0px;
 }
@@ -320,6 +334,8 @@ body {
   --graph-trigger-bg: rgba(249, 115, 22, 0.16);
   --graph-core-border: rgba(37, 99, 235, 0.56);
   --graph-core-bg: rgba(59, 130, 246, 0.16);
+  --graph-repeater-border: rgba(34, 197, 94, 0.54);
+  --graph-repeater-bg: rgba(34, 197, 94, 0.14);
   --graph-channel-border: rgba(245, 158, 11, 0.56);
   --graph-channel-bg: rgba(245, 158, 11, 0.16);
   --graph-aggregate-border: rgba(56, 189, 248, 0.58);
@@ -335,6 +351,9 @@ body {
   --graph-node-draft-accent: #16a34a;
   --graph-node-base-border: rgba(83, 108, 128, 0.24);
   --graph-node-text: #10283a;
+  --graph-repeater-accent: #16a34a;
+  --graph-repeater-surface:
+    linear-gradient(180deg, rgba(134, 239, 172, 0.24), rgba(34, 197, 94, 0.08));
   --graph-aggregate-accent: #38bdf8;
   --graph-aggregate-surface:
     linear-gradient(180deg, rgba(147, 197, 253, 0.28), rgba(191, 219, 254, 0.12));
@@ -348,6 +367,7 @@ body {
   --graph-grid-color: rgba(62, 112, 160, 0.16);
   --graph-minimap-trigger: rgba(249, 115, 22, 0.72);
   --graph-minimap-core: rgba(37, 99, 235, 0.72);
+  --graph-minimap-repeater: rgba(34, 197, 94, 0.76);
   --graph-minimap-channel: rgba(245, 158, 11, 0.74);
   --graph-minimap-aggregate: rgba(56, 189, 248, 0.74);
   --graph-minimap-mask: rgba(228, 237, 245, 0.54);
@@ -406,6 +426,8 @@ body {
   --graph-trigger-bg: rgba(210, 106, 28, 0.15);
   --graph-core-border: rgba(36, 132, 222, 0.54);
   --graph-core-bg: rgba(36, 132, 222, 0.14);
+  --graph-repeater-border: rgba(34, 197, 94, 0.46);
+  --graph-repeater-bg: rgba(34, 197, 94, 0.12);
   --graph-channel-border: rgba(183, 138, 48, 0.52);
   --graph-channel-bg: rgba(183, 138, 48, 0.16);
   --graph-aggregate-border: rgba(71, 172, 229, 0.5);
@@ -421,6 +443,9 @@ body {
   --graph-node-draft-accent: #16a34a;
   --graph-node-base-border: rgba(97, 110, 120, 0.22);
   --graph-node-text: #1b232b;
+  --graph-repeater-accent: #16a34a;
+  --graph-repeater-surface:
+    linear-gradient(180deg, rgba(134, 239, 172, 0.2), rgba(22, 163, 74, 0.08));
   --graph-aggregate-accent: #47ace5;
   --graph-aggregate-surface:
     linear-gradient(180deg, rgba(125, 201, 240, 0.24), rgba(36, 132, 222, 0.08));
@@ -434,6 +459,7 @@ body {
   --graph-grid-color: rgba(92, 99, 108, 0.14);
   --graph-minimap-trigger: rgba(210, 106, 28, 0.74);
   --graph-minimap-core: rgba(36, 132, 222, 0.76);
+  --graph-minimap-repeater: rgba(34, 197, 94, 0.72);
   --graph-minimap-channel: rgba(183, 138, 48, 0.76);
   --graph-minimap-aggregate: rgba(71, 172, 229, 0.74);
   --graph-minimap-mask: rgba(233, 235, 238, 0.54);
@@ -1432,6 +1458,11 @@ body {
 .graph-legend-swatch.is-core {
   border-color: var(--graph-core-border);
   background: var(--graph-core-bg);
+}
+
+.graph-legend-swatch.is-repeater {
+  border-color: var(--graph-repeater-border);
+  background: var(--graph-repeater-bg);
 }
 
 .graph-legend-swatch.is-channel-hub {

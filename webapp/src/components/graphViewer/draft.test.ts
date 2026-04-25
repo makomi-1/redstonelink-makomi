@@ -63,6 +63,37 @@ describe('graphViewer/draft', () => {
     ]);
   });
 
+  it('applyBatchEditToDraft 会对转发器做同序号自隔离', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({ type: 'core', serial: 11 }),
+      ],
+    });
+    const initialDraft = createInitialGraphDraft(graphBundle);
+
+    const nextDraft = applyBatchEditToDraft(initialDraft, graphBundle, 'replace', [10], [10, 11]);
+
+    expect(resolveEffectiveTargetSerials(graphBundle, nextDraft, 10)).toEqual([11]);
+    expect(nextDraft.operations).toEqual([
+      {
+        type: 'ReplaceTriggerSourceTargets',
+        triggerSourceSerial: 10,
+        expectedSourceRevision: 10,
+        targetCoreSerials: [11],
+      },
+    ]);
+  });
+
   it('频道迁回序号后，当前目标集合会按空显式边基线起算', () => {
     const graphBundle = createTestGraphBundle({
       nodes: [

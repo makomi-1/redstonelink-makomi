@@ -48,6 +48,13 @@ type RecordingViewerProps = {
 };
 
 /**
+ * 录制页的图例、摘要与 tooltip 统一展示节点类型，方便快速区分 triggerSource/core。
+ */
+function formatRecordingNodeLegendLabel(node: RecordingNodeInfo): string {
+  return `${node.type} · ${node.displayText}`;
+}
+
+/**
  * 录制结果查看器。
  * <p>
  * 当前阶段负责节点切换、曲线显隐、横坐标模式切换与时间窗状态承载，
@@ -121,6 +128,7 @@ export default function RecordingViewer({
         const colorPair = RECORDING_NODE_COLORS[index % RECORDING_NODE_COLORS.length];
         return {
           nodeKey: entry.node.nodeKey,
+          nodeType: entry.node.type,
           label: entry.node.displayText,
           samples: entry.series.samples,
           inputColor: colorPair.inputColor,
@@ -278,7 +286,9 @@ export default function RecordingViewer({
                   RECORDING_NODE_COLORS[index % RECORDING_NODE_COLORS.length];
                 return (
                   <div key={entry.node.nodeKey} className="recording-selection-chip">
-                    <span className="recording-selection-name">{entry.node.displayText}</span>
+                    <span className="recording-selection-name">
+                      {formatRecordingNodeLegendLabel(entry.node)}
+                    </span>
                     <span
                       className="recording-legend-stroke"
                       style={{ borderTopColor: colorPair.inputColor }}
@@ -328,6 +338,7 @@ type RecordingSeriesPanelProps = {
   }>;
   chartNodeSeriesGroups: Array<{
     nodeKey: string;
+    nodeType: RecordingNodeInfo['type'];
     label: string;
     samples: RecordingSeries['samples'];
     inputColor: string;

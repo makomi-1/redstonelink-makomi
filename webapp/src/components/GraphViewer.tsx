@@ -54,6 +54,7 @@ import {
   type GraphCanvasAggregateNode,
   type GraphCanvasChannelHubNode,
   type GraphCanvasNodeInfo,
+  type GraphCanvasRepeaterNode,
   type GraphDisplayContentMode,
   type GraphDisplayMode,
   type GraphEditMode,
@@ -94,6 +95,9 @@ function normalizeAliasInput(value: string): string {
 function formatCanvasNodeDisplayText(canvasNode: GraphCanvasNodeInfo): string {
   if (canvasNode.kind === "actual") {
     return canvasNode.graphNode.displayText;
+  }
+  if (canvasNode.kind === "repeater") {
+    return canvasNode.displayText;
   }
   if (canvasNode.kind === "channelHub") {
     return `channel #${canvasNode.channel}`;
@@ -255,13 +259,17 @@ function buildCanvasStructureSignature(
 ): string {
   const nodeTokens = canvasNodes
     .map((canvasNode) =>
-      canvasNode.kind === "aggregate"
+      canvasNode.kind === "aggregate" || canvasNode.kind === "repeater"
         ? `${canvasNode.nodeKey}:${canvasNode.expanded ? "1" : "0"}`
         : canvasNode.nodeKey,
     )
     .sort();
   const edgeTokens = layoutEdges.map((edge) => edge.edgeKey).sort();
   return `${nodeTokens.join("|")}::${edgeTokens.join("|")}`;
+}
+
+function isRepeaterGraphNode(node: GraphNodeInfo): boolean {
+  return node.capabilityFlags.includes("repeater");
 }
 
 function buildLocallyAppliedBaseGraphBundle(
@@ -532,7 +540,7 @@ export default function GraphViewer({
         .filter((node) =>
           displayMode === "serial"
             ? node.connectionMode === "channel" && node.channel > 0
-            : node.connectionMode === "serial",
+            : node.connectionMode === "serial" && !isRepeaterGraphNode(node),
         )
         .sort((left, right) => {
           if (left.type !== right.type) {
@@ -632,9 +640,13 @@ export default function GraphViewer({
     ],
   );
 
+  const expandableCanvasNodes = useMemo(
+    () => [...graphCanvasView.repeaterNodes, ...graphCanvasView.aggregateNodes],
+    [graphCanvasView.aggregateNodes, graphCanvasView.repeaterNodes],
+  );
   useEffect(() => {
     const currentAggregateNodeKeySet = new Set(
-      graphCanvasView.aggregateNodes.map((aggregateNode) => aggregateNode.nodeKey),
+      expandableCanvasNodes.map((aggregateNode) => aggregateNode.nodeKey),
     );
     setExpandedAggregateNodeKeys((currentValues) => {
       const nextValues = currentValues.filter((nodeKey) =>
@@ -644,7 +656,7 @@ export default function GraphViewer({
         ? currentValues
         : nextValues;
     });
-  }, [graphCanvasView.aggregateNodes]);
+  }, [expandableCanvasNodes]);
 
   const canvasStructureSignature = useMemo(
     () =>
@@ -668,6 +680,15 @@ export default function GraphViewer({
         nextKeys.add(channelHubNode.nodeKey);
       }
     });
+    graphCanvasView.repeaterNodes.forEach((repeaterNode) => {
+      if (
+        repeaterNode.memberNodeKeys.some((nodeKey) =>
+          draftDiff.changedNodeKeys.has(nodeKey),
+        )
+      ) {
+        nextKeys.add(repeaterNode.nodeKey);
+      }
+    });
     graphCanvasView.aggregateNodes.forEach((aggregateNode) => {
       if (
         aggregateNode.memberNodeKeys.some((nodeKey) =>
@@ -682,6 +703,7 @@ export default function GraphViewer({
     draftDiff.changedNodeKeys,
     graphCanvasView.aggregateNodes,
     graphCanvasView.channelHubNodes,
+    graphCanvasView.repeaterNodes,
   ]);
   const matchedCanvasNodeKeys = useMemo(() => {
     const nextKeys = new Set(matchedNodeKeys);
@@ -692,6 +714,15 @@ export default function GraphViewer({
         )
       ) {
         nextKeys.add(channelHubNode.nodeKey);
+      }
+    });
+    graphCanvasView.repeaterNodes.forEach((repeaterNode) => {
+      if (
+        repeaterNode.memberNodeKeys.some((nodeKey) =>
+          matchedNodeKeys.has(nodeKey),
+        )
+      ) {
+        nextKeys.add(repeaterNode.nodeKey);
       }
     });
     graphCanvasView.aggregateNodes.forEach((aggregateNode) => {
@@ -710,6 +741,7 @@ export default function GraphViewer({
   }, [
     graphCanvasView.aggregateNodes,
     graphCanvasView.channelHubNodes,
+    graphCanvasView.repeaterNodes,
     matchedNodeKeys,
   ]);
   const selectedCanvasNode = useMemo(
@@ -732,6 +764,8 @@ export default function GraphViewer({
   );
   const selectedAggregateNode =
     selectedCanvasNode?.kind === "aggregate" ? selectedCanvasNode : null;
+  const selectedRepeaterNode =
+    selectedCanvasNode?.kind === "repeater" ? selectedCanvasNode : null;
   const selectedNode =
     selectedCanvasNode?.kind === "actual" ? selectedCanvasNode.graphNode : null;
   const canEditSelectedAlias = canEditCurrentView && selectedNode != null;
@@ -788,6 +822,27 @@ export default function GraphViewer({
         .map((nodeKey) => nodeByKey.get(nodeKey) ?? null)
         .filter((node): node is GraphNodeInfo => node != null),
     [nodeByKey, selectedAggregateNode],
+  );
+  const selectedRepeaterInputCanvasNodes = useMemo(
+    () =>
+      (selectedRepeaterNode?.inputNodeKeys ?? [])
+        .map((nodeKey) => canvasNodeByKey.get(nodeKey) ?? null)
+        .filter((node): node is GraphCanvasNodeInfo => node != null),
+    [canvasNodeByKey, selectedRepeaterNode],
+  );
+  const selectedRepeaterOutputCanvasNodes = useMemo(
+    () =>
+      (selectedRepeaterNode?.outputNodeKeys ?? [])
+        .map((nodeKey) => canvasNodeByKey.get(nodeKey) ?? null)
+        .filter((node): node is GraphCanvasNodeInfo => node != null),
+    [canvasNodeByKey, selectedRepeaterNode],
+  );
+  const selectedRepeaterMemberNodes = useMemo(
+    () =>
+      (selectedRepeaterNode?.memberNodeKeys ?? [])
+        .map((nodeKey) => nodeByKey.get(nodeKey) ?? null)
+        .filter((node): node is GraphNodeInfo => node != null),
+    [nodeByKey, selectedRepeaterNode],
   );
   const autoLayoutPositions = useMemo(
     () =>
@@ -890,8 +945,8 @@ export default function GraphViewer({
   const graphModeHint =
     displayMode === "serial"
       ? text(
-          "点击聚合块，可展开或收起对应的局部 core 集合。",
-          "Click an aggregate block to expand or collapse its local core set.",
+          "点击转发器或聚合块，可展开或收起对应的局部节点集合。",
+          "Click a repeater or aggregate block to expand or collapse its local member set.",
         )
       : text(
           "频道模式通过虚拟 channelHub 与两类聚合块展示 triggerSource -> channelHub -> core 的两级连接。",
@@ -923,8 +978,8 @@ export default function GraphViewer({
           "This list contains nodes that are still in channel mode. Select the nodes you want to move back to serial mode first; they return to the current serial editing context only after Apply to Draft.",
         )
       : text(
-          "这里列出当前仍处于序号模式的节点。先选择要迁入当前频道模式的节点，点击“应用到草稿”后，它们才会并入当前频道编辑上下文。",
-          "This list contains nodes that are still in serial mode. Select the nodes you want to move into the current channel mode first; they join the current channel editing context only after Apply to Draft.",
+          "这里列出当前仍处于序号模式的节点。先选择要迁入当前频道模式的节点，点击“应用到草稿”后，它们才会并入当前频道编辑上下文；转发器不支持频道模式，已自动排除。",
+          "This list contains nodes that are still in serial mode. Select the nodes you want to move into the current channel mode first; they join the current channel editing context only after Apply to Draft. Repeater nodes do not support channel mode and are filtered out automatically.",
         );
   const crossModeContinueHint =
     displayMode === "serial"
@@ -933,8 +988,8 @@ export default function GraphViewer({
           "Moving back to serial only returns the node to explicit-edge mode. It does not create real triggerSource -> core links automatically. After applying, continue editing real edges in the current serial mode with add/remove/replace.",
         )
       : text(
-          "频道模式同样需要先应用到草稿，再继续当前频道模式下的覆盖编辑。",
-          "Channel mode also requires applying to the draft before continuing with overwrite editing in the current channel mode.",
+          "频道模式同样需要先应用到草稿，再继续当前频道模式下的覆盖编辑；转发器不会出现在这个列表里。",
+          "Channel mode also requires applying to the draft before continuing with overwrite editing in the current channel mode; repeater nodes never appear in this list.",
         );
   const crossModeSaveHint = text(
     "跨模式添加节点后，建议尽快 Save，再继续做后续跨模式或连线调整，否则关系可能会比较混乱。",
@@ -1140,7 +1195,7 @@ export default function GraphViewer({
       return;
     }
     const nextOutlineNodes = buildAggregateOutlineFlowNodes(
-      graphCanvasView.aggregateNodes,
+      expandableCanvasNodes,
       nodes,
     );
     setAggregateOutlineNodes((currentNodes) =>
@@ -1151,7 +1206,7 @@ export default function GraphViewer({
   }, [
     aggregateOutlineSuspended,
     draftLoading,
-    graphCanvasView.aggregateNodes,
+    expandableCanvasNodes,
     nodes,
   ]);
 
@@ -1296,7 +1351,7 @@ export default function GraphViewer({
     ) {
       return;
     }
-    const expandedAggregateNode = graphCanvasView.aggregateNodes.find(
+    const expandedAggregateNode = expandableCanvasNodes.find(
       (aggregateNode) =>
         aggregateNode.nodeKey === pendingAggregateFocusNodeKey &&
         aggregateNode.expanded,
@@ -1331,7 +1386,7 @@ export default function GraphViewer({
     };
   }, [
     draftLoading,
-    graphCanvasView.aggregateNodes,
+    expandableCanvasNodes,
     nodes,
     pendingAggregateFocusNodeKey,
     pendingStructureLayoutReset,
@@ -2181,8 +2236,8 @@ export default function GraphViewer({
   }
 
   function handleCanvasNodeClick(nodeKey: string) {
-    if (nodeKey.startsWith("aggregate:")) {
-      const currentAggregateNode = graphCanvasView.aggregateNodes.find(
+    if (nodeKey.startsWith("aggregate:") || nodeKey.startsWith("repeater:")) {
+      const currentAggregateNode = expandableCanvasNodes.find(
         (aggregateNode) => aggregateNode.nodeKey === nodeKey,
       );
       const willExpand = !(currentAggregateNode?.expanded ?? false);
@@ -2221,7 +2276,7 @@ export default function GraphViewer({
   }
 
   function handleCanvasNodeDoubleClick(nodeKey: string) {
-    if (nodeKey.startsWith("aggregate:")) {
+    if (nodeKey.startsWith("aggregate:") || nodeKey.startsWith("repeater:")) {
       focusNode(nodeKey);
       return;
     }
@@ -2763,12 +2818,12 @@ export default function GraphViewer({
               <div>
                 <dt>
                   {displayMode === "serial"
-                    ? text("聚合块", "Groups")
+                    ? text("转发器 / 聚合块", "Repeaters / Groups")
                     : text("频道 / 聚合块", "Channels / Groups")}
                 </dt>
                 <dd>
                   {displayMode === "serial"
-                    ? graphCanvasView.aggregateNodes.length
+                    ? `${graphCanvasView.repeaterNodes.length} / ${graphCanvasView.aggregateNodes.length}`
                     : `${graphCanvasView.channelHubNodes.length} / ${graphCanvasView.aggregateNodes.length}`}
                 </dd>
               </div>
@@ -2783,6 +2838,12 @@ export default function GraphViewer({
               <span className="graph-legend-swatch is-trigger-source" />
               triggerSource
             </span>
+            {displayMode === "serial" ? (
+              <span className="graph-legend-item">
+                <span className="graph-legend-swatch is-repeater" />
+                repeater
+              </span>
+            ) : null}
             {displayMode === "channel" ? (
               <span className="graph-legend-item">
                 <span className="graph-legend-swatch is-channel-hub" />
@@ -2802,7 +2863,9 @@ export default function GraphViewer({
                 </span>
                 <span className="graph-legend-item">
                   <span className="graph-legend-swatch is-aggregate-outline" />
-                  expanded aggregate area
+                  {displayMode === "serial"
+                    ? "expanded composite area"
+                    : "expanded aggregate area"}
                 </span>
               </>
             ) : null}
@@ -2824,8 +2887,8 @@ export default function GraphViewer({
                 <p className="empty-state">
                   {displayMode === "channel"
                     ? text(
-                        "当前没有可展示的频道模式节点；仅 connectionMode=channel 且 channel>0 的节点会进入该视图。",
-                        "There are no channel-mode nodes to display; only nodes with connectionMode=channel and channel>0 enter this view.",
+                        "当前没有可展示的频道模式节点；仅 connectionMode=channel 且 channel>0 的节点会进入该视图，转发器会被自动排除。",
+                        "There are no channel-mode nodes to display; only nodes with connectionMode=channel and channel>0 enter this view, and repeater nodes are excluded automatically.",
                       )
                     : effectiveGraphBundle.nodes.length === 0
                       ? text("当前图快照没有可展示节点。", "The current graph snapshot has no displayable nodes.")
@@ -2892,6 +2955,8 @@ export default function GraphViewer({
                     ? "transparent"
                     : String(node.id).startsWith("triggerSource:")
                       ? "var(--graph-minimap-trigger)"
+                      : String(node.id).startsWith("repeater:")
+                        ? "var(--graph-minimap-repeater)"
                       : String(node.id).startsWith("channelHub:")
                         ? "var(--graph-minimap-channel)"
                         : String(node.id).startsWith("aggregate:")
@@ -3419,6 +3484,137 @@ export default function GraphViewer({
                             onClick={() => focusNode(coreNode.nodeKey)}
                           >
                             {coreNode.displayText}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            ) : selectedCanvasNode.kind === "repeater" ? (
+              <div className="graph-detail-section">
+                <div className="graph-detail-hero">
+                  <p className="eyebrow">repeater</p>
+                  <h3>{selectedCanvasNode.displayText}</h3>
+                  <p className="graph-detail-caption">
+                    {selectedCanvasNode.nodeKey}
+                  </p>
+                </div>
+                <p className="graph-batch-editor-caption">
+                  {text(
+                    "转发器只在序号模式下作为组合节点显示；展开后可分别点击内部 triggerSource/core 继续编辑。",
+                    "Repeaters are rendered as composite nodes only in serial mode. Expand the node and click its inner triggerSource/core members to keep editing them separately.",
+                  )}
+                </p>
+                <dl className="preview-meta graph-detail-grid">
+                  <div>
+                    <dt>Serial</dt>
+                    <dd>{selectedCanvasNode.serial}</dd>
+                  </div>
+                  <div>
+                    <dt>Inputs</dt>
+                    <dd>{selectedCanvasNode.inputSerials.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Outputs</dt>
+                    <dd>{selectedCanvasNode.outputSerials.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Members</dt>
+                    <dd>{selectedCanvasNode.memberNodeKeys.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Connected Canvas Nodes</dt>
+                    <dd>{selectedCanvasNode.connectedNodeKeys.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Expanded</dt>
+                    <dd>{selectedCanvasNode.expanded ? "true" : "false"}</dd>
+                  </div>
+                </dl>
+                <div className="graph-batch-selection-grid">
+                  <section className="graph-target-editor">
+                    <div className="graph-target-editor-header">
+                      <strong>Input Nodes</strong>
+                      <span>
+                        {text(
+                          "当前转发器接收信号的一侧；这里可能显示普通节点、聚合块或另一个转发器。",
+                          "Canvas-side inputs to this repeater. This list may contain actual nodes, aggregate blocks, or another repeater.",
+                        )}
+                      </span>
+                    </div>
+                    <div className="graph-target-list">
+                      {selectedRepeaterInputCanvasNodes.length === 0 ? (
+                        <p className="empty-state">
+                          {text("当前没有输入连接。", "There are no input-side connections.")}
+                        </p>
+                      ) : (
+                        selectedRepeaterInputCanvasNodes.map((canvasNode) => (
+                          <button
+                            key={canvasNode.nodeKey}
+                            type="button"
+                            className="graph-target-item graph-target-chip"
+                            onClick={() => focusNode(canvasNode.nodeKey)}
+                          >
+                            {formatCanvasNodeDisplayText(canvasNode)}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                  <section className="graph-target-editor">
+                    <div className="graph-target-editor-header">
+                      <strong>Output Nodes</strong>
+                      <span>
+                        {text(
+                          "当前转发器输出信号的一侧；这里可能显示普通节点、聚合块或另一个转发器。",
+                          "Canvas-side outputs from this repeater. This list may contain actual nodes, aggregate blocks, or another repeater.",
+                        )}
+                      </span>
+                    </div>
+                    <div className="graph-target-list">
+                      {selectedRepeaterOutputCanvasNodes.length === 0 ? (
+                        <p className="empty-state">
+                          {text("当前没有输出连接。", "There are no output-side connections.")}
+                        </p>
+                      ) : (
+                        selectedRepeaterOutputCanvasNodes.map((canvasNode) => (
+                          <button
+                            key={canvasNode.nodeKey}
+                            type="button"
+                            className="graph-target-item graph-target-chip"
+                            onClick={() => focusNode(canvasNode.nodeKey)}
+                          >
+                            {formatCanvasNodeDisplayText(canvasNode)}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                  <section className="graph-target-editor">
+                    <div className="graph-target-editor-header">
+                      <strong>Member Nodes</strong>
+                      <span>
+                        {text(
+                          "转发器内部的真实 triggerSource/core 成员。",
+                          "Actual triggerSource/core members inside this repeater.",
+                        )}
+                      </span>
+                    </div>
+                    <div className="graph-target-list">
+                      {selectedRepeaterMemberNodes.length === 0 ? (
+                        <p className="empty-state">
+                          {text("当前没有成员节点。", "There are no member nodes.")}
+                        </p>
+                      ) : (
+                        selectedRepeaterMemberNodes.map((graphNode) => (
+                          <button
+                            key={graphNode.nodeKey}
+                            type="button"
+                            className="graph-target-item graph-target-chip"
+                            onClick={() => focusNode(graphNode.nodeKey)}
+                          >
+                            {graphNode.displayText}
                           </button>
                         ))
                       )}

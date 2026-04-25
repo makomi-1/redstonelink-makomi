@@ -42,6 +42,17 @@ function normalizeTargetSerials(targetSerials: number[]): number[] {
   ).sort((left, right) => left - right);
 }
 
+/**
+ * 转发器共享同一序号的 triggerSource/core 身份，前端批量编辑时要把“同序号自连”排除掉。
+ */
+function resolveRepeaterSerialSet(graphBundle: GraphSnapshotBundle): Set<number> {
+  return new Set(
+    graphBundle.nodes
+      .filter((node) => node.capabilityFlags.includes('repeater'))
+      .map((node) => node.serial),
+  );
+}
+
 function normalizeChannel(channel: number): number {
   return Math.max(0, Math.trunc(channel));
 }
@@ -317,7 +328,7 @@ export function applyBatchEditToDraft(
   let nextDraft = graphDraft;
   const normalizedSourceSerials = normalizeTargetSerials(triggerSourceSerials);
   const normalizedTargetSerials = normalizeTargetSerials(targetCoreSerials);
-  const removedTargetSerialSet = new Set(normalizedTargetSerials);
+  const repeaterSerialSet = resolveRepeaterSerialSet(graphBundle);
   normalizedSourceSerials.forEach((triggerSourceSerial) => {
     const sourceNode = graphBundle.nodes.find(
       (node) => node.type === 'triggerSource' && node.serial === triggerSourceSerial,
@@ -325,13 +336,18 @@ export function applyBatchEditToDraft(
     if (!sourceNode) {
       return;
     }
+    const filteredTargetSerials =
+      repeaterSerialSet.has(triggerSourceSerial)
+        ? normalizedTargetSerials.filter((serial) => serial !== triggerSourceSerial)
+        : normalizedTargetSerials;
+    const removedTargetSerialSet = new Set(filteredTargetSerials);
     const currentTargets = resolveEffectiveTargetSerials(graphBundle, nextDraft, triggerSourceSerial);
     const nextTargets =
       editMode === 'add'
-        ? normalizeTargetSerials([...currentTargets, ...normalizedTargetSerials])
+        ? normalizeTargetSerials([...currentTargets, ...filteredTargetSerials])
         : editMode === 'remove'
           ? currentTargets.filter((serial) => !removedTargetSerialSet.has(serial))
-          : normalizedTargetSerials;
+          : filteredTargetSerials;
     nextDraft = upsertReplaceTargetsDraft(
       nextDraft,
       graphBundle,

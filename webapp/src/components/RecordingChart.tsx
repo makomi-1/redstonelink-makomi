@@ -35,6 +35,7 @@ type RecordingChartProps = {
 
 type RecordingChartNodeSeriesGroup = {
   nodeKey: string;
+  nodeType: string;
   label: string;
   samples: RecordingSample[];
   inputColor: string;
@@ -72,6 +73,16 @@ const WHEEL_ZOOM_FACTOR = 0.82;
 const TOOLTIP_WIDTH = 236;
 const TOOLTIP_SIDE_MARGIN = 12;
 const TOOLTIP_CURSOR_OFFSET = 16;
+
+/**
+ * 图表内统一使用“节点类型 + 显示名”的系列标题，避免 tooltip 与录制节点清单口径不一致。
+ */
+function formatRecordingSeriesLabel(
+  nodeType: string,
+  label: string,
+): string {
+  return `${nodeType} · ${label}`;
+}
 
 /**
  * 录制曲线图。
@@ -191,6 +202,7 @@ export default function RecordingChart({
     for (const group of chartNodeSeriesGroups) {
       const inputValues = new Array<number | null>(xValues.length).fill(null);
       const outputValues = new Array<number | null>(xValues.length).fill(null);
+      const seriesLabel = formatRecordingSeriesLabel(group.nodeType, group.label);
 
       for (const sample of group.samples) {
         const xValue = resolveXValue(sample.tick, startedTick, xMode);
@@ -203,7 +215,7 @@ export default function RecordingChart({
       }
 
       if (visibleMetrics.includes('inputPower')) {
-        const inputSeriesLabel = `${group.label} · ${text('输入', 'Input')}`;
+        const inputSeriesLabel = `${seriesLabel} · ${text('输入', 'Input')}`;
         const inputSeriesColor = resolveThemeColor(group.inputColor, host);
         data.push(inputValues);
         series.push({
@@ -220,7 +232,7 @@ export default function RecordingChart({
       }
 
       if (visibleMetrics.includes('outputPower')) {
-        const outputSeriesLabel = `${group.label} · ${text('输出', 'Output')}`;
+        const outputSeriesLabel = `${seriesLabel} · ${text('输出', 'Output')}`;
         const outputSeriesColor = resolveThemeColor(group.outputColor, host);
         data.push(outputValues);
         series.push({
