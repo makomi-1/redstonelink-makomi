@@ -1,7 +1,9 @@
 package com.makomi.data;
 
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.item.RepeaterBlockItem;
 import com.makomi.util.SerialDisplayFormatUtil;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import net.minecraft.server.MinecraftServer;
@@ -74,6 +76,26 @@ public final class RepeaterGraphSnapshotSupport {
 	}
 
 	/**
+	 * 按图真值解析转发器输入侧展示文本列表。
+	 */
+	public static List<String> resolveInputDisplayTexts(ServerLevel level, long serial) {
+		if (level == null || serial <= 0L) {
+			return List.of();
+		}
+		return resolveDisplayTexts(level, LinkNodeType.TRIGGER_SOURCE, LinkSavedData.get(level).getLinkedTriggerSourcesByCore(serial));
+	}
+
+	/**
+	 * 按图真值解析转发器输出侧展示文本列表。
+	 */
+	public static List<String> resolveOutputDisplayTexts(ServerLevel level, long serial) {
+		if (level == null || serial <= 0L) {
+			return List.of();
+		}
+		return resolveDisplayTexts(level, LinkNodeType.CORE, LinkSavedData.get(level).getLinkedCoresByTriggerSource(serial));
+	}
+
+	/**
 	 * 将手持/背包中的转发器物品快照刷新为图真值。
 	 */
 	public static void syncItemSnapshot(ItemStack stack, ServerLevel level) {
@@ -105,6 +127,17 @@ public final class RepeaterGraphSnapshotSupport {
 				player.containerMenu.broadcastChanges();
 			}
 		}
+	}
+
+	/**
+	 * 在图真值变更后，统一刷新在线转发器方块实体与玩家物品缓存。
+	 */
+	public static void syncOnlineRepeaterDisplays(MinecraftServer server, long serial) {
+		if (server == null || serial <= 0L) {
+			return;
+		}
+		syncOnlineRepeaterBlockEntity(server, serial);
+		syncOnlineRepeaterItems(server, serial);
 	}
 
 	private static boolean syncPlayerRepeaterItems(ServerPlayer player, long serial) {
@@ -145,8 +178,42 @@ public final class RepeaterGraphSnapshotSupport {
 		return true;
 	}
 
+	/**
+	 * 刷新已加载转发器方块实体的输入/输出摘要与客户端外显。
+	 */
+	private static void syncOnlineRepeaterBlockEntity(MinecraftServer server, long serial) {
+		if (server == null || serial <= 0L || server.overworld() == null) {
+			return;
+		}
+		LinkSavedData.LinkNode repeaterNode = LinkSavedData.get(server.overworld()).findNode(LinkNodeType.CORE, serial).orElse(null);
+		if (repeaterNode == null || repeaterNode.dimension() == null || repeaterNode.pos() == null) {
+			return;
+		}
+		ServerLevel repeaterLevel = server.getLevel(repeaterNode.dimension());
+		if (repeaterLevel == null || !repeaterLevel.isLoaded(repeaterNode.pos())) {
+			return;
+		}
+		if (!(repeaterLevel.getBlockEntity(repeaterNode.pos()) instanceof LinkRepeaterBlockEntity repeaterBlockEntity)) {
+			return;
+		}
+		repeaterBlockEntity.applyEditorState(resolve(repeaterLevel, serial, repeaterBlockEntity.snapshot()));
+	}
+
 	private static String buildExpression(Collection<Long> serials) {
 		SerialDisplayFormatUtil.StructuredExpression expression = SerialDisplayFormatUtil.buildExpression(serials);
 		return expression.isEmpty() ? "" : expression.joinAll();
+	}
+
+	private static List<String> resolveDisplayTexts(ServerLevel level, LinkNodeType type, Collection<Long> serials) {
+		if (level == null || type == null || serials == null || serials.isEmpty()) {
+			return List.of();
+		}
+		List<String> displayTexts = new ArrayList<>(serials.size());
+		for (Long serial : serials) {
+			if (serial != null && serial > 0L) {
+				displayTexts.add(NodeAliasServerSupport.resolveDisplayText(level, type, serial));
+			}
+		}
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}
 }

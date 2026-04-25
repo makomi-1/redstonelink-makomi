@@ -315,8 +315,10 @@ public final class QuickLinkApplyService {
 	/**
 	 * 将当前缓存应用到命中转发器。
 	 * <p>
-	 * quick-link 对转发器只允许写入 `serial` 模式缓存：
-	 * `triggerSource` 缓存写输入配置，`core` 缓存写输出配置。
+	 * 转发器编辑器展示的是图真值，因此 quick-link 不能只改本地表达式缓存，
+	 * 而必须映射到真实 `triggerSource -> core` 图写入：
+	 * `triggerSource` 缓存对应输入侧（按 `core` 目标提交），
+	 * `core` 缓存对应输出侧（按 `triggerSource` 目标提交）。
 	 * </p>
 	 */
 	public static ApplyFromCacheResult applyToRepeaterFromCache(
@@ -328,57 +330,37 @@ public final class QuickLinkApplyService {
 		String channelCache,
 		QuickLinkToolData.ApplyEditMode applyEditMode
 	) {
-		if (player == null || repeaterBlockEntity == null) {
+		if (player == null || repeaterBlockEntity == null || !(repeaterBlockEntity.getLevel() instanceof ServerLevel serverLevel)) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
-		}
-		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
-			return ApplyFromCacheResult.failure("message.redstonelink.permission.insufficient");
 		}
 		QuickLinkToolData.Mode resolvedMode = mode == null ? QuickLinkToolData.Mode.SERIAL : mode;
 		if (resolvedMode != QuickLinkToolData.Mode.SERIAL) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.repeater_requires_serial");
 		}
-		if (!isCacheTypeCompatibleWithRepeater(cacheType)) {
+		LinkNodeType repeaterTargetType = resolveRepeaterTargetType(cacheType);
+		if (repeaterTargetType == null) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
 		}
-
-		String normalizedExpression = serialCacheExpression == null ? "" : serialCacheExpression.trim();
-		if (!allowsEmptySerialCacheApply(applyEditMode) && normalizedExpression.isBlank()) {
-			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.empty_serial_cache");
-		}
-		int maxInputLength = RedstoneLinkConfig.command().linkSetMaxInputLength();
-		if (normalizedExpression.length() > maxInputLength) {
-			return ApplyFromCacheResult.failure("message.redstonelink.link.set.input_too_long", Integer.toString(maxInputLength));
-		}
-
-		int maxTargets = RedstoneLinkConfig.general().maxTargetsPerSetLinks();
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(normalizedExpression, maxTargets);
-		if (!parseResult.invalidEntries().isEmpty()) {
-			return ApplyFromCacheResult.failure(
-				"message.redstonelink.pairing.invalid_tokens",
-				String.join(", ", parseResult.invalidEntries())
-			);
-		}
-		if (parseResult.exceedLimit()) {
-			return ApplyFromCacheResult.failure("message.redstonelink.too_many_targets", Integer.toString(maxTargets));
-		}
-
-		List<Long> nextOrderedSerials = buildNextRepeaterOrderedSerials(
-			repeaterBlockEntity.snapshot(),
+		ApplyFromCacheResult applyResult = applyFromCache(
+			player.createCommandSourceStack(),
+			player,
+			serverLevel,
+			repeaterTargetType,
+			repeaterBlockEntity.getSerial(),
 			cacheType,
-			parseResult.orderedTargets(),
+			serialCacheExpression,
 			applyEditMode
 		);
-		repeaterBlockEntity.applyEditorState(
-			buildRepeaterSnapshotForAppliedCache(repeaterBlockEntity.snapshot(), cacheType, nextOrderedSerials)
-		);
+		if (!applyResult.feedback().success()) {
+			return applyResult;
+		}
 		return new ApplyFromCacheResult(
 			QuickLinkOperationFeedback.success(
 				repeaterApplySuccessMessageKey(cacheType),
-				Integer.toString(nextOrderedSerials.size())
+				Integer.toString(applyResult.currentTargetCount())
 			),
-			0,
-			nextOrderedSerials.size()
+			applyResult.affectedSourceCount(),
+			applyResult.currentTargetCount()
 		);
 	}
 
@@ -549,6 +531,7 @@ public final class QuickLinkApplyService {
 		LinkSetExecutionService.ApplyResult applyResult = LinkSetExecutionService.applyPreparedReplace(
 			preparationResult.operation()
 		);
+		syncRepeaterDisplaysIfNeeded(level, triggerSourceSerial);
 		return new ApplyFromCacheResult(
 			QuickLinkOperationFeedback.success(
 				"message.redstonelink.quick_link.apply.done.trigger_source",
@@ -608,6 +591,11 @@ public final class QuickLinkApplyService {
 		}
 
 		CoreLinkEditingService.ApplyResult applyResult = CoreLinkEditingService.applyPreparedReplace(preparationResult.plan());
+		Set<Long> repeaterSerialsToSync = new LinkedHashSet<>();
+		repeaterSerialsToSync.add(coreSerial);
+		repeaterSerialsToSync.addAll(currentTriggerSources);
+		repeaterSerialsToSync.addAll(desiredTriggerSources);
+		syncRepeaterDisplaysIfNeeded(level, repeaterSerialsToSync);
 
 		return new ApplyFromCacheResult(
 			QuickLinkOperationFeedback.success(
@@ -670,6 +658,43 @@ public final class QuickLinkApplyService {
 	 */
 	static boolean isCacheTypeCompatibleWithRepeater(LinkNodeType cacheType) {
 		return cacheType == LinkNodeType.TRIGGER_SOURCE || cacheType == LinkNodeType.CORE;
+	}
+
+	/**
+	 * 将缓存类型映射为转发器 quick-link 应提交到的真实目标身份。
+	 */
+	static LinkNodeType resolveRepeaterTargetType(LinkNodeType cacheType) {
+		if (cacheType == LinkNodeType.TRIGGER_SOURCE) {
+			return LinkNodeType.CORE;
+		}
+		if (cacheType == LinkNodeType.CORE) {
+			return LinkNodeType.TRIGGER_SOURCE;
+		}
+		return null;
+	}
+
+	/**
+	 * 图真值变更后，若命中转发器统一序号，则同步其在线方块实体与物品摘要。
+	 */
+	private static void syncRepeaterDisplaysIfNeeded(ServerLevel level, long serial) {
+		if (level == null || serial <= 0L || !LinkSavedData.get(level).isRepeaterSerial(serial)) {
+			return;
+		}
+		RepeaterGraphSnapshotSupport.syncOnlineRepeaterDisplays(level.getServer(), serial);
+	}
+
+	/**
+	 * 批量同步一组可能受影响的转发器统一序号。
+	 */
+	private static void syncRepeaterDisplaysIfNeeded(ServerLevel level, Set<Long> serials) {
+		if (level == null || serials == null || serials.isEmpty()) {
+			return;
+		}
+		for (Long serial : serials) {
+			if (serial != null) {
+				syncRepeaterDisplaysIfNeeded(level, serial);
+			}
+		}
 	}
 
 	/**

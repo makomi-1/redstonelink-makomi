@@ -6,6 +6,9 @@ import com.makomi.data.RepeaterConfigSnapshot;
 import com.makomi.data.RepeaterDelay;
 import com.makomi.network.LinkFilterEditorTargetKind;
 import com.makomi.network.RepeaterNetwork;
+import com.makomi.util.DisplayTextListFormatUtil;
+import com.makomi.util.SerialParseUtil;
+import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -67,6 +70,8 @@ public class RepeaterEditorScreen extends Screen {
 	private final RepeaterConfigSnapshot initialSnapshot;
 	private final long expectedCoreRevision;
 	private final long expectedSourceRevision;
+	private final List<String> inputDisplayTexts;
+	private final List<String> outputDisplayTexts;
 	private final String inputSummary;
 	private final String outputSummary;
 
@@ -82,6 +87,8 @@ public class RepeaterEditorScreen extends Screen {
 		long serial,
 		String initialDisplayAlias,
 		RepeaterConfigSnapshot initialSnapshot,
+		List<String> inputDisplayTexts,
+		List<String> outputDisplayTexts,
 		long expectedCoreRevision,
 		long expectedSourceRevision
 	) {
@@ -96,8 +103,10 @@ public class RepeaterEditorScreen extends Screen {
 		this.expectedSourceRevision = Math.max(0L, expectedSourceRevision);
 		this.currentDelay = this.initialSnapshot.delay();
 		this.initialAlias = NodeAliasDisplayUtil.normalizeAlias(initialDisplayAlias);
-		this.inputSummary = normalizeSummary(this.initialSnapshot.inputSerialExpression());
-		this.outputSummary = normalizeSummary(this.initialSnapshot.outputSerialExpression());
+		this.inputDisplayTexts = normalizeDisplayTexts(this.initialSnapshot.inputSerialExpression(), inputDisplayTexts);
+		this.outputDisplayTexts = normalizeDisplayTexts(this.initialSnapshot.outputSerialExpression(), outputDisplayTexts);
+		this.inputSummary = buildSummary(this.initialSnapshot.inputSerialExpression(), this.inputDisplayTexts);
+		this.outputSummary = buildSummary(this.initialSnapshot.outputSerialExpression(), this.outputDisplayTexts);
 	}
 
 	private final String initialAlias;
@@ -295,6 +304,24 @@ public class RepeaterEditorScreen extends Screen {
 	private static String normalizeSummary(String rawSummary) {
 		String normalized = rawSummary == null ? "" : rawSummary.trim();
 		return normalized.isEmpty() ? "-" : normalized;
+	}
+
+	/**
+	 * 优先按展示文本列表构建摘要，缺失时回退到原始序号表达式。
+	 */
+	private static String buildSummary(String serialExpression, List<String> displayTexts) {
+		if (displayTexts != null && !displayTexts.isEmpty()) {
+			return normalizeSummary(DisplayTextListFormatUtil.buildText(displayTexts, 4096));
+		}
+		return normalizeSummary(serialExpression);
+	}
+
+	/**
+	 * 将服务端传来的展示文本列表按当前表达式重新归一，避免数量与顺序漂移。
+	 */
+	private static List<String> normalizeDisplayTexts(String serialExpression, List<String> displayTexts) {
+		List<Long> orderedSerials = SerialParseUtil.parseTargetsOrdered(serialExpression, 0).orderedTargets();
+		return NodeAliasDisplayUtil.normalizeDisplayTexts(orderedSerials, displayTexts);
 	}
 
 	private String truncateSummary(String summary, int maxWidth) {

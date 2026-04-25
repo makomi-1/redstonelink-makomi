@@ -8,9 +8,9 @@ import com.makomi.data.LinkOccSupport;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.RepeaterConfigSnapshot;
-import com.makomi.data.RepeaterDelay;
 import com.makomi.data.RepeaterGraphSnapshotSupport;
 import com.makomi.data.RepeaterItemData;
+import com.makomi.util.SerialParseUtil;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
@@ -102,6 +102,7 @@ public final class RepeaterNetwork {
 	) {
 		LinkSavedData savedData = LinkSavedData.get(level);
 		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(savedData, LinkNodeType.CORE, serial);
+		RepeaterConfigSnapshot resolvedSnapshot = RepeaterGraphSnapshotSupport.resolve(level, serial, fallbackSnapshot);
 		return new OpenRepeaterEditorPayload(
 			targetKind,
 			dimensionKey,
@@ -109,7 +110,9 @@ public final class RepeaterNetwork {
 			selectedSlot,
 			serial,
 			RepeaterGraphSnapshotSupport.resolveAlias(level, serial, displayAliasFallback),
-			RepeaterGraphSnapshotSupport.resolve(level, serial, fallbackSnapshot),
+			resolvedSnapshot,
+			RepeaterGraphSnapshotSupport.resolveInputDisplayTexts(level, serial),
+			RepeaterGraphSnapshotSupport.resolveOutputDisplayTexts(level, serial),
 			baseline.coreRevision(),
 			savedData.sourceRevision(LinkNodeType.TRIGGER_SOURCE, serial)
 		);
@@ -133,6 +136,8 @@ public final class RepeaterNetwork {
 		long serial,
 		String displayAlias,
 		RepeaterConfigSnapshot configSnapshot,
+		List<String> inputDisplayTexts,
+		List<String> outputDisplayTexts,
 		long expectedCoreRevision,
 		long expectedSourceRevision
 	) implements CustomPacketPayload {
@@ -149,6 +154,8 @@ public final class RepeaterNetwork {
 				payload.serial(),
 				payload.displayAlias(),
 				payload.configSnapshot(),
+				payload.inputDisplayTexts(),
+				payload.outputDisplayTexts(),
 				payload.expectedCoreRevision(),
 				payload.expectedSourceRevision()
 			),
@@ -164,6 +171,8 @@ public final class RepeaterNetwork {
 					decoded.serial(),
 					decoded.displayAlias(),
 					decoded.configSnapshot(),
+					decoded.inputDisplayTexts(),
+					decoded.outputDisplayTexts(),
 					decoded.expectedCoreRevision(),
 					decoded.expectedSourceRevision()
 				);
@@ -177,6 +186,14 @@ public final class RepeaterNetwork {
 			serial = Math.max(0L, serial);
 			displayAlias = NodeAliasDisplayUtil.normalizeAlias(displayAlias);
 			configSnapshot = configSnapshot == null ? RepeaterConfigSnapshot.empty() : configSnapshot;
+			inputDisplayTexts = NodeAliasDisplayUtil.normalizeDisplayTexts(
+				SerialParseUtil.parseTargetsOrdered(configSnapshot.inputSerialExpression(), 0).orderedTargets(),
+				inputDisplayTexts
+			);
+			outputDisplayTexts = NodeAliasDisplayUtil.normalizeDisplayTexts(
+				SerialParseUtil.parseTargetsOrdered(configSnapshot.outputSerialExpression(), 0).orderedTargets(),
+				outputDisplayTexts
+			);
 			expectedCoreRevision = Math.max(0L, expectedCoreRevision);
 			expectedSourceRevision = Math.max(0L, expectedSourceRevision);
 		}

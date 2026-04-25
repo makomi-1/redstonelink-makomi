@@ -39,6 +39,8 @@ public final class RepeaterNetworkClientHandlerSupport {
 				payload.serial(),
 				payload.displayAlias(),
 				payload.configSnapshot(),
+				payload.inputDisplayTexts(),
+				payload.outputDisplayTexts(),
 				payload.expectedCoreRevision(),
 				payload.expectedSourceRevision()
 			)

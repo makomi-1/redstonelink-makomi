@@ -95,7 +95,7 @@ public final class PairingOccSubmissionSupport {
 
 		List<LinkSetExecutionService.OperationFeedback> feedbacks = new ArrayList<>(preparationResult.feedbacks());
 		LinkSetExecutionService.ApplyResult applyResult = LinkSetExecutionService.applyPreparedReplace(operation);
-		syncRepeaterItemsIfNeeded(level, sourceSerial);
+		syncRepeaterDisplaysIfNeeded(level, sourceSerial);
 		feedbacks.addAll(applyResult.feedbacks());
 		return SubmissionResult.applied(feedbacks, 1, applyResult.currentTargetCount());
 	}
@@ -174,6 +174,7 @@ public final class PairingOccSubmissionSupport {
 		}
 
 		LinkSavedData savedData = LinkSavedData.get(level);
+		java.util.Set<Long> currentTriggerSources = new java.util.LinkedHashSet<>(savedData.getLinkedTriggerSourcesByCore(coreSerial));
 		LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveCoreConflict(savedData, coreSerial, expectedCoreRevision);
 		if (conflict != null) {
 			return SubmissionResult.conflict(
@@ -216,7 +217,9 @@ public final class PairingOccSubmissionSupport {
 		}
 
 		CoreLinkEditingService.ApplyResult applyResult = CoreLinkEditingService.applyPreparedReplace(plan);
-		syncRepeaterItemsIfNeeded(level, coreSerial);
+		syncRepeaterDisplaysIfNeeded(level, coreSerial);
+		syncRepeaterDisplaysIfNeeded(level, currentTriggerSources);
+		syncRepeaterDisplaysIfNeeded(level, new java.util.LinkedHashSet<>(parseResult.orderedTriggerSources()));
 		feedbacks.add(
 			LinkSetExecutionService.OperationFeedback.success(
 				"message.redstonelink.core_pairing.apply.done",
@@ -305,7 +308,7 @@ public final class PairingOccSubmissionSupport {
 		}
 
 		LinkChannelEditingService.ApplyResult applyResult = LinkChannelEditingService.applyPreparedSetChannel(plan);
-		syncRepeaterItemsIfNeeded(level, sourceSerial);
+		syncRepeaterDisplaysIfNeeded(level, sourceSerial);
 		feedbacks.add(
 			LinkSetExecutionService.OperationFeedback.success(
 				"message.redstonelink.pairing.channel.done.trigger_source",
@@ -371,7 +374,7 @@ public final class PairingOccSubmissionSupport {
 		}
 
 		LinkChannelEditingService.ApplyResult applyResult = LinkChannelEditingService.applyPreparedSetChannel(plan);
-		syncRepeaterItemsIfNeeded(level, coreSerial);
+		syncRepeaterDisplaysIfNeeded(level, coreSerial);
 		feedbacks.add(
 			LinkSetExecutionService.OperationFeedback.success(
 				"message.redstonelink.pairing.channel.done.core",
@@ -384,16 +387,30 @@ public final class PairingOccSubmissionSupport {
 	}
 
 	/**
-	 * 若当前节点是转发器统一序号，则把在线物品摘要同步回图真值。
+	 * 若当前节点是转发器统一序号，则把在线方块实体与物品摘要同步回图真值。
 	 */
-	private static void syncRepeaterItemsIfNeeded(ServerLevel level, long serial) {
+	private static void syncRepeaterDisplaysIfNeeded(ServerLevel level, long serial) {
 		if (level == null || serial <= 0L) {
 			return;
 		}
 		if (!LinkSavedData.get(level).isRepeaterSerial(serial)) {
 			return;
 		}
-		RepeaterGraphSnapshotSupport.syncOnlineRepeaterItems(level.getServer(), serial);
+		RepeaterGraphSnapshotSupport.syncOnlineRepeaterDisplays(level.getServer(), serial);
+	}
+
+	/**
+	 * 若序号集合中包含转发器统一序号，则逐个同步其在线方块实体与物品摘要。
+	 */
+	private static void syncRepeaterDisplaysIfNeeded(ServerLevel level, java.util.Set<Long> serials) {
+		if (level == null || serials == null || serials.isEmpty()) {
+			return;
+		}
+		for (Long serial : serials) {
+			if (serial != null) {
+				syncRepeaterDisplaysIfNeeded(level, serial);
+			}
+		}
 	}
 
 	/**

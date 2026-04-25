@@ -16,6 +16,7 @@ final class RepeaterNetworkPayloadSupport {
 	private static final int DIMENSION_KEY_MAX_LENGTH = 128;
 	private static final int TARGET_KIND_TOKEN_MAX_LENGTH = 32;
 	private static final int DISPLAY_ALIAS_MAX_LENGTH = NodeAliasSavedData.maxAliasLength();
+	private static final int DISPLAY_TEXT_MAX_LENGTH = 128;
 	private static final int DELAY_TOKEN_MAX_LENGTH = 32;
 	private static final int MESSAGE_KEY_MAX_LENGTH = 128;
 	private static final int MESSAGE_ARG_MAX_LENGTH = 128;
@@ -26,6 +27,62 @@ final class RepeaterNetworkPayloadSupport {
 	}
 
 	static void encodeOpenEditorPayload(
+		FriendlyByteBuf buffer,
+		LinkFilterEditorTargetKind targetKind,
+		String dimensionKey,
+		long blockPosLong,
+		int selectedSlot,
+		long serial,
+		String displayAlias,
+		RepeaterConfigSnapshot configSnapshot,
+		List<String> inputDisplayTexts,
+		List<String> outputDisplayTexts,
+		long expectedCoreRevision,
+		long expectedSourceRevision
+	) {
+		buffer.writeUtf(targetKind == null ? "" : targetKind.token(), TARGET_KIND_TOKEN_MAX_LENGTH);
+		buffer.writeUtf(dimensionKey == null ? "" : dimensionKey, DIMENSION_KEY_MAX_LENGTH);
+		buffer.writeLong(blockPosLong);
+		buffer.writeInt(selectedSlot);
+		buffer.writeVarLong(Math.max(0L, serial));
+		buffer.writeUtf(displayAlias == null ? "" : displayAlias, DISPLAY_ALIAS_MAX_LENGTH);
+		encodeConfigSnapshot(buffer, configSnapshot);
+		encodeDisplayTexts(buffer, inputDisplayTexts);
+		encodeDisplayTexts(buffer, outputDisplayTexts);
+		buffer.writeVarLong(Math.max(0L, expectedCoreRevision));
+		buffer.writeVarLong(Math.max(0L, expectedSourceRevision));
+	}
+
+	static DecodedOpenEditorPayload decodeOpenEditorPayload(FriendlyByteBuf buffer) {
+		LinkFilterEditorTargetKind targetKind = LinkFilterEditorTargetKind
+			.tryParseToken(buffer.readUtf(TARGET_KIND_TOKEN_MAX_LENGTH))
+			.orElseThrow(() -> new IllegalArgumentException("Unknown repeater editor target kind"));
+		String dimensionKey = buffer.readUtf(DIMENSION_KEY_MAX_LENGTH);
+		long blockPosLong = buffer.readLong();
+		int selectedSlot = buffer.readInt();
+		long serial = Math.max(0L, buffer.readVarLong());
+		String displayAlias = buffer.readUtf(DISPLAY_ALIAS_MAX_LENGTH);
+		RepeaterConfigSnapshot configSnapshot = decodeConfigSnapshot(buffer);
+		List<String> inputDisplayTexts = decodeDisplayTexts(buffer);
+		List<String> outputDisplayTexts = decodeDisplayTexts(buffer);
+		long expectedCoreRevision = Math.max(0L, buffer.readVarLong());
+		long expectedSourceRevision = Math.max(0L, buffer.readVarLong());
+		return new DecodedOpenEditorPayload(
+			targetKind,
+			dimensionKey,
+			blockPosLong,
+			selectedSlot,
+			serial,
+			displayAlias,
+			configSnapshot,
+			inputDisplayTexts,
+			outputDisplayTexts,
+			expectedCoreRevision,
+			expectedSourceRevision
+		);
+	}
+
+	static void encodeSavePayload(
 		FriendlyByteBuf buffer,
 		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
@@ -48,7 +105,7 @@ final class RepeaterNetworkPayloadSupport {
 		buffer.writeVarLong(Math.max(0L, expectedSourceRevision));
 	}
 
-	static DecodedOpenEditorPayload decodeOpenEditorPayload(FriendlyByteBuf buffer) {
+	static DecodedSavePayload decodeSavePayload(FriendlyByteBuf buffer) {
 		LinkFilterEditorTargetKind targetKind = LinkFilterEditorTargetKind
 			.tryParseToken(buffer.readUtf(TARGET_KIND_TOKEN_MAX_LENGTH))
 			.orElseThrow(() -> new IllegalArgumentException("Unknown repeater editor target kind"));
@@ -60,57 +117,16 @@ final class RepeaterNetworkPayloadSupport {
 		RepeaterConfigSnapshot configSnapshot = decodeConfigSnapshot(buffer);
 		long expectedCoreRevision = Math.max(0L, buffer.readVarLong());
 		long expectedSourceRevision = Math.max(0L, buffer.readVarLong());
-		return new DecodedOpenEditorPayload(
-			targetKind,
-			dimensionKey,
-			blockPosLong,
-			selectedSlot,
-			serial,
-			displayAlias,
-			configSnapshot,
-			expectedCoreRevision,
-			expectedSourceRevision
-		);
-	}
-
-	static void encodeSavePayload(
-		FriendlyByteBuf buffer,
-		LinkFilterEditorTargetKind targetKind,
-		String dimensionKey,
-		long blockPosLong,
-		int selectedSlot,
-		long serial,
-		String displayAlias,
-		RepeaterConfigSnapshot configSnapshot,
-		long expectedCoreRevision,
-		long expectedSourceRevision
-	) {
-		encodeOpenEditorPayload(
-			buffer,
-			targetKind,
-			dimensionKey,
-			blockPosLong,
-			selectedSlot,
-			serial,
-			displayAlias,
-			configSnapshot,
-			expectedCoreRevision,
-			expectedSourceRevision
-		);
-	}
-
-	static DecodedSavePayload decodeSavePayload(FriendlyByteBuf buffer) {
-		DecodedOpenEditorPayload decoded = decodeOpenEditorPayload(buffer);
 		return new DecodedSavePayload(
-			decoded.targetKind(),
-			decoded.dimensionKey(),
-			decoded.blockPosLong(),
-			decoded.selectedSlot(),
-			decoded.serial(),
-			decoded.displayAlias(),
-			decoded.configSnapshot(),
-			decoded.expectedCoreRevision(),
-			decoded.expectedSourceRevision()
+			targetKind,
+			dimensionKey,
+			blockPosLong,
+			selectedSlot,
+			serial,
+			displayAlias,
+			configSnapshot,
+			expectedCoreRevision,
+			expectedSourceRevision
 		);
 	}
 
@@ -185,6 +201,24 @@ final class RepeaterNetworkPayloadSupport {
 		return new RepeaterConfigSnapshot(inputSerialExpression, outputSerialExpression, delay);
 	}
 
+	private static void encodeDisplayTexts(FriendlyByteBuf buffer, List<String> displayTexts) {
+		List<String> normalized = List.copyOf(displayTexts == null ? List.of() : displayTexts);
+		int limit = Math.min(RedstoneLinkConfig.general().maxTargetsPerSetLinks(), normalized.size());
+		buffer.writeVarInt(limit);
+		for (int index = 0; index < limit; index++) {
+			buffer.writeUtf(normalized.get(index), DISPLAY_TEXT_MAX_LENGTH);
+		}
+	}
+
+	private static List<String> decodeDisplayTexts(FriendlyByteBuf buffer) {
+		int size = Mth.clamp(buffer.readVarInt(), 0, RedstoneLinkConfig.general().maxTargetsPerSetLinks());
+		List<String> displayTexts = new ArrayList<>(size);
+		for (int index = 0; index < size; index++) {
+			displayTexts.add(buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH));
+		}
+		return List.copyOf(displayTexts);
+	}
+
 	record DecodedOpenEditorPayload(
 		LinkFilterEditorTargetKind targetKind,
 		String dimensionKey,
@@ -193,6 +227,8 @@ final class RepeaterNetworkPayloadSupport {
 		long serial,
 		String displayAlias,
 		RepeaterConfigSnapshot configSnapshot,
+		List<String> inputDisplayTexts,
+		List<String> outputDisplayTexts,
 		long expectedCoreRevision,
 		long expectedSourceRevision
 	) {

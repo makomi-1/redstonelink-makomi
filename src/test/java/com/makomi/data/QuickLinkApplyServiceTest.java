@@ -173,6 +173,22 @@ class QuickLinkApplyServiceTest {
 	}
 
 	/**
+	 * 转发器输入侧应复用 `core` 目标语义。
+	 */
+	@Test
+	void resolveRepeaterTargetTypeShouldMapTriggerSourceCacheToCore() {
+		assertEquals(LinkNodeType.CORE, QuickLinkApplyService.resolveRepeaterTargetType(LinkNodeType.TRIGGER_SOURCE));
+	}
+
+	/**
+	 * 转发器输出侧应复用 `triggerSource` 目标语义。
+	 */
+	@Test
+	void resolveRepeaterTargetTypeShouldMapCoreCacheToTriggerSource() {
+		assertEquals(LinkNodeType.TRIGGER_SOURCE, QuickLinkApplyService.resolveRepeaterTargetType(LinkNodeType.CORE));
+	}
+
+	/**
 	 * 过滤器命中时，三态应用应在当前表达式上做覆盖或有序增删。
 	 */
 	@Test

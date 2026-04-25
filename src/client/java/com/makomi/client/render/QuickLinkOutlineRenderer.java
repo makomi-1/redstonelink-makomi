@@ -8,12 +8,15 @@ import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.util.SerialParseUtil;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.Set;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
@@ -26,7 +29,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -44,6 +46,9 @@ public final class QuickLinkOutlineRenderer {
 	);
 	private static final OutlineColor FILTER_OUTLINE_COLOR = new OutlineColor(1.0F, 0.16F, 0.16F);
 	private static final int PREVIEW_CACHE_TTL_TICKS = 6;
+	private static final RenderStateShard.LineStateShard QUICK_LINK_PREVIEW_LINE_STATE = new RenderStateShard.LineStateShard(
+		OptionalDouble.of(2.5D)
+	);
 	private static final RenderType QUICK_LINK_PREVIEW_RENDER_TYPE = RenderType.create(
 		"redstonelink_quick_link_preview_lines",
 		DefaultVertexFormat.POSITION_COLOR_NORMAL,
@@ -59,7 +64,7 @@ public final class QuickLinkOutlineRenderer {
 			.setCullState(RenderStateShard.NO_CULL)
 			.setWriteMaskState(RenderStateShard.COLOR_WRITE)
 			.setOutputState(RenderStateShard.TRANSLUCENT_TARGET)
-			.setLineState(RenderStateShard.DEFAULT_LINE)
+			.setLineState(QUICK_LINK_PREVIEW_LINE_STATE)
 			.createCompositeState(false)
 	);
 	private static CachedPreviewOutlineState cachedPreviewOutlineState;
@@ -127,28 +132,18 @@ public final class QuickLinkOutlineRenderer {
 			return;
 		}
 
-		List<PreviewOutlineShape> previewShapes = resolvePreviewOutlineShapes(minecraft);
-		if (previewShapes.isEmpty()) {
+		List<PreviewOutlineBatch> previewBatches = resolvePreviewOutlineBatches(minecraft);
+		if (previewBatches.isEmpty()) {
 			return;
 		}
 
 		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
+		PoseStack.Pose pose = worldRenderContext.matrixStack().last();
 		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(QUICK_LINK_PREVIEW_RENDER_TYPE);
-		for (PreviewOutlineShape previewShape : previewShapes) {
-			OutlineColor color = previewShape.color();
-			LevelRenderer.renderVoxelShape(
-				worldRenderContext.matrixStack(),
-				lineVertexConsumer,
-				previewShape.shape(),
-				-cameraPosition.x,
-				-cameraPosition.y,
-				-cameraPosition.z,
-				color.red(),
-				color.green(),
-				color.blue(),
-				1.0F,
-				false
-			);
+		for (PreviewOutlineBatch previewBatch : previewBatches) {
+			for (LineSegment lineSegment : previewBatch.segments()) {
+				renderPreviewLineSegment(lineVertexConsumer, pose, lineSegment, cameraPosition, previewBatch.color());
+			}
 		}
 	}
 
@@ -173,7 +168,7 @@ public final class QuickLinkOutlineRenderer {
 	/**
 	 * 解析 quick-link 缓存对象预览的线框集合，并对短时间内重复帧复用扫描结果。
 	 */
-	private static List<PreviewOutlineShape> resolvePreviewOutlineShapes(Minecraft minecraft) {
+	private static List<PreviewOutlineBatch> resolvePreviewOutlineBatches(Minecraft minecraft) {
 		if (
 			minecraft == null
 				|| minecraft.player == null
@@ -214,10 +209,10 @@ public final class QuickLinkOutlineRenderer {
 					gameTime
 				)
 		) {
-			return cachedPreviewOutlineState.previewShapes();
+			return cachedPreviewOutlineState.previewBatches();
 		}
 
-		List<PreviewOutlineShape> previewShapes = scanPreviewOutlineShapes(
+		List<PreviewOutlineBatch> previewBatches = scanPreviewOutlineBatches(
 			minecraft,
 			snapshot.serialCacheType(),
 			new LinkedHashSet<>(parseResult.orderedTargets()),
@@ -233,15 +228,15 @@ public final class QuickLinkOutlineRenderer {
 			playerChunkZ,
 			renderDistance,
 			gameTime + PREVIEW_CACHE_TTL_TICKS,
-			previewShapes
+			previewBatches
 		);
-		return previewShapes;
+		return previewBatches;
 	}
 
 	/**
-	 * 扫描当前客户端已加载区块，按主题色合并缓存对象的最外层线框。
+	 * 扫描当前客户端已加载区块，并只提取缓存对象真正外露的边界线段。
 	 */
-	private static List<PreviewOutlineShape> scanPreviewOutlineShapes(
+	private static List<PreviewOutlineBatch> scanPreviewOutlineBatches(
 		Minecraft minecraft,
 		LinkNodeType cacheType,
 		Set<Long> cachedSerials,
@@ -253,7 +248,7 @@ public final class QuickLinkOutlineRenderer {
 			return List.of();
 		}
 
-		Map<OutlineColor, VoxelShape> mergedShapesByColor = new LinkedHashMap<>();
+		Map<OutlineColor, Set<BlockPos>> previewBlocksByColor = new LinkedHashMap<>();
 		for (int chunkX = playerChunkX - renderDistance; chunkX <= playerChunkX + renderDistance; chunkX++) {
 			for (int chunkZ = playerChunkZ - renderDistance; chunkZ <= playerChunkZ + renderDistance; chunkZ++) {
 				LevelChunk levelChunk = minecraft.level.getChunkSource().getChunk(chunkX, chunkZ, ChunkStatus.FULL, false);
@@ -272,25 +267,116 @@ public final class QuickLinkOutlineRenderer {
 					if (outlineColor == null) {
 						continue;
 					}
-					BlockPos blockPos = pairableNodeBlockEntity.getBlockPos();
-					VoxelShape blockShape = Shapes.box(
-						blockPos.getX(),
-						blockPos.getY(),
-						blockPos.getZ(),
-						blockPos.getX() + 1.0D,
-						blockPos.getY() + 1.0D,
-						blockPos.getZ() + 1.0D
+					previewBlocksByColor.computeIfAbsent(outlineColor, ignored -> new LinkedHashSet<>()).add(
+						pairableNodeBlockEntity.getBlockPos().immutable()
 					);
-					mergedShapesByColor.merge(outlineColor, blockShape, (currentShape, nextShape) -> Shapes.or(currentShape, nextShape));
 				}
 			}
 		}
 
-		return mergedShapesByColor
+		return previewBlocksByColor
 			.entrySet()
 			.stream()
-			.map(entry -> new PreviewOutlineShape(entry.getValue(), entry.getKey()))
+			.map(entry -> new PreviewOutlineBatch(buildBoundaryLineSegments(entry.getValue()), entry.getKey()))
+			.filter(entry -> !entry.segments().isEmpty())
 			.toList();
+	}
+
+	/**
+	 * 仅基于外露面边界生成线段，避免相连面的内部接缝继续显示。
+	 */
+	private static List<LineSegment> buildBoundaryLineSegments(Set<BlockPos> occupiedBlocks) {
+		return QuickLinkPreviewOutlineSupport
+			.buildBoundarySegments(occupiedBlocks)
+			.stream()
+			.map(segment -> LineSegment.of(segment.startX(), segment.startY(), segment.startZ(), segment.endX(), segment.endY(), segment.endZ()))
+			.toList();
+	}
+
+	private static void addExposedFaceCell(
+		Map<PlaneKey, Set<FaceCell>> faceCellsByPlane,
+		Set<BlockPos> occupiedBlocks,
+		BlockPos blockPos,
+		BoundaryAxis axis,
+		int planeCoordinate,
+		int u,
+		int v,
+		BlockPos neighborPos
+	) {
+		if (faceCellsByPlane == null || occupiedBlocks == null || blockPos == null || occupiedBlocks.contains(neighborPos)) {
+			return;
+		}
+		faceCellsByPlane.computeIfAbsent(new PlaneKey(axis, planeCoordinate), ignored -> new LinkedHashSet<>()).add(new FaceCell(u, v));
+	}
+
+	private static void toggleEdge(Set<Edge2D> boundaryEdges, Edge2D edge) {
+		if (boundaryEdges == null || edge == null) {
+			return;
+		}
+		if (!boundaryEdges.add(edge)) {
+			boundaryEdges.remove(edge);
+		}
+	}
+
+	private static LineSegmentKey toLineSegmentKey(PlaneKey planeKey, Edge2D edge) {
+		return switch (planeKey.axis()) {
+			case X -> LineSegmentKey.of(
+				planeKey.coordinate(),
+				edge.startV(),
+				edge.startU(),
+				planeKey.coordinate(),
+				edge.endV(),
+				edge.endU()
+			);
+			case Y -> LineSegmentKey.of(
+				edge.startU(),
+				planeKey.coordinate(),
+				edge.startV(),
+				edge.endU(),
+				planeKey.coordinate(),
+				edge.endV()
+			);
+			case Z -> LineSegmentKey.of(
+				edge.startU(),
+				edge.startV(),
+				planeKey.coordinate(),
+				edge.endU(),
+				edge.endV(),
+				planeKey.coordinate()
+			);
+		};
+	}
+
+	/**
+	 * 写入单条 preview 线段。
+	 */
+	private static void renderPreviewLineSegment(
+		VertexConsumer vertexConsumer,
+		PoseStack.Pose pose,
+		LineSegment lineSegment,
+		Vec3 cameraPosition,
+		OutlineColor color
+	) {
+		if (vertexConsumer == null || pose == null || lineSegment == null || cameraPosition == null || color == null) {
+			return;
+		}
+		int red = Math.round(color.red() * 255.0F);
+		int green = Math.round(color.green() * 255.0F);
+		int blue = Math.round(color.blue() * 255.0F);
+		float startX = (float) (lineSegment.startX() - cameraPosition.x);
+		float startY = (float) (lineSegment.startY() - cameraPosition.y);
+		float startZ = (float) (lineSegment.startZ() - cameraPosition.z);
+		float endX = (float) (lineSegment.endX() - cameraPosition.x);
+		float endY = (float) (lineSegment.endY() - cameraPosition.y);
+		float endZ = (float) (lineSegment.endZ() - cameraPosition.z);
+		vertexConsumer
+			.addVertex(pose, startX, startY, startZ)
+			.setColor(red, green, blue, 255)
+			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ());
+		vertexConsumer
+			.addVertex(pose, endX, endY, endZ)
+			.setColor(red, green, blue, 255)
+			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ());
 	}
 
 	/**
@@ -327,9 +413,103 @@ public final class QuickLinkOutlineRenderer {
 	}
 
 	/**
-	 * 单个 quick-link 预览线框及其颜色。
+	 * 同色缓存对象外轮廓线段批次。
 	 */
-	private record PreviewOutlineShape(VoxelShape shape, OutlineColor color) {
+	private record PreviewOutlineBatch(List<LineSegment> segments, OutlineColor color) {
+		PreviewOutlineBatch {
+			segments = List.copyOf(segments);
+		}
+	}
+
+	/**
+	 * 单个边界面所在平面。
+	 */
+	private record PlaneKey(BoundaryAxis axis, int coordinate) {
+	}
+
+	/**
+	 * 边界面中的单个单位方格。
+	 */
+	private record FaceCell(int u, int v) {
+	}
+
+	/**
+	 * 二维边界边，构造时会做端点排序，确保共享边可抵消。
+	 */
+	private record Edge2D(int startU, int startV, int endU, int endV) {
+		Edge2D {
+			if (startU > endU || (startU == endU && startV > endV)) {
+				int swappedStartU = startU;
+				int swappedStartV = startV;
+				startU = endU;
+				startV = endV;
+				endU = swappedStartU;
+				endV = swappedStartV;
+			}
+		}
+	}
+
+	/**
+	 * 世界坐标系下的一条预览线段。
+	 */
+	private record LineSegment(
+		double startX,
+		double startY,
+		double startZ,
+		double endX,
+		double endY,
+		double endZ,
+		float normalX,
+		float normalY,
+		float normalZ
+	) {
+		static LineSegment of(LineSegmentKey key) {
+			return of(key.startX(), key.startY(), key.startZ(), key.endX(), key.endY(), key.endZ());
+		}
+
+		static LineSegment of(double startX, double startY, double startZ, double endX, double endY, double endZ) {
+			double deltaX = endX - startX;
+			double deltaY = endY - startY;
+			double deltaZ = endZ - startZ;
+			double length = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+			float normalX = length <= 0.0D ? 1.0F : (float) (deltaX / length);
+			float normalY = length <= 0.0D ? 0.0F : (float) (deltaY / length);
+			float normalZ = length <= 0.0D ? 0.0F : (float) (deltaZ / length);
+			return new LineSegment(startX, startY, startZ, endX, endY, endZ, normalX, normalY, normalZ);
+		}
+	}
+
+	/**
+	 * 用整数端点标识一条世界坐标边，用于跨平面去重。
+	 */
+	private record LineSegmentKey(int startX, int startY, int startZ, int endX, int endY, int endZ) {
+		static LineSegmentKey of(int startX, int startY, int startZ, int endX, int endY, int endZ) {
+			if (
+				startX > endX
+					|| (startX == endX && startY > endY)
+					|| (startX == endX && startY == endY && startZ > endZ)
+			) {
+				int nextStartX = endX;
+				int nextStartY = endY;
+				int nextStartZ = endZ;
+				endX = startX;
+				endY = startY;
+				endZ = startZ;
+				startX = nextStartX;
+				startY = nextStartY;
+				startZ = nextStartZ;
+			}
+			return new LineSegmentKey(startX, startY, startZ, endX, endY, endZ);
+		}
+	}
+
+	/**
+	 * 边界平面坐标轴。
+	 */
+	private enum BoundaryAxis {
+		X,
+		Y,
+		Z
 	}
 
 	/**
@@ -343,10 +523,10 @@ public final class QuickLinkOutlineRenderer {
 		int playerChunkZ,
 		int renderDistance,
 		long expireGameTick,
-		List<PreviewOutlineShape> previewShapes
+		List<PreviewOutlineBatch> previewBatches
 	) {
 		CachedPreviewOutlineState {
-			previewShapes = List.copyOf(previewShapes);
+			previewBatches = List.copyOf(previewBatches);
 		}
 
 		boolean matches(
