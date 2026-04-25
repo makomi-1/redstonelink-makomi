@@ -13,6 +13,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.QuickLinkNetwork;
+import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
@@ -48,6 +49,9 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkChannelPreviewPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> QuickLinkOutlineRenderer.acceptChannelPreview(payload));
 		});
+		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> acceptVisualizeSnapshot(payload));
+		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkFeedbackPayload.TYPE, (payload, context) -> {
 			context.client().execute(() ->
 				QuickLinkFeedbackOverlayRenderer.showFeedback(payload.success(), payload.messageKey(), payload.messageArgs())
@@ -74,11 +78,23 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		});
 
 		AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
-			if (world.isClientSide && shouldSendCollectRequest(player == null ? null : Minecraft.getInstance(), hand, pos)) {
+			Minecraft minecraft = player == null ? null : Minecraft.getInstance();
+			if (world.isClientSide && shouldSendVisualizeAddRequest(minecraft, hand, pos)) {
 				if (collectTriggeredForCurrentAttack) {
 					return InteractionResult.FAIL;
 				}
-				QuickLinkNetwork.CollectQuickLinkPayload payload = buildCollectPayload(player == null ? null : Minecraft.getInstance(), hand, pos);
+				QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload payload = buildVisualizeSnapshotRequest(minecraft, hand, pos);
+				if (payload != null) {
+					ClientPlayNetworking.send(payload);
+				}
+				collectTriggeredForCurrentAttack = true;
+				return InteractionResult.FAIL;
+			}
+			if (world.isClientSide && shouldSendCollectRequest(minecraft, hand, pos)) {
+				if (collectTriggeredForCurrentAttack) {
+					return InteractionResult.FAIL;
+				}
+				QuickLinkNetwork.CollectQuickLinkPayload payload = buildCollectPayload(minecraft, hand, pos);
 				if (payload != null) {
 					ClientPlayNetworking.send(payload);
 				}
@@ -89,12 +105,21 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		});
 
 		UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-			if (world.isClientSide && shouldSendApplyRequest(player == null ? null : Minecraft.getInstance(), hand, hitResult.getBlockPos())) {
+			Minecraft minecraft = player == null ? null : Minecraft.getInstance();
+			if (world.isClientSide && shouldSendVisualizeRemoveRequest(minecraft, hand, hitResult.getBlockPos())) {
+				if (applyTriggeredForCurrentUse) {
+					return InteractionResult.FAIL;
+				}
+				handleVisualizeRemove(minecraft, hand, hitResult.getBlockPos());
+				applyTriggeredForCurrentUse = true;
+				return InteractionResult.FAIL;
+			}
+			if (world.isClientSide && shouldSendApplyRequest(minecraft, hand, hitResult.getBlockPos())) {
 				if (applyTriggeredForCurrentUse) {
 					return InteractionResult.FAIL;
 				}
 				QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload payload = buildApplyBaselineRequest(
-					player == null ? null : Minecraft.getInstance(),
+					minecraft,
 					hand,
 					hitResult.getBlockPos()
 				);
@@ -126,9 +151,26 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	}
 
 	/**
+	 * 清空第三形态当前显示对象列表，并给出本地反馈。
+	 */
+	public static void clearVisualizedObjects() {
+		int removedCount = QuickLinkOutlineRenderer.clearVisualizedObjects();
+		QuickLinkFeedbackOverlayRenderer.showFeedback(
+			true,
+			removedCount > 0
+				? "message.redstonelink.quick_link.visualize.cleared"
+				: "message.redstonelink.quick_link.visualize.clear_empty",
+			List.of(Integer.toString(removedCount))
+		);
+	}
+
+	/**
 	 * 判断本次左键是否应发送“快速采集”请求。
 	 */
 	private static boolean shouldSendCollectRequest(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
+		if (isVisualizeMode(minecraft)) {
+			return false;
+		}
 		return resolveQuickLinkTarget(minecraft, hand, blockPos, false, false) != null;
 	}
 
@@ -136,7 +178,24 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	 * 判断本次右键是否应发送“快速应用”请求。
 	 */
 	private static boolean shouldSendApplyRequest(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
+		if (isVisualizeMode(minecraft)) {
+			return false;
+		}
 		return resolveQuickLinkTarget(minecraft, hand, blockPos, true, true) != null;
+	}
+
+	/**
+	 * 判断本次左键是否应发送“添加显示对象”请求。
+	 */
+	private static boolean shouldSendVisualizeAddRequest(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
+		return isVisualizeMode(minecraft) && resolveVisualizeTarget(minecraft, hand, blockPos) != null;
+	}
+
+	/**
+	 * 判断本次右键是否应走“移除显示对象”。
+	 */
+	private static boolean shouldSendVisualizeRemoveRequest(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
+		return isVisualizeMode(minecraft) && resolveVisualizeTarget(minecraft, hand, blockPos) != null;
 	}
 
 	/**
@@ -168,6 +227,26 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			return null;
 		}
 		return new QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload(
+			target.dimensionKey(),
+			target.blockPosLong(),
+			target.expectedNodeTypeToken(),
+			target.expectedNodeSerial()
+		);
+	}
+
+	/**
+	 * 构建“添加显示对象”请求。
+	 */
+	private static QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload buildVisualizeSnapshotRequest(
+		Minecraft minecraft,
+		InteractionHand hand,
+		BlockPos blockPos
+	) {
+		ResolvedQuickLinkTarget target = resolveVisualizeTarget(minecraft, hand, blockPos);
+		if (target == null) {
+			return null;
+		}
+		return new QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload(
 			target.dimensionKey(),
 			target.blockPosLong(),
 			target.expectedNodeTypeToken(),
@@ -246,12 +325,65 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	}
 
 	/**
+	 * 解析第三形态命中的显示对象。
+	 * <p>
+	 * 普通节点保留 `triggerSource/core` 身份；转发器统一折叠为聚合对象 `link_repeater`。
+	 * </p>
+	 */
+	private static ResolvedQuickLinkTarget resolveVisualizeTarget(
+		Minecraft minecraft,
+		InteractionHand hand,
+		BlockPos blockPos
+	) {
+		if (!hasQuickLinkInteractionContext(minecraft, hand, false) || minecraft == null || minecraft.level == null) {
+			return null;
+		}
+		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockPos);
+		if (blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity) {
+			if (repeaterBlockEntity.getSerial() <= 0L) {
+				return null;
+			}
+			return new ResolvedQuickLinkTarget(
+				minecraft.level.dimension().location().toString(),
+				blockPos.asLong(),
+				LinkGuiDisplayContext.LINK_REPEATER,
+				repeaterBlockEntity.getSerial()
+			);
+		}
+		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
+			if (pairableNodeBlockEntity.getLinkNodeType() == null || pairableNodeBlockEntity.getSerial() <= 0L) {
+				return null;
+			}
+			return new ResolvedQuickLinkTarget(
+				minecraft.level.dimension().location().toString(),
+				blockPos.asLong(),
+				LinkNodeSemantics.toSemanticName(pairableNodeBlockEntity.getLinkNodeType()),
+				pairableNodeBlockEntity.getSerial()
+			);
+		}
+		return null;
+	}
+
+	/**
 	 * 解析转发器 quick-link 采集时应命中的逻辑身份。
 	 */
 	static LinkNodeType resolveRepeaterCollectNodeType(QuickLinkToolData.Snapshot snapshot) {
 		return snapshot != null && snapshot.serialCacheType() == LinkNodeType.TRIGGER_SOURCE
 			? LinkNodeType.TRIGGER_SOURCE
 			: LinkNodeType.CORE;
+	}
+
+	/**
+	 * 判断当前是否处于第三形态。
+	 */
+	public static boolean isVisualizeMode(Minecraft minecraft) {
+		if (minecraft == null || minecraft.player == null) {
+			return false;
+		}
+		if (!(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+			return false;
+		}
+		return QuickLinkToolData.read(minecraft.player.getMainHandItem()).mode() == QuickLinkToolData.Mode.VISUALIZE;
 	}
 
 	/**
@@ -295,6 +427,42 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				payload.coreRevision(),
 				payload.sourceRevision()
 			)
+		);
+	}
+
+	/**
+	 * 接收服务端回传的第三形态显示对象快照。
+	 */
+	private static void acceptVisualizeSnapshot(QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload payload) {
+		if (payload == null || payload.objectSerial() <= 0L || payload.objectTypeToken().isBlank()) {
+			return;
+		}
+		boolean existed = QuickLinkOutlineRenderer.hasVisualizedObject(payload.objectTypeToken(), payload.objectSerial());
+		QuickLinkOutlineRenderer.acceptVisualizeSnapshot(payload);
+		QuickLinkFeedbackOverlayRenderer.showFeedback(
+			true,
+			existed
+				? "message.redstonelink.quick_link.visualize.updated"
+				: "message.redstonelink.quick_link.visualize.added",
+			List.of(payload.displayText())
+		);
+	}
+
+	/**
+	 * 按当前命中对象移除第三形态显示对象。
+	 */
+	private static void handleVisualizeRemove(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
+		ResolvedQuickLinkTarget target = resolveVisualizeTarget(minecraft, hand, blockPos);
+		if (target == null) {
+			return;
+		}
+		boolean removed = QuickLinkOutlineRenderer.removeVisualizedObject(target.expectedNodeTypeToken(), target.expectedNodeSerial());
+		QuickLinkFeedbackOverlayRenderer.showFeedback(
+			removed,
+			removed
+				? "message.redstonelink.quick_link.visualize.removed"
+				: "message.redstonelink.quick_link.visualize.remove_missing",
+			List.of(target.expectedNodeSerial() <= 0L ? "-" : Long.toString(target.expectedNodeSerial()))
 		);
 	}
 

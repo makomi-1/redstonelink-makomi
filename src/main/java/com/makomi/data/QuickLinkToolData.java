@@ -260,7 +260,8 @@ public final class QuickLinkToolData {
 	 */
 	public enum Mode {
 		SERIAL("serial", "message.redstonelink.quick_link.mode.serial"),
-		CHANNEL("channel", "message.redstonelink.quick_link.mode.channel");
+		CHANNEL("channel", "message.redstonelink.quick_link.mode.channel"),
+		VISUALIZE("visualize", "message.redstonelink.quick_link.mode.visualize");
 
 		private final String token;
 		private final String translationKey;
@@ -276,6 +277,9 @@ public final class QuickLinkToolData {
 		public static Mode fromToken(String token) {
 			if (CHANNEL.token.equalsIgnoreCase(token)) {
 				return CHANNEL;
+			}
+			if (VISUALIZE.token.equalsIgnoreCase(token)) {
+				return VISUALIZE;
 			}
 			return SERIAL;
 		}
@@ -298,7 +302,11 @@ public final class QuickLinkToolData {
 		 * @return 下一个循环模式
 		 */
 		public Mode next() {
-			return this == SERIAL ? CHANNEL : SERIAL;
+			return switch (this) {
+				case SERIAL -> CHANNEL;
+				case CHANNEL -> VISUALIZE;
+				case VISUALIZE -> SERIAL;
+			};
 		}
 	}
 

@@ -102,6 +102,60 @@ class QuickLinkNetworkPayloadTest {
 	}
 
 	/**
+	 * 第三形态快照请求编解码往返应保留目标对象上下文。
+	 */
+	@Test
+	void requestVisualizeSnapshotPayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload original =
+			new QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload(
+				"minecraft:overworld",
+				63L,
+				"link_repeater",
+				19L
+			);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload decoded =
+			QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload.CODEC.decode(buffer);
+
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
+		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
+	}
+
+	/**
+	 * 第三形态快照回包编解码往返应保留对象与目标列表。
+	 */
+	@Test
+	void visualizeSnapshotPayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload original = new QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload(
+			"link_repeater",
+			33L,
+			"minecraft:overworld",
+			72L,
+			"转发器#33",
+			List.of(
+				new QuickLinkNetwork.QuickLinkVisualizeTarget("core", 41L, "minecraft:overworld", 73L, "core#41"),
+				new QuickLinkNetwork.QuickLinkVisualizeTarget("triggerSource", 12L, "minecraft:overworld", 74L, "trigger#12")
+			)
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload decoded =
+			QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload.CODEC.decode(buffer);
+
+		assertEquals(original.objectTypeToken(), decoded.objectTypeToken());
+		assertEquals(original.objectSerial(), decoded.objectSerial());
+		assertEquals(original.dimensionKey(), decoded.dimensionKey());
+		assertEquals(original.blockPosLong(), decoded.blockPosLong());
+		assertEquals(original.displayText(), decoded.displayText());
+		assertEquals(original.targets(), decoded.targets());
+	}
+
+	/**
 	 * 应用请求编解码往返应保留命中维度、方块坐标与期望节点身份。
 	 */
 	@Test

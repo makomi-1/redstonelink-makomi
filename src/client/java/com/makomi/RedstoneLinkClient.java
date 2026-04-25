@@ -240,6 +240,10 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
 			return;
 		}
+		if (QuickLinkNetworkClientHandlerSupport.isVisualizeMode(client)) {
+			QuickLinkNetworkClientHandlerSupport.clearVisualizedObjects();
+			return;
+		}
 
 		QuickLinkToolData.Snapshot cleared = QuickLinkToolData.clearCaches(client.player.getMainHandItem());
 		ClientPlayNetworking.send(
@@ -265,6 +269,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			return;
 		}
 		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+			return;
+		}
+		if (QuickLinkNetworkClientHandlerSupport.isVisualizeMode(client)) {
 			return;
 		}
 

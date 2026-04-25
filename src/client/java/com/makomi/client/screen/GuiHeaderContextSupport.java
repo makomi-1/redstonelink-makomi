@@ -57,7 +57,13 @@ final class GuiHeaderContextSupport {
 	 * quick-link 头部副标题颜色随模式主题切换。
 	 */
 	private static int quickLinkSubtitleColor(QuickLinkToolData.Mode mode) {
-		return mode == QuickLinkToolData.Mode.CHANNEL ? 0xFFD7E7FF : 0xFFFFD5D5;
+		if (mode == QuickLinkToolData.Mode.CHANNEL) {
+			return 0xFFD7E7FF;
+		}
+		if (mode == QuickLinkToolData.Mode.VISUALIZE) {
+			return 0xFFB6FFCC;
+		}
+		return 0xFFFFD5D5;
 	}
 
 	/**

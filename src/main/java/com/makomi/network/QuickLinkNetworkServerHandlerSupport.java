@@ -16,7 +16,9 @@ import com.makomi.data.QuickLinkCollectService;
 import com.makomi.data.QuickLinkOccSubmissionSupport;
 import com.makomi.data.QuickLinkOperationFeedback;
 import com.makomi.data.QuickLinkToolData;
+import com.makomi.data.QuickLinkVisualizationSnapshotService;
 import com.makomi.item.QuickLinkToolItem;
+import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -134,6 +136,64 @@ final class QuickLinkNetworkServerHandlerSupport {
 				LinkNodeSemantics.toSemanticName(cacheType),
 				payload.channel(),
 				memberSerials
+			)
+		);
+	}
+
+	/**
+	 * 处理客户端第三形态“添加显示对象”查询请求。
+	 */
+	static void handleRequestQuickLinkVisualizeSnapshot(
+		ServerPlayer player,
+		QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload payload
+	) {
+		ItemStack mainHandItem = player.getMainHandItem();
+		if (!(mainHandItem.getItem() instanceof QuickLinkToolItem)) {
+			return;
+		}
+		ResolvedQuickLinkApplyTarget requestedTarget = resolveRequestedApplyTarget(
+			player,
+			payload.dimensionKey(),
+			payload.blockPosLong(),
+			payload.expectedNodeTypeToken(),
+			payload.expectedNodeSerial(),
+			"message.redstonelink.quick_link.visualize.invalid_target"
+		);
+		if (requestedTarget == null) {
+			return;
+		}
+		if (requestedTarget.filterBlockEntity() != null || requestedTarget.chunkActivatorBlockEntity() != null) {
+			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.visualize.invalid_target"));
+			return;
+		}
+
+		String objectTypeToken = requestedTarget.repeaterBlockEntity() != null
+			? QUICK_LINK_REPEATER_TARGET_TOKEN
+			: requestedTarget.expectedTargetToken();
+		QuickLinkVisualizationSnapshotService.VisualizedObjectSnapshot snapshot = QuickLinkVisualizationSnapshotService.query(
+			player,
+			objectTypeToken,
+			requestedTarget.expectedTargetSerial()
+		);
+		if (snapshot == null || snapshot.source() == null || !snapshot.source().hasPosition()) {
+			sendFeedback(player, QuickLinkOperationFeedback.failure("message.redstonelink.quick_link.visualize.invalid_target"));
+			return;
+		}
+
+		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets = snapshot
+			.targets()
+			.stream()
+			.map(QuickLinkNetworkServerHandlerSupport::toVisualizeTarget)
+			.toList();
+		ServerPlayNetworking.send(
+			player,
+			new QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload(
+				snapshot.source().objectTypeToken(),
+				snapshot.source().serial(),
+				snapshot.source().dimensionKey(),
+				snapshot.source().blockPosLong(),
+				snapshot.source().displayText(),
+				targets
 			)
 		);
 	}
@@ -333,6 +393,21 @@ final class QuickLinkNetworkServerHandlerSupport {
 		ServerPlayNetworking.send(
 			player,
 			new QuickLinkNetwork.QuickLinkFeedbackPayload(result.success(), result.messageKey(), result.messageArgs())
+		);
+	}
+
+	/**
+	 * 将服务端查询服务返回的目标对象引用转换为网络可传输结构。
+	 */
+	private static QuickLinkNetwork.QuickLinkVisualizeTarget toVisualizeTarget(
+		QuickLinkVisualizationSnapshotService.VisualizedObjectRef target
+	) {
+		return new QuickLinkNetwork.QuickLinkVisualizeTarget(
+			target == null ? "" : target.objectTypeToken(),
+			target == null ? 0L : target.serial(),
+			target == null ? "" : target.dimensionKey(),
+			target == null ? 0L : target.blockPosLong(),
+			target == null ? "" : target.displayText()
 		);
 	}
 

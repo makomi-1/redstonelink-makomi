@@ -13,6 +13,7 @@ import net.minecraft.network.FriendlyByteBuf;
 final class QuickLinkNetworkPayloadSupport {
 	private static final int TOKEN_MAX_LENGTH = PairingNetworkPayloadSupport.NODE_TYPE_MAX_LENGTH;
 	private static final int DIMENSION_KEY_MAX_LENGTH = PairingNetworkPayloadSupport.DIMENSION_KEY_MAX_LENGTH;
+	private static final int DISPLAY_TEXT_MAX_LENGTH = 96;
 	private static final int FEEDBACK_MESSAGE_KEY_MAX_LENGTH = 256;
 	private static final int FEEDBACK_MESSAGE_ARG_MAX_LENGTH = 512;
 
@@ -157,6 +158,64 @@ final class QuickLinkNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码第三形态显示对象快照。
+	 */
+	static void encodeVisualizeSnapshotPayload(
+		FriendlyByteBuf buffer,
+		String objectTypeToken,
+		long objectSerial,
+		String dimensionKey,
+		long blockPosLong,
+		String displayText,
+		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets
+	) {
+		encodeBlockTargetPayload(buffer, dimensionKey, blockPosLong, objectTypeToken, objectSerial);
+		buffer.writeUtf(displayText == null ? "" : displayText, DISPLAY_TEXT_MAX_LENGTH);
+		List<QuickLinkNetwork.QuickLinkVisualizeTarget> normalizedTargets = targets == null ? List.of() : List.copyOf(targets);
+		buffer.writeVarInt(normalizedTargets.size());
+		for (QuickLinkNetwork.QuickLinkVisualizeTarget target : normalizedTargets) {
+			encodeBlockTargetPayload(
+				buffer,
+				target == null ? "" : target.dimensionKey(),
+				target == null ? 0L : target.blockPosLong(),
+				target == null ? "" : target.objectTypeToken(),
+				target == null ? 0L : target.objectSerial()
+			);
+			buffer.writeUtf(target == null || target.displayText() == null ? "" : target.displayText(), DISPLAY_TEXT_MAX_LENGTH);
+		}
+	}
+
+	/**
+	 * 解码第三形态显示对象快照。
+	 */
+	static DecodedVisualizeSnapshotPayload decodeVisualizeSnapshotPayload(FriendlyByteBuf buffer) {
+		DecodedBlockTargetPayload source = decodeBlockTargetPayload(buffer);
+		String displayText = buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH);
+		int size = buffer.readVarInt();
+		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets = new ArrayList<>(Math.max(size, 0));
+		for (int index = 0; index < size; index++) {
+			DecodedBlockTargetPayload target = decodeBlockTargetPayload(buffer);
+			targets.add(
+				new QuickLinkNetwork.QuickLinkVisualizeTarget(
+					target.expectedNodeTypeToken(),
+					target.expectedNodeSerial(),
+					target.dimensionKey(),
+					target.blockPosLong(),
+					buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH)
+				)
+			);
+		}
+		return new DecodedVisualizeSnapshotPayload(
+			source.expectedNodeTypeToken(),
+			source.expectedNodeSerial(),
+			source.dimensionKey(),
+			source.blockPosLong(),
+			displayText,
+			List.copyOf(targets)
+		);
+	}
+
+	/**
 	 * 编码正式 apply 请求。
 	 */
 	static void encodeApplyPayload(
@@ -290,6 +349,19 @@ final class QuickLinkNetworkPayloadSupport {
 	 * 频道预览回包解码结果。
 	 */
 	record DecodedChannelPreviewPayload(String cacheTypeToken, long channel, List<Long> memberSerials) {
+	}
+
+	/**
+	 * 第三形态显示对象快照解码结果。
+	 */
+	record DecodedVisualizeSnapshotPayload(
+		String objectTypeToken,
+		long objectSerial,
+		String dimensionKey,
+		long blockPosLong,
+		String displayText,
+		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets
+	) {
 	}
 
 	/**

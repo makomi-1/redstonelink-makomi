@@ -64,12 +64,13 @@ class QuickLinkToolDataTest {
 	}
 
 	/**
-	 * 模式循环切换应在 `serial/channel` 间往返。
+	 * 模式循环切换应按 `serial -> channel -> visualize -> serial` 往返。
 	 */
 	@Test
-	void cycleModeShouldToggleBetweenSerialAndChannel() {
+	void cycleModeShouldToggleAcrossAllModes() {
 		ItemStack stack = new ItemStack(Items.STONE);
 		assertEquals(QuickLinkToolData.Mode.CHANNEL, QuickLinkToolData.cycleMode(stack).mode());
+		assertEquals(QuickLinkToolData.Mode.VISUALIZE, QuickLinkToolData.cycleMode(stack).mode());
 		assertEquals(QuickLinkToolData.Mode.SERIAL, QuickLinkToolData.cycleMode(stack).mode());
 	}
 

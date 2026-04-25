@@ -211,6 +211,124 @@ public final class QuickLinkNetwork {
 	}
 
 	/**
+	 * 客户端请求第三形态显示对象当前连接快照的 C2S 请求。
+	 * <p>
+	 * `expectedNodeTypeToken` 支持 `triggerSource/core/link_repeater`。
+	 * </p>
+	 */
+	public record RequestQuickLinkVisualizeSnapshotPayload(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<RequestQuickLinkVisualizeSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_visualize_snapshot")
+		);
+		public static final StreamCodec<FriendlyByteBuf, RequestQuickLinkVisualizeSnapshotPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
+				buffer,
+				payload.dimensionKey(),
+				payload.blockPosLong(),
+				payload.expectedNodeTypeToken(),
+				payload.expectedNodeSerial()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedBlockTargetPayload decoded = QuickLinkNetworkPayloadSupport.decodeBlockTargetPayload(
+					buffer
+				);
+				return new RequestQuickLinkVisualizeSnapshotPayload(
+					decoded.dimensionKey(),
+					decoded.blockPosLong(),
+					decoded.expectedNodeTypeToken(),
+					decoded.expectedNodeSerial()
+				);
+			}
+		);
+
+		public RequestQuickLinkVisualizeSnapshotPayload {
+			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			expectedNodeTypeToken = expectedNodeTypeToken == null ? "" : expectedNodeTypeToken;
+			expectedNodeSerial = Math.max(0L, expectedNodeSerial);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端回传第三形态显示对象快照的 S2C 包。
+	 */
+	public record QuickLinkVisualizeSnapshotPayload(
+		String objectTypeToken,
+		long objectSerial,
+		String dimensionKey,
+		long blockPosLong,
+		String displayText,
+		List<QuickLinkVisualizeTarget> targets
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<QuickLinkVisualizeSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_visualize_snapshot")
+		);
+		public static final StreamCodec<FriendlyByteBuf, QuickLinkVisualizeSnapshotPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeVisualizeSnapshotPayload(
+				buffer,
+				payload.objectTypeToken(),
+				payload.objectSerial(),
+				payload.dimensionKey(),
+				payload.blockPosLong(),
+				payload.displayText(),
+				payload.targets()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedVisualizeSnapshotPayload decoded =
+					QuickLinkNetworkPayloadSupport.decodeVisualizeSnapshotPayload(buffer);
+				return new QuickLinkVisualizeSnapshotPayload(
+					decoded.objectTypeToken(),
+					decoded.objectSerial(),
+					decoded.dimensionKey(),
+					decoded.blockPosLong(),
+					decoded.displayText(),
+					decoded.targets()
+				);
+			}
+		);
+
+		public QuickLinkVisualizeSnapshotPayload {
+			objectTypeToken = objectTypeToken == null ? "" : objectTypeToken;
+			objectSerial = Math.max(0L, objectSerial);
+			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			displayText = displayText == null ? "" : displayText;
+			targets = List.copyOf(targets == null ? List.of() : targets);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 单个第三形态显示对象目标项。
+	 */
+	public record QuickLinkVisualizeTarget(
+		String objectTypeToken,
+		long objectSerial,
+		String dimensionKey,
+		long blockPosLong,
+		String displayText
+	) {
+		public QuickLinkVisualizeTarget {
+			objectTypeToken = objectTypeToken == null ? "" : objectTypeToken;
+			objectSerial = Math.max(0L, objectSerial);
+			dimensionKey = dimensionKey == null ? "" : dimensionKey;
+			displayText = displayText == null ? "" : displayText;
+		}
+	}
+
+	/**
 	 * 客户端右键应用前请求 revision 基线的 C2S 请求。
 	 * <p>
 	 * `expectedNodeTypeToken/expectedNodeSerial` 既可表示节点身份，

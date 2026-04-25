@@ -48,6 +48,16 @@ public final class QuickLinkOutlineRenderer {
 		LinkSerialOverlayRenderCommon.resolveRepeaterTextColor()
 	);
 	private static final OutlineColor FILTER_OUTLINE_COLOR = new OutlineColor(1.0F, 0.16F, 0.16F);
+	private static final OutlineColor[] VISUALIZE_OBJECT_COLORS = new OutlineColor[] {
+		OutlineColor.fromPackedColor(0xFF74FF7B),
+		OutlineColor.fromPackedColor(0xFF5DD7FF),
+		OutlineColor.fromPackedColor(0xFFFFC66A),
+		OutlineColor.fromPackedColor(0xFFFF7AA8),
+		OutlineColor.fromPackedColor(0xFFFFFF73),
+		OutlineColor.fromPackedColor(0xFF8EF6FF),
+		OutlineColor.fromPackedColor(0xFFFF9C66),
+		OutlineColor.fromPackedColor(0xFFC6FF63)
+	};
 	private static final int PREVIEW_CACHE_TTL_TICKS = 6;
 	private static final RenderStateShard.LineStateShard QUICK_LINK_PREVIEW_LINE_STATE = new RenderStateShard.LineStateShard(
 		OptionalDouble.of(2.5D)
@@ -73,6 +83,8 @@ public final class QuickLinkOutlineRenderer {
 	private static CachedPreviewOutlineState cachedPreviewOutlineState;
 	private static CachedChannelPreviewState cachedChannelPreviewState;
 	private static PendingChannelPreviewRequest pendingChannelPreviewRequest;
+	private static final Map<VisualizedObjectKey, VisualizedObjectState> visualizedObjects = new LinkedHashMap<>();
+	private static int nextVisualizedColorIndex;
 
 	private QuickLinkOutlineRenderer() {
 	}
@@ -127,6 +139,7 @@ public final class QuickLinkOutlineRenderer {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null || minecraft.level == null) {
 			clearTransientPreviewState();
+			clearVisualizedObjectState();
 			return;
 		}
 		if (!(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
@@ -134,6 +147,11 @@ public final class QuickLinkOutlineRenderer {
 			return;
 		}
 		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
+			return;
+		}
+		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
+		if (snapshot.mode() == QuickLinkToolData.Mode.VISUALIZE) {
+			renderVisualizedConnections(worldRenderContext, minecraft);
 			return;
 		}
 
@@ -178,6 +196,60 @@ public final class QuickLinkOutlineRenderer {
 			pendingChannelPreviewRequest = null;
 		}
 		cachedPreviewOutlineState = null;
+	}
+
+	/**
+	 * 判断第三形态显示对象是否已存在。
+	 */
+	public static boolean hasVisualizedObject(String objectTypeToken, long objectSerial) {
+		return visualizedObjects.containsKey(new VisualizedObjectKey(objectTypeToken, objectSerial));
+	}
+
+	/**
+	 * 接收服务端回传的第三形态显示对象快照。
+	 */
+	public static void acceptVisualizeSnapshot(QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload payload) {
+		if (payload == null || payload.objectTypeToken().isBlank() || payload.objectSerial() <= 0L) {
+			return;
+		}
+		VisualizedObjectKey key = new VisualizedObjectKey(payload.objectTypeToken(), payload.objectSerial());
+		OutlineColor color = visualizedObjects.containsKey(key)
+			? visualizedObjects.get(key).color()
+			: nextVisualizedObjectColor();
+		visualizedObjects.put(
+			key,
+			new VisualizedObjectState(
+				new VisualizedObjectRef(
+					payload.objectTypeToken(),
+					payload.objectSerial(),
+					payload.dimensionKey(),
+					payload.blockPosLong(),
+					payload.displayText()
+				),
+				normalizeVisualizedTargets(payload.targets()),
+				color
+			)
+		);
+	}
+
+	/**
+	 * 移除单个第三形态显示对象。
+	 */
+	public static boolean removeVisualizedObject(String objectTypeToken, long objectSerial) {
+		boolean removed = visualizedObjects.remove(new VisualizedObjectKey(objectTypeToken, objectSerial)) != null;
+		if (visualizedObjects.isEmpty()) {
+			nextVisualizedColorIndex = 0;
+		}
+		return removed;
+	}
+
+	/**
+	 * 清空第三形态全部显示对象。
+	 */
+	public static int clearVisualizedObjects() {
+		int removedCount = visualizedObjects.size();
+		clearVisualizedObjectState();
+		return removedCount;
 	}
 
 	/**
@@ -261,6 +333,9 @@ public final class QuickLinkOutlineRenderer {
 		QuickLinkToolData.Snapshot snapshot
 	) {
 		if (snapshot == null) {
+			return null;
+		}
+		if (snapshot.mode() == QuickLinkToolData.Mode.VISUALIZE) {
 			return null;
 		}
 		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
@@ -347,6 +422,14 @@ public final class QuickLinkOutlineRenderer {
 		cachedPreviewOutlineState = null;
 		cachedChannelPreviewState = null;
 		pendingChannelPreviewRequest = null;
+	}
+
+	/**
+	 * 清空第三形态显示对象状态。
+	 */
+	private static void clearVisualizedObjectState() {
+		visualizedObjects.clear();
+		nextVisualizedColorIndex = 0;
 	}
 
 	/**
@@ -517,6 +600,84 @@ public final class QuickLinkOutlineRenderer {
 			.addVertex(pose, endX, endY, endZ)
 			.setColor(red, green, blue, 255)
 			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ());
+	}
+
+	/**
+	 * 绘制第三形态全部显示对象的穿墙连线。
+	 */
+	private static void renderVisualizedConnections(WorldRenderContext worldRenderContext, Minecraft minecraft) {
+		if (worldRenderContext == null || minecraft == null || minecraft.level == null || visualizedObjects.isEmpty()) {
+			return;
+		}
+		String currentDimensionKey = minecraft.level.dimension().location().toString();
+		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
+		PoseStack.Pose pose = worldRenderContext.matrixStack().last();
+		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(QUICK_LINK_PREVIEW_RENDER_TYPE);
+		for (VisualizedObjectState state : visualizedObjects.values()) {
+			VisualizedObjectRef source = state.source();
+			if (source == null || !source.hasPosition() || !currentDimensionKey.equals(source.dimensionKey())) {
+				continue;
+			}
+			Vec3 sourceCenter = resolveBlockCenter(source.blockPosLong());
+			for (VisualizedObjectRef target : state.targets()) {
+				if (target == null || !target.hasPosition() || !currentDimensionKey.equals(target.dimensionKey())) {
+					continue;
+				}
+				Vec3 targetCenter = resolveBlockCenter(target.blockPosLong());
+				renderPreviewLineSegment(
+					lineVertexConsumer,
+					pose,
+					LineSegment.of(sourceCenter.x, sourceCenter.y, sourceCenter.z, targetCenter.x, targetCenter.y, targetCenter.z),
+					cameraPosition,
+					state.color()
+				);
+			}
+		}
+	}
+
+	/**
+	 * 读取方块中心点，供第三形态连接线复用。
+	 */
+	private static Vec3 resolveBlockCenter(long blockPosLong) {
+		BlockPos blockPos = BlockPos.of(blockPosLong);
+		return new Vec3(blockPos.getX() + 0.5D, blockPos.getY() + 0.5D, blockPos.getZ() + 0.5D);
+	}
+
+	/**
+	 * 规范化第三形态目标对象列表，并按对象键去重。
+	 */
+	private static List<VisualizedObjectRef> normalizeVisualizedTargets(
+		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets
+	) {
+		if (targets == null || targets.isEmpty()) {
+			return List.of();
+		}
+		Map<VisualizedObjectKey, VisualizedObjectRef> normalizedTargets = new LinkedHashMap<>();
+		for (QuickLinkNetwork.QuickLinkVisualizeTarget target : targets) {
+			if (target == null || target.objectTypeToken().isBlank() || target.objectSerial() <= 0L) {
+				continue;
+			}
+			normalizedTargets.putIfAbsent(
+				new VisualizedObjectKey(target.objectTypeToken(), target.objectSerial()),
+				new VisualizedObjectRef(
+					target.objectTypeToken(),
+					target.objectSerial(),
+					target.dimensionKey(),
+					target.blockPosLong(),
+					target.displayText()
+				)
+			);
+		}
+		return normalizedTargets.isEmpty() ? List.of() : List.copyOf(normalizedTargets.values());
+	}
+
+	/**
+	 * 分配下一个第三形态显示对象颜色。
+	 */
+	private static OutlineColor nextVisualizedObjectColor() {
+		OutlineColor color = VISUALIZE_OBJECT_COLORS[nextVisualizedColorIndex % VISUALIZE_OBJECT_COLORS.length];
+		nextVisualizedColorIndex++;
+		return color;
 	}
 
 	/**
@@ -725,6 +886,40 @@ public final class QuickLinkOutlineRenderer {
 
 		boolean matchesKey(LinkNodeType cacheType, long channel) {
 			return this.cacheType == cacheType && this.channel == channel;
+		}
+	}
+
+	/**
+	 * 第三形态显示对象去重键。
+	 */
+	private record VisualizedObjectKey(String objectTypeToken, long objectSerial) {
+	}
+
+	/**
+	 * 第三形态单个对象的客户端本地引用。
+	 */
+	private record VisualizedObjectRef(
+		String objectTypeToken,
+		long objectSerial,
+		String dimensionKey,
+		long blockPosLong,
+		String displayText
+	) {
+		boolean hasPosition() {
+			return dimensionKey != null && !dimensionKey.isBlank();
+		}
+	}
+
+	/**
+	 * 第三形态单个显示对象的完整本地状态。
+	 */
+	private record VisualizedObjectState(
+		VisualizedObjectRef source,
+		List<VisualizedObjectRef> targets,
+		OutlineColor color
+	) {
+		VisualizedObjectState {
+			targets = List.copyOf(targets == null ? List.of() : targets);
 		}
 	}
 }
