@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.makomi.item.RepeaterBlockItem;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -108,6 +109,35 @@ final class LinkNodeRetireMatchSupport {
 	}
 
 	/**
+	 * 判断转发器统一物品是否可匹配同号 `triggerSource/core` 双身份待退役键。
+	 */
+	static boolean isRepeaterStackMatchingPendingKey(ItemStack stack, LinkNodeRetireEvents.PendingKey key) {
+		if (
+			stack == null ||
+			stack.isEmpty() ||
+			key == null ||
+			!(stack.getItem() instanceof RepeaterBlockItem) ||
+			key.serial() <= 0L
+		) {
+			return false;
+		}
+		return shouldDualMatchRepeaterPendingKey(LinkItemData.getSerial(stack), key);
+	}
+
+	/**
+	 * 判断转发器统一序号是否应双向匹配同号 `triggerSource/core` 待退役键。
+	 */
+	static boolean shouldDualMatchRepeaterPendingKey(long stackSerial, LinkNodeRetireEvents.PendingKey key) {
+		if (stackSerial <= 0L || key == null) {
+			return false;
+		}
+		if (key.nodeType() != LinkNodeType.CORE && key.nodeType() != LinkNodeType.TRIGGER_SOURCE) {
+			return false;
+		}
+		return stackSerial == key.serial();
+	}
+
+	/**
 	 * 在实体卸载时解析待退役键；失败时回退到 UUID 记忆。
 	 */
 	static LinkNodeRetireEvents.PendingKey resolveUnloadKey(
@@ -135,6 +165,9 @@ final class LinkNodeRetireMatchSupport {
 		}
 		if (requireDestroyCandidate && !LinkItemData.isDestroyRetireCandidate(stack)) {
 			return false;
+		}
+		if (isRepeaterStackMatchingPendingKey(stack, key)) {
+			return true;
 		}
 		LinkNodeType nodeType = LinkItemData.getNodeType(stack).orElse(null);
 		if (nodeType != key.nodeType()) {

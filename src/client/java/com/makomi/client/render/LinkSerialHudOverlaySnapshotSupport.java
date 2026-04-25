@@ -164,11 +164,29 @@ final class LinkSerialHudOverlaySnapshotSupport {
 		String dimensionKey,
 		long blockPosLong
 	) {
-		if (pairableNodeBlockEntity == null || dimensionKey == null || dimensionKey.isBlank()) {
+		if (pairableNodeBlockEntity == null) {
 			return CachedCurrentLinksSnapshot.empty();
 		}
-		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
-		long sourceSerial = pairableNodeBlockEntity.getSerial();
+		return resolveCurrentLinksSnapshotWithLazyRequest(
+			dimensionKey,
+			blockPosLong,
+			pairableNodeBlockEntity.getLinkNodeType(),
+			pairableNodeBlockEntity.getSerial()
+		);
+	}
+
+	/**
+	 * 懒加载获取指定身份的“当前连接”快照：优先读缓存，过期后按节流规则发起网络请求。
+	 */
+	static CachedCurrentLinksSnapshot resolveCurrentLinksSnapshotWithLazyRequest(
+		String dimensionKey,
+		long blockPosLong,
+		LinkNodeType nodeType,
+		long sourceSerial
+	) {
+		if (dimensionKey == null || dimensionKey.isBlank()) {
+			return CachedCurrentLinksSnapshot.empty();
+		}
 		if (nodeType == null || sourceSerial <= 0L) {
 			return CachedCurrentLinksSnapshot.empty();
 		}

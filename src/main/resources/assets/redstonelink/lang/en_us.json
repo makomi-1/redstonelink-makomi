@@ -347,6 +347,7 @@
   "hud.redstonelink.near_overlay.repeater_delay_line": "Fixed Delay: %s",
   "hud.redstonelink.near_overlay.repeater_input_line": "triggerSource Input: %s",
   "hud.redstonelink.near_overlay.repeater_output_line": "core Output: %s",
+  "hud.redstonelink.near_overlay.repeater_crosschunk_line": "Cross-Chunk Identity (t/c): %s/%s",
   "message.redstonelink.audit.summary": "[RedstoneLink] Audit - online cores: %s, online triggerSources: %s, total links: %s, links missing online endpoint: %s.",
   "message.redstonelink.audit.linked_serials": "[RedstoneLink] Linked serial counts - triggerSources: %s, cores: %s.",
   "message.redstonelink.audit.core_active_serials": "[RedstoneLink] Core serials (allocated & active): %s.",

@@ -8,6 +8,7 @@ import com.makomi.client.render.QuickLinkFeedbackOverlayRenderer;
 import com.makomi.client.screen.QuickLinkToolScreen;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeSemantics;
+import com.makomi.data.LinkNodeType;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.QuickLinkNetwork;
@@ -188,9 +189,20 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			return null;
 		}
 		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockPos);
-		if (allowFilters && blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity) {
+		if (blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity) {
 			if (repeaterBlockEntity.getSerial() <= 0L) {
 				return null;
+			}
+			if (!allowFilters) {
+				QuickLinkToolData.Snapshot snapshot = minecraft.player == null
+					? QuickLinkToolData.Snapshot.EMPTY
+					: QuickLinkToolData.read(minecraft.player.getMainHandItem());
+				return new ResolvedQuickLinkTarget(
+					minecraft.level.dimension().location().toString(),
+					blockPos.asLong(),
+					LinkNodeSemantics.toSemanticName(resolveRepeaterCollectNodeType(snapshot)),
+					repeaterBlockEntity.getSerial()
+				);
 			}
 			return new ResolvedQuickLinkTarget(
 				minecraft.level.dimension().location().toString(),
@@ -227,6 +239,15 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			);
 		}
 		return null;
+	}
+
+	/**
+	 * 解析转发器 quick-link 采集时应命中的逻辑身份。
+	 */
+	static LinkNodeType resolveRepeaterCollectNodeType(QuickLinkToolData.Snapshot snapshot) {
+		return snapshot != null && snapshot.serialCacheType() == LinkNodeType.TRIGGER_SOURCE
+			? LinkNodeType.TRIGGER_SOURCE
+			: LinkNodeType.CORE;
 	}
 
 	/**

@@ -65,6 +65,7 @@ public final class RepeaterItemData {
 			return 0L;
 		}
 		LinkSavedData savedData = LinkSavedData.get(level);
+		RepeaterConfigSnapshot currentSnapshot = read(stack);
 		long serial = LinkItemData.getSerial(stack);
 		if (
 			serial <= 0L
@@ -74,7 +75,8 @@ public final class RepeaterItemData {
 			long allocated = savedData.allocateRepeaterSerial();
 			LinkItemData.setSerial(stack, allocated);
 			LinkItemData.setDestroyRetireCandidate(stack, true);
-			LinkItemData.syncDisplayAliasIfSingle(stack, level);
+			write(stack, clearConnectionSnapshotPreservingDelay(currentSnapshot));
+			LinkItemData.setDisplayAlias(stack, RepeaterGraphSnapshotSupport.resolveAlias(level, allocated, LinkItemData.getDisplayAlias(stack)));
 			return allocated;
 		}
 		if (!savedData.isSerialAllocated(LinkNodeType.CORE, serial)) {
@@ -87,8 +89,16 @@ public final class RepeaterItemData {
 			savedData.markRepeaterSerial(serial);
 		}
 		LinkItemData.setDestroyRetireCandidate(stack, true);
-		LinkItemData.syncDisplayAliasIfSingle(stack, level);
+		LinkItemData.setDisplayAlias(stack, RepeaterGraphSnapshotSupport.resolveAlias(level, serial, LinkItemData.getDisplayAlias(stack)));
 		return serial;
+	}
+
+	/**
+	 * 清空转发器物品中的连接关系快照，但保留自身延迟配置。
+	 */
+	static RepeaterConfigSnapshot clearConnectionSnapshotPreservingDelay(RepeaterConfigSnapshot snapshot) {
+		RepeaterConfigSnapshot normalized = snapshot == null ? RepeaterConfigSnapshot.empty() : snapshot;
+		return new RepeaterConfigSnapshot("", "", normalized.delay());
 	}
 
 	/**

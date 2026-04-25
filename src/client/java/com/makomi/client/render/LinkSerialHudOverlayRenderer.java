@@ -142,7 +142,27 @@ public final class LinkSerialHudOverlayRenderer {
 		Minecraft minecraft,
 		LinkRepeaterBlockEntity repeaterBlockEntity
 	) {
-		List<String> displayLines = LinkSerialHudOverlayTextSupport.buildNearOverlayLines(repeaterBlockEntity, minecraft.font);
+		String dimensionKey = minecraft.level == null ? "" : minecraft.level.dimension().location().toString();
+		long blockPosLong = repeaterBlockEntity.getBlockPos().asLong();
+		long serial = repeaterBlockEntity.getSerial();
+		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot triggerSourceSnapshot = LinkSerialHudOverlaySnapshotSupport.resolveCurrentLinksSnapshotWithLazyRequest(
+			dimensionKey,
+			blockPosLong,
+			LinkNodeType.TRIGGER_SOURCE,
+			serial
+		);
+		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot coreSnapshot = LinkSerialHudOverlaySnapshotSupport.resolveCurrentLinksSnapshotWithLazyRequest(
+			dimensionKey,
+			blockPosLong,
+			LinkNodeType.CORE,
+			serial
+		);
+		List<String> displayLines = LinkSerialHudOverlayTextSupport.buildNearOverlayLines(
+			repeaterBlockEntity,
+			minecraft.font,
+			triggerSourceSnapshot,
+			coreSnapshot
+		);
 		if (displayLines.isEmpty()) {
 			return;
 		}

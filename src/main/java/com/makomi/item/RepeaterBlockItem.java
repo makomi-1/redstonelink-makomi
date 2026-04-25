@@ -80,17 +80,12 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 		TooltipFlag tooltipFlag
 	) {
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
+		long serial = LinkItemData.getSerial(stack);
 		RepeaterConfigSnapshot snapshot = RepeaterItemData.read(stack);
 		tooltipComponents.add(
 			Component.translatable(
-				"tooltip.redstonelink.repeater.serial",
-				LinkItemData.getSerial(stack) > 0L ? net.minecraft.network.chat.Component.literal("#" + LinkItemData.getSerial(stack)) : "-"
-			)
-		);
-		tooltipComponents.add(
-			Component.translatable(
-				"tooltip.redstonelink.repeater.alias",
-				com.makomi.data.NodeAliasDisplayUtil.formatDisplayText(LinkItemData.getDisplayAlias(stack), LinkItemData.getSerial(stack))
+				"tooltip.redstonelink.serial",
+				com.makomi.data.NodeAliasDisplayUtil.formatDisplayText(LinkItemData.getDisplayAlias(stack), serial)
 			)
 		);
 		tooltipComponents.add(

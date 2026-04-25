@@ -68,6 +68,7 @@ final class LinkSerialHudOverlayTextSupport {
 	private static final String KEY_NEAR_OVERLAY_REPEATER_DELAY_LINE = "hud.redstonelink.near_overlay.repeater_delay_line";
 	private static final String KEY_NEAR_OVERLAY_REPEATER_INPUT_LINE = "hud.redstonelink.near_overlay.repeater_input_line";
 	private static final String KEY_NEAR_OVERLAY_REPEATER_OUTPUT_LINE = "hud.redstonelink.near_overlay.repeater_output_line";
+	private static final String KEY_NEAR_OVERLAY_REPEATER_CROSSCHUNK_LINE = "hud.redstonelink.near_overlay.repeater_crosschunk_line";
 	private static final int LINKS_LINE_MAX_WIDTH = 280;
 	/**
 	 * 近外显文本缓存，避免每帧重复格式化连接信息。
@@ -243,7 +244,12 @@ final class LinkSerialHudOverlayTextSupport {
 	/**
 	 * 生成转发器近外显文本。
 	 */
-	static List<String> buildNearOverlayLines(LinkRepeaterBlockEntity repeaterBlockEntity, Font font) {
+	static List<String> buildNearOverlayLines(
+		LinkRepeaterBlockEntity repeaterBlockEntity,
+		Font font,
+		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot triggerSourceSnapshot,
+		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot coreSnapshot
+	) {
 		if (repeaterBlockEntity == null || font == null) {
 			return List.of();
 		}
@@ -263,6 +269,13 @@ final class LinkSerialHudOverlayTextSupport {
 				KEY_NEAR_OVERLAY_FINAL_IO_LINE,
 				Integer.toString(repeaterBlockEntity.getCurrentInputPower()),
 				Integer.toString(repeaterBlockEntity.getCurrentDispatchedOutputPower())
+			),
+			translate(
+				KEY_NEAR_OVERLAY_REPEATER_CROSSCHUNK_LINE,
+				resolveCrossChunkIdentityText(
+					triggerSourceSnapshot == null ? CrossChunkNodeIdentity.NORMAL : triggerSourceSnapshot.crossChunkIdentity()
+				),
+				resolveCrossChunkIdentityText(coreSnapshot == null ? CrossChunkNodeIdentity.NORMAL : coreSnapshot.crossChunkIdentity())
 			)
 		);
 	}

@@ -110,7 +110,7 @@ public final class RepeaterGraphSnapshotSupport {
 			return;
 		}
 		RepeaterItemData.write(stack, resolve(level, serial, RepeaterItemData.read(stack)));
-		LinkItemData.syncDisplayAliasIfSingle(stack, level);
+		LinkItemData.setDisplayAlias(stack, resolveAlias(level, serial, LinkItemData.getDisplayAlias(stack)));
 		RepeaterItemData.syncNodeSetDisplayTexts(stack, level);
 	}
 

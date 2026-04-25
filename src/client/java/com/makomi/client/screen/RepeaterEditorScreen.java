@@ -8,7 +8,10 @@ import com.makomi.network.LinkFilterEditorTargetKind;
 import com.makomi.network.RepeaterNetwork;
 import com.makomi.util.DisplayTextListFormatUtil;
 import com.makomi.util.SerialParseUtil;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.ToIntFunction;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -33,6 +36,8 @@ public class RepeaterEditorScreen extends Screen {
 	private static final int BACKGROUND_HORIZONTAL_PADDING = 12;
 	private static final int BACKGROUND_TOP_PADDING = 16;
 	private static final int BACKGROUND_BOTTOM_PADDING = 22;
+	private static final int SUMMARY_TOOLTIP_MAX_WIDTH = 320;
+	private static final int SUMMARY_TOOLTIP_MAX_ITEMS = 100;
 	private static final int THEME_BORDER_COLOR = GuiBackgroundRenderSupport.BackgroundPreset.REPEATER.borderColor();
 	private static final int THEME_FILL_COLOR = 0xCC47BF53;
 	private static final int THEME_HOVER_FILL_COLOR = 0xE05AD868;
@@ -190,6 +195,7 @@ public class RepeaterEditorScreen extends Screen {
 		guiGraphics.drawString(font, Component.literal(truncateSummary(inputSummary, layout.panelWidth())), layout.panelLeft(), layout.inputValueY(), themeTextColor(), false);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.repeater.output_summary"), layout.panelLeft(), layout.outputLabelY(), 0xFFFFFF, false);
 		guiGraphics.drawString(font, Component.literal(truncateSummary(outputSummary, layout.panelWidth())), layout.panelLeft(), layout.outputValueY(), themeTextColor(), false);
+		renderSummaryTooltip(guiGraphics, layout, mouseX, mouseY);
 	}
 
 	@Override
@@ -334,6 +340,120 @@ public class RepeaterEditorScreen extends Screen {
 		String suffix = "...";
 		int contentWidth = Math.max(1, maxWidth - font.width(suffix));
 		return font.plainSubstrByWidth(summary, contentWidth) + suffix;
+	}
+
+	/**
+	 * 为输入侧与输出侧摘要补充完整悬停提示。
+	 */
+	private void renderSummaryTooltip(GuiGraphics guiGraphics, RepeaterLayout layout, int mouseX, int mouseY) {
+		if (isMouseOverSummary(layout.panelLeft(), layout.inputLabelY(), layout.panelWidth(), layout.inputValueY(), mouseX, mouseY)) {
+			renderTooltipIfPresent(
+				guiGraphics,
+				buildSummaryTooltipLines(initialSnapshot.inputSerialExpression(), inputDisplayTexts),
+				mouseX,
+				mouseY
+			);
+			return;
+		}
+		if (isMouseOverSummary(layout.panelLeft(), layout.outputLabelY(), layout.panelWidth(), layout.outputValueY(), mouseX, mouseY)) {
+			renderTooltipIfPresent(
+				guiGraphics,
+				buildSummaryTooltipLines(initialSnapshot.outputSerialExpression(), outputDisplayTexts),
+				mouseX,
+				mouseY
+			);
+		}
+	}
+
+	/**
+	 * 将摘要 tooltip 文本转换为客户端可直接绘制的组件列表。
+	 */
+	private List<Component> buildSummaryTooltipLines(String serialExpression, List<String> displayTexts) {
+		return buildSummaryTooltipTexts(
+			serialExpression,
+			displayTexts,
+			SUMMARY_TOOLTIP_MAX_WIDTH,
+			SUMMARY_TOOLTIP_MAX_ITEMS,
+			font::width
+		)
+			.stream()
+			.map(text -> (Component) Component.literal(text))
+			.toList();
+	}
+
+	/**
+	 * 构建摘要 tooltip 的完整文本。
+	 * <p>
+	 * 优先按服务端下发的展示文本列表换行；若缺失，则退回原始序号表达式并保留 `N`/`A:B` 结构。
+	 * </p>
+	 */
+	static List<String> buildSummaryTooltipTexts(
+		String serialExpression,
+		List<String> displayTexts,
+		int maxWidth,
+		int maxItems,
+		ToIntFunction<String> widthMeasure
+	) {
+		if (maxWidth <= 0 || maxItems <= 0 || widthMeasure == null) {
+			return List.of(normalizeSummary(serialExpression));
+		}
+		List<String> wrappedDisplayTexts = DisplayTextListFormatUtil.buildWrappedLines(displayTexts, maxWidth, maxItems, widthMeasure);
+		if (!wrappedDisplayTexts.isEmpty()) {
+			return wrappedDisplayTexts;
+		}
+		List<String> serialTokens = splitSummarySerialTokens(serialExpression);
+		if (!serialTokens.isEmpty()) {
+			List<String> wrappedSerialTokens = DisplayTextListFormatUtil.buildWrappedLines(
+				serialTokens,
+				maxWidth,
+				maxItems,
+				widthMeasure
+			);
+			if (!wrappedSerialTokens.isEmpty()) {
+				return wrappedSerialTokens;
+			}
+		}
+		return List.of(normalizeSummary(serialExpression));
+	}
+
+	/**
+	 * 将原始序号表达式拆成 tooltip 展示段，保留 `/` 分隔的结构化语义。
+	 */
+	private static List<String> splitSummarySerialTokens(String serialExpression) {
+		if (serialExpression == null || serialExpression.isBlank()) {
+			return List.of();
+		}
+		List<String> tokens = new ArrayList<>();
+		for (String rawToken : serialExpression.split("/")) {
+			String normalizedToken = rawToken == null ? "" : rawToken.trim();
+			if (!normalizedToken.isEmpty()) {
+				tokens.add(normalizedToken);
+			}
+		}
+		return tokens.isEmpty() ? List.of() : List.copyOf(tokens);
+	}
+
+	/**
+	 * 仅在 tooltip 有内容时才触发绘制，避免空提示闪烁。
+	 */
+	private void renderTooltipIfPresent(GuiGraphics guiGraphics, List<Component> tooltipLines, int mouseX, int mouseY) {
+		if (!tooltipLines.isEmpty()) {
+			guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
+		}
+	}
+
+	/**
+	 * 判断鼠标是否悬停在摘要标签与摘要值组成的区域内。
+	 */
+	private boolean isMouseOverSummary(int left, int labelY, int width, int valueY, int mouseX, int mouseY) {
+		return isMouseOver(left, labelY, width, valueY - labelY + font.lineHeight, mouseX, mouseY);
+	}
+
+	/**
+	 * 判断鼠标是否命中指定矩形区域。
+	 */
+	private static boolean isMouseOver(int left, int top, int width, int height, int mouseX, int mouseY) {
+		return mouseX >= left && mouseX <= left + width && mouseY >= top && mouseY <= top + height;
 	}
 
 	static RepeaterLayout resolveLayout(int screenWidth, int screenHeight, int fontLineHeight) {
