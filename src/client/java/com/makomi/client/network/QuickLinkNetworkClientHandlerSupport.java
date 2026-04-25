@@ -5,6 +5,7 @@ import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.render.QuickLinkFeedbackOverlayRenderer;
+import com.makomi.client.render.QuickLinkOutlineRenderer;
 import com.makomi.client.screen.QuickLinkToolScreen;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeSemantics;
@@ -43,6 +44,9 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.ApplyQuickLinkBaselinePayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> continuePendingApply(payload));
+		});
+		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkChannelPreviewPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> QuickLinkOutlineRenderer.acceptChannelPreview(payload));
 		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkFeedbackPayload.TYPE, (payload, context) -> {
 			context.client().execute(() ->

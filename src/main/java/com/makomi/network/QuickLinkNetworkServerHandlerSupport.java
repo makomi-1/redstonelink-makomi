@@ -106,6 +106,39 @@ final class QuickLinkNetworkServerHandlerSupport {
 	}
 
 	/**
+	 * 处理客户端频道缓存预览请求。
+	 */
+	static void handleRequestQuickLinkChannelPreview(
+		ServerPlayer player,
+		QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload payload
+	) {
+		ItemStack mainHandItem = player.getMainHandItem();
+		if (!(mainHandItem.getItem() instanceof QuickLinkToolItem)) {
+			return;
+		}
+		LinkNodeType cacheType = LinkNodeSemantics.tryParseCanonicalType(payload.cacheTypeToken()).orElse(null);
+		if (cacheType == null || payload.channel() <= 0L) {
+			return;
+		}
+
+		java.util.List<Long> memberSerials = LinkSavedData
+			.get(player.serverLevel())
+			.getChannelMembers(cacheType, payload.channel())
+			.stream()
+			.filter(memberSerial -> memberSerial != null && memberSerial > 0L)
+			.sorted()
+			.toList();
+		ServerPlayNetworking.send(
+			player,
+			new QuickLinkNetwork.QuickLinkChannelPreviewPayload(
+				LinkNodeSemantics.toSemanticName(cacheType),
+				payload.channel(),
+				memberSerials
+			)
+		);
+	}
+
+	/**
 	 * 处理客户端右键应用请求。
 	 */
 	static void handleRequestApplyQuickLinkBaseline(

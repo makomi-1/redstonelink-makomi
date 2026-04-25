@@ -44,6 +44,7 @@ final class LinkSavedDataCodecSupport {
 		if (tag.contains(LinkSavedData.KEY_NEXT_TRIGGER_SOURCE_SERIAL, Tag.TAG_LONG)) {
 			data.nextTriggerSourceSerial = Math.max(1L, tag.getLong(LinkSavedData.KEY_NEXT_TRIGGER_SOURCE_SERIAL));
 		}
+		SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_REPEATER_SERIALS, data.repeaterSerials);
 
 		ListTag nodesTag = tag.getList(LinkSavedData.KEY_NODES, Tag.TAG_COMPOUND);
 		for (Tag entryTag : nodesTag) {
@@ -94,6 +95,9 @@ final class LinkSavedDataCodecSupport {
 				if (targetSerial <= 0L) {
 					continue;
 				}
+				if (LinkSavedDataLinkIndexSupport.isRepeaterSelfLink(data, sourceSerial, targetSerial)) {
+					continue;
+				}
 				LinkSavedDataLinkIndexSupport.linkTriggerSourceCore(data, sourceSerial, targetSerial);
 			}
 		}
@@ -135,7 +139,6 @@ final class LinkSavedDataCodecSupport {
 			LinkSavedData.KEY_RETIRED_TRIGGER_SOURCE_SERIALS,
 			data.retiredTriggerSourceSerials
 		);
-		SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_REPEATER_SERIALS, data.repeaterSerials);
 		LinkSavedDataSerialSupport.ensureKnownSerialsAllocated(data);
 		LinkSavedDataSerialSupport.correctNextSerials(data);
 		return data;
@@ -169,9 +172,17 @@ final class LinkSavedDataCodecSupport {
 			if (entry.getValue().isEmpty()) {
 				continue;
 			}
+			List<Long> visibleTargetSerials = entry
+				.getValue()
+				.stream()
+				.filter(targetSerial -> !LinkSavedDataLinkIndexSupport.isRepeaterSelfLink(data, entry.getKey(), targetSerial))
+				.toList();
+			if (visibleTargetSerials.isEmpty()) {
+				continue;
+			}
 			CompoundTag compound = new CompoundTag();
 			compound.putLong(LinkSavedData.KEY_SOURCE_SERIAL, entry.getKey());
-			compound.putLongArray(LinkSavedData.KEY_TARGET_SERIALS, entry.getValue().stream().toList());
+			compound.putLongArray(LinkSavedData.KEY_TARGET_SERIALS, visibleTargetSerials);
 			linksTag.add(compound);
 		}
 		tag.put(LinkSavedData.KEY_LINKS, linksTag);

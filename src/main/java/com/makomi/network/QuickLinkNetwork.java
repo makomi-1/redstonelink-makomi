@@ -146,6 +146,71 @@ public final class QuickLinkNetwork {
 	}
 
 	/**
+	 * 客户端请求频道缓存预览成员的 C2S 请求。
+	 */
+	public record RequestQuickLinkChannelPreviewPayload(String cacheTypeToken, long channel) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<RequestQuickLinkChannelPreviewPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_channel_preview")
+		);
+		public static final StreamCodec<FriendlyByteBuf, RequestQuickLinkChannelPreviewPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeChannelPreviewRequestPayload(
+				buffer,
+				payload.cacheTypeToken(),
+				payload.channel()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedChannelPreviewRequestPayload decoded =
+					QuickLinkNetworkPayloadSupport.decodeChannelPreviewRequestPayload(buffer);
+				return new RequestQuickLinkChannelPreviewPayload(decoded.cacheTypeToken(), decoded.channel());
+			}
+		);
+
+		public RequestQuickLinkChannelPreviewPayload {
+			cacheTypeToken = cacheTypeToken == null ? "" : cacheTypeToken;
+			channel = Math.max(0L, channel);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端回传频道缓存预览成员的 S2C 回包。
+	 */
+	public record QuickLinkChannelPreviewPayload(String cacheTypeToken, long channel, List<Long> memberSerials)
+		implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<QuickLinkChannelPreviewPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_channel_preview")
+		);
+		public static final StreamCodec<FriendlyByteBuf, QuickLinkChannelPreviewPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeChannelPreviewPayload(
+				buffer,
+				payload.cacheTypeToken(),
+				payload.channel(),
+				payload.memberSerials()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedChannelPreviewPayload decoded =
+					QuickLinkNetworkPayloadSupport.decodeChannelPreviewPayload(buffer);
+				return new QuickLinkChannelPreviewPayload(decoded.cacheTypeToken(), decoded.channel(), decoded.memberSerials());
+			}
+		);
+
+		public QuickLinkChannelPreviewPayload {
+			cacheTypeToken = cacheTypeToken == null ? "" : cacheTypeToken;
+			channel = Math.max(0L, channel);
+			memberSerials = List.copyOf(memberSerials == null ? List.of() : memberSerials);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
 	 * 客户端右键应用前请求 revision 基线的 C2S 请求。
 	 * <p>
 	 * `expectedNodeTypeToken/expectedNodeSerial` 既可表示节点身份，

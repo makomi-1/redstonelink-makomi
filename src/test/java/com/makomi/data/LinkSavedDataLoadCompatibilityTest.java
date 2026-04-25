@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -156,6 +157,31 @@ class LinkSavedDataLoadCompatibilityTest {
 
 		LinkSavedData restored = invokeLoad(dataTag);
 		assertEquals(Set.of(11L, 12L), restored.getLinkedCoresByTriggerSource(77L));
+	}
+
+	/**
+	 * 读档时若命中转发器统一序号，同号自连应被直接过滤且不再写回。
+	 */
+	@Test
+	void loadShouldFilterRepeaterSelfLinkFromLegacyTopology() {
+		CompoundTag dataTag = new CompoundTag();
+		dataTag.putLongArray("repeaterSerials", new long[] { 55L });
+
+		ListTag links = new ListTag();
+		CompoundTag linkEntry = new CompoundTag();
+		linkEntry.putLong("sourceSerial", 55L);
+		linkEntry.putLongArray("targetSerials", new long[] { 55L, 66L });
+		links.add(linkEntry);
+		dataTag.put("links", links);
+
+		LinkSavedData restored = invokeLoad(dataTag);
+		assertEquals(Set.of(66L), restored.getLinkedCoresByTriggerSource(55L));
+		assertTrue(restored.getLinkedTriggerSourcesByCore(55L).isEmpty());
+
+		CompoundTag savedAgain = restored.save(new CompoundTag(), null);
+		ListTag savedLinks = savedAgain.getList("links", net.minecraft.nbt.Tag.TAG_COMPOUND);
+		assertEquals(1, savedLinks.size());
+		assertArrayEquals(new long[] { 66L }, ((CompoundTag) savedLinks.get(0)).getLongArray("targetSerials"));
 	}
 
 	/**

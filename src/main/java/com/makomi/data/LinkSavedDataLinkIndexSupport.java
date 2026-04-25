@@ -23,6 +23,13 @@ final class LinkSavedDataLinkIndexSupport {
 		if (triggerSourceSerial <= 0L || coreSerial <= 0L) {
 			return false;
 		}
+		if (isRepeaterSelfLink(data, triggerSourceSerial, coreSerial)) {
+			boolean removed = removeTriggerSourceCoreLinkInternal(data, triggerSourceSerial, coreSerial);
+			if (removed) {
+				markTopologyChanged(data, Set.of(triggerSourceSerial), Set.of(coreSerial));
+			}
+			return false;
+		}
 
 		Set<Long> linkedCores = data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
 		if (linkedCores.contains(coreSerial)) {
@@ -42,6 +49,9 @@ final class LinkSavedDataLinkIndexSupport {
 	 */
 	static boolean addTriggerSourceCoreLink(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
 		if (triggerSourceSerial <= 0L || coreSerial <= 0L) {
+			return false;
+		}
+		if (isRepeaterSelfLink(data, triggerSourceSerial, coreSerial)) {
 			return false;
 		}
 		Set<Long> linkedCores = data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
@@ -79,7 +89,7 @@ final class LinkSavedDataLinkIndexSupport {
 			return new LinkSavedData.ReplaceLinksResult(0, 0, 0, 0);
 		}
 		Set<Long> currentTargets = new HashSet<>(getLinkedCoresByTriggerSource(data, triggerSourceSerial));
-		Set<Long> normalizedTargets = normalizePositiveSerials(coreSerials);
+		Set<Long> normalizedTargets = filterRepeaterSelfTargets(data, triggerSourceSerial, normalizePositiveSerials(coreSerials));
 		IncrementalReplacePlanUtil.SetReplacePlan<Long> plan = IncrementalReplacePlanUtil.buildSetReplacePlan(
 			currentTargets,
 			normalizedTargets
@@ -141,7 +151,7 @@ final class LinkSavedDataLinkIndexSupport {
 		if (linked == null || linked.isEmpty()) {
 			return Collections.emptySet();
 		}
-		return Set.copyOf(linked);
+		return copyVisibleLinkedPeers(data, LinkNodeType.TRIGGER_SOURCE, triggerSourceSerial, linked);
 	}
 
 	/**
@@ -152,7 +162,7 @@ final class LinkSavedDataLinkIndexSupport {
 		if (linked == null || linked.isEmpty()) {
 			return Collections.emptySet();
 		}
-		return Set.copyOf(linked);
+		return copyVisibleLinkedPeers(data, LinkNodeType.CORE, coreSerial, linked);
 	}
 
 	/**
@@ -184,7 +194,15 @@ final class LinkSavedDataLinkIndexSupport {
 			return;
 		}
 		for (Long peerSerial : linkedPeers) {
-			if (peerSerial != null && peerSerial > 0L) {
+			if (
+				peerSerial != null &&
+				peerSerial > 0L &&
+				!isRepeaterSelfLink(
+					data,
+					nodeType == LinkNodeType.TRIGGER_SOURCE ? serial : peerSerial,
+					nodeType == LinkNodeType.TRIGGER_SOURCE ? peerSerial : serial
+				)
+			) {
 				consumer.accept(peerSerial);
 			}
 		}
@@ -272,6 +290,9 @@ final class LinkSavedDataLinkIndexSupport {
 		if (triggerSourceSerial <= 0L || coreSerial <= 0L) {
 			return false;
 		}
+		if (isRepeaterSelfLink(data, triggerSourceSerial, coreSerial)) {
+			return false;
+		}
 		Set<Long> linkedCores = data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>());
 		if (linkedCores.contains(coreSerial)) {
 			return false;
@@ -298,6 +319,9 @@ final class LinkSavedDataLinkIndexSupport {
 	 * 建立 triggerSource 与 core 的双向索引关系。
 	 */
 	static void linkTriggerSourceCore(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+		if (isRepeaterSelfLink(data, triggerSourceSerial, coreSerial)) {
+			return;
+		}
 		linkTriggerSourceCoreInternal(data, triggerSourceSerial, coreSerial);
 		markTopologyChanged(data, Set.of(triggerSourceSerial), Set.of(coreSerial));
 	}
@@ -306,6 +330,9 @@ final class LinkSavedDataLinkIndexSupport {
 	 * 建立 triggerSource 与 core 的双向索引关系（不推进 revision / dirty）。
 	 */
 	private static void linkTriggerSourceCoreInternal(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+		if (isRepeaterSelfLink(data, triggerSourceSerial, coreSerial)) {
+			return;
+		}
 		data.triggerSourceToCores.computeIfAbsent(triggerSourceSerial, unused -> new HashSet<>()).add(coreSerial);
 		data.coreToTriggerSources.computeIfAbsent(coreSerial, unused -> new HashSet<>()).add(triggerSourceSerial);
 	}
@@ -354,5 +381,63 @@ final class LinkSavedDataLinkIndexSupport {
 			}
 		}
 		return normalized.isEmpty() ? Set.of() : Set.copyOf(normalized);
+	}
+
+	/**
+	 * 判断一条边是否为转发器非法自连。
+	 */
+	static boolean isRepeaterSelfLink(LinkSavedData data, long triggerSourceSerial, long coreSerial) {
+		return data != null
+			&& triggerSourceSerial > 0L
+			&& triggerSourceSerial == coreSerial
+			&& data.isRepeaterSerial(triggerSourceSerial);
+	}
+
+	/**
+	 * 过滤目标集合中的转发器非法自连。
+	 */
+	private static Set<Long> filterRepeaterSelfTargets(LinkSavedData data, long triggerSourceSerial, Set<Long> coreSerials) {
+		if (data == null || triggerSourceSerial <= 0L || coreSerials == null || coreSerials.isEmpty()) {
+			return coreSerials == null ? Set.of() : coreSerials;
+		}
+		if (!data.isRepeaterSerial(triggerSourceSerial) || !coreSerials.contains(triggerSourceSerial)) {
+			return coreSerials;
+		}
+		Set<Long> filteredTargets = new HashSet<>(coreSerials);
+		filteredTargets.remove(triggerSourceSerial);
+		return filteredTargets.isEmpty() ? Set.of() : Set.copyOf(filteredTargets);
+	}
+
+	/**
+	 * 构造对外可见的稳定链接快照，自动隐藏转发器非法自连。
+	 */
+	private static Set<Long> copyVisibleLinkedPeers(
+		LinkSavedData data,
+		LinkNodeType nodeType,
+		long serial,
+		Set<Long> rawLinkedPeers
+	) {
+		if (data == null || nodeType == null || serial <= 0L || rawLinkedPeers == null || rawLinkedPeers.isEmpty()) {
+			return Collections.emptySet();
+		}
+		boolean containsIllegalSelfLink = rawLinkedPeers.contains(serial) && data.isRepeaterSerial(serial);
+		if (!containsIllegalSelfLink) {
+			return Set.copyOf(rawLinkedPeers);
+		}
+		Set<Long> visibleLinkedPeers = new HashSet<>();
+		for (Long peerSerial : rawLinkedPeers) {
+			if (
+				peerSerial != null &&
+				peerSerial > 0L &&
+				!isRepeaterSelfLink(
+					data,
+					nodeType == LinkNodeType.TRIGGER_SOURCE ? serial : peerSerial,
+					nodeType == LinkNodeType.TRIGGER_SOURCE ? peerSerial : serial
+				)
+			) {
+				visibleLinkedPeers.add(peerSerial);
+			}
+		}
+		return visibleLinkedPeers.isEmpty() ? Collections.emptySet() : Set.copyOf(visibleLinkedPeers);
 	}
 }

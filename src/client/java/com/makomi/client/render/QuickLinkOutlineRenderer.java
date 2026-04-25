@@ -3,9 +3,11 @@ package com.makomi.client.render;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.item.QuickLinkToolItem;
+import com.makomi.network.QuickLinkNetwork;
 import com.makomi.util.SerialParseUtil;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
@@ -68,6 +71,8 @@ public final class QuickLinkOutlineRenderer {
 			.createCompositeState(false)
 	);
 	private static CachedPreviewOutlineState cachedPreviewOutlineState;
+	private static CachedChannelPreviewState cachedChannelPreviewState;
+	private static PendingChannelPreviewRequest pendingChannelPreviewRequest;
 
 	private QuickLinkOutlineRenderer() {
 	}
@@ -121,11 +126,11 @@ public final class QuickLinkOutlineRenderer {
 	private static void onAfterTranslucent(WorldRenderContext worldRenderContext) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null || minecraft.level == null) {
-			cachedPreviewOutlineState = null;
+			clearTransientPreviewState();
 			return;
 		}
 		if (!(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
-			cachedPreviewOutlineState = null;
+			clearTransientPreviewState();
 			return;
 		}
 		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
@@ -156,6 +161,26 @@ public final class QuickLinkOutlineRenderer {
 	}
 
 	/**
+	 * 接收服务端回传的频道缓存预览成员，并失效本地线框缓存。
+	 */
+	public static void acceptChannelPreview(QuickLinkNetwork.QuickLinkChannelPreviewPayload payload) {
+		LinkNodeType cacheType = payload == null ? null : LinkNodeSemantics.tryParseCanonicalType(payload.cacheTypeToken()).orElse(null);
+		if (cacheType == null || payload.channel() <= 0L) {
+			return;
+		}
+		cachedChannelPreviewState = new CachedChannelPreviewState(
+			cacheType,
+			payload.channel(),
+			normalizePositivePreviewSerials(payload.memberSerials()),
+			currentClientGameTime() + PREVIEW_CACHE_TTL_TICKS
+		);
+		if (pendingChannelPreviewRequest != null && pendingChannelPreviewRequest.matchesKey(cacheType, payload.channel())) {
+			pendingChannelPreviewRequest = null;
+		}
+		cachedPreviewOutlineState = null;
+	}
+
+	/**
 	 * 根据当前命中方块解析 quick-link 应使用的描边颜色。
 	 */
 	private static OutlineColor resolveOutlineColor(Minecraft minecraft, BlockPos blockPos) {
@@ -181,13 +206,8 @@ public final class QuickLinkOutlineRenderer {
 		}
 
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
-		if (snapshot.mode() != QuickLinkToolData.Mode.SERIAL || snapshot.serialCacheExpression().isBlank()) {
-			cachedPreviewOutlineState = null;
-			return List.of();
-		}
-
-		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(snapshot.serialCacheExpression(), 0);
-		if (parseResult.exceedLimit() || !parseResult.invalidEntries().isEmpty() || parseResult.orderedTargets().isEmpty()) {
+		PreviewTargetSelection previewTargetSelection = resolvePreviewTargetSelection(minecraft, snapshot);
+		if (previewTargetSelection == null || previewTargetSelection.targetSerials().isEmpty()) {
 			cachedPreviewOutlineState = null;
 			return List.of();
 		}
@@ -201,8 +221,8 @@ public final class QuickLinkOutlineRenderer {
 			cachedPreviewOutlineState != null
 				&& cachedPreviewOutlineState.matches(
 					dimensionKey,
-					snapshot.serialCacheType(),
-					snapshot.serialCacheExpression(),
+					previewTargetSelection.cacheType(),
+					previewTargetSelection.cacheKey(),
 					playerChunkX,
 					playerChunkZ,
 					renderDistance,
@@ -214,16 +234,16 @@ public final class QuickLinkOutlineRenderer {
 
 		List<PreviewOutlineBatch> previewBatches = scanPreviewOutlineBatches(
 			minecraft,
-			snapshot.serialCacheType(),
-			new LinkedHashSet<>(parseResult.orderedTargets()),
+			previewTargetSelection.cacheType(),
+			previewTargetSelection.targetSerials(),
 			playerChunkX,
 			playerChunkZ,
 			renderDistance
 		);
 		cachedPreviewOutlineState = new CachedPreviewOutlineState(
 			dimensionKey,
-			snapshot.serialCacheType(),
-			snapshot.serialCacheExpression(),
+			previewTargetSelection.cacheType(),
+			previewTargetSelection.cacheKey(),
 			playerChunkX,
 			playerChunkZ,
 			renderDistance,
@@ -231,6 +251,126 @@ public final class QuickLinkOutlineRenderer {
 			previewBatches
 		);
 		return previewBatches;
+	}
+
+	/**
+	 * 解析当前 quick-link 快照应预览的目标序号集合。
+	 */
+	private static PreviewTargetSelection resolvePreviewTargetSelection(
+		Minecraft minecraft,
+		QuickLinkToolData.Snapshot snapshot
+	) {
+		if (snapshot == null) {
+			return null;
+		}
+		if (snapshot.mode() == QuickLinkToolData.Mode.CHANNEL) {
+			return resolveChannelPreviewTargetSelection(minecraft, snapshot);
+		}
+		return resolveSerialPreviewTargetSelection(snapshot);
+	}
+
+	/**
+	 * 解析序号缓存模式下的预览目标。
+	 */
+	private static PreviewTargetSelection resolveSerialPreviewTargetSelection(QuickLinkToolData.Snapshot snapshot) {
+		if (snapshot == null || snapshot.serialCacheExpression().isBlank()) {
+			return null;
+		}
+		SerialParseUtil.OrderedTargetParseResult parseResult = SerialParseUtil.parseTargetsOrdered(snapshot.serialCacheExpression(), 0);
+		if (parseResult.exceedLimit() || !parseResult.invalidEntries().isEmpty() || parseResult.orderedTargets().isEmpty()) {
+			return null;
+		}
+		return new PreviewTargetSelection(
+			snapshot.serialCacheType(),
+			snapshot.serialCacheExpression(),
+			new LinkedHashSet<>(parseResult.orderedTargets())
+		);
+	}
+
+	/**
+	 * 解析频道缓存模式下的预览目标，并在必要时向服务端请求成员序号。
+	 */
+	private static PreviewTargetSelection resolveChannelPreviewTargetSelection(
+		Minecraft minecraft,
+		QuickLinkToolData.Snapshot snapshot
+	) {
+		if (minecraft == null || snapshot == null) {
+			return null;
+		}
+		long channel = snapshot.channelCacheValue().parseChannelOrZero();
+		if (channel <= 0L) {
+			return null;
+		}
+		long gameTime = currentClientGameTime();
+		requestChannelPreviewIfNeeded(minecraft, snapshot.serialCacheType(), channel, gameTime);
+		if (
+			cachedChannelPreviewState == null ||
+			!cachedChannelPreviewState.matches(snapshot.serialCacheType(), channel, gameTime)
+		) {
+			return null;
+		}
+		return new PreviewTargetSelection(
+			snapshot.serialCacheType(),
+			Long.toString(channel),
+			cachedChannelPreviewState.memberSerials()
+		);
+	}
+
+	/**
+	 * 在客户端短 TTL 内节流频道预览请求，避免逐帧向服务端重复取数。
+	 */
+	private static void requestChannelPreviewIfNeeded(
+		Minecraft minecraft,
+		LinkNodeType cacheType,
+		long channel,
+		long gameTime
+	) {
+		if (minecraft == null || minecraft.player == null || minecraft.level == null || cacheType == null || channel <= 0L) {
+			return;
+		}
+		if (cachedChannelPreviewState != null && cachedChannelPreviewState.matches(cacheType, channel, gameTime)) {
+			return;
+		}
+		if (pendingChannelPreviewRequest != null && pendingChannelPreviewRequest.matches(cacheType, channel, gameTime)) {
+			return;
+		}
+		ClientPlayNetworking.send(
+			new QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload(LinkNodeSemantics.toSemanticName(cacheType), channel)
+		);
+		pendingChannelPreviewRequest = new PendingChannelPreviewRequest(cacheType, channel, gameTime + PREVIEW_CACHE_TTL_TICKS);
+	}
+
+	/**
+	 * 清空 quick-link 预览相关的瞬时状态，避免跨世界残留。
+	 */
+	private static void clearTransientPreviewState() {
+		cachedPreviewOutlineState = null;
+		cachedChannelPreviewState = null;
+		pendingChannelPreviewRequest = null;
+	}
+
+	/**
+	 * 读取当前客户端世界时间；无世界时返回 0。
+	 */
+	private static long currentClientGameTime() {
+		Minecraft minecraft = Minecraft.getInstance();
+		return minecraft.level == null ? 0L : minecraft.level.getGameTime();
+	}
+
+	/**
+	 * 规范化频道预览成员序号集合：仅保留正数并去重。
+	 */
+	private static Set<Long> normalizePositivePreviewSerials(Iterable<Long> memberSerials) {
+		if (memberSerials == null) {
+			return Set.of();
+		}
+		Set<Long> normalizedSerials = new LinkedHashSet<>();
+		for (Long memberSerial : memberSerials) {
+			if (memberSerial != null && memberSerial > 0L) {
+				normalizedSerials.add(memberSerial);
+			}
+		}
+		return normalizedSerials.isEmpty() ? Set.of() : Set.copyOf(normalizedSerials);
 	}
 
 	/**
@@ -422,6 +562,15 @@ public final class QuickLinkOutlineRenderer {
 	}
 
 	/**
+	 * 一次 quick-link 预览扫描所需的目标集合描述。
+	 */
+	private record PreviewTargetSelection(LinkNodeType cacheType, String cacheKey, Set<Long> targetSerials) {
+		PreviewTargetSelection {
+			targetSerials = Set.copyOf(targetSerials == null ? Set.of() : targetSerials);
+		}
+	}
+
+	/**
 	 * 单个边界面所在平面。
 	 */
 	private record PlaneKey(BoundaryAxis axis, int coordinate) {
@@ -518,7 +667,7 @@ public final class QuickLinkOutlineRenderer {
 	private record CachedPreviewOutlineState(
 		String dimensionKey,
 		LinkNodeType cacheType,
-		String serialExpression,
+		String cacheKey,
 		int playerChunkX,
 		int playerChunkZ,
 		int renderDistance,
@@ -532,7 +681,7 @@ public final class QuickLinkOutlineRenderer {
 		boolean matches(
 			String dimensionKey,
 			LinkNodeType cacheType,
-			String serialExpression,
+			String cacheKey,
 			int playerChunkX,
 			int playerChunkZ,
 			int renderDistance,
@@ -540,11 +689,42 @@ public final class QuickLinkOutlineRenderer {
 		) {
 			return this.dimensionKey.equals(dimensionKey)
 				&& this.cacheType == cacheType
-				&& this.serialExpression.equals(serialExpression)
+				&& this.cacheKey.equals(cacheKey)
 				&& this.playerChunkX == playerChunkX
 				&& this.playerChunkZ == playerChunkZ
 				&& this.renderDistance == renderDistance
 				&& gameTime <= expireGameTick;
+		}
+	}
+
+	/**
+	 * 服务端回传的频道预览成员缓存。
+	 */
+	private record CachedChannelPreviewState(
+		LinkNodeType cacheType,
+		long channel,
+		Set<Long> memberSerials,
+		long expireGameTick
+	) {
+		CachedChannelPreviewState {
+			memberSerials = Set.copyOf(memberSerials == null ? Set.of() : memberSerials);
+		}
+
+		boolean matches(LinkNodeType cacheType, long channel, long gameTime) {
+			return this.cacheType == cacheType && this.channel == channel && gameTime <= expireGameTick;
+		}
+	}
+
+	/**
+	 * 客户端已发出但尚未过期的频道预览请求。
+	 */
+	private record PendingChannelPreviewRequest(LinkNodeType cacheType, long channel, long expireGameTick) {
+		boolean matches(LinkNodeType cacheType, long channel, long gameTime) {
+			return matchesKey(cacheType, channel) && gameTime <= expireGameTick;
+		}
+
+		boolean matchesKey(LinkNodeType cacheType, long channel) {
+			return this.cacheType == cacheType && this.channel == channel;
 		}
 	}
 }

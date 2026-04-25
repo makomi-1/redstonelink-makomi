@@ -218,6 +218,7 @@ public final class LinkSetExecutionService {
 		if (targetType == null) {
 			return PreparationResult.failure(OperationFeedback.failure("message.redstonelink.permission.insufficient"));
 		}
+		targets = filterIllegalRepeaterSelfTargets(savedData, sourceSerial, targetType, targets);
 
 		List<Long> unallocatedTargets = new ArrayList<>();
 		List<Long> retiredTargets = new ArrayList<>();
@@ -333,6 +334,31 @@ public final class LinkSetExecutionService {
 			}
 		}
 		return normalizedTargets.isEmpty() ? Set.of() : Set.copyOf(normalizedTargets);
+	}
+
+	/**
+	 * 过滤转发器统一序号指向自身 `core` 的非法自连目标。
+	 */
+	private static Set<Long> filterIllegalRepeaterSelfTargets(
+		LinkSavedData savedData,
+		long sourceSerial,
+		LinkNodeType targetType,
+		Set<Long> targetSerials
+	) {
+		if (
+			savedData == null ||
+			sourceSerial <= 0L ||
+			targetType != LinkNodeType.CORE ||
+			targetSerials == null ||
+			targetSerials.isEmpty() ||
+			!savedData.isRepeaterSerial(sourceSerial) ||
+			!targetSerials.contains(sourceSerial)
+		) {
+			return targetSerials == null ? Set.of() : targetSerials;
+		}
+		Set<Long> filteredTargets = new HashSet<>(targetSerials);
+		filteredTargets.remove(sourceSerial);
+		return filteredTargets.isEmpty() ? Set.of() : Set.copyOf(filteredTargets);
 	}
 
 	/**

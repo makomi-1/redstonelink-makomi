@@ -62,6 +62,46 @@ class QuickLinkNetworkPayloadTest {
 	}
 
 	/**
+	 * 频道预览请求编解码往返应保留缓存类型与频道号。
+	 */
+	@Test
+	void requestChannelPreviewPayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload original = new QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload(
+			"core",
+			37L
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload decoded =
+			QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload.CODEC.decode(buffer);
+
+		assertEquals(original.cacheTypeToken(), decoded.cacheTypeToken());
+		assertEquals(original.channel(), decoded.channel());
+	}
+
+	/**
+	 * 频道预览回包编解码往返应保留成员序号列表。
+	 */
+	@Test
+	void channelPreviewPayloadCodecRoundTripShouldPreserveFields() {
+		QuickLinkNetwork.QuickLinkChannelPreviewPayload original = new QuickLinkNetwork.QuickLinkChannelPreviewPayload(
+			"triggerSource",
+			91L,
+			List.of(3L, 5L, 8L)
+		);
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+		QuickLinkNetwork.QuickLinkChannelPreviewPayload.CODEC.encode(buffer, original);
+		QuickLinkNetwork.QuickLinkChannelPreviewPayload decoded =
+			QuickLinkNetwork.QuickLinkChannelPreviewPayload.CODEC.decode(buffer);
+
+		assertEquals(original.cacheTypeToken(), decoded.cacheTypeToken());
+		assertEquals(original.channel(), decoded.channel());
+		assertEquals(original.memberSerials(), decoded.memberSerials());
+	}
+
+	/**
 	 * 应用请求编解码往返应保留命中维度、方块坐标与期望节点身份。
 	 */
 	@Test

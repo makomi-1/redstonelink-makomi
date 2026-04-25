@@ -110,6 +110,53 @@ final class QuickLinkNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码频道预览请求。
+	 */
+	static void encodeChannelPreviewRequestPayload(FriendlyByteBuf buffer, String cacheTypeToken, long channel) {
+		buffer.writeUtf(cacheTypeToken == null ? "" : cacheTypeToken, TOKEN_MAX_LENGTH);
+		buffer.writeVarLong(Math.max(0L, channel));
+	}
+
+	/**
+	 * 解码频道预览请求。
+	 */
+	static DecodedChannelPreviewRequestPayload decodeChannelPreviewRequestPayload(FriendlyByteBuf buffer) {
+		return new DecodedChannelPreviewRequestPayload(buffer.readUtf(TOKEN_MAX_LENGTH), buffer.readVarLong());
+	}
+
+	/**
+	 * 编码频道预览回包。
+	 */
+	static void encodeChannelPreviewPayload(
+		FriendlyByteBuf buffer,
+		String cacheTypeToken,
+		long channel,
+		List<Long> memberSerials
+	) {
+		buffer.writeUtf(cacheTypeToken == null ? "" : cacheTypeToken, TOKEN_MAX_LENGTH);
+		buffer.writeVarLong(Math.max(0L, channel));
+		List<Long> normalizedSerials = memberSerials == null ? List.of() : List.copyOf(memberSerials);
+		buffer.writeVarInt(normalizedSerials.size());
+		for (Long memberSerial : normalizedSerials) {
+			buffer.writeVarLong(memberSerial == null ? 0L : Math.max(0L, memberSerial));
+		}
+	}
+
+	/**
+	 * 解码频道预览回包。
+	 */
+	static DecodedChannelPreviewPayload decodeChannelPreviewPayload(FriendlyByteBuf buffer) {
+		String cacheTypeToken = buffer.readUtf(TOKEN_MAX_LENGTH);
+		long channel = buffer.readVarLong();
+		int size = buffer.readVarInt();
+		List<Long> memberSerials = new ArrayList<>(Math.max(size, 0));
+		for (int index = 0; index < size; index++) {
+			memberSerials.add(buffer.readVarLong());
+		}
+		return new DecodedChannelPreviewPayload(cacheTypeToken, channel, List.copyOf(memberSerials));
+	}
+
+	/**
 	 * 编码正式 apply 请求。
 	 */
 	static void encodeApplyPayload(
@@ -231,6 +278,18 @@ final class QuickLinkNetworkPayloadSupport {
 		String expectedNodeTypeToken,
 		long expectedNodeSerial
 	) {
+	}
+
+	/**
+	 * 频道预览请求解码结果。
+	 */
+	record DecodedChannelPreviewRequestPayload(String cacheTypeToken, long channel) {
+	}
+
+	/**
+	 * 频道预览回包解码结果。
+	 */
+	record DecodedChannelPreviewPayload(String cacheTypeToken, long channel, List<Long> memberSerials) {
 	}
 
 	/**

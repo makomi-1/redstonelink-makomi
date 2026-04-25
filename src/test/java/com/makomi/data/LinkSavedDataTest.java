@@ -113,6 +113,43 @@ class LinkSavedDataTest {
 	}
 
 	/**
+	 * 转发器统一序号不得建立同号 `triggerSource -> core` 自连。
+	 */
+	@Test
+	void repeaterSelfLinkShouldBeRejectedWithoutAdvancingTopologyRevision() {
+		LinkSavedData data = new LinkSavedData();
+		data.markRepeaterSerial(77L);
+
+		assertFalse(data.addTriggerSourceCoreLink(77L, 77L));
+		assertFalse(data.toggleTriggerSourceCoreLink(77L, 77L));
+		assertTrue(data.getLinkedCoresByTriggerSource(77L).isEmpty());
+		assertTrue(data.getLinkedTriggerSourcesByCore(77L).isEmpty());
+		assertEquals(0L, data.graphRevision());
+		assertEquals(0L, data.sourceRevision(LinkNodeType.TRIGGER_SOURCE, 77L));
+		assertEquals(0L, data.coreRevision(77L));
+	}
+
+	/**
+	 * 即使内存里残留历史自连脏边，对外读取与遍历也应自动隐藏。
+	 */
+	@Test
+	void legacyRepeaterSelfLinkShouldBeHiddenFromQueriesAndTraversal() {
+		LinkSavedData data = new LinkSavedData();
+		data.markRepeaterSerial(88L);
+		data.triggerSourceToCores.put(88L, new java.util.HashSet<>(Set.of(88L, 99L)));
+		data.coreToTriggerSources.put(88L, new java.util.HashSet<>(Set.of(88L)));
+		data.coreToTriggerSources.put(99L, new java.util.HashSet<>(Set.of(88L)));
+
+		assertEquals(Set.of(99L), data.getLinkedCoresByTriggerSource(88L));
+		assertTrue(data.getLinkedTriggerSourcesByCore(88L).isEmpty());
+		assertEquals(Set.of(99L), data.getLinkedPeersByNodeType(LinkNodeType.TRIGGER_SOURCE, 88L));
+
+		java.util.Set<Long> traversedPeers = new java.util.LinkedHashSet<>();
+		data.forEachLinkedPeerByNodeType(LinkNodeType.TRIGGER_SOURCE, 88L, traversedPeers::add);
+		assertEquals(Set.of(99L), traversedPeers);
+	}
+
+	/**
 	 * 节点退役应清理关联链路并写入退役集合。
 	 */
 	@Test
