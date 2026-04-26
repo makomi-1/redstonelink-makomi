@@ -16,18 +16,24 @@ import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.render.QuickLinkOutlineRenderer;
+import com.makomi.client.screen.SmartNodeContainerScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.data.SmartGlassesAccessSupport;
+import com.makomi.data.SmartNodeContainerData;
+import com.makomi.data.SmartNodeContainerPlacementType;
 import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
+import com.makomi.network.SmartNodeContainerNetwork;
 import com.makomi.network.StatePanelNetwork;
 import com.makomi.registry.ModBlockEntities;
 import com.makomi.registry.ModBlocks;
+import com.makomi.registry.ModItems;
+import com.makomi.registry.ModMenuTypes;
 import com.makomi.util.SignalStrengths;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.context.CommandContext;
@@ -46,6 +52,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
@@ -78,6 +85,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		RedstoneLinkClientDisplayConfig.load();
 		registerRenderLayers();
 		registerBlockEntityRenderers();
+		registerMenuScreens();
 		registerHudRenderers();
 		registerClientKeyBindings();
 		registerClientCommands();
@@ -143,6 +151,13 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	}
 
 	/**
+	 * 注册 handled screen。
+	 */
+	private static void registerMenuScreens() {
+		MenuScreens.register(ModMenuTypes.SMART_NODE_CONTAINER, SmartNodeContainerScreen::new);
+	}
+
+	/**
 	 * 注册客户端按键：
 	 * <p>
 	 * `K` 键按“远 -> 近 -> 远+近 -> 关闭”切换序号外显模式，并将状态写回客户端配置。
@@ -197,6 +212,10 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void handleQuickLinkModeKeyPress(Minecraft client) {
 		if (client == null || client.player == null) {
+			return;
+		}
+		if (isHoldingSmartNodeContainer(client.player)) {
+			handleSmartNodeContainerOpen(client);
 			return;
 		}
 		if (client.player.isShiftKeyDown()) {
@@ -280,6 +299,10 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			return;
 		}
 		if (client.screen != null) {
+			return;
+		}
+		if (isHoldingSmartNodeContainer(client.player)) {
+			handleSmartNodeContainerTypeCycle(client);
 			return;
 		}
 		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
@@ -548,5 +571,41 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerRepeaterClientHooks() {
 		RepeaterNetworkClientHandlerSupport.registerReceivers();
+	}
+
+	/**
+	 * 当前玩家主手是否持有智能节点容器。
+	 */
+	private static boolean isHoldingSmartNodeContainer(net.minecraft.world.entity.player.Player player) {
+		return player != null && player.getMainHandItem().getItem() == ModItems.SMART_NODE_CONTAINER;
+	}
+
+	/**
+	 * 处理智能节点容器的 `B` 键开箱逻辑。
+	 */
+	private static void handleSmartNodeContainerOpen(Minecraft client) {
+		if (client == null || client.player == null || client.screen != null) {
+			return;
+		}
+		ClientPlayNetworking.send(new SmartNodeContainerNetwork.OpenSmartNodeContainerPayload());
+	}
+
+	/**
+	 * 处理中键切换智能节点容器当前放置类型。
+	 */
+	private static void handleSmartNodeContainerTypeCycle(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.cycleSelectedType(client.player.getMainHandItem());
+		SmartNodeContainerPlacementType selectedType = snapshot.selectedType();
+		ClientPlayNetworking.send(new SmartNodeContainerNetwork.CycleSmartNodeContainerTypePayload());
+		client.player.displayClientMessage(
+			Component.translatable(
+				"message.redstonelink.smart_node_container.selected_type_switched",
+				Component.translatable(selectedType.translationKey())
+			),
+			true
+		);
 	}
 }

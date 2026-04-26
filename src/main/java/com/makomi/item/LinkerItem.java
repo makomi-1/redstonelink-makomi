@@ -16,15 +16,12 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.SlotAccess;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ClickAction;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -80,9 +77,6 @@ public class LinkerItem extends Item implements PairableItem {
 	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		ensureSerialAssigned(level, heldStack);
-		if (PairableItemAggregateClickSupport.blocksDirectUse(heldStack)) {
-			return InteractionResultHolder.pass(heldStack);
-		}
 
 		if (shouldOpenPairingUi(player, hand)) {
 			openPairingUi(level, player, heldStack);
@@ -112,13 +106,11 @@ public class LinkerItem extends Item implements PairableItem {
 
 		Player player = context.getPlayer();
 		if (player != null
-			&& !PairableItemAggregateClickSupport.blocksDirectUse(heldStack)
 			&& shouldOpenPairingUi(player, context.getHand())) {
 			openPairingUi(level, player, heldStack);
 			return InteractionResult.sidedSuccess(level.isClientSide);
 		}
 		if (player != null
-			&& !PairableItemAggregateClickSupport.blocksDirectUse(heldStack)
 			&& canExecutePrimaryUse(player, context.getHand())) {
 			executePrimaryUse(level, player, heldStack);
 			return InteractionResult.sidedSuccess(level.isClientSide);
@@ -163,22 +155,6 @@ public class LinkerItem extends Item implements PairableItem {
 		TooltipFlag tooltipFlag
 	) {
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
-		List<Long> serialGroup = LinkItemData.getSerialGroup(stack);
-		if (serialGroup.size() > 1) {
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_count", serialGroup.size()));
-			tooltipComponents.add(
-				Component.translatable(
-					"tooltip.redstonelink.aggregate_serials",
-					TooltipTextTruncateUtil.buildSerialsText(serialGroup, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
-				)
-			);
-			tooltipComponents.add(buildSignalSemanticTooltip());
-			tooltipComponents.add(buildCrossChunkCapabilityTooltip());
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.aggregate_single_only"));
-			super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
-			return;
-		}
-
 		long serial = LinkItemData.getSerial(stack);
 		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
 		List<String> linkedDisplayTexts = LinkItemData.getLinkedDisplayTexts(stack);
@@ -200,29 +176,6 @@ public class LinkerItem extends Item implements PairableItem {
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
 		tooltipComponents.add(buildPrimaryUseTooltip());
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
-	}
-
-	@Override
-	public boolean overrideStackedOnOther(ItemStack stack, Slot slot, ClickAction action, Player player) {
-		if (PairableItemAggregateClickSupport.overrideStackedOnOther(stack, slot, action, player)) {
-			return true;
-		}
-		return super.overrideStackedOnOther(stack, slot, action, player);
-	}
-
-	@Override
-	public boolean overrideOtherStackedOnMe(
-		ItemStack stack,
-		ItemStack otherStack,
-		Slot slot,
-		ClickAction action,
-		Player player,
-		SlotAccess access
-	) {
-		if (PairableItemAggregateClickSupport.overrideOtherStackedOnMe(stack, otherStack, slot, action, player, access)) {
-			return true;
-		}
-		return super.overrideOtherStackedOnMe(stack, otherStack, slot, action, player, access);
 	}
 
 	/**

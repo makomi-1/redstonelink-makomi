@@ -12,6 +12,7 @@ import com.makomi.item.QuickLinkToolItem;
 import com.makomi.item.RepeaterBlockItem;
 import com.makomi.item.RedstoneLinkComponentItem;
 import com.makomi.item.SmartGlassesItem;
+import com.makomi.item.SmartNodeContainerItem;
 import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.StatePanelToolItem;
 import com.makomi.data.LinkNodeType;
@@ -163,6 +164,11 @@ public final class ModItems {
 	public static final Item SMART_GLASSES = register(
 		"smart_glasses",
 		new SmartGlassesItem(ArmorItem.Type.HELMET, new Item.Properties().stacksTo(1))
+	);
+
+	public static final Item SMART_NODE_CONTAINER = register(
+		"smart_node_container",
+		new SmartNodeContainerItem(new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item GRAPH_VISUAL_EDITOR = register(

@@ -1,0 +1,23 @@
+{
+  "parent": "redstonelink:block/smart_node_container",
+  "overrides": [
+    {
+      "predicate": {
+        "custom_model_data": 1
+      },
+      "model": "redstonelink:block/smart_node_container_core"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 2
+      },
+      "model": "redstonelink:block/smart_node_container_triggersource"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 3
+      },
+      "model": "redstonelink:block/smart_node_container_repeater"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "parent": "redstonelink:block/dual_layer_oriented_cube",
+  "textures": {
+    "outer_end": "redstonelink:item/smart_node_container_bottom",
+    "outer_side": "redstonelink:item/smart_node_container_side",
+    "inner": "redstonelink:item/smart_node_container_side_repeater"
+  }
+}

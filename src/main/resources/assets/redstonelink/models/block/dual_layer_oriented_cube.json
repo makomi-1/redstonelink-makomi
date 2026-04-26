@@ -1,0 +1,61 @@
+{
+  "parent": "minecraft:block/block",
+  "render_type": "minecraft:translucent",
+  "gui_light": "side",
+  "textures": {
+    "particle": "#outer_side",
+    "outer_end": "minecraft:block/oak_planks",
+    "outer_side": "minecraft:block/barrel_side",
+    "inner": "minecraft:block/slime_block"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "down": {
+          "texture": "#outer_end"
+        },
+        "up": {
+          "texture": "#outer_end"
+        },
+        "north": {
+          "texture": "#outer_side"
+        },
+        "south": {
+          "texture": "#outer_side"
+        },
+        "west": {
+          "texture": "#outer_side"
+        },
+        "east": {
+          "texture": "#outer_side"
+        }
+      }
+    },
+    {
+      "from": [2, 2, 2],
+      "to": [14, 14, 14],
+      "faces": {
+        "down": {
+          "texture": "#inner"
+        },
+        "up": {
+          "texture": "#inner"
+        },
+        "north": {
+          "texture": "#inner"
+        },
+        "south": {
+          "texture": "#inner"
+        },
+        "west": {
+          "texture": "#inner"
+        },
+        "east": {
+          "texture": "#inner"
+        }
+      }
+    }
+  ]
+}
