@@ -301,7 +301,8 @@ public final class LinkSerialHudOverlayRenderer {
 		}
 		List<String> displayLines = LinkSerialHudOverlayTextSupport.buildVisualizedHoverOverlayLines(
 			hoveredTarget.displayText(),
-			hoveredTarget.objectSerial()
+			hoveredTarget.objectSerial(),
+			hoveredTarget.blockPosLong()
 		);
 		if (displayLines.isEmpty()) {
 			return;

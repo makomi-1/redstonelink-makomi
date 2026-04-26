@@ -119,6 +119,7 @@ class QuickLinkOutlineRendererTest {
 		assertEquals("core", hoveredTarget.objectTypeToken());
 		assertEquals(27L, hoveredTarget.objectSerial());
 		assertEquals("#27", hoveredTarget.displayText());
+		assertEquals(new BlockPos(4, 0, 0).asLong(), hoveredTarget.blockPosLong());
 		QuickLinkOutlineRenderer.clearVisualizedObjects();
 	}
 

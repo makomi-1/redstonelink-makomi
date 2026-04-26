@@ -152,12 +152,12 @@ class LinkSerialHudOverlayTextSupportTest {
 	@Test
 	void buildVisualizedHoverOverlayLinesShouldNormalizeDisplayText() {
 		assertEquals(
-			java.util.List.of("[中控A(#18)]"),
-			LinkSerialHudOverlayTextSupport.buildVisualizedHoverOverlayLines(" 中控A(#18) ", 18L)
+			java.util.List.of("[中控A(#18)]", "(3, 64, -8)"),
+			LinkSerialHudOverlayTextSupport.buildVisualizedHoverOverlayLines(" 中控A(#18) ", 18L, new net.minecraft.core.BlockPos(3, 64, -8).asLong())
 		);
 		assertEquals(
-			java.util.List.of("[#18]"),
-			LinkSerialHudOverlayTextSupport.buildVisualizedHoverOverlayLines("   ", 18L)
+			java.util.List.of("[#18]", "(0, 0, 0)"),
+			LinkSerialHudOverlayTextSupport.buildVisualizedHoverOverlayLines("   ", 18L, net.minecraft.core.BlockPos.ZERO.asLong())
 		);
 	}
 }

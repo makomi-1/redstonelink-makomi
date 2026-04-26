@@ -19,7 +19,6 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ArmorItem;
-import net.minecraft.world.item.ArmorMaterials;
 import net.minecraft.world.item.Item;
 
 /**
@@ -163,7 +162,7 @@ public final class ModItems {
 
 	public static final Item SMART_GLASSES = register(
 		"smart_glasses",
-		new SmartGlassesItem(ArmorMaterials.IRON, ArmorItem.Type.HELMET, new Item.Properties().stacksTo(1))
+		new SmartGlassesItem(ArmorItem.Type.HELMET, new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item GRAPH_VISUAL_EDITOR = register(

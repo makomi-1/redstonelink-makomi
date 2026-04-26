@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToIntFunction;
 import net.minecraft.client.gui.Font;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
@@ -541,14 +542,18 @@ final class LinkSerialHudOverlayTextSupport {
 	}
 
 	/**
-	 * 构建第三形态连线悬停 HUD，只显示另一端对象的展示文本。
+	 * 构建第三形态连线悬停 HUD，显示另一端对象的展示文本与方块坐标。
 	 */
-	static List<String> buildVisualizedHoverOverlayLines(String displayText, long serial) {
+	static List<String> buildVisualizedHoverOverlayLines(String displayText, long serial, long blockPosLong) {
 		String normalizedDisplayText = NodeAliasDisplayUtil.normalizeDisplayText(displayText, serial);
 		if (normalizedDisplayText.isBlank() || "-".equals(normalizedDisplayText)) {
 			return List.of();
 		}
-		return List.of("[" + normalizedDisplayText + "]");
+		BlockPos blockPos = BlockPos.of(blockPosLong);
+		return List.of(
+			"[" + normalizedDisplayText + "]",
+			"(" + blockPos.getX() + ", " + blockPos.getY() + ", " + blockPos.getZ() + ")"
+		);
 	}
 
 	static String buildCurrentLinksText(

@@ -371,7 +371,8 @@ public final class QuickLinkOutlineRenderer {
 				new HoveredVisualizedTarget(
 					connection.target().objectTypeToken(),
 					connection.target().objectSerial(),
-					connection.target().displayText()
+					connection.target().displayText(),
+					connection.target().blockPosLong()
 				),
 				closestLineApproach.rayDistance(),
 				closestLineApproach.distance() / allowedDistance
@@ -1221,7 +1222,7 @@ public final class QuickLinkOutlineRenderer {
 	/**
 	 * 当前准星命中的第三形态线段对应对象。
 	 */
-	record HoveredVisualizedTarget(String objectTypeToken, long objectSerial, String displayText) {
+	record HoveredVisualizedTarget(String objectTypeToken, long objectSerial, String displayText, long blockPosLong) {
 		boolean isRepeater() {
 			return LinkGuiDisplayContext.LINK_REPEATER.equals(objectTypeToken);
 		}
