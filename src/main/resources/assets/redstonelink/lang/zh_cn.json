@@ -151,6 +151,7 @@
     "screen.redstonelink.quick_link.serial_cache_type_button":  "序号缓存类型: %s",
     "screen.redstonelink.smart_node_container.title":  "智能节点容器",
     "screen.redstonelink.smart_node_container.selected_type":  "当前放置类型: %s",
+    "screen.redstonelink.smart_node_container.selected_type_label":  "当前放置类型",
     "screen.redstonelink.smart_node_container.auto_sort":  "自动排序: %s",
     "screen.redstonelink.smart_node_container.type.core":  "core",
     "screen.redstonelink.smart_node_container.type.trigger_source":  "triggerSource",

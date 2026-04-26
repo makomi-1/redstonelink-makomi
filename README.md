@@ -8,7 +8,6 @@
 - 该项目`使用AI`进行加速实现，并通过审查与测试以保证质量
 - 目前仅支持`fabric-1.21.1`
 - [bug反馈](https://www.wjx.top/vm/PpvzYjl.aspx)
-- no-mxin分支指的是连接（接收）核心片的功能没有通过mixin实现，而不是没有mixin
 
 # 简介
 

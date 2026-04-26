@@ -151,6 +151,7 @@
   "screen.redstonelink.quick_link.serial_cache_type_button": "Serial Cache Type: %s",
   "screen.redstonelink.smart_node_container.title": "Smart Node Container",
   "screen.redstonelink.smart_node_container.selected_type": "Current Placement Type: %s",
+  "screen.redstonelink.smart_node_container.selected_type_label": "Current Placement Type",
   "screen.redstonelink.smart_node_container.auto_sort": "Auto Sort: %s",
   "screen.redstonelink.smart_node_container.type.core": "core",
   "screen.redstonelink.smart_node_container.type.trigger_source": "triggerSource",

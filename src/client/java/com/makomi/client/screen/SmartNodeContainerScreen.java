@@ -12,10 +12,26 @@ import net.minecraft.world.entity.player.Inventory;
 /**
  * 智能节点容器界面。
  * <p>
- * 视觉上沿用原版大箱子布局，只额外挂一个自动排序开关和当前放置类型提示。
+ * 视觉上沿用原版大箱子主体，并在右侧扩出独立信息区，
+ * 避免“当前放置类型 / 自动排序”压到槽位悬停区域。
  * </p>
  */
 public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeContainerMenu> {
+	private static final int CHEST_IMAGE_WIDTH = 176;
+	private static final int RIGHT_PANEL_WIDTH = 96;
+	private static final int RIGHT_PANEL_GAP = 8;
+	private static final int RIGHT_PANEL_X = CHEST_IMAGE_WIDTH + RIGHT_PANEL_GAP;
+	private static final int RIGHT_PANEL_INSET = 8;
+	private static final int RIGHT_PANEL_LABEL_Y = 20;
+	private static final int RIGHT_PANEL_VALUE_Y = 34;
+	private static final int RIGHT_PANEL_BUTTON_Y = 58;
+	private static final int RIGHT_PANEL_BUTTON_WIDTH = RIGHT_PANEL_WIDTH - RIGHT_PANEL_INSET * 2;
+	private static final int RIGHT_PANEL_BUTTON_HEIGHT = 20;
+	private static final int RIGHT_PANEL_TOP = 12;
+	private static final int RIGHT_PANEL_BOTTOM_INSET = 12;
+	private static final int RIGHT_PANEL_BACKGROUND = 0xD92A1C13;
+	private static final int RIGHT_PANEL_BORDER = 0xFF8E6B59;
+	private static final int RIGHT_PANEL_DIVIDER = 0xFF5A4032;
 	private static final ResourceLocation CONTAINER_TEXTURE = ResourceLocation.withDefaultNamespace(
 		"textures/gui/container/generic_54.png"
 	);
@@ -24,7 +40,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 
 	public SmartNodeContainerScreen(SmartNodeContainerMenu menu, Inventory playerInventory, Component title) {
 		super(menu, playerInventory, title);
-		imageWidth = 176;
+		imageWidth = CHEST_IMAGE_WIDTH + RIGHT_PANEL_GAP + RIGHT_PANEL_WIDTH;
 		imageHeight = 222;
 		inventoryLabelY = imageHeight - 94;
 	}
@@ -35,7 +51,12 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 		autoSortButton = addRenderableWidget(
 			Button
 				.builder(autoSortButtonLabel(), button -> toggleAutoSort())
-				.bounds(leftPos + imageWidth - 86, topPos + 4, 78, 20)
+				.bounds(
+					leftPos + RIGHT_PANEL_X + RIGHT_PANEL_INSET,
+					topPos + RIGHT_PANEL_BUTTON_Y,
+					RIGHT_PANEL_BUTTON_WIDTH,
+					RIGHT_PANEL_BUTTON_HEIGHT
+				)
 				.build()
 		);
 	}
@@ -50,8 +71,9 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
-		guiGraphics.blit(CONTAINER_TEXTURE, leftPos, topPos, 0, 0, imageWidth, ROW_HEIGHT(), 256, 256);
-		guiGraphics.blit(CONTAINER_TEXTURE, leftPos, topPos + ROW_HEIGHT(), 0, 126, imageWidth, 96, 256, 256);
+		guiGraphics.blit(CONTAINER_TEXTURE, leftPos, topPos, 0, 0, CHEST_IMAGE_WIDTH, ROW_HEIGHT(), 256, 256);
+		guiGraphics.blit(CONTAINER_TEXTURE, leftPos, topPos + ROW_HEIGHT(), 0, 126, CHEST_IMAGE_WIDTH, 96, 256, 256);
+		renderRightPanelBackground(guiGraphics);
 	}
 
 	@Override
@@ -59,16 +81,39 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 		guiGraphics.drawString(font, title, titleLabelX, titleLabelY, 0x404040, false);
 		guiGraphics.drawString(
 			font,
+			Component.translatable("screen.redstonelink.smart_node_container.selected_type_label"),
+			RIGHT_PANEL_X + RIGHT_PANEL_INSET,
+			RIGHT_PANEL_LABEL_Y,
+			0xF4E8D8,
+			false
+		);
+		guiGraphics.drawString(
+			font,
 			Component.translatable(
-				"screen.redstonelink.smart_node_container.selected_type",
-				Component.translatable(currentSelectedType().translationKey())
+				currentSelectedType().translationKey()
 			),
-			8,
-			24,
-			0x404040,
+			RIGHT_PANEL_X + RIGHT_PANEL_INSET,
+			RIGHT_PANEL_VALUE_Y,
+			0xFFFFFF,
 			false
 		);
 		guiGraphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0x404040, false);
+	}
+
+	private void renderRightPanelBackground(GuiGraphics guiGraphics) {
+		int panelLeft = leftPos + RIGHT_PANEL_X;
+		int panelTop = topPos + RIGHT_PANEL_TOP;
+		int panelRight = leftPos + imageWidth;
+		int panelBottom = topPos + imageHeight - RIGHT_PANEL_BOTTOM_INSET;
+		guiGraphics.fill(panelLeft, panelTop, panelRight, panelBottom, RIGHT_PANEL_BORDER);
+		guiGraphics.fill(panelLeft + 1, panelTop + 1, panelRight - 1, panelBottom - 1, RIGHT_PANEL_BACKGROUND);
+		guiGraphics.fill(
+			panelLeft + RIGHT_PANEL_INSET,
+			topPos + RIGHT_PANEL_BUTTON_Y - 8,
+			panelRight - RIGHT_PANEL_INSET,
+			topPos + RIGHT_PANEL_BUTTON_Y - 7,
+			RIGHT_PANEL_DIVIDER
+		);
 	}
 
 	private void toggleAutoSort() {

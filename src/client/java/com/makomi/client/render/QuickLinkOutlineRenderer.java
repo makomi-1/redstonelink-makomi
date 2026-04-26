@@ -206,7 +206,7 @@ public final class QuickLinkOutlineRenderer {
 			clearVisualizedObjectState();
 			return;
 		}
-		if (!SmartGlassesAccessSupport.canUseQuickLinkVisualization(minecraft.player)) {
+		if (!SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)) {
 			return;
 		}
 		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
@@ -307,7 +307,7 @@ public final class QuickLinkOutlineRenderer {
 				|| minecraft.player == null
 				|| minecraft.level == null
 				|| visualizedObjects.isEmpty()
-				|| !SmartGlassesAccessSupport.canUseQuickLinkVisualization(minecraft.player)
+				|| !SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)
 		) {
 			return null;
 		}

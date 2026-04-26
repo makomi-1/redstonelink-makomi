@@ -381,7 +381,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		if (minecraft == null || minecraft.player == null) {
 			return false;
 		}
-		return SmartGlassesAccessSupport.canUseQuickLinkVisualization(minecraft.player);
+		return SmartGlassesAccessSupport.canOperateQuickLinkVisualization(minecraft.player);
 	}
 
 	/**
@@ -414,7 +414,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		if (hand != InteractionHand.MAIN_HAND) {
 			return false;
 		}
-		return SmartGlassesAccessSupport.canUseQuickLinkVisualization(minecraft.player);
+		return SmartGlassesAccessSupport.canOperateQuickLinkVisualization(minecraft.player);
 	}
 
 	/**
