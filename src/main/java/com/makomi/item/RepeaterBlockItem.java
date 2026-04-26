@@ -8,6 +8,7 @@ import com.makomi.data.RepeaterDelay;
 import com.makomi.data.RepeaterItemData;
 import com.makomi.network.RepeaterNetwork;
 import java.util.List;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -106,8 +107,8 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 				RepeaterItemData.buildTooltipOutputText(stack, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
 			)
 		);
-		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.dual_identity"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.open_editor"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.dual_identity").withStyle(ChatFormatting.GRAY));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 

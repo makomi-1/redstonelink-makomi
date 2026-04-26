@@ -171,10 +171,9 @@ public class LinkerItem extends Item implements PairableItem {
 			TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.links", linkedText));
-		tooltipComponents.add(buildSignalSemanticTooltip());
-		tooltipComponents.add(buildCrossChunkCapabilityTooltip());
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
 		tooltipComponents.add(buildPrimaryUseTooltip());
+		appendGrayFooterTooltips(stack, context, tooltipComponents, tooltipFlag);
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 
@@ -240,6 +239,23 @@ public class LinkerItem extends Item implements PairableItem {
 	 */
 	protected Component buildPrimaryUseTooltip() {
 		return Component.translatable("tooltip.redstonelink.trigger_linker");
+	}
+
+	/**
+	 * 统一在 tooltip 末尾追加灰色补充说明。
+	 * <p>
+	 * 子类若需补充额外灰色尾注，应覆盖本方法并先调用父类实现，
+	 * 以保证全部灰色说明稳定落在 tooltip 最底部。
+	 * </p>
+	 */
+	protected void appendGrayFooterTooltips(
+		ItemStack stack,
+		Item.TooltipContext context,
+		List<Component> tooltipComponents,
+		TooltipFlag tooltipFlag
+	) {
+		tooltipComponents.add(buildSignalSemanticTooltip());
+		tooltipComponents.add(buildCrossChunkCapabilityTooltip());
 	}
 
 	/**

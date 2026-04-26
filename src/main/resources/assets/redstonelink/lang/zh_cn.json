@@ -79,6 +79,7 @@
     "tooltip.redstonelink.repeater.open_editor":  "潜行且左手为空时右键可打开转发器编辑器",
     "tooltip.redstonelink.trigger_linker":  "站立且左手为空时右键可触发已连接核心",
     "tooltip.redstonelink.sync_linker":  "站立且左手为空时右键可向已连接核心发送一次当前设定同步强度",
+    "tooltip.redstonelink.sync_linker.adjust_signal_strength":  "Ctrl + 滚轮调节信号强度",
     "tooltip.redstonelink.linker.crosschunk.force_load_only":  "跨区块：遥控器只能作为强加载对象，不支持常驻",
     "tooltip.redstonelink.aggregate_single_only":  "聚合态需先拆成单序号后再右键使用",
     "tooltip.redstonelink.quick_link.mode":  "模式: %s",

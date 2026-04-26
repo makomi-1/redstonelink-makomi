@@ -30,9 +30,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  */
 public final class QuickLinkNetworkClientHandlerSupport {
 	private static final String QUICK_LINK_CHUNK_ACTIVATOR_TARGET_TOKEN = "chunk_activator";
+	private static final long VISUALIZE_REFRESH_INTERVAL_TICKS = 10L;
 	private static boolean collectTriggeredForCurrentAttack;
 	private static boolean applyTriggeredForCurrentUse;
 	private static PendingApplyBaselineRequest pendingApplyBaselineRequest;
+	private static long nextVisualizeRefreshGameTick;
 
 	private QuickLinkNetworkClientHandlerSupport() {
 	}
@@ -53,6 +55,9 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> acceptVisualizeSnapshot(payload));
 		});
+		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkVisualizeRefreshPayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> QuickLinkOutlineRenderer.acceptVisualizeRefresh(payload));
+		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkFeedbackPayload.TYPE, (payload, context) -> {
 			context.client().execute(() ->
 				QuickLinkFeedbackOverlayRenderer.showFeedback(payload.success(), payload.messageKey(), payload.messageArgs())
@@ -68,6 +73,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			if (client == null || client.options == null) {
 				collectTriggeredForCurrentAttack = false;
 				applyTriggeredForCurrentUse = false;
+				nextVisualizeRefreshGameTick = 0L;
 				return;
 			}
 			if (!client.options.keyAttack.isDown()) {
@@ -76,6 +82,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			if (!client.options.keyUse.isDown()) {
 				applyTriggeredForCurrentUse = false;
 			}
+			pollVisualizedObjectRefresh(client);
 		});
 
 		AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
@@ -156,6 +163,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	 */
 	public static void clearVisualizedObjects() {
 		int removedCount = QuickLinkOutlineRenderer.clearVisualizedObjects();
+		nextVisualizeRefreshGameTick = 0L;
 		QuickLinkFeedbackOverlayRenderer.showFeedback(
 			true,
 			removedCount > 0
@@ -450,6 +458,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		}
 		boolean existed = QuickLinkOutlineRenderer.hasVisualizedObject(payload.objectTypeToken(), payload.objectSerial());
 		QuickLinkOutlineRenderer.acceptVisualizeSnapshot(payload);
+		nextVisualizeRefreshGameTick = 0L;
 		QuickLinkFeedbackOverlayRenderer.showFeedback(
 			true,
 			existed
@@ -468,6 +477,9 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			return;
 		}
 		boolean removed = QuickLinkOutlineRenderer.removeVisualizedObject(target.expectedNodeTypeToken(), target.expectedNodeSerial());
+		if (removed) {
+			nextVisualizeRefreshGameTick = 0L;
+		}
 		QuickLinkFeedbackOverlayRenderer.showFeedback(
 			removed,
 			removed
@@ -490,6 +502,42 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			&& pendingRequest.expectedNodeSerial() == payload.expectedNodeSerial()
 			&& pendingRequest.dimensionKey().equals(payload.dimensionKey())
 			&& pendingRequest.expectedNodeTypeToken().equals(payload.expectedNodeTypeToken());
+	}
+
+	/**
+	 * 定时请求第三形态显示对象的增量刷新。
+	 * <p>
+	 * 仅在客户端确实存在显示对象且玩家满足眼镜显示条件时发送，
+	 * 避免逐帧拉取图真值。
+	 * </p>
+	 */
+	private static void pollVisualizedObjectRefresh(Minecraft client) {
+		if (
+			client == null
+				|| client.player == null
+				|| client.level == null
+				|| !SmartGlassesAccessSupport.canRenderQuickLinkVisualization(client.player)
+				|| !QuickLinkOutlineRenderer.hasVisualizedObjects()
+		) {
+			nextVisualizeRefreshGameTick = 0L;
+			return;
+		}
+		long gameTime = client.level.getGameTime();
+		if (gameTime < nextVisualizeRefreshGameTick) {
+			return;
+		}
+		List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> trackedObjects = QuickLinkOutlineRenderer.snapshotVisualizedObjectBaselines();
+		if (trackedObjects.isEmpty()) {
+			nextVisualizeRefreshGameTick = 0L;
+			return;
+		}
+		ClientPlayNetworking.send(
+			new QuickLinkNetwork.RequestQuickLinkVisualizeRefreshPayload(
+				QuickLinkOutlineRenderer.visualizedRuntimeNodeVersion(),
+				trackedObjects
+			)
+		);
+		nextVisualizeRefreshGameTick = gameTime + VISUALIZE_REFRESH_INTERVAL_TICKS;
 	}
 
 	/**

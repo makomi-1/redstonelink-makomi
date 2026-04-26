@@ -111,6 +111,7 @@ public final class QuickLinkOutlineRenderer {
 	private static CachedChannelPreviewState cachedChannelPreviewState;
 	private static PendingChannelPreviewRequest pendingChannelPreviewRequest;
 	private static final Map<VisualizedObjectKey, VisualizedObjectState> visualizedObjects = new LinkedHashMap<>();
+	private static long visualizedRuntimeNodeVersion;
 	private static int nextVisualizedColorIndex;
 
 	private QuickLinkOutlineRenderer() {
@@ -252,6 +253,37 @@ public final class QuickLinkOutlineRenderer {
 	}
 
 	/**
+	 * 判断当前是否存在任意第三形态显示对象。
+	 */
+	public static boolean hasVisualizedObjects() {
+		return !visualizedObjects.isEmpty();
+	}
+
+	/**
+	 * 导出当前全部第三形态显示对象的本地 revision 基线。
+	 */
+	public static List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> snapshotVisualizedObjectBaselines() {
+		if (visualizedObjects.isEmpty()) {
+			return List.of();
+		}
+		List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> trackedObjects = new ArrayList<>(visualizedObjects.size());
+		for (VisualizedObjectState state : visualizedObjects.values()) {
+			if (state == null || state.source() == null || state.revisionBaseline() == null) {
+				continue;
+			}
+			trackedObjects.add(state.revisionBaseline());
+		}
+		return trackedObjects.isEmpty() ? List.of() : List.copyOf(trackedObjects);
+	}
+
+	/**
+	 * 读取当前第三形态显示缓存所对应的运行时节点版本。
+	 */
+	public static long visualizedRuntimeNodeVersion() {
+		return visualizedRuntimeNodeVersion;
+	}
+
+	/**
 	 * 接收服务端回传的第三形态显示对象快照。
 	 */
 	public static void acceptVisualizeSnapshot(QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload payload) {
@@ -273,9 +305,36 @@ public final class QuickLinkOutlineRenderer {
 					normalizeVisualizedDisplayText(payload.displayText(), payload.objectSerial())
 				),
 				normalizeVisualizedTargets(payload.targets()),
+				new QuickLinkNetwork.QuickLinkVisualizeTrackedObject(
+					payload.objectTypeToken(),
+					payload.objectSerial(),
+					payload.graphRevision(),
+					payload.sourceRevision(),
+					payload.coreRevision()
+				),
 				color
 			)
 		);
+		visualizedRuntimeNodeVersion = Math.max(visualizedRuntimeNodeVersion, payload.runtimeNodeVersion());
+	}
+
+	/**
+	 * 接收服务端回传的第三形态增量刷新结果，并局部更新本地缓存。
+	 */
+	public static void acceptVisualizeRefresh(QuickLinkNetwork.QuickLinkVisualizeRefreshPayload payload) {
+		if (payload == null) {
+			return;
+		}
+		for (QuickLinkNetwork.QuickLinkVisualizeObjectKey removal : payload.removals()) {
+			if (removal == null || removal.objectTypeToken().isBlank() || removal.objectSerial() <= 0L) {
+				continue;
+			}
+			removeVisualizedObject(removal.objectTypeToken(), removal.objectSerial());
+		}
+		for (QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload upsert : payload.upserts()) {
+			acceptVisualizeSnapshot(upsert);
+		}
+		visualizedRuntimeNodeVersion = Math.max(0L, payload.runtimeNodeVersion());
 	}
 
 	/**
@@ -285,6 +344,7 @@ public final class QuickLinkOutlineRenderer {
 		boolean removed = visualizedObjects.remove(new VisualizedObjectKey(objectTypeToken, objectSerial)) != null;
 		if (visualizedObjects.isEmpty()) {
 			nextVisualizedColorIndex = 0;
+			visualizedRuntimeNodeVersion = 0L;
 		}
 		return removed;
 	}
@@ -561,6 +621,7 @@ public final class QuickLinkOutlineRenderer {
 	 */
 	private static void clearVisualizedObjectState() {
 		visualizedObjects.clear();
+		visualizedRuntimeNodeVersion = 0L;
 		nextVisualizedColorIndex = 0;
 	}
 
@@ -1201,10 +1262,14 @@ public final class QuickLinkOutlineRenderer {
 	private record VisualizedObjectState(
 		VisualizedObjectRef source,
 		List<VisualizedObjectRef> targets,
+		QuickLinkNetwork.QuickLinkVisualizeTrackedObject revisionBaseline,
 		OutlineColor color
 	) {
 		VisualizedObjectState {
 			targets = List.copyOf(targets == null ? List.of() : targets);
+			revisionBaseline = revisionBaseline == null
+				? new QuickLinkNetwork.QuickLinkVisualizeTrackedObject("", 0L, 0L, 0L, 0L)
+				: revisionBaseline;
 		}
 	}
 

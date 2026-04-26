@@ -17,8 +17,10 @@ import com.makomi.data.QuickLinkOccSubmissionSupport;
 import com.makomi.data.QuickLinkOperationFeedback;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.data.QuickLinkVisualizationSnapshotService;
+import com.makomi.data.QuickLinkVisualizationSnapshotService.VisualizedObjectRevisionBaseline;
 import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.item.QuickLinkToolItem;
+import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -180,21 +182,54 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return;
 		}
 
-		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets = snapshot
-			.targets()
-			.stream()
-			.map(QuickLinkNetworkServerHandlerSupport::toVisualizeTarget)
-			.toList();
 		ServerPlayNetworking.send(
 			player,
-			new QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload(
-				snapshot.source().objectTypeToken(),
-				snapshot.source().serial(),
-				snapshot.source().dimensionKey(),
-				snapshot.source().blockPosLong(),
-				snapshot.source().displayText(),
-				targets
-			)
+			toVisualizeSnapshotPayload(snapshot, LinkSavedData.get(player.serverLevel()).runtimeNodeVersion())
+		);
+	}
+
+	/**
+	 * 处理客户端第三形态增量刷新请求。
+	 */
+	static void handleRequestQuickLinkVisualizeRefresh(
+		ServerPlayer player,
+		QuickLinkNetwork.RequestQuickLinkVisualizeRefreshPayload payload
+	) {
+		if (player == null || payload == null || !SmartGlassesAccessSupport.canRenderQuickLinkVisualization(player)) {
+			return;
+		}
+		ServerLevel level = player.serverLevel();
+		LinkSavedData savedData = LinkSavedData.get(level);
+		long runtimeNodeVersion = savedData.runtimeNodeVersion();
+		boolean runtimeChanged = payload.runtimeNodeVersion() != runtimeNodeVersion;
+		List<QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload> upserts = new ArrayList<>();
+		List<QuickLinkNetwork.QuickLinkVisualizeObjectKey> removals = new ArrayList<>();
+		for (QuickLinkNetwork.QuickLinkVisualizeTrackedObject trackedObject : payload.trackedObjects()) {
+			if (trackedObject == null || trackedObject.objectTypeToken().isBlank() || trackedObject.objectSerial() <= 0L) {
+				continue;
+			}
+			VisualizedObjectRevisionBaseline currentBaseline = QuickLinkVisualizationSnapshotService.readRevisionBaseline(
+				level,
+				trackedObject.objectTypeToken(),
+				trackedObject.objectSerial()
+			);
+			if (!runtimeChanged && !hasRelevantVisualizeRevisionChange(trackedObject, currentBaseline)) {
+				continue;
+			}
+			QuickLinkVisualizationSnapshotService.VisualizedObjectSnapshot snapshot = QuickLinkVisualizationSnapshotService.query(
+				player,
+				trackedObject.objectTypeToken(),
+				trackedObject.objectSerial()
+			);
+			if (snapshot == null || snapshot.source() == null || !snapshot.source().hasPosition()) {
+				removals.add(new QuickLinkNetwork.QuickLinkVisualizeObjectKey(trackedObject.objectTypeToken(), trackedObject.objectSerial()));
+				continue;
+			}
+			upserts.add(toVisualizeSnapshotPayload(snapshot, runtimeNodeVersion));
+		}
+		ServerPlayNetworking.send(
+			player,
+			new QuickLinkNetwork.QuickLinkVisualizeRefreshPayload(runtimeNodeVersion, List.copyOf(upserts), List.copyOf(removals))
 		);
 	}
 
@@ -409,6 +444,60 @@ final class QuickLinkNetworkServerHandlerSupport {
 			target == null ? 0L : target.blockPosLong(),
 			target == null ? "" : target.displayText()
 		);
+	}
+
+	/**
+	 * 将服务端查询服务返回的完整显示对象快照转换为网络可传输结构。
+	 */
+	private static QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload toVisualizeSnapshotPayload(
+		QuickLinkVisualizationSnapshotService.VisualizedObjectSnapshot snapshot,
+		long runtimeNodeVersion
+	) {
+		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets = snapshot
+			.targets()
+			.stream()
+			.map(QuickLinkNetworkServerHandlerSupport::toVisualizeTarget)
+			.toList();
+		return new QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload(
+			snapshot.source().objectTypeToken(),
+			snapshot.source().serial(),
+			snapshot.source().dimensionKey(),
+			snapshot.source().blockPosLong(),
+			snapshot.source().displayText(),
+			snapshot.revisionBaseline().graphRevision(),
+			snapshot.revisionBaseline().sourceRevision(),
+			snapshot.revisionBaseline().coreRevision(),
+			runtimeNodeVersion,
+			targets
+		);
+	}
+
+	/**
+	 * 比较第三形态本地基线与服务端当前基线，判断是否需要刷新对象快照。
+	 * <p>
+	 * `graphRevision` 会随任意拓扑变更全局递增，不适合直接作为对象级刷新触发条件，
+	 * 因此这里只比较对象真正相关的 `sourceRevision/coreRevision`。
+	 * </p>
+	 */
+	private static boolean hasRelevantVisualizeRevisionChange(
+		QuickLinkNetwork.QuickLinkVisualizeTrackedObject trackedObject,
+		VisualizedObjectRevisionBaseline currentBaseline
+	) {
+		if (trackedObject == null || currentBaseline == null) {
+			return true;
+		}
+		if (LinkGuiDisplayContext.LINK_REPEATER.equals(trackedObject.objectTypeToken())) {
+			return trackedObject.sourceRevision() != currentBaseline.sourceRevision()
+				|| trackedObject.coreRevision() != currentBaseline.coreRevision();
+		}
+		LinkNodeType nodeType = LinkNodeSemantics.tryParseCanonicalType(trackedObject.objectTypeToken()).orElse(null);
+		if (nodeType == LinkNodeType.TRIGGER_SOURCE) {
+			return trackedObject.sourceRevision() != currentBaseline.sourceRevision();
+		}
+		if (nodeType == LinkNodeType.CORE) {
+			return trackedObject.coreRevision() != currentBaseline.coreRevision();
+		}
+		return true;
 	}
 
 	/**

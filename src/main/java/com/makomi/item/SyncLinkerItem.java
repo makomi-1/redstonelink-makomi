@@ -52,6 +52,17 @@ public class SyncLinkerItem extends LinkerItem {
 	}
 
 	@Override
+	protected void appendGrayFooterTooltips(
+		ItemStack stack,
+		Item.TooltipContext context,
+		java.util.List<Component> tooltipComponents,
+		net.minecraft.world.item.TooltipFlag tooltipFlag
+	) {
+		super.appendGrayFooterTooltips(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.sync_linker.adjust_signal_strength").withStyle(ChatFormatting.GRAY));
+	}
+
+	@Override
 	protected boolean canExecutePrimaryUse(Player player, InteractionHand hand) {
 		return super.canExecutePrimaryUse(player, hand);
 	}

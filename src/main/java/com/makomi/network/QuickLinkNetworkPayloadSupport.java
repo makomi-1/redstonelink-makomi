@@ -167,10 +167,18 @@ final class QuickLinkNetworkPayloadSupport {
 		String dimensionKey,
 		long blockPosLong,
 		String displayText,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision,
+		long runtimeNodeVersion,
 		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets
 	) {
 		encodeBlockTargetPayload(buffer, dimensionKey, blockPosLong, objectTypeToken, objectSerial);
 		buffer.writeUtf(displayText == null ? "" : displayText, DISPLAY_TEXT_MAX_LENGTH);
+		buffer.writeVarLong(Math.max(0L, graphRevision));
+		buffer.writeVarLong(Math.max(0L, sourceRevision));
+		buffer.writeVarLong(Math.max(0L, coreRevision));
+		buffer.writeVarLong(Math.max(0L, runtimeNodeVersion));
 		List<QuickLinkNetwork.QuickLinkVisualizeTarget> normalizedTargets = targets == null ? List.of() : List.copyOf(targets);
 		buffer.writeVarInt(normalizedTargets.size());
 		for (QuickLinkNetwork.QuickLinkVisualizeTarget target : normalizedTargets) {
@@ -191,6 +199,10 @@ final class QuickLinkNetworkPayloadSupport {
 	static DecodedVisualizeSnapshotPayload decodeVisualizeSnapshotPayload(FriendlyByteBuf buffer) {
 		DecodedBlockTargetPayload source = decodeBlockTargetPayload(buffer);
 		String displayText = buffer.readUtf(DISPLAY_TEXT_MAX_LENGTH);
+		long graphRevision = buffer.readVarLong();
+		long sourceRevision = buffer.readVarLong();
+		long coreRevision = buffer.readVarLong();
+		long runtimeNodeVersion = buffer.readVarLong();
 		int size = buffer.readVarInt();
 		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets = new ArrayList<>(Math.max(size, 0));
 		for (int index = 0; index < size; index++) {
@@ -211,8 +223,151 @@ final class QuickLinkNetworkPayloadSupport {
 			source.dimensionKey(),
 			source.blockPosLong(),
 			displayText,
+			graphRevision,
+			sourceRevision,
+			coreRevision,
+			runtimeNodeVersion,
 			List.copyOf(targets)
 		);
+	}
+
+	/**
+	 * 编码第三形态本地追踪对象基线。
+	 */
+	static void encodeVisualizeTrackedObject(
+		FriendlyByteBuf buffer,
+		QuickLinkNetwork.QuickLinkVisualizeTrackedObject trackedObject
+	) {
+		buffer.writeUtf(trackedObject == null ? "" : trackedObject.objectTypeToken(), TOKEN_MAX_LENGTH);
+		buffer.writeVarLong(trackedObject == null ? 0L : trackedObject.objectSerial());
+		buffer.writeVarLong(trackedObject == null ? 0L : trackedObject.graphRevision());
+		buffer.writeVarLong(trackedObject == null ? 0L : trackedObject.sourceRevision());
+		buffer.writeVarLong(trackedObject == null ? 0L : trackedObject.coreRevision());
+	}
+
+	/**
+	 * 解码第三形态本地追踪对象基线。
+	 */
+	static QuickLinkNetwork.QuickLinkVisualizeTrackedObject decodeVisualizeTrackedObject(FriendlyByteBuf buffer) {
+		return new QuickLinkNetwork.QuickLinkVisualizeTrackedObject(
+			buffer.readUtf(TOKEN_MAX_LENGTH),
+			buffer.readVarLong(),
+			buffer.readVarLong(),
+			buffer.readVarLong(),
+			buffer.readVarLong()
+		);
+	}
+
+	/**
+	 * 编码第三形态删除键。
+	 */
+	static void encodeVisualizeObjectKey(FriendlyByteBuf buffer, QuickLinkNetwork.QuickLinkVisualizeObjectKey objectKey) {
+		buffer.writeUtf(objectKey == null ? "" : objectKey.objectTypeToken(), TOKEN_MAX_LENGTH);
+		buffer.writeVarLong(objectKey == null ? 0L : objectKey.objectSerial());
+	}
+
+	/**
+	 * 解码第三形态删除键。
+	 */
+	static QuickLinkNetwork.QuickLinkVisualizeObjectKey decodeVisualizeObjectKey(FriendlyByteBuf buffer) {
+		return new QuickLinkNetwork.QuickLinkVisualizeObjectKey(buffer.readUtf(TOKEN_MAX_LENGTH), buffer.readVarLong());
+	}
+
+	/**
+	 * 编码第三形态增量刷新请求。
+	 */
+	static void encodeVisualizeRefreshRequestPayload(
+		FriendlyByteBuf buffer,
+		long runtimeNodeVersion,
+		List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> trackedObjects
+	) {
+		buffer.writeVarLong(Math.max(0L, runtimeNodeVersion));
+		List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> normalizedTrackedObjects = trackedObjects == null
+			? List.of()
+			: List.copyOf(trackedObjects);
+		buffer.writeVarInt(normalizedTrackedObjects.size());
+		for (QuickLinkNetwork.QuickLinkVisualizeTrackedObject trackedObject : normalizedTrackedObjects) {
+			encodeVisualizeTrackedObject(buffer, trackedObject);
+		}
+	}
+
+	/**
+	 * 解码第三形态增量刷新请求。
+	 */
+	static DecodedVisualizeRefreshRequestPayload decodeVisualizeRefreshRequestPayload(FriendlyByteBuf buffer) {
+		long runtimeNodeVersion = buffer.readVarLong();
+		int size = buffer.readVarInt();
+		List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> trackedObjects = new ArrayList<>(Math.max(size, 0));
+		for (int index = 0; index < size; index++) {
+			trackedObjects.add(decodeVisualizeTrackedObject(buffer));
+		}
+		return new DecodedVisualizeRefreshRequestPayload(runtimeNodeVersion, List.copyOf(trackedObjects));
+	}
+
+	/**
+	 * 编码第三形态增量刷新回包。
+	 */
+	static void encodeVisualizeRefreshPayload(
+		FriendlyByteBuf buffer,
+		long runtimeNodeVersion,
+		List<QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload> upserts,
+		List<QuickLinkNetwork.QuickLinkVisualizeObjectKey> removals
+	) {
+		buffer.writeVarLong(Math.max(0L, runtimeNodeVersion));
+		List<QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload> normalizedUpserts = upserts == null ? List.of() : List.copyOf(upserts);
+		buffer.writeVarInt(normalizedUpserts.size());
+		for (QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload upsert : normalizedUpserts) {
+			encodeVisualizeSnapshotPayload(
+				buffer,
+				upsert == null ? "" : upsert.objectTypeToken(),
+				upsert == null ? 0L : upsert.objectSerial(),
+				upsert == null ? "" : upsert.dimensionKey(),
+				upsert == null ? 0L : upsert.blockPosLong(),
+				upsert == null ? "" : upsert.displayText(),
+				upsert == null ? 0L : upsert.graphRevision(),
+				upsert == null ? 0L : upsert.sourceRevision(),
+				upsert == null ? 0L : upsert.coreRevision(),
+				upsert == null ? 0L : upsert.runtimeNodeVersion(),
+				upsert == null ? List.of() : upsert.targets()
+			);
+		}
+		List<QuickLinkNetwork.QuickLinkVisualizeObjectKey> normalizedRemovals = removals == null ? List.of() : List.copyOf(removals);
+		buffer.writeVarInt(normalizedRemovals.size());
+		for (QuickLinkNetwork.QuickLinkVisualizeObjectKey removal : normalizedRemovals) {
+			encodeVisualizeObjectKey(buffer, removal);
+		}
+	}
+
+	/**
+	 * 解码第三形态增量刷新回包。
+	 */
+	static DecodedVisualizeRefreshPayload decodeVisualizeRefreshPayload(FriendlyByteBuf buffer) {
+		long runtimeNodeVersion = buffer.readVarLong();
+		int upsertSize = buffer.readVarInt();
+		List<QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload> upserts = new ArrayList<>(Math.max(upsertSize, 0));
+		for (int index = 0; index < upsertSize; index++) {
+			DecodedVisualizeSnapshotPayload upsert = decodeVisualizeSnapshotPayload(buffer);
+			upserts.add(
+				new QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload(
+					upsert.objectTypeToken(),
+					upsert.objectSerial(),
+					upsert.dimensionKey(),
+					upsert.blockPosLong(),
+					upsert.displayText(),
+					upsert.graphRevision(),
+					upsert.sourceRevision(),
+					upsert.coreRevision(),
+					upsert.runtimeNodeVersion(),
+					upsert.targets()
+				)
+			);
+		}
+		int removalSize = buffer.readVarInt();
+		List<QuickLinkNetwork.QuickLinkVisualizeObjectKey> removals = new ArrayList<>(Math.max(removalSize, 0));
+		for (int index = 0; index < removalSize; index++) {
+			removals.add(decodeVisualizeObjectKey(buffer));
+		}
+		return new DecodedVisualizeRefreshPayload(runtimeNodeVersion, List.copyOf(upserts), List.copyOf(removals));
 	}
 
 	/**
@@ -360,7 +515,30 @@ final class QuickLinkNetworkPayloadSupport {
 		String dimensionKey,
 		long blockPosLong,
 		String displayText,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision,
+		long runtimeNodeVersion,
 		List<QuickLinkNetwork.QuickLinkVisualizeTarget> targets
+	) {
+	}
+
+	/**
+	 * 第三形态增量刷新请求解码结果。
+	 */
+	record DecodedVisualizeRefreshRequestPayload(
+		long runtimeNodeVersion,
+		List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> trackedObjects
+	) {
+	}
+
+	/**
+	 * 第三形态增量刷新回包解码结果。
+	 */
+	record DecodedVisualizeRefreshPayload(
+		long runtimeNodeVersion,
+		List<QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload> upserts,
+		List<QuickLinkNetwork.QuickLinkVisualizeObjectKey> removals
 	) {
 	}
 

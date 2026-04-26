@@ -267,6 +267,10 @@ public final class QuickLinkNetwork {
 		String dimensionKey,
 		long blockPosLong,
 		String displayText,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision,
+		long runtimeNodeVersion,
 		List<QuickLinkVisualizeTarget> targets
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<QuickLinkVisualizeSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
@@ -280,6 +284,10 @@ public final class QuickLinkNetwork {
 				payload.dimensionKey(),
 				payload.blockPosLong(),
 				payload.displayText(),
+				payload.graphRevision(),
+				payload.sourceRevision(),
+				payload.coreRevision(),
+				payload.runtimeNodeVersion(),
 				payload.targets()
 			),
 			buffer -> {
@@ -291,6 +299,10 @@ public final class QuickLinkNetwork {
 					decoded.dimensionKey(),
 					decoded.blockPosLong(),
 					decoded.displayText(),
+					decoded.graphRevision(),
+					decoded.sourceRevision(),
+					decoded.coreRevision(),
+					decoded.runtimeNodeVersion(),
 					decoded.targets()
 				);
 			}
@@ -301,6 +313,10 @@ public final class QuickLinkNetwork {
 			objectSerial = Math.max(0L, objectSerial);
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			displayText = displayText == null ? "" : displayText;
+			graphRevision = Math.max(0L, graphRevision);
+			sourceRevision = Math.max(0L, sourceRevision);
+			coreRevision = Math.max(0L, coreRevision);
+			runtimeNodeVersion = Math.max(0L, runtimeNodeVersion);
 			targets = List.copyOf(targets == null ? List.of() : targets);
 		}
 
@@ -325,6 +341,106 @@ public final class QuickLinkNetwork {
 			objectSerial = Math.max(0L, objectSerial);
 			dimensionKey = dimensionKey == null ? "" : dimensionKey;
 			displayText = displayText == null ? "" : displayText;
+		}
+	}
+
+	/**
+	 * 客户端批量请求第三形态显示对象增量刷新的 C2S 请求。
+	 */
+	public record RequestQuickLinkVisualizeRefreshPayload(
+		long runtimeNodeVersion,
+		List<QuickLinkVisualizeTrackedObject> trackedObjects
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<RequestQuickLinkVisualizeRefreshPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_visualize_refresh")
+		);
+		public static final StreamCodec<FriendlyByteBuf, RequestQuickLinkVisualizeRefreshPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeVisualizeRefreshRequestPayload(
+				buffer,
+				payload.runtimeNodeVersion(),
+				payload.trackedObjects()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedVisualizeRefreshRequestPayload decoded =
+					QuickLinkNetworkPayloadSupport.decodeVisualizeRefreshRequestPayload(buffer);
+				return new RequestQuickLinkVisualizeRefreshPayload(decoded.runtimeNodeVersion(), decoded.trackedObjects());
+			}
+		);
+
+		public RequestQuickLinkVisualizeRefreshPayload {
+			runtimeNodeVersion = Math.max(0L, runtimeNodeVersion);
+			trackedObjects = List.copyOf(trackedObjects == null ? List.of() : trackedObjects);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 服务端回传第三形态显示对象增量刷新的 S2C 回包。
+	 */
+	public record QuickLinkVisualizeRefreshPayload(
+		long runtimeNodeVersion,
+		List<QuickLinkVisualizeSnapshotPayload> upserts,
+		List<QuickLinkVisualizeObjectKey> removals
+	) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<QuickLinkVisualizeRefreshPayload> TYPE = new CustomPacketPayload.Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_visualize_refresh")
+		);
+		public static final StreamCodec<FriendlyByteBuf, QuickLinkVisualizeRefreshPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeVisualizeRefreshPayload(
+				buffer,
+				payload.runtimeNodeVersion(),
+				payload.upserts(),
+				payload.removals()
+			),
+			buffer -> {
+				QuickLinkNetworkPayloadSupport.DecodedVisualizeRefreshPayload decoded =
+					QuickLinkNetworkPayloadSupport.decodeVisualizeRefreshPayload(buffer);
+				return new QuickLinkVisualizeRefreshPayload(decoded.runtimeNodeVersion(), decoded.upserts(), decoded.removals());
+			}
+		);
+
+		public QuickLinkVisualizeRefreshPayload {
+			runtimeNodeVersion = Math.max(0L, runtimeNodeVersion);
+			upserts = List.copyOf(upserts == null ? List.of() : upserts);
+			removals = List.copyOf(removals == null ? List.of() : removals);
+		}
+
+		@Override
+		public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	/**
+	 * 第三形态单个显示对象的本地 revision 基线。
+	 */
+	public record QuickLinkVisualizeTrackedObject(
+		String objectTypeToken,
+		long objectSerial,
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision
+	) {
+		public QuickLinkVisualizeTrackedObject {
+			objectTypeToken = objectTypeToken == null ? "" : objectTypeToken;
+			objectSerial = Math.max(0L, objectSerial);
+			graphRevision = Math.max(0L, graphRevision);
+			sourceRevision = Math.max(0L, sourceRevision);
+			coreRevision = Math.max(0L, coreRevision);
+		}
+	}
+
+	/**
+	 * 第三形态显示对象删除键。
+	 */
+	public record QuickLinkVisualizeObjectKey(String objectTypeToken, long objectSerial) {
+		public QuickLinkVisualizeObjectKey {
+			objectTypeToken = objectTypeToken == null ? "" : objectTypeToken;
+			objectSerial = Math.max(0L, objectSerial);
 		}
 	}
 

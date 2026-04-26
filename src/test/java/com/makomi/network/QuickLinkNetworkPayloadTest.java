@@ -136,6 +136,10 @@ class QuickLinkNetworkPayloadTest {
 			"minecraft:overworld",
 			72L,
 			"转发器#33",
+			19L,
+			7L,
+			11L,
+			23L,
 			List.of(
 				new QuickLinkNetwork.QuickLinkVisualizeTarget("core", 41L, "minecraft:overworld", 73L, "core#41"),
 				new QuickLinkNetwork.QuickLinkVisualizeTarget("triggerSource", 12L, "minecraft:overworld", 74L, "trigger#12")
@@ -152,6 +156,10 @@ class QuickLinkNetworkPayloadTest {
 		assertEquals(original.dimensionKey(), decoded.dimensionKey());
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
 		assertEquals(original.displayText(), decoded.displayText());
+		assertEquals(original.graphRevision(), decoded.graphRevision());
+		assertEquals(original.sourceRevision(), decoded.sourceRevision());
+		assertEquals(original.coreRevision(), decoded.coreRevision());
+		assertEquals(original.runtimeNodeVersion(), decoded.runtimeNodeVersion());
 		assertEquals(original.targets(), decoded.targets());
 	}
 

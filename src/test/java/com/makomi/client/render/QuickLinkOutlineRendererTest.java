@@ -63,6 +63,10 @@ class QuickLinkOutlineRendererTest {
 			"minecraft:overworld",
 			BlockPos.ZERO.asLong(),
 			"转发器#18",
+			7L,
+			3L,
+			5L,
+			11L,
 			java.util.List.of(
 				new QuickLinkNetwork.QuickLinkVisualizeTarget(
 					"core",
@@ -96,6 +100,10 @@ class QuickLinkOutlineRendererTest {
 				"minecraft:overworld",
 				BlockPos.ZERO.asLong(),
 				"triggerSource(#4)",
+				9L,
+				4L,
+				0L,
+				12L,
 				java.util.List.of(
 					new QuickLinkNetwork.QuickLinkVisualizeTarget(
 						"core",

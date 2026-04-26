@@ -84,7 +84,6 @@ public class ChunkActivatorBlockItem extends BlockItem {
 				modeLabel(activeConfig.mode())
 			)
 		);
-		tooltipComponents.add(modeDetailTooltip(activeConfig.mode()));
 		tooltipComponents.add(
 			Component.translatable(
 				"tooltip.redstonelink.chunk_activator.serial_expression",
@@ -96,6 +95,7 @@ public class ChunkActivatorBlockItem extends BlockItem {
 			)
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.chunk_activator.open_editor"));
+		tooltipComponents.add(modeDetailTooltip(activeConfig.mode()));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 

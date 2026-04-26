@@ -8,6 +8,7 @@ import com.makomi.data.SmartNodeContainerPlacementType;
 import com.makomi.menu.SmartNodeContainerMenu;
 import com.makomi.registry.ModItems;
 import java.util.List;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
@@ -145,7 +146,9 @@ public class SmartNodeContainerItem extends Item {
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.open"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.cycle_type"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.place"));
-		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.connection_sync_notice"));
+		tooltipComponents.add(
+			Component.translatable("tooltip.redstonelink.smart_node_container.connection_sync_notice").withStyle(ChatFormatting.GRAY)
+		);
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 

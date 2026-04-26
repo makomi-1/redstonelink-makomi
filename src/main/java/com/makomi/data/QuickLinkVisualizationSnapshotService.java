@@ -63,7 +63,11 @@ public final class QuickLinkVisualizationSnapshotService {
 				buildPeerTargetRef(level, savedData, peerType, targetSerial, targetDisplayText)
 			);
 		}
-		return new VisualizedObjectSnapshot(source, List.copyOf(visibleTargets.values()));
+		return new VisualizedObjectSnapshot(
+			source,
+			List.copyOf(visibleTargets.values()),
+			readNodeRevisionBaseline(savedData, nodeType, serial)
+		);
 	}
 
 	/**
@@ -122,7 +126,28 @@ public final class QuickLinkVisualizationSnapshotService {
 				buildPeerTargetRef(level, savedData, LinkNodeType.CORE, targetSerial, targetDisplayText)
 			);
 		}
-		return new VisualizedObjectSnapshot(source, List.copyOf(visibleTargets.values()));
+		return new VisualizedObjectSnapshot(source, List.copyOf(visibleTargets.values()), readRepeaterRevisionBaseline(savedData, serial));
+	}
+
+	/**
+	 * 读取指定显示对象当前的 revision 基线。
+	 */
+	public static VisualizedObjectRevisionBaseline readRevisionBaseline(ServerLevel level, String objectTypeToken, long serial) {
+		if (level == null || objectTypeToken == null || objectTypeToken.isBlank() || serial <= 0L) {
+			return VisualizedObjectRevisionBaseline.ZERO;
+		}
+		LinkSavedData savedData = LinkSavedData.get(level);
+		if (savedData == null) {
+			return VisualizedObjectRevisionBaseline.ZERO;
+		}
+		if (LinkGuiDisplayContext.LINK_REPEATER.equals(objectTypeToken)) {
+			return readRepeaterRevisionBaseline(savedData, serial);
+		}
+		LinkNodeType nodeType = LinkNodeSemantics.tryParseCanonicalType(objectTypeToken).orElse(null);
+		if (nodeType == null) {
+			return VisualizedObjectRevisionBaseline.ZERO;
+		}
+		return readNodeRevisionBaseline(savedData, nodeType, serial);
 	}
 
 	/**
@@ -205,6 +230,38 @@ public final class QuickLinkVisualizationSnapshotService {
 	}
 
 	/**
+	 * 读取普通节点的 revision 基线。
+	 */
+	private static VisualizedObjectRevisionBaseline readNodeRevisionBaseline(
+		LinkSavedData savedData,
+		LinkNodeType nodeType,
+		long serial
+	) {
+		if (savedData == null || nodeType == null || serial <= 0L) {
+			return VisualizedObjectRevisionBaseline.ZERO;
+		}
+		return new VisualizedObjectRevisionBaseline(
+			savedData.graphRevision(),
+			nodeType == LinkNodeType.TRIGGER_SOURCE ? savedData.sourceRevision(LinkNodeType.TRIGGER_SOURCE, serial) : 0L,
+			nodeType == LinkNodeType.CORE ? savedData.coreRevision(serial) : 0L
+		);
+	}
+
+	/**
+	 * 读取转发器聚合对象的 revision 基线。
+	 */
+	private static VisualizedObjectRevisionBaseline readRepeaterRevisionBaseline(LinkSavedData savedData, long serial) {
+		if (savedData == null || serial <= 0L) {
+			return VisualizedObjectRevisionBaseline.ZERO;
+		}
+		return new VisualizedObjectRevisionBaseline(
+			savedData.graphRevision(),
+			savedData.sourceRevision(LinkNodeType.TRIGGER_SOURCE, serial),
+			savedData.coreRevision(serial)
+		);
+	}
+
+	/**
 	 * 将身份快照转换为网络可传输的维度键。
 	 */
 	private static String resolveDimensionKey(NodeIdentitySnapshot identity) {
@@ -240,10 +297,29 @@ public final class QuickLinkVisualizationSnapshotService {
 	 */
 	public record VisualizedObjectSnapshot(
 		VisualizedObjectRef source,
-		List<VisualizedObjectRef> targets
+		List<VisualizedObjectRef> targets,
+		VisualizedObjectRevisionBaseline revisionBaseline
 	) {
 		public VisualizedObjectSnapshot {
 			targets = List.copyOf(targets == null ? List.of() : targets);
+			revisionBaseline = revisionBaseline == null ? VisualizedObjectRevisionBaseline.ZERO : revisionBaseline;
+		}
+	}
+
+	/**
+	 * 第三形态单个显示对象的 revision 基线。
+	 */
+	public record VisualizedObjectRevisionBaseline(
+		long graphRevision,
+		long sourceRevision,
+		long coreRevision
+	) {
+		public static final VisualizedObjectRevisionBaseline ZERO = new VisualizedObjectRevisionBaseline(0L, 0L, 0L);
+
+		public VisualizedObjectRevisionBaseline {
+			graphRevision = Math.max(0L, graphRevision);
+			sourceRevision = Math.max(0L, sourceRevision);
+			coreRevision = Math.max(0L, coreRevision);
 		}
 	}
 
