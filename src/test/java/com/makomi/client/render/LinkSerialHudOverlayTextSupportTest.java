@@ -145,4 +145,19 @@ class LinkSerialHudOverlayTextSupportTest {
 			)
 		);
 	}
+
+	/**
+	 * 第三形态连线 HUD 应优先显示规范化后的展示文本，并在缺失时回退到序号。
+	 */
+	@Test
+	void buildVisualizedHoverOverlayLinesShouldNormalizeDisplayText() {
+		assertEquals(
+			java.util.List.of("[中控A(#18)]"),
+			LinkSerialHudOverlayTextSupport.buildVisualizedHoverOverlayLines(" 中控A(#18) ", 18L)
+		);
+		assertEquals(
+			java.util.List.of("[#18]"),
+			LinkSerialHudOverlayTextSupport.buildVisualizedHoverOverlayLines("   ", 18L)
+		);
+	}
 }

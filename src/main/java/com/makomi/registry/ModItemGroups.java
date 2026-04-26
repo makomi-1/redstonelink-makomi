@@ -39,6 +39,7 @@ public final class ModItemGroups {
 				output.accept(ModItems.REDSTONELINK_PULSE_LINKER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_SYNC_LINKER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.QUICK_LINK_TOOL, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.SMART_GLASSES, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.GRAPH_VISUAL_EDITOR, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_STATUS_PANEL, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONE_LINK_COMPONENT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);

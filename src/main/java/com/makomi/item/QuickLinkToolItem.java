@@ -27,8 +27,7 @@ import net.minecraft.world.level.Level;
  * <br/>2) 左键命中方块：由客户端专用回调发送采集请求；
  * <br/>3) 站立右键命中方块：由客户端专用回调按当前应用编辑模式发送应用请求；
  * <br/>4) 鼠标中键：由客户端专用回调循环切换应用编辑模式；
- * <br/>5) `visualize` 模式：左键添加显示对象，右键移除显示对象；
- * <br/>6) 模式切换与清空：由客户端可配置按键触发，潜行时清空当前模式数据。
+ * <br/>5) 模式切换与清空：由客户端可配置按键触发，潜行时清空当前模式数据。
  */
 public class QuickLinkToolItem extends Item {
 	public QuickLinkToolItem(Item.Properties properties) {
@@ -82,57 +81,44 @@ public class QuickLinkToolItem extends Item {
 				Component.translatable(snapshot.mode().translationKey())
 			)
 		);
-		if (snapshot.mode() == QuickLinkToolData.Mode.VISUALIZE) {
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.visualize.add"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.visualize.remove"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.visualize.clear"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.toggle_mode"));
-		} else {
-			tooltipComponents.add(
-				Component.translatable(
-					"tooltip.redstonelink.quick_link.serial_cache_type",
-					LinkNodeSemantics.toSemanticName(snapshot.serialCacheType())
-				)
-			);
-			tooltipComponents.add(
-				Component.translatable(
-					"tooltip.redstonelink.quick_link.serial_cache_expression",
-					truncateTooltipText(snapshot.serialCacheExpression())
-				)
-			);
-			tooltipComponents.add(
-				Component.translatable(
-					"tooltip.redstonelink.quick_link.apply_edit_mode",
-					Component.translatable(snapshot.applyEditMode().translationKey())
-				)
-			);
-			tooltipComponents.add(
-				Component.translatable(
-					"tooltip.redstonelink.quick_link.channel_cache",
-					truncateTooltipText(snapshot.channelCache())
-				)
-			);
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.open_editor"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.toggle_mode"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.clear_cache"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.toggle_apply_edit_mode"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.collect"));
-			tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.apply"));
-		}
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.quick_link.serial_cache_type",
+				LinkNodeSemantics.toSemanticName(snapshot.serialCacheType())
+			)
+		);
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.quick_link.serial_cache_expression",
+				truncateTooltipText(snapshot.serialCacheExpression())
+			)
+		);
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.quick_link.apply_edit_mode",
+				Component.translatable(snapshot.applyEditMode().translationKey())
+			)
+		);
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.quick_link.channel_cache",
+				truncateTooltipText(snapshot.channelCache())
+			)
+		);
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.open_editor"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.toggle_mode"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.clear_cache"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.toggle_apply_edit_mode"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.collect"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.apply"));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 
 	/**
 	 * 判断当前手势是否应打开编辑器。
-	 * <p>
-	 * `visualize` 第三形态不打开缓存编辑器，而是完全走客户端显示对象交互。
-	 * </p>
 	 */
 	private static boolean shouldOpenEditor(Player player, InteractionHand hand, ItemStack stack) {
-		if (!RedstoneLinkConfig.canOpenPairingByLinker(player, hand)) {
-			return false;
-		}
-		return QuickLinkToolData.read(stack).mode() != QuickLinkToolData.Mode.VISUALIZE;
+		return RedstoneLinkConfig.canOpenPairingByLinker(player, hand);
 	}
 
 	/**

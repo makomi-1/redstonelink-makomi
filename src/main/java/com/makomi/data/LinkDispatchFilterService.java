@@ -5,7 +5,6 @@ import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.block.entity.SyncReplaySourceBlockEntity;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;

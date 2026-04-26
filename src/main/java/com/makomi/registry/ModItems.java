@@ -11,12 +11,15 @@ import com.makomi.item.PairableBlockItem;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.item.RepeaterBlockItem;
 import com.makomi.item.RedstoneLinkComponentItem;
+import com.makomi.item.SmartGlassesItem;
 import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.StatePanelToolItem;
 import com.makomi.data.LinkNodeType;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ArmorItem;
+import net.minecraft.world.item.ArmorMaterials;
 import net.minecraft.world.item.Item;
 
 /**
@@ -156,6 +159,11 @@ public final class ModItems {
 	public static final Item QUICK_LINK_TOOL = register(
 		"quick_link_tool",
 		new QuickLinkToolItem(new Item.Properties().stacksTo(1))
+	);
+
+	public static final Item SMART_GLASSES = register(
+		"smart_glasses",
+		new SmartGlassesItem(ArmorMaterials.IRON, ArmorItem.Type.HELMET, new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item GRAPH_VISUAL_EDITOR = register(

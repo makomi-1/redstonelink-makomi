@@ -6,7 +6,6 @@ import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorItemData;
 import com.makomi.data.ChunkActivatorMode;
 import com.makomi.data.LinkNodeSemantics;
-import com.makomi.data.LinkNodeType;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.network.ChunkActivatorNetwork;
 import java.util.List;

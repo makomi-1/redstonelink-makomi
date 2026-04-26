@@ -1,0 +1,291 @@
+{
+  "id": "repeater_samechunk_latency_1024_to_1_to_1024_single_burst",
+  "description": "同区块 1024 个 sync triggerSource 汇聚到 1 个 repeater，再扇出到 1024 个 core，验证转发器输出相对上游固定延迟 {{param:repeaterDelayTicks}} tick，且下游 core 不额外叠加 tick。",
+  "parameters": {
+    "repeaterDelayToken": "1tick",
+    "repeaterDelayTicks": 1
+  },
+  "layer": "X",
+  "scenarioId": "X58",
+  "arena": {
+    "clearFrom": [-8, 63, 48],
+    "clearTo": [87, 66, 96]
+  },
+  "targets": {
+    "id": "core_repeater_scale_targets",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [48, 64, 56],
+      "to": [79, 64, 87]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_repeater_scale_sources",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 56],
+        "to": [31, 64, 87]
+      }
+    },
+    {
+      "id": "repeater_scale_node",
+      "kind": "repeater_block",
+      "layout": {
+        "shape": "cuboid",
+        "from": [40, 64, 72],
+        "to": [40, 64, 72]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_repeater_scale_mount",
+      "ticks": 8
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_scale_delay_token",
+      "commandTemplate": "data merge block 40 64 72 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_repeater_scale_core_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot core {{source:repeater_scale_node[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=core"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)\\s+coreRevision=(?<coreRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_repeater_scale_sources_to_repeater_core",
+      "commandTemplate": "redstonelink bench occ pairing submit core {{source:repeater_scale_node[0]}} triggerSource {{source:sync_repeater_scale_sources:range}} expectedCoreRevision={{phase:snapshot_repeater_scale_core_baseline.captures.coreRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_pairing_submit",
+        "(?i)outcome=applied",
+        "(?i)type=core"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "snapshot_repeater_scale_trigger_source_baseline",
+      "commandTemplate": "redstonelink bench occ snapshot triggerSource {{source:repeater_scale_node[0]}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_snapshot",
+        "(?i)type=triggerSource"
+      ],
+      "captureRegex": "graphRevision=(?<graphRevision>\\d+)\\s+sourceRevision=(?<sourceRevision>\\d+)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "submit_repeater_scale_output_to_all_targets",
+      "commandTemplate": "redstonelink bench occ pairing submit triggerSource {{source:repeater_scale_node[0]}} core {{targets:range}} expectedSourceRevision={{phase:snapshot_repeater_scale_trigger_source_baseline.captures.sourceRevision}}",
+      "expectedPrefix": "[RedstoneLink/Bench]",
+      "expectedRegexes": [
+        "(?i)occ_pairing_submit",
+        "(?i)outcome=applied",
+        "(?i)type=triggerSource"
+      ]
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_scale_pairing_apply",
+      "ticks": 16
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_scale_core_should_aggregate_1024_sources",
+      "commandTemplate": "redstonelink node get core {{source:repeater_scale_node[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1024(?:,|，)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_scale_trigger_source_should_fanout_1024_targets",
+      "commandTemplate": "redstonelink link get triggerSource {{source:repeater_scale_node[0]}}",
+      "expectedPrefix": "[RedstoneLink/Link]",
+      "expectedRegex": "(?i)(target_count=1024|目标数=1024)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_scale_first_target_should_link_repeater_only",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:repeater_scale_node[0]}}"
+      ],
+      "rejectRegex": "(?i)targets=.*(?<!\\d){{source:sync_repeater_scale_sources[0]}}(?!\\d)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_scale_last_target_should_link_repeater_only",
+      "commandTemplate": "redstonelink node get core {{targets[1023]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:repeater_scale_node[0]}}"
+      ],
+      "rejectRegex": "(?i)targets=.*(?<!\\d){{source:sync_repeater_scale_sources[1023]}}(?!\\d)"
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_slash",
+      "name": "mount_repeater_scale_source_trace",
+      "serialRef": "sync_repeater_scale_sources",
+      "serialFormat": "range",
+      "capacity": 512,
+      "chunkSize": 1024,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_mixed",
+      "name": "mount_repeater_scale_output_trace",
+      "serialRef": "repeater_scale_node",
+      "serialFormat": "mixed",
+      "capacity": 512,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_core_range",
+      "name": "mount_repeater_scale_target_trace",
+      "capacity": 512,
+      "chunkSize": 1024,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_repeater_scale_trace_mount",
+      "ticks": 32
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_repeater_scale_source_wave",
+      "serialRef": "sync_repeater_scale_sources",
+      "serialFormat": "range",
+      "sequence": "15/15/0/0/15/15/0/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_repeater_scale_trace_ticks",
+      "ticks": 20
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_repeater_scale_source_latency",
+      "serialRef": "sync_repeater_scale_sources",
+      "mountRef": "mount_repeater_scale_source_trace",
+      "anchorRef": "start_repeater_scale_source_wave",
+      "anchorTickStrategy": "start",
+      "chunkSize": 32,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 24,
+      "expectedDelayTicks": 1,
+      "windowCoverageChecks": [
+        {
+          "windowTicks": 0,
+          "expectedRatio": 0.0
+        },
+        {
+          "windowTicks": 1,
+          "expectedRatio": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_scale_source_wave"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_repeater_scale_output_latency",
+      "serialRef": "repeater_scale_node",
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_scale_output_trace",
+      "anchorRef": "start_repeater_scale_source_wave",
+      "anchorTickStrategy": "start",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 6,
+      "expectedDelayTicks": "{{param:repeaterDelayTicks}}",
+      "windowCoverageChecks": [
+        {
+          "windowTicks": "{{param:repeaterDelayTicks}}",
+          "expectedRatio": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_scale_source_wave"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_core_range",
+      "name": "collect_repeater_scale_target_latency",
+      "mountRef": "mount_repeater_scale_target_trace",
+      "anchorRef": "start_repeater_scale_source_wave",
+      "anchorTickStrategy": "start",
+      "referencePhaseRef": "collect_repeater_scale_output_latency",
+      "referenceStartStrategy": "min",
+      "chunkSize": 32,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 4,
+      "expectedDelayTicks": 0,
+      "windowCoverageChecks": [
+        {
+          "windowTicks": 0,
+          "expectedRatio": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_scale_source_wave"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_repeater_scale_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_slash",
+      "name": "unmount_repeater_scale_source_trace",
+      "serialRef": "sync_repeater_scale_sources",
+      "serialFormat": "range",
+      "chunkSize": 1024,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_mixed",
+      "name": "unmount_repeater_scale_output_trace",
+      "serialRef": "repeater_scale_node",
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_core_range",
+      "name": "unmount_repeater_scale_target_trace",
+      "chunkSize": 1024,
+      "batchPauseMs": 0
+    }
+  ]
+}

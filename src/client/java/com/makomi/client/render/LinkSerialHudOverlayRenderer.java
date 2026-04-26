@@ -7,6 +7,7 @@ import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.CrossChunkNodeIdentity;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.SmartGlassesAccessSupport;
 import java.util.List;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -104,40 +105,43 @@ public final class LinkSerialHudOverlayRenderer {
 		}
 
 		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.player == null || minecraft.level == null || minecraft.hitResult == null) {
+		if (minecraft.player == null || minecraft.level == null) {
 			return;
 		}
-		if (minecraft.hitResult.getType() != HitResult.Type.BLOCK) {
+		if (!SmartGlassesAccessSupport.canRenderSerialOverlay(minecraft.player)) {
 			return;
 		}
-
-		BlockHitResult blockHitResult = (BlockHitResult) minecraft.hitResult;
-		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockHitResult.getBlockPos());
-		double maxDistance = RedstoneLinkClientDisplayConfig.overlay().nearDistance();
-		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
-			return;
+		if (minecraft.hitResult != null && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
+			BlockHitResult blockHitResult = (BlockHitResult) minecraft.hitResult;
+			BlockEntity blockEntity = minecraft.level.getBlockEntity(blockHitResult.getBlockPos());
+			double maxDistance = RedstoneLinkClientDisplayConfig.overlay().nearDistance();
+			if (LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
+				if (blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity) {
+					if (renderRepeaterOverlay(guiGraphics, minecraft, repeaterBlockEntity)) {
+						return;
+					}
+				} else if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
+					if (renderNodeOverlay(guiGraphics, minecraft, blockHitResult, pairableNodeBlockEntity)) {
+						return;
+					}
+				} else if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
+					if (renderFilterOverlay(guiGraphics, minecraft, filterBlockEntity)) {
+						return;
+					}
+				} else if (blockEntity instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
+					if (renderChunkActivatorOverlay(guiGraphics, minecraft, chunkActivatorBlockEntity)) {
+						return;
+					}
+				}
+			}
 		}
-		if (blockEntity instanceof LinkRepeaterBlockEntity repeaterBlockEntity) {
-			renderRepeaterOverlay(guiGraphics, minecraft, repeaterBlockEntity);
-			return;
-		}
-		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
-			renderNodeOverlay(guiGraphics, minecraft, blockHitResult, pairableNodeBlockEntity);
-			return;
-		}
-		if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
-			renderFilterOverlay(guiGraphics, minecraft, filterBlockEntity);
-			return;
-		}
-		if (blockEntity instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
-			renderChunkActivatorOverlay(guiGraphics, minecraft, chunkActivatorBlockEntity);
-		}
+		renderVisualizedHoverOverlay(guiGraphics, minecraft);
 	}
 
 	/**
 	 * 绘制转发器近外显。
 	 */
-	private static void renderRepeaterOverlay(
+	private static boolean renderRepeaterOverlay(
 		GuiGraphics guiGraphics,
 		Minecraft minecraft,
 		LinkRepeaterBlockEntity repeaterBlockEntity
@@ -164,7 +168,7 @@ public final class LinkSerialHudOverlayRenderer {
 			coreSnapshot
 		);
 		if (displayLines.isEmpty()) {
-			return;
+			return false;
 		}
 		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
 			guiGraphics,
@@ -174,12 +178,13 @@ public final class LinkSerialHudOverlayRenderer {
 			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
 			LinkSerialHudOverlayDrawSupport.PanelStyle.REPEATER
 		);
+		return true;
 	}
 
 	/**
 	 * 绘制节点近外显。
 	 */
-	private static void renderNodeOverlay(
+	private static boolean renderNodeOverlay(
 		GuiGraphics guiGraphics,
 		Minecraft minecraft,
 		BlockHitResult blockHitResult,
@@ -187,7 +192,7 @@ public final class LinkSerialHudOverlayRenderer {
 	) {
 		String serialText = LinkSerialOverlayRenderCommon.resolveDisplaySerialText(pairableNodeBlockEntity);
 		if (serialText.isEmpty()) {
-			return;
+			return false;
 		}
 
 		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
@@ -215,7 +220,7 @@ public final class LinkSerialHudOverlayRenderer {
 			LinkSerialHudOverlayTextSupport.resolveLanguageSignature()
 		);
 		if (displayLines.isEmpty()) {
-			return;
+			return false;
 		}
 		int textColor = LinkSerialOverlayRenderCommon.resolveNodeTextColor(nodeType);
 		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
@@ -226,25 +231,26 @@ public final class LinkSerialHudOverlayRenderer {
 			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
 			LinkSerialHudOverlayDrawSupport.resolveNodePanelStyle(nodeType)
 		);
+		return true;
 	}
 
 	/**
 	 * 绘制过滤器近外显。
 	 */
-	private static void renderFilterOverlay(
+	private static boolean renderFilterOverlay(
 		GuiGraphics guiGraphics,
 		Minecraft minecraft,
 		AbstractLinkFilterBlockEntity filterBlockEntity
 	) {
 		if (filterBlockEntity.filterKind() == null) {
-			return;
+			return false;
 		}
 		List<String> displayLines = LinkSerialHudOverlayTextSupport.buildNearOverlayLines(
 			filterBlockEntity,
 			minecraft.font
 		);
 		if (displayLines.isEmpty()) {
-			return;
+			return false;
 		}
 		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
 			guiGraphics,
@@ -254,12 +260,13 @@ public final class LinkSerialHudOverlayRenderer {
 			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
 			LinkSerialHudOverlayDrawSupport.resolveFilterPanelStyle()
 		);
+		return true;
 	}
 
 	/**
 	 * 绘制区块激活器近外显。
 	 */
-	private static void renderChunkActivatorOverlay(
+	private static boolean renderChunkActivatorOverlay(
 		GuiGraphics guiGraphics,
 		Minecraft minecraft,
 		LinkChunkActivatorBlockEntity chunkActivatorBlockEntity
@@ -269,7 +276,7 @@ public final class LinkSerialHudOverlayRenderer {
 			minecraft.font
 		);
 		if (displayLines.isEmpty()) {
-			return;
+			return false;
 		}
 		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
 			guiGraphics,
@@ -279,5 +286,59 @@ public final class LinkSerialHudOverlayRenderer {
 			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
 			LinkSerialHudOverlayDrawSupport.resolveChunkActivatorPanelStyle()
 		);
+		return true;
+	}
+
+	/**
+	 * 在未命中有效方块近外显时，回退到第三形态连线命中 HUD。
+	 */
+	private static void renderVisualizedHoverOverlay(GuiGraphics guiGraphics, Minecraft minecraft) {
+		QuickLinkOutlineRenderer.HoveredVisualizedTarget hoveredTarget = QuickLinkOutlineRenderer.resolveHoveredVisualizedTarget(
+			minecraft
+		);
+		if (hoveredTarget == null) {
+			return;
+		}
+		List<String> displayLines = LinkSerialHudOverlayTextSupport.buildVisualizedHoverOverlayLines(
+			hoveredTarget.displayText(),
+			hoveredTarget.objectSerial()
+		);
+		if (displayLines.isEmpty()) {
+			return;
+		}
+		LinkSerialHudOverlayDrawSupport.drawCenteredWithPanel(
+			guiGraphics,
+			minecraft.font,
+			displayLines,
+			resolveVisualizedHoverTextColor(hoveredTarget),
+			RedstoneLinkClientDisplayConfig.overlay().fontScale(),
+			resolveVisualizedHoverPanelStyle(hoveredTarget)
+		);
+	}
+
+	/**
+	 * 为第三形态悬停 HUD 选择与目标对象一致的文本颜色。
+	 */
+	private static int resolveVisualizedHoverTextColor(QuickLinkOutlineRenderer.HoveredVisualizedTarget hoveredTarget) {
+		if (hoveredTarget == null) {
+			return LinkSerialOverlayRenderCommon.resolveNodeTextColor(null);
+		}
+		return hoveredTarget.isRepeater()
+			? LinkSerialOverlayRenderCommon.resolveRepeaterTextColor()
+			: LinkSerialOverlayRenderCommon.resolveNodeTextColor(hoveredTarget.resolveNodeType());
+	}
+
+	/**
+	 * 为第三形态悬停 HUD 选择与目标对象一致的面板主题。
+	 */
+	private static LinkSerialHudOverlayDrawSupport.PanelStyle resolveVisualizedHoverPanelStyle(
+		QuickLinkOutlineRenderer.HoveredVisualizedTarget hoveredTarget
+	) {
+		if (hoveredTarget == null) {
+			return LinkSerialHudOverlayDrawSupport.PanelStyle.DEFAULT;
+		}
+		return hoveredTarget.isRepeater()
+			? LinkSerialHudOverlayDrawSupport.PanelStyle.REPEATER
+			: LinkSerialHudOverlayDrawSupport.resolveNodePanelStyle(hoveredTarget.resolveNodeType());
 	}
 }

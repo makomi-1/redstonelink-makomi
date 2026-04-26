@@ -11,6 +11,7 @@ import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.QuickLinkToolData;
+import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.QuickLinkNetwork;
 import java.util.List;
@@ -335,7 +336,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		InteractionHand hand,
 		BlockPos blockPos
 	) {
-		if (!hasQuickLinkInteractionContext(minecraft, hand, false) || minecraft == null || minecraft.level == null) {
+		if (!hasSmartGlassesVisualizationContext(minecraft, hand) || minecraft == null || minecraft.level == null) {
 			return null;
 		}
 		BlockEntity blockEntity = minecraft.level.getBlockEntity(blockPos);
@@ -380,10 +381,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		if (minecraft == null || minecraft.player == null) {
 			return false;
 		}
-		if (!(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
-			return false;
-		}
-		return QuickLinkToolData.read(minecraft.player.getMainHandItem()).mode() == QuickLinkToolData.Mode.VISUALIZE;
+		return SmartGlassesAccessSupport.canUseQuickLinkVisualization(minecraft.player);
 	}
 
 	/**
@@ -404,6 +402,19 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			return false;
 		}
 		return !requireStanding || !minecraft.player.isShiftKeyDown();
+	}
+
+	/**
+	 * 判断当前玩家状态是否允许继续走智能眼镜连线可视化交互。
+	 */
+	private static boolean hasSmartGlassesVisualizationContext(Minecraft minecraft, InteractionHand hand) {
+		if (minecraft == null || minecraft.player == null || minecraft.level == null) {
+			return false;
+		}
+		if (hand != InteractionHand.MAIN_HAND) {
+			return false;
+		}
+		return SmartGlassesAccessSupport.canUseQuickLinkVisualization(minecraft.player);
 	}
 
 	/**

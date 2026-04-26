@@ -3,9 +3,12 @@ package com.makomi.client.render;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.QuickLinkToolData;
+import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.QuickLinkNetwork;
 import com.makomi.util.SerialParseUtil;
@@ -31,6 +34,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -62,6 +66,11 @@ public final class QuickLinkOutlineRenderer {
 	private static final RenderStateShard.LineStateShard QUICK_LINK_PREVIEW_LINE_STATE = new RenderStateShard.LineStateShard(
 		OptionalDouble.of(2.5D)
 	);
+	private static final double VISUALIZE_HOVER_MAX_DISTANCE = 64.0D;
+	private static final double VISUALIZE_HOVER_BASE_THRESHOLD = 0.22D;
+	private static final double VISUALIZE_HOVER_DISTANCE_SCALE = 0.02D;
+	private static final double VISUALIZE_HOVER_MAX_THRESHOLD = 1.10D;
+	private static final double SEGMENT_EPSILON = 1.0E-6D;
 	private static final RenderType QUICK_LINK_PREVIEW_RENDER_TYPE = RenderType.create(
 		"redstonelink_quick_link_preview_lines",
 		DefaultVertexFormat.POSITION_COLOR_NORMAL,
@@ -77,6 +86,24 @@ public final class QuickLinkOutlineRenderer {
 			.setCullState(RenderStateShard.NO_CULL)
 			.setWriteMaskState(RenderStateShard.COLOR_WRITE)
 			.setOutputState(RenderStateShard.TRANSLUCENT_TARGET)
+			.setLineState(QUICK_LINK_PREVIEW_LINE_STATE)
+			.createCompositeState(false)
+	);
+	private static final RenderType QUICK_LINK_VISUALIZE_RENDER_TYPE = RenderType.create(
+		"redstonelink_quick_link_visualize_lines",
+		DefaultVertexFormat.POSITION_COLOR_NORMAL,
+		VertexFormat.Mode.LINES,
+		1536,
+		false,
+		true,
+		RenderType.CompositeState
+			.builder()
+			.setShaderState(RenderStateShard.RENDERTYPE_LINES_SHADER)
+			.setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+			.setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
+			.setCullState(RenderStateShard.NO_CULL)
+			.setWriteMaskState(RenderStateShard.COLOR_WRITE)
+			.setOutputState(RenderStateShard.MAIN_TARGET)
 			.setLineState(QUICK_LINK_PREVIEW_LINE_STATE)
 			.createCompositeState(false)
 	);
@@ -151,7 +178,6 @@ public final class QuickLinkOutlineRenderer {
 		}
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
 		if (snapshot.mode() == QuickLinkToolData.Mode.VISUALIZE) {
-			renderVisualizedConnections(worldRenderContext, minecraft);
 			return;
 		}
 
@@ -171,11 +197,31 @@ public final class QuickLinkOutlineRenderer {
 	}
 
 	/**
+	 * 在最终世界渲染阶段绘制第三形态穿墙连线。
+	 */
+	private static void onLast(WorldRenderContext worldRenderContext) {
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.player == null || minecraft.level == null) {
+			clearTransientPreviewState();
+			clearVisualizedObjectState();
+			return;
+		}
+		if (!SmartGlassesAccessSupport.canUseQuickLinkVisualization(minecraft.player)) {
+			return;
+		}
+		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
+			return;
+		}
+		renderVisualizedConnections(worldRenderContext, minecraft);
+	}
+
+	/**
 	 * 注册方块描边与缓存外显事件。
 	 */
 	public static void register() {
 		WorldRenderEvents.BLOCK_OUTLINE.register(QuickLinkOutlineRenderer::onBlockOutline);
 		WorldRenderEvents.AFTER_TRANSLUCENT.register(QuickLinkOutlineRenderer::onAfterTranslucent);
+		WorldRenderEvents.LAST.register(QuickLinkOutlineRenderer::onLast);
 	}
 
 	/**
@@ -224,7 +270,7 @@ public final class QuickLinkOutlineRenderer {
 					payload.objectSerial(),
 					payload.dimensionKey(),
 					payload.blockPosLong(),
-					payload.displayText()
+					normalizeVisualizedDisplayText(payload.displayText(), payload.objectSerial())
 				),
 				normalizeVisualizedTargets(payload.targets()),
 				color
@@ -250,6 +296,91 @@ public final class QuickLinkOutlineRenderer {
 		int removedCount = visualizedObjects.size();
 		clearVisualizedObjectState();
 		return removedCount;
+	}
+
+	/**
+	 * 解析当前准星命中的第三形态连线另一端对象。
+	 */
+	static HoveredVisualizedTarget resolveHoveredVisualizedTarget(Minecraft minecraft) {
+		if (
+			minecraft == null
+				|| minecraft.player == null
+				|| minecraft.level == null
+				|| visualizedObjects.isEmpty()
+				|| !SmartGlassesAccessSupport.canUseQuickLinkVisualization(minecraft.player)
+		) {
+			return null;
+		}
+		Vec3 rayOrigin = minecraft.gameRenderer.getMainCamera().getPosition();
+		Vec3 rayDirection = minecraft.player.getViewVector(1.0F);
+		if (rayDirection.lengthSqr() <= SEGMENT_EPSILON) {
+			return null;
+		}
+		double maxRayDistance = VISUALIZE_HOVER_MAX_DISTANCE;
+		HitResult hitResult = minecraft.hitResult;
+		if (hitResult != null) {
+			double hitDistance = hitResult.getLocation().distanceTo(rayOrigin);
+			if (hitDistance > 0.0D) {
+				maxRayDistance = Math.max(4.0D, Math.min(VISUALIZE_HOVER_MAX_DISTANCE, hitDistance + 1.0D));
+			}
+		}
+		return resolveHoveredVisualizedTarget(
+			minecraft.level.dimension().location().toString(),
+			rayOrigin,
+			rayDirection.normalize(),
+			maxRayDistance
+		);
+	}
+
+	/**
+	 * 纯客户端几何判定：按给定视线射线解析当前命中的第三形态连线另一端对象。
+	 */
+	static HoveredVisualizedTarget resolveHoveredVisualizedTarget(
+		String dimensionKey,
+		Vec3 rayOrigin,
+		Vec3 rayDirection,
+		double maxRayDistance
+	) {
+		if (
+			dimensionKey == null
+				|| dimensionKey.isBlank()
+				|| rayOrigin == null
+				|| rayDirection == null
+				|| rayDirection.lengthSqr() <= SEGMENT_EPSILON
+				|| maxRayDistance <= 0.0D
+				|| visualizedObjects.isEmpty()
+		) {
+			return null;
+		}
+		HoveredVisualizedTargetCandidate bestCandidate = null;
+		for (VisualizedConnection connection : collectVisibleVisualizedConnections(dimensionKey)) {
+			ClosestLineApproach closestLineApproach = resolveClosestLineApproach(
+				rayOrigin,
+				rayDirection,
+				maxRayDistance,
+				connection.segment()
+			);
+			if (closestLineApproach == null) {
+				continue;
+			}
+			double allowedDistance = resolveVisualizeHoverThreshold(closestLineApproach.rayDistance());
+			if (closestLineApproach.distance() > allowedDistance) {
+				continue;
+			}
+			HoveredVisualizedTargetCandidate candidate = new HoveredVisualizedTargetCandidate(
+				new HoveredVisualizedTarget(
+					connection.target().objectTypeToken(),
+					connection.target().objectSerial(),
+					connection.target().displayText()
+				),
+				closestLineApproach.rayDistance(),
+				closestLineApproach.distance() / allowedDistance
+			);
+			if (candidate.isBetterThan(bestCandidate)) {
+				bestCandidate = candidate;
+			}
+		}
+		return bestCandidate == null ? null : bestCandidate.target();
 	}
 
 	/**
@@ -609,10 +740,34 @@ public final class QuickLinkOutlineRenderer {
 		if (worldRenderContext == null || minecraft == null || minecraft.level == null || visualizedObjects.isEmpty()) {
 			return;
 		}
-		String currentDimensionKey = minecraft.level.dimension().location().toString();
+		List<VisualizedConnection> visibleConnections = collectVisibleVisualizedConnections(
+			minecraft.level.dimension().location().toString()
+		);
+		if (visibleConnections.isEmpty()) {
+			return;
+		}
 		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
 		PoseStack.Pose pose = worldRenderContext.matrixStack().last();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(QUICK_LINK_PREVIEW_RENDER_TYPE);
+		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(QUICK_LINK_VISUALIZE_RENDER_TYPE);
+		for (VisualizedConnection visibleConnection : visibleConnections) {
+			renderPreviewLineSegment(
+				lineVertexConsumer,
+				pose,
+				visibleConnection.segment(),
+				cameraPosition,
+				visibleConnection.color()
+			);
+		}
+	}
+
+	/**
+	 * 收集当前维度下真正可见的第三形态连接线，供渲染与悬停判定复用。
+	 */
+	private static List<VisualizedConnection> collectVisibleVisualizedConnections(String currentDimensionKey) {
+		if (currentDimensionKey == null || currentDimensionKey.isBlank() || visualizedObjects.isEmpty()) {
+			return List.of();
+		}
+		List<VisualizedConnection> visibleConnections = new ArrayList<>();
 		for (VisualizedObjectState state : visualizedObjects.values()) {
 			VisualizedObjectRef source = state.source();
 			if (source == null || !source.hasPosition() || !currentDimensionKey.equals(source.dimensionKey())) {
@@ -624,15 +779,134 @@ public final class QuickLinkOutlineRenderer {
 					continue;
 				}
 				Vec3 targetCenter = resolveBlockCenter(target.blockPosLong());
-				renderPreviewLineSegment(
-					lineVertexConsumer,
-					pose,
-					LineSegment.of(sourceCenter.x, sourceCenter.y, sourceCenter.z, targetCenter.x, targetCenter.y, targetCenter.z),
-					cameraPosition,
-					state.color()
+				visibleConnections.add(
+					new VisualizedConnection(
+						LineSegment.of(sourceCenter.x, sourceCenter.y, sourceCenter.z, targetCenter.x, targetCenter.y, targetCenter.z),
+						source,
+						target,
+						state.color()
+					)
 				);
 			}
 		}
+		return visibleConnections.isEmpty() ? List.of() : List.copyOf(visibleConnections);
+	}
+
+	/**
+	 * 计算视线射线与目标线段之间的最短距离。
+	 */
+	private static ClosestLineApproach resolveClosestLineApproach(
+		Vec3 rayOrigin,
+		Vec3 rayDirection,
+		double maxRayDistance,
+		LineSegment lineSegment
+	) {
+		if (
+			rayOrigin == null
+				|| rayDirection == null
+				|| rayDirection.lengthSqr() <= SEGMENT_EPSILON
+				|| maxRayDistance <= 0.0D
+				|| lineSegment == null
+		) {
+			return null;
+		}
+		Vec3 rayEnd = rayOrigin.add(rayDirection.scale(maxRayDistance));
+		Vec3 lineStart = new Vec3(lineSegment.startX(), lineSegment.startY(), lineSegment.startZ());
+		Vec3 lineEnd = new Vec3(lineSegment.endX(), lineSegment.endY(), lineSegment.endZ());
+		SegmentClosestApproach segmentClosestApproach = resolveSegmentClosestApproach(rayOrigin, rayEnd, lineStart, lineEnd);
+		if (segmentClosestApproach == null) {
+			return null;
+		}
+		return new ClosestLineApproach(
+			Math.sqrt(segmentClosestApproach.distanceSqr()),
+			segmentClosestApproach.firstParameter() * maxRayDistance
+		);
+	}
+
+	/**
+	 * 有限线段与有限线段的最近点求解。
+	 */
+	private static SegmentClosestApproach resolveSegmentClosestApproach(
+		Vec3 firstStart,
+		Vec3 firstEnd,
+		Vec3 secondStart,
+		Vec3 secondEnd
+	) {
+		if (firstStart == null || firstEnd == null || secondStart == null || secondEnd == null) {
+			return null;
+		}
+		Vec3 firstDelta = firstEnd.subtract(firstStart);
+		Vec3 secondDelta = secondEnd.subtract(secondStart);
+		Vec3 startDelta = firstStart.subtract(secondStart);
+		double firstLengthSqr = firstDelta.dot(firstDelta);
+		double secondLengthSqr = secondDelta.dot(secondDelta);
+		if (firstLengthSqr <= SEGMENT_EPSILON || secondLengthSqr <= SEGMENT_EPSILON) {
+			return null;
+		}
+		double deltaDot = firstDelta.dot(secondDelta);
+		double firstStartDot = firstDelta.dot(startDelta);
+		double secondStartDot = secondDelta.dot(startDelta);
+		double denominator = firstLengthSqr * secondLengthSqr - deltaDot * deltaDot;
+		double firstNumerator;
+		double firstDenominator = denominator;
+		double secondNumerator;
+		double secondDenominator = denominator;
+		if (denominator <= SEGMENT_EPSILON) {
+			firstNumerator = 0.0D;
+			firstDenominator = 1.0D;
+			secondNumerator = secondStartDot;
+			secondDenominator = secondLengthSqr;
+		} else {
+			firstNumerator = deltaDot * secondStartDot - secondLengthSqr * firstStartDot;
+			secondNumerator = firstLengthSqr * secondStartDot - deltaDot * firstStartDot;
+			if (firstNumerator < 0.0D) {
+				firstNumerator = 0.0D;
+				secondNumerator = secondStartDot;
+				secondDenominator = secondLengthSqr;
+			} else if (firstNumerator > firstDenominator) {
+				firstNumerator = firstDenominator;
+				secondNumerator = secondStartDot + deltaDot;
+				secondDenominator = secondLengthSqr;
+			}
+		}
+		if (secondNumerator < 0.0D) {
+			secondNumerator = 0.0D;
+			if (-firstStartDot < 0.0D) {
+				firstNumerator = 0.0D;
+			} else if (-firstStartDot > firstLengthSqr) {
+				firstNumerator = firstDenominator;
+			} else {
+				firstNumerator = -firstStartDot;
+				firstDenominator = firstLengthSqr;
+			}
+		} else if (secondNumerator > secondDenominator) {
+			secondNumerator = secondDenominator;
+			if (-firstStartDot + deltaDot < 0.0D) {
+				firstNumerator = 0.0D;
+			} else if (-firstStartDot + deltaDot > firstLengthSqr) {
+				firstNumerator = firstDenominator;
+			} else {
+				firstNumerator = -firstStartDot + deltaDot;
+				firstDenominator = firstLengthSqr;
+			}
+		}
+		double firstParameter = Math.abs(firstNumerator) <= SEGMENT_EPSILON ? 0.0D : firstNumerator / firstDenominator;
+		double secondParameter = Math.abs(secondNumerator) <= SEGMENT_EPSILON ? 0.0D : secondNumerator / secondDenominator;
+		Vec3 distanceVector = startDelta
+			.add(firstDelta.scale(firstParameter))
+			.subtract(secondDelta.scale(secondParameter));
+		return new SegmentClosestApproach(firstParameter, secondParameter, distanceVector.lengthSqr());
+	}
+
+	/**
+	 * 长距离连线适度放宽命中阈值，避免实际瞄准体验过于苛刻。
+	 */
+	private static double resolveVisualizeHoverThreshold(double rayDistance) {
+		double normalizedRayDistance = Math.max(0.0D, rayDistance);
+		return Math.min(
+			VISUALIZE_HOVER_MAX_THRESHOLD,
+			VISUALIZE_HOVER_BASE_THRESHOLD + normalizedRayDistance * VISUALIZE_HOVER_DISTANCE_SCALE
+		);
 	}
 
 	/**
@@ -664,11 +938,21 @@ public final class QuickLinkOutlineRenderer {
 					target.objectSerial(),
 					target.dimensionKey(),
 					target.blockPosLong(),
-					target.displayText()
+					normalizeVisualizedDisplayText(target.displayText(), target.objectSerial())
 				)
 			);
 		}
 		return normalizedTargets.isEmpty() ? List.of() : List.copyOf(normalizedTargets.values());
+	}
+
+	/**
+	 * 规范化第三形态显示文本，缺失时统一退回到序号展示。
+	 */
+	private static String normalizeVisualizedDisplayText(String displayText, long serial) {
+		String normalizedDisplayText = displayText == null ? "" : displayText.trim();
+		return normalizedDisplayText.isEmpty()
+			? NodeAliasDisplayUtil.formatDisplayText("", serial)
+			: normalizedDisplayText;
 	}
 
 	/**
@@ -921,5 +1205,63 @@ public final class QuickLinkOutlineRenderer {
 		VisualizedObjectState {
 			targets = List.copyOf(targets == null ? List.of() : targets);
 		}
+	}
+
+	/**
+	 * 第三形态中一条实际可见连接线及其两端对象。
+	 */
+	private record VisualizedConnection(
+		LineSegment segment,
+		VisualizedObjectRef source,
+		VisualizedObjectRef target,
+		OutlineColor color
+	) {
+	}
+
+	/**
+	 * 当前准星命中的第三形态线段对应对象。
+	 */
+	record HoveredVisualizedTarget(String objectTypeToken, long objectSerial, String displayText) {
+		boolean isRepeater() {
+			return LinkGuiDisplayContext.LINK_REPEATER.equals(objectTypeToken);
+		}
+
+		LinkNodeType resolveNodeType() {
+			return LinkNodeSemantics.tryParseCanonicalType(objectTypeToken).orElse(null);
+		}
+	}
+
+	/**
+	 * 命中的候选目标比较项；优先按归一化距离，再按视线前向距离排序。
+	 */
+	private record HoveredVisualizedTargetCandidate(
+		HoveredVisualizedTarget target,
+		double rayDistance,
+		double normalizedDistanceRatio
+	) {
+		boolean isBetterThan(HoveredVisualizedTargetCandidate currentBest) {
+			if (currentBest == null) {
+				return true;
+			}
+			if (normalizedDistanceRatio + SEGMENT_EPSILON < currentBest.normalizedDistanceRatio()) {
+				return true;
+			}
+			if (currentBest.normalizedDistanceRatio() + SEGMENT_EPSILON < normalizedDistanceRatio) {
+				return false;
+			}
+			return rayDistance + SEGMENT_EPSILON < currentBest.rayDistance();
+		}
+	}
+
+	/**
+	 * 视线检测段到目标线段的最近距离结果。
+	 */
+	private record ClosestLineApproach(double distance, double rayDistance) {
+	}
+
+	/**
+	 * 两条有限线段最近点求解结果。
+	 */
+	private record SegmentClosestApproach(double firstParameter, double secondParameter, double distanceSqr) {
 	}
 }

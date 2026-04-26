@@ -2,6 +2,7 @@ package com.makomi.client.render;
 
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
+import com.makomi.data.SmartGlassesAccessSupport;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -40,13 +41,16 @@ public final class ChunkActivatorFarOverlayRenderer implements BlockEntityRender
 		if (!RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
 			return;
 		}
+		Minecraft minecraft = Minecraft.getInstance();
+		if (!SmartGlassesAccessSupport.canRenderSerialOverlay(minecraft.player)) {
+			return;
+		}
 
 		String displayText = LinkSerialOverlayRenderCommon.resolveChunkActivatorDisplayText(blockEntity);
 		if (displayText.isEmpty()) {
 			return;
 		}
 
-		Minecraft minecraft = Minecraft.getInstance();
 		double maxDistance = RedstoneLinkClientDisplayConfig.overlay().maxDistance();
 		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
 			return;

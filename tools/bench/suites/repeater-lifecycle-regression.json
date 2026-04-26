@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "description": "转发器生命周期专项：覆盖 target 侧跨区块生效，以及 force_load/resident 在 1tick/2tick 配置下的重启恢复。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false",
+      "crosschunk.queue.enabled": "false",
+      "crosschunk.directBatching": "off",
+      "crosschunk.dispatch.batchWindowTicks": 0,
+      "crosschunk.forceLoad.enabled": "true",
+      "crosschunk.forceLoad.mode": "whitelist"
+    }
+  },
+  "entries": [
+    {
+      "entryId": "x61_target_force_load_1tick",
+      "summaryCaseId": "x61_target_force_load_1tick",
+      "title": "target 侧跨区块：force_load / 1tick",
+      "caseId": "repeater_crosschunk_target_effect_activator_assert",
+      "parameters": {
+        "chunkModeToken": "force_load",
+        "repeaterDelayToken": "1tick"
+      }
+    },
+    {
+      "entryId": "r08_target_force_load_1tick_restart_verify",
+      "summaryCaseId": "r08_target_force_load_1tick_restart_verify",
+      "title": "target 侧重启恢复：force_load / 1tick",
+      "caseId": "repeater_crosschunk_target_restart_verify",
+      "parameters": {
+        "repeaterDelayToken": "1tick"
+      },
+      "reuseWorldFrom": "x61_target_force_load_1tick",
+      "compareSerialsTo": "x61_target_force_load_1tick"
+    },
+    {
+      "entryId": "x61_target_force_load_2tick",
+      "summaryCaseId": "x61_target_force_load_2tick",
+      "title": "target 侧跨区块：force_load / 2tick",
+      "caseId": "repeater_crosschunk_target_effect_activator_assert",
+      "parameters": {
+        "chunkModeToken": "force_load",
+        "repeaterDelayToken": "2tick"
+      }
+    },
+    {
+      "entryId": "r08_target_force_load_2tick_restart_verify",
+      "summaryCaseId": "r08_target_force_load_2tick_restart_verify",
+      "title": "target 侧重启恢复：force_load / 2tick",
+      "caseId": "repeater_crosschunk_target_restart_verify",
+      "parameters": {
+        "repeaterDelayToken": "2tick"
+      },
+      "reuseWorldFrom": "x61_target_force_load_2tick",
+      "compareSerialsTo": "x61_target_force_load_2tick"
+    },
+    {
+      "entryId": "x61_target_resident_1tick",
+      "summaryCaseId": "x61_target_resident_1tick",
+      "title": "target 侧跨区块：resident / 1tick",
+      "caseId": "repeater_crosschunk_target_effect_activator_assert",
+      "parameters": {
+        "chunkModeToken": "resident",
+        "repeaterDelayToken": "1tick"
+      }
+    },
+    {
+      "entryId": "r08_target_resident_1tick_restart_verify",
+      "summaryCaseId": "r08_target_resident_1tick_restart_verify",
+      "title": "target 侧重启恢复：resident / 1tick",
+      "caseId": "repeater_crosschunk_target_restart_verify",
+      "parameters": {
+        "repeaterDelayToken": "1tick"
+      },
+      "reuseWorldFrom": "x61_target_resident_1tick",
+      "compareSerialsTo": "x61_target_resident_1tick"
+    },
+    {
+      "entryId": "x61_target_resident_2tick",
+      "summaryCaseId": "x61_target_resident_2tick",
+      "title": "target 侧跨区块：resident / 2tick",
+      "caseId": "repeater_crosschunk_target_effect_activator_assert",
+      "parameters": {
+        "chunkModeToken": "resident",
+        "repeaterDelayToken": "2tick"
+      }
+    },
+    {
+      "entryId": "r08_target_resident_2tick_restart_verify",
+      "summaryCaseId": "r08_target_resident_2tick_restart_verify",
+      "title": "target 侧重启恢复：resident / 2tick",
+      "caseId": "repeater_crosschunk_target_restart_verify",
+      "parameters": {
+        "repeaterDelayToken": "2tick"
+      },
+      "reuseWorldFrom": "x61_target_resident_2tick",
+      "compareSerialsTo": "x61_target_resident_2tick"
+    }
+  ]
+}

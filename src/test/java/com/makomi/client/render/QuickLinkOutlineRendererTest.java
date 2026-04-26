@@ -2,11 +2,16 @@ package com.makomi.client.render;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.network.QuickLinkNetwork;
 import java.util.Set;
+import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.phys.Vec3;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -15,6 +20,12 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class QuickLinkOutlineRendererTest {
+
+	@BeforeAll
+	static void bootstrapRegistries() {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+	}
 
 	/**
 	 * 单个方块的外轮廓应保留 12 条边。
@@ -70,6 +81,45 @@ class QuickLinkOutlineRendererTest {
 		assertEquals(1, QuickLinkOutlineRenderer.clearVisualizedObjects());
 		assertFalse(QuickLinkOutlineRenderer.hasVisualizedObject("link_repeater", 18L));
 		assertEquals(0, QuickLinkOutlineRenderer.clearVisualizedObjects());
+	}
+
+	/**
+	 * 第三形态连线命中应解析到另一端对象，并对缺失展示文本做序号兜底。
+	 */
+	@Test
+	void resolveHoveredVisualizedTargetShouldReturnNormalizedTargetDisplay() {
+		QuickLinkOutlineRenderer.clearVisualizedObjects();
+		QuickLinkOutlineRenderer.acceptVisualizeSnapshot(
+			new QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload(
+				"triggerSource",
+				4L,
+				"minecraft:overworld",
+				BlockPos.ZERO.asLong(),
+				"triggerSource(#4)",
+				java.util.List.of(
+					new QuickLinkNetwork.QuickLinkVisualizeTarget(
+						"core",
+						27L,
+						"minecraft:overworld",
+						new BlockPos(4, 0, 0).asLong(),
+						"   "
+					)
+				)
+			)
+		);
+
+		QuickLinkOutlineRenderer.HoveredVisualizedTarget hoveredTarget = QuickLinkOutlineRenderer.resolveHoveredVisualizedTarget(
+			"minecraft:overworld",
+			new Vec3(2.5D, 0.5D, -2.0D),
+			new Vec3(0.0D, 0.0D, 1.0D),
+			8.0D
+		);
+
+		assertNotNull(hoveredTarget);
+		assertEquals("core", hoveredTarget.objectTypeToken());
+		assertEquals(27L, hoveredTarget.objectSerial());
+		assertEquals("#27", hoveredTarget.displayText());
+		QuickLinkOutlineRenderer.clearVisualizedObjects();
 	}
 
 	private static int countBoundarySegments(Set<BlockPos> occupiedBlocks) throws Exception {

@@ -191,6 +191,37 @@ describe('graphViewer/canvas', () => {
     });
   });
 
+  it('buildGraphCanvasView 会为转发器统一生成序号优先标题而不是复用 core 文案', () => {
+    const graphBundle = createTestGraphBundle({
+      nodes: [
+        createTestGraphNode({
+          type: 'triggerSource',
+          serial: 10,
+          alias: 'relay',
+          displayText: 'relay(#10)',
+          capabilityFlags: ['repeater'],
+        }),
+        createTestGraphNode({
+          type: 'core',
+          serial: 10,
+          alias: 'relay',
+          displayText: 'core(#10)',
+          capabilityFlags: ['repeater'],
+        }),
+      ],
+    });
+
+    const canvasView = buildGraphCanvasView(
+      graphBundle,
+      new Set<string>(),
+      new Set<string>(),
+      'serial',
+    );
+
+    expect(canvasView.repeaterNodes[0]?.displayText).toBe('#10 (relay)');
+    expect(canvasView.isolatedRepeaterNodes[0]?.displayText).toBe('#10 (relay)');
+  });
+
   it('buildAutoLayoutPositions 会让展开态转发器呈现 core / repeater / triggerSource 的局部左右中布局', () => {
     const graphBundle = createTestGraphBundle({
       nodes: [

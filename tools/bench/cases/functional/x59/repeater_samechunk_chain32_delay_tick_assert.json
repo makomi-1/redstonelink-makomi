@@ -1,0 +1,808 @@
+{
+  "id": "repeater_samechunk_chain32_delay_tick_assert",
+  "description": "同区块单源经过 32 个 repeater 串联后到达 1 个 core，验证第 1/16/32 级输出与最终 core 的累计延迟按级数线性增长。",
+  "parameters": {
+    "repeaterDelayToken": "1tick",
+    "repeaterDelayTicks": 1,
+    "repeaterStage16DelayTicks": 16,
+    "repeaterStage32DelayTicks": 32
+  },
+  "layer": "X",
+  "scenarioId": "X59",
+  "arena": {
+    "clearFrom": [-8, 63, 700],
+    "clearTo": [48, 66, 704]
+  },
+  "targets": {
+    "id": "core_repeater_chain_target",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "from": [40, 64, 702],
+      "to": [40, 64, 702]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_repeater_chain_source",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "from": [0, 64, 702],
+        "to": [0, 64, 702]
+      }
+    },
+    {
+      "id": "repeater_chain_nodes",
+      "kind": "repeater_block",
+      "layout": {
+        "shape": "cuboid",
+        "from": [4, 64, 702],
+        "to": [35, 64, 702]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_repeater_chain_mount",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r01_delay",
+      "commandTemplate": "data merge block 4 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r02_delay",
+      "commandTemplate": "data merge block 5 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r03_delay",
+      "commandTemplate": "data merge block 6 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r04_delay",
+      "commandTemplate": "data merge block 7 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r05_delay",
+      "commandTemplate": "data merge block 8 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r06_delay",
+      "commandTemplate": "data merge block 9 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r07_delay",
+      "commandTemplate": "data merge block 10 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r08_delay",
+      "commandTemplate": "data merge block 11 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r09_delay",
+      "commandTemplate": "data merge block 12 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r10_delay",
+      "commandTemplate": "data merge block 13 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r11_delay",
+      "commandTemplate": "data merge block 14 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r12_delay",
+      "commandTemplate": "data merge block 15 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r13_delay",
+      "commandTemplate": "data merge block 16 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r14_delay",
+      "commandTemplate": "data merge block 17 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r15_delay",
+      "commandTemplate": "data merge block 18 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r16_delay",
+      "commandTemplate": "data merge block 19 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r17_delay",
+      "commandTemplate": "data merge block 20 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r18_delay",
+      "commandTemplate": "data merge block 21 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r19_delay",
+      "commandTemplate": "data merge block 22 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r20_delay",
+      "commandTemplate": "data merge block 23 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r21_delay",
+      "commandTemplate": "data merge block 24 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r22_delay",
+      "commandTemplate": "data merge block 25 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r23_delay",
+      "commandTemplate": "data merge block 26 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r24_delay",
+      "commandTemplate": "data merge block 27 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r25_delay",
+      "commandTemplate": "data merge block 28 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r26_delay",
+      "commandTemplate": "data merge block 29 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r27_delay",
+      "commandTemplate": "data merge block 30 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r28_delay",
+      "commandTemplate": "data merge block 31 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r29_delay",
+      "commandTemplate": "data merge block 32 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r30_delay",
+      "commandTemplate": "data merge block 33 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r31_delay",
+      "commandTemplate": "data merge block 34 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_chain_r32_delay",
+      "commandTemplate": "data merge block 35 64 702 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_source_to_r01",
+      "action": "set",
+      "sourceRef": "sync_repeater_chain_source",
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r01_to_r02",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 0,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 1
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r02_to_r03",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 1,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 2
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r03_to_r04",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 2,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 3
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r04_to_r05",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 3,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 4
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r05_to_r06",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 4,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 5
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r06_to_r07",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 5,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 6
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r07_to_r08",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 6,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 7
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r08_to_r09",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 7,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 8
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r09_to_r10",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 8,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 9
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r10_to_r11",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 9,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 10
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r11_to_r12",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 10,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 11
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r12_to_r13",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 11,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 12
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r13_to_r14",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 12,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 13
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r14_to_r15",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 13,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 14
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r15_to_r16",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 14,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 15
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r16_to_r17",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 15,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 16
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r17_to_r18",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 16,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 17
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r18_to_r19",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 17,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 18
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r19_to_r20",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 18,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 19
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r20_to_r21",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 19,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 20
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r21_to_r22",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 20,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 21
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r22_to_r23",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 21,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 22
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r23_to_r24",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 22,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 23
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r24_to_r25",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 23,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 24
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r25_to_r26",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 24,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 25
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r26_to_r27",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 25,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 26
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r27_to_r28",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 26,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 27
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r28_to_r29",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 27,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 28
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r29_to_r30",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 28,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 29
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r30_to_r31",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 29,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 30
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r31_to_r32",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 30,
+      "targetRef": "repeater_chain_nodes",
+      "targetIndex": 31
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_chain_r32_to_target",
+      "action": "set",
+      "sourceRef": "repeater_chain_nodes",
+      "sourceIndex": 31,
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_chain_pairing_apply",
+      "ticks": 8
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_chain_r01_core_should_link_source",
+      "commandTemplate": "redstonelink node get core {{source:repeater_chain_nodes[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:sync_repeater_chain_source[0]}}"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_chain_r16_core_should_link_r15",
+      "commandTemplate": "redstonelink node get core {{source:repeater_chain_nodes[15]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:repeater_chain_nodes[14]}}"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_chain_r32_core_should_link_r31",
+      "commandTemplate": "redstonelink node get core {{source:repeater_chain_nodes[31]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:repeater_chain_nodes[30]}}"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_chain_target_should_link_r32_only",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets=.*{{source:repeater_chain_nodes[31]}}"
+      ],
+      "rejectRegex": "(?i)targets=.*{{source:sync_repeater_chain_source[0]}}"
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_mixed",
+      "name": "mount_repeater_chain_source_trace",
+      "serialRef": "sync_repeater_chain_source",
+      "serialFormat": "mixed",
+      "capacity": 192,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_mixed",
+      "name": "mount_repeater_chain_r01_output_trace",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 0,
+      "serialFormat": "mixed",
+      "capacity": 192,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_mixed",
+      "name": "mount_repeater_chain_r16_output_trace",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 15,
+      "serialFormat": "mixed",
+      "capacity": 192,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_triggerSource_mixed",
+      "name": "mount_repeater_chain_r32_output_trace",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 31,
+      "serialFormat": "mixed",
+      "capacity": 192,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_mount_core_mixed",
+      "name": "mount_repeater_chain_target_trace",
+      "serialIndex": 0,
+      "serialFormat": "mixed",
+      "capacity": 192,
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_repeater_chain_trace_mount",
+      "ticks": 4
+    },
+    {
+      "templateRef": "input_start_custom_triggerSource",
+      "name": "start_repeater_chain_source_wave",
+      "serialRef": "sync_repeater_chain_source",
+      "serialFormat": "mixed",
+      "sequence": "15/15/0/0/15/15/0/0",
+      "phaseTicks": 0,
+      "totalTicks": 8
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "collect_repeater_chain_trace_ticks",
+      "ticks": 96
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_repeater_chain_source_latency",
+      "serialRef": "sync_repeater_chain_source",
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_chain_source_trace",
+      "anchorRef": "start_repeater_chain_source_wave",
+      "anchorTickStrategy": "start",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 4,
+      "expectedDelayTicks": 1,
+      "windowCoverageChecks": [
+        {
+          "windowTicks": 0,
+          "expectedMaximum": 0.0
+        },
+        {
+          "windowTicks": 1,
+          "expectedMinimum": 1.0,
+          "expectedMaximum": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_chain_source_wave"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_repeater_chain_r01_output_latency",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 0,
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_chain_r01_output_trace",
+      "anchorRef": "start_repeater_chain_source_wave",
+      "anchorTickStrategy": "start",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 6,
+      "expectedDelayTicks": "{{param:repeaterDelayTicks}}",
+      "windowCoverageChecks": [
+        {
+          "windowTicks": "{{param:repeaterDelayTicks}}",
+          "expectedMinimum": 1.0,
+          "expectedMaximum": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_chain_source_wave"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_repeater_chain_r16_output_latency",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 15,
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_chain_r16_output_trace",
+      "anchorRef": "start_repeater_chain_source_wave",
+      "anchorTickStrategy": "start",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 40,
+      "expectedDelayTicks": "{{param:repeaterStage16DelayTicks}}",
+      "windowCoverageChecks": [
+        {
+          "windowTicks": "{{param:repeaterStage16DelayTicks}}",
+          "expectedMinimum": 1.0,
+          "expectedMaximum": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_chain_source_wave"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_triggerSource_range",
+      "name": "collect_repeater_chain_r32_output_latency",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 31,
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_chain_r32_output_trace",
+      "anchorRef": "start_repeater_chain_source_wave",
+      "anchorTickStrategy": "start",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 72,
+      "expectedDelayTicks": "{{param:repeaterStage32DelayTicks}}",
+      "windowCoverageChecks": [
+        {
+          "windowTicks": "{{param:repeaterStage32DelayTicks}}",
+          "expectedMinimum": 1.0,
+          "expectedMaximum": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_chain_source_wave"
+      }
+    },
+    {
+      "templateRef": "trace_sync_latency_collect_core_range",
+      "name": "collect_repeater_chain_target_latency",
+      "serialRef": "targets",
+      "serialIndex": 0,
+      "serialFormat": "mixed",
+      "mountRef": "mount_repeater_chain_target_trace",
+      "anchorRef": "start_repeater_chain_source_wave",
+      "anchorTickStrategy": "start",
+      "referencePhaseRef": "collect_repeater_chain_r32_output_latency",
+      "referenceStartStrategy": "min",
+      "chunkSize": 1,
+      "batchPauseMs": 0,
+      "maxDelayTicks": 136,
+      "expectedDelayTicks": 0,
+      "windowCoverageChecks": [
+        {
+          "windowTicks": 0,
+          "expectedMinimum": 1.0,
+          "expectedMaximum": 1.0
+        }
+      ],
+      "tickCount": 8,
+      "template": {
+        "kind": "sync_custom",
+        "phaseRef": "start_repeater_chain_source_wave"
+      }
+    },
+    {
+      "templateRef": "input_clear",
+      "name": "clear_repeater_chain_jobs"
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_mixed",
+      "name": "unmount_repeater_chain_source_trace",
+      "serialRef": "sync_repeater_chain_source",
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_mixed",
+      "name": "unmount_repeater_chain_r01_output_trace",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 0,
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_mixed",
+      "name": "unmount_repeater_chain_r16_output_trace",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 15,
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_triggerSource_mixed",
+      "name": "unmount_repeater_chain_r32_output_trace",
+      "serialRef": "repeater_chain_nodes",
+      "serialIndex": 31,
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    },
+    {
+      "templateRef": "trace_unmount_core_mixed",
+      "name": "unmount_repeater_chain_target_trace",
+      "serialIndex": 0,
+      "serialFormat": "mixed",
+      "chunkSize": 1,
+      "batchPauseMs": 0
+    }
+  ]
+}

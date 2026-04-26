@@ -64,14 +64,14 @@ class QuickLinkToolDataTest {
 	}
 
 	/**
-	 * 模式循环切换应按 `serial -> channel -> visualize -> serial` 往返。
+	 * 模式循环切换应按 `serial -> channel -> serial` 往返。
 	 */
 	@Test
 	void cycleModeShouldToggleAcrossAllModes() {
 		ItemStack stack = new ItemStack(Items.STONE);
 		assertEquals(QuickLinkToolData.Mode.CHANNEL, QuickLinkToolData.cycleMode(stack).mode());
-		assertEquals(QuickLinkToolData.Mode.VISUALIZE, QuickLinkToolData.cycleMode(stack).mode());
 		assertEquals(QuickLinkToolData.Mode.SERIAL, QuickLinkToolData.cycleMode(stack).mode());
+		assertEquals(QuickLinkToolData.Mode.CHANNEL, QuickLinkToolData.cycleMode(stack).mode());
 	}
 
 	/**
@@ -216,7 +216,7 @@ class QuickLinkToolDataTest {
 				QuickLinkToolData.ApplyEditMode.REPLACE
 			)
 		);
-		assertEquals(new CustomModelData(2), stack.get(DataComponents.CUSTOM_MODEL_DATA));
+		assertNull(stack.get(DataComponents.CUSTOM_MODEL_DATA));
 
 		QuickLinkToolData.write(
 			stack,

@@ -532,18 +532,23 @@ final class LinkSerialHudOverlayTextSupport {
 		return CurrentLinksDisplayFormatUtil.buildText(linkedTargets, linkedTargetDisplayTexts, maxWidth, measure);
 	}
 
-	/**
-	 * 构建节点集文本，未携带别名快照时按序号展示。
-	 */
-	private static String buildCurrentLinksText(Font font, List<Long> linkedTargets) {
-		return buildCurrentLinksText(font, linkedTargets, List.of());
-	}
 
 	/**
 	 * 构建节点集文本，优先使用服务端同步的别名展示文本，缺失时按序号展示。
 	 */
 	static String buildCurrentLinksText(Font font, List<Long> linkedTargets, List<String> linkedTargetDisplayTexts) {
 		return buildCurrentLinksText(linkedTargets, linkedTargetDisplayTexts, LINKS_LINE_MAX_WIDTH, font::width);
+	}
+
+	/**
+	 * 构建第三形态连线悬停 HUD，只显示另一端对象的展示文本。
+	 */
+	static List<String> buildVisualizedHoverOverlayLines(String displayText, long serial) {
+		String normalizedDisplayText = NodeAliasDisplayUtil.normalizeDisplayText(displayText, serial);
+		if (normalizedDisplayText.isBlank() || "-".equals(normalizedDisplayText)) {
+			return List.of();
+		}
+		return List.of("[" + normalizedDisplayText + "]");
 	}
 
 	static String buildCurrentLinksText(

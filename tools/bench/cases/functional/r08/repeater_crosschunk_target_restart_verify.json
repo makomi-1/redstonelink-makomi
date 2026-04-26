@@ -1,0 +1,166 @@
+{
+  "id": "repeater_crosschunk_target_restart_verify",
+  "description": "复用 target 侧跨区块 repeater 世界，验证重启后当前高态恢复、delay 配置保留、链接关系不变，并在本地 input 断电后正确失活。",
+  "parameters": {
+    "repeaterDelayToken": "1tick"
+  },
+  "layer": "R",
+  "scenarioId": "R08",
+  "clearArena": false,
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [288, 63, 998],
+      "to": [305, 66, 1001]
+    },
+    {
+      "dimension": "minecraft:overworld",
+      "from": [1536, 63, 998],
+      "to": [1537, 66, 998]
+    }
+  ],
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [280, 63, 992],
+        "clearTo": [328, 66, 1004]
+      },
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [1532, 63, 992],
+        "clearTo": [1540, 66, 1004]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_repeater_crosschunk_target_restart_targets",
+    "kind": "core_block",
+    "reuseExisting": true,
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [1536, 64, 998],
+      "to": [1536, 64, 998]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_repeater_crosschunk_target_inputs",
+      "kind": "sync_emitter",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [288, 64, 998],
+        "to": [288, 64, 998]
+      }
+    },
+    {
+      "id": "repeater_crosschunk_target_nodes",
+      "kind": "repeater_block",
+      "reuseExisting": true,
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [296, 64, 998],
+        "to": [296, 64, 998]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_crosschunk_target_restart_boot",
+      "ticks": 40
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "repeater_crosschunk_target_restart_target_should_start_high",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_crosschunk_target_restart_delay_token",
+      "command": "data get block 296 64 998 delay",
+      "expectedRegex": "(?i){{param:repeaterDelayToken}}"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_crosschunk_target_restart_repeater_core_should_link_source",
+      "commandTemplate": "redstonelink node get core {{source:repeater_crosschunk_target_nodes[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets={{source:sync_repeater_crosschunk_target_inputs[0]}}(?:\\.|,|，|\\s|$)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_crosschunk_target_restart_repeater_output_should_fanout_one_target",
+      "commandTemplate": "redstonelink link get triggerSource {{source:repeater_crosschunk_target_nodes[0]}}",
+      "expectedPrefix": "[RedstoneLink/Link]",
+      "expectedRegex": "(?i)(target_count=1|目标数=1)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_crosschunk_target_restart_target_should_link_repeater_only",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets={{source:repeater_crosschunk_target_nodes[0]}}(?:\\.|,|，|\\s|$)"
+      ],
+      "rejectRegex": "(?i)targets={{source:sync_repeater_crosschunk_target_inputs[0]}}(?:\\.|,|，|\\s|$)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_repeater_crosschunk_target_restart_input",
+      "command": "setblock 289 64 998 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_crosschunk_target_restart_high_effect",
+      "ticks": 24
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "repeater_crosschunk_target_restart_target_should_turn_on",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_off_repeater_crosschunk_target_restart_input",
+      "command": "setblock 289 64 998 minecraft:air",
+      "commandDimension": "minecraft:overworld",
+      "allowEmptyResponse": true
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_crosschunk_target_restart_low_effect",
+      "ticks": 24
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "repeater_crosschunk_target_restart_target_should_turn_off",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(active=false|激活=false)"
+    }
+  ]
+}

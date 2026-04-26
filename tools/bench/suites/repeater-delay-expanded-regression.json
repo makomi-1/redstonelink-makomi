@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "description": "转发器延迟扩展回归：覆盖单转发器基线、1024-1-1024 同规模汇聚扇出，以及 32 级串联在 1tick/2tick 下的固定延迟表现。",
+  "defaults": {
+    "benchAction": "RunFunctionalCase",
+    "matrixPath": "../functional-matrix.json",
+    "serverConfigOverrides": {
+      "server.command.rateLimit.enabled": "false",
+      "crosschunk.directBatching": "off",
+      "crosschunk.dispatch.batchWindowTicks": 0
+    }
+  },
+  "entries": [
+    {
+      "entryId": "x57_repeater_delay_1tick",
+      "summaryCaseId": "x57_repeater_delay_1tick",
+      "title": "转发器延迟基线：1tick",
+      "caseId": "repeater_samechunk_delay_tick_assert",
+      "parameters": {
+        "repeaterDelayToken": "1tick",
+        "repeaterDelayTicks": 1
+      }
+    },
+    {
+      "entryId": "x57_repeater_delay_2tick",
+      "summaryCaseId": "x57_repeater_delay_2tick",
+      "title": "转发器延迟基线：2tick",
+      "caseId": "repeater_samechunk_delay_tick_assert",
+      "parameters": {
+        "repeaterDelayToken": "2tick",
+        "repeaterDelayTicks": 2
+      }
+    },
+    {
+      "entryId": "x58_repeater_scale_1024_to_1_to_1024_1tick",
+      "summaryCaseId": "x58_repeater_scale_1024_to_1_to_1024_1tick",
+      "title": "转发器同规模中继：1024-1-1024 / 1tick",
+      "caseId": "repeater_samechunk_latency_1024_to_1_to_1024_single_burst",
+      "parameters": {
+        "repeaterDelayToken": "1tick",
+        "repeaterDelayTicks": 1
+      }
+    },
+    {
+      "entryId": "x58_repeater_scale_1024_to_1_to_1024_2tick",
+      "summaryCaseId": "x58_repeater_scale_1024_to_1_to_1024_2tick",
+      "title": "转发器同规模中继：1024-1-1024 / 2tick",
+      "caseId": "repeater_samechunk_latency_1024_to_1_to_1024_single_burst",
+      "parameters": {
+        "repeaterDelayToken": "2tick",
+        "repeaterDelayTicks": 2
+      }
+    },
+    {
+      "entryId": "x59_repeater_chain32_1tick",
+      "summaryCaseId": "x59_repeater_chain32_1tick",
+      "title": "转发器串联：32 级 / 1tick",
+      "caseId": "repeater_samechunk_chain32_delay_tick_assert",
+      "parameters": {
+        "repeaterDelayToken": "1tick",
+        "repeaterDelayTicks": 1,
+        "repeaterStage16DelayTicks": 16,
+        "repeaterStage32DelayTicks": 32
+      }
+    },
+    {
+      "entryId": "x59_repeater_chain32_2tick",
+      "summaryCaseId": "x59_repeater_chain32_2tick",
+      "title": "转发器串联：32 级 / 2tick",
+      "caseId": "repeater_samechunk_chain32_delay_tick_assert",
+      "parameters": {
+        "repeaterDelayToken": "2tick",
+        "repeaterDelayTicks": 2,
+        "repeaterStage16DelayTicks": 32,
+        "repeaterStage32DelayTicks": 64
+      }
+    }
+  ]
+}

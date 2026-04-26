@@ -3,6 +3,7 @@ package com.makomi.client.render;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.LinkDispatchFilterService;
+import com.makomi.data.SmartGlassesAccessSupport;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -74,7 +75,7 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 			return;
 		}
 		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.player == null) {
+		if (!SmartGlassesAccessSupport.canRenderSerialOverlay(minecraft.player)) {
 			return;
 		}
 		double maxDistance = RedstoneLinkClientDisplayConfig.overlay().maxDistance();

@@ -20,6 +20,7 @@ import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.QuickLinkToolData;
+import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.PairingNetwork;
@@ -250,11 +251,11 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		if (client.screen != null) {
 			return;
 		}
-		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+		if (SmartGlassesAccessSupport.canUseQuickLinkVisualization(client.player)) {
+			QuickLinkNetworkClientHandlerSupport.clearVisualizedObjects();
 			return;
 		}
-		if (QuickLinkNetworkClientHandlerSupport.isVisualizeMode(client)) {
-			QuickLinkNetworkClientHandlerSupport.clearVisualizedObjects();
+		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
 			return;
 		}
 

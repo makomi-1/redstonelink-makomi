@@ -17,6 +17,7 @@ import com.makomi.data.QuickLinkOccSubmissionSupport;
 import com.makomi.data.QuickLinkOperationFeedback;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.data.QuickLinkVisualizationSnapshotService;
+import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.item.QuickLinkToolItem;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -147,8 +148,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		ServerPlayer player,
 		QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload payload
 	) {
-		ItemStack mainHandItem = player.getMainHandItem();
-		if (!(mainHandItem.getItem() instanceof QuickLinkToolItem)) {
+		if (!SmartGlassesAccessSupport.canUseQuickLinkVisualization(player)) {
 			return;
 		}
 		ResolvedQuickLinkApplyTarget requestedTarget = resolveRequestedApplyTarget(

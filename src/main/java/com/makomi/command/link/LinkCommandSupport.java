@@ -7,7 +7,6 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkWriteControlService;
-import com.makomi.data.NodeSnapshotQueryService;
 import com.makomi.util.SerialParseUtil;
 import java.util.HashSet;
 import java.util.LinkedHashMap;

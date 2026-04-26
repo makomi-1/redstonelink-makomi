@@ -72,6 +72,12 @@ function buildCanvasNodeTitle(node: GraphNodeInfo): string {
     : `#${node.serial}`;
 }
 
+function buildRepeaterNodeTitle(serial: number, aliases: string[]): string {
+  const normalizedAlias =
+    aliases.map((alias) => alias.trim()).find((alias) => alias.length > 0) ?? "";
+  return normalizedAlias ? `#${serial} (${normalizedAlias})` : `#${serial}`;
+}
+
 function buildNodeLabel(node: GraphNodeInfo): JSX.Element {
   return (
     <div className="graph-node-label is-compact">
@@ -890,7 +896,10 @@ function buildSerialGraphCanvasView(
       kind: "repeater",
       nodeKey: repeaterNodeKey,
       serial: pair.serial,
-      displayText: pair.coreNode.displayText,
+      displayText: buildRepeaterNodeTitle(pair.serial, [
+        pair.coreNode.alias,
+        pair.triggerSourceNode.alias,
+      ]),
       triggerSourceNodeKey: pair.triggerSourceNode.nodeKey,
       coreNodeKey: pair.coreNode.nodeKey,
       memberNodeKeys: [pair.triggerSourceNode.nodeKey, pair.coreNode.nodeKey],

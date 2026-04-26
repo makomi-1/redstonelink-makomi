@@ -5,6 +5,7 @@ import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.SmartGlassesAccessSupport;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.core.Direction;
 import net.minecraft.client.Minecraft;
@@ -57,6 +58,10 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 		if (!RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
 			return;
 		}
+		Minecraft minecraft = Minecraft.getInstance();
+		if (!SmartGlassesAccessSupport.canRenderSerialOverlay(minecraft.player)) {
+			return;
+		}
 
 		String serialText = LinkSerialOverlayRenderCommon.resolveDisplaySerialText(blockEntity);
 		if (serialText.isEmpty()) {
@@ -69,7 +74,6 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 			: LinkSerialOverlayRenderCommon.resolveNodeTextColor(nodeType);
 		int backgroundGlyphColor = withAlpha(textColor, 0x00);
 
-		Minecraft minecraft = Minecraft.getInstance();
 		int maxDistance = RedstoneLinkClientDisplayConfig.overlay().maxDistance();
 		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
 			return;

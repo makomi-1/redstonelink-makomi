@@ -1,0 +1,210 @@
+{
+  "id": "repeater_crosschunk_source_effect_activator_assert",
+  "description": "验证 source 侧跨区块的 repeater 中继在区块激活器拉起后仍能恢复当前高态到本地 target；仅验证跨区块生效，不断言精确延迟。",
+  "parameters": {
+    "chunkModeToken": "force_load",
+    "repeaterDelayToken": "1tick"
+  },
+  "layer": "X",
+  "scenarioId": "X60",
+  "autoLoadCaseChunks": false,
+  "benchForceLoadZones": [
+    {
+      "dimension": "minecraft:overworld",
+      "from": [1536, 63, 978],
+      "to": [1537, 66, 978]
+    },
+    {
+      "dimension": "minecraft:overworld",
+      "from": [288, 63, 978],
+      "to": [305, 66, 981]
+    }
+  ],
+  "arena": {
+    "clearZones": [
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [280, 63, 972],
+        "clearTo": [308, 66, 984]
+      },
+      {
+        "dimension": "minecraft:overworld",
+        "clearFrom": [1532, 63, 972],
+        "clearTo": [1540, 66, 984]
+      }
+    ]
+  },
+  "targets": {
+    "id": "core_repeater_crosschunk_source_targets",
+    "kind": "core_block",
+    "layout": {
+      "shape": "cuboid",
+      "dimension": "minecraft:overworld",
+      "from": [300, 64, 978],
+      "to": [300, 64, 978]
+    }
+  },
+  "sources": [
+    {
+      "id": "sync_repeater_crosschunk_source_inputs",
+      "kind": "sync_emitter",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [1536, 64, 978],
+        "to": [1536, 64, 978]
+      }
+    },
+    {
+      "id": "repeater_crosschunk_source_nodes",
+      "kind": "repeater_block",
+      "layout": {
+        "shape": "cuboid",
+        "dimension": "minecraft:overworld",
+        "from": [292, 64, 978],
+        "to": [292, 64, 978]
+      }
+    }
+  ],
+  "links": [],
+  "phases": [
+    {
+      "templateRef": "wait_ticks",
+      "name": "warmup_repeater_crosschunk_source_mount",
+      "ticks": 4
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_crosschunk_source_delay_token",
+      "commandTemplate": "data merge block 292 64 978 {delay:\"{{param:repeaterDelayToken}}\"}"
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_crosschunk_source_input_to_repeater",
+      "action": "set",
+      "sourceRef": "sync_repeater_crosschunk_source_inputs",
+      "sourceIndex": 0,
+      "targetRef": "repeater_crosschunk_source_nodes",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "link_command",
+      "name": "link_repeater_crosschunk_source_repeater_to_target",
+      "action": "set",
+      "sourceRef": "repeater_crosschunk_source_nodes",
+      "sourceIndex": 0,
+      "targetRef": "targets",
+      "targetIndex": 0
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_crosschunk_source_pairing_apply",
+      "ticks": 8
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_crosschunk_source_repeater_core_should_link_source",
+      "commandTemplate": "redstonelink node get core {{source:repeater_crosschunk_source_nodes[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets={{source:sync_repeater_crosschunk_source_inputs[0]}}(?:\\.|,|，|\\s|$)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "verify_repeater_crosschunk_source_target_should_link_repeater_only",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)linked=1(?:,|，)",
+        "(?i)targets={{source:repeater_crosschunk_source_nodes[0]}}(?:\\.|,|，|\\s|$)"
+      ],
+      "rejectRegex": "(?i)targets={{source:sync_repeater_crosschunk_source_inputs[0]}}(?:\\.|,|，|\\s|$)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_on_repeater_crosschunk_source_input_before_unload",
+      "command": "setblock 1537 64 978 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_crosschunk_source_preload_high_effect",
+      "ticks": 24
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "repeater_crosschunk_source_target_should_turn_on_before_source_unload",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "remove_repeater_crosschunk_source_input_forceload",
+      "command": "forceload remove 1536 978 1536 978",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_crosschunk_source_input_unload",
+      "ticks": 80
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "repeater_crosschunk_source_input_should_be_offline_before_activator",
+      "commandTemplate": "redstonelink node get triggerSource {{source:sync_repeater_crosschunk_source_inputs[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegex": "(?i)(online=false|在线=false)"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "repeater_crosschunk_source_target_should_reset_low_before_activator",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=false|激活=false)"
+      ]
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "place_repeater_crosschunk_source_activator",
+      "command": "setblock 289 64 981 redstonelink:link_chunk_activator",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "configure_repeater_crosschunk_source_activator",
+      "commandTemplate": "data merge block 289 64 981 {activeType:\"triggerSource\",triggerSourceSerialExpression:\"{{source:sync_repeater_crosschunk_source_inputs[0]:mixed}}\",triggerSourceMode:\"{{param:chunkModeToken}}\",coreSerialExpression:\"\",coreMode:\"force_load\",DisplayAlias:\"bench-repeater-source-activator\"}",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "power_repeater_crosschunk_source_activator",
+      "command": "setblock 290 64 981 minecraft:redstone_block",
+      "commandDimension": "minecraft:overworld"
+    },
+    {
+      "templateRef": "wait_ticks",
+      "name": "wait_repeater_crosschunk_source_activator_effect",
+      "ticks": 30
+    },
+    {
+      "templateRef": "command_assert",
+      "name": "repeater_crosschunk_source_target_should_auto_recover_high_after_activator",
+      "commandTemplate": "redstonelink node get core {{targets[0]}}",
+      "expectedPrefix": "[RedstoneLink/Node]",
+      "expectedRegexes": [
+        "(?i)(online=true|在线=true)",
+        "(?i)(active=true|激活=true)"
+      ]
+    }
+  ]
+}
