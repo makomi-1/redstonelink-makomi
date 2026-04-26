@@ -2,10 +2,18 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "key": {
-    "G": "minecraft:glass_pane",
-    "I": "minecraft:iron_ingot",
-    "L": "redstonelink:redstone_link_component",
-    "S": "redstonelink:link_sync_emitter"
+    "G": {
+      "item": "minecraft:glass_pane"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "L": {
+      "item": "redstonelink:redstone_link_component"
+    },
+    "S": {
+      "item": "redstonelink:link_sync_emitter"
+    }
   },
   "pattern": [
     " I ",

@@ -55,8 +55,8 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 		buildLinkBaseRecipe(recipeOutput, "link_pulse_emitter", ModItems.LINK_PULSE_EMITTER, TRIGGER_P_MATERIALS);
 		buildLinkBaseRecipe(recipeOutput, "link_sync_emitter", ModItems.LINK_SYNC_EMITTER, TRIGGER_S_MATERIALS);
 		buildLinkBaseRecipe(recipeOutput, "link_toggle_emitter", ModItems.LINK_TOGGLE_EMITTER, TRIGGER_T_MATERIALS);
-		buildLinkBaseRecipe(recipeOutput, "link_send_filter", ModItems.LINK_SEND_FILTER, ModItems.LINK_SYNC_EMITTER);
-		buildLinkBaseRecipe(recipeOutput, "link_receive_filter", ModItems.LINK_RECEIVE_FILTER, ModItems.LINK_REDSTONE_CORE);
+		buildSendFilterRecipe(recipeOutput);
+		buildReceiveFilterRecipe(recipeOutput);
 		buildChunkActivatorRecipe(recipeOutput);
 		buildLinkBaseRecipe(recipeOutput, "link_redstone_core", ModItems.LINK_REDSTONE_CORE, Items.REDSTONE_BLOCK);
 		buildLinkBaseRecipe(recipeOutput, "link_redstone_dust_core", ModItems.LINK_REDSTONE_DUST_CORE, Items.REDSTONE);
@@ -140,6 +140,40 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 			.pattern("DDD")
 			.unlockedBy(getHasName(ModItems.REDSTONE_LINK_COMPONENT), has(ModItems.REDSTONE_LINK_COMPONENT))
 			.save(recipeOutput, id("link_chunk_activator"));
+	}
+
+	/**
+	 * 生成发送过滤器配方。
+	 */
+	private void buildSendFilterRecipe(RecipeOutput recipeOutput) {
+		ShapedRecipeBuilder
+			.shaped(RecipeCategory.REDSTONE, ModItems.LINK_SEND_FILTER)
+			.define('G', Items.GLASS_PANE)
+			.define('I', Items.IRON_INGOT)
+			.define('L', ModItems.REDSTONE_LINK_COMPONENT)
+			.define('S', ModItems.LINK_SYNC_EMITTER)
+			.pattern(" I ")
+			.pattern("GLG")
+			.pattern(" S ")
+			.unlockedBy(getHasName(ModItems.LINK_SYNC_EMITTER), has(ModItems.LINK_SYNC_EMITTER))
+			.save(recipeOutput, id("link_send_filter"));
+	}
+
+	/**
+	 * 生成接收过滤器配方。
+	 */
+	private void buildReceiveFilterRecipe(RecipeOutput recipeOutput) {
+		ShapedRecipeBuilder
+			.shaped(RecipeCategory.REDSTONE, ModItems.LINK_RECEIVE_FILTER)
+			.define('C', ModItems.LINK_REDSTONE_CORE)
+			.define('G', Items.GLASS_PANE)
+			.define('I', Items.IRON_INGOT)
+			.define('L', ModItems.REDSTONE_LINK_COMPONENT)
+			.pattern(" I ")
+			.pattern("GLG")
+			.pattern(" C ")
+			.unlockedBy(getHasName(ModItems.LINK_REDSTONE_CORE), has(ModItems.LINK_REDSTONE_CORE))
+			.save(recipeOutput, id("link_receive_filter"));
 	}
 
 	/**
