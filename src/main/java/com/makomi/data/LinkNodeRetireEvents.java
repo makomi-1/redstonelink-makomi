@@ -95,15 +95,22 @@ public final class LinkNodeRetireEvents {
 				PendingKey key = resolveUnloadKey(server, itemEntity);
 				boolean discardedByDamage = consumeDamageDiscardMark(server, entityId);
 				clearEntityKey(server, entityId);
-				if (key == null) {
-					outcome = "SKIP_NO_KEY";
-					return;
-				}
 				if (reason == Entity.RemovalReason.DISCARDED
 					&& !discardedByDamage
 					&& itemEntity.getAge() < ITEM_NATURAL_DESPAWN_AGE) {
 					// 低年龄 DISCARDED 且非伤害销毁，按“被拾取/主动丢弃”处理，不做退役。
 					outcome = "SKIP_LOW_AGE_DISCARDED";
+					return;
+				}
+				if (key == null) {
+					int retiredContainedNodes = SmartNodeContainerRetireSupport.retireContainedNodes(level, itemEntity.getItem());
+					if (retiredContainedNodes > 0) {
+						outcome = "RETIRED_CONTAINER";
+						return;
+					}
+					outcome = SmartNodeContainerRetireSupport.isSmartNodeContainerStack(itemEntity.getItem())
+						? "SKIP_CONTAINER_EMPTY_OR_ONLINE"
+						: "SKIP_NO_KEY";
 					return;
 				}
 				LinkSavedData savedData = LinkSavedData.get(level);
@@ -170,14 +177,12 @@ public final class LinkNodeRetireEvents {
 		if (!(itemEntity.level() instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		PendingKey key = pendingKeyFromStack(itemEntity.getItem(), true);
-		if (key == null) {
-			return;
-		}
-
 		MinecraftServer server = serverLevel.getServer();
 		UUID entityId = itemEntity.getUUID();
-		rememberEntityKey(server, entityId, key);
+		PendingKey key = pendingKeyFromStack(itemEntity.getItem(), true);
+		if (key != null) {
+			rememberEntityKey(server, entityId, key);
+		}
 		markDamageDiscard(server, entityId);
 	}
 

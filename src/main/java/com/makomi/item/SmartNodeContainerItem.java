@@ -1,6 +1,7 @@
 package com.makomi.item;
 
 import com.makomi.data.LinkItemData;
+import com.makomi.data.LinkNodeRetireEvents;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.RepeaterItemData;
 import com.makomi.data.SmartNodeContainerData;
@@ -19,6 +20,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -110,6 +112,12 @@ public class SmartNodeContainerItem extends Item {
 	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
 		SmartNodeContainerData.syncModelState(stack);
 		super.inventoryTick(stack, level, entity, slotId, isSelected);
+	}
+
+	@Override
+	public void onDestroyed(ItemEntity itemEntity) {
+		LinkNodeRetireEvents.markDamageDiscard(itemEntity);
+		super.onDestroyed(itemEntity);
 	}
 
 	@Override

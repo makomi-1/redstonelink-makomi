@@ -479,7 +479,7 @@
             },
             tools: {
               title: '工具与遥控器',
-              note: '用于配对、批量编辑、远程触发和状态观察。'
+              note: '用于配对、批量编辑、远程触发、节点收纳和状态观察。'
             },
             internal: {
               title: '内部展示物品',
@@ -532,7 +532,7 @@
             },
             tools: {
               title: 'Tools & Linkers',
-              note: 'Used for pairing, batch editing, remote trigger, and state observation.'
+              note: 'Used for pairing, batch editing, remote trigger, handheld storage, and state observation.'
             },
             internal: {
               title: 'Internal Display Items',
@@ -555,6 +555,8 @@
         'link_send_filter': 'redstonelink:block/link_send_filter',
         'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
         'link_sync_lever': 'redstonelink:item/link_sync_lever_blue_overlay',
+        'smart_glasses': 'redstonelink:item/smart_glasses',
+        'smart_node_container': 'redstonelink:item/smart_node_container_side',
         'link_toggle_button': 'redstonelink:item/link_toggle_button_blue_overlay',
         'link_toggle_emitter': 'redstonelink:block/link_toggle_emitter',
         'quick_link_tool': 'redstonelink:item/fast_link_tool_sd',
@@ -584,7 +586,8 @@
         'link_chunk_activator': 'redstonelink:block/component_core_block',
         'link_repeater': 'redstonelink:block/component_core_block',
         'link_send_filter': 'redstonelink:block/component_core_block',
-        'link_receive_filter': 'redstonelink:block/component_core_block'
+        'link_receive_filter': 'redstonelink:block/component_core_block',
+        'smart_node_container': 'redstonelink:block/component_core_block'
       };
 
       // 仅对白名单物品启用轮播，避免把其它多状态/多候选物品一并转成轮播展示。
@@ -624,6 +627,11 @@
         'link_redstone_dust_core': [
           'redstonelink:item/link_redstone_dust_core',
           'redstonelink:block/link_redstone_dust_dot_bright'
+        ],
+        'smart_node_container': [
+          'redstonelink:item/smart_node_container_side_core',
+          'redstonelink:item/smart_node_container_side_triggersource',
+          'redstonelink:item/smart_node_container_side_repeater'
         ],
         'quick_link_tool': [
           'redstonelink:item/fast_link_tool_sd',
@@ -930,22 +938,60 @@
           
         },
         {
+          path: 'smart_glasses',
+          category: 'tools',
+          role: 'utility',
+          render: 'item',
+          name: { zh: '智能眼镜', en: 'Smart Glasses' },
+          effect: {
+            zh: '可穿戴观察入口；佩戴后启用远/近外显，并承接 QLT visualize 的显示能力。',
+            en: 'A wearable observation gate that enables far/near overlays and carries Quick Link Tool visualize rendering.'
+          },
+          usage: {
+            zh: ['装备到头部后，远/近外显与 visualize 连线才允许显示。', '佩戴后即使主手拿着快速连接工具或其它工具，也能继续查看已显示连线。', '左键添加、右键移除与 Shift+B 清空等 visualize 操作仍要求主手为空。'],
+            en: ['Far/near overlays and visualize links only render after it is equipped in the head slot.', 'Once worn, already displayed links stay visible even if the main hand switches back to the Quick Link Tool or another tool.', 'Visualize operations still require an empty main hand: left-click add, right-click remove, and Shift+B clear.']
+          },
+          note: {
+            zh: '当前复用头盔装备槽与原版护甲渲染链，不提供额外护甲属性，也没有普通头盔耐久。',
+            en: 'It currently reuses the helmet slot and vanilla armor render chain, but provides no extra armor attributes and no normal helmet durability.'
+          }
+        },
+        {
           path: 'quick_link_tool',
           category: 'tools',
           role: 'utility',
           render: 'item',
           name: { zh: '快速连接工具', en: 'Quick Link Tool' },
           effect: {
-            zh: '通过序号缓存或频道缓存实现批量采集与批量应用，提升节点配对效率。',
-            en: 'Uses serial or channel cache for batch collect/apply workflows and faster pairing operations.'
+            zh: '通过序号缓存或频道缓存实现批量采集与批量应用；与智能眼镜配合时，还可进入 visualize 连线观察工作流。',
+            en: 'Uses serial or channel cache for batch collect/apply workflows, and works with Smart Glasses for the visualize link-observation workflow.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：在 serial/channel 下打开缓存编辑器；visualize 下不会打开编辑器。', '按模式键（默认 B）可切换 serial/channel/visualize；潜行按会清空当前模式数据，visualize 下会清空显示对象列表。', '左键命中节点：serial 采集序号、channel 采集频道、visualize 添加显示对象并查询连接；命中过滤器不会采集。', '鼠标中键：仅在 serial 模式下循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：serial/channel 把当前缓存应用到命中对象；visualize 会移除该显示对象。'],
-            en: ['Sneak + empty offhand + right-click opens the cache editor in serial/channel; visualize does not open the editor.', 'Press the mode key (default `B`) to switch `serial/channel/visualize`; press it while sneaking to clear current-mode data, and in visualize this clears the displayed object list.', 'Left-click a node to collect serials in serial, collect channel in channel, or add a displayed object and query links in visualize; filters are never collectible.', 'Middle mouse cycles `replace/append/remove` only in serial mode.', 'Stand + right-click a node or matching filter to apply the current cache in serial/channel; in visualize it removes that displayed object.']
+            zh: ['潜行且左手为空右键：在 serial/channel 下打开缓存编辑器；visualize 下不会打开编辑器。', '按模式键（默认 B）可切换 serial/channel/visualize；visualize 的显示入口由智能眼镜承接。', '左键命中节点：serial 采集序号、channel 采集频道；visualize 只有在佩戴智能眼镜且主手为空时，才会添加显示对象并查询连接。', '鼠标中键：仅在 serial 模式下循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：serial/channel 把当前缓存应用到命中对象；visualize 只有在佩戴智能眼镜且主手为空时，才会移除该显示对象。'],
+            en: ['Sneak + empty offhand + right-click opens the cache editor in serial/channel; visualize does not open the editor.', 'Press the mode key (default `B`) to switch `serial/channel/visualize`; the display side of visualize is now carried by Smart Glasses.', 'Left-click a node: serial collects serials, channel collects channel, and visualize only adds a displayed object when Smart Glasses are worn and the main hand is empty.', 'Middle mouse cycles `replace/append/remove` only in serial mode.', 'Stand + right-click a node or matching filter to apply the current cache in serial/channel; visualize only removes that displayed object when Smart Glasses are worn and the main hand is empty.']
           },
           note: {
-            zh: '三种模式分别使用 `_sd/_cp/_vs` 贴图与对应主题；channel 模式只能采集已在频道模式且频道大于 0 的节点，visualize 模式会对显示对象去重并给穿墙连线分配颜色。',
-            en: 'The three modes use `_sd/_cp/_vs` textures and matching themes; channel only collects nodes already in channel mode with a channel value greater than 0, while visualize deduplicates displayed objects and assigns colors to through-wall links.'
+            zh: '三种模式分别使用 `_sd/_cp/_vs` 贴图与对应主题；channel 模式只能采集已在频道模式且频道大于 0 的节点，visualize 已加入对象会按 revision 增量刷新，且佩戴智能眼镜后可在主手非空时继续显示。',
+            en: 'The three modes use `_sd/_cp/_vs` textures and matching themes; channel only collects nodes already in channel mode with a channel value greater than 0, while visualize objects refresh incrementally by revision and stay visible with Smart Glasses even when the main hand is no longer empty.'
+          }
+        },
+        {
+          path: 'smart_node_container',
+          category: 'tools',
+          role: 'utility',
+          render: 'block',
+          name: { zh: '智能节点容器', en: 'Smart Node Container' },
+          effect: {
+            zh: '手持式 54 格节点容器，可收纳 core/triggerSource/repeater，并按当前类型快速放置。',
+            en: 'A handheld 54-slot node container that stores core/triggerSource/repeater items and quickly places the currently selected type.'
+          },
+          usage: {
+            zh: ['主手持有时按快速连接模式键（默认 B）打开 6 行箱子式 GUI。', 'GUI 右侧显示当前放置类型与自动排序；容器槽位和背包槽位都可像普通箱子一样悬停查看 tooltip。', '鼠标中键循环切换当前放置类型；主手右键会按当前类型弹出一个节点并尝试放置。'],
+            en: ['While held in the main hand, press the Quick Link mode key (default B) to open its 6-row chest-style GUI.', 'The right side of the GUI shows the current placement type and auto-sort state; both container slots and player inventory slots keep normal hover tooltips like a vanilla chest.', 'Middle mouse cycles the current placement type, and main-hand right-click ejects one node of that type and tries to place it.']
+          },
+          note: {
+            zh: '容器只接受 core/triggerSource/repeater，自动排序时按 core -> triggerSource -> repeater、类内序号升序排列；容器非空时侧面外显跟随当前放置类型切换，若容器物品实体被真正销毁，内部节点会递归退役而不是先掉出来。',
+            en: 'The container only accepts core/triggerSource/repeater and auto-sorts as core -> triggerSource -> repeater with ascending serial inside each class; when non-empty, its side appearance follows the current placement type, and if the item entity is truly destroyed, contained nodes retire recursively instead of dropping out first.'
           }
         },
         {

@@ -222,6 +222,40 @@
 </table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:quick_link_tool</div><div class='count'>数量 x1</div></div></div></section>
 <section class='card'><div class='row'><table class='grid'>
 <tr>
+<td>minecraft:glass_pane</td>
+<td>redstonelink:redstone_link_component</td>
+<td>minecraft:glass_pane</td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+</table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:smart_glasses</div><div class='count'>数量 x1</div></div></div></section>
+<section class='card'><div class='row'><table class='grid'>
+<tr>
+<td>minecraft:chest</td>
+<td>redstonelink:redstone_link_component</td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+</table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:smart_node_container</div><div class='count'>数量 x1</div></div></div></section>
+<section class='card'><div class='row'><table class='grid'>
+<tr>
 <td class='empty'></td>
 <td>minecraft:glass_pane</td>
 <td class='empty'></td>
@@ -519,6 +553,8 @@
 		'link_send_filter': 'redstonelink:block/link_send_filter',
 		'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
 		'link_sync_lever': 'redstonelink:item/link_sync_lever_blue_overlay',
+		'smart_glasses': 'redstonelink:item/smart_glasses',
+		'smart_node_container': 'redstonelink:item/smart_node_container_side',
 		'link_toggle_button': 'redstonelink:item/link_toggle_button_blue_overlay',
 		'link_toggle_emitter': 'redstonelink:block/link_toggle_emitter',
 		'quick_link_tool': 'redstonelink:item/fast_link_tool_sd',
@@ -614,6 +650,7 @@
 		'link_send_filter': true,
 		'link_sync_emitter': true,
 		'link_sync_lever': true,
+		'smart_node_container': true,
 		'link_toggle_button': true,
 		'link_toggle_emitter': true
 	};
@@ -684,7 +721,8 @@
 		'redstonelink:link_chunk_activator': 'redstonelink:block/component_core_block',
 		'redstonelink:link_repeater': 'redstonelink:block/component_core_block',
 		'redstonelink:link_send_filter': 'redstonelink:block/component_core_block',
-		'redstonelink:link_receive_filter': 'redstonelink:block/component_core_block'
+		'redstonelink:link_receive_filter': 'redstonelink:block/component_core_block',
+		'redstonelink:smart_node_container': 'redstonelink:block/component_core_block'
 	};
 
 	// 这些命名与本地语言文件 src/main/resources/assets/redstonelink/lang/*.json 保持一致。
@@ -707,6 +745,8 @@
 		'redstonelink_pulse_linker': ['脉冲遥控器', 'Linked Pulse Linker'],
 		'redstonelink_sync_linker': ['同步遥控器', 'Linked Sync Linker'],
 		'quick_link_tool': ['快速连接工具', 'Quick Link Tool'],
+		'smart_glasses': ['智能眼镜', 'Smart Glasses'],
+		'smart_node_container': ['智能节点容器', 'Smart Node Container'],
 		'graph_visual_editor': ['图可视化编辑器', 'Graph Visual Editor'],
 		'redstone_link_component': ['连接原件', 'Redstone Link Component'],
 		'redstonelink_status_panel': ['状态面板工具', 'State Panel Tool']
@@ -723,6 +763,7 @@
 		'minecraft:redstone_block': ['红石块', 'Block of Redstone'],
 		'minecraft:redstone': ['红石粉', 'Redstone Dust'],
 		'minecraft:dirt': ['泥土', 'Dirt'],
+		'minecraft:chest': ['箱子', 'Chest'],
 		'minecraft:iron_ingot': ['铁锭', 'Iron Ingot'],
 		'minecraft:copper_ingot': ['铜锭', 'Copper Ingot'],
 		'minecraft:glass': ['玻璃', 'Glass'],
@@ -1705,6 +1746,8 @@
 		if (
 			outputId === 'redstonelink:link_chunk_activator' ||
 			outputId === 'redstonelink:quick_link_tool' ||
+			outputId === 'redstonelink:smart_glasses' ||
+			outputId === 'redstonelink:smart_node_container' ||
 			outputId === 'redstonelink:graph_visual_editor' ||
 			outputId === 'redstonelink:redstonelink_pulse_linker' ||
 			outputId === 'redstonelink:redstonelink_sync_linker' ||

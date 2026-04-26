@@ -15,17 +15,37 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ## I. Quick Start for Players
 
 - Best for: players using the mod for the first time and only wanting everyday linking plus state checks.
-- Recommended reading order: `Quick Link Tool` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `Link Repeater` -> `State Panel Tool` -> `Graph Visual Editor` -> `Batch Serial Input Format for Commands/GUI`.
+- Recommended reading order: `Smart Glasses` -> `Quick Link Tool` -> `Smart Node Container` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `Link Repeater` -> `State Panel Tool` -> `Graph Visual Editor` -> `Batch Serial Input Format for Commands/GUI`.
+
+### Smart Glasses
+- Item name: `Smart Glasses`.
+- Worn behavior:
+1. Wearing them enables far/near overlays.
+2. Wearing them is also required before `visualize` can render through-wall links or aim-at tooltips.
+3. Once they are worn, displayed links stay visible even if the main hand switches back to the Quick Link Tool or some other tool.
+4. `visualize` operations themselves still require an empty main hand: left-click add, right-click remove, and `Shift + B` clear.
+- Notes:
+1. Smart Glasses are only an observation gate. They do not pair, rewrite links, or edit caches by themselves.
+2. Without them, far/near overlays and `visualize` rendering do not appear at all.
+3. They currently reuse the helmet equipment slot and vanilla armor render chain, but provide no extra armor attributes and no normal helmet durability.
+- Crafting recipe:
+1. `Glass Pane + Redstone Link Component + Glass Pane -> Smart Glasses`
+2. Pattern:
+   `GLG`
+   `   `
+   `   `
+   `G = minecraft:glass_pane`
+   `L = redstonelink:redstone_link_component`
 
 ### Quick Link Tool
 - Item name: `Quick Link Tool`.
-- The current version provides `serial/channel/visualize` modes: `serial` is for batch collect/apply through serial cache, `channel` is for batch collect/apply through channel cache, and `visualize` adds nodes or repeaters into a displayed-object list with through-wall link rendering. The three modes use `_sd/_cp/_vs` item textures and matching themes.
+- The current version provides `serial/channel/visualize` modes: `serial` is for batch collect/apply through serial cache, `channel` is for batch collect/apply through channel cache, and `visualize` adds nodes or repeaters into a displayed-object list with through-wall link rendering. The display side of `visualize` is now carried by Smart Glasses. The three modes use `_sd/_cp/_vs` item textures and matching themes.
 - Basic interaction:
 1. Sneak and right-click with an empty offhand: open the Quick Link Tool cache editor in `serial/channel`; `visualize` does not open the editor.
-2. Left-click a valid link node: `serial` collects that node serial into cache, `channel` collects its current channel into cache, and `visualize` adds the hit node or repeater into the displayed-object list while querying its real links.
-3. Right-click a valid link node or the matching filter while standing: `serial/channel` applies the current cache to the hit target, while `visualize` removes that displayed object.
+2. Left-click a valid link node: `serial` collects that node serial into cache, `channel` collects its current channel into cache, and `visualize` adds the hit node or repeater into the displayed-object list only when Smart Glasses are worn and the main hand is empty.
+3. Right-click a valid link node or the matching filter while standing: `serial/channel` applies the current cache to the hit target, while `visualize` removes that displayed object only when Smart Glasses are worn and the main hand is empty.
 4. Middle-click (same binding as vanilla `pick item`): cycle apply edit mode `replace -> append -> remove -> replace` only in `serial`.
-5. Quick Link mode key: default `B`; press while standing to switch `serial/channel/visualize`, press while sneaking to clear current-mode data, and in `visualize` this clears the whole displayed-object list.
+5. Quick Link mode key: default `B`; press while standing to switch `serial/channel/visualize`, press while sneaking to clear current-mode data, and in `visualize` this clears the whole displayed-object list only when Smart Glasses are worn and the main hand is empty.
 - Collect rules:
 1. In `serial` mode, the tool automatically switches the current serial-cache type based on the hit node: hit `core` -> cache type becomes `core`; hit `triggerSource` -> cache type becomes `triggerSource`.
 2. If the tool is still in `serial` mode and the cache type matches, collect appends incrementally and deduplicates automatically.
@@ -49,7 +69,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 13. Filter `serialExpression` supports `replace/append/remove`; channel apply directly overwrites the channel target and does not use incremental semantics.
 14. Filter apply does not participate in link OCC; the baseline round-trip still happens, but the server returns zero revisions and writes the filter config directly.
 - Clear rules:
-1. `Sneak + B` clears the current-mode data: serial cache in `serial`, channel cache in `channel`, and the displayed-object list in `visualize`.
+1. `Sneak + B` clears the current-mode data: serial cache in `serial`, channel cache in `channel`, and the displayed-object list in `visualize` when Smart Glasses are worn and the main hand is empty.
 2. Clearing keeps the current mode, current serial-cache type, and current apply edit mode. It does not forcibly reset them.
 - UI and feedback:
 1. The GUI allows manual editing of the serial cache. After switching to `channel`, the channel input is also editable and participates in real collect/apply. `visualize` does not open the cache editor and instead uses left-click/right-click/sneak + mode-key interactions only.
@@ -57,14 +77,17 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 3. The GUI-side serial cache input length is controlled by client config `client.quickLinkSerialCacheMaxLength`, default `1024`.
 4. Channel cache must be a positive `long`; `0` or empty means there is currently no valid channel cache.
 5. On real serial apply, the server still performs another length validation for the cache expression using `server.command.linkSet.maxInputLength`.
-6. While holding the Quick Link Tool and targeting an object, an outline is shown: `core` is bright blue, `triggerSource` is bright orange, and filters are bright red.
+6. In `serial/channel`, holding the Quick Link Tool and targeting an object still shows the preview outline: `core` is bright blue, `triggerSource` is bright orange, and filters are bright red. For `visualize`, rendered displayed objects and aim-at tooltips require Smart Glasses.
+7. Displayed `visualize` objects now refresh incrementally by revision. After a link or runtime position changes, you do not need to manually re-add the object.
 - Recommended usage order:
 1. Hold the Quick Link Tool in the main hand.
-2. Use `B` to choose whether you are working in `serial`, `channel`, or `visualize`.
-3. In `serial/channel`, left-click to collect cache data; in `visualize`, left-click to add displayed objects.
-4. If you are in `serial`, use middle mouse to choose `replace`, `append`, or `remove`.
-5. In `serial/channel`, right-click while standing to apply the cache to a valid target or filter; in `visualize`, right-click removes displayed objects.
-6. Press `Sneak + B` to clear the current-mode data if you want to start over.
+2. If you want `visualize`, wear Smart Glasses first.
+3. Use `B` to choose whether you are working in `serial`, `channel`, or `visualize`.
+4. In `serial/channel`, left-click to collect cache data; in `visualize`, switch to an empty main hand before left-clicking to add displayed objects.
+5. If you are in `serial`, use middle mouse to choose `replace`, `append`, or `remove`.
+6. In `serial/channel`, right-click while standing to apply the cache to a valid target or filter; in `visualize`, switch to an empty main hand before right-clicking to remove displayed objects.
+7. After objects are added in `visualize`, you can switch back to other tools and keep watching the links as long as Smart Glasses stay worn.
+8. Press `Sneak + B` with Smart Glasses worn and an empty main hand when you want to clear the displayed-object list.
 - Crafting recipe:
 1. `Redstone Link Component + Stick + Stick -> Quick Link Tool`
 2. Pattern:
@@ -102,6 +125,45 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 4. Config changes or neighbor-input changes immediately resample the filter and refresh its runtime truth.
 5. For `sync`, changing from allow to block triggers invalidation; changing from block to allow triggers a resend from the current snapshot.
 6. `pulse / toggle` do not replay historical events; they only affect later dispatches.
+- Crafting recipe:
+1. `Iron Ingot + Glass Pane + Redstone Link Component + Glass Pane + Linked Sync Emitter -> Send Filter`
+2. Pattern:
+   ` I `
+   `GLG`
+   ` S `
+   `I = minecraft:iron_ingot`
+   `G = minecraft:glass_pane`
+   `L = redstonelink:redstone_link_component`
+   `S = redstonelink:link_sync_emitter`
+3. `Iron Ingot + Glass Pane + Redstone Link Component + Glass Pane + Linked Redstone Core -> Receive Filter`
+4. Pattern:
+   ` I `
+   `GLG`
+   ` C `
+   `C = redstonelink:link_redstone_core`
+
+### Smart Node Container
+- Item name: `Smart Node Container`.
+- Basic interaction:
+1. While held in the main hand, press the Quick Link mode key (default `B`) to open a chest-like GUI with `6` rows / `54` slots.
+2. The right side of the GUI shows the current placement type and auto-sort state. Both container slots and player inventory slots keep normal hover tooltips like a vanilla chest.
+3. Middle mouse cycles the current placement type: `core -> triggerSource -> repeater`.
+4. Main-hand right-click ejects one node of the selected type and immediately tries to place it.
+- Storage rules:
+1. It only accepts single, non-aggregated node items: `core`, `triggerSource`, and `repeater`.
+2. The container stores full item-stack snapshots, so the node's own serial, channel, and other item-side state stay with the stored item.
+3. With auto-sort enabled, contents are ordered as `core -> triggerSource -> repeater`, then by ascending serial inside each class.
+4. When the container is non-empty, its side visual follows the currently selected placement type.
+5. When nodes are stored inside, connection-info tooltips do not auto-sync to outside changes; this matches vanilla chest behavior.
+6. If the item entity is truly destroyed, the contained nodes are retired recursively instead of being dropped out first.
+- Crafting recipe:
+1. `Chest + Redstone Link Component -> Smart Node Container`
+2. Pattern:
+   `CL `
+   `   `
+   `   `
+   `C = minecraft:chest`
+   `L = redstonelink:redstone_link_component`
 
 ### Linked Sync Linker
 - Item name: `Linked Sync Linker`.

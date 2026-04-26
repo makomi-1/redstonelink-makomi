@@ -297,6 +297,24 @@ To prevent silent overwrite during "read first, write later", the project adds r
 
 So write control answers "are you allowed to write", while OCC answers "is the snapshot you based this on still valid". They have different responsibilities.
 
+### 8.6 Smart Glasses and the `visualize` Observation Gate
+
+`Quick Link Tool` `visualize` no longer uses "holding the QLT" as its display anchor. Observation is now carried by `Smart Glasses`:
+
+- far/near overlays and visualize link rendering only appear when Smart Glasses are worn; this is a client-side observation gate, not another topology truth layer;
+- add/remove displayed objects and `Shift + B` clear are still operation paths, so they still require an empty main hand; rendering itself does not, which lets players keep watching links while holding other tools;
+- once an object is added, the client keeps a local snapshot and refreshes it incrementally through `sourceRevision/coreRevision + runtimeNodeVersion`;
+- aim-at tooltips and through-wall lines only read the local cache and do not send per-frame network queries. Network cost is concentrated in "object added" and periodic incremental refresh batches.
+
+### 8.7 Item-Inventory Semantics of Smart Node Container
+
+`Smart Node Container` is a standalone item-inventory system, not a GUI wrapper around the old aggregate stack idea:
+
+- it stores full `ItemStack` snapshots instead of pure serial groups, so node-side item state stays with the container;
+- it only accepts `core/triggerSource/repeater`, and additionally persists current placement type, auto-sort state, and its display state;
+- on main-hand placement, it ejects the first matching item of the currently selected placement type and tries to place it; auto-sort only changes inventory organization, not node truth;
+- if the item entity is truly destroyed, contained nodes do not drop out first. They retire recursively through the existing retire coordinator, preventing "allocated but no longer owned" ghost serials.
+
 ## 9. Unified Workflow Examples
 
 ### 9.1 Rewire Links
