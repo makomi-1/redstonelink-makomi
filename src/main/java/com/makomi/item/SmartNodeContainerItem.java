@@ -145,6 +145,7 @@ public class SmartNodeContainerItem extends Item {
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.open"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.cycle_type"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.place"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.connection_sync_notice"));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}
 

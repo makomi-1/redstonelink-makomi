@@ -8,6 +8,8 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * 智能节点容器界面。
@@ -18,7 +20,7 @@ import net.minecraft.world.entity.player.Inventory;
  */
 public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeContainerMenu> {
 	private static final int CHEST_IMAGE_WIDTH = 176;
-	private static final int RIGHT_PANEL_WIDTH = 96;
+	private static final int RIGHT_PANEL_WIDTH = 144;
 	private static final int RIGHT_PANEL_GAP = 8;
 	private static final int RIGHT_PANEL_X = CHEST_IMAGE_WIDTH + RIGHT_PANEL_GAP;
 	private static final int RIGHT_PANEL_INSET = 8;
@@ -100,6 +102,17 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 		guiGraphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0x404040, false);
 	}
 
+	@Override
+	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		super.render(guiGraphics, mouseX, mouseY, partialTick);
+		renderHoveredSlotTooltip(guiGraphics, mouseX, mouseY);
+	}
+
+	@Override
+	protected void renderTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		// tooltip 改为在 render 末尾统一绘制，避免继续依赖父类内部维护的 hoveredSlot 状态。
+	}
+
 	private void renderRightPanelBackground(GuiGraphics guiGraphics) {
 		int panelLeft = leftPos + RIGHT_PANEL_X;
 		int panelTop = topPos + RIGHT_PANEL_TOP;
@@ -136,6 +149,39 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 
 	private SmartNodeContainerPlacementType currentSelectedType() {
 		return menu.selectedType();
+	}
+
+	/**
+	 * 为容器区、玩家背包区与热键栏统一补一层槽位 tooltip。
+	 * <p>
+	 * 原版容器界面依赖父类在 render 过程中维护 hoveredSlot。
+	 * 这里直接按相同的槽位命中规则重新解析一次，避免 screen 扩展后
+	 * tooltip 继续受父类内部状态影响。
+	 * </p>
+	 */
+	private void renderHoveredSlotTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (!menu.getCarried().isEmpty()) {
+			return;
+		}
+		Slot slot = resolveHoveredSlot(mouseX, mouseY);
+		if (slot == null || !slot.hasItem()) {
+			return;
+		}
+		ItemStack stack = slot.getItem();
+		guiGraphics.renderTooltip(font, getTooltipFromContainerItem(stack), stack.getTooltipImage(), mouseX, mouseY);
+	}
+
+	/**
+	 * 对照原版 AbstractContainerScreen 的命中逻辑重新解析当前悬停槽位。
+	 */
+	private Slot resolveHoveredSlot(int mouseX, int mouseY) {
+		Slot hovered = null;
+		for (Slot slot : menu.slots) {
+			if (slot != null && slot.isActive() && isHovering(slot.x, slot.y, 16, 16, mouseX, mouseY)) {
+				hovered = slot;
+			}
+		}
+		return hovered;
 	}
 
 	private static int ROW_HEIGHT() {

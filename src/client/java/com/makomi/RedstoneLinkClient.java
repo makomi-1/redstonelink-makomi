@@ -16,7 +16,6 @@ import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.render.QuickLinkOutlineRenderer;
-import com.makomi.client.render.SmartGlassesArmorRenderer;
 import com.makomi.client.screen.SmartNodeContainerScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
@@ -86,7 +85,6 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		RedstoneLinkClientDisplayConfig.load();
 		registerRenderLayers();
 		registerBlockEntityRenderers();
-		registerArmorRenderers();
 		registerMenuScreens();
 		registerHudRenderers();
 		registerClientKeyBindings();
@@ -143,13 +141,6 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_RECEIVE_FILTER, LinkFilterAreaRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_CHUNK_ACTIVATOR, ChunkActivatorFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REPEATER, LinkNodeFarOverlayRenderer::new);
-	}
-
-	/**
-	 * 注册智能眼镜等自定义护甲渲染器。
-	 */
-	private static void registerArmorRenderers() {
-		SmartGlassesArmorRenderer.register();
 	}
 
 	/**

@@ -106,6 +106,7 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 				RepeaterItemData.buildTooltipOutputText(stack, TooltipTextTruncateUtil.DEFAULT_TOOLTIP_MAX_CHARS)
 			)
 		);
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.dual_identity"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.open_editor"));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
 	}

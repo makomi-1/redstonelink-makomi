@@ -46,7 +46,9 @@ class RecipeResourceLayoutTest {
 		"redstonelink_pulse_linker.json",
 		"redstonelink_status_panel.json",
 		"redstonelink_sync_linker.json",
-		"redstonelink_toggle_linker.json"
+		"redstonelink_toggle_linker.json",
+		"smart_glasses.json",
+		"smart_node_container.json"
 	);
 
 	/**
