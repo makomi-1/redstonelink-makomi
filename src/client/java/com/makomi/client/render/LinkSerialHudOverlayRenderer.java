@@ -146,7 +146,7 @@ public final class LinkSerialHudOverlayRenderer {
 		Minecraft minecraft,
 		LinkRepeaterBlockEntity repeaterBlockEntity
 	) {
-		String dimensionKey = minecraft.level == null ? "" : minecraft.level.dimension().location().toString();
+		String dimensionKey = minecraft.level == null ? "" : minecraft.level.dimension().identifier().toString();
 		long blockPosLong = repeaterBlockEntity.getBlockPos().asLong();
 		long serial = repeaterBlockEntity.getSerial();
 		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot triggerSourceSnapshot = LinkSerialHudOverlaySnapshotSupport.resolveCurrentLinksSnapshotWithLazyRequest(
@@ -196,7 +196,7 @@ public final class LinkSerialHudOverlayRenderer {
 		}
 
 		LinkNodeType nodeType = pairableNodeBlockEntity.getLinkNodeType();
-		String dimensionKey = minecraft.level.dimension().location().toString();
+		String dimensionKey = minecraft.level.dimension().identifier().toString();
 		long blockPosLong = blockHitResult.getBlockPos().asLong();
 		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot currentLinksSnapshot =
 			LinkSerialHudOverlaySnapshotSupport.resolveCurrentLinksSnapshotWithLazyRequest(

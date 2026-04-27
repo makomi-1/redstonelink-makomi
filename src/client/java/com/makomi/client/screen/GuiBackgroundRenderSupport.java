@@ -1,9 +1,8 @@
 package com.makomi.client.screen;
 
 import com.makomi.RedstoneLink;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * 通用 GUI 背景绘制支持。
@@ -14,35 +13,35 @@ import net.minecraft.resources.ResourceLocation;
  * </p>
  */
 final class GuiBackgroundRenderSupport {
-	private static final ResourceLocation CORE_PAIRING_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final Identifier CORE_PAIRING_BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
 		"textures/gui/core_pairing_background.png"
 	);
-	private static final ResourceLocation TRIGGER_SOURCE_PAIRING_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final Identifier TRIGGER_SOURCE_PAIRING_BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
 		"textures/gui/triggersource_pairing_background.png"
 	);
-	private static final ResourceLocation FILTER_PAIRING_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final Identifier FILTER_PAIRING_BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
 		"textures/gui/filter_pairing_background.png"
 	);
-	private static final ResourceLocation QUICK_LINK_SERIAL_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final Identifier QUICK_LINK_SERIAL_BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
 		"textures/gui/qlt_sd_background.png"
 	);
-	private static final ResourceLocation QUICK_LINK_CHANNEL_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final Identifier QUICK_LINK_CHANNEL_BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
 		"textures/gui/qlt_cp_background.png"
 	);
-	private static final ResourceLocation STATE_PANEL_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final Identifier STATE_PANEL_BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
 		"textures/gui/status_panel_background.png"
 	);
-	private static final ResourceLocation CHUNK_ACTIVATOR_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final Identifier CHUNK_ACTIVATOR_BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
 		"textures/gui/chunk_activator_background.png"
 	);
-	private static final ResourceLocation REPEATER_BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
+	private static final Identifier REPEATER_BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
 		RedstoneLink.MOD_ID,
 		"textures/gui/repeater_background.png"
 	);
@@ -113,112 +112,104 @@ final class GuiBackgroundRenderSupport {
 		int sourceRightX = style.textureWidth() - style.rightBorder();
 		int sourceBottomY = style.textureHeight() - style.bottomBorder();
 
-		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-		RenderSystem.enableBlend();
-		RenderSystem.defaultBlendFunc();
-		try {
-			// 先铺中心，再覆盖四边和四角，保证最终边框视觉最稳定。
-			blitSlice(
-				guiGraphics,
-				style,
-				centerX,
-				centerY,
-				centerWidth,
-				centerHeight,
-				style.leftBorder(),
-				style.topBorder(),
-				sourceCenterWidth,
-				sourceCenterHeight
-			);
-			blitSlice(
-				guiGraphics,
-				style,
-				centerX,
-				top,
-				centerWidth,
-				topBorder,
-				style.leftBorder(),
-				0,
-				sourceCenterWidth,
-				style.topBorder()
-			);
-			blitSlice(
-				guiGraphics,
-				style,
-				centerX,
-				top + height - bottomBorder,
-				centerWidth,
-				bottomBorder,
-				style.leftBorder(),
-				sourceBottomY,
-				sourceCenterWidth,
-				style.bottomBorder()
-			);
-			blitSlice(
-				guiGraphics,
-				style,
-				left,
-				centerY,
-				leftBorder,
-				centerHeight,
-				0,
-				style.topBorder(),
-				style.leftBorder(),
-				sourceCenterHeight
-			);
-			blitSlice(
-				guiGraphics,
-				style,
-				left + width - rightBorder,
-				centerY,
-				rightBorder,
-				centerHeight,
-				sourceRightX,
-				style.topBorder(),
-				style.rightBorder(),
-				sourceCenterHeight
-			);
-			blitSlice(guiGraphics, style, left, top, leftBorder, topBorder, 0, 0, style.leftBorder(), style.topBorder());
-			blitSlice(
-				guiGraphics,
-				style,
-				left + width - rightBorder,
-				top,
-				rightBorder,
-				topBorder,
-				sourceRightX,
-				0,
-				style.rightBorder(),
-				style.topBorder()
-			);
-			blitSlice(
-				guiGraphics,
-				style,
-				left,
-				top + height - bottomBorder,
-				leftBorder,
-				bottomBorder,
-				0,
-				sourceBottomY,
-				style.leftBorder(),
-				style.bottomBorder()
-			);
-			blitSlice(
-				guiGraphics,
-				style,
-				left + width - rightBorder,
-				top + height - bottomBorder,
-				rightBorder,
-				bottomBorder,
-				sourceRightX,
-				sourceBottomY,
-				style.rightBorder(),
-				style.bottomBorder()
-			);
-		} finally {
-			RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-			RenderSystem.disableBlend();
-		}
+		// 先铺中心，再覆盖四边和四角，保证最终边框视觉最稳定。
+		blitSlice(
+			guiGraphics,
+			style,
+			centerX,
+			centerY,
+			centerWidth,
+			centerHeight,
+			style.leftBorder(),
+			style.topBorder(),
+			sourceCenterWidth,
+			sourceCenterHeight
+		);
+		blitSlice(
+			guiGraphics,
+			style,
+			centerX,
+			top,
+			centerWidth,
+			topBorder,
+			style.leftBorder(),
+			0,
+			sourceCenterWidth,
+			style.topBorder()
+		);
+		blitSlice(
+			guiGraphics,
+			style,
+			centerX,
+			top + height - bottomBorder,
+			centerWidth,
+			bottomBorder,
+			style.leftBorder(),
+			sourceBottomY,
+			sourceCenterWidth,
+			style.bottomBorder()
+		);
+		blitSlice(
+			guiGraphics,
+			style,
+			left,
+			centerY,
+			leftBorder,
+			centerHeight,
+			0,
+			style.topBorder(),
+			style.leftBorder(),
+			sourceCenterHeight
+		);
+		blitSlice(
+			guiGraphics,
+			style,
+			left + width - rightBorder,
+			centerY,
+			rightBorder,
+			centerHeight,
+			sourceRightX,
+			style.topBorder(),
+			style.rightBorder(),
+			sourceCenterHeight
+		);
+		blitSlice(guiGraphics, style, left, top, leftBorder, topBorder, 0, 0, style.leftBorder(), style.topBorder());
+		blitSlice(
+			guiGraphics,
+			style,
+			left + width - rightBorder,
+			top,
+			rightBorder,
+			topBorder,
+			sourceRightX,
+			0,
+			style.rightBorder(),
+			style.topBorder()
+		);
+		blitSlice(
+			guiGraphics,
+			style,
+			left,
+			top + height - bottomBorder,
+			leftBorder,
+			bottomBorder,
+			0,
+			sourceBottomY,
+			style.leftBorder(),
+			style.bottomBorder()
+		);
+		blitSlice(
+			guiGraphics,
+			style,
+			left + width - rightBorder,
+			top + height - bottomBorder,
+			rightBorder,
+			bottomBorder,
+			sourceRightX,
+			sourceBottomY,
+			style.rightBorder(),
+			style.bottomBorder()
+		);
 	}
 
 	/**
@@ -295,7 +286,7 @@ final class GuiBackgroundRenderSupport {
 	 * 背景贴图元数据。
 	 */
 	private record BackgroundStyle(
-		ResourceLocation texture,
+		Identifier texture,
 		int textureWidth,
 		int textureHeight,
 		int leftBorder,

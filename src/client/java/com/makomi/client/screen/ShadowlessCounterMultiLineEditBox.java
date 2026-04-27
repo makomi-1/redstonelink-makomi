@@ -1,11 +1,11 @@
 package com.makomi.client.screen;
 
-import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 
 /**
@@ -17,7 +17,7 @@ import net.minecraft.util.Mth;
  * </p>
  */
 class ShadowlessCounterMultiLineEditBox extends MultiLineEditBox {
-	private static final ResourceLocation SCROLLER_SPRITE = ResourceLocation.withDefaultNamespace("widget/scroller");
+	private static final Identifier SCROLLER_SPRITE = Identifier.withDefaultNamespace("widget/scroller");
 	private static final int COUNTER_TEXT_COLOR = 0xA0A0A0;
 
 	private final Font font;
@@ -57,18 +57,12 @@ class ShadowlessCounterMultiLineEditBox extends MultiLineEditBox {
 		}
 
 		int scrollerHeight = Mth.clamp((int) ((float) getHeight() * getHeight() / (float) getContentHeight()), 32, getHeight());
-		int scrollerLeft = getX() + getWidth();
-		int maxScrollAmount = getMaxScrollAmount();
+		int scrollerLeft = scrollBarX();
+		int maxScrollAmount = maxScrollAmount();
 		int scrollerTop = maxScrollAmount <= 0
 			? getY()
 			: Math.max(getY(), (int) scrollAmount() * (getHeight() - scrollerHeight) / maxScrollAmount + getY());
-
-		RenderSystem.enableBlend();
-		try {
-			guiGraphics.blitSprite(SCROLLER_SPRITE, scrollerLeft, scrollerTop, scrollbarWidth(), scrollerHeight);
-		} finally {
-			RenderSystem.disableBlend();
-		}
+		guiGraphics.blitSprite(RenderPipelines.GUI_TEXTURED, SCROLLER_SPRITE, scrollerLeft, scrollerTop, SCROLLBAR_WIDTH, scrollerHeight);
 	}
 
 	/**

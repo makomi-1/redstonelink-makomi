@@ -8,7 +8,6 @@ import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.DisconnectedScreen;
 import net.minecraft.client.gui.screens.LevelLoadingScreen;
 import net.minecraft.client.gui.screens.ProgressScreen;
-import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
@@ -208,7 +207,6 @@ public final class BenchClientAutomationController {
 			return false;
 		}
 		return screen instanceof ConnectScreen
-			|| screen instanceof ReceivingLevelScreen
 			|| screen instanceof LevelLoadingScreen
 			|| screen instanceof ProgressScreen;
 	}
@@ -246,9 +244,6 @@ public final class BenchClientAutomationController {
 		}
 
 		DebugScreenOverlay debugOverlay = client.getDebugOverlay();
-		if (!debugOverlay.showDebugScreen()) {
-			debugOverlay.toggleOverlay();
-		}
 		if (!debugOverlay.showFpsCharts()) {
 			debugOverlay.toggleFpsCharts();
 		}
@@ -352,7 +347,6 @@ public final class BenchClientAutomationController {
 		return screen instanceof TitleScreen
 			|| screen instanceof JoinMultiplayerScreen
 			|| screen instanceof ConnectScreen
-			|| screen instanceof ReceivingLevelScreen
 			|| screen instanceof LevelLoadingScreen
 			|| screen instanceof ProgressScreen
 			|| screen instanceof DisconnectedScreen;

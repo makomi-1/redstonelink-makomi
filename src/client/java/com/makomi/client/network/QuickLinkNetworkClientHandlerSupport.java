@@ -87,7 +87,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 
 		AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
 			Minecraft minecraft = player == null ? null : Minecraft.getInstance();
-			if (world.isClientSide && shouldSendVisualizeAddRequest(minecraft, hand, pos)) {
+			if (world.isClientSide() && shouldSendVisualizeAddRequest(minecraft, hand, pos)) {
 				if (collectTriggeredForCurrentAttack) {
 					return InteractionResult.FAIL;
 				}
@@ -98,7 +98,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				collectTriggeredForCurrentAttack = true;
 				return InteractionResult.FAIL;
 			}
-			if (world.isClientSide && shouldSendCollectRequest(minecraft, hand, pos)) {
+			if (world.isClientSide() && shouldSendCollectRequest(minecraft, hand, pos)) {
 				if (collectTriggeredForCurrentAttack) {
 					return InteractionResult.FAIL;
 				}
@@ -114,7 +114,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 
 		UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
 			Minecraft minecraft = player == null ? null : Minecraft.getInstance();
-			if (world.isClientSide && shouldSendVisualizeRemoveRequest(minecraft, hand, hitResult.getBlockPos())) {
+			if (world.isClientSide() && shouldSendVisualizeRemoveRequest(minecraft, hand, hitResult.getBlockPos())) {
 				if (applyTriggeredForCurrentUse) {
 					return InteractionResult.FAIL;
 				}
@@ -122,7 +122,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				applyTriggeredForCurrentUse = true;
 				return InteractionResult.FAIL;
 			}
-			if (world.isClientSide && shouldSendApplyRequest(minecraft, hand, hitResult.getBlockPos())) {
+			if (world.isClientSide() && shouldSendApplyRequest(minecraft, hand, hitResult.getBlockPos())) {
 				if (applyTriggeredForCurrentUse) {
 					return InteractionResult.FAIL;
 				}
@@ -290,14 +290,14 @@ public final class QuickLinkNetworkClientHandlerSupport {
 					? QuickLinkToolData.Snapshot.EMPTY
 					: QuickLinkToolData.read(minecraft.player.getMainHandItem());
 				return new ResolvedQuickLinkTarget(
-					minecraft.level.dimension().location().toString(),
+					minecraft.level.dimension().identifier().toString(),
 					blockPos.asLong(),
 					LinkNodeSemantics.toSemanticName(resolveRepeaterCollectNodeType(snapshot)),
 					repeaterBlockEntity.getSerial()
 				);
 			}
 			return new ResolvedQuickLinkTarget(
-				minecraft.level.dimension().location().toString(),
+				minecraft.level.dimension().identifier().toString(),
 				blockPos.asLong(),
 				LinkGuiDisplayContext.LINK_REPEATER,
 				repeaterBlockEntity.getSerial()
@@ -308,7 +308,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				return null;
 			}
 			return new ResolvedQuickLinkTarget(
-				minecraft.level.dimension().location().toString(),
+				minecraft.level.dimension().identifier().toString(),
 				blockPos.asLong(),
 				LinkNodeSemantics.toSemanticName(pairableNodeBlockEntity.getLinkNodeType()),
 				pairableNodeBlockEntity.getSerial()
@@ -316,7 +316,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		}
 		if (allowFilters && blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity && filterBlockEntity.filterKind() != null) {
 			return new ResolvedQuickLinkTarget(
-				minecraft.level.dimension().location().toString(),
+				minecraft.level.dimension().identifier().toString(),
 				blockPos.asLong(),
 				filterBlockEntity.filterKind().token(),
 				0L
@@ -324,7 +324,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		}
 		if (allowFilters && blockEntity instanceof LinkChunkActivatorBlockEntity) {
 			return new ResolvedQuickLinkTarget(
-				minecraft.level.dimension().location().toString(),
+				minecraft.level.dimension().identifier().toString(),
 				blockPos.asLong(),
 				QUICK_LINK_CHUNK_ACTIVATOR_TARGET_TOKEN,
 				0L
@@ -353,7 +353,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				return null;
 			}
 			return new ResolvedQuickLinkTarget(
-				minecraft.level.dimension().location().toString(),
+				minecraft.level.dimension().identifier().toString(),
 				blockPos.asLong(),
 				LinkGuiDisplayContext.LINK_REPEATER,
 				repeaterBlockEntity.getSerial()
@@ -364,7 +364,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				return null;
 			}
 			return new ResolvedQuickLinkTarget(
-				minecraft.level.dimension().location().toString(),
+				minecraft.level.dimension().identifier().toString(),
 				blockPos.asLong(),
 				LinkNodeSemantics.toSemanticName(pairableNodeBlockEntity.getLinkNodeType()),
 				pairableNodeBlockEntity.getSerial()

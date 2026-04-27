@@ -1,11 +1,10 @@
 package com.makomi.client.screen;
 
 import com.makomi.RedstoneLink;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * GUI 头部标题与图标渲染支持。
@@ -199,31 +198,23 @@ final class GuiHeaderRenderSupport {
 	/**
 	 * 渲染头部角标图标。
 	 */
-	private static void renderIcon(GuiGraphics guiGraphics, ResourceLocation texture, int left, int top) {
+	private static void renderIcon(GuiGraphics guiGraphics, Identifier texture, int left, int top) {
 		if (texture == null) {
 			return;
 		}
-		RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-		RenderSystem.enableBlend();
-		RenderSystem.defaultBlendFunc();
-		try {
-			guiGraphics.blit(
-				texture,
-				left,
-				top,
-				ICON_SIZE,
-				ICON_SIZE,
-				0.0F,
-				0.0F,
-				ICON_TEXTURE_SIZE,
-				ICON_TEXTURE_SIZE,
-				ICON_TEXTURE_SIZE,
-				ICON_TEXTURE_SIZE
-			);
-		} finally {
-			RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-			RenderSystem.disableBlend();
-		}
+		guiGraphics.blit(
+			texture,
+			left,
+			top,
+			ICON_SIZE,
+			ICON_SIZE,
+			0.0F,
+			0.0F,
+			ICON_TEXTURE_SIZE,
+			ICON_TEXTURE_SIZE,
+			ICON_TEXTURE_SIZE,
+			ICON_TEXTURE_SIZE
+		);
 	}
 
 	/**
@@ -243,8 +234,8 @@ final class GuiHeaderRenderSupport {
 	/**
 	 * 生成 GUI 贴图路径。
 	 */
-	private static ResourceLocation texture(String fileName) {
-		return ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "textures/gui/" + fileName);
+	private static Identifier texture(String fileName) {
+		return Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "textures/gui/" + fileName);
 	}
 
 	/**
@@ -280,10 +271,10 @@ final class GuiHeaderRenderSupport {
 	 */
 	private record HeaderLayout(
 		GuiBackgroundRenderSupport.RegionBounds bounds,
-		ResourceLocation leftIconTexture,
+		Identifier leftIconTexture,
 		int leftIconLeft,
 		int leftIconTop,
-		ResourceLocation rightIconTexture,
+		Identifier rightIconTexture,
 		int rightIconLeft,
 		int rightIconTop
 	) {}
@@ -291,7 +282,7 @@ final class GuiHeaderRenderSupport {
 	/**
 	 * 单张图标贴图与其非透明像素包围盒。
 	 */
-	private record IconTextureSpec(ResourceLocation texture, VisibleBounds visibleBounds) {}
+	private record IconTextureSpec(Identifier texture, VisibleBounds visibleBounds) {}
 
 	/**
 	 * 同类图标的左右两侧贴图对。

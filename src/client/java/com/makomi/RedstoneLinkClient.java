@@ -40,7 +40,7 @@ import com.mojang.brigadier.context.CommandContext;
 import java.net.URI;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -54,7 +54,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -106,20 +106,20 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 * 注册需要透明/裁切渲染的方块层级。
 	 */
 	private static void registerRenderLayers() {
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_TOGGLE_BUTTON, RenderType.cutout());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_PUSH_BUTTON, RenderType.cutout());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SYNC_LEVER, RenderType.cutout());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_TOGGLE_EMITTER, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_PULSE_EMITTER, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SYNC_EMITTER, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_SEND_FILTER, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_RECEIVE_FILTER, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_CHUNK_ACTIVATOR, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REPEATER, RenderType.translucent());
-		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.translucent());
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_CORE, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_TOGGLE_BUTTON, ChunkSectionLayer.CUTOUT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_PUSH_BUTTON, ChunkSectionLayer.CUTOUT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_SYNC_LEVER, ChunkSectionLayer.CUTOUT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_TOGGLE_EMITTER, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_PULSE_EMITTER, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_SYNC_EMITTER, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_SEND_FILTER, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_RECEIVE_FILTER, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_CHUNK_ACTIVATOR, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REPEATER, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, ChunkSectionLayer.TRANSLUCENT);
 	}
 
 	/**

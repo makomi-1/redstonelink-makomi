@@ -12,24 +12,21 @@ import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.QuickLinkNetwork;
 import com.makomi.util.SerialParseUtil;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalDouble;
 import java.util.Set;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.RenderStateShard;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.state.BlockOutlineRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -63,50 +60,11 @@ public final class QuickLinkWorldOverlayRenderer {
 		OutlineColor.fromPackedColor(0xFFC6FF63)
 	};
 	private static final int PREVIEW_CACHE_TTL_TICKS = 6;
-	private static final RenderStateShard.LineStateShard QUICK_LINK_PREVIEW_LINE_STATE = new RenderStateShard.LineStateShard(
-		OptionalDouble.of(2.5D)
-	);
 	private static final double VISUALIZE_HOVER_MAX_DISTANCE = 64.0D;
 	private static final double VISUALIZE_HOVER_BASE_THRESHOLD = 0.22D;
 	private static final double VISUALIZE_HOVER_DISTANCE_SCALE = 0.02D;
 	private static final double VISUALIZE_HOVER_MAX_THRESHOLD = 1.10D;
 	private static final double SEGMENT_EPSILON = 1.0E-6D;
-	private static final RenderType QUICK_LINK_PREVIEW_RENDER_TYPE = RenderType.create(
-		"redstonelink_quick_link_preview_lines",
-		DefaultVertexFormat.POSITION_COLOR_NORMAL,
-		VertexFormat.Mode.LINES,
-		1536,
-		false,
-		true,
-		RenderType.CompositeState
-			.builder()
-			.setShaderState(RenderStateShard.RENDERTYPE_LINES_SHADER)
-			.setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
-			.setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
-			.setCullState(RenderStateShard.NO_CULL)
-			.setWriteMaskState(RenderStateShard.COLOR_WRITE)
-			.setOutputState(RenderStateShard.TRANSLUCENT_TARGET)
-			.setLineState(QUICK_LINK_PREVIEW_LINE_STATE)
-			.createCompositeState(false)
-	);
-	private static final RenderType QUICK_LINK_VISUALIZE_RENDER_TYPE = RenderType.create(
-		"redstonelink_quick_link_visualize_lines",
-		DefaultVertexFormat.POSITION_COLOR_NORMAL,
-		VertexFormat.Mode.LINES,
-		1536,
-		false,
-		true,
-		RenderType.CompositeState
-			.builder()
-			.setShaderState(RenderStateShard.RENDERTYPE_LINES_SHADER)
-			.setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
-			.setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
-			.setCullState(RenderStateShard.NO_CULL)
-			.setWriteMaskState(RenderStateShard.COLOR_WRITE)
-			.setOutputState(RenderStateShard.MAIN_TARGET)
-			.setLineState(QUICK_LINK_PREVIEW_LINE_STATE)
-			.createCompositeState(false)
-	);
 	private static CachedPreviewOutlineState cachedPreviewOutlineState;
 	private static CachedChannelPreviewState cachedChannelPreviewState;
 	private static PendingChannelPreviewRequest pendingChannelPreviewRequest;
@@ -124,7 +82,7 @@ public final class QuickLinkWorldOverlayRenderer {
 	 */
 	public static boolean onBlockOutline(
 		WorldRenderContext worldRenderContext,
-		WorldRenderContext.BlockOutlineContext blockOutlineContext
+		BlockOutlineRenderState blockOutlineRenderState
 	) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null || minecraft.level == null) {
@@ -133,24 +91,26 @@ public final class QuickLinkWorldOverlayRenderer {
 		if (!(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
 			return true;
 		}
-		OutlineColor outlineColor = resolveOutlineColor(minecraft, blockOutlineContext.blockPos());
+		BlockPos blockPos = blockOutlineRenderState.pos();
+		OutlineColor outlineColor = resolveOutlineColor(minecraft, blockPos);
 		if (outlineColor == null) {
 			return true;
 		}
 
-		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
 			return true;
 		}
 
-		VoxelShape voxelShape = blockOutlineContext.blockState().getShape(minecraft.level, blockOutlineContext.blockPos());
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderType.lines());
+		VoxelShape voxelShape = blockOutlineRenderState.shape();
+		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
+		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.lines());
 		LevelRenderer.renderVoxelShape(
-			worldRenderContext.matrixStack(),
+			worldRenderContext.matrices(),
 			lineVertexConsumer,
 			voxelShape,
-			(double) blockOutlineContext.blockPos().getX() - blockOutlineContext.cameraX(),
-			(double) blockOutlineContext.blockPos().getY() - blockOutlineContext.cameraY(),
-			(double) blockOutlineContext.blockPos().getZ() - blockOutlineContext.cameraZ(),
+			(double) blockPos.getX() - cameraPosition.x,
+			(double) blockPos.getY() - cameraPosition.y,
+			(double) blockPos.getZ() - cameraPosition.z,
 			outlineColor.red(),
 			outlineColor.green(),
 			outlineColor.blue(),
@@ -174,7 +134,7 @@ public final class QuickLinkWorldOverlayRenderer {
 			clearTransientPreviewState();
 			return;
 		}
-		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
 			return;
 		}
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
@@ -187,9 +147,9 @@ public final class QuickLinkWorldOverlayRenderer {
 			return;
 		}
 
-		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
-		PoseStack.Pose pose = worldRenderContext.matrixStack().last();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(QUICK_LINK_PREVIEW_RENDER_TYPE);
+		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
+		PoseStack.Pose pose = worldRenderContext.matrices().last();
+		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.linesTranslucent());
 		for (PreviewOutlineBatch previewBatch : previewBatches) {
 			for (LineSegment lineSegment : previewBatch.segments()) {
 				renderPreviewLineSegment(lineVertexConsumer, pose, lineSegment, cameraPosition, previewBatch.color());
@@ -210,7 +170,7 @@ public final class QuickLinkWorldOverlayRenderer {
 		if (!SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)) {
 			return;
 		}
-		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
 			return;
 		}
 		renderVisualizedConnections(worldRenderContext, minecraft);
@@ -220,9 +180,9 @@ public final class QuickLinkWorldOverlayRenderer {
 	 * 注册方块描边与缓存外显事件。
 	 */
 	public static void register() {
-		WorldRenderEvents.BLOCK_OUTLINE.register(QuickLinkWorldOverlayRenderer::onBlockOutline);
-		WorldRenderEvents.AFTER_TRANSLUCENT.register(QuickLinkWorldOverlayRenderer::onAfterTranslucent);
-		WorldRenderEvents.LAST.register(QuickLinkWorldOverlayRenderer::onLast);
+		WorldRenderEvents.BEFORE_BLOCK_OUTLINE.register(QuickLinkWorldOverlayRenderer::onBlockOutline);
+		WorldRenderEvents.BEFORE_TRANSLUCENT.register(QuickLinkWorldOverlayRenderer::onAfterTranslucent);
+		WorldRenderEvents.END_MAIN.register(QuickLinkWorldOverlayRenderer::onLast);
 	}
 
 	/**
@@ -371,7 +331,7 @@ public final class QuickLinkWorldOverlayRenderer {
 		) {
 			return null;
 		}
-		Vec3 rayOrigin = minecraft.gameRenderer.getMainCamera().getPosition();
+		Vec3 rayOrigin = minecraft.gameRenderer.getMainCamera().position();
 		Vec3 rayDirection = minecraft.player.getViewVector(1.0F);
 		if (rayDirection.lengthSqr() <= SEGMENT_EPSILON) {
 			return null;
@@ -385,7 +345,7 @@ public final class QuickLinkWorldOverlayRenderer {
 			}
 		}
 		return resolveHoveredVisualizedTarget(
-			minecraft.level.dimension().location().toString(),
+			minecraft.level.dimension().identifier().toString(),
 			rayOrigin,
 			rayDirection.normalize(),
 			maxRayDistance
@@ -476,7 +436,7 @@ public final class QuickLinkWorldOverlayRenderer {
 			return List.of();
 		}
 
-		String dimensionKey = minecraft.level.dimension().location().toString();
+		String dimensionKey = minecraft.level.dimension().identifier().toString();
 		int playerChunkX = minecraft.player.chunkPosition().x;
 		int playerChunkZ = minecraft.player.chunkPosition().z;
 		int renderDistance = minecraft.options.renderDistance().get();
@@ -749,14 +709,14 @@ public final class QuickLinkWorldOverlayRenderer {
 			return;
 		}
 		List<VisualizedConnection> visibleConnections = collectVisibleVisualizedConnections(
-			minecraft.level.dimension().location().toString()
+			minecraft.level.dimension().identifier().toString()
 		);
 		if (visibleConnections.isEmpty()) {
 			return;
 		}
-		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
-		PoseStack.Pose pose = worldRenderContext.matrixStack().last();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(QUICK_LINK_VISUALIZE_RENDER_TYPE);
+		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
+		PoseStack.Pose pose = worldRenderContext.matrices().last();
+		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.linesTranslucent());
 		for (VisualizedConnection visibleConnection : visibleConnections) {
 			renderPreviewLineSegment(
 				lineVertexConsumer,

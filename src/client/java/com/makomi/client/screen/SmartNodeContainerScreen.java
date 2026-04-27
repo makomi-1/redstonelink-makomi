@@ -6,7 +6,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -34,7 +34,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	private static final int RIGHT_PANEL_BACKGROUND = 0xD92A1C13;
 	private static final int RIGHT_PANEL_BORDER = 0xFF8E6B59;
 	private static final int RIGHT_PANEL_DIVIDER = 0xFF5A4032;
-	private static final ResourceLocation CONTAINER_TEXTURE = ResourceLocation.withDefaultNamespace(
+	private static final Identifier CONTAINER_TEXTURE = Identifier.withDefaultNamespace(
 		"textures/gui/container/generic_54.png"
 	);
 

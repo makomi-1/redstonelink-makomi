@@ -410,7 +410,7 @@ final class LinkSerialHudOverlayTextSupport {
 		Block block = state.getBlock();
 		Item blockItem = block.asItem();
 		if (blockItem != Items.AIR) {
-			String itemName = blockItem.getDescription().getString();
+			String itemName = blockItem.getName().getString();
 			if (!itemName.isBlank()) {
 				return itemName;
 			}

@@ -1,6 +1,5 @@
 package com.makomi.client.render;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -123,17 +122,17 @@ final class LinkSerialHudOverlayDrawSupport {
 			resolvedPanelStyle.borderColor()
 		);
 
-		PoseStack poseStack = guiGraphics.pose();
-		poseStack.pushPose();
-		poseStack.translate(layout.textX(), layout.textY(), 0.0F);
-		poseStack.scale(scale, scale, 1.0F);
+		var poseStack = guiGraphics.pose();
+		poseStack.pushMatrix();
+		poseStack.translate(layout.textX(), layout.textY());
+		poseStack.scale(scale, scale);
 		float currentY = 0.0F;
 		for (String line : lines) {
 			float lineStartX = (maxLineWidth - font.width(line)) / 2.0F;
 			guiGraphics.drawString(font, line, Math.round(lineStartX), Math.round(currentY), textColor, false);
 			currentY += font.lineHeight + LinkSerialHudOverlayLayoutSupport.LINE_SPACING;
 		}
-		poseStack.popPose();
+		poseStack.popMatrix();
 	}
 
 	/**
