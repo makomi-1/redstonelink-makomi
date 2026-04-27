@@ -2,6 +2,7 @@ package com.makomi.data;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -52,7 +53,7 @@ class LinkSavedDataPerformanceSlowTest {
 		}
 
 		long saveStart = System.nanoTime();
-		CompoundTag saved = data.save(new CompoundTag(), null);
+		CompoundTag saved = TestMinecraftSupport.saveSavedData(data);
 		long saveCostMs = toMillis(saveStart);
 
 		long loadStart = System.nanoTime();
@@ -98,12 +99,6 @@ class LinkSavedDataPerformanceSlowTest {
 	 * 通过反射调用私有 load 方法，避免直接暴露内部接口。
 	 */
 	private static LinkSavedData invokeLoad(CompoundTag tag) {
-		try {
-			var loadMethod = LinkSavedData.class.getDeclaredMethod("load", CompoundTag.class, net.minecraft.core.HolderLookup.Provider.class);
-			loadMethod.setAccessible(true);
-			return (LinkSavedData) loadMethod.invoke(null, tag, null);
-		} catch (ReflectiveOperationException ex) {
-			throw new IllegalStateException("failed to invoke LinkSavedData.load by reflection", ex);
-		}
+		return TestMinecraftSupport.invokePrivateStaticLoad(LinkSavedData.class, LinkSavedData.class, tag);
 	}
 }

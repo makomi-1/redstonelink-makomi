@@ -3,6 +3,7 @@ package com.makomi.data;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
@@ -63,7 +64,7 @@ class RepeaterItemDataTest {
 		ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);
 		DedicatedServer server = (DedicatedServer) unsafe.allocateInstance(DedicatedServer.class);
 		ServerChunkCache chunkCache = (ServerChunkCache) unsafe.allocateInstance(ServerChunkCache.class);
-		DimensionDataStorage dataStorage = new DimensionDataStorage(tempDir.toFile(), null, null);
+		DimensionDataStorage dataStorage = TestMinecraftSupport.createDimensionDataStorage(tempDir);
 		Object levelDataProxy = createLevelDataProxy();
 
 		setField(Level.class, level, "isClientSide", false);

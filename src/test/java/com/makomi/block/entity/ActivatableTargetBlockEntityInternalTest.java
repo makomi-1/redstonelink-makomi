@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.config.RedstoneLinkConfigTestHelper;
 import com.makomi.data.LinkNodeType;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -183,7 +184,7 @@ class ActivatableTargetBlockEntityInternalTest {
 		target.saveForTest(tag);
 
 		assertEquals(Map.of(1L, 7), readSyncStrengthsFromTag(tag));
-		assertEquals(Set.of(1L), Set.copyOf(longArrayToBoxedSet(tag.getLongArray("SyncMaxSources"))));
+		assertEquals(Set.of(1L), Set.copyOf(longArrayToBoxedSet(TestMinecraftSupport.getLongArrayOrEmpty(tag, "SyncMaxSources"))));
 	}
 
 	/**
@@ -639,7 +640,7 @@ class ActivatableTargetBlockEntityInternalTest {
 		CompoundTag tag = new CompoundTag();
 		source.saveForTest(tag);
 		assertEquals(Map.of(2L, 7), readSyncStrengthsFromTag(tag));
-		assertEquals(Set.of(2L), Set.copyOf(longArrayToBoxedSet(tag.getLongArray("SyncMaxSources"))));
+		assertEquals(Set.of(2L), Set.copyOf(longArrayToBoxedSet(TestMinecraftSupport.getLongArrayOrEmpty(tag, "SyncMaxSources"))));
 
 		TestTargetEntity restored = createTarget();
 		restored.loadForTest(tag);
@@ -952,13 +953,13 @@ class ActivatableTargetBlockEntityInternalTest {
 
 	private static Map<Long, Integer> readSyncStrengthsFromTag(CompoundTag tag) {
 		Map<Long, Integer> result = new LinkedHashMap<>();
-		if (tag == null || !tag.contains("SyncSourceStrengths", net.minecraft.nbt.Tag.TAG_LIST)) {
+		if (tag == null || !tag.contains("SyncSourceStrengths")) {
 			return result;
 		}
-		ListTag sourceList = tag.getList("SyncSourceStrengths", net.minecraft.nbt.Tag.TAG_COMPOUND);
+		ListTag sourceList = tag.getListOrEmpty("SyncSourceStrengths");
 		for (int index = 0; index < sourceList.size(); index++) {
-			CompoundTag sourceTag = sourceList.getCompound(index);
-			result.put(sourceTag.getLong("Serial"), sourceTag.getInt("Strength"));
+			CompoundTag sourceTag = sourceList.getCompoundOrEmpty(index);
+			result.put(sourceTag.getLongOr("Serial", 0L), sourceTag.getIntOr("Strength", 0));
 		}
 		return result;
 	}
@@ -1095,11 +1096,11 @@ class ActivatableTargetBlockEntityInternalTest {
 		}
 
 		private void saveForTest(CompoundTag tag) {
-			saveAdditional(tag, null);
+			tag.merge(TestMinecraftSupport.saveBlockEntityCustomOnly(this));
 		}
 
 		private void loadForTest(CompoundTag tag) {
-			loadAdditional(tag, null);
+			TestMinecraftSupport.loadBlockEntityCustomOnly(this, tag);
 		}
 
 		private int getSetChangedCount() {

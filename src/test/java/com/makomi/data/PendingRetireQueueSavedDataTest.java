@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Method;
 import java.util.List;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.resources.ResourceKey;
@@ -62,8 +62,8 @@ class PendingRetireQueueSavedDataTest {
 		assertTrue(data.upsert(LinkNodeType.TRIGGER_SOURCE, 3L, Level.OVERWORLD, new BlockPos(3, 70, 3), 40L));
 		assertTrue(data.upsert(LinkNodeType.CORE, 7L, Level.NETHER, new BlockPos(7, 50, 9), 80L));
 
-		CompoundTag root = data.save(new CompoundTag(), null);
-		ListTag entriesTag = root.getList("entries", net.minecraft.nbt.Tag.TAG_COMPOUND);
+		CompoundTag root = TestMinecraftSupport.saveSavedData(data);
+		ListTag entriesTag = root.getListOrEmpty("entries");
 		assertEquals(2, entriesTag.size());
 		assertNotNull(findEntry(entriesTag, "triggerSource", 3L));
 		assertNotNull(findEntry(entriesTag, "core", 7L));
@@ -96,13 +96,11 @@ class PendingRetireQueueSavedDataTest {
 	}
 
 	private static PendingRetireQueueSavedData invokeLoad(CompoundTag root) throws Exception {
-		Method loadMethod = PendingRetireQueueSavedData.class.getDeclaredMethod(
-			"load",
-			CompoundTag.class,
-			HolderLookup.Provider.class
+		return TestMinecraftSupport.invokePrivateStaticLoad(
+			PendingRetireQueueSavedData.class,
+			PendingRetireQueueSavedData.class,
+			root
 		);
-		loadMethod.setAccessible(true);
-		return (PendingRetireQueueSavedData) loadMethod.invoke(null, root, null);
 	}
 
 	private static CompoundTag findEntry(ListTag entries, String type, long serial) {
@@ -110,7 +108,7 @@ class PendingRetireQueueSavedDataTest {
 			if (!(element instanceof CompoundTag entryTag)) {
 				continue;
 			}
-			if (type.equals(entryTag.getString("type")) && serial == entryTag.getLong("serial")) {
+			if (type.equals(entryTag.getStringOr("type", "")) && serial == entryTag.getLongOr("serial", 0L)) {
 				return entryTag;
 			}
 		}

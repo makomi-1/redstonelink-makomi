@@ -6,13 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.LongTag;
@@ -107,19 +107,19 @@ class CrossChunkWhitelistSavedDataTest {
 		sourceResidents.get(LinkNodeType.TRIGGER_SOURCE).add(null);
 		sourceResidents.get(LinkNodeType.TRIGGER_SOURCE).add(-3L);
 
-		CompoundTag root = data.save(new CompoundTag(), null);
-		ListTag sourceList = root.getList("sources", net.minecraft.nbt.Tag.TAG_COMPOUND);
-		ListTag targetList = root.getList("targets", net.minecraft.nbt.Tag.TAG_COMPOUND);
+		CompoundTag root = TestMinecraftSupport.saveSavedData(data);
+		ListTag sourceList = root.getListOrEmpty("sources");
+		ListTag targetList = root.getListOrEmpty("targets");
 
 		CompoundTag sourceEntry = findTypeEntry(sourceList, "triggerSource");
 		assertNotNull(sourceEntry);
-		assertEquals(List.of(9L), toLongList(sourceEntry.getList("serials", net.minecraft.nbt.Tag.TAG_LONG)));
-		assertEquals(List.of(9L), toLongList(sourceEntry.getList("residentSerials", net.minecraft.nbt.Tag.TAG_LONG)));
+		assertEquals(List.of(9L), toLongList(sourceEntry.getListOrEmpty("serials")));
+		assertEquals(List.of(9L), toLongList(sourceEntry.getListOrEmpty("residentSerials")));
 
 		CompoundTag targetEntry = findTypeEntry(targetList, "core");
 		assertNotNull(targetEntry);
-		assertEquals(List.of(7L), toLongList(targetEntry.getList("serials", net.minecraft.nbt.Tag.TAG_LONG)));
-		assertTrue(targetEntry.getList("residentSerials", net.minecraft.nbt.Tag.TAG_LONG).isEmpty());
+		assertEquals(List.of(7L), toLongList(targetEntry.getListOrEmpty("serials")));
+		assertTrue(targetEntry.getListOrEmpty("residentSerials").isEmpty());
 	}
 
 	/**
@@ -172,13 +172,11 @@ class CrossChunkWhitelistSavedDataTest {
 	}
 
 	private static CrossChunkWhitelistSavedData invokeLoad(CompoundTag root) throws Exception {
-		Method loadMethod = CrossChunkWhitelistSavedData.class.getDeclaredMethod(
-			"load",
-			CompoundTag.class,
-			HolderLookup.Provider.class
+		return TestMinecraftSupport.invokePrivateStaticLoad(
+			CrossChunkWhitelistSavedData.class,
+			CrossChunkWhitelistSavedData.class,
+			root
 		);
-		loadMethod.setAccessible(true);
-		return (CrossChunkWhitelistSavedData) loadMethod.invoke(null, root, null);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -191,7 +189,7 @@ class CrossChunkWhitelistSavedDataTest {
 	private static CompoundTag findTypeEntry(ListTag listTag, String expectedType) {
 		for (net.minecraft.nbt.Tag element : listTag) {
 			CompoundTag entry = (CompoundTag) element;
-			if (expectedType.equals(entry.getString("type"))) {
+			if (expectedType.equals(entry.getStringOr("type", ""))) {
 				return entry;
 			}
 		}
@@ -199,6 +197,6 @@ class CrossChunkWhitelistSavedDataTest {
 	}
 
 	private static List<Long> toLongList(ListTag listTag) {
-		return listTag.stream().map(tag -> ((LongTag) tag).getAsLong()).toList();
+		return TestMinecraftSupport.toLongList(listTag);
 	}
 }

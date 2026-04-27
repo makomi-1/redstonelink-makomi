@@ -10,6 +10,7 @@ import com.makomi.block.entity.ActivationMode;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkConfigTestHelper;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -1177,7 +1178,7 @@ class CrossChunkDispatchServiceTest {
 		ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);
 		DedicatedServer server = (DedicatedServer) unsafe.allocateInstance(DedicatedServer.class);
 		ServerChunkCache chunkCache = (ServerChunkCache) unsafe.allocateInstance(ServerChunkCache.class);
-		DimensionDataStorage dataStorage = new DimensionDataStorage(tempDir.toFile(), null, null);
+		DimensionDataStorage dataStorage = TestMinecraftSupport.createDimensionDataStorage(tempDir);
 		Object levelDataProxy = createLevelDataProxy();
 
 		setField(Level.class, level, "isClientSide", false);

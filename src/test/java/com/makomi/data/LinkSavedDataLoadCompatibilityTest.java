@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -14,11 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.level.Level;
-import net.minecraft.nbt.TagParser;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -40,7 +39,7 @@ class LinkSavedDataLoadCompatibilityTest {
 		source.registerNode(triggerSourceSerial, Level.OVERWORLD, new BlockPos(21, 64, 20), LinkNodeType.TRIGGER_SOURCE);
 		source.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 
-		CompoundTag saved = source.save(new CompoundTag(), null);
+		CompoundTag saved = TestMinecraftSupport.saveSavedData(source);
 		LinkSavedData restored = invokeLoad(saved);
 
 		assertTrue(restored.findNode(LinkNodeType.CORE, coreSerial).isPresent());
@@ -58,7 +57,7 @@ class LinkSavedDataLoadCompatibilityTest {
 		long triggerSourceSerial = source.allocateSerial(LinkNodeType.TRIGGER_SOURCE);
 		source.putTriggerSourceReplaySyncSnapshot(triggerSourceSerial, EventMeta.of(321L, 0, 12L), 0);
 
-		CompoundTag saved = source.save(new CompoundTag(), null);
+		CompoundTag saved = TestMinecraftSupport.saveSavedData(source);
 		LinkSavedData restored = invokeLoad(saved);
 
 		LinkSavedData.ReplaySyncSnapshotRecord snapshot = restored
@@ -105,14 +104,14 @@ class LinkSavedDataLoadCompatibilityTest {
 
 		CompoundTag validNode = new CompoundTag();
 		validNode.putLong("serial", 9L);
-		validNode.putString("dimension", Level.OVERWORLD.location().toString());
+		validNode.putString("dimension", TestMinecraftSupport.dimensionId(Level.OVERWORLD));
 		validNode.putLong("pos", new BlockPos(1, 2, 3).asLong());
 		validNode.putString("type", "core");
 		nodes.add(validNode);
 
 		CompoundTag invalidSerialNode = new CompoundTag();
 		invalidSerialNode.putLong("serial", 0L);
-		invalidSerialNode.putString("dimension", Level.OVERWORLD.location().toString());
+		invalidSerialNode.putString("dimension", TestMinecraftSupport.dimensionId(Level.OVERWORLD));
 		invalidSerialNode.putLong("pos", new BlockPos(4, 5, 6).asLong());
 		invalidSerialNode.putString("type", "core");
 		nodes.add(invalidSerialNode);
@@ -126,7 +125,7 @@ class LinkSavedDataLoadCompatibilityTest {
 
 		CompoundTag invalidTypeNode = new CompoundTag();
 		invalidTypeNode.putLong("serial", 11L);
-		invalidTypeNode.putString("dimension", Level.OVERWORLD.location().toString());
+		invalidTypeNode.putString("dimension", TestMinecraftSupport.dimensionId(Level.OVERWORLD));
 		invalidTypeNode.putLong("pos", new BlockPos(10, 11, 12).asLong());
 		invalidTypeNode.putString("type", "unknown_type");
 		nodes.add(invalidTypeNode);
@@ -178,10 +177,10 @@ class LinkSavedDataLoadCompatibilityTest {
 		assertEquals(Set.of(66L), restored.getLinkedCoresByTriggerSource(55L));
 		assertTrue(restored.getLinkedTriggerSourcesByCore(55L).isEmpty());
 
-		CompoundTag savedAgain = restored.save(new CompoundTag(), null);
-		ListTag savedLinks = savedAgain.getList("links", net.minecraft.nbt.Tag.TAG_COMPOUND);
+		CompoundTag savedAgain = TestMinecraftSupport.saveSavedData(restored);
+		ListTag savedLinks = savedAgain.getListOrEmpty("links");
 		assertEquals(1, savedLinks.size());
-		assertArrayEquals(new long[] { 66L }, ((CompoundTag) savedLinks.get(0)).getLongArray("targetSerials"));
+		assertArrayEquals(new long[] { 66L }, TestMinecraftSupport.getLongArrayOrEmpty(savedLinks.getCompoundOrEmpty(0), "targetSerials"));
 	}
 
 	/**
@@ -205,19 +204,13 @@ class LinkSavedDataLoadCompatibilityTest {
 	private static CompoundTag readFixture(String relativePath) throws Exception {
 		Path fixture = Path.of(relativePath);
 		String content = Files.readString(fixture, StandardCharsets.UTF_8);
-		return TagParser.parseTag(content);
+		return TestMinecraftSupport.parseCompoundTag(content);
 	}
 
 	/**
 	 * 通过反射调用私有静态 load 方法，测试仅用于兼容行为验证。
 	 */
 	private static LinkSavedData invokeLoadViaMethodName(String methodName, CompoundTag tag) {
-		try {
-			Method loadMethod = LinkSavedData.class.getDeclaredMethod(methodName, CompoundTag.class, HolderLookup.Provider.class);
-			loadMethod.setAccessible(true);
-			return (LinkSavedData) loadMethod.invoke(null, tag, null);
-		} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ex) {
-			throw new IllegalStateException("failed to invoke LinkSavedData.load by reflection", ex);
-		}
+		return TestMinecraftSupport.invokePrivateStaticLoad(LinkSavedData.class, LinkSavedData.class, methodName, tag);
 	}
 }

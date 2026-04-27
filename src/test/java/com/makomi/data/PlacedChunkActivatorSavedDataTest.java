@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Method;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.level.Level;
@@ -142,12 +142,10 @@ class PlacedChunkActivatorSavedDataTest {
 	}
 
 	private static PlacedChunkActivatorSavedData invokeLoad(CompoundTag root) throws Exception {
-		Method loadMethod = PlacedChunkActivatorSavedData.class.getDeclaredMethod(
-			"load",
-			CompoundTag.class,
-			HolderLookup.Provider.class
+		return TestMinecraftSupport.invokePrivateStaticLoad(
+			PlacedChunkActivatorSavedData.class,
+			PlacedChunkActivatorSavedData.class,
+			root
 		);
-		loadMethod.setAccessible(true);
-		return (PlacedChunkActivatorSavedData) loadMethod.invoke(null, root, null);
 	}
 }

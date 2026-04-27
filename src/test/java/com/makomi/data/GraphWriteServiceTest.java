@@ -10,6 +10,7 @@ import com.makomi.data.GraphWriteJsonSupport.GraphWriteRequest;
 import com.makomi.data.GraphWriteJsonSupport.RenameNodeAliasOperation;
 import com.makomi.data.GraphWriteJsonSupport.ReplaceTriggerSourceTargetsOperation;
 import com.makomi.data.GraphWriteJsonSupport.SetNodeChannelOperation;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -360,7 +361,7 @@ class GraphWriteServiceTest {
 		ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);
 		DedicatedServer server = (DedicatedServer) unsafe.allocateInstance(DedicatedServer.class);
 		ServerChunkCache chunkCache = (ServerChunkCache) unsafe.allocateInstance(ServerChunkCache.class);
-		DimensionDataStorage dataStorage = new DimensionDataStorage(tempDir.toFile(), null, null);
+		DimensionDataStorage dataStorage = TestMinecraftSupport.createDimensionDataStorage(tempDir);
 		Object levelDataProxy = createLevelDataProxy();
 
 		setField(Level.class, level, "isClientSide", false);

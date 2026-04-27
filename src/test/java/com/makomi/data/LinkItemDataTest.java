@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.util.stream.LongStream;
 import java.util.HashSet;
 import java.util.List;
@@ -255,13 +256,13 @@ class LinkItemDataTest {
 		assertEquals(7, LinkItemData.getSyncLinkerSignalStrength(stack));
 		CustomModelData mediumModelData = stack.get(DataComponents.CUSTOM_MODEL_DATA);
 		assertNotNull(mediumModelData);
-		assertEquals(1, mediumModelData.value());
+		assertEquals(TestMinecraftSupport.singleFloatCustomModelData(1), mediumModelData);
 
 		LinkItemData.setSyncLinkerSignalStrength(stack, 15);
 		assertEquals(15, LinkItemData.getSyncLinkerSignalStrength(stack));
 		CustomModelData activeModelData = stack.get(DataComponents.CUSTOM_MODEL_DATA);
 		assertNotNull(activeModelData);
-		assertEquals(1, activeModelData.value());
+		assertEquals(TestMinecraftSupport.singleFloatCustomModelData(1), activeModelData);
 
 		LinkItemData.setSyncLinkerSignalStrength(stack, 999);
 		assertEquals(15, LinkItemData.getSyncLinkerSignalStrength(stack));

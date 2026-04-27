@@ -4,12 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.LinkRepeaterBlock;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.MappedRegistry;
@@ -98,7 +100,7 @@ class LinkRepeaterBlockEntityLoadResyncTest {
 		}
 
 		private void loadForTest(CompoundTag tag) {
-			loadAdditional(tag, null);
+			TestMinecraftSupport.loadBlockEntityCustomOnly(this, tag);
 		}
 	}
 
@@ -110,10 +112,10 @@ class LinkRepeaterBlockEntityLoadResyncTest {
 			LinkRepeaterBlock block = new LinkRepeaterBlock(BlockBehaviour.Properties.of());
 			@SuppressWarnings("unchecked")
 			BlockEntityType<? extends PairableNodeBlockEntity> type =
-				(BlockEntityType<? extends PairableNodeBlockEntity>) (BlockEntityType<?>) BlockEntityType.Builder.of(
+				(BlockEntityType<? extends PairableNodeBlockEntity>) (BlockEntityType<?>) FabricBlockEntityTypeBuilder.create(
 					(pos, state) -> null,
 					block
-				).build(null);
+				).build();
 			return new TestRepeaterFixture(type, block.defaultBlockState().setValue(LinkRepeaterBlock.ACTIVE, active));
 		} catch (ReflectiveOperationException exception) {
 			throw new AssertionError("无法创建转发器测试夹具", exception);

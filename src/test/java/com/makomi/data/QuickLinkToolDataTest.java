@@ -3,6 +3,7 @@ package com.makomi.data;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.Bootstrap;
@@ -60,7 +61,7 @@ class QuickLinkToolDataTest {
 		assertEquals("1:3/5", snapshot.serialCacheExpression());
 		assertEquals("demo-channel", snapshot.channelCache());
 		assertEquals(QuickLinkToolData.ApplyEditMode.REMOVE, snapshot.applyEditMode());
-		assertEquals(new CustomModelData(1), stack.get(DataComponents.CUSTOM_MODEL_DATA));
+		assertEquals(TestMinecraftSupport.singleFloatCustomModelData(1), stack.get(DataComponents.CUSTOM_MODEL_DATA));
 	}
 
 	/**
@@ -204,7 +205,7 @@ class QuickLinkToolDataTest {
 				QuickLinkToolData.ApplyEditMode.REPLACE
 			)
 		);
-		assertEquals(new CustomModelData(1), stack.get(DataComponents.CUSTOM_MODEL_DATA));
+		assertEquals(TestMinecraftSupport.singleFloatCustomModelData(1), stack.get(DataComponents.CUSTOM_MODEL_DATA));
 
 		QuickLinkToolData.write(
 			stack,

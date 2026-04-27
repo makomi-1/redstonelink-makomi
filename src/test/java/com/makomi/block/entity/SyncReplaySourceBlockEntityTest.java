@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
 import com.makomi.data.LinkNodeType;
+import com.makomi.testsupport.TestMinecraftSupport;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -120,11 +121,11 @@ class SyncReplaySourceBlockEntityTest {
 		}
 
 		private void saveForTest(CompoundTag tag) {
-			saveAdditional(tag, null);
+			tag.merge(TestMinecraftSupport.saveBlockEntityCustomOnly(this));
 		}
 
 		private void loadForTest(CompoundTag tag) {
-			loadAdditional(tag, null);
+			TestMinecraftSupport.loadBlockEntityCustomOnly(this, tag);
 		}
 
 		@Override

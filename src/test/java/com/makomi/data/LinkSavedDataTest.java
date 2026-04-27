@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -313,11 +314,11 @@ class LinkSavedDataTest {
 		data.markSerialAllocated(LinkNodeType.CORE, 6L);
 		data.retireNode(LinkNodeType.CORE, 6L);
 
-		CompoundTag tag = data.save(new CompoundTag(), null);
-		assertTrue(tag.contains("allocatedCoreSerials", net.minecraft.nbt.Tag.TAG_LONG_ARRAY));
-		assertTrue(tag.contains("retiredCoreSerials", net.minecraft.nbt.Tag.TAG_LONG_ARRAY));
-		assertArrayEquals(new long[] { 3L, 6L, 9L }, tag.getLongArray("allocatedCoreSerials"));
-		assertArrayEquals(new long[] { 6L }, tag.getLongArray("retiredCoreSerials"));
+		CompoundTag tag = TestMinecraftSupport.saveSavedData(data);
+		assertTrue(tag.contains("allocatedCoreSerials"));
+		assertTrue(tag.contains("retiredCoreSerials"));
+		assertArrayEquals(new long[] { 3L, 6L, 9L }, TestMinecraftSupport.getLongArrayOrEmpty(tag, "allocatedCoreSerials"));
+		assertArrayEquals(new long[] { 6L }, TestMinecraftSupport.getLongArrayOrEmpty(tag, "retiredCoreSerials"));
 	}
 
 	/**
@@ -372,7 +373,7 @@ class LinkSavedDataTest {
 		assertEquals(7L, data.getChannel(LinkNodeType.TRIGGER_SOURCE, 91L));
 		assertEquals(Set.of(301L, 302L), data.getChannelMembers(LinkNodeType.CORE, 7L));
 
-		CompoundTag saved = data.save(new CompoundTag(), null);
+		CompoundTag saved = TestMinecraftSupport.saveSavedData(data);
 		LinkSavedData restored = LinkSavedDataLoadCompatibilityTest.invokeLoad(saved);
 
 		assertEquals(LinkConnectionMode.CHANNEL, restored.getConnectionMode(LinkNodeType.TRIGGER_SOURCE, 91L));

@@ -8,11 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfigTestHelper;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Properties;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.level.Level;
@@ -119,7 +119,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 		assertTrue(upsert.accepted());
 		assertTrue(source.markAccepted(key, upsert.entry().version()));
 
-		CompoundTag root = source.save(new CompoundTag(), null);
+		CompoundTag root = TestMinecraftSupport.saveSavedData(source);
 		CrossChunkDispatchQueueSavedData restored = invokeLoad(root);
 		assertEquals(1, restored.pendingSize());
 		CrossChunkDispatchQueueSavedData.PendingDispatchEntry entry = restored.pendingEntriesSnapshot().getFirst();
@@ -143,7 +143,7 @@ class CrossChunkDispatchQueueSavedDataTest {
 		legacyEntry.putLong("targetSerial", 17L);
 		legacyEntry.putString("dispatchKind", "ACTIVATION");
 		legacyEntry.putString("dispatchAction", "REMOVE");
-		legacyEntry.putString("dimension", Level.OVERWORLD.location().toString());
+		legacyEntry.putString("dimension", TestMinecraftSupport.dimensionId(Level.OVERWORLD));
 		legacyEntry.putLong("pos", BlockPos.ZERO.asLong());
 		legacyEntry.putString("activationMode", "TOGGLE");
 		legacyEntry.putInt("syncSignalStrength", 0);
@@ -536,12 +536,10 @@ class CrossChunkDispatchQueueSavedDataTest {
 	}
 
 	private static CrossChunkDispatchQueueSavedData invokeLoad(CompoundTag root) throws Exception {
-		Method loadMethod = CrossChunkDispatchQueueSavedData.class.getDeclaredMethod(
-			"load",
-			CompoundTag.class,
-			HolderLookup.Provider.class
+		return TestMinecraftSupport.invokePrivateStaticLoad(
+			CrossChunkDispatchQueueSavedData.class,
+			CrossChunkDispatchQueueSavedData.class,
+			root
 		);
-		loadMethod.setAccessible(true);
-		return (CrossChunkDispatchQueueSavedData) loadMethod.invoke(null, root, null);
 	}
 }

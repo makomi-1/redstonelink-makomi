@@ -12,6 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -124,7 +125,7 @@ class SmartGlassesAccessSupportTest {
 		private boolean shiftKeyDown;
 
 		private TestPlayer() {
-			super(null, BlockPos.ZERO, 0.0F, TEST_PROFILE);
+			super(null, TEST_PROFILE);
 			throw new UnsupportedOperationException("仅供 Unsafe.allocateInstance 使用");
 		}
 
@@ -151,6 +152,11 @@ class SmartGlassesAccessSupportTest {
 		@Override
 		public boolean isCreative() {
 			return false;
+		}
+
+		@Override
+		public GameType gameMode() {
+			return GameType.SURVIVAL;
 		}
 
 		/**

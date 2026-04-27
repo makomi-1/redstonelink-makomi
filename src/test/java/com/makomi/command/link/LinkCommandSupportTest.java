@@ -8,6 +8,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkSavedDataChannelSupport;
 import com.makomi.item.PairableItem;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -154,7 +155,7 @@ class LinkCommandSupportTest {
 		ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);
 		DedicatedServer server = (DedicatedServer) unsafe.allocateInstance(DedicatedServer.class);
 		ServerChunkCache chunkCache = (ServerChunkCache) unsafe.allocateInstance(ServerChunkCache.class);
-		DimensionDataStorage dataStorage = new DimensionDataStorage(tempDir.toFile(), null, null);
+		DimensionDataStorage dataStorage = TestMinecraftSupport.createDimensionDataStorage(tempDir);
 		Object levelDataProxy = createLevelDataProxy();
 
 		setField(Level.class, level, "isClientSide", false);

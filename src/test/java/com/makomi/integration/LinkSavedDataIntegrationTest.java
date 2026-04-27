@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.testsupport.TestMinecraftSupport;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
@@ -27,7 +28,7 @@ class LinkSavedDataIntegrationTest {
 		data.registerNode(triggerSourceSerial, Level.OVERWORLD, new BlockPos(11, 64, 10), LinkNodeType.TRIGGER_SOURCE);
 		data.toggleTriggerSourceCoreLink(triggerSourceSerial, coreSerial);
 
-		CompoundTag saved = data.save(new CompoundTag(), null);
+		CompoundTag saved = TestMinecraftSupport.saveSavedData(data);
 		LinkSavedData restored = invokeLoad(saved);
 
 		assertTrue(restored.findNode(LinkNodeType.CORE, coreSerial).isPresent());
@@ -65,12 +66,6 @@ class LinkSavedDataIntegrationTest {
 	 * 通过反射调用私有 load 方法，避免直接暴露内部接口。
 	 */
 	private static LinkSavedData invokeLoad(CompoundTag tag) {
-		try {
-			var loadMethod = LinkSavedData.class.getDeclaredMethod("load", CompoundTag.class, net.minecraft.core.HolderLookup.Provider.class);
-			loadMethod.setAccessible(true);
-			return (LinkSavedData) loadMethod.invoke(null, tag, null);
-		} catch (ReflectiveOperationException ex) {
-			throw new IllegalStateException("failed to invoke LinkSavedData.load by reflection", ex);
-		}
+		return TestMinecraftSupport.invokePrivateStaticLoad(LinkSavedData.class, LinkSavedData.class, tag);
 	}
 }
