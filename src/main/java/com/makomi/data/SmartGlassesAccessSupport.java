@@ -1,6 +1,6 @@
 package com.makomi.data;
 
-import com.makomi.registry.ModItems;
+import com.makomi.item.SmartGlassesItem;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -67,10 +67,23 @@ public final class SmartGlassesAccessSupport {
 	 * 判断是否允许连线可视化相关“操作”。
 	 * <p>
 	 * 规则：必须已穿戴智能眼镜，且主手为空。
+	 * 该门槛用于 third-person visualize 的广义操作语境，
+	 * 例如模式成立判断与潜行清空显示对象。
 	 * </p>
 	 */
 	public static boolean canOperateQuickLinkVisualization(Player player) {
 		return isWearingSmartGlasses(player) && hasEmptyMainHand(player);
+	}
+
+	/**
+	 * 判断是否允许修改连线可视化显示对象。
+	 * <p>
+	 * 规则：必须已穿戴智能眼镜、主手为空，且当前处于站立状态。
+	 * 该门槛只用于“添加/移除显示对象”这类需要避免与潜行手势重叠的操作。
+	 * </p>
+	 */
+	public static boolean canModifyQuickLinkVisualizationObjects(Player player) {
+		return canOperateQuickLinkVisualization(player) && !player.isShiftKeyDown();
 	}
 
 	/**
@@ -87,6 +100,6 @@ public final class SmartGlassesAccessSupport {
 	 * 判断指定物品栈是否为智能眼镜。
 	 */
 	public static boolean isSmartGlasses(ItemStack stack) {
-		return stack != null && !stack.isEmpty() && stack.getItem() == ModItems.SMART_GLASSES;
+		return stack != null && !stack.isEmpty() && stack.getItem() instanceof SmartGlassesItem;
 	}
 }

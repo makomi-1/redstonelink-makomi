@@ -709,60 +709,6 @@ public final class QuickLinkOutlineRenderer {
 			.toList();
 	}
 
-	private static void addExposedFaceCell(
-		Map<PlaneKey, Set<FaceCell>> faceCellsByPlane,
-		Set<BlockPos> occupiedBlocks,
-		BlockPos blockPos,
-		BoundaryAxis axis,
-		int planeCoordinate,
-		int u,
-		int v,
-		BlockPos neighborPos
-	) {
-		if (faceCellsByPlane == null || occupiedBlocks == null || blockPos == null || occupiedBlocks.contains(neighborPos)) {
-			return;
-		}
-		faceCellsByPlane.computeIfAbsent(new PlaneKey(axis, planeCoordinate), ignored -> new LinkedHashSet<>()).add(new FaceCell(u, v));
-	}
-
-	private static void toggleEdge(Set<Edge2D> boundaryEdges, Edge2D edge) {
-		if (boundaryEdges == null || edge == null) {
-			return;
-		}
-		if (!boundaryEdges.add(edge)) {
-			boundaryEdges.remove(edge);
-		}
-	}
-
-	private static LineSegmentKey toLineSegmentKey(PlaneKey planeKey, Edge2D edge) {
-		return switch (planeKey.axis()) {
-			case X -> LineSegmentKey.of(
-				planeKey.coordinate(),
-				edge.startV(),
-				edge.startU(),
-				planeKey.coordinate(),
-				edge.endV(),
-				edge.endU()
-			);
-			case Y -> LineSegmentKey.of(
-				edge.startU(),
-				planeKey.coordinate(),
-				edge.startV(),
-				edge.endU(),
-				planeKey.coordinate(),
-				edge.endV()
-			);
-			case Z -> LineSegmentKey.of(
-				edge.startU(),
-				edge.startV(),
-				planeKey.coordinate(),
-				edge.endU(),
-				edge.endV(),
-				planeKey.coordinate()
-			);
-		};
-	}
-
 	/**
 	 * 写入单条 preview 线段。
 	 */

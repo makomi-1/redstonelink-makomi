@@ -556,14 +556,6 @@ public class StatePanelToolScreen extends Screen {
 	}
 
 	/**
-	 * 生成居中文本包围盒。
-	 */
-	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
-		int textWidth = Math.max(1, font.width(text));
-		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (textWidth / 2), top, textWidth, font.lineHeight);
-	}
-
-	/**
 	 * @return 当前状态面板头部规格
 	 */
 	private GuiHeaderRenderSupport.HeaderSpec headerSpec() {

@@ -818,25 +818,6 @@ public final class GraphWriteService {
 		return new PreparedCostSummary(aliasCost, graphWriteUnitCount, graphCost, changedReplaceCount, changedChannelNodeCount);
 	}
 
-	private static int totalLinkCommandCost(
-		List<ValidatedReplaceOperation> validatedReplaceOperations,
-		ValidatedChannelBatchOperation validatedChannelBatchOperation
-	) {
-		int totalCost = 0;
-		if (validatedReplaceOperations != null) {
-			for (ValidatedReplaceOperation validatedReplaceOperation : validatedReplaceOperations) {
-				if (validatedReplaceOperation == null || validatedReplaceOperation.operation() == null) {
-					continue;
-				}
-				totalCost = saturatingAdd(totalCost, validatedReplaceOperation.operation().commandCost());
-			}
-		}
-		if (validatedChannelBatchOperation != null && validatedChannelBatchOperation.plan() != null) {
-			totalCost = saturatingAdd(totalCost, validatedChannelBatchOperation.plan().totalCommandCost());
-		}
-		return totalCost;
-	}
-
 	/**
 	 * 预检当前草稿在别名限流组与 graph 专用限流组上的即时状态。
 	 */

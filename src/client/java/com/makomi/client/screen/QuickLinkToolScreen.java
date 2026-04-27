@@ -53,7 +53,6 @@ public class QuickLinkToolScreen extends Screen {
 		0xFFA6B7CE
 	);
 	private static final int TITLE_TOP_MARGIN = 48;
-	private static final int MODE_LINE_MARGIN = 14;
 	private static final int LABEL_MARGIN = 14;
 	private static final int CACHE_TYPE_BUTTON_MARGIN = 8;
 	private static final int BUTTON_ROW_MARGIN = 6;

@@ -197,14 +197,14 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	 * 判断本次左键是否应发送“添加显示对象”请求。
 	 */
 	private static boolean shouldSendVisualizeAddRequest(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
-		return isVisualizeMode(minecraft) && resolveVisualizeTarget(minecraft, hand, blockPos) != null;
+		return canModifyVisualizedObjects(minecraft) && resolveVisualizeTarget(minecraft, hand, blockPos) != null;
 	}
 
 	/**
 	 * 判断本次右键是否应走“移除显示对象”。
 	 */
 	private static boolean shouldSendVisualizeRemoveRequest(Minecraft minecraft, InteractionHand hand, BlockPos blockPos) {
-		return isVisualizeMode(minecraft) && resolveVisualizeTarget(minecraft, hand, blockPos) != null;
+		return canModifyVisualizedObjects(minecraft) && resolveVisualizeTarget(minecraft, hand, blockPos) != null;
 	}
 
 	/**
@@ -393,6 +393,15 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	}
 
 	/**
+	 * 判断当前是否允许修改第三形态显示对象。
+	 */
+	private static boolean canModifyVisualizedObjects(Minecraft minecraft) {
+		return minecraft != null
+			&& minecraft.player != null
+			&& SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(minecraft.player);
+	}
+
+	/**
 	 * 判断当前玩家状态是否允许继续走 quick-link 命中目标解析。
 	 */
 	private static boolean hasQuickLinkInteractionContext(
@@ -422,7 +431,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		if (hand != InteractionHand.MAIN_HAND) {
 			return false;
 		}
-		return SmartGlassesAccessSupport.canOperateQuickLinkVisualization(minecraft.player);
+		return SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(minecraft.player);
 	}
 
 	/**

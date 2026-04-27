@@ -150,7 +150,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		ServerPlayer player,
 		QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload payload
 	) {
-		if (!SmartGlassesAccessSupport.canOperateQuickLinkVisualization(player)) {
+		if (!SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(player)) {
 			return;
 		}
 		ResolvedQuickLinkApplyTarget requestedTarget = resolveRequestedApplyTarget(
