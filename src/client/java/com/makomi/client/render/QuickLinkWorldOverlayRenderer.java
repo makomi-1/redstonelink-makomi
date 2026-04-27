@@ -691,11 +691,13 @@ public final class QuickLinkWorldOverlayRenderer {
 		vertexConsumer
 			.addVertex(pose, startX, startY, startZ)
 			.setColor(red, green, blue, 255)
-			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ());
+			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ())
+			.setLineWidth(1.0F);
 		vertexConsumer
 			.addVertex(pose, endX, endY, endZ)
 			.setColor(red, green, blue, 255)
-			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ());
+			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ())
+			.setLineWidth(1.0F);
 	}
 
 	/**
