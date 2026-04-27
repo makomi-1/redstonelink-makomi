@@ -15,6 +15,12 @@ import net.minecraft.util.FormattedCharSequence;
 final class GuiTitleRenderSupport {
 	private static final int FULL_BRIGHT_LIGHT = 0x00F000F0;
 	private static final TitleStyle PRIMARY_TITLE_STYLE = new TitleStyle(0xFFFFFFFF, 0xFF101010);
+	private static final int[][] OUTLINE_OFFSETS = {
+		{ 0, -1 },
+		{ -1, 0 },
+		{ 1, 0 },
+		{ 0, 1 },
+	};
 
 	private GuiTitleRenderSupport() {
 	}
@@ -54,16 +60,18 @@ final class GuiTitleRenderSupport {
 	}
 
 	/**
-	 * 使用八向位移模拟描边，兼容 1.21.11 中移除的旧批量描边绘制入口。
+	 * 使用四向轻描边模拟标题轮廓。
+	 * <p>
+	 * 1.21.11 的 GUI 文本提交流程不再暴露旧版批量描边入口，这里改为
+	 * 无阴影的四向描边，避免八向叠涂把中文笔画糊成一团。
+	 * </p>
 	 */
 	private static void drawOutline(GuiGraphics guiGraphics, Font font, FormattedCharSequence text, int left, int top, int outlineColor) {
-		for (int offsetX = -1; offsetX <= 1; offsetX++) {
-			for (int offsetY = -1; offsetY <= 1; offsetY++) {
-				if (offsetX == 0 && offsetY == 0) {
-					continue;
-				}
-				guiGraphics.drawString(font, text, left + offsetX, top + offsetY, outlineColor, false);
+		for (int[] offset : OUTLINE_OFFSETS) {
+			if (offset == null || offset.length < 2) {
+				continue;
 			}
+			guiGraphics.drawString(font, text, left + offset[0], top + offset[1], outlineColor, false);
 		}
 	}
 
