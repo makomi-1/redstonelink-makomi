@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Method;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -16,6 +17,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class LinkDispatchFilterServiceTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	@AfterEach
 	void resetServiceStateAfterEach() {
 		LinkDispatchFilterService.resetForTesting();

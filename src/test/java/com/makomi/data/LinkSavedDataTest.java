@@ -22,6 +22,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class LinkSavedDataTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	private static final ResourceKey<Level> DIMENSION = Level.OVERWORLD;
 
 	/**

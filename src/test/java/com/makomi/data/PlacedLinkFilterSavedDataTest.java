@@ -22,6 +22,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class PlacedLinkFilterSavedDataTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * 已放置过滤器在邻居输入为 0 时仍应可被收集，但规则求值必须整体关闭。
 	 */

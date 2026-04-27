@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Tag;
@@ -14,6 +15,9 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class LinkSavedDataSerialGovernanceTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
 
 	/**
 	 * 退役节点应清理链接并记录退役状态。

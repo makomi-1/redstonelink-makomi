@@ -22,6 +22,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class PendingRetireQueueSavedDataTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * upsert/remove 应遵循参数守卫、覆盖更新与去重规则。
 	 */

@@ -5,6 +5,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.List;
+import net.minecraft.SharedConstants;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -13,6 +14,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.LongTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.Level;
@@ -28,17 +30,27 @@ import net.minecraft.world.level.storage.TagValueInput;
  * </p>
  */
 public final class TestMinecraftSupport {
-	private static final HolderLookup.Provider LOOKUP_PROVIDER = RegistryAccess
-		.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY)
-		.freeze();
+	private static HolderLookup.Provider lookupProvider;
 
 	private TestMinecraftSupport() {}
 
 	/**
+	 * 提前引导 Minecraft 基础注册表，避免测试类在访问 `Level/Items/Blocks` 时触发“Not bootstrapped”。
+	 */
+	public static synchronized void bootstrapMinecraft() {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+	}
+
+	/**
 	 * 返回测试共用的内建注册表查询上下文。
 	 */
-	public static HolderLookup.Provider lookupProvider() {
-		return LOOKUP_PROVIDER;
+	public static synchronized HolderLookup.Provider lookupProvider() {
+		bootstrapMinecraft();
+		if (lookupProvider == null) {
+			lookupProvider = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY).freeze();
+		}
+		return lookupProvider;
 	}
 
 	/**

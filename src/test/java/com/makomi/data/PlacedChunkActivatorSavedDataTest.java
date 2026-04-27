@@ -18,6 +18,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class PlacedChunkActivatorSavedDataTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * 激活态区块激活器应按当前作用类型聚合强加载/resident 贡献，
 	 * 且切换到另一种作用类型时不能丢失未生效侧配置。

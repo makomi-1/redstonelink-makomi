@@ -26,6 +26,9 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class LinkSavedDataLoadCompatibilityTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
 
 	/**
 	 * save/load 往返后应保持关键状态一致。

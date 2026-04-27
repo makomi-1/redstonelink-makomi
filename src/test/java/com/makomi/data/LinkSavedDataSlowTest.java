@@ -16,6 +16,9 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("slow")
 class LinkSavedDataSlowTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
 
 	/**
 	 * 大规模节点与链接保存/加载后应保持拓扑一致。

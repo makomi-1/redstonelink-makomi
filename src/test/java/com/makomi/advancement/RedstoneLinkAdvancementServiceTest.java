@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkedTargetDispatchService;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.world.level.GameType;
@@ -17,6 +18,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class RedstoneLinkAdvancementServiceTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * “主世界 -> 末地成功激活”只应在来源为主世界且成功目标包含末地时成立。
 	 */

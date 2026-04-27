@@ -24,6 +24,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class CrossChunkDispatchQueueSavedDataTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * upsert 同 key 应保留单条 pending，并分配单调 version。
 	 */

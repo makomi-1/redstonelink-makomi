@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
+import com.makomi.testsupport.TestMinecraftSupport;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Tag;
@@ -17,6 +18,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class PlacedPairableNodeGuiOpenSupportTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * 已退役 core serial 在 reopen GUI 时应重分配。
 	 */

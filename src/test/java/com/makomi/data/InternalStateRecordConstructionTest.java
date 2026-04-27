@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Constructor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -15,6 +16,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class InternalStateRecordConstructionTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * LinkNodeRetireEvents 内部记录体应可构造并保持字段值。
 	 */

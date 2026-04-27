@@ -16,6 +16,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("slow")
 class LinkSavedDataPerformanceSlowTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	private static final int CORE_COUNT = 1000;
 	private static final int TRIGGER_SOURCE_COUNT = 2000;
 	private static final int LINKS_PER_TRIGGER_SOURCE = 3;

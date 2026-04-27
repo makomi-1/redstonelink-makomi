@@ -2,6 +2,7 @@ package com.makomi.data;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -13,6 +14,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class CrossChunkEffectiveWhitelistServiceTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * 手动 resident 与激活态区块激活器 resident 应按 role/type/serial 去重计数。
 	 */

@@ -2,6 +2,7 @@ package com.makomi.data;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.makomi.testsupport.TestMinecraftSupport;
 import com.makomi.util.SerialParseUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -14,6 +15,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class ChunkActivatorImmediateEffectServiceTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * core/resident 节点集从 [1,2] 切到 [2,3] 时，只应把新增的 3 视为 resident bootstrap 目标。
 	 */

@@ -16,6 +16,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("integration")
 class LinkSavedDataIntegrationTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * 注册节点、建立链接并持久化后，关键关系应保持一致。
 	 */

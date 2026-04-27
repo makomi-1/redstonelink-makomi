@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.config.RedstoneLinkCrossChunkConfig;
 import com.makomi.config.RedstoneLinkCrossChunkRetryConfig;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Method;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,6 +21,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class NodeSnapshotQueryServiceTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * 物品快照应直接保留原始连接集合，不走隐私裁剪。
 	 */
