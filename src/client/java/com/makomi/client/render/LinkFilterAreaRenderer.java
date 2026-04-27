@@ -252,8 +252,16 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		float normalX = length <= 0.0F ? 1.0F : deltaX / length;
 		float normalY = length <= 0.0F ? 0.0F : deltaY / length;
 		float normalZ = length <= 0.0F ? 0.0F : deltaZ / length;
-		vertexConsumer.addVertex(pose, startX, startY, startZ).setColor(RED, GREEN, BLUE, 1.0F).setNormal(pose, normalX, normalY, normalZ);
-		vertexConsumer.addVertex(pose, endX, endY, endZ).setColor(RED, GREEN, BLUE, 1.0F).setNormal(pose, normalX, normalY, normalZ);
+		vertexConsumer
+			.addVertex(pose, startX, startY, startZ)
+			.setColor(RED, GREEN, BLUE, 1.0F)
+			.setNormal(pose, normalX, normalY, normalZ)
+			.setLineWidth(1.0F);
+		vertexConsumer
+			.addVertex(pose, endX, endY, endZ)
+			.setColor(RED, GREEN, BLUE, 1.0F)
+			.setNormal(pose, normalX, normalY, normalZ)
+			.setLineWidth(1.0F);
 	}
 
 	/**
