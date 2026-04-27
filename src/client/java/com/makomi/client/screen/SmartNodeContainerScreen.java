@@ -110,13 +110,13 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 
 	@Override
 	protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		guiGraphics.drawString(font, title, titleLabelX, titleLabelY, 0x404040, false);
+		guiGraphics.drawString(font, title, titleLabelX, titleLabelY, 0xFF404040, false);
 		guiGraphics.drawString(
 			font,
 			Component.translatable("screen.redstonelink.smart_node_container.selected_type_label"),
 			RIGHT_PANEL_X + RIGHT_PANEL_INSET,
 			RIGHT_PANEL_LABEL_Y,
-			0xF4E8D8,
+			0xFFF4E8D8,
 			false
 		);
 		guiGraphics.drawString(
@@ -126,10 +126,10 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 			),
 			RIGHT_PANEL_X + RIGHT_PANEL_INSET + RIGHT_PANEL_VALUE_TEXT_INSET,
 			RIGHT_PANEL_FIELD_Y + ((RIGHT_PANEL_FIELD_HEIGHT - font.lineHeight) / 2),
-			0xFFFFFF,
+			0xFFFFFFFF,
 			false
 		);
-		guiGraphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0x404040, false);
+		guiGraphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0xFF404040, false);
 	}
 
 	@Override
