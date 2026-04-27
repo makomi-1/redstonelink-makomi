@@ -220,28 +220,32 @@ public final class QuickLinkNetwork {
 		String dimensionKey,
 		long blockPosLong,
 		String expectedNodeTypeToken,
-		long expectedNodeSerial
+		long expectedNodeSerial,
+		boolean controlKeyDown
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RequestQuickLinkVisualizeSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
 			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_visualize_snapshot")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RequestQuickLinkVisualizeSnapshotPayload> CODEC = CustomPacketPayload.codec(
-			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
+			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeVisualizeSnapshotRequestPayload(
 				buffer,
 				payload.dimensionKey(),
 				payload.blockPosLong(),
 				payload.expectedNodeTypeToken(),
-				payload.expectedNodeSerial()
+				payload.expectedNodeSerial(),
+				payload.controlKeyDown()
 			),
 			buffer -> {
-				QuickLinkNetworkPayloadSupport.DecodedBlockTargetPayload decoded = QuickLinkNetworkPayloadSupport.decodeBlockTargetPayload(
+				QuickLinkNetworkPayloadSupport.DecodedVisualizeSnapshotRequestPayload decoded =
+					QuickLinkNetworkPayloadSupport.decodeVisualizeSnapshotRequestPayload(
 					buffer
 				);
 				return new RequestQuickLinkVisualizeSnapshotPayload(
 					decoded.dimensionKey(),
 					decoded.blockPosLong(),
 					decoded.expectedNodeTypeToken(),
-					decoded.expectedNodeSerial()
+					decoded.expectedNodeSerial(),
+					decoded.controlKeyDown()
 				);
 			}
 		);

@@ -67,12 +67,12 @@ public final class SmartGlassesAccessSupport {
 	/**
 	 * 判断是否允许修改连线可视化显示对象。
 	 * <p>
-	 * 规则：必须已穿戴智能眼镜、主手为空，且当前处于站立状态。
+	 * 规则：必须已穿戴智能眼镜、主手为空、当前处于站立状态，且显式按住 `Ctrl`。
 	 * 该门槛只用于“添加/移除显示对象”这类需要避免与潜行手势重叠的操作。
 	 * </p>
 	 */
-	public static boolean canModifyQuickLinkVisualizationObjects(Player player) {
-		return canOperateQuickLinkVisualization(player) && !player.isShiftKeyDown();
+	public static boolean canModifyQuickLinkVisualizationObjects(Player player, boolean controlKeyDown) {
+		return canOperateQuickLinkVisualization(player) && !player.isShiftKeyDown() && controlKeyDown;
 	}
 
 	/**

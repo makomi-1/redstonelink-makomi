@@ -111,6 +111,35 @@ final class QuickLinkNetworkPayloadSupport {
 	}
 
 	/**
+	 * 编码第三形态“添加显示对象”请求。
+	 */
+	static void encodeVisualizeSnapshotRequestPayload(
+		FriendlyByteBuf buffer,
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		boolean controlKeyDown
+	) {
+		encodeBlockTargetPayload(buffer, dimensionKey, blockPosLong, expectedNodeTypeToken, expectedNodeSerial);
+		buffer.writeBoolean(controlKeyDown);
+	}
+
+	/**
+	 * 解码第三形态“添加显示对象”请求。
+	 */
+	static DecodedVisualizeSnapshotRequestPayload decodeVisualizeSnapshotRequestPayload(FriendlyByteBuf buffer) {
+		DecodedBlockTargetPayload decodedTarget = decodeBlockTargetPayload(buffer);
+		return new DecodedVisualizeSnapshotRequestPayload(
+			decodedTarget.dimensionKey(),
+			decodedTarget.blockPosLong(),
+			decodedTarget.expectedNodeTypeToken(),
+			decodedTarget.expectedNodeSerial(),
+			buffer.readBoolean()
+		);
+	}
+
+	/**
 	 * 编码频道预览请求。
 	 */
 	static void encodeChannelPreviewRequestPayload(FriendlyByteBuf buffer, String cacheTypeToken, long channel) {
@@ -491,6 +520,18 @@ final class QuickLinkNetworkPayloadSupport {
 		long blockPosLong,
 		String expectedNodeTypeToken,
 		long expectedNodeSerial
+	) {
+	}
+
+	/**
+	 * 第三形态“添加显示对象”请求解码结果。
+	 */
+	record DecodedVisualizeSnapshotRequestPayload(
+		String dimensionKey,
+		long blockPosLong,
+		String expectedNodeTypeToken,
+		long expectedNodeSerial,
+		boolean controlKeyDown
 	) {
 	}
 

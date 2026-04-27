@@ -20,6 +20,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -259,7 +260,8 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			target.dimensionKey(),
 			target.blockPosLong(),
 			target.expectedNodeTypeToken(),
-			target.expectedNodeSerial()
+			target.expectedNodeSerial(),
+			isVisualizeControlKeyDown(minecraft)
 		);
 	}
 
@@ -398,7 +400,10 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	private static boolean canModifyVisualizedObjects(Minecraft minecraft) {
 		return minecraft != null
 			&& minecraft.player != null
-			&& SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(minecraft.player);
+			&& SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(
+				minecraft.player,
+				isVisualizeControlKeyDown(minecraft)
+			);
 	}
 
 	/**
@@ -431,7 +436,17 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		if (hand != InteractionHand.MAIN_HAND) {
 			return false;
 		}
-		return SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(minecraft.player);
+		return SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(
+			minecraft.player,
+			isVisualizeControlKeyDown(minecraft)
+		);
+	}
+
+	/**
+	 * 读取当前客户端是否显式按住 `Ctrl`，用于 visualize 显示对象增删门槛。
+	 */
+	private static boolean isVisualizeControlKeyDown(Minecraft minecraft) {
+		return minecraft != null && minecraft.screen == null && Screen.hasControlDown();
 	}
 
 	/**

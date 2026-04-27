@@ -302,7 +302,7 @@ So write control answers "are you allowed to write", while OCC answers "is the s
 `Quick Link Tool` `visualize` no longer uses "holding the QLT" as its display anchor. Observation is now carried by `Smart Glasses`:
 
 - far/near overlays and visualize link rendering only appear when Smart Glasses are worn; this is a client-side observation gate, not another topology truth layer;
-- add/remove displayed objects and `Shift + B` clear are still operation paths, so they still require an empty main hand; rendering itself does not, which lets players keep watching links while holding other tools;
+- add/remove displayed objects and `Shift + B` clear are still operation paths, so they still require an empty main hand; add/remove also require standing with `Ctrl` held, while rendering itself does not, which lets players keep watching links while holding other tools;
 - once an object is added, the client keeps a local snapshot and refreshes it incrementally through `sourceRevision/coreRevision + runtimeNodeVersion`;
 - aim-at tooltips and through-wall lines only read the local cache and do not send per-frame network queries. Network cost is concentrated in "object added" and periodic incremental refresh batches.
 

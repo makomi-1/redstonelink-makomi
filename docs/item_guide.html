@@ -948,8 +948,8 @@
             en: 'A wearable observation gate that enables far/near overlays and carries Quick Link Tool visualize rendering.'
           },
           usage: {
-            zh: ['装备到头部后，远/近外显与 visualize 连线才允许显示。', '佩戴后即使主手拿着快速连接工具或其它工具，也能继续查看已显示连线。', '左键添加、右键移除与 Shift+B 清空等 visualize 操作仍要求主手为空。'],
-            en: ['Far/near overlays and visualize links only render after it is equipped in the head slot.', 'Once worn, already displayed links stay visible even if the main hand switches back to the Quick Link Tool or another tool.', 'Visualize operations still require an empty main hand: left-click add, right-click remove, and Shift+B clear.']
+            zh: ['装备到头部后，远/近外显与 visualize 连线才允许显示。', '佩戴后即使主手拿着快速连接工具或其它工具，也能继续查看已显示连线。', 'visualize 操作仍要求主手为空；其中左键添加与右键移除还要求站立并按住 Ctrl，Shift+B 清空不要求 Ctrl。'],
+            en: ['Far/near overlays and visualize links only render after it is equipped in the head slot.', 'Once worn, already displayed links stay visible even if the main hand switches back to the Quick Link Tool or another tool.', 'Visualize operations still require an empty main hand; add/remove also require standing with Ctrl held, while Shift+B clear does not.']
           },
           note: {
             zh: '当前复用头盔装备槽与原版护甲渲染链，不提供额外护甲属性，也没有普通头盔耐久。',
@@ -967,8 +967,8 @@
             en: 'Uses serial or channel cache for batch collect/apply workflows, and works with Smart Glasses for the visualize link-observation workflow.'
           },
           usage: {
-            zh: ['潜行且左手为空右键：在 serial/channel 下打开缓存编辑器；visualize 下不会打开编辑器。', '按模式键（默认 B）可切换 serial/channel/visualize；visualize 的显示入口由智能眼镜承接。', '左键命中节点：serial 采集序号、channel 采集频道；visualize 只有在佩戴智能眼镜且主手为空时，才会添加显示对象并查询连接。', '鼠标中键：仅在 serial 模式下循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：serial/channel 把当前缓存应用到命中对象；visualize 只有在佩戴智能眼镜且主手为空时，才会移除该显示对象。'],
-            en: ['Sneak + empty offhand + right-click opens the cache editor in serial/channel; visualize does not open the editor.', 'Press the mode key (default `B`) to switch `serial/channel/visualize`; the display side of visualize is now carried by Smart Glasses.', 'Left-click a node: serial collects serials, channel collects channel, and visualize only adds a displayed object when Smart Glasses are worn and the main hand is empty.', 'Middle mouse cycles `replace/append/remove` only in serial mode.', 'Stand + right-click a node or matching filter to apply the current cache in serial/channel; visualize only removes that displayed object when Smart Glasses are worn and the main hand is empty.']
+            zh: ['潜行且左手为空右键：在 serial/channel 下打开缓存编辑器；visualize 下不会打开编辑器。', '按模式键（默认 B）可切换 serial/channel/visualize；visualize 的显示入口由智能眼镜承接。', '左键命中节点：serial 采集序号、channel 采集频道；visualize 只有在佩戴智能眼镜、主手为空、站立且按住 Ctrl 时，才会添加显示对象并查询连接。', '鼠标中键：仅在 serial 模式下循环切换覆盖、增量增加、增量删除。', '站立右键命中节点或对应过滤器：serial/channel 把当前缓存应用到命中对象；visualize 只有在佩戴智能眼镜、主手为空、站立且按住 Ctrl 时，才会移除该显示对象。'],
+            en: ['Sneak + empty offhand + right-click opens the cache editor in serial/channel; visualize does not open the editor.', 'Press the mode key (default `B`) to switch `serial/channel/visualize`; the display side of visualize is now carried by Smart Glasses.', 'Left-click a node: serial collects serials, channel collects channel, and visualize only adds a displayed object when Smart Glasses are worn, the main hand is empty, and Ctrl is held while standing.', 'Middle mouse cycles `replace/append/remove` only in serial mode.', 'Stand + right-click a node or matching filter to apply the current cache in serial/channel; visualize only removes that displayed object when Smart Glasses are worn, the main hand is empty, and Ctrl is held while standing.']
           },
           note: {
             zh: '三种模式分别使用 `_sd/_cp/_vs` 贴图与对应主题；channel 模式只能采集已在频道模式且频道大于 0 的节点，visualize 已加入对象会按 revision 增量刷新，且佩戴智能眼镜后可在主手非空时继续显示。',

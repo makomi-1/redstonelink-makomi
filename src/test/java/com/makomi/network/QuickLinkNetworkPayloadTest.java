@@ -111,7 +111,8 @@ class QuickLinkNetworkPayloadTest {
 				"minecraft:overworld",
 				63L,
 				"link_repeater",
-				19L
+				19L,
+				true
 			);
 		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
@@ -123,6 +124,7 @@ class QuickLinkNetworkPayloadTest {
 		assertEquals(original.blockPosLong(), decoded.blockPosLong());
 		assertEquals(original.expectedNodeTypeToken(), decoded.expectedNodeTypeToken());
 		assertEquals(original.expectedNodeSerial(), decoded.expectedNodeSerial());
+		assertEquals(original.controlKeyDown(), decoded.controlKeyDown());
 	}
 
 	/**

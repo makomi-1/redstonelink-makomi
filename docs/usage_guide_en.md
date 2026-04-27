@@ -23,7 +23,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 1. Wearing them enables far/near overlays.
 2. Wearing them is also required before `visualize` can render through-wall links or aim-at tooltips.
 3. Once they are worn, displayed links stay visible even if the main hand switches back to the Quick Link Tool or some other tool.
-4. `visualize` operations themselves still require an empty main hand: left-click add, right-click remove, and `Shift + B` clear.
+4. `visualize` operations themselves still require an empty main hand; add/remove also require standing and holding `Ctrl`, while `Shift + B` clear does not.
 - Notes:
 1. Smart Glasses are only an observation gate. They do not pair, rewrite links, or edit caches by themselves.
 2. Without them, far/near overlays and `visualize` rendering do not appear at all.
@@ -42,10 +42,10 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - The current version provides `serial/channel/visualize` modes: `serial` is for batch collect/apply through serial cache, `channel` is for batch collect/apply through channel cache, and `visualize` adds nodes or repeaters into a displayed-object list with through-wall link rendering. The display side of `visualize` is now carried by Smart Glasses. The three modes use `_sd/_cp/_vs` item textures and matching themes.
 - Basic interaction:
 1. Sneak and right-click with an empty offhand: open the Quick Link Tool cache editor in `serial/channel`; `visualize` does not open the editor.
-2. Left-click a valid link node: `serial` collects that node serial into cache, `channel` collects its current channel into cache, and `visualize` adds the hit node or repeater into the displayed-object list only when Smart Glasses are worn and the main hand is empty.
-3. Right-click a valid link node or the matching filter while standing: `serial/channel` applies the current cache to the hit target, while `visualize` removes that displayed object only when Smart Glasses are worn and the main hand is empty.
+2. Left-click a valid link node: `serial` collects that node serial into cache, `channel` collects its current channel into cache, and `visualize` adds the hit node or repeater into the displayed-object list only when Smart Glasses are worn, the main hand is empty, and `Ctrl` is held while standing.
+3. Right-click a valid link node or the matching filter while standing: `serial/channel` applies the current cache to the hit target, while `visualize` removes that displayed object only when Smart Glasses are worn, the main hand is empty, and `Ctrl` is held while standing.
 4. Middle-click (same binding as vanilla `pick item`): cycle apply edit mode `replace -> append -> remove -> replace` only in `serial`.
-5. Quick Link mode key: default `B`; press while standing to switch `serial/channel/visualize`, press while sneaking to clear current-mode data, and in `visualize` this clears the whole displayed-object list only when Smart Glasses are worn and the main hand is empty.
+5. Quick Link mode key: default `B`; press while standing to switch `serial/channel/visualize`, press while sneaking to clear current-mode data, and in `visualize` this clears the whole displayed-object list only when Smart Glasses are worn and the main hand is empty; `Ctrl` is not required for the clear.
 - Collect rules:
 1. In `serial` mode, the tool automatically switches the current serial-cache type based on the hit node: hit `core` -> cache type becomes `core`; hit `triggerSource` -> cache type becomes `triggerSource`.
 2. If the tool is still in `serial` mode and the cache type matches, collect appends incrementally and deduplicates automatically.
@@ -69,10 +69,10 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 13. Filter `serialExpression` supports `replace/append/remove`; channel apply directly overwrites the channel target and does not use incremental semantics.
 14. Filter apply does not participate in link OCC; the baseline round-trip still happens, but the server returns zero revisions and writes the filter config directly.
 - Clear rules:
-1. `Sneak + B` clears the current-mode data: serial cache in `serial`, channel cache in `channel`, and the displayed-object list in `visualize` when Smart Glasses are worn and the main hand is empty.
+1. `Sneak + B` clears the current-mode data: serial cache in `serial`, channel cache in `channel`, and the displayed-object list in `visualize` when Smart Glasses are worn and the main hand is empty; `Ctrl` is not required for this clear.
 2. Clearing keeps the current mode, current serial-cache type, and current apply edit mode. It does not forcibly reset them.
 - UI and feedback:
-1. The GUI allows manual editing of the serial cache. After switching to `channel`, the channel input is also editable and participates in real collect/apply. `visualize` does not open the cache editor and instead uses left-click/right-click/sneak + mode-key interactions only.
+1. The GUI allows manual editing of the serial cache. After switching to `channel`, the channel input is also editable and participates in real collect/apply. `visualize` does not open the cache editor and instead uses `Ctrl`-modified left-click/right-click plus sneak + mode-key interactions only.
 2. The latest collect/apply/clear/mode-limit message is shown in the action bar, in the same area used by the `B` mode-switch hint.
 3. The GUI-side serial cache input length is controlled by client config `client.quickLinkSerialCacheMaxLength`, default `1024`.
 4. Channel cache must be a positive `long`; `0` or empty means there is currently no valid channel cache.
@@ -83,11 +83,11 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 1. Hold the Quick Link Tool in the main hand.
 2. If you want `visualize`, wear Smart Glasses first.
 3. Use `B` to choose whether you are working in `serial`, `channel`, or `visualize`.
-4. In `serial/channel`, left-click to collect cache data; in `visualize`, switch to an empty main hand before left-clicking to add displayed objects.
+4. In `serial/channel`, left-click to collect cache data; in `visualize`, switch to an empty main hand and hold `Ctrl` before left-clicking to add displayed objects.
 5. If you are in `serial`, use middle mouse to choose `replace`, `append`, or `remove`.
-6. In `serial/channel`, right-click while standing to apply the cache to a valid target or filter; in `visualize`, switch to an empty main hand before right-clicking to remove displayed objects.
+6. In `serial/channel`, right-click while standing to apply the cache to a valid target or filter; in `visualize`, switch to an empty main hand and hold `Ctrl` before right-clicking to remove displayed objects.
 7. After objects are added in `visualize`, you can switch back to other tools and keep watching the links as long as Smart Glasses stay worn.
-8. Press `Sneak + B` with Smart Glasses worn and an empty main hand when you want to clear the displayed-object list.
+8. Press `Sneak + B` with Smart Glasses worn and an empty main hand when you want to clear the displayed-object list; this clear does not require `Ctrl`.
 - Crafting recipe:
 1. `Redstone Link Component + Stick + Stick -> Quick Link Tool`
 2. Pattern:

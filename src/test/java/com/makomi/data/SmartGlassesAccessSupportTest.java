@@ -32,13 +32,14 @@ class SmartGlassesAccessSupportTest {
 	}
 
 	/**
-	 * 站立、佩戴智能眼镜且主手为空时，允许添加或移除显示对象。
+	 * 站立、佩戴智能眼镜、主手为空且按住 Ctrl 时，允许添加或移除显示对象。
 	 */
 	@Test
-	void canModifyQuickLinkVisualizationObjectsShouldRequireStanding() throws Exception {
+	void canModifyQuickLinkVisualizationObjectsShouldRequireStandingAndControl() throws Exception {
 		TestPlayer player = createPlayer(createSmartGlassesStack(), ItemStack.EMPTY, false);
 
-		assertTrue(SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(player));
+		assertTrue(SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(player, true));
+		assertFalse(SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(player, false));
 	}
 
 	/**
@@ -48,7 +49,7 @@ class SmartGlassesAccessSupportTest {
 	void sneakShouldDisableObjectMutationButKeepBroadOperatePermission() throws Exception {
 		TestPlayer player = createPlayer(createSmartGlassesStack(), ItemStack.EMPTY, true);
 
-		assertFalse(SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(player));
+		assertFalse(SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(player, true));
 		assertTrue(SmartGlassesAccessSupport.canOperateQuickLinkVisualization(player));
 	}
 
@@ -72,7 +73,7 @@ class SmartGlassesAccessSupportTest {
 
 		assertFalse(SmartGlassesAccessSupport.canRenderQuickLinkVisualization(player));
 		assertFalse(SmartGlassesAccessSupport.canOperateQuickLinkVisualization(player));
-		assertFalse(SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(player));
+		assertFalse(SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(player, true));
 	}
 
 	/**
