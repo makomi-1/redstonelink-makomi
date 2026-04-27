@@ -1,12 +1,20 @@
 package com.makomi.testsupport;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.file.Path;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -18,7 +26,9 @@ import net.minecraft.server.Bootstrap;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.storage.DimensionDataStorage;
 import net.minecraft.world.level.storage.TagValueInput;
@@ -65,6 +75,41 @@ public final class TestMinecraftSupport {
 	 */
 	public static void loadBlockEntityCustomOnly(BlockEntity blockEntity, CompoundTag tag) {
 		blockEntity.loadCustomOnly(TagValueInput.create(ProblemReporter.DISCARDING, lookupProvider(), tag));
+	}
+
+	/**
+	 * 在测试中短暂恢复 block / block entity intrusive holder 写窗。
+	 */
+	public static <T> T withWritableBlockRegistries(Supplier<T> supplier) {
+		bootstrapMinecraft();
+		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
+			return supplier.get();
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("failed to open temporary intrusive holder write window", ex);
+		}
+	}
+
+	/**
+	 * 为未注册测试方块创建只做 `isValid(state)` 校验的临时 block entity type。
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T extends BlockEntity> BlockEntityType<T> createPlaceholderBlockEntityType(Block... validBlocks) {
+		try {
+			Class<?> supplierClass = Class.forName("net.minecraft.world.level.block.entity.BlockEntityType$BlockEntitySupplier");
+			Constructor<BlockEntityType> constructor = (Constructor<BlockEntityType>) BlockEntityType.class.getDeclaredConstructor(
+				supplierClass,
+				Set.class
+			);
+			constructor.setAccessible(true);
+			Object supplier = Proxy.newProxyInstance(
+				supplierClass.getClassLoader(),
+				new Class<?>[] { supplierClass },
+				(proxy, method, args) -> null
+			);
+			return (BlockEntityType<T>) constructor.newInstance(supplier, Set.of(validBlocks));
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("failed to create placeholder block entity type", ex);
+		}
 	}
 
 	/**
@@ -127,6 +172,20 @@ public final class TestMinecraftSupport {
 	}
 
 	/**
+	 * 兼容 long array / long list 两种持久化编码。
+	 */
+	public static List<Long> getLongValuesOrEmpty(CompoundTag tag, String key) {
+		if (tag == null) {
+			return List.of();
+		}
+		java.util.Optional<long[]> longArray = tag.getLongArray(key);
+		if (longArray.isPresent()) {
+			return java.util.Arrays.stream(longArray.get()).boxed().toList();
+		}
+		return toLongList(tag.getListOrEmpty(key));
+	}
+
+	/**
 	 * 兼容新版 `getListOrEmpty(...)` 读取语义。
 	 */
 	public static ListTag getListOrEmpty(CompoundTag tag, String key) {
@@ -177,5 +236,69 @@ public final class TestMinecraftSupport {
 			}
 		}
 		throw new NoSuchMethodException(methodName);
+	}
+
+	private static final class RegistryWriteWindow implements AutoCloseable {
+		private final RegistryState[] states;
+
+		private RegistryWriteWindow(RegistryState... states) {
+			this.states = states;
+		}
+
+		private static RegistryWriteWindow open() throws ReflectiveOperationException {
+			return new RegistryWriteWindow(
+				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK),
+				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK_ENTITY_TYPE)
+			);
+		}
+
+		@Override
+		public void close() throws ReflectiveOperationException {
+			for (int index = states.length - 1; index >= 0; index--) {
+				states[index].close();
+			}
+		}
+	}
+
+	private static final class RegistryState implements AutoCloseable {
+		private final MappedRegistry<?> registry;
+		private final boolean frozen;
+		private final Map<?, ?> intrusiveHolders;
+
+		private RegistryState(MappedRegistry<?> registry, boolean frozen, Map<?, ?> intrusiveHolders) {
+			this.registry = registry;
+			this.frozen = frozen;
+			this.intrusiveHolders = intrusiveHolders;
+		}
+
+		private static RegistryState open(MappedRegistry<?> registry) throws ReflectiveOperationException {
+			boolean previousFrozen = FROZEN_FIELD.getBoolean(registry);
+			Map<?, ?> previousIntrusiveHolders = (Map<?, ?>) UNREGISTERED_INTRUSIVE_HOLDERS_FIELD.get(registry);
+			FROZEN_FIELD.setBoolean(registry, false);
+			UNREGISTERED_INTRUSIVE_HOLDERS_FIELD.set(
+				registry,
+				previousIntrusiveHolders == null ? new IdentityHashMap<>() : previousIntrusiveHolders
+			);
+			return new RegistryState(registry, previousFrozen, previousIntrusiveHolders);
+		}
+
+		@Override
+		public void close() throws ReflectiveOperationException {
+			UNREGISTERED_INTRUSIVE_HOLDERS_FIELD.set(registry, intrusiveHolders);
+			FROZEN_FIELD.setBoolean(registry, frozen);
+		}
+	}
+
+	private static final Field FROZEN_FIELD = field("frozen");
+	private static final Field UNREGISTERED_INTRUSIVE_HOLDERS_FIELD = field("unregisteredIntrusiveHolders");
+
+	private static Field field(String name) {
+		try {
+			Field field = MappedRegistry.class.getDeclaredField(name);
+			field.setAccessible(true);
+			return field;
+		} catch (ReflectiveOperationException ex) {
+			throw new ExceptionInInitializerError(ex);
+		}
 	}
 }

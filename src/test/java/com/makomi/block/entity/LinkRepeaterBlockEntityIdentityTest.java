@@ -6,16 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.LinkRepeaterBlock;
 import com.makomi.data.LinkNodeType;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
-import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
@@ -81,82 +79,15 @@ class LinkRepeaterBlockEntityIdentityTest {
 	 * 仅为单测临时创建最小转发器块和方块实体类型。
 	 */
 	private static TestRepeaterFixture createRepeaterFixture() {
-		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
-			LinkRepeaterBlock block = new LinkRepeaterBlock(BlockBehaviour.Properties.of());
-			@SuppressWarnings("unchecked")
-			BlockEntityType<? extends PairableNodeBlockEntity> type =
-				(BlockEntityType<? extends PairableNodeBlockEntity>) (BlockEntityType<?>) FabricBlockEntityTypeBuilder.create(
-					(pos, state) -> null,
-					block
-				).build();
-			return new TestRepeaterFixture(type, block.defaultBlockState());
-		} catch (ReflectiveOperationException exception) {
-			throw new AssertionError("无法创建转发器测试夹具", exception);
-		}
+		return TestMinecraftSupport.withWritableBlockRegistries(() -> {
+			LinkRepeaterBlock block = new LinkRepeaterBlock(
+				BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion().setId(
+					BuiltInRegistries.BLOCK.getResourceKey(Blocks.OBSERVER).orElseThrow()
+				)
+			);
+			return new TestRepeaterFixture(TestMinecraftSupport.createPlaceholderBlockEntityType(block), block.defaultBlockState());
+		});
 	}
 
 	private record TestRepeaterFixture(BlockEntityType<? extends PairableNodeBlockEntity> type, BlockState state) {}
-
-	/**
-	 * 注册表写窗口：仅在测试中短暂恢复 `MappedRegistry` 的 intrusive holder 创建能力。
-	 */
-	private static final class RegistryWriteWindow implements AutoCloseable {
-		private final RegistryState[] states;
-
-		private RegistryWriteWindow(RegistryState... states) {
-			this.states = states;
-		}
-
-		private static RegistryWriteWindow open() throws ReflectiveOperationException {
-			return new RegistryWriteWindow(
-				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK),
-				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK_ENTITY_TYPE)
-			);
-		}
-
-		@Override
-		public void close() throws ReflectiveOperationException {
-			for (int index = states.length - 1; index >= 0; index--) {
-				states[index].close();
-			}
-		}
-	}
-
-	/**
-	 * 单个注册表的临时可写快照。
-	 */
-	private static final class RegistryState implements AutoCloseable {
-		private final MappedRegistry<?> registry;
-		private final boolean frozen;
-		private final Map<?, ?> intrusiveHolders;
-
-		private RegistryState(MappedRegistry<?> registry, boolean frozen, Map<?, ?> intrusiveHolders) {
-			this.registry = registry;
-			this.frozen = frozen;
-			this.intrusiveHolders = intrusiveHolders;
-		}
-
-		private static RegistryState open(MappedRegistry<?> registry) throws ReflectiveOperationException {
-			java.lang.reflect.Field frozenField = MappedRegistry.class.getDeclaredField("frozen");
-			frozenField.setAccessible(true);
-			java.lang.reflect.Field intrusiveHoldersField = MappedRegistry.class.getDeclaredField("unregisteredIntrusiveHolders");
-			intrusiveHoldersField.setAccessible(true);
-			boolean previousFrozen = frozenField.getBoolean(registry);
-			@SuppressWarnings("unchecked")
-			Map<Object, Object> previousIntrusiveHolders = (Map<Object, Object>) intrusiveHoldersField.get(registry);
-			frozenField.setBoolean(registry, false);
-			intrusiveHoldersField.set(registry, previousIntrusiveHolders == null ? new IdentityHashMap<>() : previousIntrusiveHolders);
-			return new RegistryState(registry, previousFrozen, previousIntrusiveHolders);
-		}
-
-		@Override
-		public void close() throws ReflectiveOperationException {
-			java.lang.reflect.Field frozenField = MappedRegistry.class.getDeclaredField("frozen");
-			frozenField.setAccessible(true);
-			java.lang.reflect.Field intrusiveHoldersField = MappedRegistry.class.getDeclaredField("unregisteredIntrusiveHolders");
-			intrusiveHoldersField.setAccessible(true);
-			frozenField.setBoolean(registry, frozen);
-			intrusiveHoldersField.set(registry, intrusiveHolders);
-		}
-	}
 }

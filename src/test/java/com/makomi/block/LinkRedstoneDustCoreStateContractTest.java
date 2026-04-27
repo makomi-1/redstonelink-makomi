@@ -241,8 +241,8 @@ class LinkRedstoneDustCoreStateContractTest {
 			Pattern.MULTILINE | Pattern.DOTALL
 		);
 		Pattern noBackflowPattern = Pattern.compile(
-			"updateNeighborsAtExceptFromFacing\\(neighborPos,\\s*sourceBlock,\\s*direction\\.getOpposite\\(\\)\\)",
-			Pattern.MULTILINE
+			"updateNeighborsAtExceptFromFacing\\([\\s\\S]*?neighborPos,[\\s\\S]*?sourceBlock,[\\s\\S]*?direction\\.getOpposite\\(\\)[\\s\\S]*?ExperimentalRedstoneUtils\\.initialOrientation\\(",
+			Pattern.MULTILINE | Pattern.DOTALL
 		);
 		assertTrue(crossChunkGuardPattern.matcher(source).find());
 		assertTrue(noBackflowPattern.matcher(source).find());
@@ -320,11 +320,11 @@ class LinkRedstoneDustCoreStateContractTest {
 			Path.of("src/main/java/com/makomi/block/LinkRedstoneDustCoreBlock.java"),
 			StandardCharsets.UTF_8
 		);
-		Pattern supportGatePattern = Pattern.compile(
-			"if\\s*\\(!fromPos\\.equals\\(supportPos\\)\\)\\s*\\{\\s*return;",
+		Pattern noOutputRecomputePattern = Pattern.compile(
+			"protected\\s+void\\s+neighborChanged\\([\\s\\S]*?if\\s*\\(!state\\.canSurvive\\(level,\\s*pos\\)\\)\\s*\\{[\\s\\S]*?return;[\\s\\S]*?\\}",
 			Pattern.MULTILINE | Pattern.DOTALL
 		);
-		assertTrue(supportGatePattern.matcher(source).find());
+		assertTrue(noOutputRecomputePattern.matcher(source).find());
 	}
 
 	/**

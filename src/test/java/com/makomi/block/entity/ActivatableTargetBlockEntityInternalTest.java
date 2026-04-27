@@ -184,7 +184,7 @@ class ActivatableTargetBlockEntityInternalTest {
 		target.saveForTest(tag);
 
 		assertEquals(Map.of(1L, 7), readSyncStrengthsFromTag(tag));
-		assertEquals(Set.of(1L), Set.copyOf(longArrayToBoxedSet(TestMinecraftSupport.getLongArrayOrEmpty(tag, "SyncMaxSources"))));
+		assertEquals(Set.of(1L), Set.copyOf(TestMinecraftSupport.getLongValuesOrEmpty(tag, "SyncMaxSources")));
 	}
 
 	/**
@@ -640,7 +640,7 @@ class ActivatableTargetBlockEntityInternalTest {
 		CompoundTag tag = new CompoundTag();
 		source.saveForTest(tag);
 		assertEquals(Map.of(2L, 7), readSyncStrengthsFromTag(tag));
-		assertEquals(Set.of(2L), Set.copyOf(longArrayToBoxedSet(TestMinecraftSupport.getLongArrayOrEmpty(tag, "SyncMaxSources"))));
+		assertEquals(Set.of(2L), Set.copyOf(TestMinecraftSupport.getLongValuesOrEmpty(tag, "SyncMaxSources")));
 
 		TestTargetEntity restored = createTarget();
 		restored.loadForTest(tag);
