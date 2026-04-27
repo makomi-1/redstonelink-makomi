@@ -40,7 +40,8 @@ public class SmartGlassesItem extends Item {
 	private static final ArmorMaterial SMART_GLASSES_MATERIAL = new ArmorMaterial(
 		0,
 		java.util.Map.of(ArmorType.HELMET, 0),
-		0,
+		// 1.21.11 起 humanoidArmor(...) 会在构造期要求正附魔值；这里保留最小正数，避免改变“展示型装备”定位。
+		1,
 		SoundEvents.ARMOR_EQUIP_IRON,
 		0.0F,
 		0.0F,

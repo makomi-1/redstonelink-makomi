@@ -15,9 +15,12 @@ import com.makomi.block.LinkTransparentRedstoneDustCoreBlock;
 import com.makomi.block.LinkToggleEmitterBlock;
 import com.makomi.block.LinkToggleButtonBlock;
 import com.makomi.block.LinkSyncLeverBlock;
+import java.util.function.Function;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -28,90 +31,115 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 public final class ModBlocks {
 	public static final LinkCoreBlock LINK_REDSTONE_CORE = register(
 		"link_redstone_core",
-		new LinkCoreBlock(
-			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).lightLevel(state -> 0).noOcclusion()
-		)
+		LinkCoreBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).lightLevel(state -> 0).noOcclusion()
 	);
 
 	public static final LinkTransparentCoreBlock LINK_REDSTONE_CORE_TRANSPARENT = register(
 		"link_redstone_core_transparent",
-		new LinkTransparentCoreBlock(
-			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK)
-				.lightLevel(state -> 0)
-				// 显式声明“类玻璃”行为，避免仅依赖 noOcclusion 的隐式推断。
-				.noOcclusion()
-				.isViewBlocking((state, level, pos) -> false)
-				.isSuffocating((state, level, pos) -> false)
-				.isRedstoneConductor((state, level, pos) -> false)
-				.isValidSpawn((state, level, pos, entityType) -> false)
-		)
+		LinkTransparentCoreBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK)
+			.lightLevel(state -> 0)
+			// 显式声明“类玻璃”行为，避免仅依赖 noOcclusion 的隐式推断。
+			.noOcclusion()
+			.isViewBlocking((state, level, pos) -> false)
+			.isSuffocating((state, level, pos) -> false)
+			.isRedstoneConductor((state, level, pos) -> false)
+			.isValidSpawn((state, level, pos, entityType) -> false)
 	);
 
 	public static final LinkToggleButtonBlock LINK_TOGGLE_BUTTON = register(
 		"link_toggle_button",
-		new LinkToggleButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_BUTTON))
+		LinkToggleButtonBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_BUTTON)
 	);
 
 	public static final LinkSyncLeverBlock LINK_SYNC_LEVER = register(
 		"link_sync_lever",
-		new LinkSyncLeverBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.LEVER))
+		LinkSyncLeverBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.LEVER)
 	);
 
 	public static final LinkPulseButtonBlock LINK_PUSH_BUTTON = register(
 		"link_push_button",
-		new LinkPulseButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_BUTTON))
+		LinkPulseButtonBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_BUTTON)
 	);
 
 	public static final LinkToggleEmitterBlock LINK_TOGGLE_EMITTER = register(
 		"link_toggle_emitter",
-		new LinkToggleEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+		LinkToggleEmitterBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
 	public static final LinkPulseEmitterBlock LINK_PULSE_EMITTER = register(
 		"link_pulse_emitter",
-		new LinkPulseEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+		LinkPulseEmitterBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
 	public static final LinkSyncEmitterBlock LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
-		new LinkSyncEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+		LinkSyncEmitterBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
 	public static final LinkSendFilterBlock LINK_SEND_FILTER = register(
 		"link_send_filter",
-		new LinkSendFilterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+		LinkSendFilterBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
 	public static final LinkReceiveFilterBlock LINK_RECEIVE_FILTER = register(
 		"link_receive_filter",
-		new LinkReceiveFilterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).noOcclusion())
+		LinkReceiveFilterBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).noOcclusion()
 	);
 
 	public static final LinkChunkActivatorBlock LINK_CHUNK_ACTIVATOR = register(
 		"link_chunk_activator",
-		new LinkChunkActivatorBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+		LinkChunkActivatorBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
 	public static final LinkRepeaterBlock LINK_REPEATER = register(
 		"link_repeater",
-		new LinkRepeaterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+		LinkRepeaterBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(
 		"link_redstone_dust_core",
-		new LinkRedstoneDustCoreBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE))
+		LinkRedstoneDustCoreBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE)
 	);
 
 	public static final LinkTransparentRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE_TRANSPARENT = register(
 		"link_redstone_dust_core_transparent",
-		new LinkTransparentRedstoneDustCoreBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE))
+		LinkTransparentRedstoneDustCoreBlock::new,
+		BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE)
 	);
 
 	private ModBlocks() {
 	}
 
+	private static <T extends Block> T register(
+		String path,
+		Function<BlockBehaviour.Properties, T> factory,
+		BlockBehaviour.Properties properties
+	) {
+		return Registry.register(BuiltInRegistries.BLOCK, id(path), factory.apply(withBlockId(path, properties)));
+	}
+
 	private static <T extends Block> T register(String path, T block) {
 		return Registry.register(BuiltInRegistries.BLOCK, id(path), block);
+	}
+
+	/**
+	 * 1.21.11 起方块构造阶段就会读取 block id，因此必须在 new Block(...) 前先注入注册键。
+	 */
+	private static BlockBehaviour.Properties withBlockId(String path, BlockBehaviour.Properties properties) {
+		return properties.setId(ResourceKey.create(Registries.BLOCK, id(path)));
 	}
 
 	private static Identifier id(String path) {
