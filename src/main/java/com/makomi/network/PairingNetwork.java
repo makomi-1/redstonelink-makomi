@@ -16,7 +16,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -209,7 +209,7 @@ public final class PairingNetwork {
 		String sourceDisplayText
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_triggersource_pairing")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_triggersource_pairing")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenTriggerSourcePairingPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodePairingPayload(
@@ -395,7 +395,7 @@ public final class PairingNetwork {
 		String sourceDisplayText
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_core_pairing")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_core_pairing")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenCorePairingPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodePairingPayload(
@@ -574,7 +574,7 @@ public final class PairingNetwork {
 		long expectedSourceRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SubmitTriggerSourcePairingPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_triggersource_pairing")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_triggersource_pairing")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SubmitTriggerSourcePairingPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSubmitTriggerSourcePairingPayload(
@@ -620,7 +620,7 @@ public final class PairingNetwork {
 		long expectedCoreRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SubmitCorePairingPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_core_pairing")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_core_pairing")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SubmitCorePairingPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSubmitCorePairingPayload(
@@ -656,7 +656,7 @@ public final class PairingNetwork {
 	 */
 	public record SubmitPairingAliasPayload(String sourceType, long sourceSerial, String sourceAlias) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SubmitPairingAliasPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_pairing_alias")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_pairing_alias")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SubmitPairingAliasPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSubmitPairingAliasPayload(
@@ -684,7 +684,7 @@ public final class PairingNetwork {
 	 */
 	public record SaveSyncLinkerSignalStrengthPayload(long expectedSerial, int signalStrength) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SaveSyncLinkerSignalStrengthPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_sync_linker_signal_strength")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_sync_linker_signal_strength")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SaveSyncLinkerSignalStrengthPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSaveSyncLinkerSignalStrengthPayload(
@@ -712,7 +712,7 @@ public final class PairingNetwork {
 	public record PairingFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
 		implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<PairingFeedbackPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "pairing_feedback")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "pairing_feedback")
 		);
 		public static final StreamCodec<FriendlyByteBuf, PairingFeedbackPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeFeedbackPayload(
@@ -745,7 +745,7 @@ public final class PairingNetwork {
 		String sourceDisplayText
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<PairingAliasStatePayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "pairing_alias_state")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "pairing_alias_state")
 		);
 		public static final StreamCodec<FriendlyByteBuf, PairingAliasStatePayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodePairingAliasStatePayload(
@@ -785,7 +785,7 @@ public final class PairingNetwork {
 		long sourceSerial
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RequestCurrentLinksPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_current_links_snapshot")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_current_links_snapshot")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RequestCurrentLinksPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSnapshotRequestPayload(
@@ -824,7 +824,7 @@ public final class PairingNetwork {
 		long sourceSerial
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RequestRuntimeHudSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_runtime_hud_snapshot")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_runtime_hud_snapshot")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RequestRuntimeHudSnapshotPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeSnapshotRequestPayload(
@@ -872,7 +872,7 @@ public final class PairingNetwork {
 		CrossChunkNodeIdentity crossChunkIdentity
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<CurrentLinksSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "current_links_snapshot")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "current_links_snapshot")
 		);
 		public static final StreamCodec<FriendlyByteBuf, CurrentLinksSnapshotPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeCurrentLinksSnapshotPayload(
@@ -950,7 +950,7 @@ public final class PairingNetwork {
 		int outputPower
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RuntimeHudSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "runtime_hud_snapshot")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "runtime_hud_snapshot")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RuntimeHudSnapshotPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> PairingNetworkPayloadSupport.encodeRuntimeHudSnapshotPayload(

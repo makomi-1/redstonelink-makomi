@@ -11,7 +11,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -40,7 +40,7 @@ public final class LinkFilterNetwork {
 			player,
 			new OpenFilterEditorPayload(
 				LinkFilterEditorTargetKind.BLOCK_ENTITY,
-				filterBlockEntity.getLevel().dimension().location().toString(),
+				filterBlockEntity.getLevel().dimension().identifier().toString(),
 				filterBlockEntity.getBlockPos().asLong(),
 				-1,
 				filterBlockEntity.filterKind(),
@@ -84,7 +84,7 @@ public final class LinkFilterNetwork {
 		LinkFilterConfigSnapshot configSnapshot
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenFilterEditorPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_link_filter_editor")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_link_filter_editor")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenFilterEditorPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> LinkFilterNetworkPayloadSupport.encodeOpenEditorPayload(
@@ -141,7 +141,7 @@ public final class LinkFilterNetwork {
 		LinkFilterConfigSnapshot configSnapshot
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SaveFilterPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_link_filter")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_link_filter")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SaveFilterPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> LinkFilterNetworkPayloadSupport.encodeSavePayload(
@@ -189,7 +189,7 @@ public final class LinkFilterNetwork {
 	public record FilterFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
 		implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<FilterFeedbackPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "link_filter_feedback")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "link_filter_feedback")
 		);
 		public static final StreamCodec<FriendlyByteBuf, FilterFeedbackPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> LinkFilterNetworkPayloadSupport.encodeFeedbackPayload(

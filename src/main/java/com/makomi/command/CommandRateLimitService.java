@@ -259,7 +259,7 @@ public final class CommandRateLimitService {
 		}
 
 		BlockPos blockPos = BlockPos.containing(source.getPosition());
-		String dimension = source.getLevel().dimension().location().toString();
+		String dimension = source.getLevel().dimension().identifier().toString();
 		String principalId = dimension
 			+ ":"
 			+ blockPos.getX()

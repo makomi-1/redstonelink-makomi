@@ -11,7 +11,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -53,7 +53,7 @@ public final class StatePanelNetwork {
 	 */
 	public record OpenStatePanelPayload(List<SubscriptionEntryPayload> subscriptions) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenStatePanelPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_state_panel")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_state_panel")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenStatePanelPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeOpenPayload(buffer, payload.subscriptions()),
@@ -75,7 +75,7 @@ public final class StatePanelNetwork {
 	 */
 	public record SubscribeStatePanelPayload(String nodeTypeToken, String serialExpression) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SubscribeStatePanelPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "subscribe_state_panel")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "subscribe_state_panel")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SubscribeStatePanelPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeSubscribePayload(
@@ -107,7 +107,7 @@ public final class StatePanelNetwork {
 	 */
 	public record RefreshStatePanelPayload() implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RefreshStatePanelPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "refresh_state_panel")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "refresh_state_panel")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RefreshStatePanelPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {
@@ -126,7 +126,7 @@ public final class StatePanelNetwork {
 	 */
 	public record QueryStatePanelRecordingPayload() implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<QueryStatePanelRecordingPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "query_state_panel_recording")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "query_state_panel_recording")
 		);
 		public static final StreamCodec<FriendlyByteBuf, QueryStatePanelRecordingPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {
@@ -152,7 +152,7 @@ public final class StatePanelNetwork {
 		List<String> selectedNodeKeys
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StartStatePanelRecordingPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "start_state_panel_recording")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "start_state_panel_recording")
 		);
 		public static final StreamCodec<FriendlyByteBuf, StartStatePanelRecordingPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeRecordingStartPayload(
@@ -198,7 +198,7 @@ public final class StatePanelNetwork {
 	 */
 	public record StopStatePanelRecordingPayload() implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StopStatePanelRecordingPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "stop_state_panel_recording")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "stop_state_panel_recording")
 		);
 		public static final StreamCodec<FriendlyByteBuf, StopStatePanelRecordingPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {
@@ -217,7 +217,7 @@ public final class StatePanelNetwork {
 	 */
 	public record RemoveStatePanelSerialPayload(String nodeTypeToken, long serial) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RemoveStatePanelSerialPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "remove_state_panel_serial")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "remove_state_panel_serial")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RemoveStatePanelSerialPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeRemovePayload(buffer, payload.nodeTypeToken(), payload.serial()),
@@ -243,7 +243,7 @@ public final class StatePanelNetwork {
 	 */
 	public record RecordStatePanelPayload() implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RecordStatePanelPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "record_state_panel")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "record_state_panel")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RecordStatePanelPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {
@@ -262,7 +262,7 @@ public final class StatePanelNetwork {
 	 */
 	public record ExportStatePanelGraphPayload(String requestId, boolean forceTransfer, boolean autoOpenWeb) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ExportStatePanelGraphPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "export_state_panel_graph")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "export_state_panel_graph")
 		);
 		public static final StreamCodec<FriendlyByteBuf, ExportStatePanelGraphPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeExportGraphPayload(
@@ -306,7 +306,7 @@ public final class StatePanelNetwork {
 	 */
 	public record SubmitGraphWritePayload(String requestId, String requestJson) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SubmitGraphWritePayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_graph_write")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "submit_graph_write")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SubmitGraphWritePayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphWriteRequestPayload(
@@ -338,7 +338,7 @@ public final class StatePanelNetwork {
 	 */
 	public record PreviewGraphWritePayload(String requestId, String requestJson) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<PreviewGraphWritePayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "preview_graph_write")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "preview_graph_write")
 		);
 		public static final StreamCodec<FriendlyByteBuf, PreviewGraphWritePayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphWriteRequestPayload(
@@ -370,7 +370,7 @@ public final class StatePanelNetwork {
 	 */
 	public record CleanAllStatePanelPayload() implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<CleanAllStatePanelPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "clean_all_state_panel")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "clean_all_state_panel")
 		);
 		public static final StreamCodec<FriendlyByteBuf, CleanAllStatePanelPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {
@@ -389,7 +389,7 @@ public final class StatePanelNetwork {
 	 */
 	public record StatePanelSnapshotPayload(List<StatePanelSnapshotEntry> entries) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StatePanelSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_snapshot")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_snapshot")
 		);
 		public static final StreamCodec<FriendlyByteBuf, StatePanelSnapshotPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeSnapshotPayload(buffer, payload.entries()),
@@ -412,7 +412,7 @@ public final class StatePanelNetwork {
 	public record StatePanelFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
 		implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StatePanelFeedbackPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_feedback")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_feedback")
 		);
 		public static final StreamCodec<FriendlyByteBuf, StatePanelFeedbackPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeFeedbackPayload(
@@ -454,7 +454,7 @@ public final class StatePanelNetwork {
 		long startedTick
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StatePanelRecordingSessionPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_recording_session")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_recording_session")
 		);
 		public static final StreamCodec<FriendlyByteBuf, StatePanelRecordingSessionPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeRecordingSessionPayload(
@@ -517,7 +517,7 @@ public final class StatePanelNetwork {
 		byte[] chunkBytes
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StatePanelRecordingExportChunkPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_recording_export_chunk")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_recording_export_chunk")
 		);
 		public static final StreamCodec<FriendlyByteBuf, StatePanelRecordingExportChunkPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeRecordingExportChunkPayload(
@@ -572,7 +572,7 @@ public final class StatePanelNetwork {
 		byte[] chunkBytes
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<StatePanelGraphExportChunkPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_graph_export_chunk")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "state_panel_graph_export_chunk")
 		);
 		public static final StreamCodec<FriendlyByteBuf, StatePanelGraphExportChunkPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphExportChunkPayload(
@@ -623,7 +623,7 @@ public final class StatePanelNetwork {
 	 */
 	public record GraphWriteResultPayload(String requestId, String responseJson) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<GraphWriteResultPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "graph_write_result")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "graph_write_result")
 		);
 		public static final StreamCodec<FriendlyByteBuf, GraphWriteResultPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> StatePanelNetworkPayloadSupport.encodeGraphWriteResultPayload(

@@ -5,7 +5,7 @@ import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
 
@@ -51,8 +51,8 @@ public final class ModItemGroups {
 	private ModItemGroups() {
 	}
 
-	private static ResourceLocation id(String path) {
-		return ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
+	private static Identifier id(String path) {
+		return Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
 	}
 
 	public static void register() {

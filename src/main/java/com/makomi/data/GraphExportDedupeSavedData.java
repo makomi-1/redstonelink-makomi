@@ -1,17 +1,17 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * graph 导出跨重启去重台账。
@@ -28,9 +28,14 @@ public final class GraphExportDedupeSavedData extends SavedData {
 	private static final String KEY_FILE_NAME = "fileName";
 	private static final int MAX_RECENT_ENTRIES_PER_PLAYER = 64;
 
-	private static final SavedData.Factory<GraphExportDedupeSavedData> FACTORY = new SavedData.Factory<>(
-		GraphExportDedupeSavedData::new,
+	private static final Codec<GraphExportDedupeSavedData> CODEC = CompoundTag.CODEC.xmap(
 		GraphExportDedupeSavedData::load,
+		GraphExportDedupeSavedData::toTag
+	);
+	private static final SavedDataType<GraphExportDedupeSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		GraphExportDedupeSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -41,24 +46,24 @@ public final class GraphExportDedupeSavedData extends SavedData {
 	 */
 	public static GraphExportDedupeSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static GraphExportDedupeSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static GraphExportDedupeSavedData load(CompoundTag tag) {
 		GraphExportDedupeSavedData data = new GraphExportDedupeSavedData();
-		ListTag playerEntries = tag.getList(KEY_PLAYERS, Tag.TAG_COMPOUND);
+		ListTag playerEntries = tag.getListOrEmpty(KEY_PLAYERS);
 		for (int playerIndex = 0; playerIndex < playerEntries.size(); playerIndex++) {
-			CompoundTag playerTag = playerEntries.getCompound(playerIndex);
-			UUID playerId = tryParsePlayerId(playerTag.getString(KEY_PLAYER_ID));
+			CompoundTag playerTag = playerEntries.getCompoundOrEmpty(playerIndex);
+			UUID playerId = tryParsePlayerId(playerTag.getStringOr(KEY_PLAYER_ID, ""));
 			if (playerId == null) {
 				continue;
 			}
 			LinkedHashMap<String, String> entries = new LinkedHashMap<>();
-			ListTag checksumEntries = playerTag.getList(KEY_ENTRIES, Tag.TAG_COMPOUND);
+			ListTag checksumEntries = playerTag.getListOrEmpty(KEY_ENTRIES);
 			for (int entryIndex = 0; entryIndex < checksumEntries.size(); entryIndex++) {
-				CompoundTag entryTag = checksumEntries.getCompound(entryIndex);
-				String checksum = normalizeChecksum(entryTag.getString(KEY_STRUCTURE_CHECKSUM));
-				String fileName = normalizeFileName(entryTag.getString(KEY_FILE_NAME));
+				CompoundTag entryTag = checksumEntries.getCompoundOrEmpty(entryIndex);
+				String checksum = normalizeChecksum(entryTag.getStringOr(KEY_STRUCTURE_CHECKSUM, ""));
+				String fileName = normalizeFileName(entryTag.getStringOr(KEY_FILE_NAME, ""));
 				if (checksum.isEmpty() || fileName.isEmpty()) {
 					continue;
 				}
@@ -109,8 +114,8 @@ public final class GraphExportDedupeSavedData extends SavedData {
 		}
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		ListTag playerEntries = new ListTag();
 		for (Map.Entry<UUID, LinkedHashMap<String, String>> playerEntry : fileNameByChecksumByPlayer.entrySet()) {
 			if (playerEntry.getValue().isEmpty()) {

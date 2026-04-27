@@ -268,7 +268,7 @@ public final class QuickLinkVisualizationSnapshotService {
 		if (identity == null || identity.dimension() == null || identity.pos() == null) {
 			return "";
 		}
-		return identity.dimension().location().toString();
+		return identity.dimension().identifier().toString();
 	}
 
 	/**

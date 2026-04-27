@@ -1,6 +1,7 @@
 package com.makomi.data;
 
 import com.makomi.block.entity.ActivationMode;
+import com.mojang.serialization.Codec;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -9,7 +10,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -18,6 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * 跨区块派发持久队列。
@@ -45,9 +46,14 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	static final String KEY_EXPIRE_TICK = "expireTick";
 	static final String KEY_VERSION = "version";
 
-	private static final SavedData.Factory<CrossChunkDispatchQueueSavedData> FACTORY = new SavedData.Factory<>(
-		CrossChunkDispatchQueueSavedData::new,
+	private static final Codec<CrossChunkDispatchQueueSavedData> CODEC = CompoundTag.CODEC.xmap(
 		CrossChunkDispatchQueueSavedData::load,
+		CrossChunkDispatchQueueSavedData::toTag
+	);
+	private static final SavedDataType<CrossChunkDispatchQueueSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		CrossChunkDispatchQueueSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -70,16 +76,16 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 	 */
 	public static CrossChunkDispatchQueueSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static CrossChunkDispatchQueueSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static CrossChunkDispatchQueueSavedData load(CompoundTag tag) {
 		CrossChunkDispatchQueueSavedData data = new CrossChunkDispatchQueueSavedData();
-		ListTag acceptedVersions = tag.getList(KEY_ACCEPTED_VERSIONS, Tag.TAG_COMPOUND);
-		ListTag issuedVersions = tag.getList(KEY_ISSUED_VERSIONS, Tag.TAG_COMPOUND);
+		ListTag acceptedVersions = tag.getListOrEmpty(KEY_ACCEPTED_VERSIONS);
+		ListTag issuedVersions = tag.getListOrEmpty(KEY_ISSUED_VERSIONS);
 		data.readVersionMap(acceptedVersions, data.lastAcceptedVersionByKey);
 		data.readVersionMap(issuedVersions, data.maxIssuedVersionByKey);
-		ListTag pendingEntries = tag.getList(KEY_PENDING_ENTRIES, Tag.TAG_COMPOUND);
+		ListTag pendingEntries = tag.getListOrEmpty(KEY_PENDING_ENTRIES);
 		for (Tag element : pendingEntries) {
 			if (!(element instanceof CompoundTag entryTag)) {
 				continue;
@@ -203,13 +209,13 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		return pendingByKey.size();
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		ListTag pendingEntries = new ListTag();
 		for (PendingDispatchEntry entry : pendingEntriesForSave()) {
 			CompoundTag entryTag = new CompoundTag();
 			writeDispatchKey(entryTag, entry.key());
-			entryTag.putString(KEY_DIMENSION, entry.dimension().location().toString());
+			entryTag.putString(KEY_DIMENSION, entry.dimension().identifier().toString());
 			entryTag.putLong(KEY_POS, entry.pos().asLong());
 			entryTag.putString(KEY_ACTIVATION_MODE, entry.activationMode().name());
 			entryTag.putString(KEY_DISPATCH_ACTION, entry.dispatchAction().name());

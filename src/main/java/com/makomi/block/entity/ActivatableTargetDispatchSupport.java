@@ -122,7 +122,7 @@ final class ActivatableTargetDispatchSupport {
 	 */
 	void onPulseTick() {
 		Level level = owner.getLevel();
-		if (level == null || level.isClientSide) {
+		if (level == null || level.isClientSide()) {
 			return;
 		}
 		if (!concurrentComponent().pulseResetArmed() && !concurrentComponent().pulseSnapshotRecorded()) {
@@ -183,7 +183,7 @@ final class ActivatableTargetDispatchSupport {
 	 */
 	private void applyRuntimeSimulatedSyncDelta(long sourceSerial, int signalStrength, EventMeta eventMeta, boolean removeOnly) {
 		Level level = owner.getLevel();
-		if (sourceSerial <= 0L || level == null || level.isClientSide) {
+		if (sourceSerial <= 0L || level == null || level.isClientSide()) {
 			return;
 		}
 		EventMeta normalizedMeta = owner.normalizeEventMeta(eventMeta);

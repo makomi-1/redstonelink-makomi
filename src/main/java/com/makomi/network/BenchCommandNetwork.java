@@ -4,7 +4,7 @@ import com.makomi.RedstoneLink;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * bench 真实玩家命令执行网络通道。
@@ -28,7 +28,7 @@ public final class BenchCommandNetwork {
 	 */
 	public record ExecutePlayerCommandPayload(long requestId, String command, boolean captureTickWindow) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ExecutePlayerCommandPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "bench_execute_player_command")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "bench_execute_player_command")
 		);
 		public static final StreamCodec<FriendlyByteBuf, ExecutePlayerCommandPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {
@@ -66,7 +66,7 @@ public final class BenchCommandNetwork {
 		String errorDetail
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<PlayerCommandResultPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "bench_player_command_result")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "bench_player_command_result")
 		);
 		public static final StreamCodec<FriendlyByteBuf, PlayerCommandResultPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {

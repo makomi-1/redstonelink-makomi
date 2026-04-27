@@ -87,7 +87,7 @@ final class ActivatableTargetObservationComponent {
 		int resolvedPower
 	) {
 		Level level = owner.getLevel();
-		if (level == null || level.isClientSide) {
+		if (level == null || level.isClientSide()) {
 			return;
 		}
 		TimeKey normalizedTimeKey = authorityTimeKey == null ? TimeKey.of(0L, 0) : authorityTimeKey;

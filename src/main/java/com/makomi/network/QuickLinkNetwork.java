@@ -7,7 +7,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -40,7 +40,7 @@ public final class QuickLinkNetwork {
 	 */
 	public record OpenQuickLinkEditorPayload(QuickLinkToolData.Snapshot snapshot) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenQuickLinkEditorPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_quick_link_editor")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_quick_link_editor")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenQuickLinkEditorPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeOpenEditorPayload(buffer, payload.snapshot()),
@@ -68,7 +68,7 @@ public final class QuickLinkNetwork {
 		String applyEditModeToken
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SaveQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_quick_link_payload")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_quick_link_payload")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SaveQuickLinkPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeSavePayload(
@@ -110,7 +110,7 @@ public final class QuickLinkNetwork {
 		long expectedNodeSerial
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<CollectQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "collect_quick_link_payload")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "collect_quick_link_payload")
 		);
 		public static final StreamCodec<FriendlyByteBuf, CollectQuickLinkPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
@@ -150,7 +150,7 @@ public final class QuickLinkNetwork {
 	 */
 	public record RequestQuickLinkChannelPreviewPayload(String cacheTypeToken, long channel) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RequestQuickLinkChannelPreviewPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_channel_preview")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_channel_preview")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RequestQuickLinkChannelPreviewPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeChannelPreviewRequestPayload(
@@ -182,7 +182,7 @@ public final class QuickLinkNetwork {
 	public record QuickLinkChannelPreviewPayload(String cacheTypeToken, long channel, List<Long> memberSerials)
 		implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<QuickLinkChannelPreviewPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_channel_preview")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_channel_preview")
 		);
 		public static final StreamCodec<FriendlyByteBuf, QuickLinkChannelPreviewPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeChannelPreviewPayload(
@@ -223,7 +223,7 @@ public final class QuickLinkNetwork {
 		long expectedNodeSerial
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RequestQuickLinkVisualizeSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_visualize_snapshot")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_visualize_snapshot")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RequestQuickLinkVisualizeSnapshotPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
@@ -274,7 +274,7 @@ public final class QuickLinkNetwork {
 		List<QuickLinkVisualizeTarget> targets
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<QuickLinkVisualizeSnapshotPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_visualize_snapshot")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_visualize_snapshot")
 		);
 		public static final StreamCodec<FriendlyByteBuf, QuickLinkVisualizeSnapshotPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeVisualizeSnapshotPayload(
@@ -352,7 +352,7 @@ public final class QuickLinkNetwork {
 		List<QuickLinkVisualizeTrackedObject> trackedObjects
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RequestQuickLinkVisualizeRefreshPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_visualize_refresh")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_quick_link_visualize_refresh")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RequestQuickLinkVisualizeRefreshPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeVisualizeRefreshRequestPayload(
@@ -387,7 +387,7 @@ public final class QuickLinkNetwork {
 		List<QuickLinkVisualizeObjectKey> removals
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<QuickLinkVisualizeRefreshPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_visualize_refresh")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_visualize_refresh")
 		);
 		public static final StreamCodec<FriendlyByteBuf, QuickLinkVisualizeRefreshPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeVisualizeRefreshPayload(
@@ -458,7 +458,7 @@ public final class QuickLinkNetwork {
 		long expectedNodeSerial
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RequestApplyQuickLinkBaselinePayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_apply_quick_link_baseline")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "request_apply_quick_link_baseline")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RequestApplyQuickLinkBaselinePayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeBlockTargetPayload(
@@ -509,7 +509,7 @@ public final class QuickLinkNetwork {
 		long coreRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ApplyQuickLinkBaselinePayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_baseline")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_baseline")
 		);
 		public static final StreamCodec<FriendlyByteBuf, ApplyQuickLinkBaselinePayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeApplyBaselinePayload(
@@ -568,7 +568,7 @@ public final class QuickLinkNetwork {
 		long expectedSourceRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ApplyQuickLinkPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_payload")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "apply_quick_link_payload")
 		);
 		public static final StreamCodec<FriendlyByteBuf, ApplyQuickLinkPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeApplyPayload(
@@ -615,7 +615,7 @@ public final class QuickLinkNetwork {
 	public record QuickLinkFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
 		implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<QuickLinkFeedbackPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_feedback")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "quick_link_feedback")
 		);
 		public static final StreamCodec<FriendlyByteBuf, QuickLinkFeedbackPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> QuickLinkNetworkPayloadSupport.encodeFeedbackPayload(

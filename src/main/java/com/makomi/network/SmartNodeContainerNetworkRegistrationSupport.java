@@ -29,14 +29,14 @@ final class SmartNodeContainerNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> SmartNodeContainerNetworkServerHandlerSupport.handleOpen(player));
+			player.getServer().execute(() -> SmartNodeContainerNetworkServerHandlerSupport.handleOpen(player));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(SmartNodeContainerNetwork.CycleSmartNodeContainerTypePayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> SmartNodeContainerNetworkServerHandlerSupport.handleCycleSelectedType(player));
+			player.getServer().execute(() -> SmartNodeContainerNetworkServerHandlerSupport.handleCycleSelectedType(player));
 		});
 	}
 }

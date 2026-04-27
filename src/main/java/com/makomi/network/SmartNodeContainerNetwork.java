@@ -4,7 +4,7 @@ import com.makomi.RedstoneLink;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * 智能节点容器网络通道。
@@ -25,7 +25,7 @@ public final class SmartNodeContainerNetwork {
 	 */
 	public record OpenSmartNodeContainerPayload() implements CustomPacketPayload {
 		public static final Type<OpenSmartNodeContainerPayload> TYPE = new Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_smart_node_container")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_smart_node_container")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenSmartNodeContainerPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {
@@ -44,7 +44,7 @@ public final class SmartNodeContainerNetwork {
 	 */
 	public record CycleSmartNodeContainerTypePayload() implements CustomPacketPayload {
 		public static final Type<CycleSmartNodeContainerTypePayload> TYPE = new Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "cycle_smart_node_container_type")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "cycle_smart_node_container_type")
 		);
 		public static final StreamCodec<FriendlyByteBuf, CycleSmartNodeContainerTypePayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> {

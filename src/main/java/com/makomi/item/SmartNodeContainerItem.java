@@ -17,7 +17,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -48,8 +47,8 @@ public class SmartNodeContainerItem extends Item {
 	}
 
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-		return InteractionResultHolder.pass(player.getItemInHand(hand));
+	public InteractionResult use(Level level, Player player, InteractionHand hand) {
+		return InteractionResult.PASS;
 	}
 
 	@Override
@@ -63,7 +62,7 @@ public class SmartNodeContainerItem extends Item {
 		if (!snapshot.hasItems()) {
 			return InteractionResult.PASS;
 		}
-		if (context.getLevel().isClientSide) {
+		if (context.getLevel().isClientSide()) {
 			return InteractionResult.SUCCESS;
 		}
 		if (!(context.getLevel() instanceof ServerLevel serverLevel)) {
@@ -124,9 +123,11 @@ public class SmartNodeContainerItem extends Item {
 	public void appendHoverText(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
+		List<Component> tooltipComponents = new java.util.ArrayList<>();
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.read(stack);
 		tooltipComponents.add(
@@ -157,7 +158,8 @@ public class SmartNodeContainerItem extends Item {
 		tooltipComponents.add(
 			Component.translatable("tooltip.redstonelink.smart_node_container.connection_sync_notice").withStyle(ChatFormatting.GRAY)
 		);
-		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.forEach(tooltipAdder);
+		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
 
 	/**

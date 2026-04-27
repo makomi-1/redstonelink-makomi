@@ -17,7 +17,7 @@ import com.makomi.block.LinkToggleButtonBlock;
 import com.makomi.block.LinkSyncLeverBlock;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -114,8 +114,8 @@ public final class ModBlocks {
 		return Registry.register(BuiltInRegistries.BLOCK, id(path), block);
 	}
 
-	private static ResourceLocation id(String path) {
-		return ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
+	private static Identifier id(String path) {
+		return Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
 	}
 
 	public static void register() {

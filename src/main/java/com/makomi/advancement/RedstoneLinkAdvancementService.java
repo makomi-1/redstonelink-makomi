@@ -4,7 +4,7 @@ import com.makomi.RedstoneLink;
 import com.makomi.data.LinkedTargetDispatchService;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.GameType;
@@ -20,10 +20,10 @@ import net.minecraft.world.level.GameType;
 public final class RedstoneLinkAdvancementService {
 	private static final String DEFAULT_CRITERION = "unlock";
 
-	public static final ResourceLocation WIRELESS_AGE = id("wireless_age");
-	public static final ResourceLocation COME_FIND_ME_IN_THE_END = id("come_find_me_in_the_end");
-	public static final ResourceLocation MASTER_STRATEGIST = id("master_strategist");
-	public static final ResourceLocation CONSTELLATION = id("constellation");
+	public static final Identifier WIRELESS_AGE = id("wireless_age");
+	public static final Identifier COME_FIND_ME_IN_THE_END = id("come_find_me_in_the_end");
+	public static final Identifier MASTER_STRATEGIST = id("master_strategist");
+	public static final Identifier CONSTELLATION = id("constellation");
 
 	private RedstoneLinkAdvancementService() {
 	}
@@ -147,11 +147,11 @@ public final class RedstoneLinkAdvancementService {
 	/**
 	 * 解析指定成就定义；解析失败时返回 `null`。
 	 */
-	static AdvancementHolder resolveAdvancement(ServerPlayer player, ResourceLocation advancementId) {
-		if (player == null || player.server == null || advancementId == null) {
+	static AdvancementHolder resolveAdvancement(ServerPlayer player, Identifier advancementId) {
+		if (player == null || player.level() == null || player.level().getServer() == null || advancementId == null) {
 			return null;
 		}
-		return player.server.getAdvancements().get(advancementId);
+		return player.level().getServer().getAdvancements().get(advancementId);
 	}
 
 	/**
@@ -167,7 +167,7 @@ public final class RedstoneLinkAdvancementService {
 	/**
 	 * 解析“本次仍可发放”的成就定义；若模式不合法、成就不存在或已完成，则返回 `null`。
 	 */
-	static AdvancementHolder resolveAwardableAdvancement(ServerPlayer player, ResourceLocation advancementId) {
+	static AdvancementHolder resolveAwardableAdvancement(ServerPlayer player, Identifier advancementId) {
 		AdvancementHolder advancement = resolveAdvancement(player, advancementId);
 		if (advancement == null) {
 			return null;
@@ -190,11 +190,11 @@ public final class RedstoneLinkAdvancementService {
 	/**
 	 * 在资格满足且尚未发放时发放指定成就。
 	 */
-	static boolean awardIfEligible(ServerPlayer player, ResourceLocation advancementId) {
+	static boolean awardIfEligible(ServerPlayer player, Identifier advancementId) {
 		return award(player, resolveAwardableAdvancement(player, advancementId));
 	}
 
-	private static ResourceLocation id(String path) {
-		return ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
+	private static Identifier id(String path) {
+		return Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
 	}
 }

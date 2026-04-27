@@ -31,11 +31,11 @@ public final class CrossChunkDispatchService {
 	private static final Map<MinecraftServer, DispatchState> STATE_BY_SERVER = new IdentityHashMap<>();
 	static final int TRANSIENT_TICKET_LEVEL = 2;
 	static final int RESIDENT_TICKET_LEVEL = 2;
-	static final TicketType<ChunkPos> TRANSIENT_TICKET_TYPE = TicketType.create(
+	static final TicketType TRANSIENT_TICKET_TYPE = TicketType.create(
 		"redstonelink_transient",
 		Comparator.comparingLong(ChunkPos::toLong)
 	);
-	static final TicketType<ResidentTicketKey> RESIDENT_TICKET_TYPE = TicketType.create(
+	static final TicketType RESIDENT_TICKET_TYPE = TicketType.create(
 		"redstonelink_resident",
 		Comparator
 			.comparing((ResidentTicketKey key) -> key.role().name())

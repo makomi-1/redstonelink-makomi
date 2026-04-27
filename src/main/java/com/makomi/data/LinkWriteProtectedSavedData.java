@@ -1,15 +1,16 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import com.makomi.util.IncrementalReplacePlanUtil;
 import com.makomi.util.SerialNbtCodecUtil;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * 链接写入受控名单持久化数据。
@@ -22,9 +23,14 @@ public final class LinkWriteProtectedSavedData extends SavedData {
 	private static final String KEY_PROTECTED_TRIGGER_SOURCE_SERIALS = "protectedTriggerSourceSerials";
 	private static final String KEY_PROTECTED_CORE_SERIALS = "protectedCoreSerials";
 
-	private static final SavedData.Factory<LinkWriteProtectedSavedData> FACTORY = new SavedData.Factory<>(
-		LinkWriteProtectedSavedData::new,
+	private static final Codec<LinkWriteProtectedSavedData> CODEC = CompoundTag.CODEC.xmap(
 		LinkWriteProtectedSavedData::load,
+		LinkWriteProtectedSavedData::toTag
+	);
+	private static final SavedDataType<LinkWriteProtectedSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		LinkWriteProtectedSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -36,10 +42,10 @@ public final class LinkWriteProtectedSavedData extends SavedData {
 	 */
 	public static LinkWriteProtectedSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static LinkWriteProtectedSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static LinkWriteProtectedSavedData load(CompoundTag tag) {
 		LinkWriteProtectedSavedData data = new LinkWriteProtectedSavedData();
 		SerialNbtCodecUtil.readSerialSet(tag, KEY_PROTECTED_TRIGGER_SOURCE_SERIALS, data.protectedTriggerSourceSerials);
 		SerialNbtCodecUtil.readSerialSet(tag, KEY_PROTECTED_CORE_SERIALS, data.protectedCoreSerials);
@@ -120,8 +126,8 @@ public final class LinkWriteProtectedSavedData extends SavedData {
 		return Set.copyOf(serials);
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		tag.putLongArray(KEY_PROTECTED_TRIGGER_SOURCE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(protectedTriggerSourceSerials));
 		tag.putLongArray(KEY_PROTECTED_CORE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(protectedCoreSerials));
 		return tag;

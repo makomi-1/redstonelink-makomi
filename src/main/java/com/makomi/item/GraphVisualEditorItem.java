@@ -10,7 +10,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -30,13 +29,13 @@ public class GraphVisualEditorItem extends Item {
 	}
 
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		if (hand != InteractionHand.MAIN_HAND) {
-			return InteractionResultHolder.pass(heldStack);
+			return InteractionResult.PASS;
 		}
 		exportGraph(level, player);
-		return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
+		return InteractionResult.sidedSuccess(level.isClientSide());
 	}
 
 	@Override
@@ -49,27 +48,30 @@ public class GraphVisualEditorItem extends Item {
 			return InteractionResult.PASS;
 		}
 		exportGraph(context.getLevel(), player);
-		return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+		return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
 	}
 
 	@Override
 	public void appendHoverText(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
+		List<Component> tooltipComponents = new java.util.ArrayList<>();
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.graph_visual_editor.export"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.graph_visual_editor.dedupe"));
-		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.forEach(tooltipAdder);
+		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
 
 	/**
 	 * 在服务端导出 graph 并通过客户端网页桥自动打开页面。
 	 */
 	private static void exportGraph(Level level, Player player) {
-		if (level.isClientSide || !(player instanceof ServerPlayer serverPlayer)) {
+		if (level.isClientSide() || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
 		}
 		if (!WebFeaturePermissionService.canUseGraphFeature(serverPlayer)) {

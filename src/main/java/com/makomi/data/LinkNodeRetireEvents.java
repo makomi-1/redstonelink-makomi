@@ -303,7 +303,7 @@ public final class LinkNodeRetireEvents {
 		}
 		RedstoneLink.LOGGER.warn(
 			"[DiagRuntime] retire_entity_unload_slow dimension={}, entityId={}, reason={}, outcome={}, age={}, elapsedMs={}, thresholdMs={}",
-			level.dimension().location(),
+			level.dimension().identifier(),
 			itemEntity.getUUID(),
 			reason,
 			outcome,
@@ -335,7 +335,7 @@ public final class LinkNodeRetireEvents {
 		}
 		RedstoneLink.LOGGER.warn(
 			"[DiagRuntime] pending_retire_tick_slow dimension={}, nowTick={}, elapsedMs={}, thresholdMs={}, dueEntries={}, skipped={}, retired={}, remaining={}",
-			server.overworld() == null ? "unknown" : server.overworld().dimension().location(),
+			server.overworld() == null ? "unknown" : server.overworld().dimension().identifier(),
 			now,
 			elapsedMs,
 			thresholdMs,

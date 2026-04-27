@@ -115,10 +115,10 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 
-		if (level.isClientSide) {
+		if (level.isClientSide()) {
 			// 客户端点击预览阶段不走父类红色粒子逻辑，改为“仅在切换为激活时”发橙色粒子。
 			if (!state.getValue(POWERED)) {
 				spawnOrangeParticle(level, pos, level.random, 0.98F, 0.36F);

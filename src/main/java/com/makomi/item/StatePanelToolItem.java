@@ -7,7 +7,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -27,13 +26,13 @@ public class StatePanelToolItem extends Item {
 	}
 
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		if (hand != InteractionHand.MAIN_HAND) {
-			return InteractionResultHolder.pass(heldStack);
+			return InteractionResult.PASS;
 		}
 		openPanel(level, player, heldStack);
-		return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
+		return InteractionResult.sidedSuccess(level.isClientSide());
 	}
 
 	@Override
@@ -46,30 +45,33 @@ public class StatePanelToolItem extends Item {
 			return InteractionResult.PASS;
 		}
 		openPanel(context.getLevel(), player, context.getItemInHand());
-		return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+		return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
 	}
 
 	@Override
 	public void appendHoverText(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
+		List<Component> tooltipComponents = new java.util.ArrayList<>();
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		int count = StatePanelToolData.subscriptionCount(stack);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.subscriptions", Integer.toString(count)));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.open_panel"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.validation"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.state_panel.auto_refresh"));
-		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.forEach(tooltipAdder);
+		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
 
 	/**
 	 * 在服务端打开状态面板。
 	 */
 	private static void openPanel(Level level, Player player, ItemStack stack) {
-		if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
 			StatePanelNetwork.openPanel(serverPlayer, stack);
 		}
 	}

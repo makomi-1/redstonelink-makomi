@@ -16,7 +16,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -55,7 +55,7 @@ public final class RepeaterNetwork {
 				LinkFilterEditorTargetKind.BLOCK_ENTITY,
 				serverLevel,
 				serial,
-				serverLevel.dimension().location().toString(),
+				serverLevel.dimension().identifier().toString(),
 				blockEntity.getBlockPos().asLong(),
 				-1,
 				"",
@@ -142,7 +142,7 @@ public final class RepeaterNetwork {
 		long expectedSourceRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenRepeaterEditorPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_repeater_editor")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_repeater_editor")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenRepeaterEditorPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> RepeaterNetworkPayloadSupport.encodeOpenEditorPayload(
@@ -219,7 +219,7 @@ public final class RepeaterNetwork {
 		long expectedSourceRevision
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SaveRepeaterPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_repeater")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_repeater")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SaveRepeaterPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> RepeaterNetworkPayloadSupport.encodeSavePayload(
@@ -279,7 +279,7 @@ public final class RepeaterNetwork {
 		String sideToken
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenRepeaterPairingPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_repeater_pairing")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_repeater_pairing")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenRepeaterPairingPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> RepeaterNetworkPayloadSupport.encodeOpenPairingPayload(
@@ -326,7 +326,7 @@ public final class RepeaterNetwork {
 	public record RepeaterFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
 		implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<RepeaterFeedbackPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "repeater_feedback")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "repeater_feedback")
 		);
 		public static final StreamCodec<FriendlyByteBuf, RepeaterFeedbackPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> RepeaterNetworkPayloadSupport.encodeFeedbackPayload(

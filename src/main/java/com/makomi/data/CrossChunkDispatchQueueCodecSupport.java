@@ -10,7 +10,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.Level;
 
 /**
@@ -38,7 +38,7 @@ final class CrossChunkDispatchQueueCodecSupport {
 			if (key.isEmpty()) {
 				continue;
 			}
-			long version = entryTag.getLong(CrossChunkDispatchQueueSavedData.KEY_VERSION);
+			long version = entryTag.getLongOr(CrossChunkDispatchQueueSavedData.KEY_VERSION, 0L);
 			if (version <= 0L) {
 				continue;
 			}
@@ -81,19 +81,19 @@ final class CrossChunkDispatchQueueCodecSupport {
 	 */
 	static Optional<CrossChunkDispatchQueueSavedData.DispatchKey> parseDispatchKey(CompoundTag tag) {
 		Optional<LinkNodeType> sourceType =
-			LinkNodeSemantics.tryParseCanonicalType(tag.getString(CrossChunkDispatchQueueSavedData.KEY_SOURCE_TYPE));
+			LinkNodeSemantics.tryParseCanonicalType(tag.getStringOr(CrossChunkDispatchQueueSavedData.KEY_SOURCE_TYPE, ""));
 		Optional<LinkNodeType> targetType =
-			LinkNodeSemantics.tryParseCanonicalType(tag.getString(CrossChunkDispatchQueueSavedData.KEY_TARGET_TYPE));
+			LinkNodeSemantics.tryParseCanonicalType(tag.getStringOr(CrossChunkDispatchQueueSavedData.KEY_TARGET_TYPE, ""));
 		if (sourceType.isEmpty() || targetType.isEmpty()) {
 			return Optional.empty();
 		}
-		long sourceSerial = tag.getLong(CrossChunkDispatchQueueSavedData.KEY_SOURCE_SERIAL);
-		long targetSerial = tag.getLong(CrossChunkDispatchQueueSavedData.KEY_TARGET_SERIAL);
+		long sourceSerial = tag.getLongOr(CrossChunkDispatchQueueSavedData.KEY_SOURCE_SERIAL, 0L);
+		long targetSerial = tag.getLongOr(CrossChunkDispatchQueueSavedData.KEY_TARGET_SERIAL, 0L);
 		if (sourceSerial <= 0L || targetSerial <= 0L) {
 			return Optional.empty();
 		}
 		Optional<CrossChunkDispatchQueueSavedData.DispatchKind> dispatchKind =
-			CrossChunkDispatchQueueSavedData.DispatchKind.fromName(tag.getString(CrossChunkDispatchQueueSavedData.KEY_DISPATCH_KIND));
+			CrossChunkDispatchQueueSavedData.DispatchKind.fromName(tag.getStringOr(CrossChunkDispatchQueueSavedData.KEY_DISPATCH_KIND, ""));
 		if (dispatchKind.isEmpty()) {
 			return Optional.empty();
 		}
@@ -121,24 +121,24 @@ final class CrossChunkDispatchQueueCodecSupport {
 		if (key.isEmpty()) {
 			return Optional.empty();
 		}
-		ResourceLocation dimensionId = ResourceLocation.tryParse(tag.getString(CrossChunkDispatchQueueSavedData.KEY_DIMENSION));
+		Identifier dimensionId = Identifier.tryParse(tag.getStringOr(CrossChunkDispatchQueueSavedData.KEY_DIMENSION, ""));
 		if (dimensionId == null) {
 			return Optional.empty();
 		}
-		long expireTick = tag.getLong(CrossChunkDispatchQueueSavedData.KEY_EXPIRE_TICK);
-		long version = tag.getLong(CrossChunkDispatchQueueSavedData.KEY_VERSION);
+		long expireTick = tag.getLongOr(CrossChunkDispatchQueueSavedData.KEY_EXPIRE_TICK, 0L);
+		long version = tag.getLongOr(CrossChunkDispatchQueueSavedData.KEY_VERSION, 0L);
 		if (expireTick <= 0L || version <= 0L) {
 			return Optional.empty();
 		}
 		ActivationMode activationMode =
-			ActivationMode.fromName(tag.getString(CrossChunkDispatchQueueSavedData.KEY_ACTIVATION_MODE));
+			ActivationMode.fromName(tag.getStringOr(CrossChunkDispatchQueueSavedData.KEY_ACTIVATION_MODE, ""));
 		CrossChunkDispatchQueueSavedData.DispatchAction dispatchAction =
-			CrossChunkDispatchQueueSavedData.DispatchAction.fromName(tag.getString(CrossChunkDispatchQueueSavedData.KEY_DISPATCH_ACTION))
+			CrossChunkDispatchQueueSavedData.DispatchAction.fromName(tag.getStringOr(CrossChunkDispatchQueueSavedData.KEY_DISPATCH_ACTION, ""))
 				.orElse(CrossChunkDispatchQueueSavedData.DispatchAction.UPSERT);
-		int syncSignalStrength = SignalStrengths.clamp(tag.getInt(CrossChunkDispatchQueueSavedData.KEY_SYNC_SIGNAL_STRENGTH));
-		long enqueueTick = Math.max(0L, tag.getLong(CrossChunkDispatchQueueSavedData.KEY_ENQUEUE_TICK));
-		int enqueueSlot = Math.max(0, tag.getInt(CrossChunkDispatchQueueSavedData.KEY_ENQUEUE_SLOT));
-		BlockPos pos = BlockPos.of(tag.getLong(CrossChunkDispatchQueueSavedData.KEY_POS));
+		int syncSignalStrength = SignalStrengths.clamp(tag.getIntOr(CrossChunkDispatchQueueSavedData.KEY_SYNC_SIGNAL_STRENGTH, 0));
+		long enqueueTick = Math.max(0L, tag.getLongOr(CrossChunkDispatchQueueSavedData.KEY_ENQUEUE_TICK, 0L));
+		int enqueueSlot = Math.max(0, tag.getIntOr(CrossChunkDispatchQueueSavedData.KEY_ENQUEUE_SLOT, 0));
+		BlockPos pos = BlockPos.of(tag.getLongOr(CrossChunkDispatchQueueSavedData.KEY_POS, 0L));
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
 		return Optional.of(
 			new CrossChunkDispatchQueueSavedData.PendingDispatchEntry(

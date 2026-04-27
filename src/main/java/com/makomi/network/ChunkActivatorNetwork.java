@@ -10,7 +10,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -39,7 +39,7 @@ public final class ChunkActivatorNetwork {
 			player,
 			new OpenChunkActivatorEditorPayload(
 				LinkFilterEditorTargetKind.BLOCK_ENTITY,
-				blockEntity.getLevel().dimension().location().toString(),
+				blockEntity.getLevel().dimension().identifier().toString(),
 				blockEntity.getBlockPos().asLong(),
 				-1,
 				blockEntity.displayAlias(),
@@ -80,7 +80,7 @@ public final class ChunkActivatorNetwork {
 		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<OpenChunkActivatorEditorPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_chunk_activator_editor")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "open_chunk_activator_editor")
 		);
 		public static final StreamCodec<FriendlyByteBuf, OpenChunkActivatorEditorPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> ChunkActivatorNetworkPayloadSupport.encodeOpenEditorPayload(
@@ -135,7 +135,7 @@ public final class ChunkActivatorNetwork {
 		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<SaveChunkActivatorPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_chunk_activator")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "save_chunk_activator")
 		);
 		public static final StreamCodec<FriendlyByteBuf, SaveChunkActivatorPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> ChunkActivatorNetworkPayloadSupport.encodeSavePayload(
@@ -184,7 +184,7 @@ public final class ChunkActivatorNetwork {
 	public record ChunkActivatorFeedbackPayload(boolean success, String messageKey, List<String> messageArgs)
 		implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ChunkActivatorFeedbackPayload> TYPE = new CustomPacketPayload.Type<>(
-			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "chunk_activator_feedback")
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "chunk_activator_feedback")
 		);
 		public static final StreamCodec<FriendlyByteBuf, ChunkActivatorFeedbackPayload> CODEC = CustomPacketPayload.codec(
 			(payload, buffer) -> ChunkActivatorNetworkPayloadSupport.encodeFeedbackPayload(

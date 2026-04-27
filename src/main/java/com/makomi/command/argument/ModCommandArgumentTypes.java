@@ -3,7 +3,7 @@ package com.makomi.command.argument;
 import com.makomi.RedstoneLink;
 import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * RedstoneLink 自定义命令参数类型注册入口。
@@ -50,7 +50,7 @@ public final class ModCommandArgumentTypes {
 	/**
 	 * 构造参数类型注册 id。
 	 */
-	private static ResourceLocation id(String path) {
-		return ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
+	private static Identifier id(String path) {
+		return Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
 	}
 }

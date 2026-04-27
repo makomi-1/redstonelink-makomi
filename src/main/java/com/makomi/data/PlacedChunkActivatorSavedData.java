@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -11,17 +12,17 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongConsumer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * 已放置区块激活器持久化数据。
@@ -54,9 +55,14 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 	private static final String KEY_LEGACY_SERIAL_EXPRESSION = "serialExpression";
 	private static final String KEY_LEGACY_MODE = "mode";
 
-	private static final SavedData.Factory<PlacedChunkActivatorSavedData> FACTORY = new SavedData.Factory<>(
-		PlacedChunkActivatorSavedData::new,
+	private static final Codec<PlacedChunkActivatorSavedData> CODEC = CompoundTag.CODEC.xmap(
 		PlacedChunkActivatorSavedData::load,
+		PlacedChunkActivatorSavedData::toTag
+	);
+	private static final SavedDataType<PlacedChunkActivatorSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		PlacedChunkActivatorSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -74,12 +80,12 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 	 */
 	public static PlacedChunkActivatorSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static PlacedChunkActivatorSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static PlacedChunkActivatorSavedData load(CompoundTag tag) {
 		PlacedChunkActivatorSavedData data = new PlacedChunkActivatorSavedData();
-		ListTag entries = tag.getList(KEY_ENTRIES, Tag.TAG_COMPOUND);
+		ListTag entries = tag.getListOrEmpty(KEY_ENTRIES);
 		for (Tag element : entries) {
 			if (!(element instanceof CompoundTag entryTag)) {
 				continue;
@@ -232,18 +238,18 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 		List<ActivatorEntry> entries = new ArrayList<>(entriesByKey.values());
 		entries.sort(
 			Comparator
-				.comparing((ActivatorEntry entry) -> entry.key().dimension().location().toString())
+				.comparing((ActivatorEntry entry) -> entry.key().dimension().identifier().toString())
 				.thenComparingLong(entry -> entry.key().activatorPos().asLong())
 		);
 		return List.copyOf(entries);
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		ListTag entries = new ListTag();
 		for (ActivatorEntry entry : entriesSnapshot()) {
 			CompoundTag entryTag = new CompoundTag();
-			entryTag.putString(KEY_DIMENSION, entry.key().dimension().location().toString());
+			entryTag.putString(KEY_DIMENSION, entry.key().dimension().identifier().toString());
 			entryTag.putLong(KEY_POS, entry.key().activatorPos().asLong());
 			entryTag.putString(KEY_ACTIVE_TYPE, ChunkActivatorConfigStateSnapshot.toTypeToken(entry.configStateSnapshot().activeType()));
 			entryTag.putString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, entry.configStateSnapshot().triggerSourceConfig().serialExpression());
@@ -358,49 +364,33 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 	}
 
 	private static Optional<ActivatorEntry> parseEntry(CompoundTag entryTag) {
-		ResourceLocation dimensionId = ResourceLocation.tryParse(entryTag.getString(KEY_DIMENSION));
+		Identifier dimensionId = Identifier.tryParse(entryTag.getStringOr(KEY_DIMENSION, ""));
 		if (dimensionId == null) {
 			return Optional.empty();
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
-		BlockPos activatorPos = BlockPos.of(entryTag.getLong(KEY_POS));
+		BlockPos activatorPos = BlockPos.of(entryTag.getLongOr(KEY_POS, 0L));
 		ChunkActivatorConfigSnapshot legacyConfig = new ChunkActivatorConfigSnapshot(
-			entryTag.contains(KEY_LEGACY_SERIAL_EXPRESSION, Tag.TAG_STRING) ? entryTag.getString(KEY_LEGACY_SERIAL_EXPRESSION) : "",
-			ChunkActivatorMode.tryParseToken(entryTag.getString(KEY_LEGACY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD)
+			entryTag.getStringOr(KEY_LEGACY_SERIAL_EXPRESSION, ""),
+			ChunkActivatorMode.tryParseToken(entryTag.getStringOr(KEY_LEGACY_MODE, "")).orElse(ChunkActivatorMode.FORCE_LOAD)
 		);
 		ChunkActivatorConfigStateSnapshot configStateSnapshot = new ChunkActivatorConfigStateSnapshot(
-			ChunkActivatorConfigStateSnapshot.tryParseTypeToken(
-				entryTag.contains(KEY_ACTIVE_TYPE, Tag.TAG_STRING) ? entryTag.getString(KEY_ACTIVE_TYPE) : ""
-			).orElse(LinkNodeType.TRIGGER_SOURCE),
+			ChunkActivatorConfigStateSnapshot.tryParseTypeToken(entryTag.getStringOr(KEY_ACTIVE_TYPE, "")).orElse(LinkNodeType.TRIGGER_SOURCE),
 			new ChunkActivatorConfigSnapshot(
-				entryTag.contains(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, Tag.TAG_STRING)
-					? entryTag.getString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION)
-					: legacyConfig.serialExpression(),
+				entryTag.getStringOr(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, legacyConfig.serialExpression()),
 				ChunkActivatorMode
-					.tryParseToken(
-						entryTag.contains(KEY_TRIGGER_SOURCE_MODE, Tag.TAG_STRING)
-							? entryTag.getString(KEY_TRIGGER_SOURCE_MODE)
-							: legacyConfig.mode().token()
-					)
+					.tryParseToken(entryTag.getStringOr(KEY_TRIGGER_SOURCE_MODE, legacyConfig.mode().token()))
 					.orElse(legacyConfig.mode())
 			),
 			new ChunkActivatorConfigSnapshot(
-				entryTag.contains(KEY_CORE_SERIAL_EXPRESSION, Tag.TAG_STRING)
-					? entryTag.getString(KEY_CORE_SERIAL_EXPRESSION)
-					: "",
+				entryTag.getStringOr(KEY_CORE_SERIAL_EXPRESSION, ""),
 				ChunkActivatorMode
-					.tryParseToken(
-						entryTag.contains(KEY_CORE_MODE, Tag.TAG_STRING)
-							? entryTag.getString(KEY_CORE_MODE)
-							: ChunkActivatorMode.FORCE_LOAD.token()
-					)
+					.tryParseToken(entryTag.getStringOr(KEY_CORE_MODE, ChunkActivatorMode.FORCE_LOAD.token()))
 					.orElse(ChunkActivatorMode.FORCE_LOAD)
 			)
 		);
-		String displayAlias = entryTag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)
-			? NodeAliasDisplayUtil.normalizeAlias(entryTag.getString(KEY_DISPLAY_ALIAS))
-			: "";
-		boolean active = entryTag.getBoolean(KEY_ACTIVE);
+		String displayAlias = NodeAliasDisplayUtil.normalizeAlias(entryTag.getStringOr(KEY_DISPLAY_ALIAS, ""));
+		boolean active = entryTag.getBooleanOr(KEY_ACTIVE, false);
 		ActivatorEntryKey key = new ActivatorEntryKey(dimension, activatorPos);
 		return Optional.of(
 			new ActivatorEntry(

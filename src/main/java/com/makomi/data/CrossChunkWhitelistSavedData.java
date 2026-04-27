@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import com.makomi.util.IncrementalReplacePlanUtil;
 import java.util.Collections;
 import java.util.HashMap;
@@ -7,7 +8,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.LongTag;
@@ -15,6 +15,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * 跨区块强制加载白名单 SavedData。
@@ -30,9 +31,14 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 	private static final String KEY_SERIALS = "serials";
 	private static final String KEY_RESIDENT_SERIALS = "residentSerials";
 
-	private static final SavedData.Factory<CrossChunkWhitelistSavedData> FACTORY = new SavedData.Factory<>(
-		CrossChunkWhitelistSavedData::new,
+	private static final Codec<CrossChunkWhitelistSavedData> CODEC = CompoundTag.CODEC.xmap(
 		CrossChunkWhitelistSavedData::load,
+		CrossChunkWhitelistSavedData::toTag
+	);
+	private static final SavedDataType<CrossChunkWhitelistSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		CrossChunkWhitelistSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -47,10 +53,10 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 	 */
 	public static CrossChunkWhitelistSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static CrossChunkWhitelistSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static CrossChunkWhitelistSavedData load(CompoundTag tag) {
 		CrossChunkWhitelistSavedData data = new CrossChunkWhitelistSavedData();
 		data.readBucket(tag, KEY_SOURCES, data.sourceWhitelist, data.sourceResidents);
 		data.readBucket(tag, KEY_TARGETS, data.targetWhitelist, data.targetResidents);
@@ -411,8 +417,8 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 		return new ReplaceWhitelistResult(added, removed, residentChanged, changed);
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		writeBucket(tag, KEY_SOURCES, sourceWhitelist, sourceResidents);
 		writeBucket(tag, KEY_TARGETS, targetWhitelist, targetResidents);
 		return tag;
@@ -441,15 +447,17 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 	) {
 		whitelistTarget.clear();
 		residentTarget.clear();
-		ListTag listTag = root.getList(key, Tag.TAG_COMPOUND);
+		ListTag listTag = root.getListOrEmpty(key);
 		for (Tag entry : listTag) {
-			CompoundTag entryTag = (CompoundTag) entry;
-			Optional<LinkNodeType> type = LinkNodeSemantics.tryParseCanonicalType(entryTag.getString(KEY_TYPE));
+			if (!(entry instanceof CompoundTag entryTag)) {
+				continue;
+			}
+			Optional<LinkNodeType> type = LinkNodeSemantics.tryParseCanonicalType(entryTag.getStringOr(KEY_TYPE, ""));
 			if (type.isEmpty()) {
 				continue;
 			}
 			Set<Long> serials = new HashSet<>();
-			ListTag serialList = entryTag.getList(KEY_SERIALS, Tag.TAG_LONG);
+			ListTag serialList = entryTag.getListOrEmpty(KEY_SERIALS);
 			for (Tag serialTag : serialList) {
 				if (!(serialTag instanceof LongTag longTag)) {
 					continue;
@@ -462,7 +470,7 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 			if (!serials.isEmpty()) {
 				whitelistTarget.put(type.get(), serials);
 				Set<Long> residentSerials = new HashSet<>();
-				ListTag residentSerialList = entryTag.getList(KEY_RESIDENT_SERIALS, Tag.TAG_LONG);
+				ListTag residentSerialList = entryTag.getListOrEmpty(KEY_RESIDENT_SERIALS);
 				for (Tag serialTag : residentSerialList) {
 					if (!(serialTag instanceof LongTag longTag)) {
 						continue;

@@ -9,7 +9,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -35,13 +34,13 @@ public class QuickLinkToolItem extends Item {
 	}
 
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		if (shouldOpenEditor(player, hand, heldStack)) {
 			openEditor(level, player, heldStack);
-			return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
-		return InteractionResultHolder.pass(heldStack);
+		return InteractionResult.PASS;
 	}
 
 	@Override
@@ -55,7 +54,7 @@ public class QuickLinkToolItem extends Item {
 		ItemStack heldStack = context.getItemInHand();
 		if (shouldOpenEditor(player, context.getHand(), heldStack)) {
 			openEditor(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		return InteractionResult.PASS;
 	}
@@ -70,9 +69,11 @@ public class QuickLinkToolItem extends Item {
 	public void appendHoverText(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
+		List<Component> tooltipComponents = new java.util.ArrayList<>();
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(stack);
 		tooltipComponents.add(
@@ -111,7 +112,8 @@ public class QuickLinkToolItem extends Item {
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.toggle_apply_edit_mode"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.collect"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.quick_link.apply"));
-		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.forEach(tooltipAdder);
+		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
 
 	/**
@@ -125,7 +127,7 @@ public class QuickLinkToolItem extends Item {
 	 * 在服务端打开缓存编辑器。
 	 */
 	private static void openEditor(Level level, Player player, ItemStack stack) {
-		if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
 			QuickLinkNetwork.openEditor(serverPlayer, stack);
 		}
 	}

@@ -18,8 +18,7 @@ import com.makomi.item.StatePanelToolItem;
 import com.makomi.data.LinkNodeType;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ArmorItem;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 
 /**
@@ -163,7 +162,7 @@ public final class ModItems {
 
 	public static final Item SMART_GLASSES = register(
 		"smart_glasses",
-		new SmartGlassesItem(ArmorItem.Type.HELMET, new Item.Properties().stacksTo(1))
+		new SmartGlassesItem(new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item SMART_NODE_CONTAINER = register(
@@ -188,8 +187,8 @@ public final class ModItems {
 		return Registry.register(BuiltInRegistries.ITEM, id(path), item);
 	}
 
-	private static ResourceLocation id(String path) {
-		return ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
+	private static Identifier id(String path) {
+		return Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, path);
 	}
 
 	public static void register() {

@@ -701,7 +701,7 @@ public final class NodeTraceCommandRegistry {
 		if (source == null || snapshot == null) {
 			return;
 		}
-		String dimensionText = snapshot.dimension() == null ? "-" : snapshot.dimension().location().toString();
+		String dimensionText = snapshot.dimension() == null ? "-" : snapshot.dimension().identifier().toString();
 		String posText = snapshot.pos() == null ? "-" : CommandTreeSupport.formatBlockPos(snapshot.pos());
 		source.sendSuccess(
 			() -> Component.translatable(

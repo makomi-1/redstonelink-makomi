@@ -359,7 +359,7 @@ public final class CrossChunkCommandRegistry {
 				serial
 			);
 			boolean online = runtimeNode.isPresent();
-			String dimension = runtimeNode.map(value -> value.dimension().location().toString()).orElse("-");
+			String dimension = runtimeNode.map(value -> value.dimension().identifier().toString()).orElse("-");
 			String chunk = runtimeNode.map(value -> formatChunkPos(value.pos().getX(), value.pos().getZ())).orElse("-");
 			source.sendSuccess(
 				() -> Component.translatable(

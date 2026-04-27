@@ -109,7 +109,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	@Override
 	public void press(BlockState state, Level level, BlockPos pos, Player player) {
 		super.press(state, level, pos, player);
-		if (!level.isClientSide && level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+		if (!level.isClientSide() && level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
 			// 仅在服务端触发，避免客户端预测导致重复触发。
 			triggerSourceBlockEntity.triggerLinkedTargets(player);
 		}
@@ -125,7 +125,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		return super.useWithoutItem(state, level, pos, player, hitResult);
 	}

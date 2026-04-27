@@ -19,7 +19,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -184,14 +184,14 @@ final class LinkFilterNetworkServerHandlerSupport {
 		if (player == null || payload == null || payload.dimensionKey().isBlank()) {
 			return null;
 		}
-		Optional<ResourceLocation> dimensionLocation = ResourceLocation.tryParse(payload.dimensionKey()) == null
+		Optional<Identifier> dimensionLocation = Identifier.tryParse(payload.dimensionKey()) == null
 			? Optional.empty()
-			: Optional.of(ResourceLocation.parse(payload.dimensionKey()));
+			: Optional.of(Identifier.parse(payload.dimensionKey()));
 		if (dimensionLocation.isEmpty()) {
 			return null;
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionLocation.get());
-		ServerLevel level = player.server.getLevel(dimension);
+		ServerLevel level = player.getServer().getLevel(dimension);
 		if (level == null) {
 			return null;
 		}

@@ -144,7 +144,7 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 	public void removed(Player player) {
 		super.removed(player);
 		container.stopOpen(player);
-		if (!player.level().isClientSide) {
+		if (!player.level().isClientSide()) {
 			persistToHeldItem();
 		}
 	}
@@ -212,7 +212,7 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 	}
 
 	private void handleContainerChanged() {
-		if (owner == null || owner.level().isClientSide) {
+		if (owner == null || owner.level().isClientSide()) {
 			return;
 		}
 		if (sortingContents) {
@@ -246,7 +246,7 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 	}
 
 	private void persistToHeldItem() {
-		if (owner == null || owner.level().isClientSide) {
+		if (owner == null || owner.level().isClientSide()) {
 			return;
 		}
 		if (heldSlotIndex < 0 || heldSlotIndex >= owner.getInventory().getContainerSize()) {

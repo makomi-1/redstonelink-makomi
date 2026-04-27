@@ -712,7 +712,7 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 
 
 	protected final void setActive(boolean active) {
-		if (level == null || level.isClientSide) {
+		if (level == null || level.isClientSide()) {
 			return;
 		}
 		if (this.active == active) {

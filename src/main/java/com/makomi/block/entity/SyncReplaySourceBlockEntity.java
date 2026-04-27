@@ -197,7 +197,7 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 	 * 将最近一次真实 sync replay 快照同步到世界级存档，供来源区块离线后的 target chunk load replay 使用。
 	 */
 	private void persistReplaySnapshotToLinkSavedData(int signalStrength, EventMeta eventMeta) {
-		if (level == null || level.isClientSide || getSerial() <= 0L || !(level instanceof ServerLevel serverLevel)) {
+		if (level == null || level.isClientSide() || getSerial() <= 0L || !(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
 		LinkSavedData.get(serverLevel).putTriggerSourceReplaySyncSnapshot(getSerial(), eventMeta, signalStrength);

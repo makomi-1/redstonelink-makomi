@@ -3,7 +3,6 @@ package com.makomi.util;
 import java.util.Collection;
 import java.util.Set;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 
 /**
  * 序号集合 NBT 编解码工具。
@@ -27,10 +26,7 @@ import net.minecraft.nbt.Tag;
 		if (tag == null || output == null || key == null || key.isBlank()) {
 			return;
 		}
-		if (!tag.contains(key, Tag.TAG_LONG_ARRAY)) {
-			return;
-		}
-		for (long serial : tag.getLongArray(key)) {
+		for (long serial : tag.getLongArray(key).orElseGet(() -> new long[0])) {
 			if (serial > 0L) {
 				output.add(serial);
 			}

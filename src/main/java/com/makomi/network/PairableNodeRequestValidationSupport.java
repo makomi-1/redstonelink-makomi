@@ -48,7 +48,7 @@ final class PairableNodeRequestValidationSupport {
 			return null;
 		}
 		ServerLevel serverLevel = player.serverLevel();
-		if (serverLevel == null || !serverLevel.dimension().location().toString().equals(dimensionKey)) {
+		if (serverLevel == null || !serverLevel.dimension().identifier().toString().equals(dimensionKey)) {
 			return null;
 		}
 

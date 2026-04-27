@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -7,13 +8,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * 节点别名持久化数据。
@@ -30,9 +31,14 @@ public final class NodeAliasSavedData extends SavedData {
 	private static final String KEY_ALIAS = "alias";
 	private static final int MAX_ALIAS_LENGTH = 32;
 
-	private static final SavedData.Factory<NodeAliasSavedData> FACTORY = new SavedData.Factory<>(
-		NodeAliasSavedData::new,
+	private static final Codec<NodeAliasSavedData> CODEC = CompoundTag.CODEC.xmap(
 		NodeAliasSavedData::load,
+		NodeAliasSavedData::toTag
+	);
+	private static final SavedDataType<NodeAliasSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		NodeAliasSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -46,22 +52,19 @@ public final class NodeAliasSavedData extends SavedData {
 	 */
 	public static NodeAliasSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static NodeAliasSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static NodeAliasSavedData load(CompoundTag tag) {
 		NodeAliasSavedData data = new NodeAliasSavedData();
-		if (!tag.contains(KEY_ENTRIES, Tag.TAG_LIST)) {
-			return data;
-		}
-		ListTag entryList = tag.getList(KEY_ENTRIES, Tag.TAG_COMPOUND);
+		ListTag entryList = tag.getListOrEmpty(KEY_ENTRIES);
 		for (Tag entryTag : entryList) {
 			if (!(entryTag instanceof CompoundTag entryCompound)) {
 				continue;
 			}
-			LinkNodeType type = LinkNodeSemantics.tryParseCanonicalType(entryCompound.getString(KEY_TYPE)).orElse(null);
-			long serial = entryCompound.getLong(KEY_SERIAL);
-			String alias = NodeAliasDisplayUtil.normalizeAlias(entryCompound.getString(KEY_ALIAS));
+			LinkNodeType type = LinkNodeSemantics.tryParseCanonicalType(entryCompound.getStringOr(KEY_TYPE, "")).orElse(null);
+			long serial = entryCompound.getLongOr(KEY_SERIAL, 0L);
+			String alias = NodeAliasDisplayUtil.normalizeAlias(entryCompound.getStringOr(KEY_ALIAS, ""));
 			if (type == null || serial <= 0L || !validateAlias(alias).valid()) {
 				continue;
 			}
@@ -184,8 +187,8 @@ public final class NodeAliasSavedData extends SavedData {
 		return RemoveResult.removed(removedAlias);
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		ListTag entryList = new ListTag();
 		for (Entry entry : listAll()) {
 			CompoundTag entryTag = new CompoundTag();

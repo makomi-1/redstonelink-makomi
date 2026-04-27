@@ -140,7 +140,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		return InteractionResult.PASS;
 	}
@@ -189,7 +189,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	 * 统一红石输入处理：基于一次输入采样判定是否触发绑定目标，避免持续高电平重复触发。
 	 */
 	protected final void updatePoweredState(Level level, BlockPos pos, BlockState state) {
-		if (level.isClientSide) {
+		if (level.isClientSide()) {
 			return;
 		}
 		int signalStrength = resolveInputSignalStrength(level, pos);
@@ -231,7 +231,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	 * </p>
 	 */
 	public final void resyncPoweredStateFromCurrentInputsWithoutTrigger(Level level, BlockPos pos, BlockState state) {
-		if (level.isClientSide) {
+		if (level.isClientSide()) {
 			return;
 		}
 		BlockState currentState = level.getBlockState(pos);

@@ -17,7 +17,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.SlotAccess;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -49,14 +48,14 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	}
 
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		ensureSerial(level, heldStack);
 		if (!canOpenPairingUi(player, hand)) {
-			return InteractionResultHolder.pass(heldStack);
+			return InteractionResult.PASS;
 		}
 
-		if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
 			long serial = LinkItemData.getSerial(heldStack);
 			if (serial > 0L) {
 				PairingNetwork.openPairingBySourceType(
@@ -67,7 +66,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 				);
 			}
 		}
-		return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
+		return InteractionResult.sidedSuccess(level.isClientSide());
 	}
 
 	@Override
@@ -80,7 +79,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 		if (player != null
 			&& canOpenPairingUi(player, context.getHand())
 			&& (nodeType == LinkNodeType.TRIGGER_SOURCE || nodeType == LinkNodeType.CORE)) {
-			if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+			if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
 				long serial = LinkItemData.getSerial(heldStack);
 				if (serial > 0L) {
 					PairingNetwork.openPairingBySourceType(
@@ -91,7 +90,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 					);
 				}
 			}
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		return super.useOn(context);
 	}
@@ -107,9 +106,11 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	public void appendHoverText(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
+		List<Component> tooltipComponents = new java.util.ArrayList<>();
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		long serial = LinkItemData.getSerial(stack);
 		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
@@ -149,7 +150,8 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			);
 		}
 		appendTriggerSourceSignalSemanticTooltipIfNeeded(stack, tooltipComponents);
-		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.forEach(tooltipAdder);
+		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
 
 	/**

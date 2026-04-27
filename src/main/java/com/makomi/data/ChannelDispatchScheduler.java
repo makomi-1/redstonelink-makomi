@@ -298,7 +298,7 @@ public final class ChannelDispatchScheduler {
 					|| targetBlockEntity == null
 					|| targetBlockEntity.isRemoved()
 					|| targetBlockEntity.getLevel() == null
-					|| targetBlockEntity.getLevel().isClientSide
+					|| targetBlockEntity.getLevel().isClientSide()
 					|| !targetBlockEntity.matchesNodeIdentity(targetType, targetSerial)
 					|| stagedEntries.isEmpty()
 			) {

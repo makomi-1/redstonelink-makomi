@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import com.makomi.util.SerialParseUtil;
 import com.makomi.util.SignalStrengths;
 import java.util.ArrayList;
@@ -11,19 +12,19 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * 已放置过滤器持久化数据。
@@ -47,9 +48,14 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 	private static final String KEY_SIGNAL_MODE = "signalMode";
 	private static final String KEY_NEIGHBOR_SIGNAL_STRENGTH = "neighborSignalStrength";
 
-	private static final SavedData.Factory<PlacedLinkFilterSavedData> FACTORY = new SavedData.Factory<>(
-		PlacedLinkFilterSavedData::new,
+	private static final Codec<PlacedLinkFilterSavedData> CODEC = CompoundTag.CODEC.xmap(
 		PlacedLinkFilterSavedData::load,
+		PlacedLinkFilterSavedData::toTag
+	);
+	private static final SavedDataType<PlacedLinkFilterSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		PlacedLinkFilterSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -62,12 +68,12 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 	 */
 	public static PlacedLinkFilterSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static PlacedLinkFilterSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static PlacedLinkFilterSavedData load(CompoundTag tag) {
 		PlacedLinkFilterSavedData data = new PlacedLinkFilterSavedData();
-		ListTag entries = tag.getList(KEY_ENTRIES, Tag.TAG_COMPOUND);
+		ListTag entries = tag.getListOrEmpty(KEY_ENTRIES);
 		for (Tag element : entries) {
 			if (!(element instanceof CompoundTag entryTag)) {
 				continue;
@@ -251,18 +257,18 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		entries.sort(
 			Comparator
 				.comparing((FilterEntry entry) -> entry.key().filterKind().token())
-				.thenComparing(entry -> entry.key().dimension().location().toString())
+				.thenComparing(entry -> entry.key().dimension().identifier().toString())
 				.thenComparingLong(entry -> entry.key().filterPos().asLong())
 		);
 		return List.copyOf(entries);
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		ListTag entries = new ListTag();
 		for (FilterEntry entry : entriesSnapshot()) {
 			CompoundTag entryTag = new CompoundTag();
-			entryTag.putString(KEY_DIMENSION, entry.key().dimension().location().toString());
+			entryTag.putString(KEY_DIMENSION, entry.key().dimension().identifier().toString());
 			entryTag.putString(KEY_KIND, entry.key().filterKind().token());
 			entryTag.putLong(KEY_POS, entry.key().filterPos().asLong());
 			entryTag.putString(KEY_SERIAL_EXPRESSION, entry.configSnapshot().serialExpression());
@@ -336,30 +342,35 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 	 * 解析单个持久化条目。
 	 */
 	private static Optional<FilterEntry> parseEntry(CompoundTag entryTag) {
-		ResourceLocation dimensionId = ResourceLocation.tryParse(entryTag.getString(KEY_DIMENSION));
+		Identifier dimensionId = Identifier.tryParse(entryTag.getStringOr(KEY_DIMENSION, ""));
 		if (dimensionId == null) {
 			return Optional.empty();
 		}
-		Optional<LinkFilterKind> filterKind = LinkFilterKind.tryParseToken(entryTag.getString(KEY_KIND));
+		Optional<LinkFilterKind> filterKind = LinkFilterKind.tryParseToken(entryTag.getStringOr(KEY_KIND, ""));
 		if (filterKind.isEmpty()) {
 			return Optional.empty();
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
-		BlockPos filterPos = BlockPos.of(entryTag.getLong(KEY_POS));
+		BlockPos filterPos = BlockPos.of(entryTag.getLongOr(KEY_POS, 0L));
 		LinkFilterConfigSnapshot configSnapshot = new LinkFilterConfigSnapshot(
-			entryTag.getString(KEY_SERIAL_EXPRESSION),
-			LinkFilterTargetMode.tryParseToken(entryTag.getString(KEY_TARGET_MODE)).orElse(null),
-			entryTag.contains(KEY_CHANNEL, Tag.TAG_LONG) ? Math.max(0L, entryTag.getLong(KEY_CHANNEL)) : 0L,
-			LinkFilterNodeSetMode.tryParseToken(entryTag.getString(KEY_NODE_SET_MODE)).orElse(LinkFilterNodeSetMode.DISABLED),
+			entryTag.getStringOr(KEY_SERIAL_EXPRESSION, ""),
+			LinkFilterTargetMode.tryParseToken(entryTag.getStringOr(KEY_TARGET_MODE, "")).orElse(null),
+			Math.max(0L, entryTag.getLongOr(KEY_CHANNEL, 0L)),
+			LinkFilterNodeSetMode.tryParseToken(entryTag.getStringOr(KEY_NODE_SET_MODE, "")).orElse(LinkFilterNodeSetMode.DISABLED),
 			LinkFilterSignalThresholdSource
-				.tryParseToken(entryTag.getString(KEY_SIGNAL_THRESHOLD_SOURCE))
+				.tryParseToken(entryTag.getStringOr(KEY_SIGNAL_THRESHOLD_SOURCE, ""))
 				.orElse(LinkFilterSignalThresholdSource.FIXED_INPUT),
-			entryTag.getInt(KEY_FIXED_SIGNAL_THRESHOLD),
-			LinkFilterSignalMode.tryParseToken(entryTag.getString(KEY_SIGNAL_MODE)).orElse(LinkFilterSignalMode.DISABLED)
+			entryTag.getIntOr(KEY_FIXED_SIGNAL_THRESHOLD, 15),
+			LinkFilterSignalMode.tryParseToken(entryTag.getStringOr(KEY_SIGNAL_MODE, "")).orElse(LinkFilterSignalMode.DISABLED)
 		);
 		FilterEntryKey key = new FilterEntryKey(dimension, filterKind.get(), filterPos);
 		return Optional.of(
-			new FilterEntry(key, configSnapshot, parseSerialExpression(configSnapshot), SignalStrengths.clamp(entryTag.getInt(KEY_NEIGHBOR_SIGNAL_STRENGTH)))
+			new FilterEntry(
+				key,
+				configSnapshot,
+				parseSerialExpression(configSnapshot),
+				SignalStrengths.clamp(entryTag.getIntOr(KEY_NEIGHBOR_SIGNAL_STRENGTH, 0))
+			)
 		);
 	}
 

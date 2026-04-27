@@ -18,7 +18,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -74,19 +73,19 @@ public class LinkerItem extends Item implements PairableItem {
 	 * @return 本次交互结果与手持物
 	 */
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		ensureSerialAssigned(level, heldStack);
 
 		if (shouldOpenPairingUi(player, hand)) {
 			openPairingUi(level, player, heldStack);
-			return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		if (canExecutePrimaryUse(player, hand)) {
 			executePrimaryUse(level, player, heldStack);
-			return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
-		return InteractionResultHolder.pass(heldStack);
+		return InteractionResult.PASS;
 	}
 
 	/**
@@ -108,12 +107,12 @@ public class LinkerItem extends Item implements PairableItem {
 		if (player != null
 			&& shouldOpenPairingUi(player, context.getHand())) {
 			openPairingUi(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		if (player != null
 			&& canExecutePrimaryUse(player, context.getHand())) {
 			executePrimaryUse(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		return InteractionResult.PASS;
 	}
@@ -151,9 +150,11 @@ public class LinkerItem extends Item implements PairableItem {
 	public void appendHoverText(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
+		List<Component> tooltipComponents = new java.util.ArrayList<>();
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		long serial = LinkItemData.getSerial(stack);
 		List<Long> linkedSerials = LinkItemData.getLinkedSerials(stack);
@@ -174,7 +175,8 @@ public class LinkerItem extends Item implements PairableItem {
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.open_pairing"));
 		tooltipComponents.add(buildPrimaryUseTooltip());
 		appendGrayFooterTooltips(stack, context, tooltipComponents, tooltipFlag);
-		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.forEach(tooltipAdder);
+		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
 
 	/**
@@ -251,7 +253,8 @@ public class LinkerItem extends Item implements PairableItem {
 	protected void appendGrayFooterTooltips(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
 		tooltipComponents.add(buildSignalSemanticTooltip());

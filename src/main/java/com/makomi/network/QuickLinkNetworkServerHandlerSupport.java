@@ -618,7 +618,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return null;
 		}
 		ServerLevel serverLevel = player.serverLevel();
-		if (serverLevel == null || !serverLevel.dimension().location().toString().equals(dimensionKey)) {
+		if (serverLevel == null || !serverLevel.dimension().identifier().toString().equals(dimensionKey)) {
 			return null;
 		}
 
@@ -658,7 +658,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return null;
 		}
 		ServerLevel serverLevel = player.serverLevel();
-		if (serverLevel == null || !serverLevel.dimension().location().toString().equals(dimensionKey)) {
+		if (serverLevel == null || !serverLevel.dimension().identifier().toString().equals(dimensionKey)) {
 			return null;
 		}
 
@@ -697,7 +697,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return null;
 		}
 		ServerLevel serverLevel = player.serverLevel();
-		if (serverLevel == null || !serverLevel.dimension().location().toString().equals(dimensionKey)) {
+		if (serverLevel == null || !serverLevel.dimension().identifier().toString().equals(dimensionKey)) {
 			return null;
 		}
 
@@ -831,7 +831,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 			long expectedNodeSerial
 		) {
 			return new ResolvedQuickLinkApplyTarget(
-				nodeBlockEntity.getLevel().dimension().location().toString(),
+				nodeBlockEntity.getLevel().dimension().identifier().toString(),
 				nodeBlockEntity.getBlockPos().asLong(),
 				LinkNodeSemantics.toSemanticName(expectedNodeType),
 				expectedNodeSerial,
@@ -844,7 +844,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 
 		static ResolvedQuickLinkApplyTarget forFilter(AbstractLinkFilterBlockEntity filterBlockEntity) {
 			return new ResolvedQuickLinkApplyTarget(
-				filterBlockEntity.getLevel().dimension().location().toString(),
+				filterBlockEntity.getLevel().dimension().identifier().toString(),
 				filterBlockEntity.getBlockPos().asLong(),
 				filterBlockEntity.filterKind().token(),
 				0L,
@@ -857,7 +857,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 
 		static ResolvedQuickLinkApplyTarget forChunkActivator(LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
 			return new ResolvedQuickLinkApplyTarget(
-				chunkActivatorBlockEntity.getLevel().dimension().location().toString(),
+				chunkActivatorBlockEntity.getLevel().dimension().identifier().toString(),
 				chunkActivatorBlockEntity.getBlockPos().asLong(),
 				QUICK_LINK_CHUNK_ACTIVATOR_TARGET_TOKEN,
 				0L,
@@ -870,7 +870,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 
 		static ResolvedQuickLinkApplyTarget forRepeater(LinkRepeaterBlockEntity repeaterBlockEntity) {
 			return new ResolvedQuickLinkApplyTarget(
-				repeaterBlockEntity.getLevel().dimension().location().toString(),
+				repeaterBlockEntity.getLevel().dimension().identifier().toString(),
 				repeaterBlockEntity.getBlockPos().asLong(),
 				QUICK_LINK_REPEATER_TARGET_TOKEN,
 				repeaterBlockEntity.getSerial(),

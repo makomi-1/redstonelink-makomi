@@ -41,14 +41,14 @@ final class RepeaterNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> RepeaterNetworkServerHandlerSupport.handleSaveRepeater(player, payload));
+			player.getServer().execute(() -> RepeaterNetworkServerHandlerSupport.handleSaveRepeater(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(RepeaterNetwork.OpenRepeaterPairingPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> RepeaterNetworkServerHandlerSupport.handleOpenRepeaterPairing(player, payload));
+			player.getServer().execute(() -> RepeaterNetworkServerHandlerSupport.handleOpenRepeaterPairing(player, payload));
 		});
 	}
 }

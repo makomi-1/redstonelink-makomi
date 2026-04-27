@@ -280,7 +280,7 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	 */
 	protected final void syncToClient() {
 		setChanged();
-		if (level != null && !level.isClientSide) {
+		if (level != null && !level.isClientSide()) {
 			BlockState state = getBlockState();
 			level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
 		}

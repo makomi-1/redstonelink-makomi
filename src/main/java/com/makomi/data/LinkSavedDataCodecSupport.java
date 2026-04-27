@@ -10,13 +10,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.Level;
 
 /**
@@ -32,41 +31,39 @@ final class LinkSavedDataCodecSupport {
 	/**
 	 * 从 NBT 读取 LinkSavedData。
 	 */
-	static LinkSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	static LinkSavedData load(CompoundTag tag) {
 		LinkSavedData data = new LinkSavedData();
 		Map<String, Integer> rejectedTypeCounts = new HashMap<>();
 		int rejectedTypeRows = 0;
 
-		if (tag.contains(LinkSavedData.KEY_NEXT_CORE_SERIAL, Tag.TAG_LONG)) {
-			data.nextCoreSerial = Math.max(1L, tag.getLong(LinkSavedData.KEY_NEXT_CORE_SERIAL));
-		}
-
-		if (tag.contains(LinkSavedData.KEY_NEXT_TRIGGER_SOURCE_SERIAL, Tag.TAG_LONG)) {
-			data.nextTriggerSourceSerial = Math.max(1L, tag.getLong(LinkSavedData.KEY_NEXT_TRIGGER_SOURCE_SERIAL));
-		}
+		data.nextCoreSerial = Math.max(1L, tag.getLongOr(LinkSavedData.KEY_NEXT_CORE_SERIAL, data.nextCoreSerial));
+		data.nextTriggerSourceSerial = Math.max(
+			1L,
+			tag.getLongOr(LinkSavedData.KEY_NEXT_TRIGGER_SOURCE_SERIAL, data.nextTriggerSourceSerial)
+		);
 		SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_REPEATER_SERIALS, data.repeaterSerials);
 
-		ListTag nodesTag = tag.getList(LinkSavedData.KEY_NODES, Tag.TAG_COMPOUND);
+		ListTag nodesTag = tag.getListOrEmpty(LinkSavedData.KEY_NODES);
 		for (Tag entryTag : nodesTag) {
 			if (!(entryTag instanceof CompoundTag compound)) {
 				continue;
 			}
-			long serial = compound.getLong(LinkSavedData.KEY_SERIAL);
+			long serial = compound.getLongOr(LinkSavedData.KEY_SERIAL, 0L);
 			if (serial <= 0L) {
 				continue;
 			}
 
-			ResourceLocation dimensionId = ResourceLocation.tryParse(compound.getString(LinkSavedData.KEY_DIMENSION));
+			Identifier dimensionId = Identifier.tryParse(compound.getStringOr(LinkSavedData.KEY_DIMENSION, ""));
 			if (dimensionId == null) {
 				continue;
 			}
 
 			ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
-			BlockPos pos = BlockPos.of(compound.getLong(LinkSavedData.KEY_POS));
+			BlockPos pos = BlockPos.of(compound.getLongOr(LinkSavedData.KEY_POS, 0L));
 			Optional<LinkNodeType> parsedType = parseStoredNodeType(compound);
 			if (parsedType.isEmpty()) {
 				rejectedTypeRows++;
-				rejectedTypeCounts.merge(normalizeStoredTypeForStats(compound.getString(LinkSavedData.KEY_TYPE)), 1, Integer::sum);
+				rejectedTypeCounts.merge(normalizeStoredTypeForStats(compound.getStringOr(LinkSavedData.KEY_TYPE, "")), 1, Integer::sum);
 				continue;
 			}
 			LinkNodeType type = parsedType.get();
@@ -81,17 +78,17 @@ final class LinkSavedDataCodecSupport {
 			);
 		}
 
-		ListTag linksTag = tag.getList(LinkSavedData.KEY_LINKS, Tag.TAG_COMPOUND);
+		ListTag linksTag = tag.getListOrEmpty(LinkSavedData.KEY_LINKS);
 		for (Tag entryTag : linksTag) {
 			if (!(entryTag instanceof CompoundTag compound)) {
 				continue;
 			}
-			long sourceSerial = compound.getLong(LinkSavedData.KEY_SOURCE_SERIAL);
+			long sourceSerial = compound.getLongOr(LinkSavedData.KEY_SOURCE_SERIAL, 0L);
 			if (sourceSerial <= 0L) {
 				continue;
 			}
 
-			for (long targetSerial : compound.getLongArray(LinkSavedData.KEY_TARGET_SERIALS)) {
+			for (long targetSerial : compound.getLongArray(LinkSavedData.KEY_TARGET_SERIALS).orElseGet(() -> new long[0])) {
 				if (targetSerial <= 0L) {
 					continue;
 				}
@@ -102,12 +99,12 @@ final class LinkSavedDataCodecSupport {
 			}
 		}
 
-		ListTag replaySnapshotsTag = tag.getList(LinkSavedData.KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS, Tag.TAG_COMPOUND);
+		ListTag replaySnapshotsTag = tag.getListOrEmpty(LinkSavedData.KEY_TRIGGER_SOURCE_REPLAY_SYNC_SNAPSHOTS);
 		for (Tag entryTag : replaySnapshotsTag) {
 			if (!(entryTag instanceof CompoundTag compound)) {
 				continue;
 			}
-			long triggerSourceSerial = compound.getLong(LinkSavedData.KEY_SERIAL);
+			long triggerSourceSerial = compound.getLongOr(LinkSavedData.KEY_SERIAL, 0L);
 			if (triggerSourceSerial <= 0L) {
 				continue;
 			}
@@ -118,11 +115,11 @@ final class LinkSavedDataCodecSupport {
 			data.triggerSourceReplaySyncSnapshots.put(triggerSourceSerial, snapshot);
 		}
 
-		loadChannelConfigs(tag.getList(LinkSavedData.KEY_TRIGGER_SOURCE_CHANNEL_CONFIGS, Tag.TAG_COMPOUND), data, LinkNodeType.TRIGGER_SOURCE);
-		loadChannelConfigs(tag.getList(LinkSavedData.KEY_CORE_CHANNEL_CONFIGS, Tag.TAG_COMPOUND), data, LinkNodeType.CORE);
+		loadChannelConfigs(tag.getListOrEmpty(LinkSavedData.KEY_TRIGGER_SOURCE_CHANNEL_CONFIGS), data, LinkNodeType.TRIGGER_SOURCE);
+		loadChannelConfigs(tag.getListOrEmpty(LinkSavedData.KEY_CORE_CHANNEL_CONFIGS), data, LinkNodeType.CORE);
 
-		boolean hasAllocatedCore = tag.contains(LinkSavedData.KEY_ALLOCATED_CORE_SERIALS, Tag.TAG_LONG_ARRAY);
-		boolean hasAllocatedTriggerSource = tag.contains(LinkSavedData.KEY_ALLOCATED_TRIGGER_SOURCE_SERIALS, Tag.TAG_LONG_ARRAY);
+		boolean hasAllocatedCore = tag.contains(LinkSavedData.KEY_ALLOCATED_CORE_SERIALS);
+		boolean hasAllocatedTriggerSource = tag.contains(LinkSavedData.KEY_ALLOCATED_TRIGGER_SOURCE_SERIALS);
 		if (hasAllocatedCore) {
 			SerialNbtCodecUtil.readSerialSet(tag, LinkSavedData.KEY_ALLOCATED_CORE_SERIALS, data.allocatedCoreSerials);
 		}
@@ -208,7 +205,7 @@ final class LinkSavedDataCodecSupport {
 		for (LinkSavedData.LinkNode node : map.values()) {
 			CompoundTag entry = new CompoundTag();
 			entry.putLong(LinkSavedData.KEY_SERIAL, node.serial());
-			entry.putString(LinkSavedData.KEY_DIMENSION, node.dimension().location().toString());
+			entry.putString(LinkSavedData.KEY_DIMENSION, node.dimension().identifier().toString());
 			entry.putLong(LinkSavedData.KEY_POS, node.pos().asLong());
 			entry.putString(LinkSavedData.KEY_TYPE, LinkNodeSemantics.toSemanticName(node.type()));
 			nodesTag.add(entry);
@@ -266,11 +263,11 @@ final class LinkSavedDataCodecSupport {
 		}
 		return Optional.of(
 			new LinkSavedData.ReplaySyncSnapshotRecord(
-				com.makomi.util.SignalStrengths.clamp(compound.getInt(LinkSavedData.KEY_SIGNAL_STRENGTH)),
+				com.makomi.util.SignalStrengths.clamp(compound.getIntOr(LinkSavedData.KEY_SIGNAL_STRENGTH, 0)),
 				com.makomi.block.entity.ActivatableTargetBlockEntity.EventMeta.of(
-					Math.max(0L, compound.getLong(LinkSavedData.KEY_TICK)),
-					Math.max(0, compound.getInt(LinkSavedData.KEY_SLOT)),
-					Math.max(0L, compound.getLong(LinkSavedData.KEY_SEQ))
+					Math.max(0L, compound.getLongOr(LinkSavedData.KEY_TICK, 0L)),
+					Math.max(0, compound.getIntOr(LinkSavedData.KEY_SLOT, 0)),
+					Math.max(0L, compound.getLongOr(LinkSavedData.KEY_SEQ, 0L))
 				)
 			)
 		);
@@ -287,8 +284,8 @@ final class LinkSavedDataCodecSupport {
 			if (!(entryTag instanceof CompoundTag compound)) {
 				continue;
 			}
-			long serial = compound.getLong(LinkSavedData.KEY_SERIAL);
-			long channel = compound.getLong(LinkSavedData.KEY_CHANNEL);
+			long serial = compound.getLongOr(LinkSavedData.KEY_SERIAL, 0L);
+			long channel = compound.getLongOr(LinkSavedData.KEY_CHANNEL, 0L);
 			if (serial <= 0L || !LinkSavedDataChannelSupport.isValidChannel(channel)) {
 				continue;
 			}
@@ -303,7 +300,7 @@ final class LinkSavedDataCodecSupport {
 		if (compound == null) {
 			return Optional.empty();
 		}
-		return LinkNodeSemantics.tryParseCanonicalType(compound.getString(LinkSavedData.KEY_TYPE));
+		return LinkNodeSemantics.tryParseCanonicalType(compound.getStringOr(LinkSavedData.KEY_TYPE, ""));
 	}
 
 	/**

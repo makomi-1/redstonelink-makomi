@@ -20,7 +20,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -215,12 +215,12 @@ final class RepeaterNetworkServerHandlerSupport {
 		if (player == null || dimensionKey == null || dimensionKey.isBlank()) {
 			return null;
 		}
-		ResourceLocation dimensionLocation = ResourceLocation.tryParse(dimensionKey);
+		Identifier dimensionLocation = Identifier.tryParse(dimensionKey);
 		if (dimensionLocation == null) {
 			return null;
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionLocation);
-		ServerLevel level = player.server.getLevel(dimension);
+		ServerLevel level = player.getServer().getLevel(dimension);
 		if (level == null) {
 			return null;
 		}

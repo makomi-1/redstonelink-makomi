@@ -358,7 +358,7 @@ public final class CoreDispatchBatchScheduler {
 		if (server == null || targetBlockEntity == null || targetType == null || targetSerial <= 0L) {
 			return null;
 		}
-		if (targetBlockEntity.getLevel() == null || targetBlockEntity.getLevel().isClientSide) {
+		if (targetBlockEntity.getLevel() == null || targetBlockEntity.getLevel().isClientSide()) {
 			return null;
 		}
 		if (!targetBlockEntity.matchesNodeIdentity(targetType, targetSerial)) {
@@ -583,7 +583,7 @@ public final class CoreDispatchBatchScheduler {
 				flushEntriesScratch.clear();
 				return;
 			}
-			if (targetBlockEntity.getLevel() == null || targetBlockEntity.getLevel().isClientSide) {
+			if (targetBlockEntity.getLevel() == null || targetBlockEntity.getLevel().isClientSide()) {
 				entriesBySourceAndKind.clear();
 				flushEntriesScratch.clear();
 				return;

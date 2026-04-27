@@ -123,7 +123,7 @@ public final class NodeCommandRegistry {
 			source.hasPermission(RedstoneLinkConfig.privacy().viewPermissionLevel())
 		);
 		NodeIdentitySnapshot identity = readSnapshot.identity();
-		String dimensionText = identity.dimension() == null ? "-" : identity.dimension().location().toString();
+		String dimensionText = identity.dimension() == null ? "-" : identity.dimension().identifier().toString();
 		String posText = identity.pos() == null ? "-" : CommandTreeSupport.formatBlockPos(identity.pos());
 		String displaySerialText = NodeAliasServerSupport.resolveDisplayText(source.getLevel(), type, serial);
 		source.sendSuccess(

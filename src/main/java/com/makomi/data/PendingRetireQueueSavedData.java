@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -7,17 +8,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * 待退役队列持久化数据。
@@ -34,9 +35,14 @@ public final class PendingRetireQueueSavedData extends SavedData {
 	private static final String KEY_POS = "pos";
 	private static final String KEY_EXPIRE_TICK = "expireTick";
 
-	private static final SavedData.Factory<PendingRetireQueueSavedData> FACTORY = new SavedData.Factory<>(
-		PendingRetireQueueSavedData::new,
+	private static final Codec<PendingRetireQueueSavedData> CODEC = CompoundTag.CODEC.xmap(
 		PendingRetireQueueSavedData::load,
+		PendingRetireQueueSavedData::toTag
+	);
+	private static final SavedDataType<PendingRetireQueueSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		PendingRetireQueueSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -47,12 +53,12 @@ public final class PendingRetireQueueSavedData extends SavedData {
 	 */
 	public static PendingRetireQueueSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static PendingRetireQueueSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static PendingRetireQueueSavedData load(CompoundTag tag) {
 		PendingRetireQueueSavedData data = new PendingRetireQueueSavedData();
-		ListTag entries = tag.getList(KEY_ENTRIES, Tag.TAG_COMPOUND);
+		ListTag entries = tag.getListOrEmpty(KEY_ENTRIES);
 		for (Tag element : entries) {
 			if (!(element instanceof CompoundTag entryTag)) {
 				continue;
@@ -143,14 +149,14 @@ public final class PendingRetireQueueSavedData extends SavedData {
 		return List.copyOf(entries);
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		ListTag entries = new ListTag();
 		for (PendingRetireEntry entry : entriesSnapshot()) {
 			CompoundTag entryTag = new CompoundTag();
 			entryTag.putString(KEY_TYPE, LinkNodeSemantics.toSemanticName(entry.nodeType()));
 			entryTag.putLong(KEY_SERIAL, entry.serial());
-			entryTag.putString(KEY_DIMENSION, entry.dimension().location().toString());
+			entryTag.putString(KEY_DIMENSION, entry.dimension().identifier().toString());
 			entryTag.putLong(KEY_POS, entry.pos().asLong());
 			entryTag.putLong(KEY_EXPIRE_TICK, entry.expireTick());
 			entries.add(entryTag);
@@ -163,24 +169,24 @@ public final class PendingRetireQueueSavedData extends SavedData {
 	 * 解析持久化条目。
 	 */
 	private static Optional<PendingRetireEntry> parseEntry(CompoundTag entryTag) {
-		Optional<LinkNodeType> nodeType = LinkNodeSemantics.tryParseCanonicalType(entryTag.getString(KEY_TYPE));
+		Optional<LinkNodeType> nodeType = LinkNodeSemantics.tryParseCanonicalType(entryTag.getStringOr(KEY_TYPE, ""));
 		if (nodeType.isEmpty()) {
 			return Optional.empty();
 		}
-		long serial = entryTag.getLong(KEY_SERIAL);
+		long serial = entryTag.getLongOr(KEY_SERIAL, 0L);
 		if (serial <= 0L) {
 			return Optional.empty();
 		}
-		ResourceLocation dimensionId = ResourceLocation.tryParse(entryTag.getString(KEY_DIMENSION));
+		Identifier dimensionId = Identifier.tryParse(entryTag.getStringOr(KEY_DIMENSION, ""));
 		if (dimensionId == null) {
 			return Optional.empty();
 		}
-		long expireTick = entryTag.getLong(KEY_EXPIRE_TICK);
+		long expireTick = entryTag.getLongOr(KEY_EXPIRE_TICK, -1L);
 		if (expireTick < 0L) {
 			return Optional.empty();
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
-		BlockPos pos = BlockPos.of(entryTag.getLong(KEY_POS));
+		BlockPos pos = BlockPos.of(entryTag.getLongOr(KEY_POS, 0L));
 		return Optional.of(new PendingRetireEntry(nodeType.get(), serial, dimension, pos, expireTick));
 	}
 

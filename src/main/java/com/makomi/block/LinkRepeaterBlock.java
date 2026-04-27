@@ -107,7 +107,7 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 				blockEntity.markRepeaterPhysicalRemovalInProgress();
 				blockEntity.unregisterNode(true);
 			}
-			if (!level.isClientSide) {
+			if (!level.isClientSide()) {
 				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 			}
 		}
@@ -139,7 +139,7 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openEditor(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		return InteractionResult.PASS;
 	}

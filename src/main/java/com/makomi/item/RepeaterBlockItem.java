@@ -14,7 +14,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -43,14 +42,14 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 	}
 
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		ItemStack stack = player.getItemInHand(hand);
 		ensureSerial(level, stack);
 		if (shouldOpenEditor(player, hand)) {
 			openEditor(level, player, stack);
-			return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
-		return InteractionResultHolder.pass(stack);
+		return InteractionResult.PASS;
 	}
 
 	@Override
@@ -62,7 +61,7 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 		ensureSerial(context.getLevel(), context.getItemInHand());
 		if (shouldOpenEditor(player, context.getHand())) {
 			openEditor(context.getLevel(), player, context.getItemInHand());
-			return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+			return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
 		}
 		return super.useOn(context);
 	}
@@ -77,9 +76,11 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 	public void appendHoverText(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
+		List<Component> tooltipComponents = new java.util.ArrayList<>();
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		long serial = LinkItemData.getSerial(stack);
 		RepeaterConfigSnapshot snapshot = RepeaterItemData.read(stack);
@@ -109,7 +110,8 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.open_editor"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.dual_identity").withStyle(ChatFormatting.GRAY));
-		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.forEach(tooltipAdder);
+		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
 
 	@Override
@@ -128,7 +130,7 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 	}
 
 	private static void openEditor(Level level, Player player, ItemStack stack) {
-		if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
 			RepeaterNetwork.openHeldItemEditor(serverPlayer, stack);
 		}
 	}

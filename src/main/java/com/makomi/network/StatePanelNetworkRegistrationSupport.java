@@ -108,77 +108,77 @@ final class StatePanelNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleSubscribe(player, payload));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleSubscribe(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.RefreshStatePanelPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleRefresh(player));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleRefresh(player));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.QueryStatePanelRecordingPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleQueryRecordingSession(player));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleQueryRecordingSession(player));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.StartStatePanelRecordingPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleStartRecording(player, payload));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleStartRecording(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.StopStatePanelRecordingPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleStopRecording(player));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleStopRecording(player));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.RemoveStatePanelSerialPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleRemove(player, payload));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleRemove(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.RecordStatePanelPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleRecord(player));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleRecord(player));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.ExportStatePanelGraphPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleExportGraph(player, payload));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleExportGraph(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.SubmitGraphWritePayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleSubmitGraphWrite(player, payload));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleSubmitGraphWrite(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.PreviewGraphWritePayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handlePreviewGraphWrite(player, payload));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handlePreviewGraphWrite(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(StatePanelNetwork.CleanAllStatePanelPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.server.execute(() -> StatePanelNetworkServerHandlerSupport.handleCleanAll(player));
+			player.getServer().execute(() -> StatePanelNetworkServerHandlerSupport.handleCleanAll(player));
 		});
 	}
 }

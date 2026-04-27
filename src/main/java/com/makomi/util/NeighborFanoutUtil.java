@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.redstone.ExperimentalRedstoneUtils;
 
 /**
  * 邻居通知扇出工具。
@@ -174,6 +175,11 @@ public final class NeighborFanoutUtil {
 			return;
 		}
 		NEIGHBOR_NOTIFY_SENT_COUNT.increment();
-		level.updateNeighborsAtExceptFromFacing(neighborPos, sourceBlock, direction.getOpposite());
+		level.updateNeighborsAtExceptFromFacing(
+			neighborPos,
+			sourceBlock,
+			direction.getOpposite(),
+			ExperimentalRedstoneUtils.initialOrientation(level, direction, Direction.UP)
+		);
 	}
 }

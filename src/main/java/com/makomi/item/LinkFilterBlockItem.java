@@ -13,7 +13,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -53,13 +52,13 @@ public class LinkFilterBlockItem extends BlockItem {
 	}
 
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		ItemStack heldStack = player.getItemInHand(hand);
 		if (shouldOpenEditor(player, hand)) {
 			openEditor(level, player, heldStack);
-			return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
-		return InteractionResultHolder.pass(heldStack);
+		return InteractionResult.PASS;
 	}
 
 	@Override
@@ -70,7 +69,7 @@ public class LinkFilterBlockItem extends BlockItem {
 		}
 		if (shouldOpenEditor(player, context.getHand())) {
 			openEditor(context.getLevel(), player, context.getItemInHand());
-			return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+			return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
 		}
 		return super.useOn(context);
 	}
@@ -82,9 +81,11 @@ public class LinkFilterBlockItem extends BlockItem {
 	public void appendHoverText(
 		ItemStack stack,
 		Item.TooltipContext context,
-		List<Component> tooltipComponents,
+		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
+		java.util.function.Consumer<Component> tooltipAdder,
 		TooltipFlag tooltipFlag
 	) {
+		List<Component> tooltipComponents = new java.util.ArrayList<>();
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		LinkFilterConfigSnapshot snapshot = LinkFilterItemData.read(stack);
 		String displayAlias = NodeAliasDisplayUtil.normalizeAlias(LinkFilterItemData.getDisplayAlias(stack));
@@ -141,7 +142,8 @@ public class LinkFilterBlockItem extends BlockItem {
 			)
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.link_filter.open_editor"));
-		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		tooltipComponents.forEach(tooltipAdder);
+		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
 
 	/**
@@ -155,7 +157,7 @@ public class LinkFilterBlockItem extends BlockItem {
 	 * 在服务端打开主手过滤器编辑器。
 	 */
 	private void openEditor(Level level, Player player, ItemStack stack) {
-		if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
 			LinkFilterNetwork.openHeldItemEditor(serverPlayer, stack, filterKind);
 		}
 	}

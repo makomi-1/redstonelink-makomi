@@ -65,7 +65,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		super.setPlacedBy(level, pos, state, placer, stack);
-		if (level.isClientSide) {
+		if (level.isClientSide()) {
 			return;
 		}
 		if (!(level.getBlockEntity(pos) instanceof AbstractLinkFilterBlockEntity filterBlockEntity)) {
@@ -127,7 +127,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openEditor(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide);
+			return InteractionResult.sidedSuccess(level.isClientSide());
 		}
 		return InteractionResult.PASS;
 	}
@@ -153,7 +153,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 	 * 按邻居最大输入刷新 `POWERED` 状态，仅用于外显。
 	 */
 	private static void refreshPoweredState(Level level, BlockPos pos, BlockState state) {
-		if (level.isClientSide) {
+		if (level.isClientSide()) {
 			return;
 		}
 		boolean powered = level.getBestNeighborSignal(pos) > 0;
@@ -167,7 +167,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 	 * 将当前已放置过滤器的世界态同步到持久化真值。
 	 */
 	private static void refreshPlacedFilterState(Level level, BlockPos pos) {
-		if (level.isClientSide) {
+		if (level.isClientSide()) {
 			return;
 		}
 		if (level.getBlockEntity(pos) instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {

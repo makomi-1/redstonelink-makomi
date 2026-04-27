@@ -591,7 +591,7 @@ final class CrossChunkDispatchRuntimeSupport {
 					|| targetBlockEntity == null
 					|| targetBlockEntity.isRemoved()
 					|| targetBlockEntity.getLevel() == null
-					|| targetBlockEntity.getLevel().isClientSide
+					|| targetBlockEntity.getLevel().isClientSide()
 					|| !targetBlockEntity.matchesNodeIdentity(
 						readyDrainTargetKey.targetType(),
 						readyDrainTargetKey.targetSerial()

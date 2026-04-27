@@ -525,7 +525,7 @@ public final class LinkedTargetDispatchService {
 				relayHandled,
 				elapsedMs,
 				thresholdMs,
-				sourceLevel.dimension().location()
+				sourceLevel.dimension().identifier()
 			);
 			return;
 		}
@@ -544,7 +544,7 @@ public final class LinkedTargetDispatchService {
 			relayHandled,
 			elapsedMs,
 			thresholdMs,
-			sourceLevel.dimension().location(),
+			sourceLevel.dimension().identifier(),
 			fanoutDiagnosticsDelta.fanoutRequestCount(),
 			fanoutDiagnosticsDelta.centerNotifySentCount(),
 			fanoutDiagnosticsDelta.neighborNotifyAttemptCount(),

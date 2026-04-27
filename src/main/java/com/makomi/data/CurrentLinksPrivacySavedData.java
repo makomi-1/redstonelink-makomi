@@ -1,15 +1,16 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import com.makomi.util.SerialNbtCodecUtil;
 import com.makomi.util.IncrementalReplacePlanUtil;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * “当前连接”保密名单持久化数据。
@@ -22,9 +23,14 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 	private static final String KEY_MASKED_TRIGGER_SOURCE_SERIALS = "maskedTriggerSourceSerials";
 	private static final String KEY_MASKED_CORE_SERIALS = "maskedCoreSerials";
 
-	private static final SavedData.Factory<CurrentLinksPrivacySavedData> FACTORY = new SavedData.Factory<>(
-		CurrentLinksPrivacySavedData::new,
+	private static final Codec<CurrentLinksPrivacySavedData> CODEC = CompoundTag.CODEC.xmap(
 		CurrentLinksPrivacySavedData::load,
+		CurrentLinksPrivacySavedData::toTag
+	);
+	private static final SavedDataType<CurrentLinksPrivacySavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		CurrentLinksPrivacySavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -36,10 +42,10 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 	 */
 	public static CurrentLinksPrivacySavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
-	private static CurrentLinksPrivacySavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+	private static CurrentLinksPrivacySavedData load(CompoundTag tag) {
 		CurrentLinksPrivacySavedData data = new CurrentLinksPrivacySavedData();
 		SerialNbtCodecUtil.readSerialSet(tag, KEY_MASKED_TRIGGER_SOURCE_SERIALS, data.maskedTriggerSourceSerials);
 		SerialNbtCodecUtil.readSerialSet(tag, KEY_MASKED_CORE_SERIALS, data.maskedCoreSerials);
@@ -128,8 +134,8 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 		return Set.copyOf(serials);
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		tag.putLongArray(KEY_MASKED_TRIGGER_SOURCE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(maskedTriggerSourceSerials));
 		tag.putLongArray(KEY_MASKED_CORE_SERIALS, SerialNbtCodecUtil.toSortedLongArray(maskedCoreSerials));
 		return tag;

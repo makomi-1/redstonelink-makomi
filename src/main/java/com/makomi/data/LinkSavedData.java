@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -8,7 +9,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongConsumer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.SectionPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -17,6 +17,7 @@ import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * RedstoneLink 世界级持久化数据。
@@ -54,9 +55,14 @@ public final class LinkSavedData extends SavedData {
 	static final String KEY_SEQ = "seq";
 	static final String KEY_CHANNEL = "channel";
 
-	private static final SavedData.Factory<LinkSavedData> FACTORY = new SavedData.Factory<>(
-		LinkSavedData::new,
+	private static final Codec<LinkSavedData> CODEC = CompoundTag.CODEC.xmap(
 		LinkSavedData::load,
+		LinkSavedData::toTag
+	);
+	private static final SavedDataType<LinkSavedData> TYPE = new SavedDataType<>(
+		DATA_NAME,
+		LinkSavedData::new,
+		CODEC,
 		DataFixTypes.LEVEL
 	);
 
@@ -87,14 +93,14 @@ public final class LinkSavedData extends SavedData {
 	 */
 	public static LinkSavedData get(ServerLevel level) {
 		ServerLevel overworld = level.getServer().overworld();
-		return overworld.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+		return overworld.getDataStorage().computeIfAbsent(TYPE);
 	}
 
 	/**
 	 * 保留原有反序列化入口，供反射测试与 SavedData 工厂复用。
 	 */
-	private static LinkSavedData load(CompoundTag tag, HolderLookup.Provider provider) {
-		LinkSavedData data = LinkSavedDataCodecSupport.load(tag, provider);
+	private static LinkSavedData load(CompoundTag tag) {
+		LinkSavedData data = LinkSavedDataCodecSupport.load(tag);
 		data.rebuildNodeChunkIndex();
 		data.rebuildChannelIndex();
 		return data;
@@ -410,8 +416,8 @@ public final class LinkSavedData extends SavedData {
 		return LinkSavedDataQuerySupport.createAuditSnapshot(this);
 	}
 
-	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+	private CompoundTag toTag() {
+		CompoundTag tag = new CompoundTag();
 		return LinkSavedDataCodecSupport.save(this, tag);
 	}
 
