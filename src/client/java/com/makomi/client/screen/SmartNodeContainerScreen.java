@@ -1,10 +1,12 @@
 package com.makomi.client.screen;
 
 import com.makomi.data.SmartNodeContainerPlacementType;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.makomi.menu.SmartNodeContainerMenu;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
@@ -34,6 +36,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	private static final int RIGHT_PANEL_BACKGROUND = 0xD92A1C13;
 	private static final int RIGHT_PANEL_BORDER = 0xFF8E6B59;
 	private static final int RIGHT_PANEL_DIVIDER = 0xFF5A4032;
+	private static final RenderPipeline CONTAINER_RENDER_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final Identifier CONTAINER_TEXTURE = Identifier.withDefaultNamespace(
 		"textures/gui/container/generic_54.png"
 	);
@@ -73,8 +76,31 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
-		guiGraphics.blit(CONTAINER_TEXTURE, leftPos, topPos, 0, 0, CHEST_IMAGE_WIDTH, ROW_HEIGHT(), 256, 256);
-		guiGraphics.blit(CONTAINER_TEXTURE, leftPos, topPos + ROW_HEIGHT(), 0, 126, CHEST_IMAGE_WIDTH, 96, 256, 256);
+		// 1.21.11 下原版容器底图需要显式走 GUI_TEXTURED 管线，直接 blit 资源路径会导致箱子槽位与背景缺失。
+		guiGraphics.blit(
+			CONTAINER_RENDER_PIPELINE,
+			CONTAINER_TEXTURE,
+			leftPos,
+			topPos,
+			0.0F,
+			0.0F,
+			CHEST_IMAGE_WIDTH,
+			ROW_HEIGHT(),
+			256,
+			256
+		);
+		guiGraphics.blit(
+			CONTAINER_RENDER_PIPELINE,
+			CONTAINER_TEXTURE,
+			leftPos,
+			topPos + ROW_HEIGHT(),
+			0.0F,
+			126.0F,
+			CHEST_IMAGE_WIDTH,
+			96,
+			256,
+			256
+		);
 		renderRightPanelBackground(guiGraphics);
 	}
 
