@@ -25,7 +25,7 @@ final class StyledButton extends Button {
 	}
 
 	@Override
-	protected void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	protected void renderContents(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		VisualColors colors = resolveVisualColors();
 		int left = getX();
 		int top = getY();

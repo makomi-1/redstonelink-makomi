@@ -2,6 +2,7 @@ package com.makomi.client.screen;
 
 import com.makomi.RedstoneLink;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
 /**
@@ -231,13 +232,14 @@ final class GuiBackgroundRenderSupport {
 			return;
 		}
 		guiGraphics.blit(
+			RenderPipelines.GUI_TEXTURED,
 			style.texture(),
 			left,
 			top,
-			width,
-			height,
 			(float) u,
 			(float) v,
+			width,
+			height,
 			regionWidth,
 			regionHeight,
 			style.textureWidth(),

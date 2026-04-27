@@ -12,7 +12,6 @@ import com.makomi.network.ChunkActivatorNetwork;
 import com.makomi.network.LinkFilterEditorTargetKind;
 import com.makomi.util.SerialParseUtil;
 import java.util.List;
-import java.util.Optional;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -178,9 +177,9 @@ public class ChunkActivatorEditorScreen extends Screen {
 	}
 
 	@Override
-	public void resize(Minecraft minecraft, int width, int height) {
+	public void resize(int width, int height) {
 		captureDraftStateFromWidgets();
-		super.resize(minecraft, width, height);
+		super.resize(width, height);
 	}
 
 	@Override
@@ -381,11 +380,11 @@ public class ChunkActivatorEditorScreen extends Screen {
 			return;
 		}
 		if (modeButtons[0] != null && modeButtons[0].isMouseOver(mouseX, mouseY)) {
-			guiGraphics.renderTooltip(font, buildModeTooltipLines(ChunkActivatorMode.FORCE_LOAD), Optional.empty(), mouseX, mouseY);
+			GuiTooltipRenderSupport.renderComponentTooltip(guiGraphics, font, buildModeTooltipLines(ChunkActivatorMode.FORCE_LOAD), mouseX, mouseY);
 			return;
 		}
 		if (modeButtons[1] != null && modeButtons[1].isMouseOver(mouseX, mouseY)) {
-			guiGraphics.renderTooltip(font, buildModeTooltipLines(ChunkActivatorMode.RESIDENT), Optional.empty(), mouseX, mouseY);
+			GuiTooltipRenderSupport.renderComponentTooltip(guiGraphics, font, buildModeTooltipLines(ChunkActivatorMode.RESIDENT), mouseX, mouseY);
 		}
 	}
 
@@ -408,7 +407,7 @@ public class ChunkActivatorEditorScreen extends Screen {
 	}
 
 	private MultiLineEditBox createSerialInputBox(ChunkActivatorLayout layout) {
-		return new StyledMultiLineEditBox(
+		return StyledMultiLineEditBox.create(
 			font,
 			layout.panelLeft(),
 			layout.serialInputY(),

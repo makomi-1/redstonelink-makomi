@@ -3,6 +3,7 @@ package com.makomi.client.screen;
 import com.makomi.RedstoneLink;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
@@ -203,13 +204,14 @@ final class GuiHeaderRenderSupport {
 			return;
 		}
 		guiGraphics.blit(
+			RenderPipelines.GUI_TEXTURED,
 			texture,
 			left,
 			top,
-			ICON_SIZE,
-			ICON_SIZE,
 			0.0F,
 			0.0F,
+			ICON_SIZE,
+			ICON_SIZE,
 			ICON_TEXTURE_SIZE,
 			ICON_TEXTURE_SIZE,
 			ICON_TEXTURE_SIZE,

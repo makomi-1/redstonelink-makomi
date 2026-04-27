@@ -10,7 +10,6 @@ import com.makomi.util.DisplayTextListFormatUtil;
 import com.makomi.util.SerialParseUtil;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.ToIntFunction;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
@@ -440,7 +439,7 @@ public class RepeaterEditorScreen extends Screen {
 	 */
 	private void renderTooltipIfPresent(GuiGraphics guiGraphics, List<Component> tooltipLines, int mouseX, int mouseY) {
 		if (!tooltipLines.isEmpty()) {
-			guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
+			GuiTooltipRenderSupport.renderComponentTooltip(guiGraphics, font, tooltipLines, mouseX, mouseY);
 		}
 	}
 

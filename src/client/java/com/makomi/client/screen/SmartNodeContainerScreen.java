@@ -168,7 +168,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 			return;
 		}
 		ItemStack stack = slot.getItem();
-		guiGraphics.renderTooltip(font, getTooltipFromContainerItem(stack), stack.getTooltipImage(), mouseX, mouseY);
+		guiGraphics.setTooltipForNextFrame(font, getTooltipFromContainerItem(stack), stack.getTooltipImage(), mouseX, mouseY);
 	}
 
 	/**

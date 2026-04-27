@@ -42,6 +42,7 @@
     "block.redstonelink.link_chunk_activator":  "区块激活器",
     "block.redstonelink.link_repeater":  "转发器",
     "key.categories.redstonelink":  "RedstoneLink",
+    "key.category.redstonelink.controls":  "RedstoneLink",
     "key.redstonelink.toggle_serial_overlay":  "切换序号外显模式",
     "key.redstonelink.toggle_quick_link_mode":  "切换快速连接工具模式",
     "tooltip.redstonelink.serial":  "序号: %s",

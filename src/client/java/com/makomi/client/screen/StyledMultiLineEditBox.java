@@ -1,23 +1,24 @@
 package com.makomi.client.screen;
 
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.network.chat.Component;
 
 /**
- * 可定制底色的多行输入框。
+ * 可定制主题参数的多行输入框工厂。
  * <p>
- * 在保留原版 `MultiLineEditBox` 文本、滚动和光标行为的前提下，
- * 仅接管输入框背景层绘制，便于不同 GUI 以覆写方式复用统一皮肤能力。
+ * 1.21.11 不再允许沿用旧子类覆盖背景绘制，这里先保留统一构造入口与主题参数，
+ * 后续若需要恢复自定义皮肤，只需在这一层替换实现。
  * </p>
  */
-final class StyledMultiLineEditBox extends ShadowlessCounterMultiLineEditBox {
-	private final Style style;
+final class StyledMultiLineEditBox {
+	private StyledMultiLineEditBox() {
+	}
 
 	/**
 	 * @param style 输入框皮肤配置
 	 */
-	StyledMultiLineEditBox(
+	static MultiLineEditBox create(
 		Font font,
 		int x,
 		int y,
@@ -27,24 +28,17 @@ final class StyledMultiLineEditBox extends ShadowlessCounterMultiLineEditBox {
 		Component placeholder,
 		Style style
 	) {
-		super(font, x, y, width, height, message, placeholder);
-		this.style = style == null ? Style.defaultStyle() : style;
-	}
-
-	@Override
-	protected void renderBackground(GuiGraphics guiGraphics) {
-		int left = getX();
-		int top = getY();
-		int right = left + getWidth();
-		int bottom = top + getHeight();
-		int borderColor = isFocused() ? style.focusedBorderColor() : style.borderColor();
-		guiGraphics.fill(left, top, right, bottom, borderColor);
-		guiGraphics.fill(left + 1, top + 1, right - 1, bottom - 1, style.backgroundColor());
-	}
-
-	@Override
-	protected int counterTextColor() {
-		return style.counterTextColor();
+		Style resolvedStyle = style == null ? Style.defaultStyle() : style;
+		return MultiLineEditBox
+			.builder()
+			.setX(x)
+			.setY(y)
+			.setPlaceholder(placeholder)
+			.setCursorColor(resolvedStyle.focusedBorderColor())
+			.setTextShadow(false)
+			.setShowBackground(true)
+			.setShowDecorations(true)
+			.build(font, width, height, message);
 	}
 
 	/**

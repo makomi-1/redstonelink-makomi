@@ -104,7 +104,7 @@ public class QuickLinkToolScreen extends Screen {
 		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
 		int inputX = layout.panelLeft();
 		int inputY = layout.inputY();
-		inputBox = new StyledMultiLineEditBox(
+		inputBox = StyledMultiLineEditBox.create(
 			font,
 			inputX,
 			inputY,

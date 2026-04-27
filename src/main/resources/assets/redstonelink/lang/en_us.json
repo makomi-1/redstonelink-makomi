@@ -42,6 +42,7 @@
   "block.redstonelink.link_chunk_activator": "Chunk Activator",
   "block.redstonelink.link_repeater": "Link Repeater",
   "key.categories.redstonelink": "RedstoneLink",
+  "key.category.redstonelink.controls": "RedstoneLink",
   "key.redstonelink.toggle_serial_overlay": "Toggle Serial Overlay Mode",
   "key.redstonelink.toggle_quick_link_mode": "Toggle Quick Link Tool Mode",
   "tooltip.redstonelink.serial": "Serial: %s",

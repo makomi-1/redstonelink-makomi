@@ -4,7 +4,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
-import org.joml.Matrix4f;
 
 /**
  * GUI 标题描边字渲染支持。
@@ -37,7 +36,6 @@ final class GuiTitleRenderSupport {
 	/**
 	 * 绘制居中描边文本。
 	 */
-	@SuppressWarnings("deprecation")
 	static void drawCenteredOutlinedText(
 		GuiGraphics guiGraphics,
 		Font font,
@@ -51,21 +49,22 @@ final class GuiTitleRenderSupport {
 		}
 		FormattedCharSequence visualText = text.getVisualOrderText();
 		int left = centerX - (font.width(visualText) / 2);
-		Matrix4f poseMatrix = guiGraphics.pose().last().pose();
-		guiGraphics.drawManaged(
-			() -> {
-				font.drawInBatch8xOutline(
-					visualText,
-					left,
-					y,
-					style.textColor(),
-					style.outlineColor(),
-					poseMatrix,
-					guiGraphics.bufferSource(),
-					FULL_BRIGHT_LIGHT
-				);
+		drawOutline(guiGraphics, font, visualText, left, y, style.outlineColor());
+		guiGraphics.drawString(font, visualText, left, y, style.textColor(), false);
+	}
+
+	/**
+	 * 使用八向位移模拟描边，兼容 1.21.11 中移除的旧批量描边绘制入口。
+	 */
+	private static void drawOutline(GuiGraphics guiGraphics, Font font, FormattedCharSequence text, int left, int top, int outlineColor) {
+		for (int offsetX = -1; offsetX <= 1; offsetX++) {
+			for (int offsetY = -1; offsetY <= 1; offsetY++) {
+				if (offsetX == 0 && offsetY == 0) {
+					continue;
+				}
+				guiGraphics.drawString(font, text, left + offsetX, top + offsetY, outlineColor, false);
 			}
-		);
+		}
 	}
 
 	/**

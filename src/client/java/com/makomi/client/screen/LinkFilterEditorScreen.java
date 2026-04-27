@@ -17,6 +17,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
@@ -293,19 +294,19 @@ public class LinkFilterEditorScreen extends Screen {
 	}
 
 	@Override
-	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
 		LinkFilterTargetMode clickTargetMode = resolveTargetInputClickTarget(
 			resolveLayout(width, height, font.lineHeight),
 			currentTargetMode,
-			mouseX,
-			mouseY
+			event.x(),
+			event.y()
 		);
-		if (button == 0 && clickTargetMode != null) {
+		if (event.button() == 0 && clickTargetMode != null) {
 			return clickTargetMode == LinkFilterTargetMode.CHANNEL
-				? routeTargetInputClick(channelInputBox, clickTargetMode, mouseX, mouseY, button)
-				: routeTargetInputClick(serialInputBox, clickTargetMode, mouseX, mouseY, button);
+				? routeTargetInputClick(channelInputBox, clickTargetMode, event, doubleClick)
+				: routeTargetInputClick(serialInputBox, clickTargetMode, event, doubleClick);
 		}
-		return super.mouseClicked(mouseX, mouseY, button);
+		return super.mouseClicked(event, doubleClick);
 	}
 
 	@Override
@@ -487,15 +488,20 @@ public class LinkFilterEditorScreen extends Screen {
 	/**
 	 * 将共享输入区点击显式路由到当前模式输入框，避免隐藏的多行框抢占事件。
 	 */
-	private boolean routeTargetInputClick(AbstractWidget targetInput, LinkFilterTargetMode targetMode, double mouseX, double mouseY, int button) {
+	private boolean routeTargetInputClick(
+		AbstractWidget targetInput,
+		LinkFilterTargetMode targetMode,
+		MouseButtonEvent event,
+		boolean doubleClick
+	) {
 		if (targetInput == null || !targetInput.visible || !targetInput.active) {
 			return false;
 		}
 		clearTargetInputFocus();
 		targetInput.setFocused(true);
 		setFocused(targetInput);
-		boolean handled = targetInput.mouseClicked(mouseX, mouseY, button);
-		return handled || isWithinTargetInputBounds(resolveLayout(width, height, font.lineHeight), targetMode, mouseX, mouseY);
+		boolean handled = targetInput.mouseClicked(event, doubleClick);
+		return handled || isWithinTargetInputBounds(resolveLayout(width, height, font.lineHeight), targetMode, event.x(), event.y());
 	}
 
 	/**
@@ -586,7 +592,7 @@ public class LinkFilterEditorScreen extends Screen {
 	 * 创建过滤器序号输入框，沿用与背景一致的主题色。
 	 */
 	private MultiLineEditBox createSerialInputBox(LinkFilterLayout layout) {
-		return new StyledMultiLineEditBox(
+		return StyledMultiLineEditBox.create(
 			font,
 			layout.panelLeft(),
 			layout.serialInputY(),

@@ -57,6 +57,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWScrollCallback;
@@ -69,7 +70,9 @@ import org.lwjgl.glfw.GLFWScrollCallbackI;
  * </p>
  */
 public class RedstoneLinkClient implements ClientModInitializer {
-	private static final String KEY_CATEGORY = "key.categories.redstonelink";
+	private static final KeyMapping.Category KEY_CATEGORY = KeyMapping.Category.register(
+		Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "controls")
+	);
 	private static final String KEY_TOGGLE_SERIAL_OVERLAY = "key.redstonelink.toggle_serial_overlay";
 	private static final String KEY_TOGGLE_QUICK_LINK_MODE = "key.redstonelink.toggle_quick_link_mode";
 	private static final String CLIENT_DISPLAY_COMMAND_ROOT = "rlclient";
@@ -338,7 +341,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		if (client == null || client.getWindow() == null) {
 			return;
 		}
-		long windowHandle = client.getWindow().getWindow();
+		long windowHandle = client.getWindow().handle();
 		if (windowHandle == 0L || windowHandle == syncLinkerScrollHookWindowHandle) {
 			return;
 		}
@@ -360,7 +363,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 * 处理同步遥控器的 `Ctrl + 鼠标滚轮` 快捷调强度。
 	 */
 	private static boolean handleSyncLinkerMouseScroll(Minecraft client, double horizontalAmount, double verticalAmount) {
-		if (client == null || client.player == null || client.screen != null || !Screen.hasControlDown()) {
+		if (client == null || client.player == null || client.screen != null || !isControlKeyDown(client)) {
 			return false;
 		}
 		if (verticalAmount == 0.0D) {
@@ -387,6 +390,18 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			true
 		);
 		return true;
+	}
+
+	/**
+	 * 检查客户端窗口是否按住任意 Ctrl 键。
+	 */
+	private static boolean isControlKeyDown(Minecraft client) {
+		if (client == null || client.getWindow() == null) {
+			return false;
+		}
+		long windowHandle = client.getWindow().handle();
+		return GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
+			|| GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
 	}
 
 	/**

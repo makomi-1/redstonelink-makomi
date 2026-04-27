@@ -7,7 +7,6 @@ import com.makomi.network.StatePanelNetwork;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -402,7 +401,7 @@ public class StatePanelToolScreen extends Screen {
 		if (!isMouseOver(layout.statusX(), layout.headerY() + LIST_ROW_TEXT_OFFSET_Y, hoverWidth, font.lineHeight, mouseX, mouseY)) {
 			return;
 		}
-		guiGraphics.renderTooltip(font, buildStatusHeaderTooltipLines(), Optional.empty(), mouseX, mouseY);
+		GuiTooltipRenderSupport.renderComponentTooltip(guiGraphics, font, buildStatusHeaderTooltipLines(), mouseX, mouseY);
 	}
 
 	/**

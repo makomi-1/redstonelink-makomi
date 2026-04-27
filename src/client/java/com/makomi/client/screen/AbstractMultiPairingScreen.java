@@ -10,7 +10,6 @@ import com.makomi.network.PairingNetwork;
 import com.makomi.util.CurrentLinksDisplayFormatUtil;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -376,7 +375,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		if (isMouseOverInput(mouseX, mouseY)) {
 			List<Component> tooltipLines = buildInputTooltipLines();
 			if (!tooltipLines.isEmpty()) {
-				guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
+				GuiTooltipRenderSupport.renderComponentTooltip(guiGraphics, font, tooltipLines, mouseX, mouseY);
 			}
 		} else if (
 			!currentTargetDisplayTexts.isEmpty()
@@ -391,7 +390,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		) {
 			List<Component> tooltipLines = buildTooltipLines(currentTargets, currentTargetDisplayTexts);
 			if (!tooltipLines.isEmpty()) {
-				guiGraphics.renderTooltip(font, tooltipLines, Optional.empty(), mouseX, mouseY);
+				GuiTooltipRenderSupport.renderComponentTooltip(guiGraphics, font, tooltipLines, mouseX, mouseY);
 			}
 		}
 	}
@@ -755,7 +754,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	private MultiLineEditBox createSerialInputBox(MultiPairingLayout layout, int inputX, int inputY) {
 		StyledMultiLineEditBox.Style style = inputBoxStyle();
 		if (style == null) {
-			return new ShadowlessCounterMultiLineEditBox(
+			return ShadowlessCounterMultiLineEditBox.create(
 				font,
 				inputX,
 				inputY,
@@ -765,7 +764,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 				Component.empty()
 			);
 		}
-		return new StyledMultiLineEditBox(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty(), style);
+		return StyledMultiLineEditBox.create(font, inputX, inputY, layout.panelWidth(), INPUT_BOX_HEIGHT, inputLabel(), Component.empty(), style);
 	}
 
 	/**
