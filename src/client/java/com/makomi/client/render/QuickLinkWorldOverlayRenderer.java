@@ -24,7 +24,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.BlockOutlineRenderState;
 import net.minecraft.core.BlockPos;
@@ -104,18 +104,15 @@ public final class QuickLinkWorldOverlayRenderer {
 		VoxelShape voxelShape = blockOutlineRenderState.shape();
 		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
 		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.lines());
-		LevelRenderer.renderVoxelShape(
+		ShapeRenderer.renderShape(
 			worldRenderContext.matrices(),
 			lineVertexConsumer,
 			voxelShape,
 			(double) blockPos.getX() - cameraPosition.x,
 			(double) blockPos.getY() - cameraPosition.y,
 			(double) blockPos.getZ() - cameraPosition.z,
-			outlineColor.red(),
-			outlineColor.green(),
-			outlineColor.blue(),
-			1.0F,
-			false
+			outlineColor.packedColor(),
+			1.0F
 		);
 		return false;
 	}
@@ -962,6 +959,13 @@ public final class QuickLinkWorldOverlayRenderer {
 				((color >> 8) & 0xFF) / 255.0F,
 				(color & 0xFF) / 255.0F
 			);
+		}
+
+		int packedColor() {
+			int packedRed = Math.round(red * 255.0F) & 0xFF;
+			int packedGreen = Math.round(green * 255.0F) & 0xFF;
+			int packedBlue = Math.round(blue * 255.0F) & 0xFF;
+			return 0xFF000000 | (packedRed << 16) | (packedGreen << 8) | packedBlue;
 		}
 	}
 

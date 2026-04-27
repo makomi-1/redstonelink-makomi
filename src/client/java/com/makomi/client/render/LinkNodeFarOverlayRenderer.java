@@ -10,9 +10,13 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.core.Direction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import net.minecraft.client.renderer.feature.ModelFeatureRenderer.CrumblingOverlay;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.FaceAttachedHorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.AttachFace;
@@ -23,7 +27,8 @@ import net.minecraft.world.level.block.state.properties.AttachFace;
  * 统一在客户端渲染序号文本，供 core/triggerSource 节点复用。
  * </p>
  */
-public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity> implements BlockEntityRenderer<T> {
+public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
+	implements BlockEntityRenderer<T, LinkNodeFarOverlayRenderer.LinkNodeFarOverlayRenderState> {
 	private static final float TEXT_SCALE = 0.03F;
 	private static final int BACKGROUND_COLOR = 0x80000000;
 	private static final int FULL_BRIGHT = 0x00F000F0;
@@ -35,27 +40,30 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 	 */
 	private static final double FACE_OFFSET = 0D;
 	private static final double BLOCK_TOP_TEXT_Y = 1.25D;
-	/**
-	 * 前景文字相对背景的微小 Z 偏移，避免同层渲染时出现背景压字。
-	 */
-	private static final float FOREGROUND_Z_BIAS = 0.5F;
 
 	private final Font font;
 
 	public LinkNodeFarOverlayRenderer(BlockEntityRendererProvider.Context context) {
-		this.font = context.getFont();
+		this.font = context.font();
 	}
 
 	@Override
-	public void render(
+	public LinkNodeFarOverlayRenderState createRenderState() {
+		return new LinkNodeFarOverlayRenderState();
+	}
+
+	@Override
+	public void extractRenderState(
 		T blockEntity,
+		LinkNodeFarOverlayRenderState renderState,
 		float partialTick,
-		PoseStack poseStack,
-		MultiBufferSource buffer,
-		int packedLight,
-		int packedOverlay
+		net.minecraft.world.phys.Vec3 cameraPosition,
+		CrumblingOverlay crumblingOverlay
 	) {
-		if (!RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
+		BlockEntityRenderer.super.extractRenderState(blockEntity, renderState, partialTick, cameraPosition, crumblingOverlay);
+		renderState.displayText = "";
+		renderState.outwardDirection = null;
+		if (blockEntity == null || !RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
 			return;
 		}
 		Minecraft minecraft = Minecraft.getInstance();
@@ -68,70 +76,75 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 			return;
 		}
 		LinkNodeType nodeType = blockEntity.getLinkNodeType();
-		String displayText = serialText;
-		int textColor = blockEntity instanceof LinkRepeaterBlockEntity
+		renderState.displayText = serialText;
+		renderState.textColor = blockEntity instanceof LinkRepeaterBlockEntity
 			? LinkSerialOverlayRenderCommon.resolveRepeaterTextColor()
 			: LinkSerialOverlayRenderCommon.resolveNodeTextColor(nodeType);
-		int backgroundGlyphColor = withAlpha(textColor, 0x00);
 
 		int maxDistance = RedstoneLinkClientDisplayConfig.overlay().maxDistance();
 		if (!LinkSerialOverlayRenderCommon.isWithinDisplayDistance(minecraft, blockEntity, maxDistance)) {
+			renderState.displayText = "";
 			return;
 		}
-
-		BlockState blockState = blockEntity.getBlockState();
-
-		poseStack.pushPose();
-		Direction outward = resolveOverlayOutwardDirection(blockState);
-		if (outward != null) {
-			applyFaceAnchoredBillboardTransform(poseStack, minecraft, outward);
-		} else {
-			applyTopBillboardTransform(poseStack, minecraft);
-		}
-
-		float textScale = TEXT_SCALE * RedstoneLinkClientDisplayConfig.overlay().fontScale();
-		poseStack.scale(textScale, -textScale, textScale);
-
-		float textStartX = -font.width(displayText) / 2.0F;
-		// 让文本框围绕锚点整体居中，避免底面/顶面因局部原点偏在左上角而出现视觉漂移。
-		float textStartY = -font.lineHeight / 2.0F;
-		font.drawInBatch(
-			displayText,
-			textStartX,
-			textStartY,
-			backgroundGlyphColor,
-			false,
-			poseStack.last().pose(),
-			buffer,
-			Font.DisplayMode.POLYGON_OFFSET,
-			BACKGROUND_COLOR,
-			FULL_BRIGHT
-		);
-		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.overlay().farSeeThrough()
-			? Font.DisplayMode.SEE_THROUGH
-			: Font.DisplayMode.POLYGON_OFFSET;
-		poseStack.pushPose();
-		poseStack.translate(0.0D, 0.0D, FOREGROUND_Z_BIAS);
-		font.drawInBatch(
-			displayText,
-			textStartX,
-			textStartY,
-			textColor,
-			false,
-			poseStack.last().pose(),
-			buffer,
-			foregroundDisplayMode,
-			0,
-			FULL_BRIGHT
-		);
-		poseStack.popPose();
-
-		poseStack.popPose();
+		renderState.outwardDirection = resolveOverlayOutwardDirection(blockEntity.getBlockState());
 	}
 
 	@Override
 	public int getViewDistance() {
 		return RedstoneLinkClientDisplayConfig.overlay().maxDistance();
+	}
+
+	@Override
+	public void submit(
+		LinkNodeFarOverlayRenderState renderState,
+		PoseStack poseStack,
+		SubmitNodeCollector submitNodeCollector,
+		CameraRenderState cameraRenderState
+	) {
+		if (renderState.displayText.isEmpty() || cameraRenderState == null || cameraRenderState.orientation == null) {
+			return;
+		}
+		int backgroundGlyphColor = withAlpha(renderState.textColor, 0x00);
+		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.overlay().farSeeThrough()
+			? Font.DisplayMode.SEE_THROUGH
+			: Font.DisplayMode.POLYGON_OFFSET;
+		float textScale = TEXT_SCALE * RedstoneLinkClientDisplayConfig.overlay().fontScale();
+		float textStartX = -font.width(renderState.displayText) / 2.0F;
+		float textStartY = -font.lineHeight / 2.0F;
+		var visualText = Component.literal(renderState.displayText).getVisualOrderText();
+
+		poseStack.pushPose();
+		if (renderState.outwardDirection != null) {
+			applyFaceAnchoredBillboardTransform(poseStack, cameraRenderState, renderState.outwardDirection);
+		} else {
+			applyTopBillboardTransform(poseStack, cameraRenderState);
+		}
+		poseStack.scale(textScale, -textScale, textScale);
+		submitNodeCollector.submitText(
+			poseStack,
+			textStartX,
+			textStartY,
+			visualText,
+			false,
+			Font.DisplayMode.POLYGON_OFFSET,
+			backgroundGlyphColor,
+			BACKGROUND_COLOR,
+			FULL_BRIGHT,
+			0
+		);
+		submitNodeCollector.submitText(
+			poseStack,
+			textStartX,
+			textStartY,
+			visualText,
+			false,
+			foregroundDisplayMode,
+			renderState.textColor,
+			0,
+			FULL_BRIGHT,
+			0
+		);
+		poseStack.popPose();
 	}
 
 	/**
@@ -150,7 +163,7 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 	 */
 	private static void applyFaceAnchoredBillboardTransform(
 		PoseStack poseStack,
-		Minecraft minecraft,
+		CameraRenderState cameraRenderState,
 		Direction outward
 	) {
 		poseStack.translate(
@@ -158,15 +171,15 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 			0.5D + outward.getStepY() * FACE_OFFSET,
 			0.5D + outward.getStepZ() * FACE_OFFSET
 		);
-		poseStack.mulPose(minecraft.getEntityRenderDispatcher().cameraOrientation());
+		poseStack.mulPose(cameraRenderState.orientation);
 	}
 
 	/**
 	 * 对完整体节点沿用“顶部公告牌”式显示，避免被实体体积遮挡。
 	 */
-	private static void applyTopBillboardTransform(PoseStack poseStack, Minecraft minecraft) {
+	private static void applyTopBillboardTransform(PoseStack poseStack, CameraRenderState cameraRenderState) {
 		poseStack.translate(0.5D, BLOCK_TOP_TEXT_Y, 0.5D);
-		poseStack.mulPose(minecraft.getEntityRenderDispatcher().cameraOrientation());
+		poseStack.mulPose(cameraRenderState.orientation);
 	}
 
 	/**
@@ -196,5 +209,14 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 			};
 		}
 		return null;
+	}
+
+	/**
+	 * 节点远外显渲染状态。
+	 */
+	public static final class LinkNodeFarOverlayRenderState extends BlockEntityRenderState {
+		private String displayText = "";
+		private int textColor = 0xFFFFFFFF;
+		private Direction outwardDirection;
 	}
 }

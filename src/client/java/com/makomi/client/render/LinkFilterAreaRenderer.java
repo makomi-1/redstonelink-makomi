@@ -4,24 +4,25 @@ import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.LinkDispatchFilterService;
 import com.makomi.data.SmartGlassesAccessSupport;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderStateShard;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import net.minecraft.client.renderer.feature.ModelFeatureRenderer.CrumblingOverlay;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.AABB;
 
 /**
  * 过滤器作用域线框渲染器。
  */
-public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntity> implements BlockEntityRenderer<T> {
+public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntity>
+	implements BlockEntityRenderer<T, LinkFilterAreaRenderer.LinkFilterAreaRenderState> {
 	private static final float RED = 1.0F;
 	private static final float GREEN = 0.22F;
 	private static final float BLUE = 0.22F;
@@ -30,24 +31,6 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 	private static final int BACKGROUND_COLOR = 0x80000000;
 	private static final int FULL_BRIGHT = 0x00F000F0;
 	private static final double BLOCK_TOP_TEXT_Y = 1.25D;
-	private static final float FOREGROUND_Z_BIAS = 0.5F;
-	private static final RenderType FILTER_FILL_RENDER_TYPE = RenderType.create(
-		"redstonelink_link_filter_fill",
-		DefaultVertexFormat.POSITION_COLOR,
-		VertexFormat.Mode.QUADS,
-		1536,
-		false,
-		true,
-		RenderType.CompositeState
-			.builder()
-			.setShaderState(RenderStateShard.POSITION_COLOR_SHADER)
-			.setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
-			.setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
-			.setCullState(RenderStateShard.NO_CULL)
-			.setOutputState(RenderStateShard.TRANSLUCENT_TARGET)
-			.setWriteMaskState(RenderStateShard.COLOR_WRITE)
-			.createCompositeState(false)
-	);
 	private static final AABB FILTER_BOX = new AABB(
 		-LinkDispatchFilterService.FILTER_RADIUS,
 		-LinkDispatchFilterService.FILTER_RADIUS,
@@ -59,18 +42,25 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 	private final Font font;
 
 	public LinkFilterAreaRenderer(BlockEntityRendererProvider.Context context) {
-		this.font = context.getFont();
+		this.font = context.font();
 	}
 
 	@Override
-	public void render(
+	public LinkFilterAreaRenderState createRenderState() {
+		return new LinkFilterAreaRenderState();
+	}
+
+	@Override
+	public void extractRenderState(
 		T blockEntity,
+		LinkFilterAreaRenderState renderState,
 		float partialTick,
-		PoseStack poseStack,
-		MultiBufferSource buffer,
-		int packedLight,
-		int packedOverlay
+		net.minecraft.world.phys.Vec3 cameraPosition,
+		CrumblingOverlay crumblingOverlay
 	) {
+		BlockEntityRenderer.super.extractRenderState(blockEntity, renderState, partialTick, cameraPosition, crumblingOverlay);
+		renderState.displayText = "";
+		renderState.renderArea = false;
 		if (blockEntity == null || !RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
 			return;
 		}
@@ -85,9 +75,9 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		if (minecraft.player.distanceToSqr(centerX, centerY, centerZ) > maxDistance * maxDistance) {
 			return;
 		}
-
-		renderFilterBox(poseStack, buffer);
-		renderFilterText(blockEntity, poseStack, buffer, minecraft);
+		renderState.renderArea = true;
+		renderState.displayText = LinkSerialOverlayRenderCommon.resolveFilterDisplayText(blockEntity);
+		renderState.textColor = LinkSerialOverlayRenderCommon.resolveFilterTextColor(blockEntity.filterKind());
 	}
 
 	@Override
@@ -95,87 +85,74 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		return RedstoneLinkClientDisplayConfig.overlay().maxDistance();
 	}
 
+	@Override
+	public void submit(
+		LinkFilterAreaRenderState renderState,
+		PoseStack poseStack,
+		SubmitNodeCollector submitNodeCollector,
+		CameraRenderState cameraRenderState
+	) {
+		if (renderState.renderArea) {
+			submitNodeCollector.submitCustomGeometry(
+				poseStack,
+				RenderTypes.debugFilledBox(),
+				(pose, vertexConsumer) -> renderFilterFill(pose, vertexConsumer)
+			);
+			submitNodeCollector.submitCustomGeometry(
+				poseStack,
+				RenderTypes.lines(),
+				(pose, vertexConsumer) -> renderFilterOutline(pose, vertexConsumer)
+			);
+		}
+		if (renderState.displayText.isEmpty() || cameraRenderState == null || cameraRenderState.orientation == null) {
+			return;
+		}
+		int backgroundGlyphColor = withAlpha(renderState.textColor, 0x00);
+		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.overlay().farSeeThrough()
+			? Font.DisplayMode.SEE_THROUGH
+			: Font.DisplayMode.POLYGON_OFFSET;
+		float textScale = TEXT_SCALE * RedstoneLinkClientDisplayConfig.overlay().fontScale();
+		float textStartX = -font.width(renderState.displayText) / 2.0F;
+		float textStartY = -font.lineHeight / 2.0F;
+		var visualText = Component.literal(renderState.displayText).getVisualOrderText();
+
+		poseStack.pushPose();
+		poseStack.translate(0.5D, BLOCK_TOP_TEXT_Y, 0.5D);
+		poseStack.mulPose(cameraRenderState.orientation);
+		poseStack.scale(textScale, -textScale, textScale);
+		submitNodeCollector.submitText(
+			poseStack,
+			textStartX,
+			textStartY,
+			visualText,
+			false,
+			Font.DisplayMode.POLYGON_OFFSET,
+			backgroundGlyphColor,
+			BACKGROUND_COLOR,
+			FULL_BRIGHT,
+			0
+		);
+		submitNodeCollector.submitText(
+			poseStack,
+			textStartX,
+			textStartY,
+			visualText,
+			false,
+			foregroundDisplayMode,
+			renderState.textColor,
+			0,
+			FULL_BRIGHT,
+			0
+		);
+		poseStack.popPose();
+	}
+
 	/**
 	 * 绘制过滤器影响域外显：
 	 * 先绘制不穿墙半透明红色面层，再叠加原有线框轮廓。
 	 */
-	private static void renderFilterBox(
-		PoseStack poseStack,
-		MultiBufferSource buffer
-	) {
-		renderFilterFill(poseStack, buffer.getBuffer(FILTER_FILL_RENDER_TYPE));
-		LevelRenderer.renderLineBox(
-			poseStack,
-			buffer.getBuffer(RenderType.lines()),
-			FILTER_BOX,
-			RED,
-			GREEN,
-			BLUE,
-			1.0F
-		);
-	}
-
-	/**
-	 * 绘制过滤器 far overlay 文本，优先显示别名，空别名回退到过滤器标题。
-	 */
-	private void renderFilterText(
-		T blockEntity,
-		PoseStack poseStack,
-		MultiBufferSource buffer,
-		Minecraft minecraft
-	) {
-		String displayText = LinkSerialOverlayRenderCommon.resolveFilterDisplayText(blockEntity);
-		if (displayText.isEmpty()) {
-			return;
-		}
-		int textColor = LinkSerialOverlayRenderCommon.resolveFilterTextColor(blockEntity.filterKind());
-		int backgroundGlyphColor = withAlpha(textColor, 0x00);
-		Font.DisplayMode foregroundDisplayMode = RedstoneLinkClientDisplayConfig.overlay().farSeeThrough()
-			? Font.DisplayMode.SEE_THROUGH
-			: Font.DisplayMode.POLYGON_OFFSET;
-
-		poseStack.pushPose();
-		poseStack.translate(0.5D, BLOCK_TOP_TEXT_Y, 0.5D);
-		poseStack.mulPose(minecraft.getEntityRenderDispatcher().cameraOrientation());
-		float textScale = TEXT_SCALE * RedstoneLinkClientDisplayConfig.overlay().fontScale();
-		poseStack.scale(textScale, -textScale, textScale);
-		float textStartX = -font.width(displayText) / 2.0F;
-		float textStartY = -font.lineHeight / 2.0F;
-		font.drawInBatch(
-			displayText,
-			textStartX,
-			textStartY,
-			backgroundGlyphColor,
-			false,
-			poseStack.last().pose(),
-			buffer,
-			Font.DisplayMode.POLYGON_OFFSET,
-			BACKGROUND_COLOR,
-			FULL_BRIGHT
-		);
-		poseStack.pushPose();
-		poseStack.translate(0.0D, 0.0D, FOREGROUND_Z_BIAS);
-		font.drawInBatch(
-			displayText,
-			textStartX,
-			textStartY,
-			textColor,
-			false,
-			poseStack.last().pose(),
-			buffer,
-			foregroundDisplayMode,
-			0,
-			FULL_BRIGHT
-		);
-		poseStack.popPose();
-		poseStack.popPose();
-	}
-
-	/**
-	 * 以六个显式矩形面绘制过滤器影响域填充层，避免链式辅助方法在当前渲染状态下退化为错误三角面。
-	 */
 	private static void renderFilterFill(
-		PoseStack poseStack,
+		PoseStack.Pose pose,
 		VertexConsumer vertexConsumer
 	) {
 		float minX = (float) FILTER_BOX.minX;
@@ -184,7 +161,6 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		float maxX = (float) FILTER_BOX.maxX;
 		float maxY = (float) FILTER_BOX.maxY;
 		float maxZ = (float) FILTER_BOX.maxZ;
-		PoseStack.Pose pose = poseStack.last();
 
 		addQuad(vertexConsumer, pose, minX, minY, minZ, maxX, minY, minZ, maxX, maxY, minZ, minX, maxY, minZ);
 		addQuad(vertexConsumer, pose, maxX, minY, maxZ, minX, minY, maxZ, minX, maxY, maxZ, maxX, maxY, maxZ);
@@ -192,6 +168,30 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		addQuad(vertexConsumer, pose, maxX, minY, minZ, maxX, minY, maxZ, maxX, maxY, maxZ, maxX, maxY, minZ);
 		addQuad(vertexConsumer, pose, minX, maxY, minZ, maxX, maxY, minZ, maxX, maxY, maxZ, minX, maxY, maxZ);
 		addQuad(vertexConsumer, pose, minX, minY, maxZ, maxX, minY, maxZ, maxX, minY, minZ, minX, minY, minZ);
+	}
+
+	/**
+	 * 按 12 条边显式写入过滤器范围线框。
+	 */
+	private static void renderFilterOutline(PoseStack.Pose pose, VertexConsumer vertexConsumer) {
+		float minX = (float) FILTER_BOX.minX;
+		float minY = (float) FILTER_BOX.minY;
+		float minZ = (float) FILTER_BOX.minZ;
+		float maxX = (float) FILTER_BOX.maxX;
+		float maxY = (float) FILTER_BOX.maxY;
+		float maxZ = (float) FILTER_BOX.maxZ;
+		addLine(vertexConsumer, pose, minX, minY, minZ, maxX, minY, minZ);
+		addLine(vertexConsumer, pose, maxX, minY, minZ, maxX, minY, maxZ);
+		addLine(vertexConsumer, pose, maxX, minY, maxZ, minX, minY, maxZ);
+		addLine(vertexConsumer, pose, minX, minY, maxZ, minX, minY, minZ);
+		addLine(vertexConsumer, pose, minX, maxY, minZ, maxX, maxY, minZ);
+		addLine(vertexConsumer, pose, maxX, maxY, minZ, maxX, maxY, maxZ);
+		addLine(vertexConsumer, pose, maxX, maxY, maxZ, minX, maxY, maxZ);
+		addLine(vertexConsumer, pose, minX, maxY, maxZ, minX, maxY, minZ);
+		addLine(vertexConsumer, pose, minX, minY, minZ, minX, maxY, minZ);
+		addLine(vertexConsumer, pose, maxX, minY, minZ, maxX, maxY, minZ);
+		addLine(vertexConsumer, pose, maxX, minY, maxZ, maxX, maxY, maxZ);
+		addLine(vertexConsumer, pose, minX, minY, maxZ, minX, maxY, maxZ);
 	}
 
 	/**
@@ -233,9 +233,42 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 	}
 
 	/**
+	 * 写入单条线框边。
+	 */
+	private static void addLine(
+		VertexConsumer vertexConsumer,
+		PoseStack.Pose pose,
+		float startX,
+		float startY,
+		float startZ,
+		float endX,
+		float endY,
+		float endZ
+	) {
+		float deltaX = endX - startX;
+		float deltaY = endY - startY;
+		float deltaZ = endZ - startZ;
+		float length = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+		float normalX = length <= 0.0F ? 1.0F : deltaX / length;
+		float normalY = length <= 0.0F ? 0.0F : deltaY / length;
+		float normalZ = length <= 0.0F ? 0.0F : deltaZ / length;
+		vertexConsumer.addVertex(pose, startX, startY, startZ).setColor(RED, GREEN, BLUE, 1.0F).setNormal(pose, normalX, normalY, normalZ);
+		vertexConsumer.addVertex(pose, endX, endY, endZ).setColor(RED, GREEN, BLUE, 1.0F).setNormal(pose, normalX, normalY, normalZ);
+	}
+
+	/**
 	 * 将文本颜色替换为指定透明度，保持原有 RGB 不变。
 	 */
 	private static int withAlpha(int color, int alpha) {
 		return ((alpha & 0xFF) << 24) | (color & 0x00FFFFFF);
+	}
+
+	/**
+	 * 过滤器范围远外显渲染状态。
+	 */
+	public static final class LinkFilterAreaRenderState extends BlockEntityRenderState {
+		private boolean renderArea;
+		private String displayText = "";
+		private int textColor = 0xFFFFFFFF;
 	}
 }
