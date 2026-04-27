@@ -14,9 +14,6 @@ import java.util.Set;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -38,25 +35,23 @@ public final class CrossChunkDispatchService {
 		| TicketType.FLAG_KEEP_DIMENSION_ACTIVE;
 	static final int TRANSIENT_TICKET_LEVEL = 2;
 	static final int RESIDENT_TICKET_LEVEL = 2;
-	static final TicketType TRANSIENT_TICKET_TYPE = registerTicketType("transient");
-	static final TicketType RESIDENT_TICKET_TYPE = registerTicketType("resident");
+	static final TicketType TRANSIENT_TICKET_TYPE = createRuntimeTicketType();
+	static final TicketType RESIDENT_TICKET_TYPE = createRuntimeTicketType();
 
 	private CrossChunkDispatchService() {
 	}
 
 	/**
-	 * 注册本模组自有区块票据类型。
+	 * 构造本模组运行态自有区块票据类型。
 	 * <p>
 	 * 1.21.11 起 `TicketType` 不再携带比较器与 payload，而是仅声明加载/模拟标志；
-	 * 本模组继续用独立 ticket type 隔离自己的强加载来源，但把“哪一个节点持有票据”的去重逻辑转到运行态状态表维护。
+	 * 同时 `BuiltInRegistries.TICKET_TYPE` 会在 bootstrap 后冻结，因此这里不再向原版注册表追加
+	 * 新条目，而是直接使用非持久化的运行态 `TicketType` 实例。
+	 * resident / transient 的区分、引用计数与重建逻辑继续完全由本模组运行态状态表维护。
 	 * </p>
 	 */
-	private static TicketType registerTicketType(String path) {
-		return Registry.register(
-			BuiltInRegistries.TICKET_TYPE,
-			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "crosschunk_" + path),
-			new TicketType(TicketType.NO_TIMEOUT, CHUNK_TICKET_FLAGS)
-		);
+	private static TicketType createRuntimeTicketType() {
+		return new TicketType(TicketType.NO_TIMEOUT, CHUNK_TICKET_FLAGS);
 	}
 
 	/**

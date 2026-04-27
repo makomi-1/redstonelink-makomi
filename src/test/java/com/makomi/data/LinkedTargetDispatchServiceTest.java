@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Set;
@@ -20,6 +21,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class LinkedTargetDispatchServiceTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * activationMode 为空时应走空摘要兜底。
 	 */

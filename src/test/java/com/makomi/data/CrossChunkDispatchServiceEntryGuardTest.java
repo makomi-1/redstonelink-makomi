@@ -3,6 +3,7 @@ package com.makomi.data;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.makomi.block.entity.ActivationMode;
+import com.makomi.testsupport.TestMinecraftSupport;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +12,10 @@ import org.junit.jupiter.api.Test;
  */
 @Tag("stable-core")
 class CrossChunkDispatchServiceEntryGuardTest {
+	static {
+		TestMinecraftSupport.bootstrapMinecraft();
+	}
+
 	/**
 	 * queueActivation 在 activationMode 为空时应直接拒绝。
 	 */
