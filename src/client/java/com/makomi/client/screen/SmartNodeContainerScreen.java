@@ -27,7 +27,9 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	private static final int RIGHT_PANEL_X = CHEST_IMAGE_WIDTH + RIGHT_PANEL_GAP;
 	private static final int RIGHT_PANEL_INSET = 8;
 	private static final int RIGHT_PANEL_LABEL_Y = 20;
-	private static final int RIGHT_PANEL_VALUE_Y = 34;
+	private static final int RIGHT_PANEL_FIELD_Y = 30;
+	private static final int RIGHT_PANEL_FIELD_HEIGHT = 18;
+	private static final int RIGHT_PANEL_VALUE_TEXT_INSET = 6;
 	private static final int RIGHT_PANEL_BUTTON_Y = 58;
 	private static final int RIGHT_PANEL_BUTTON_WIDTH = RIGHT_PANEL_WIDTH - RIGHT_PANEL_INSET * 2;
 	private static final int RIGHT_PANEL_BUTTON_HEIGHT = 20;
@@ -35,6 +37,8 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	private static final int RIGHT_PANEL_BOTTOM_INSET = 12;
 	private static final int RIGHT_PANEL_BACKGROUND = 0xD92A1C13;
 	private static final int RIGHT_PANEL_BORDER = 0xFF8E6B59;
+	private static final int RIGHT_PANEL_FIELD_BORDER = 0xFF6C5244;
+	private static final int RIGHT_PANEL_FIELD_BACKGROUND = 0xE6150E0A;
 	private static final int RIGHT_PANEL_DIVIDER = 0xFF5A4032;
 	private static final RenderPipeline CONTAINER_RENDER_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final Identifier CONTAINER_TEXTURE = Identifier.withDefaultNamespace(
@@ -120,8 +124,8 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 			Component.translatable(
 				currentSelectedType().translationKey()
 			),
-			RIGHT_PANEL_X + RIGHT_PANEL_INSET,
-			RIGHT_PANEL_VALUE_Y,
+			RIGHT_PANEL_X + RIGHT_PANEL_INSET + RIGHT_PANEL_VALUE_TEXT_INSET,
+			RIGHT_PANEL_FIELD_Y + ((RIGHT_PANEL_FIELD_HEIGHT - font.lineHeight) / 2),
 			0xFFFFFF,
 			false
 		);
@@ -144,8 +148,15 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 		int panelTop = topPos + RIGHT_PANEL_TOP;
 		int panelRight = leftPos + imageWidth;
 		int panelBottom = topPos + imageHeight - RIGHT_PANEL_BOTTOM_INSET;
+		int fieldLeft = panelLeft + RIGHT_PANEL_INSET;
+		int fieldTop = topPos + RIGHT_PANEL_FIELD_Y;
+		int fieldRight = panelRight - RIGHT_PANEL_INSET;
+		int fieldBottom = fieldTop + RIGHT_PANEL_FIELD_HEIGHT;
 		guiGraphics.fill(panelLeft, panelTop, panelRight, panelBottom, RIGHT_PANEL_BORDER);
 		guiGraphics.fill(panelLeft + 1, panelTop + 1, panelRight - 1, panelBottom - 1, RIGHT_PANEL_BACKGROUND);
+		// 当前放置类型沿用原设计的独立字段框，避免右侧信息区只剩裸文本。
+		guiGraphics.fill(fieldLeft, fieldTop, fieldRight, fieldBottom, RIGHT_PANEL_FIELD_BORDER);
+		guiGraphics.fill(fieldLeft + 1, fieldTop + 1, fieldRight - 1, fieldBottom - 1, RIGHT_PANEL_FIELD_BACKGROUND);
 		guiGraphics.fill(
 			panelLeft + RIGHT_PANEL_INSET,
 			topPos + RIGHT_PANEL_BUTTON_Y - 8,
