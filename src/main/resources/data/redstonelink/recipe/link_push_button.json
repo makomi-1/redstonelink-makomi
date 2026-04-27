@@ -2,12 +2,8 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "key": {
-    "B": {
-      "tag": "minecraft:wooden_buttons"
-    },
-    "L": {
-      "item": "redstonelink:redstone_link_component"
-    }
+    "B": "#minecraft:wooden_buttons",
+    "L": "redstonelink:redstone_link_component"
   },
   "pattern": [
     "   ",

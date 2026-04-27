@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "redstonelink:item/graph_visual_editor"
+  }
+}

@@ -67,27 +67,30 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 		@Override
 		public void buildRecipes() {
 			buildRedstoneLinkComponentRecipe(output);
-			buildLinkBaseRecipe(output, "link_toggle_button", ModItems.LINK_TOGGLE_BUTTON, Items.STONE_BUTTON);
-			buildLinkBaseRecipe(output, "link_push_button", ModItems.LINK_PUSH_BUTTON, ItemTags.WOODEN_BUTTONS);
-			buildLinkBaseRecipe(output, "link_sync_lever", ModItems.LINK_SYNC_LEVER, Items.LEVER);
-			buildLinkBaseRecipe(output, "link_pulse_emitter", ModItems.LINK_PULSE_EMITTER, TRIGGER_P_MATERIALS);
-			buildLinkBaseRecipe(output, "link_sync_emitter", ModItems.LINK_SYNC_EMITTER, TRIGGER_S_MATERIALS);
-			buildLinkBaseRecipe(output, "link_toggle_emitter", ModItems.LINK_TOGGLE_EMITTER, TRIGGER_T_MATERIALS);
+			buildLinkBaseRecipe(output, ModItems.LINK_TOGGLE_BUTTON, Items.STONE_BUTTON);
+			buildLinkBaseRecipe(output, ModItems.LINK_PUSH_BUTTON, ItemTags.WOODEN_BUTTONS);
+			buildLinkBaseRecipe(output, ModItems.LINK_SYNC_LEVER, Items.LEVER);
+			buildLinkBaseRecipe(output, ModItems.LINK_PULSE_EMITTER, TRIGGER_P_MATERIALS);
+			buildLinkBaseRecipe(output, ModItems.LINK_SYNC_EMITTER, TRIGGER_S_MATERIALS);
+			buildLinkBaseRecipe(output, ModItems.LINK_TOGGLE_EMITTER, TRIGGER_T_MATERIALS);
 			buildSendFilterRecipe(output);
 			buildReceiveFilterRecipe(output);
 			buildChunkActivatorRecipe(output);
-			buildLinkBaseRecipe(output, "link_redstone_core", ModItems.LINK_REDSTONE_CORE, Items.REDSTONE_BLOCK);
-			buildLinkBaseRecipe(output, "link_redstone_dust_core", ModItems.LINK_REDSTONE_DUST_CORE, Items.REDSTONE);
-			buildLinkerRecipe(output, "redstonelink_toggle_linker", ModItems.REDSTONELINK_TOGGLE_LINKER, ModItems.LINK_TOGGLE_BUTTON);
-			buildLinkerRecipe(output, "redstonelink_pulse_linker", ModItems.REDSTONELINK_PULSE_LINKER, ModItems.LINK_PUSH_BUTTON);
-			buildLinkerRecipe(output, "redstonelink_sync_linker", ModItems.REDSTONELINK_SYNC_LINKER, ModItems.LINK_SYNC_LEVER);
+			buildLinkBaseRecipe(output, ModItems.LINK_REDSTONE_CORE, Items.REDSTONE_BLOCK);
+			buildLinkBaseRecipe(output, ModItems.LINK_REDSTONE_DUST_CORE, Items.REDSTONE);
+			buildRepeaterRecipe(output);
+			buildLinkerRecipe(output, ModItems.REDSTONELINK_TOGGLE_LINKER, ModItems.LINK_TOGGLE_BUTTON);
+			buildLinkerRecipe(output, ModItems.REDSTONELINK_PULSE_LINKER, ModItems.LINK_PUSH_BUTTON);
+			buildLinkerRecipe(output, ModItems.REDSTONELINK_SYNC_LINKER, ModItems.LINK_SYNC_LEVER);
 			buildQuickLinkToolRecipe(output);
+			buildGraphVisualEditorRecipe(output);
+			buildSmartGlassesRecipe(output);
+			buildSmartNodeContainerRecipe(output);
 			buildStatusPanelRecipe(output);
-			buildTransparentCoreSwapRecipe(output, "link_redstone_core_transparent", ModItems.LINK_REDSTONE_CORE_TRANSPARENT, ModItems.LINK_REDSTONE_CORE);
+			buildTransparentCoreSwapRecipe(output, ModItems.LINK_REDSTONE_CORE_TRANSPARENT, ModItems.LINK_REDSTONE_CORE);
 			buildTransparentCoreSwapRecipe(output, "link_redstone_core_from_transparent", ModItems.LINK_REDSTONE_CORE, ModItems.LINK_REDSTONE_CORE_TRANSPARENT);
 			buildTransparentCoreSwapRecipe(
 				output,
-				"link_redstone_dust_core_transparent",
 				ModItems.LINK_REDSTONE_DUST_CORE_TRANSPARENT,
 				ModItems.LINK_REDSTONE_DUST_CORE
 			);
@@ -111,7 +114,7 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern("CRC")
 				.pattern(" I ")
 				.unlockedBy(getHasName(Items.REDSTONE), has(Items.REDSTONE))
-				.save(recipeOutput, recipeId("redstone_link_component"));
+				.save(recipeOutput);
 		}
 
 		/**
@@ -119,7 +122,6 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 		 */
 		private void buildLinkBaseRecipe(
 			RecipeOutput recipeOutput,
-			String recipeId,
 			ItemLike result,
 			ItemLike baseIngredient
 		) {
@@ -130,7 +132,7 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern("BL ")
 				.pattern("   ")
 				.unlockedBy(getHasName(baseIngredient), has(baseIngredient))
-				.save(recipeOutput, recipeId(recipeId));
+				.save(recipeOutput);
 		}
 
 		/**
@@ -138,7 +140,6 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 		 */
 		private void buildLinkBaseRecipe(
 			RecipeOutput recipeOutput,
-			String recipeId,
 			ItemLike result,
 			TagKey<Item> baseIngredientTag
 		) {
@@ -149,7 +150,7 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern("BL ")
 				.pattern("   ")
 				.unlockedBy(tagCriterionName(baseIngredientTag), has(baseIngredientTag))
-				.save(recipeOutput, recipeId(recipeId));
+				.save(recipeOutput);
 		}
 
 		/**
@@ -163,7 +164,7 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern("DCD")
 				.pattern("DDD")
 				.unlockedBy(getHasName(ModItems.REDSTONE_LINK_COMPONENT), has(ModItems.REDSTONE_LINK_COMPONENT))
-				.save(recipeOutput, recipeId("link_chunk_activator"));
+				.save(recipeOutput);
 		}
 
 		/**
@@ -179,7 +180,7 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern("GLG")
 				.pattern(" S ")
 				.unlockedBy(getHasName(ModItems.LINK_SYNC_EMITTER), has(ModItems.LINK_SYNC_EMITTER))
-				.save(recipeOutput, recipeId("link_send_filter"));
+				.save(recipeOutput);
 		}
 
 		/**
@@ -195,7 +196,7 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern("GLG")
 				.pattern(" C ")
 				.unlockedBy(getHasName(ModItems.LINK_REDSTONE_CORE), has(ModItems.LINK_REDSTONE_CORE))
-				.save(recipeOutput, recipeId("link_receive_filter"));
+				.save(recipeOutput);
 		}
 
 		/**
@@ -203,7 +204,6 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 		 */
 		private void buildLinkerRecipe(
 			RecipeOutput recipeOutput,
-			String recipeId,
 			ItemLike result,
 			ItemLike baseIngredient
 		) {
@@ -214,7 +214,22 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern("BL ")
 				.pattern("   ")
 				.unlockedBy(getHasName(baseIngredient), has(baseIngredient))
-				.save(recipeOutput, recipeId(recipeId));
+				.save(recipeOutput);
+		}
+
+		/**
+		 * 生成 repeater 配方。
+		 */
+		private void buildRepeaterRecipe(RecipeOutput recipeOutput) {
+			shaped(RecipeCategory.REDSTONE, ModItems.LINK_REPEATER)
+				.define('C', ModItems.LINK_REDSTONE_CORE)
+				.define('L', ModItems.REDSTONE_LINK_COMPONENT)
+				.define('S', ModItems.LINK_SYNC_EMITTER)
+				.pattern("CLS")
+				.pattern("   ")
+				.pattern("   ")
+				.unlockedBy(getHasName(ModItems.LINK_SYNC_EMITTER), has(ModItems.LINK_SYNC_EMITTER))
+				.save(recipeOutput);
 		}
 
 		/**
@@ -228,7 +243,50 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern(" S ")
 				.pattern("S  ")
 				.unlockedBy(getHasName(ModItems.REDSTONE_LINK_COMPONENT), has(ModItems.REDSTONE_LINK_COMPONENT))
-				.save(recipeOutput, recipeId("quick_link_tool"));
+				.save(recipeOutput);
+		}
+
+		/**
+		 * 生成图可视编辑器配方。
+		 */
+		private void buildGraphVisualEditorRecipe(RecipeOutput recipeOutput) {
+			shaped(RecipeCategory.REDSTONE, ModItems.GRAPH_VISUAL_EDITOR)
+				.define('C', ModItems.REDSTONE_LINK_COMPONENT)
+				.define('G', Items.GLASS_PANE)
+				.define('Q', ModItems.QUICK_LINK_TOOL)
+				.pattern(" G ")
+				.pattern("GCG")
+				.pattern(" Q ")
+				.unlockedBy(getHasName(ModItems.QUICK_LINK_TOOL), has(ModItems.QUICK_LINK_TOOL))
+				.save(recipeOutput);
+		}
+
+		/**
+		 * 生成智能眼镜配方。
+		 */
+		private void buildSmartGlassesRecipe(RecipeOutput recipeOutput) {
+			shaped(RecipeCategory.REDSTONE, ModItems.SMART_GLASSES)
+				.define('G', Items.GLASS_PANE)
+				.define('L', ModItems.REDSTONE_LINK_COMPONENT)
+				.pattern("GLG")
+				.pattern("   ")
+				.pattern("   ")
+				.unlockedBy(getHasName(ModItems.REDSTONE_LINK_COMPONENT), has(ModItems.REDSTONE_LINK_COMPONENT))
+				.save(recipeOutput);
+		}
+
+		/**
+		 * 生成智能节点容器配方。
+		 */
+		private void buildSmartNodeContainerRecipe(RecipeOutput recipeOutput) {
+			shaped(RecipeCategory.REDSTONE, ModItems.SMART_NODE_CONTAINER)
+				.define('C', Items.CHEST)
+				.define('L', ModItems.REDSTONE_LINK_COMPONENT)
+				.pattern("CL ")
+				.pattern("   ")
+				.pattern("   ")
+				.unlockedBy(getHasName(ModItems.REDSTONE_LINK_COMPONENT), has(ModItems.REDSTONE_LINK_COMPONENT))
+				.save(recipeOutput);
 		}
 
 		/**
@@ -244,11 +302,21 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 				.pattern("SCR")
 				.pattern("   ")
 				.unlockedBy(getHasName(ModItems.LINK_SYNC_EMITTER), has(ModItems.LINK_SYNC_EMITTER))
-				.save(recipeOutput, recipeId("redstonelink_status_panel"));
+				.save(recipeOutput);
 		}
 
 		/**
 		 * 生成透明/非透明 core 的互转配方。
+		 */
+		private void buildTransparentCoreSwapRecipe(RecipeOutput recipeOutput, ItemLike result, ItemLike ingredient) {
+			shapeless(RecipeCategory.REDSTONE, result)
+				.requires(ingredient)
+				.unlockedBy(getHasName(ingredient), has(ingredient))
+				.save(recipeOutput);
+		}
+
+		/**
+		 * 生成使用别名 id 的透明/非透明 core 互转配方。
 		 */
 		private void buildTransparentCoreSwapRecipe(
 			RecipeOutput recipeOutput,
@@ -259,15 +327,8 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 			shapeless(RecipeCategory.REDSTONE, result)
 				.requires(ingredient)
 				.unlockedBy(getHasName(ingredient), has(ingredient))
-				.save(recipeOutput, recipeId(recipeId));
+				.save(recipeOutput, id(recipeId).toString());
 		}
-	}
-
-	/**
-	 * 将配方路径转换为 1.21.11 `save` 需要的字符串资源标识。
-	 */
-	private static String recipeId(String path) {
-		return id(path).toString();
 	}
 
 	/**

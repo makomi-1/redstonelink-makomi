@@ -2,12 +2,8 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "key": {
-    "B": {
-      "item": "minecraft:stone_button"
-    },
-    "L": {
-      "item": "redstonelink:redstone_link_component"
-    }
+    "B": "minecraft:stone_button",
+    "L": "redstonelink:redstone_link_component"
   },
   "pattern": [
     "   ",

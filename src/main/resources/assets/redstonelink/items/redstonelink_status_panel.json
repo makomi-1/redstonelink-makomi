@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "redstonelink:item/redstonelink_status_panel"
+  }
+}

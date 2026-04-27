@@ -2,12 +2,8 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "key": {
-    "B": {
-      "item": "minecraft:redstone"
-    },
-    "L": {
-      "item": "redstonelink:redstone_link_component"
-    }
+    "B": "minecraft:redstone",
+    "L": "redstonelink:redstone_link_component"
   },
   "pattern": [
     "   ",

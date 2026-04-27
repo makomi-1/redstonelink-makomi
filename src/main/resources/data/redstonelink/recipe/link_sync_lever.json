@@ -2,12 +2,8 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "key": {
-    "B": {
-      "item": "minecraft:lever"
-    },
-    "L": {
-      "item": "redstonelink:redstone_link_component"
-    }
+    "B": "minecraft:lever",
+    "L": "redstonelink:redstone_link_component"
   },
   "pattern": [
     "   ",

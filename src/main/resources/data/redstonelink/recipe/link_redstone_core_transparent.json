@@ -2,9 +2,7 @@
   "type": "minecraft:crafting_shapeless",
   "category": "redstone",
   "ingredients": [
-    {
-      "item": "redstonelink:link_redstone_core"
-    }
+    "redstonelink:link_redstone_core"
   ],
   "result": {
     "count": 1,

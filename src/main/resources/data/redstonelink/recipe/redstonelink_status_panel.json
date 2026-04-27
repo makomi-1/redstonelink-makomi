@@ -2,18 +2,10 @@
   "type": "minecraft:crafting_shaped",
   "category": "redstone",
   "key": {
-    "G": {
-      "item": "minecraft:glass"
-    },
-    "S": {
-      "item": "redstonelink:link_sync_emitter"
-    },
-    "C": {
-      "item": "redstonelink:redstone_link_component"
-    },
-    "R": {
-      "item": "redstonelink:link_redstone_core"
-    }
+    "C": "redstonelink:redstone_link_component",
+    "G": "minecraft:glass",
+    "R": "redstonelink:link_redstone_core",
+    "S": "redstonelink:link_sync_emitter"
   },
   "pattern": [
     " G ",
