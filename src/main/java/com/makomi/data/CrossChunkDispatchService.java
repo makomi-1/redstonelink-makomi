@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.makomi.RedstoneLink;
 import com.makomi.block.entity.ActivationMode;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.util.SignalStrengths;
@@ -13,6 +14,9 @@ import java.util.Set;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -29,21 +33,30 @@ import net.minecraft.world.level.Level;
  */
 public final class CrossChunkDispatchService {
 	private static final Map<MinecraftServer, DispatchState> STATE_BY_SERVER = new IdentityHashMap<>();
+	private static final int CHUNK_TICKET_FLAGS = TicketType.FLAG_LOADING
+		| TicketType.FLAG_SIMULATION
+		| TicketType.FLAG_KEEP_DIMENSION_ACTIVE;
 	static final int TRANSIENT_TICKET_LEVEL = 2;
 	static final int RESIDENT_TICKET_LEVEL = 2;
-	static final TicketType TRANSIENT_TICKET_TYPE = TicketType.create(
-		"redstonelink_transient",
-		Comparator.comparingLong(ChunkPos::toLong)
-	);
-	static final TicketType RESIDENT_TICKET_TYPE = TicketType.create(
-		"redstonelink_resident",
-		Comparator
-			.comparing((ResidentTicketKey key) -> key.role().name())
-			.thenComparing(key -> key.type().name())
-			.thenComparingLong(ResidentTicketKey::serial)
-	);
+	static final TicketType TRANSIENT_TICKET_TYPE = registerTicketType("transient");
+	static final TicketType RESIDENT_TICKET_TYPE = registerTicketType("resident");
 
 	private CrossChunkDispatchService() {
+	}
+
+	/**
+	 * 注册本模组自有区块票据类型。
+	 * <p>
+	 * 1.21.11 起 `TicketType` 不再携带比较器与 payload，而是仅声明加载/模拟标志；
+	 * 本模组继续用独立 ticket type 隔离自己的强加载来源，但把“哪一个节点持有票据”的去重逻辑转到运行态状态表维护。
+	 * </p>
+	 */
+	private static TicketType registerTicketType(String path) {
+		return Registry.register(
+			BuiltInRegistries.TICKET_TYPE,
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "crosschunk_" + path),
+			new TicketType(TicketType.NO_TIMEOUT, CHUNK_TICKET_FLAGS)
+		);
 	}
 
 	/**

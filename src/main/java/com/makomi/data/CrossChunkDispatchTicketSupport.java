@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import java.util.HashSet;
 import com.makomi.config.RedstoneLinkConfig;
 import java.util.Iterator;
 import java.util.Map;
@@ -128,9 +129,12 @@ final class CrossChunkDispatchTicketSupport {
 		if (state.residentTickets.isEmpty()) {
 			return;
 		}
+		Set<CrossChunkDispatchService.ResidentChunkKey> releasedChunks = new HashSet<>();
 		for (Map.Entry<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> entry :
 			state.residentTickets.entrySet()) {
-			removeResidentTicket(server, entry.getKey(), entry.getValue());
+			if (releasedChunks.add(entry.getValue())) {
+				removeResidentTicket(server, state, entry.getKey(), entry.getValue());
+			}
 		}
 	}
 
@@ -396,12 +400,12 @@ final class CrossChunkDispatchTicketSupport {
 			if (desiredChunk != null && desiredChunk.equals(currentChunk)) {
 				continue;
 			}
-			removeResidentTicket(server, key, currentChunk);
+			removeResidentTicket(server, state, key, currentChunk);
 			if (desiredChunk == null) {
 				iterator.remove();
 				continue;
 			}
-			if (addResidentTicket(server, key, desiredChunk)) {
+			if (addResidentTicket(server, state, key, desiredChunk)) {
 				currentEntry.setValue(desiredChunk);
 				continue;
 			}
@@ -409,7 +413,7 @@ final class CrossChunkDispatchTicketSupport {
 		}
 		for (Map.Entry<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> desiredEntry :
 			desiredTickets.entrySet()) {
-			if (addResidentTicket(server, desiredEntry.getKey(), desiredEntry.getValue())) {
+			if (addResidentTicket(server, state, desiredEntry.getKey(), desiredEntry.getValue())) {
 				state.residentTickets.put(desiredEntry.getKey(), desiredEntry.getValue());
 			}
 		}
@@ -420,11 +424,10 @@ final class CrossChunkDispatchTicketSupport {
 	 */
 	static void addTransientTicket(ServerLevel level, int chunkX, int chunkZ) {
 		ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
-		level.getChunkSource().addRegionTicket(
+		level.getChunkSource().addTicketWithRadius(
 			CrossChunkDispatchService.TRANSIENT_TICKET_TYPE,
 			chunkPos,
-			CrossChunkDispatchService.TRANSIENT_TICKET_LEVEL,
-			chunkPos
+			CrossChunkDispatchService.TRANSIENT_TICKET_LEVEL
 		);
 	}
 
@@ -433,11 +436,10 @@ final class CrossChunkDispatchTicketSupport {
 	 */
 	static void removeTransientTicket(ServerLevel level, int chunkX, int chunkZ) {
 		ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
-		level.getChunkSource().removeRegionTicket(
+		level.getChunkSource().removeTicketWithRadius(
 			CrossChunkDispatchService.TRANSIENT_TICKET_TYPE,
 			chunkPos,
-			CrossChunkDispatchService.TRANSIENT_TICKET_LEVEL,
-			chunkPos
+			CrossChunkDispatchService.TRANSIENT_TICKET_LEVEL
 		);
 	}
 
@@ -446,6 +448,7 @@ final class CrossChunkDispatchTicketSupport {
 	 */
 	static boolean addResidentTicket(
 		MinecraftServer server,
+		CrossChunkDispatchService.DispatchState state,
 		CrossChunkDispatchService.ResidentTicketKey ticketKey,
 		CrossChunkDispatchService.ResidentChunkKey chunkKey
 	) {
@@ -453,12 +456,14 @@ final class CrossChunkDispatchTicketSupport {
 		if (level == null) {
 			return false;
 		}
+		if (hasResidentTicketForChunk(state, ticketKey, chunkKey)) {
+			return true;
+		}
 		ChunkPos chunkPos = new ChunkPos(chunkKey.chunkX(), chunkKey.chunkZ());
-		level.getChunkSource().addRegionTicket(
+		level.getChunkSource().addTicketWithRadius(
 			CrossChunkDispatchService.RESIDENT_TICKET_TYPE,
 			chunkPos,
-			CrossChunkDispatchService.RESIDENT_TICKET_LEVEL,
-			ticketKey
+			CrossChunkDispatchService.RESIDENT_TICKET_LEVEL
 		);
 		return true;
 	}
@@ -468,6 +473,7 @@ final class CrossChunkDispatchTicketSupport {
 	 */
 	static void removeResidentTicket(
 		MinecraftServer server,
+		CrossChunkDispatchService.DispatchState state,
 		CrossChunkDispatchService.ResidentTicketKey ticketKey,
 		CrossChunkDispatchService.ResidentChunkKey chunkKey
 	) {
@@ -475,13 +481,42 @@ final class CrossChunkDispatchTicketSupport {
 		if (level == null) {
 			return;
 		}
+		if (hasResidentTicketForChunk(state, ticketKey, chunkKey)) {
+			return;
+		}
 		ChunkPos chunkPos = new ChunkPos(chunkKey.chunkX(), chunkKey.chunkZ());
-		level.getChunkSource().removeRegionTicket(
+		level.getChunkSource().removeTicketWithRadius(
 			CrossChunkDispatchService.RESIDENT_TICKET_TYPE,
 			chunkPos,
-			CrossChunkDispatchService.RESIDENT_TICKET_LEVEL,
-			ticketKey
+			CrossChunkDispatchService.RESIDENT_TICKET_LEVEL
 		);
+	}
+
+	/**
+	 * 判断除当前键外，是否仍有其它 resident 条目指向同一目标区块。
+	 * <p>
+	 * 1.21.11 的 ticket API 不再支持附带 payload 去区分多个来源，
+	 * 因此这里在运行态做 chunk 级引用计数语义，避免同一块被多个 resident 节点共享时被提前释放。
+	 * </p>
+	 */
+	private static boolean hasResidentTicketForChunk(
+		CrossChunkDispatchService.DispatchState state,
+		CrossChunkDispatchService.ResidentTicketKey excludedKey,
+		CrossChunkDispatchService.ResidentChunkKey chunkKey
+	) {
+		if (state == null || chunkKey == null) {
+			return false;
+		}
+		for (Map.Entry<CrossChunkDispatchService.ResidentTicketKey, CrossChunkDispatchService.ResidentChunkKey> entry :
+			state.residentTickets.entrySet()) {
+			if (entry.getKey().equals(excludedKey)) {
+				continue;
+			}
+			if (chunkKey.equals(entry.getValue())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

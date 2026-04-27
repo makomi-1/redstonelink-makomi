@@ -117,7 +117,7 @@ public final class ChunkActivatorImmediateEffectService {
 			node.pos().getX() >> 4,
 			node.pos().getZ() >> 4
 		);
-		if (!CrossChunkDispatchTicketSupport.addResidentTicket(server, ticketKey, chunkKey)) {
+		if (!CrossChunkDispatchTicketSupport.addResidentTicket(server, state, ticketKey, chunkKey)) {
 			return;
 		}
 		state.residentTickets.put(ticketKey, chunkKey);
