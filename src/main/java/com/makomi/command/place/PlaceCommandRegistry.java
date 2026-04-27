@@ -221,7 +221,7 @@ public final class PlaceCommandRegistry {
 		}
 
 		long volume = blockVolume(min, max);
-		int limit = level.getGameRules().getInt(GameRules.RULE_COMMAND_MODIFICATION_BLOCK_LIMIT);
+		int limit = level.getGameRules().get(GameRules.MAX_BLOCK_MODIFICATIONS);
 		if (volume > limit) {
 			source.sendFailure(Component.translatable("message.redstonelink.place.volume_exceeded", volume, limit));
 			return 0;

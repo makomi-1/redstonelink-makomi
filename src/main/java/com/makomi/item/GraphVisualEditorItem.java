@@ -35,7 +35,7 @@ public class GraphVisualEditorItem extends Item {
 			return InteractionResult.PASS;
 		}
 		exportGraph(level, player);
-		return InteractionResult.sidedSuccess(level.isClientSide());
+		return InteractionResult.SUCCESS;
 	}
 
 	@Override
@@ -48,7 +48,7 @@ public class GraphVisualEditorItem extends Item {
 			return InteractionResult.PASS;
 		}
 		exportGraph(context.getLevel(), player);
-		return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
+		return InteractionResult.SUCCESS;
 	}
 
 	@Override

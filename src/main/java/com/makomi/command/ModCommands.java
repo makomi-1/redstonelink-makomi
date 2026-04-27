@@ -28,7 +28,7 @@ public final class ModCommands {
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
 			Commands
 				.literal("redstonelink")
-				.requires(source -> source.hasPermission(RedstoneLinkConfig.command().permissionLevel()))
+				.requires(source -> com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.command().permissionLevel()))
 				.then(NodeCommandRegistry.createRoot())
 				.then(InputCommandRegistry.createRoot())
 				.then(LinkCommandRegistry.createRoot())

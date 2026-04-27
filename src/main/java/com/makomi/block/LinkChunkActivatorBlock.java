@@ -24,6 +24,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.redstone.Orientation;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
@@ -109,20 +110,12 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 		Level level,
 		BlockPos pos,
 		Block block,
-		BlockPos fromPos,
+		Orientation orientation,
 		boolean movedByPiston
 	) {
-		super.neighborChanged(state, level, pos, block, fromPos, movedByPiston);
+		super.neighborChanged(state, level, pos, block, orientation, movedByPiston);
 		refreshPoweredState(level, pos, state);
 		refreshPlacedActivatorState(level, pos);
-	}
-
-	@Override
-	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock()) && level.getBlockEntity(pos) instanceof LinkChunkActivatorBlockEntity blockEntity) {
-			blockEntity.markPhysicalRemovalInProgress();
-		}
-		super.onRemove(state, level, pos, newState, movedByPiston);
 	}
 
 	@Override
@@ -135,7 +128,7 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openEditor(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}

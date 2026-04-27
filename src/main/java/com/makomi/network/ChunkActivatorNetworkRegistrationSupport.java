@@ -37,7 +37,7 @@ final class ChunkActivatorNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> ChunkActivatorNetworkServerHandlerSupport.handleSaveChunkActivator(player, payload));
+			player.level().getServer().execute(() -> ChunkActivatorNetworkServerHandlerSupport.handleSaveChunkActivator(player, payload));
 		});
 	}
 }

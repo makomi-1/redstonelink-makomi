@@ -462,7 +462,7 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 				if (!(serialTag instanceof LongTag longTag)) {
 					continue;
 				}
-				long serial = longTag.getAsLong();
+				long serial = longTag.longValue();
 				if (serial > 0L) {
 					serials.add(serial);
 				}
@@ -475,7 +475,7 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 					if (!(serialTag instanceof LongTag longTag)) {
 						continue;
 					}
-					long serial = longTag.getAsLong();
+					long serial = longTag.longValue();
 					if (serial > 0L && serials.contains(serial)) {
 						residentSerials.add(serial);
 					}

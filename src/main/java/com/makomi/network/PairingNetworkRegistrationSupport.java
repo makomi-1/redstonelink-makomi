@@ -70,42 +70,42 @@ final class PairingNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> PairingNetworkServerHandlerSupport.handleSubmitTriggerSourcePairing(player, payload));
+			player.level().getServer().execute(() -> PairingNetworkServerHandlerSupport.handleSubmitTriggerSourcePairing(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.SubmitCorePairingPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> PairingNetworkServerHandlerSupport.handleSubmitCorePairing(player, payload));
+			player.level().getServer().execute(() -> PairingNetworkServerHandlerSupport.handleSubmitCorePairing(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.SubmitPairingAliasPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> PairingNetworkServerHandlerSupport.handleSubmitPairingAlias(player, payload));
+			player.level().getServer().execute(() -> PairingNetworkServerHandlerSupport.handleSubmitPairingAlias(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.SaveSyncLinkerSignalStrengthPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> PairingNetworkServerHandlerSupport.handleSaveSyncLinkerSignalStrength(player, payload));
+			player.level().getServer().execute(() -> PairingNetworkServerHandlerSupport.handleSaveSyncLinkerSignalStrength(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.RequestCurrentLinksPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> PairingNetworkServerHandlerSupport.handleRequestCurrentLinks(player, payload));
+			player.level().getServer().execute(() -> PairingNetworkServerHandlerSupport.handleRequestCurrentLinks(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(PairingNetwork.RequestRuntimeHudSnapshotPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> PairingNetworkServerHandlerSupport.handleRequestRuntimeHudSnapshot(player, payload));
+			player.level().getServer().execute(() -> PairingNetworkServerHandlerSupport.handleRequestRuntimeHudSnapshot(player, payload));
 		});
 	}
 }

@@ -101,17 +101,9 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 	}
 
 	@Override
-	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkRepeaterBlockEntity blockEntity) {
-				blockEntity.markRepeaterPhysicalRemovalInProgress();
-				blockEntity.unregisterNode(true);
-			}
-			if (!level.isClientSide()) {
-				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
-			}
-		}
-		super.onRemove(state, level, pos, newState, movedByPiston);
+	protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
+		super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
+		NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 	}
 
 	@Override
@@ -139,7 +131,7 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openEditor(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}

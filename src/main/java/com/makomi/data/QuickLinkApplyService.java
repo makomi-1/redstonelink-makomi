@@ -144,7 +144,7 @@ public final class QuickLinkApplyService {
 		if (player == null || filterBlockEntity == null || filterBlockEntity.filterKind() == null) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
 		}
-		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+		if (!com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().permissionLevel())) {
 			return ApplyFromCacheResult.failure("message.redstonelink.permission.insufficient");
 		}
 		QuickLinkToolData.Mode resolvedMode = mode == null ? QuickLinkToolData.Mode.SERIAL : mode;
@@ -231,7 +231,7 @@ public final class QuickLinkApplyService {
 		if (player == null || chunkActivatorBlockEntity == null || !(chunkActivatorBlockEntity.getLevel() instanceof ServerLevel serverLevel)) {
 			return ApplyFromCacheResult.failure("message.redstonelink.quick_link.apply.invalid_target");
 		}
-		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+		if (!com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().permissionLevel())) {
 			return ApplyFromCacheResult.failure("message.redstonelink.permission.insufficient");
 		}
 		QuickLinkToolData.Mode resolvedMode = mode == null ? QuickLinkToolData.Mode.SERIAL : mode;
@@ -1046,14 +1046,14 @@ public final class QuickLinkApplyService {
 	 * @return 当前命令源是否具备 limited 模式越权权限
 	 */
 	private static boolean hasLimitedBypassPermission(CommandSourceStack commandSource) {
-		return commandSource != null && commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel());
+		return commandSource != null && com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().limitedPermissionLevel());
 	}
 
 	/**
 	 * @return 当前命令源是否具备 protected 模式越权权限
 	 */
 	private static boolean hasProtectedBypassPermission(CommandSourceStack commandSource) {
-		return commandSource != null && commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel());
+		return commandSource != null && com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().protectedPermissionLevel());
 	}
 
 	/**

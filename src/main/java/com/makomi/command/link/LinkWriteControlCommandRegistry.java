@@ -35,7 +35,7 @@ public final class LinkWriteControlCommandRegistry {
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
 			.literal("write_control")
-			.requires(source -> source.hasPermission(RedstoneLinkConfig.writeControl().protectedManagePermissionLevel()))
+			.requires(source -> com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().protectedManagePermissionLevel()))
 			.then(
 				Commands
 					.literal("protected")

@@ -41,15 +41,15 @@ public final class LinkFilterItemData {
 	public static LinkFilterConfigSnapshot read(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
 		return new LinkFilterConfigSnapshot(
-			tag.getString(KEY_SERIAL_EXPRESSION),
-			LinkFilterTargetMode.tryParseToken(tag.getString(KEY_TARGET_MODE)).orElse(null),
-			tag.contains(KEY_CHANNEL, Tag.TAG_LONG) ? Math.max(0L, tag.getLong(KEY_CHANNEL)) : 0L,
-			LinkFilterNodeSetMode.tryParseToken(tag.getString(KEY_NODE_SET_MODE)).orElse(LinkFilterNodeSetMode.DISABLED),
+			tag.getStringOr(KEY_SERIAL_EXPRESSION, ""),
+			LinkFilterTargetMode.tryParseToken(tag.getStringOr(KEY_TARGET_MODE, "")).orElse(null),
+			tag.contains(KEY_CHANNEL) ? Math.max(0L, tag.getLongOr(KEY_CHANNEL, 0L)) : 0L,
+			LinkFilterNodeSetMode.tryParseToken(tag.getStringOr(KEY_NODE_SET_MODE, "")).orElse(LinkFilterNodeSetMode.DISABLED),
 			LinkFilterSignalThresholdSource
-				.tryParseToken(tag.getString(KEY_SIGNAL_THRESHOLD_SOURCE))
+				.tryParseToken(tag.getStringOr(KEY_SIGNAL_THRESHOLD_SOURCE, ""))
 				.orElse(LinkFilterSignalThresholdSource.FIXED_INPUT),
-			tag.contains(KEY_FIXED_SIGNAL_THRESHOLD) ? tag.getInt(KEY_FIXED_SIGNAL_THRESHOLD) : 15,
-			LinkFilterSignalMode.tryParseToken(tag.getString(KEY_SIGNAL_MODE)).orElse(LinkFilterSignalMode.DISABLED)
+			tag.contains(KEY_FIXED_SIGNAL_THRESHOLD) ? tag.getIntOr(KEY_FIXED_SIGNAL_THRESHOLD, 0) : 15,
+			LinkFilterSignalMode.tryParseToken(tag.getStringOr(KEY_SIGNAL_MODE, "")).orElse(LinkFilterSignalMode.DISABLED)
 		);
 	}
 
@@ -81,10 +81,10 @@ public final class LinkFilterItemData {
 	 */
 	public static String getDisplayAlias(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		if (!tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)) {
+		if (!tag.contains(KEY_DISPLAY_ALIAS)) {
 			return "";
 		}
-		return NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS));
+		return NodeAliasDisplayUtil.normalizeAlias(tag.getStringOr(KEY_DISPLAY_ALIAS, ""));
 	}
 
 	/**
@@ -254,13 +254,13 @@ public final class LinkFilterItemData {
 		if (serials == null || serials.isEmpty()) {
 			return List.of();
 		}
-		if (tag == null || key == null || key.isBlank() || !tag.contains(key, Tag.TAG_LIST)) {
+		if (tag == null || key == null || key.isBlank() || !tag.contains(key)) {
 			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
 		}
-		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
+		ListTag listTag = tag.getListOrEmpty(key);
 		List<String> displayTexts = new ArrayList<>(listTag.size());
 		for (int index = 0; index < listTag.size(); index++) {
-			displayTexts.add(listTag.getString(index));
+			displayTexts.add(listTag.getStringOr(index, ""));
 		}
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}

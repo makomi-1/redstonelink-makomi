@@ -80,8 +80,9 @@ public final class LinkCommandSupport {
 			sourceSerial,
 			affectedTargets,
 			setSize,
-			bypassLimitedSetSize || source.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			source.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			bypassLimitedSetSize
+				|| com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		if (decision.allowed()) {
 			return true;
@@ -198,13 +199,27 @@ public final class LinkCommandSupport {
 		if (player == null || nodeType == null || serials == null || serials.isEmpty()) {
 			return false;
 		}
-		ServerLevel level = player.serverLevel();
+		ServerLevel level = player.level();
 		Inventory inventory = player.getInventory();
 		boolean changed = false;
-		changed |= syncItemListLinkSnapshots(level, inventory.items, nodeType, serials);
-		changed |= syncItemListLinkSnapshots(level, inventory.offhand, nodeType, serials);
-		changed |= syncItemListLinkSnapshots(level, inventory.armor, nodeType, serials);
+		changed |= syncInventoryLinkSnapshots(level, inventory, nodeType, serials);
 		changed |= syncSingleItemLinkSnapshot(level, player.containerMenu.getCarried(), nodeType, serials);
+		return changed;
+	}
+
+	private static boolean syncInventoryLinkSnapshots(
+		ServerLevel level,
+		Inventory inventory,
+		LinkNodeType nodeType,
+		Set<Long> serials
+	) {
+		if (level == null || inventory == null || nodeType == null || serials == null || serials.isEmpty()) {
+			return false;
+		}
+		boolean changed = false;
+		for (int slotIndex = 0; slotIndex < inventory.getContainerSize(); slotIndex++) {
+			changed |= syncSingleItemLinkSnapshot(level, inventory.getItem(slotIndex), nodeType, serials);
+		}
 		return changed;
 	}
 

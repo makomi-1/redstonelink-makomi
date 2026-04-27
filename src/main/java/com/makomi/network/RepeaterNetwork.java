@@ -71,7 +71,7 @@ public final class RepeaterNetwork {
 		if (player == null || stack == null || stack.isEmpty()) {
 			return;
 		}
-		long serial = RepeaterItemData.ensureSerial(stack, player.serverLevel());
+		long serial = RepeaterItemData.ensureSerial(stack, player.level());
 		if (serial <= 0L) {
 			return;
 		}
@@ -79,11 +79,11 @@ public final class RepeaterNetwork {
 			player,
 			buildOpenEditorPayload(
 				LinkFilterEditorTargetKind.HELD_MAIN_HAND,
-				player.serverLevel(),
+				player.level(),
 				serial,
 				"",
 				0L,
-				player.getInventory().selected,
+				player.getInventory().getSelectedSlot(),
 				LinkItemData.getDisplayAlias(stack),
 				RepeaterItemData.read(stack)
 			)

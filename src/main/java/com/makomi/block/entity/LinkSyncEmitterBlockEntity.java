@@ -2,10 +2,9 @@ package com.makomi.block.entity;
 
 import com.makomi.util.SignalStrengths;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * 同步发射器方块实体：复用 triggerSource 公共实体层，供同步发射器转发输入电平。
@@ -40,18 +39,16 @@ public class LinkSyncEmitterBlockEntity extends SyncReplaySourceBlockEntity {
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.loadAdditional(tag, provider);
-		if (tag.contains(KEY_LAST_OBSERVED_SIGNAL_STRENGTH, Tag.TAG_INT)) {
-			lastObservedSignalStrength = SignalStrengths.clamp(tag.getInt(KEY_LAST_OBSERVED_SIGNAL_STRENGTH));
-		}
+	protected void loadAdditional(ValueInput input) {
+		super.loadAdditional(input);
+		lastObservedSignalStrength = SignalStrengths.clamp(input.getIntOr(KEY_LAST_OBSERVED_SIGNAL_STRENGTH, 0));
 		refreshPendingLoadInputStateResyncFlag();
 	}
 
 	@Override
-	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.saveAdditional(tag, provider);
-		tag.putInt(KEY_LAST_OBSERVED_SIGNAL_STRENGTH, SignalStrengths.clamp(lastObservedSignalStrength));
+	protected void saveAdditional(ValueOutput output) {
+		super.saveAdditional(output);
+		output.putInt(KEY_LAST_OBSERVED_SIGNAL_STRENGTH, SignalStrengths.clamp(lastObservedSignalStrength));
 	}
 
 	@Override

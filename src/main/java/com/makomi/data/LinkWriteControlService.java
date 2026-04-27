@@ -42,13 +42,13 @@ public final class LinkWriteControlService {
 			return WriteDecision.denyReadonly(0);
 		}
 		return evaluate(
-			player.serverLevel(),
+			player.level(),
 			sourceType,
 			sourceSerial,
 			affectedTargets,
 			setSize,
-			player.hasPermissions(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			player.hasPermissions(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 	}
 

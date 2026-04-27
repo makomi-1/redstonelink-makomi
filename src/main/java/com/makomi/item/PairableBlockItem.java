@@ -66,7 +66,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 				);
 			}
 		}
-		return InteractionResult.sidedSuccess(level.isClientSide());
+		return InteractionResult.SUCCESS;
 	}
 
 	@Override
@@ -90,16 +90,16 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 					);
 				}
 			}
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return super.useOn(context);
 	}
 
 	@Override
-	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+	public void inventoryTick(ItemStack stack, net.minecraft.server.level.ServerLevel level, Entity entity, net.minecraft.world.entity.EquipmentSlot slot) {
 		// 兜底确保任何获取路径下都能补齐节点序列号。
 		ensureSerial(level, stack);
-		super.inventoryTick(stack, level, entity, slotId, isSelected);
+		super.inventoryTick(stack, level, entity, slot);
 	}
 
 	@Override

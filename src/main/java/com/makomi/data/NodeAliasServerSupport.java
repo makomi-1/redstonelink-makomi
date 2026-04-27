@@ -139,21 +139,19 @@ public final class NodeAliasServerSupport {
 		}
 		boolean changed = false;
 		Inventory inventory = player.getInventory();
-		changed |= syncItemList(player, inventory.items, type, serial);
-		changed |= syncItemList(player, inventory.offhand, type, serial);
-		changed |= syncItemList(player, inventory.armor, type, serial);
+		changed |= syncInventory(player, inventory, type, serial);
 		ItemStack carried = player.containerMenu.getCarried();
 		changed |= syncItemAliasOrLinkedDisplayText(player, carried, type, serial);
 		return changed;
 	}
 
-	private static boolean syncItemList(ServerPlayer player, List<ItemStack> stacks, LinkNodeType type, long serial) {
-		if (player == null || stacks == null || stacks.isEmpty()) {
+	private static boolean syncInventory(ServerPlayer player, Inventory inventory, LinkNodeType type, long serial) {
+		if (player == null || inventory == null) {
 			return false;
 		}
 		boolean changed = false;
-		for (ItemStack stack : stacks) {
-			changed |= syncItemAliasOrLinkedDisplayText(player, stack, type, serial);
+		for (int slotIndex = 0; slotIndex < inventory.getContainerSize(); slotIndex++) {
+			changed |= syncItemAliasOrLinkedDisplayText(player, inventory.getItem(slotIndex), type, serial);
 		}
 		return changed;
 	}
@@ -167,12 +165,12 @@ public final class NodeAliasServerSupport {
 		if (LinkItemData.getSerialCount(stack) == 1) {
 			if (matchesNodeItem(stack, type, serial)) {
 				String beforeAlias = LinkItemData.getDisplayAlias(stack);
-				LinkItemData.syncDisplayAliasIfSingle(stack, player.serverLevel());
+				LinkItemData.syncDisplayAliasIfSingle(stack, player.level());
 				changed |= !beforeAlias.equals(LinkItemData.getDisplayAlias(stack));
 			}
 			if (linksToAliasedNode(stack, type, serial)) {
 				List<String> beforeDisplayTexts = LinkItemData.getLinkedDisplayTexts(stack);
-				LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, player.serverLevel());
+				LinkItemData.syncCurrentLinksSnapshotIfSingle(stack, player.level());
 				changed |= !beforeDisplayTexts.equals(LinkItemData.getLinkedDisplayTexts(stack));
 			}
 		}
@@ -191,7 +189,7 @@ public final class NodeAliasServerSupport {
 		if (!(stack.getItem() instanceof com.makomi.item.RepeaterBlockItem) || LinkItemData.getSerial(stack) != serial) {
 			return false;
 		}
-		RepeaterGraphSnapshotSupport.syncItemSnapshot(stack, player.serverLevel());
+		RepeaterGraphSnapshotSupport.syncItemSnapshot(stack, player.level());
 		return true;
 	}
 
@@ -213,7 +211,7 @@ public final class NodeAliasServerSupport {
 			return false;
 		}
 		List<String> beforeDisplayTexts = LinkFilterItemData.getNodeSetDisplayTexts(stack);
-		LinkFilterItemData.syncNodeSetDisplayTexts(stack, player.serverLevel(), type);
+		LinkFilterItemData.syncNodeSetDisplayTexts(stack, player.level(), type);
 		return !beforeDisplayTexts.equals(LinkFilterItemData.getNodeSetDisplayTexts(stack));
 	}
 
@@ -230,7 +228,7 @@ public final class NodeAliasServerSupport {
 			return false;
 		}
 		List<String> beforeDisplayTexts = ChunkActivatorItemData.getNodeSetDisplayTexts(stack, normalizedType);
-		ChunkActivatorItemData.syncNodeSetDisplayTexts(stack, player.serverLevel());
+		ChunkActivatorItemData.syncNodeSetDisplayTexts(stack, player.level());
 		return !beforeDisplayTexts.equals(ChunkActivatorItemData.getNodeSetDisplayTexts(stack, normalizedType));
 	}
 

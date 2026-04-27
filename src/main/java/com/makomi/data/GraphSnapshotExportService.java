@@ -322,8 +322,8 @@ public final class GraphSnapshotExportService {
 				return new ViewerContext(null, false, "unknown", null);
 			}
 			return new ViewerContext(
-				player.serverLevel(),
-				player.hasPermissions(com.makomi.config.RedstoneLinkConfig.privacy().viewPermissionLevel()),
+				player.level(),
+				com.makomi.command.CommandPermissionCompat.hasPermission(player, com.makomi.config.RedstoneLinkConfig.privacy().viewPermissionLevel()),
 				player.getUUID().toString(),
 				player.getUUID()
 			);
@@ -343,7 +343,7 @@ public final class GraphSnapshotExportService {
 			);
 			return new ViewerContext(
 				source.getLevel(),
-				source.hasPermission(com.makomi.config.RedstoneLinkConfig.privacy().viewPermissionLevel()),
+				com.makomi.command.CommandPermissionCompat.hasPermission(source, com.makomi.config.RedstoneLinkConfig.privacy().viewPermissionLevel()),
 				"system:" + principal,
 				syntheticActorId
 			);

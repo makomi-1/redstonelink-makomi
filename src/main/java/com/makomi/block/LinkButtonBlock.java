@@ -96,17 +96,6 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	}
 
 	@Override
-	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
-				triggerSourceBlockEntity.markPhysicalRemovalInProgress();
-				triggerSourceBlockEntity.unregisterNode(true);
-			}
-		}
-		super.onRemove(state, level, pos, newState, movedByPiston);
-	}
-
-	@Override
 	public void press(BlockState state, Level level, BlockPos pos, Player player) {
 		super.press(state, level, pos, player);
 		if (!level.isClientSide() && level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
@@ -125,7 +114,7 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return super.useWithoutItem(state, level, pos, player, hitResult);
 	}

@@ -1,5 +1,6 @@
 package com.makomi.block.entity;
 
+import com.mojang.serialization.Codec;
 import com.makomi.data.LinkDispatchFilterService;
 import com.makomi.data.LinkFilterConfigSnapshot;
 import com.makomi.data.LinkFilterKind;
@@ -29,6 +30,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * 发送/接收过滤器公共方块实体基类。
@@ -212,44 +215,44 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.loadAdditional(tag, provider);
-		serialExpression = tag.contains(KEY_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_SERIAL_EXPRESSION) : "";
-		targetMode = LinkFilterTargetMode.tryParseToken(tag.getString(KEY_TARGET_MODE)).orElseGet(() -> inferTargetMode(tag, serialExpression));
-		channel = targetMode == LinkFilterTargetMode.CHANNEL ? Math.max(0L, tag.getLong(KEY_CHANNEL)) : 0L;
+	protected void loadAdditional(ValueInput input) {
+		super.loadAdditional(input);
+		serialExpression = input.getStringOr(KEY_SERIAL_EXPRESSION, "");
+		targetMode = LinkFilterTargetMode
+			.tryParseToken(input.getStringOr(KEY_TARGET_MODE, ""))
+			.orElseGet(() -> inferTargetMode(input, serialExpression));
+		channel = targetMode == LinkFilterTargetMode.CHANNEL ? Math.max(0L, input.getLongOr(KEY_CHANNEL, 0L)) : 0L;
 		nodeSetMode = LinkFilterNodeSetMode
-			.tryParseToken(tag.getString(KEY_NODE_SET_MODE))
+			.tryParseToken(input.getStringOr(KEY_NODE_SET_MODE, ""))
 			.orElse(LinkFilterNodeSetMode.DISABLED);
 		signalThresholdSource = LinkFilterSignalThresholdSource
-			.tryParseToken(tag.getString(KEY_SIGNAL_THRESHOLD_SOURCE))
+			.tryParseToken(input.getStringOr(KEY_SIGNAL_THRESHOLD_SOURCE, ""))
 			.orElse(LinkFilterSignalThresholdSource.FIXED_INPUT);
-		fixedSignalThreshold = SignalStrengths.clamp(tag.getInt(KEY_FIXED_SIGNAL_THRESHOLD));
+		fixedSignalThreshold = SignalStrengths.clamp(input.getIntOr(KEY_FIXED_SIGNAL_THRESHOLD, 15));
 		signalMode = LinkFilterSignalMode
-			.tryParseToken(tag.getString(KEY_SIGNAL_MODE))
+			.tryParseToken(input.getStringOr(KEY_SIGNAL_MODE, ""))
 			.orElse(LinkFilterSignalMode.DISABLED);
-		displayAlias = tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)
-			? NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS))
-			: "";
+		displayAlias = NodeAliasDisplayUtil.normalizeAlias(input.getStringOr(KEY_DISPLAY_ALIAS, ""));
 		serials = targetMode == LinkFilterTargetMode.SERIAL ? parseSerialExpression(serialExpression) : Set.of();
-		nodeSetDisplayTexts = readDisplayTexts(tag, KEY_NODE_SET_DISPLAY_TEXTS, parseOrderedSerials(serialExpression));
+		nodeSetDisplayTexts = readDisplayTexts(input, KEY_NODE_SET_DISPLAY_TEXTS, parseOrderedSerials(serialExpression));
 	}
 
 	@Override
-	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.saveAdditional(tag, provider);
+	protected void saveAdditional(ValueOutput output) {
+		super.saveAdditional(output);
 		if (!serialExpression.isBlank()) {
-			tag.putString(KEY_SERIAL_EXPRESSION, serialExpression);
+			output.putString(KEY_SERIAL_EXPRESSION, serialExpression);
 		}
-		tag.putString(KEY_TARGET_MODE, targetMode.token());
+		output.putString(KEY_TARGET_MODE, targetMode.token());
 		if (channel > 0L) {
-			tag.putLong(KEY_CHANNEL, channel);
+			output.putLong(KEY_CHANNEL, channel);
 		}
-		tag.putString(KEY_NODE_SET_MODE, nodeSetMode.token());
-		tag.putString(KEY_SIGNAL_THRESHOLD_SOURCE, signalThresholdSource.token());
-		tag.putInt(KEY_FIXED_SIGNAL_THRESHOLD, SignalStrengths.clamp(fixedSignalThreshold));
-		tag.putString(KEY_SIGNAL_MODE, signalMode.token());
+		output.putString(KEY_NODE_SET_MODE, nodeSetMode.token());
+		output.putString(KEY_SIGNAL_THRESHOLD_SOURCE, signalThresholdSource.token());
+		output.putInt(KEY_FIXED_SIGNAL_THRESHOLD, SignalStrengths.clamp(fixedSignalThreshold));
+		output.putString(KEY_SIGNAL_MODE, signalMode.token());
 		if (!displayAlias.isBlank()) {
-			tag.putString(KEY_DISPLAY_ALIAS, displayAlias);
+			output.putString(KEY_DISPLAY_ALIAS, displayAlias);
 		}
 	}
 
@@ -323,8 +326,8 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	/**
 	 * 从旧存档字段推断过滤目标模式；无显式模式字段时保持序号模式兼容。
 	 */
-	private static LinkFilterTargetMode inferTargetMode(CompoundTag tag, String serialExpression) {
-		if ((serialExpression == null || serialExpression.isBlank()) && tag.contains(KEY_CHANNEL, Tag.TAG_LONG) && tag.getLong(KEY_CHANNEL) > 0L) {
+	private static LinkFilterTargetMode inferTargetMode(ValueInput input, String serialExpression) {
+		if ((serialExpression == null || serialExpression.isBlank()) && input.getLongOr(KEY_CHANNEL, 0L) > 0L) {
 			return LinkFilterTargetMode.CHANNEL;
 		}
 		return LinkFilterTargetMode.SERIAL;
@@ -374,18 +377,23 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 		tag.put(key, listTag);
 	}
 
-	private static List<String> readDisplayTexts(CompoundTag tag, String key, List<Long> serials) {
+	private static List<String> readDisplayTexts(ValueInput input, String key, List<Long> serials) {
 		if (serials == null || serials.isEmpty()) {
 			return List.of();
 		}
-		if (tag == null || key == null || key.isBlank() || !tag.contains(key, Tag.TAG_LIST)) {
+		if (input == null || key == null || key.isBlank()) {
 			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
 		}
-		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
-		List<String> displayTexts = new ArrayList<>(listTag.size());
-		for (int index = 0; index < listTag.size(); index++) {
-			displayTexts.add(listTag.getString(index));
+		List<String> displayTexts = new ArrayList<>();
+		for (String displayText : input.listOrEmpty(key, Codec.STRING)) {
+			displayTexts.add(displayText);
 		}
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
+	}
+
+	@Override
+	public void preRemoveSideEffects(BlockPos blockPos, BlockState blockState) {
+		markPhysicalRemovalInProgress();
+		super.preRemoveSideEffects(blockPos, blockState);
 	}
 }

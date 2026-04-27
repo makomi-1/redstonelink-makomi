@@ -56,7 +56,7 @@ public class LinkFilterBlockItem extends BlockItem {
 		ItemStack heldStack = player.getItemInHand(hand);
 		if (shouldOpenEditor(player, hand)) {
 			openEditor(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}
@@ -69,7 +69,7 @@ public class LinkFilterBlockItem extends BlockItem {
 		}
 		if (shouldOpenEditor(player, context.getHand())) {
 			openEditor(context.getLevel(), player, context.getItemInHand());
-			return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return super.useOn(context);
 	}

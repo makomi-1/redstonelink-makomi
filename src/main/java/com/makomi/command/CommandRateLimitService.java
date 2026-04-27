@@ -239,7 +239,7 @@ public final class CommandRateLimitService {
 	 */
 	private static int resolvePermissionLevel(CommandSourceStack source) {
 		for (int level = 4; level >= 0; level--) {
-			if (source.hasPermission(level)) {
+			if (CommandPermissionCompat.hasPermission(source, level)) {
 				return level;
 			}
 		}

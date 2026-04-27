@@ -15,6 +15,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -95,17 +96,6 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 	}
 
 	@Override
-	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
-				triggerSourceBlockEntity.markPhysicalRemovalInProgress();
-				triggerSourceBlockEntity.unregisterNode(true);
-			}
-		}
-		super.onRemove(state, level, pos, newState, movedByPiston);
-	}
-
-	@Override
 	protected InteractionResult useWithoutItem(
 		BlockState state,
 		Level level,
@@ -115,7 +105,7 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 
 		if (level.isClientSide()) {
@@ -177,11 +167,12 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 		float green = ORANGE_PARTICLE_BASE_COLOR.y() * intensity;
 		float blue = ORANGE_PARTICLE_BASE_COLOR.z() * intensity;
 		float scale = baseScale + random.nextFloat() * 0.12F;
+		int particleColor = ARGB.colorFromFloat(1.0F, red, green, blue);
 
 		double x = pos.getX() + 0.5D + (random.nextDouble() - 0.5D) * 0.45D;
 		double y = pos.getY() + 0.5D + (random.nextDouble() - 0.5D) * 0.30D;
 		double z = pos.getZ() + 0.5D + (random.nextDouble() - 0.5D) * 0.45D;
-		level.addParticle(new DustParticleOptions(new Vector3f(red, green, blue), scale), x, y, z, 0.0D, 0.0D, 0.0D);
+		level.addParticle(new DustParticleOptions(particleColor, scale), x, y, z, 0.0D, 0.0D, 0.0D);
 	}
 
 	/**

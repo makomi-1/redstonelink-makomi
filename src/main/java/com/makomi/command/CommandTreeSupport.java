@@ -31,7 +31,7 @@ public final class CommandTreeSupport {
 	 * 统一“其他权限”命令组权限校验。
 	 */
 	public static boolean hasOtherCommandPermission(CommandSourceStack source) {
-		return source.hasPermission(RedstoneLinkConfig.command().otherPermissionLevel());
+		return com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.command().otherPermissionLevel());
 	}
 
 	/**

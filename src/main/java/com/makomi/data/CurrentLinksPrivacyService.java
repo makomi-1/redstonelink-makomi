@@ -62,10 +62,10 @@ public final class CurrentLinksPrivacyService {
 			return false;
 		}
 		return canViewCurrentLinks(
-			player.serverLevel(),
+			player.level(),
 			sourceType,
 			sourceSerial,
-			player.hasPermissions(RedstoneLinkConfig.privacy().viewPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.privacy().viewPermissionLevel())
 		);
 	}
 
@@ -112,9 +112,9 @@ public final class CurrentLinksPrivacyService {
 		long sourceSerial,
 		Set<Long> linkedTargets
 	) {
-		ServerLevel level = player == null ? null : player.serverLevel();
+		ServerLevel level = player == null ? null : player.level();
 		boolean hasViewPermission = player != null
-			&& player.hasPermissions(RedstoneLinkConfig.privacy().viewPermissionLevel());
+			&& com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.privacy().viewPermissionLevel());
 		return resolveVisibleLinksSnapshot(level, sourceType, sourceSerial, linkedTargets, hasViewPermission);
 	}
 

@@ -179,7 +179,10 @@ final class LinkSavedDataCodecSupport {
 			}
 			CompoundTag compound = new CompoundTag();
 			compound.putLong(LinkSavedData.KEY_SOURCE_SERIAL, entry.getKey());
-			compound.putLongArray(LinkSavedData.KEY_TARGET_SERIALS, visibleTargetSerials);
+			compound.putLongArray(
+				LinkSavedData.KEY_TARGET_SERIALS,
+				visibleTargetSerials.stream().mapToLong(Long::longValue).toArray()
+			);
 			linksTag.add(compound);
 		}
 		tag.put(LinkSavedData.KEY_LINKS, linksTag);

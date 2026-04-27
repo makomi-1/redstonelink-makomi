@@ -38,7 +38,7 @@ public class QuickLinkToolItem extends Item {
 		ItemStack heldStack = player.getItemInHand(hand);
 		if (shouldOpenEditor(player, hand, heldStack)) {
 			openEditor(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}
@@ -54,15 +54,15 @@ public class QuickLinkToolItem extends Item {
 		ItemStack heldStack = context.getItemInHand();
 		if (shouldOpenEditor(player, context.getHand(), heldStack)) {
 			openEditor(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}
 
 	@Override
-	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+	public void inventoryTick(ItemStack stack, net.minecraft.server.level.ServerLevel level, Entity entity, net.minecraft.world.entity.EquipmentSlot slot) {
 		QuickLinkToolData.syncQuickLinkToolModelState(stack);
-		super.inventoryTick(stack, level, entity, slotId, isSelected);
+		super.inventoryTick(stack, level, entity, slot);
 	}
 
 	@Override

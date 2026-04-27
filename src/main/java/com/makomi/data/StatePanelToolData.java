@@ -33,10 +33,10 @@ public final class StatePanelToolData {
 	 */
 	public static List<SubscriptionEntry> readSubscriptions(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		if (!tag.contains(KEY_SUBSCRIPTIONS, Tag.TAG_LIST)) {
+		if (!tag.contains(KEY_SUBSCRIPTIONS)) {
 			return List.of();
 		}
-		ListTag listTag = tag.getList(KEY_SUBSCRIPTIONS, Tag.TAG_COMPOUND);
+		ListTag listTag = tag.getListOrEmpty(KEY_SUBSCRIPTIONS);
 		if (listTag.isEmpty()) {
 			return List.of();
 		}
@@ -46,9 +46,9 @@ public final class StatePanelToolData {
 			if (!(entryTag instanceof CompoundTag entryCompound)) {
 				continue;
 			}
-			LinkNodeType nodeType = LinkNodeSemantics.tryParseCanonicalType(entryCompound.getString(KEY_TYPE))
+			LinkNodeType nodeType = LinkNodeSemantics.tryParseCanonicalType(entryCompound.getStringOr(KEY_TYPE, ""))
 				.orElse(null);
-			long serial = entryCompound.getLong(KEY_SERIAL);
+			long serial = entryCompound.getLongOr(KEY_SERIAL, 0L);
 			if (nodeType == null || serial <= 0L) {
 				continue;
 			}

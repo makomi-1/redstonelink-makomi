@@ -145,7 +145,7 @@ public final class StatePanelRecordingSessionService {
 			);
 		}
 
-		long startedTick = Math.max(0L, player.serverLevel().getGameTime());
+		long startedTick = Math.max(0L, player.level().getGameTime());
 		ActiveSession activeSession = new ActiveSession(
 			UUID.randomUUID().toString(),
 			player.getUUID(),
@@ -156,7 +156,7 @@ public final class StatePanelRecordingSessionService {
 			startedTick,
 			resolveAutoStopTick(startedTick, normalizedRequest.durationTicks())
 		);
-		state(player.getServer()).put(player.getUUID(), activeSession);
+		state(player.level().getServer()).put(player.getUUID(), activeSession);
 		return new StartResult(
 			true,
 			QuickLinkOperationFeedback.success(
@@ -181,7 +181,7 @@ public final class StatePanelRecordingSessionService {
 			);
 		}
 
-		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.get(player.getServer());
+		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.get(player.level().getServer());
 		ActiveSession activeSession = sessionMap == null ? null : sessionMap.remove(player.getUUID());
 		if (activeSession == null) {
 			return new StopResult(
@@ -193,7 +193,7 @@ public final class StatePanelRecordingSessionService {
 		}
 
 		try {
-			long endedTick = Math.max(activeSession.startedTick(), player.serverLevel().getGameTime());
+			long endedTick = Math.max(activeSession.startedTick(), player.level().getGameTime());
 			StatePanelRecordingBundle recordingBundle = buildRecordingBundle(player, activeSession, endedTick);
 			byte[] compressedBytes = StatePanelRecordingJsonSupport.toCompressedJsonBytes(recordingBundle);
 			String fileName = StatePanelRecordingJsonSupport.buildFileName(recordingBundle);
@@ -207,7 +207,7 @@ public final class StatePanelRecordingSessionService {
 				new ExportBundle(fileName, compressedBytes, activeSession.request().autoOpenWeb())
 			);
 		} catch (IOException | RuntimeException exception) {
-			RedstoneLink.LOGGER.warn("状态面板录制导出失败: player={}", player.getGameProfile().getName(), exception);
+			RedstoneLink.LOGGER.warn("状态面板录制导出失败: player={}", player.getScoreboardName(), exception);
 			return new StopResult(
 				false,
 				QuickLinkOperationFeedback.failure("message.redstonelink.state_panel.recording.stop.export_failed"),
@@ -238,7 +238,7 @@ public final class StatePanelRecordingSessionService {
 			if (player == null) {
 				continue;
 			}
-			if (player.serverLevel().getGameTime() >= activeSession.autoStopTick()) {
+			if (player.level().getGameTime() >= activeSession.autoStopTick()) {
 				duePlayerIds.add(entry.getKey());
 			}
 		}
@@ -286,13 +286,13 @@ public final class StatePanelRecordingSessionService {
 		int sampleCount = 0;
 		for (MountedNode mountedNode : activeSession.mountedNodes()) {
 			List<StatePanelRecordingBundle.RecordedSample> outputSamples = mountedNode.readRecordedSamples();
-			NodeIdentitySnapshot identitySnapshot = NodeIdentitySnapshot.resolve(player.serverLevel(), mountedNode.nodeType(), mountedNode.serial());
+			NodeIdentitySnapshot identitySnapshot = NodeIdentitySnapshot.resolve(player.level(), mountedNode.nodeType(), mountedNode.serial());
 			nodes.add(
 				new StatePanelRecordingBundle.RecordedNodeInfo(
 					nodeKey(mountedNode.nodeType(), mountedNode.serial()),
 					mountedNode.nodeType(),
 					mountedNode.serial(),
-					NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), mountedNode.nodeType(), mountedNode.serial()),
+					NodeAliasServerSupport.resolveDisplayText(player.level(), mountedNode.nodeType(), mountedNode.serial()),
 					mountedNode.traceKind().commandName(),
 					identitySnapshot.allocated(),
 					identitySnapshot.retired(),
@@ -337,7 +337,7 @@ public final class StatePanelRecordingSessionService {
 				continue;
 			}
 			Optional<ProbeResolution> resolution = NodeRuntimeProbe.resolveCurrent(
-				player.getServer(),
+				player.level().getServer(),
 				subscription.nodeType(),
 				subscription.serial()
 			);
@@ -399,10 +399,10 @@ public final class StatePanelRecordingSessionService {
 	}
 
 	private static void clearPlayerSession(ServerPlayer player) {
-		if (player == null || player.getServer() == null) {
+		if (player == null || player.level().getServer() == null) {
 			return;
 		}
-		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.get(player.getServer());
+		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.get(player.level().getServer());
 		if (sessionMap == null) {
 			return;
 		}
@@ -414,10 +414,10 @@ public final class StatePanelRecordingSessionService {
 	}
 
 	private static ActiveSession activeSession(ServerPlayer player) {
-		if (player == null || player.getServer() == null) {
+		if (player == null || player.level().getServer() == null) {
 			return null;
 		}
-		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.get(player.getServer());
+		Map<UUID, ActiveSession> sessionMap = ACTIVE_SESSIONS_BY_SERVER.get(player.level().getServer());
 		return sessionMap == null ? null : sessionMap.get(player.getUUID());
 	}
 

@@ -63,8 +63,8 @@ public final class PairingOccSubmissionSupport {
 			LinkNodeType.TRIGGER_SOURCE,
 			sourceSerial,
 			targetsExpression,
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		if (!preparationResult.successful()) {
 			return SubmissionResult.rejected(preparationResult.feedbacks(), 0);
@@ -189,8 +189,8 @@ public final class PairingOccSubmissionSupport {
 			coreSerial,
 			parseResult.orderedTriggerSources(),
 			parseResult.duplicateEntries(),
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		if (!preparationResult.successful()) {
 			return SubmissionResult.rejected(preparationResult.feedbacks(), 0);
@@ -277,8 +277,8 @@ public final class PairingOccSubmissionSupport {
 			LinkNodeType.TRIGGER_SOURCE,
 			sourceSerial,
 			channel,
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		if (!preparationResult.successful()) {
 			return SubmissionResult.rejected(preparationResult.feedbacks(), 0);
@@ -343,8 +343,8 @@ public final class PairingOccSubmissionSupport {
 			LinkNodeType.CORE,
 			coreSerial,
 			channel,
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		if (!preparationResult.successful()) {
 			return SubmissionResult.rejected(preparationResult.feedbacks(), 0);

@@ -257,10 +257,10 @@ public final class LinkItemData {
 	 */
 	public static String getDisplayAlias(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		if (!tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)) {
+		if (!tag.contains(KEY_DISPLAY_ALIAS)) {
 			return "";
 		}
-		return NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS));
+		return NodeAliasDisplayUtil.normalizeAlias(tag.getStringOr(KEY_DISPLAY_ALIAS, ""));
 	}
 
 	/**
@@ -282,8 +282,8 @@ public final class LinkItemData {
 	 */
 	public static long getPairSerial(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		if (tag.contains(KEY_PAIR, Tag.TAG_LONG)) {
-			return tag.getLong(KEY_PAIR);
+		if (tag.contains(KEY_PAIR)) {
+			return tag.getLongOr(KEY_PAIR, 0L);
 		}
 		return 0L;
 	}
@@ -308,11 +308,11 @@ public final class LinkItemData {
 	 */
 	public static List<Long> getLinkedSerials(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		if (!tag.contains(KEY_LINKS, Tag.TAG_LONG_ARRAY)) {
+		if (!tag.contains(KEY_LINKS)) {
 			return List.of();
 		}
 
-		long[] values = tag.getLongArray(KEY_LINKS);
+		long[] values = tag.getLongArray(KEY_LINKS).orElse(new long[0]);
 		if (values.length == 0) {
 			return List.of();
 		}
@@ -338,13 +338,13 @@ public final class LinkItemData {
 			return List.of();
 		}
 		CompoundTag tag = readTag(stack);
-		if (!tag.contains(KEY_LINK_DISPLAY_TEXTS, Tag.TAG_LIST)) {
+		if (!tag.contains(KEY_LINK_DISPLAY_TEXTS)) {
 			return NodeAliasDisplayUtil.normalizeDisplayTexts(linkedSerials, List.of());
 		}
-		ListTag listTag = tag.getList(KEY_LINK_DISPLAY_TEXTS, Tag.TAG_STRING);
+		ListTag listTag = tag.getListOrEmpty(KEY_LINK_DISPLAY_TEXTS);
 		List<String> displayTexts = new ArrayList<>(listTag.size());
 		for (int index = 0; index < listTag.size(); index++) {
-			displayTexts.add(listTag.getString(index));
+			displayTexts.add(listTag.getStringOr(index, ""));
 		}
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(linkedSerials, displayTexts);
 	}
@@ -410,10 +410,10 @@ public final class LinkItemData {
 	 */
 	public static long getChannel(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		if (!tag.contains(KEY_CHANNEL, Tag.TAG_LONG)) {
+		if (!tag.contains(KEY_CHANNEL)) {
 			return 0L;
 		}
-		return Math.max(0L, tag.getLong(KEY_CHANNEL));
+		return Math.max(0L, tag.getLongOr(KEY_CHANNEL, 0L));
 	}
 
 	/**
@@ -517,7 +517,7 @@ public final class LinkItemData {
 	 */
 	public static boolean isDestroyRetireCandidate(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		return tag.getBoolean(KEY_DESTROY_RETIRE);
+		return tag.getBooleanOr(KEY_DESTROY_RETIRE, false);
 	}
 
 	/**
@@ -538,10 +538,10 @@ public final class LinkItemData {
 	 */
 	public static int getSyncLinkerSignalStrength(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		if (!tag.contains(KEY_SYNC_LINKER_SIGNAL, Tag.TAG_INT)) {
+		if (!tag.contains(KEY_SYNC_LINKER_SIGNAL)) {
 			return SYNC_LINKER_SIGNAL_OFF;
 		}
-		return normalizeSyncLinkerSignalStrength(tag.getInt(KEY_SYNC_LINKER_SIGNAL));
+		return normalizeSyncLinkerSignalStrength(tag.getIntOr(KEY_SYNC_LINKER_SIGNAL, 0));
 	}
 
 	/**
@@ -574,7 +574,10 @@ public final class LinkItemData {
 			return;
 		}
 		if (getSyncLinkerSignalStrength(stack) > SYNC_LINKER_SIGNAL_OFF) {
-			stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(SYNC_LINKER_MODEL_ACTIVE));
+			stack.set(
+				DataComponents.CUSTOM_MODEL_DATA,
+				new CustomModelData(List.of((float) SYNC_LINKER_MODEL_ACTIVE), List.of(), List.of(), List.of())
+			);
 			return;
 		}
 		stack.remove(DataComponents.CUSTOM_MODEL_DATA);
@@ -597,8 +600,8 @@ public final class LinkItemData {
 	 * 读取底层单序号字段，不做聚合回退。
 	 */
 	private static long readStoredSerial(CompoundTag tag) {
-		if (tag.contains(KEY_SERIAL, Tag.TAG_LONG)) {
-			return tag.getLong(KEY_SERIAL);
+		if (tag.contains(KEY_SERIAL)) {
+			return tag.getLongOr(KEY_SERIAL, 0L);
 		}
 		return 0L;
 	}
@@ -607,10 +610,10 @@ public final class LinkItemData {
 	 * 读取并规范化聚合序号组。
 	 */
 	private static List<Long> readSerialGroup(CompoundTag tag) {
-		if (!tag.contains(KEY_SERIAL_GROUP, Tag.TAG_LONG_ARRAY)) {
+		if (!tag.contains(KEY_SERIAL_GROUP)) {
 			return List.of();
 		}
-		long[] values = tag.getLongArray(KEY_SERIAL_GROUP);
+		long[] values = tag.getLongArray(KEY_SERIAL_GROUP).orElse(new long[0]);
 		if (values.length == 0) {
 			return List.of();
 		}

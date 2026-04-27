@@ -36,15 +36,15 @@ public final class QuickLinkToolData {
 	 */
 	public static Snapshot read(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		Mode mode = Mode.fromToken(tag.getString(KEY_MODE));
-		LinkNodeType serialCacheType = LinkNodeSemantics.tryParseCanonicalType(tag.getString(KEY_SERIAL_CACHE_TYPE))
+		Mode mode = Mode.fromToken(tag.getStringOr(KEY_MODE, ""));
+		LinkNodeType serialCacheType = LinkNodeSemantics.tryParseCanonicalType(tag.getStringOr(KEY_SERIAL_CACHE_TYPE, ""))
 			.orElse(LinkNodeType.CORE);
 		return new Snapshot(
 			mode,
 			normalizeSerialCacheType(serialCacheType),
-			normalizeText(tag.getString(KEY_SERIAL_CACHE_EXPRESSION)),
-			normalizeText(tag.getString(KEY_CHANNEL_CACHE)),
-			ApplyEditMode.fromToken(tag.getString(KEY_APPLY_EDIT_MODE))
+			normalizeText(tag.getStringOr(KEY_SERIAL_CACHE_EXPRESSION, "")),
+			normalizeText(tag.getStringOr(KEY_CHANNEL_CACHE, "")),
+			ApplyEditMode.fromToken(tag.getStringOr(KEY_APPLY_EDIT_MODE, ""))
 		);
 	}
 
@@ -187,7 +187,10 @@ public final class QuickLinkToolData {
 		}
 		Mode currentMode = read(stack).mode();
 		if (currentMode == Mode.CHANNEL) {
-			stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(QUICK_LINK_TOOL_CHANNEL_MODEL));
+			stack.set(
+				DataComponents.CUSTOM_MODEL_DATA,
+				new CustomModelData(List.of((float) QUICK_LINK_TOOL_CHANNEL_MODEL), List.of(), List.of(), List.of())
+			);
 			return;
 		}
 		stack.remove(DataComponents.CUSTOM_MODEL_DATA);

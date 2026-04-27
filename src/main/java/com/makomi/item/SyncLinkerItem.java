@@ -35,10 +35,10 @@ public class SyncLinkerItem extends LinkerItem {
 	}
 
 	@Override
-	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+	public void inventoryTick(ItemStack stack, net.minecraft.server.level.ServerLevel level, Entity entity, net.minecraft.world.entity.EquipmentSlot slot) {
 		// 兼容旧栈与缺失镜像组件场景，确保贴图随持久化状态对齐。
 		LinkItemData.syncSyncLinkerModelState(stack);
-		super.inventoryTick(stack, level, entity, slotId, isSelected);
+		super.inventoryTick(stack, level, entity, slot);
 	}
 
 	@Override

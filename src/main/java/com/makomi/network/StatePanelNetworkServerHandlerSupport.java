@@ -388,15 +388,15 @@ final class StatePanelNetworkServerHandlerSupport {
 		for (StatePanelToolData.SubscriptionEntry subscription : subscriptions) {
 			boolean readable = CurrentLinksPrivacyService.canReadNodeState(player, subscription.nodeType(), subscription.serial());
 			NodeIdentitySnapshot identity = readable
-				? NodeIdentitySnapshot.resolve(player.serverLevel(), subscription.nodeType(), subscription.serial())
+				? NodeIdentitySnapshot.resolve(player.level(), subscription.nodeType(), subscription.serial())
 				: null;
 			NodeRuntimeSnapshot runtimeSnapshot = readable
 				? NodeSnapshotQueryService
-					.resolveRuntimeSnapshot(player.serverLevel().getServer(), subscription.nodeType(), subscription.serial())
+					.resolveRuntimeSnapshot(player.level().getServer(), subscription.nodeType(), subscription.serial())
 					.orElse(null)
 				: null;
 			String displayText = readable
-				? NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), subscription.nodeType(), subscription.serial())
+				? NodeAliasServerSupport.resolveDisplayText(player.level(), subscription.nodeType(), subscription.serial())
 				: NodeAliasDisplayUtil.formatDisplayText("", subscription.serial());
 			values.add(buildSnapshotEntry(subscription, readable, identity, runtimeSnapshot, displayText));
 		}
@@ -474,7 +474,7 @@ final class StatePanelNetworkServerHandlerSupport {
 	private static boolean isRefreshThrottled(ServerPlayer player) {
 		int refreshHz = RedstoneLinkConfig.general().statePanelRefreshHz();
 		long minIntervalTicks = Math.max(1L, (20L + refreshHz - 1L) / refreshHz);
-		long nowTick = player.serverLevel().getGameTime();
+		long nowTick = player.level().getGameTime();
 		UUID playerId = player.getUUID();
 		Long lastTick = LAST_REFRESH_TICK_BY_PLAYER.get(playerId);
 		if (lastTick != null && nowTick - lastTick < minIntervalTicks) {
@@ -543,7 +543,7 @@ final class StatePanelNetworkServerHandlerSupport {
 			if (serial <= 0L) {
 				continue;
 			}
-			NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(player.serverLevel(), nodeType, serial);
+			NodeIdentitySnapshot identity = NodeIdentitySnapshot.resolve(player.level(), nodeType, serial);
 			if (!identity.allocated()) {
 				unallocatedSerials.add(Long.toString(serial));
 				continue;

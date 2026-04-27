@@ -179,7 +179,7 @@ public final class GraphWriteService {
 		if (!parseResult.successful()) {
 			throw new GraphWriteRejectedException(parseResult.failureResponseJson());
 		}
-		ServerLevel level = player != null ? player.serverLevel() : (source == null ? null : source.getLevel());
+		ServerLevel level = player != null ? player.level() : (source == null ? null : source.getLevel());
 		CommandSourceStack rateLimitSource = source != null ? source : (player == null ? null : player.createCommandSourceStack());
 		if (level == null) {
 			throw new GraphWriteRejectedException(
@@ -944,9 +944,9 @@ public final class GraphWriteService {
 
 	private static boolean hasPermission(CommandSourceStack source, ServerPlayer player, int permissionLevel) {
 		if (source != null) {
-			return source.hasPermission(permissionLevel);
+			return com.makomi.command.CommandPermissionCompat.hasPermission(source, permissionLevel);
 		}
-		return player != null && player.hasPermissions(permissionLevel);
+		return player != null && com.makomi.command.CommandPermissionCompat.hasPermission(player, permissionLevel);
 	}
 
 	private static int saturatingAdd(int left, int right) {

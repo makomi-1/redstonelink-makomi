@@ -108,19 +108,11 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	}
 
 	@Override
-	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
-				coreBlockEntity.markPhysicalRemovalInProgress();
-				coreBlockEntity.unregisterNode(true);
-			}
-			if (!level.isClientSide()) {
-				// 核心块被破坏时主动补齐二级扇出：中心 + 六方向。
-				// 目的：让与核心块相邻及次邻接的红石网络在同 tick 内完成收敛。
-				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
-			}
-		}
-		super.onRemove(state, level, pos, newState, movedByPiston);
+	protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
+		super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
+		// 核心块被破坏时主动补齐二级扇出：中心 + 六方向。
+		// 目的：让与核心块相邻及次邻接的红石网络在同 tick 内完成收敛。
+		NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 	}
 
 	@Override
@@ -148,7 +140,7 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}

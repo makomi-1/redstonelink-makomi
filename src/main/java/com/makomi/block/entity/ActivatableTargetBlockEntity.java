@@ -3,15 +3,16 @@ package com.makomi.block.entity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkNodeType;
 import com.makomi.util.SignalStrengths;
+import com.mojang.serialization.Codec;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * 可激活目标节点基类。
@@ -724,38 +725,33 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.loadAdditional(tag, provider);
+	protected void loadAdditional(ValueInput input) {
+		super.loadAdditional(input);
 		concurrentComponent.setPulseUntilGameTime(
-			Math.max(0L, tag.getLong(ActivatableTargetPersistenceHelper.KEY_PULSE_UNTIL_GAME_TIME))
+			Math.max(0L, input.getLongOr(ActivatableTargetPersistenceHelper.KEY_PULSE_UNTIL_GAME_TIME, 0L))
 		);
 		concurrentComponent.setPulseEpoch(
-			Math.max(0L, tag.getLong(ActivatableTargetPersistenceHelper.KEY_PULSE_EPOCH))
+			Math.max(0L, input.getLongOr(ActivatableTargetPersistenceHelper.KEY_PULSE_EPOCH, 0L))
 		);
-		concurrentComponent.setToggleState(tag.getBoolean(ActivatableTargetPersistenceHelper.KEY_TOGGLE_STATE));
+		concurrentComponent.setToggleState(input.getBooleanOr(ActivatableTargetPersistenceHelper.KEY_TOGGLE_STATE, false));
 		concurrentComponent.setToggleConcurrentCount(
-			Math.max(0, tag.getInt(ActivatableTargetPersistenceHelper.KEY_TOGGLE_CONCURRENT_COUNT))
+			Math.max(0, input.getIntOr(ActivatableTargetPersistenceHelper.KEY_TOGGLE_CONCURRENT_COUNT, 0))
 		);
-		ActivatableTargetPersistenceHelper.loadSyncSourceStrengths(tag, concurrentComponent);
+		ActivatableTargetPersistenceHelper.loadSyncSourceStrengths(input, concurrentComponent);
 		concurrentComponent.setSyncSignalMaxStrength(concurrentComponent.recalculateSyncMaxStrengthAndSources());
-		if (
-			concurrentComponent.syncSignalMaxStrength() <= 0
-				&& tag.contains(ActivatableTargetPersistenceHelper.KEY_SYNC_MAX_SOURCES, Tag.TAG_LONG_ARRAY)
-		) {
+		if (concurrentComponent.syncSignalMaxStrength() <= 0) {
 			concurrentComponent.syncSignalMaxSources().clear();
-			for (long sourceSerial : tag.getLongArray(ActivatableTargetPersistenceHelper.KEY_SYNC_MAX_SOURCES)) {
+			for (Long sourceSerial : input.listOrEmpty(ActivatableTargetPersistenceHelper.KEY_SYNC_MAX_SOURCES, Codec.LONG)) {
 				if (sourceSerial > 0L) {
 					concurrentComponent.syncSignalMaxSources().add(sourceSerial);
 				}
 			}
 		}
-		if (tag.contains(ActivatableTargetPersistenceHelper.KEY_CONFIGURED_MODE)) {
-			configuredMode = ActivationMode.fromName(tag.getString(ActivatableTargetPersistenceHelper.KEY_CONFIGURED_MODE));
-		}
-		if (tag.contains(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_MODE, Tag.TAG_STRING)) {
+		configuredMode = ActivationMode.fromName(input.getStringOr(ActivatableTargetPersistenceHelper.KEY_CONFIGURED_MODE, ""));
+		if (!input.getStringOr(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_MODE, "").isBlank()) {
 			arbitrationComponent.setAuthorityMode(
 				ActivatableTargetPersistenceHelper.parseEffectiveMode(
-					tag.getString(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_MODE)
+					input.getStringOr(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_MODE, "")
 				)
 			);
 		} else {
@@ -763,14 +759,14 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 		}
 		arbitrationComponent.setAuthorityTimeKey(
 			TimeKey.of(
-				Math.max(0L, tag.getLong(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_TICK)),
-				Math.max(0, tag.getInt(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_SLOT))
+				Math.max(0L, input.getLongOr(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_TICK, 0L)),
+				Math.max(0, input.getIntOr(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_SLOT, 0))
 			)
 		);
 		arbitrationComponent.setAuthoritySeq(
-			Math.max(0L, tag.getLong(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_SEQ))
+			Math.max(0L, input.getLongOr(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_SEQ, 0L))
 		);
-		boolean hasConcurrentTruth = ActivatableTargetPersistenceHelper.loadConcurrentBuckets(tag, concurrentComponent);
+		boolean hasConcurrentTruth = ActivatableTargetPersistenceHelper.loadConcurrentBuckets(input, concurrentComponent);
 		if (hasConcurrentTruth) {
 			recomputeSyncTruthFromConcurrentBuckets();
 			recomputePulseTruthFromConcurrentBuckets();
@@ -800,59 +796,59 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	}
 
 	@Override
-	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.saveAdditional(tag, provider);
+	protected void saveAdditional(ValueOutput output) {
+		super.saveAdditional(output);
 		if (active) {
-			tag.putBoolean(ActivatableTargetPersistenceHelper.KEY_ACTIVE, true);
+			output.putBoolean(ActivatableTargetPersistenceHelper.KEY_ACTIVE, true);
 		}
 		if (observationComponent.resolvedOutputPower() > 0) {
-			tag.putInt(
+			output.putInt(
 				ActivatableTargetPersistenceHelper.KEY_RESOLVED_OUTPUT_POWER,
 				normalizeSignalStrength(observationComponent.resolvedOutputPower())
 			);
 		}
 		if (concurrentComponent.pulseUntilGameTime() > 0L) {
-			tag.putLong(
+			output.putLong(
 				ActivatableTargetPersistenceHelper.KEY_PULSE_UNTIL_GAME_TIME,
 				concurrentComponent.pulseUntilGameTime()
 			);
 		}
 		if (concurrentComponent.pulseEpoch() > 0L) {
-			tag.putLong(ActivatableTargetPersistenceHelper.KEY_PULSE_EPOCH, concurrentComponent.pulseEpoch());
+			output.putLong(ActivatableTargetPersistenceHelper.KEY_PULSE_EPOCH, concurrentComponent.pulseEpoch());
 		}
 		if (concurrentComponent.toggleSnapshotRecorded() || concurrentComponent.toggleState()) {
-			tag.putBoolean(ActivatableTargetPersistenceHelper.KEY_TOGGLE_STATE, concurrentComponent.toggleState());
+			output.putBoolean(ActivatableTargetPersistenceHelper.KEY_TOGGLE_STATE, concurrentComponent.toggleState());
 		}
 		ActivatableTargetConcurrentBucketComponent.PersistentSyncSnapshot persistentSyncSnapshot =
 			concurrentComponent.buildPersistentSyncSnapshot();
-		ActivatableTargetPersistenceHelper.writeSyncSourceStrengths(tag, persistentSyncSnapshot.strengthBySource());
+		ActivatableTargetPersistenceHelper.writeSyncSourceStrengths(output, persistentSyncSnapshot.strengthBySource());
 		if (!persistentSyncSnapshot.maxSources().isEmpty()) {
-			long[] serialArray = new long[persistentSyncSnapshot.maxSources().size()];
-			int index = 0;
+			ValueOutput.TypedOutputList<Long> serialList = output.list(ActivatableTargetPersistenceHelper.KEY_SYNC_MAX_SOURCES, Codec.LONG);
 			for (Long sourceSerial : persistentSyncSnapshot.maxSources()) {
-				serialArray[index++] = sourceSerial;
+				if (sourceSerial != null && sourceSerial > 0L) {
+					serialList.add(sourceSerial);
+				}
 			}
-			tag.putLongArray(ActivatableTargetPersistenceHelper.KEY_SYNC_MAX_SOURCES, serialArray);
 		}
-		tag.putString(ActivatableTargetPersistenceHelper.KEY_CONFIGURED_MODE, configuredMode.name());
-		tag.putString(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_MODE, arbitrationComponent.authorityMode().name());
-		tag.putLong(
+		output.putString(ActivatableTargetPersistenceHelper.KEY_CONFIGURED_MODE, configuredMode.name());
+		output.putString(ActivatableTargetPersistenceHelper.KEY_AUTHORITY_MODE, arbitrationComponent.authorityMode().name());
+		output.putLong(
 			ActivatableTargetPersistenceHelper.KEY_AUTHORITY_TICK,
 			Math.max(0L, arbitrationComponent.authorityTimeKey().tick())
 		);
-		tag.putInt(
+		output.putInt(
 			ActivatableTargetPersistenceHelper.KEY_AUTHORITY_SLOT,
 			Math.max(0, arbitrationComponent.authorityTimeKey().slot())
 		);
-		tag.putLong(
+		output.putLong(
 			ActivatableTargetPersistenceHelper.KEY_AUTHORITY_SEQ,
 			Math.max(0L, arbitrationComponent.authoritySeq())
 		);
-		tag.putInt(
+		output.putInt(
 			ActivatableTargetPersistenceHelper.KEY_TOGGLE_CONCURRENT_COUNT,
 			Math.max(0, concurrentComponent.toggleConcurrentCount())
 		);
-		ActivatableTargetPersistenceHelper.writeConcurrentBuckets(tag, concurrentComponent);
+		ActivatableTargetPersistenceHelper.writeConcurrentBuckets(output, concurrentComponent);
 	}
 
 	/**

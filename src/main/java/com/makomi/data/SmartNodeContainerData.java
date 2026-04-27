@@ -1,5 +1,6 @@
 package com.makomi.data;
 
+import com.mojang.serialization.Codec;
 import com.makomi.item.PairableItem;
 import com.makomi.registry.ModItems;
 import java.util.ArrayList;
@@ -9,8 +10,8 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.world.ContainerHelper;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.CustomModelData;
@@ -28,6 +29,7 @@ public final class SmartNodeContainerData {
 	private static final String KEY_SELECTED_TYPE = "rl_smart_node_container_selected_type";
 	private static final String KEY_AUTO_SORT = "rl_smart_node_container_auto_sort";
 	private static final String KEY_ITEM_COUNT = "rl_smart_node_container_item_count";
+	private static final Codec<List<ItemStack>> ITEM_LIST_CODEC = ItemStack.OPTIONAL_CODEC.listOf();
 
 	private SmartNodeContainerData() {
 	}
@@ -39,8 +41,8 @@ public final class SmartNodeContainerData {
 		CompoundTag tag = readTag(stack);
 		return new Snapshot(
 			readSelectedType(tag),
-			tag.getBoolean(KEY_AUTO_SORT),
-			Math.max(0, tag.getInt(KEY_ITEM_COUNT))
+			tag.getBooleanOr(KEY_AUTO_SORT, false),
+			Math.max(0, tag.getIntOr(KEY_ITEM_COUNT, 0))
 		);
 	}
 
@@ -53,10 +55,16 @@ public final class SmartNodeContainerData {
 			return contents;
 		}
 		CompoundTag rootTag = readTag(stack);
-		if (!rootTag.contains(KEY_ITEMS, Tag.TAG_COMPOUND)) {
+		if (!rootTag.contains(KEY_ITEMS)) {
 			return contents;
 		}
-		ContainerHelper.loadAllItems(rootTag.getCompound(KEY_ITEMS), contents, provider);
+		List<ItemStack> storedItems = rootTag
+			.read(KEY_ITEMS, ITEM_LIST_CODEC, RegistryOps.create(NbtOps.INSTANCE, provider))
+			.orElse(List.of());
+		for (int index = 0; index < Math.min(contents.size(), storedItems.size()); index++) {
+			ItemStack storedStack = storedItems.get(index);
+			contents.set(index, storedStack == null ? ItemStack.EMPTY : storedStack.copy());
+		}
 		return contents;
 	}
 
@@ -74,12 +82,15 @@ public final class SmartNodeContainerData {
 		SmartNodeContainerPlacementType normalizedType = normalizeSelectedType(selectedType);
 		int itemCount = countNonEmptySlots(normalizedContents);
 		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
-			CompoundTag itemsTag = new CompoundTag();
-			ContainerHelper.saveAllItems(itemsTag, normalizedContents, provider);
-			if (itemsTag.isEmpty()) {
+			if (provider == null || itemCount <= 0) {
 				tag.remove(KEY_ITEMS);
 			} else {
-				tag.put(KEY_ITEMS, itemsTag);
+				tag.store(
+					KEY_ITEMS,
+					ITEM_LIST_CODEC,
+					RegistryOps.create(NbtOps.INSTANCE, provider),
+					copyContentsForStorage(normalizedContents)
+				);
 			}
 			writeControlState(tag, normalizedType, autoSortEnabled, itemCount);
 		});
@@ -248,10 +259,10 @@ public final class SmartNodeContainerData {
 	}
 
 	private static SmartNodeContainerPlacementType readSelectedType(CompoundTag tag) {
-		if (tag == null || !tag.contains(KEY_SELECTED_TYPE, Tag.TAG_STRING)) {
+		if (tag == null || !tag.contains(KEY_SELECTED_TYPE)) {
 			return SmartNodeContainerPlacementType.CORE;
 		}
-		return SmartNodeContainerPlacementType.parse(tag.getString(KEY_SELECTED_TYPE));
+		return SmartNodeContainerPlacementType.parse(tag.getStringOr(KEY_SELECTED_TYPE, ""));
 	}
 
 	private static void syncModelState(
@@ -265,8 +276,21 @@ public final class SmartNodeContainerData {
 		}
 		stack.set(
 			DataComponents.CUSTOM_MODEL_DATA,
-			new CustomModelData(normalizeSelectedType(selectedType).modelDataValue())
+			new CustomModelData(
+				List.of((float) normalizeSelectedType(selectedType).modelDataValue()),
+				List.of(),
+				List.of(),
+				List.of()
+			)
 		);
+	}
+
+	private static List<ItemStack> copyContentsForStorage(NonNullList<ItemStack> contents) {
+		List<ItemStack> storedItems = new ArrayList<>(contents.size());
+		for (ItemStack stack : contents) {
+			storedItems.add(stack == null ? ItemStack.EMPTY : stack.copy());
+		}
+		return storedItems;
 	}
 
 	private static CompoundTag readTag(ItemStack stack) {

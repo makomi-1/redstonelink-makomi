@@ -1,5 +1,6 @@
 package com.makomi.block.entity;
 
+import com.mojang.serialization.Codec;
 import com.makomi.data.ChunkActivatorConfigSnapshot;
 import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorImmediateEffectService;
@@ -26,6 +27,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * 区块激活器方块实体。
@@ -170,70 +173,58 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.loadAdditional(tag, provider);
+	protected void loadAdditional(ValueInput input) {
+		super.loadAdditional(input);
 		ChunkActivatorConfigSnapshot legacyConfig = new ChunkActivatorConfigSnapshot(
-			tag.contains(KEY_LEGACY_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_LEGACY_SERIAL_EXPRESSION) : "",
-			ChunkActivatorMode.tryParseToken(tag.getString(KEY_LEGACY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD)
+			input.getStringOr(KEY_LEGACY_SERIAL_EXPRESSION, ""),
+			ChunkActivatorMode.tryParseToken(input.getStringOr(KEY_LEGACY_MODE, "")).orElse(ChunkActivatorMode.FORCE_LOAD)
 		);
 		activeType =
 			ChunkActivatorConfigStateSnapshot
-				.tryParseTypeToken(tag.contains(KEY_ACTIVE_TYPE, Tag.TAG_STRING) ? tag.getString(KEY_ACTIVE_TYPE) : "")
+				.tryParseTypeToken(input.getStringOr(KEY_ACTIVE_TYPE, ""))
 				.orElse(LinkNodeType.TRIGGER_SOURCE);
 		triggerSourceConfig = new ChunkActivatorConfigSnapshot(
-			tag.contains(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, Tag.TAG_STRING)
-				? tag.getString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION)
-				: legacyConfig.serialExpression(),
+			input.getStringOr(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, legacyConfig.serialExpression()),
 			ChunkActivatorMode
-				.tryParseToken(
-					tag.contains(KEY_TRIGGER_SOURCE_MODE, Tag.TAG_STRING)
-						? tag.getString(KEY_TRIGGER_SOURCE_MODE)
-						: legacyConfig.mode().token()
-				)
+				.tryParseToken(input.getStringOr(KEY_TRIGGER_SOURCE_MODE, legacyConfig.mode().token()))
 				.orElse(legacyConfig.mode())
 		);
 		coreConfig = new ChunkActivatorConfigSnapshot(
-			tag.contains(KEY_CORE_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_CORE_SERIAL_EXPRESSION) : "",
+			input.getStringOr(KEY_CORE_SERIAL_EXPRESSION, ""),
 			ChunkActivatorMode
-				.tryParseToken(
-					tag.contains(KEY_CORE_MODE, Tag.TAG_STRING)
-						? tag.getString(KEY_CORE_MODE)
-						: ChunkActivatorMode.FORCE_LOAD.token()
-				)
+				.tryParseToken(input.getStringOr(KEY_CORE_MODE, ChunkActivatorMode.FORCE_LOAD.token()))
 				.orElse(ChunkActivatorMode.FORCE_LOAD)
 		);
-		displayAlias = tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)
-			? NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS))
-			: "";
-		active = tag.getBoolean(KEY_ACTIVE);
+		displayAlias = NodeAliasDisplayUtil.normalizeAlias(input.getStringOr(KEY_DISPLAY_ALIAS, ""));
+		active = input.getBooleanOr(KEY_ACTIVE, false);
 		triggerSourceNodeSetDisplayTexts = readDisplayTexts(
-			tag,
+			input,
 			KEY_TRIGGER_SOURCE_NODE_SET_DISPLAY_TEXTS,
 			parseOrderedSerials(triggerSourceConfig.serialExpression())
 		);
 		coreNodeSetDisplayTexts = readDisplayTexts(
-			tag,
+			input,
 			KEY_CORE_NODE_SET_DISPLAY_TEXTS,
 			parseOrderedSerials(coreConfig.serialExpression())
 		);
 	}
 
 	@Override
-	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.saveAdditional(tag, provider);
-		tag.putString(KEY_ACTIVE_TYPE, ChunkActivatorConfigStateSnapshot.toTypeToken(activeType));
-		tag.putString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, triggerSourceConfig.serialExpression());
-		tag.putString(KEY_TRIGGER_SOURCE_MODE, triggerSourceConfig.mode().token());
-		tag.putString(KEY_CORE_SERIAL_EXPRESSION, coreConfig.serialExpression());
-		tag.putString(KEY_CORE_MODE, coreConfig.mode().token());
+	protected void saveAdditional(ValueOutput output) {
+		super.saveAdditional(output);
+		output.putString(KEY_ACTIVE_TYPE, ChunkActivatorConfigStateSnapshot.toTypeToken(activeType));
+		output.putString(KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, triggerSourceConfig.serialExpression());
+		output.putString(KEY_TRIGGER_SOURCE_MODE, triggerSourceConfig.mode().token());
+		output.putString(KEY_CORE_SERIAL_EXPRESSION, coreConfig.serialExpression());
+		output.putString(KEY_CORE_MODE, coreConfig.mode().token());
 		if (!displayAlias.isBlank()) {
-			tag.putString(KEY_DISPLAY_ALIAS, displayAlias);
+			output.putString(KEY_DISPLAY_ALIAS, displayAlias);
 		}
 		if (active) {
-			tag.putBoolean(KEY_ACTIVE, true);
+			output.putBoolean(KEY_ACTIVE, true);
 		}
-		tag.remove(KEY_LEGACY_SERIAL_EXPRESSION);
-		tag.remove(KEY_LEGACY_MODE);
+		output.discard(KEY_LEGACY_SERIAL_EXPRESSION);
+		output.discard(KEY_LEGACY_MODE);
 	}
 
 	@Override
@@ -369,18 +360,23 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 		tag.put(key, listTag);
 	}
 
-	private static List<String> readDisplayTexts(CompoundTag tag, String key, List<Long> serials) {
+	private static List<String> readDisplayTexts(ValueInput input, String key, List<Long> serials) {
 		if (serials == null || serials.isEmpty()) {
 			return List.of();
 		}
-		if (tag == null || key == null || key.isBlank() || !tag.contains(key, Tag.TAG_LIST)) {
+		if (input == null || key == null || key.isBlank()) {
 			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
 		}
-		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
-		List<String> displayTexts = new ArrayList<>(listTag.size());
-		for (int index = 0; index < listTag.size(); index++) {
-			displayTexts.add(listTag.getString(index));
+		List<String> displayTexts = new ArrayList<>();
+		for (String displayText : input.listOrEmpty(key, Codec.STRING)) {
+			displayTexts.add(displayText);
 		}
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
+	}
+
+	@Override
+	public void preRemoveSideEffects(BlockPos blockPos, BlockState blockState) {
+		markPhysicalRemovalInProgress();
+		super.preRemoveSideEffects(blockPos, blockState);
 	}
 }

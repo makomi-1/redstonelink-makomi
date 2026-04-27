@@ -19,14 +19,14 @@ public final class WebFeaturePermissionService {
 	 * 判断玩家是否可使用 recording 网页功能。
 	 */
 	public static boolean canUseRecordingFeature(ServerPlayer player) {
-		return player != null && player.hasPermissions(RedstoneLinkConfig.web().recordingPermissionLevel());
+		return player != null && com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.web().recordingPermissionLevel());
 	}
 
 	/**
 	 * 判断玩家是否可使用 graph 网页功能。
 	 */
 	public static boolean canUseGraphFeature(ServerPlayer player) {
-		return player != null && player.hasPermissions(RedstoneLinkConfig.web().graphPermissionLevel());
+		return player != null && com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.web().graphPermissionLevel());
 	}
 
 	/**
@@ -43,6 +43,6 @@ public final class WebFeaturePermissionService {
 		if (player != null) {
 			return canUseGraphFeature(player);
 		}
-		return source.hasPermission(RedstoneLinkConfig.web().graphPermissionLevel());
+		return com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.web().graphPermissionLevel());
 	}
 }

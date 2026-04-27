@@ -61,7 +61,7 @@ public final class ChunkActivatorNetwork {
 				LinkFilterEditorTargetKind.HELD_MAIN_HAND,
 				"",
 				0L,
-				player.getInventory().selected,
+				player.getInventory().getSelectedSlot(),
 				ChunkActivatorItemData.getDisplayAlias(stack),
 				ChunkActivatorItemData.read(stack)
 			)

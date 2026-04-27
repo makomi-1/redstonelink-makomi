@@ -57,7 +57,7 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 		}
 
 		if (payload.targetKind().usesBlockEntityTarget()) {
-			if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+			if (!com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().permissionLevel())) {
 				sendFeedback(player, false, "message.redstonelink.permission.insufficient");
 				return;
 			}
@@ -78,7 +78,7 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 			}
 			ChunkActivatorItemData.write(heldStack, configStateSnapshot);
 			ChunkActivatorItemData.setDisplayAlias(heldStack, normalizedDisplayAlias);
-			ChunkActivatorItemData.syncNodeSetDisplayTexts(heldStack, player.serverLevel());
+			ChunkActivatorItemData.syncNodeSetDisplayTexts(heldStack, player.level());
 		}
 
 		if (!activeParseResult.duplicateEntries().isEmpty()) {
@@ -97,7 +97,7 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 		ServerPlayer player,
 		ChunkActivatorConfigStateSnapshot configStateSnapshot
 	) {
-		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
+		LinkSavedData savedData = LinkSavedData.get(player.level());
 		ChunkActivatorConfigStateSnapshot normalized = configStateSnapshot == null
 			? new ChunkActivatorConfigStateSnapshot(null, null, null)
 			: configStateSnapshot;
@@ -209,7 +209,7 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 			return null;
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionLocation);
-		ServerLevel level = player.getServer().getLevel(dimension);
+		ServerLevel level = player.level().getServer().getLevel(dimension);
 		if (level == null) {
 			return null;
 		}
@@ -223,7 +223,7 @@ final class ChunkActivatorNetworkServerHandlerSupport {
 		if (player == null || payload == null || !payload.targetKind().usesHeldMainHandTarget()) {
 			return ItemStack.EMPTY;
 		}
-		if (player.getInventory().selected != payload.selectedSlot()) {
+		if (player.getInventory().getSelectedSlot() != payload.selectedSlot()) {
 			return ItemStack.EMPTY;
 		}
 		ItemStack heldStack = player.getMainHandItem();

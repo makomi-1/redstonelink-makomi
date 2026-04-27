@@ -63,7 +63,7 @@ public final class LinkFilterNetwork {
 				LinkFilterEditorTargetKind.HELD_MAIN_HAND,
 				"",
 				0L,
-				player.getInventory().selected,
+				player.getInventory().getSelectedSlot(),
 				filterKind,
 				LinkFilterItemData.getDisplayAlias(stack),
 				LinkFilterItemData.read(stack)

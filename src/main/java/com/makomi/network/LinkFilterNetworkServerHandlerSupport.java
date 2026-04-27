@@ -84,7 +84,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 			}
 			NetworkActiveSerialValidationSupport.ValidationResult validationResult =
 				NetworkActiveSerialValidationSupport.collectInvalidSerials(
-					LinkSavedData.get(player.serverLevel()),
+					LinkSavedData.get(player.level()),
 					payload.filterKind().servicedNodeType(),
 					parseResult.orderedTargets()
 				);
@@ -109,7 +109,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 		}
 
 		if (payload.targetKind().usesBlockEntityTarget()) {
-			if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+			if (!com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().permissionLevel())) {
 				sendFeedback(player, false, "message.redstonelink.permission.insufficient");
 				return;
 			}
@@ -127,7 +127,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 			}
 			LinkFilterItemData.write(heldFilterStack, configSnapshot);
 			LinkFilterItemData.setDisplayAlias(heldFilterStack, normalizedDisplayAlias);
-			LinkFilterItemData.syncNodeSetDisplayTexts(heldFilterStack, player.serverLevel(), payload.filterKind().servicedNodeType());
+			LinkFilterItemData.syncNodeSetDisplayTexts(heldFilterStack, player.level(), payload.filterKind().servicedNodeType());
 		}
 
 		if (configSnapshot.nodeSetMode() == LinkFilterNodeSetMode.WHITELIST && isWhitelistTargetEmpty(configSnapshot, parseResult)) {
@@ -191,7 +191,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 			return null;
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionLocation.get());
-		ServerLevel level = player.getServer().getLevel(dimension);
+		ServerLevel level = player.level().getServer().getLevel(dimension);
 		if (level == null) {
 			return null;
 		}
@@ -208,7 +208,7 @@ final class LinkFilterNetworkServerHandlerSupport {
 		if (player == null || payload == null || !payload.targetKind().usesHeldMainHandTarget()) {
 			return ItemStack.EMPTY;
 		}
-		if (player.getInventory().selected != payload.selectedSlot()) {
+		if (player.getInventory().getSelectedSlot() != payload.selectedSlot()) {
 			return ItemStack.EMPTY;
 		}
 		ItemStack heldStack = player.getMainHandItem();

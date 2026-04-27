@@ -27,6 +27,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.redstone.Orientation;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
@@ -99,17 +100,6 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	}
 
 	@Override
-	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
-				triggerSourceBlockEntity.markPhysicalRemovalInProgress();
-				triggerSourceBlockEntity.unregisterNode(true);
-			}
-		}
-		super.onRemove(state, level, pos, newState, movedByPiston);
-	}
-
-	@Override
 	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
 		super.onPlace(state, level, pos, oldState, movedByPiston);
 		if (!oldState.is(state.getBlock())) {
@@ -123,10 +113,10 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 		Level level,
 		BlockPos pos,
 		Block block,
-		BlockPos fromPos,
+		Orientation orientation,
 		boolean movedByPiston
 	) {
-		super.neighborChanged(state, level, pos, block, fromPos, movedByPiston);
+		super.neighborChanged(state, level, pos, block, orientation, movedByPiston);
 		updatePoweredState(level, pos, state);
 	}
 
@@ -140,7 +130,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}

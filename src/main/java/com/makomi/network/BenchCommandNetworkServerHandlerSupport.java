@@ -47,23 +47,23 @@ final class BenchCommandNetworkServerHandlerSupport {
 				resultCode.set(result);
 			}, (first, second) -> CommandResultCallback.chain(first, second));
 
-		long startTick = payload.captureTickWindow() ? player.serverLevel().getGameTime() : 0L;
+		long startTick = payload.captureTickWindow() ? player.level().getGameTime() : 0L;
 		long endTick = startTick;
 		String errorDetail = "";
 		try {
-			player.getServer().getCommands().performPrefixedCommand(commandSource, command);
+			player.level().getServer().getCommands().performPrefixedCommand(commandSource, command);
 		} catch (RuntimeException exception) {
 			errorDetail = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
 			RedstoneLink.LOGGER.warn(
 				"Bench player command execution failed. player={} requestId={} command={}",
-				player.getGameProfile().getName(),
+				player.getScoreboardName(),
 				payload.requestId(),
 				command,
 				exception
 			);
 		} finally {
 			if (payload.captureTickWindow()) {
-				endTick = player.serverLevel().getGameTime();
+				endTick = player.level().getGameTime();
 			}
 		}
 

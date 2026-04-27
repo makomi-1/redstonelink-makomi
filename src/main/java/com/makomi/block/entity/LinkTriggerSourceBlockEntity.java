@@ -2,11 +2,10 @@ package com.makomi.block.entity;
 
 import com.makomi.data.LinkNodeType;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.storage.ValueInput;
 
 /**
  * triggerSource 公共方块实体基类。
@@ -42,8 +41,8 @@ public abstract class LinkTriggerSourceBlockEntity extends TriggerSourceBlockEnt
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.loadAdditional(tag, provider);
+	protected void loadAdditional(ValueInput input) {
+		super.loadAdditional(input);
 		clearRuntimeInputState();
 		refreshPendingLoadInputStateResyncFlag();
 	}

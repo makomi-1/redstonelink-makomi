@@ -43,7 +43,7 @@ public final class QuickLinkVisualizationSnapshotService {
 	 * 查询普通节点的可视化快照。
 	 */
 	private static VisualizedObjectSnapshot queryNode(ServerPlayer player, LinkNodeType nodeType, long serial) {
-		ServerLevel level = player.serverLevel();
+		ServerLevel level = player.level();
 		LinkSavedData savedData = LinkSavedData.get(level);
 		VisualizedObjectRef source = buildNodeSourceRef(level, nodeType, serial);
 		if (source == null || !source.hasPosition()) {
@@ -82,7 +82,7 @@ public final class QuickLinkVisualizationSnapshotService {
 	 * 自隔离由图真值读取阶段保证，因此这里直接复用当前可见连接集合。
 	 */
 	private static VisualizedObjectSnapshot queryRepeater(ServerPlayer player, long serial) {
-		ServerLevel level = player.serverLevel();
+		ServerLevel level = player.level();
 		LinkSavedData savedData = LinkSavedData.get(level);
 		if (savedData == null || !savedData.isRepeaterSerial(serial)) {
 			return null;

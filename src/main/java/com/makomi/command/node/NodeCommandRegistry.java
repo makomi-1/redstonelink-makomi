@@ -120,7 +120,7 @@ public final class NodeCommandRegistry {
 			source.getLevel(),
 			type,
 			serial,
-			source.hasPermission(RedstoneLinkConfig.privacy().viewPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.privacy().viewPermissionLevel())
 		);
 		NodeIdentitySnapshot identity = readSnapshot.identity();
 		String dimensionText = identity.dimension() == null ? "-" : identity.dimension().identifier().toString();

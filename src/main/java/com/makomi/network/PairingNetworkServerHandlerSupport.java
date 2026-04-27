@@ -58,7 +58,7 @@ final class PairingNetworkServerHandlerSupport {
 		if (player == null || payload == null) {
 			return;
 		}
-		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+		if (!com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().permissionLevel())) {
 			sendPairingFeedback(
 				player,
 				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient")
@@ -72,7 +72,7 @@ final class PairingNetworkServerHandlerSupport {
 				.submitTriggerSource(
 					player.createCommandSourceStack(),
 					player,
-					player.serverLevel(),
+					player.level(),
 					payload.sourceSerial(),
 					payload.connectionModeToken(),
 					payload.targetsExpression(),
@@ -97,7 +97,7 @@ final class PairingNetworkServerHandlerSupport {
 		if (player == null || payload == null) {
 			return;
 		}
-		if (!player.hasPermissions(RedstoneLinkConfig.command().permissionLevel())) {
+		if (!com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().permissionLevel())) {
 			sendPairingFeedback(
 				player,
 				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient")
@@ -111,7 +111,7 @@ final class PairingNetworkServerHandlerSupport {
 				.submitCore(
 					player.createCommandSourceStack(),
 					player,
-					player.serverLevel(),
+					player.level(),
 					payload.coreSerial(),
 					payload.connectionModeToken(),
 					payload.triggerSourceExpression(),
@@ -129,7 +129,7 @@ final class PairingNetworkServerHandlerSupport {
 		if (player == null || payload == null) {
 			return;
 		}
-		if (!player.hasPermissions(RedstoneLinkConfig.command().otherPermissionLevel())) {
+		if (!com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().otherPermissionLevel())) {
 			sendPairingFeedback(
 				player,
 				LinkSetExecutionService.OperationFeedback.failure("message.redstonelink.permission.insufficient")
@@ -159,7 +159,7 @@ final class PairingNetworkServerHandlerSupport {
 			return;
 		}
 		LinkSetExecutionService.OperationFeedback sourceStateFeedback = validatePairingAliasSourceActive(
-			player.serverLevel(),
+			player.level(),
 			sourceType,
 			payload.sourceSerial()
 		);
@@ -170,14 +170,14 @@ final class PairingNetworkServerHandlerSupport {
 
 		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(payload.sourceAlias());
 		if (normalizedAlias.isEmpty()) {
-			NodeAliasSavedData aliasSavedData = NodeAliasSavedData.get(player.serverLevel());
+			NodeAliasSavedData aliasSavedData = NodeAliasSavedData.get(player.level());
 			String previousAlias = aliasSavedData.getAlias(sourceType, payload.sourceSerial()).orElse("");
 			NodeAliasSavedData.RemoveResult removeResult = previousAlias.isEmpty()
 				? new NodeAliasSavedData.RemoveResult(false, "")
-				: RepeaterAliasMirrorSupport.remove(player.serverLevel(), sourceType, payload.sourceSerial());
-			String currentAlias = NodeAliasSavedData.get(player.serverLevel()).getAlias(sourceType, payload.sourceSerial()).orElse("");
+				: RepeaterAliasMirrorSupport.remove(player.level(), sourceType, payload.sourceSerial());
+			String currentAlias = NodeAliasSavedData.get(player.level()).getAlias(sourceType, payload.sourceSerial()).orElse("");
 			if (removeResult.removed()) {
-				RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(player.serverLevel(), sourceType, payload.sourceSerial());
+				RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(player.level(), sourceType, payload.sourceSerial());
 			}
 			sendPairingAliasState(player, sourceType, payload.sourceSerial(), currentAlias);
 			sendPairingFeedback(
@@ -193,7 +193,7 @@ final class PairingNetworkServerHandlerSupport {
 			return;
 		}
 		NodeAliasSavedData.UpsertResult result = RepeaterAliasMirrorSupport.upsert(
-			player.serverLevel(),
+			player.level(),
 			sourceType,
 			payload.sourceSerial(),
 			payload.sourceAlias()
@@ -208,7 +208,7 @@ final class PairingNetworkServerHandlerSupport {
 		}
 
 		if (result.changed()) {
-			RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(player.serverLevel(), sourceType, payload.sourceSerial());
+			RepeaterAliasMirrorSupport.syncDisplaysAfterAliasChanged(player.level(), sourceType, payload.sourceSerial());
 		}
 		sendPairingAliasState(player, sourceType, payload.sourceSerial(), result.alias());
 		sendPairingFeedback(
@@ -316,7 +316,7 @@ final class PairingNetworkServerHandlerSupport {
 		long requestedNodeSerial = payload.sourceSerial();
 		if (pairableNode != null) {
 			NodeRuntimeSnapshot snapshot = NodeSnapshotQueryService
-				.resolveRuntimeSnapshot(player.getServer(), requestedNodeType, requestedNodeSerial)
+				.resolveRuntimeSnapshot(player.level().getServer(), requestedNodeType, requestedNodeSerial)
 				.orElse(null);
 			if (snapshot != null) {
 				runtimeSnapshot = new ResolvedRuntimeHudSnapshot(true, snapshot.inputPower(), snapshot.outputPower());
@@ -360,7 +360,7 @@ final class PairingNetworkServerHandlerSupport {
 	 * 判断玩家是否具备接收近外显回包的最低权限。
 	 */
 	private static boolean canReceiveNearOverlayPackets(ServerPlayer player) {
-		return player != null && player.hasPermissions(RedstoneLinkConfig.privacy().overlayResponsePermissionLevel());
+		return player != null && com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.privacy().overlayResponsePermissionLevel());
 	}
 
 	/**
@@ -403,7 +403,7 @@ final class PairingNetworkServerHandlerSupport {
 		if (player == null || lastRequestTickByPlayer == null) {
 			return true;
 		}
-		long nowTick = player.serverLevel().getGameTime();
+		long nowTick = player.level().getGameTime();
 		cleanupThrottleStateIfNeeded(nowTick);
 		UUID playerId = player.getUUID();
 		Long lastTick = lastRequestTickByPlayer.get(playerId);

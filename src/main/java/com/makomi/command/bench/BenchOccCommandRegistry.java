@@ -517,8 +517,8 @@ public final class BenchOccCommandRegistry {
 			level,
 			player,
 			overrides,
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			commandSource.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(commandSource, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		if (!preparationResult.successful()) {
 			return ChannelPartitionBatchSubmissionResult.rejected(resolvePrimaryOperationFeedbackKey(preparationResult.feedbacks()));

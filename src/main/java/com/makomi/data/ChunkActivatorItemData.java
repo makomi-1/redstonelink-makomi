@@ -41,8 +41,8 @@ public final class ChunkActivatorItemData {
 	public static ChunkActivatorConfigStateSnapshot read(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
 		ChunkActivatorConfigSnapshot legacyConfig = new ChunkActivatorConfigSnapshot(
-			tag.getString(KEY_LEGACY_SERIAL_EXPRESSION),
-			ChunkActivatorMode.tryParseToken(tag.getString(KEY_LEGACY_MODE)).orElse(ChunkActivatorMode.FORCE_LOAD)
+			tag.getStringOr(KEY_LEGACY_SERIAL_EXPRESSION, ""),
+			ChunkActivatorMode.tryParseToken(tag.getStringOr(KEY_LEGACY_MODE, "")).orElse(ChunkActivatorMode.FORCE_LOAD)
 		);
 		ChunkActivatorConfigSnapshot triggerSourceConfig = new ChunkActivatorConfigSnapshot(
 			readString(tag, KEY_TRIGGER_SOURCE_SERIAL_EXPRESSION, legacyConfig.serialExpression()),
@@ -86,10 +86,10 @@ public final class ChunkActivatorItemData {
 	 */
 	public static String getDisplayAlias(ItemStack stack) {
 		CompoundTag tag = readTag(stack);
-		if (!tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)) {
+		if (!tag.contains(KEY_DISPLAY_ALIAS)) {
 			return "";
 		}
-		return NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS));
+		return NodeAliasDisplayUtil.normalizeAlias(tag.getStringOr(KEY_DISPLAY_ALIAS, ""));
 	}
 
 	/**
@@ -193,10 +193,10 @@ public final class ChunkActivatorItemData {
 	}
 
 	private static String readString(CompoundTag tag, String key, String fallback) {
-		if (tag == null || !tag.contains(key, Tag.TAG_STRING)) {
+		if (tag == null || !tag.contains(key)) {
 			return fallback;
 		}
-		return tag.getString(key);
+		return tag.getStringOr(key, "");
 	}
 
 	/**
@@ -276,13 +276,13 @@ public final class ChunkActivatorItemData {
 		if (serials == null || serials.isEmpty()) {
 			return List.of();
 		}
-		if (tag == null || key == null || key.isBlank() || !tag.contains(key, Tag.TAG_LIST)) {
+		if (tag == null || key == null || key.isBlank() || !tag.contains(key)) {
 			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
 		}
-		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
+		ListTag listTag = tag.getListOrEmpty(key);
 		List<String> displayTexts = new ArrayList<>(listTag.size());
 		for (int index = 0; index < listTag.size(); index++) {
-			displayTexts.add(listTag.getString(index));
+			displayTexts.add(listTag.getStringOr(index, ""));
 		}
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}

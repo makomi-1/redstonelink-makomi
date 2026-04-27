@@ -161,7 +161,7 @@ public final class LinkCommandRegistry {
 			source.getLevel(),
 			type,
 			serial,
-			source.hasPermission(RedstoneLinkConfig.privacy().viewPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.privacy().viewPermissionLevel())
 		);
 		String displaySerialText = NodeAliasServerSupport.resolveDisplayText(source.getLevel(), type, serial);
 		source.sendSuccess(
@@ -210,8 +210,8 @@ public final class LinkCommandRegistry {
 			sourceType,
 			sourceSerial,
 			rawTargets,
-			source.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			source.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		if (!preparationResult.successful()) {
 			sendOperationFeedbacks(source, preparationResult.feedbacks());
@@ -308,8 +308,8 @@ public final class LinkCommandRegistry {
 			coreSerial,
 			parseResult.orderedTriggerSources(),
 			parseResult.duplicateEntries(),
-			source.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			source.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		sendOperationFeedbacks(source, preparationResult.feedbacks());
 		if (!preparationResult.successful()) {
@@ -576,8 +576,8 @@ public final class LinkCommandRegistry {
 			coreSerial,
 			new ArrayList<>(nextTriggerSources),
 			List.of(),
-			source.hasPermission(RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
-			source.hasPermission(RedstoneLinkConfig.writeControl().protectedPermissionLevel())
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().limitedPermissionLevel()),
+			com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.writeControl().protectedPermissionLevel())
 		);
 		sendOperationFeedbacks(source, preparationResult.feedbacks());
 		if (!preparationResult.successful()) {

@@ -42,7 +42,7 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 		this(
 			containerId,
 			playerInventory,
-			playerInventory.selected,
+			playerInventory.getSelectedSlot(),
 			new SmartNodeContainerInventory(NonNullList.withSize(CONTAINER_SLOT_COUNT, ItemStack.EMPTY)),
 			new SimpleContainerData(2)
 		);

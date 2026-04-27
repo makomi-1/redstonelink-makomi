@@ -5,12 +5,11 @@ import com.makomi.data.LinkSavedData;
 import com.makomi.util.SignalStrengths;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * 支持 sync 回放快照的 triggerSource 基类。
@@ -149,11 +148,10 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.loadAdditional(tag, provider);
+	protected void loadAdditional(ValueInput input) {
+		super.loadAdditional(input);
 		clearRuntimeReplaySyncSnapshot();
-		replaySyncSnapshotRecorded = tag.contains(KEY_REPLAY_SYNC_SNAPSHOT_RECORDED, Tag.TAG_BYTE)
-			&& tag.getBoolean(KEY_REPLAY_SYNC_SNAPSHOT_RECORDED);
+		replaySyncSnapshotRecorded = input.getBooleanOr(KEY_REPLAY_SYNC_SNAPSHOT_RECORDED, false);
 		if (!replaySyncSnapshotRecorded) {
 			replaySyncSignalStrength = 0;
 			replaySyncTick = 0L;
@@ -161,23 +159,23 @@ public abstract class SyncReplaySourceBlockEntity extends LinkTriggerSourceBlock
 			replaySyncSeq = 0L;
 			return;
 		}
-		replaySyncSignalStrength = SignalStrengths.clamp(tag.getInt(KEY_REPLAY_SYNC_SIGNAL_STRENGTH));
-		replaySyncTick = Math.max(0L, tag.getLong(KEY_REPLAY_SYNC_TICK));
-		replaySyncSlot = Math.max(0, tag.getInt(KEY_REPLAY_SYNC_SLOT));
-		replaySyncSeq = Math.max(0L, tag.getLong(KEY_REPLAY_SYNC_SEQ));
+		replaySyncSignalStrength = SignalStrengths.clamp(input.getIntOr(KEY_REPLAY_SYNC_SIGNAL_STRENGTH, 0));
+		replaySyncTick = Math.max(0L, input.getLongOr(KEY_REPLAY_SYNC_TICK, 0L));
+		replaySyncSlot = Math.max(0, input.getIntOr(KEY_REPLAY_SYNC_SLOT, 0));
+		replaySyncSeq = Math.max(0L, input.getLongOr(KEY_REPLAY_SYNC_SEQ, 0L));
 	}
 
 	@Override
-	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.saveAdditional(tag, provider);
+	protected void saveAdditional(ValueOutput output) {
+		super.saveAdditional(output);
 		if (!replaySyncSnapshotRecorded) {
 			return;
 		}
-		tag.putBoolean(KEY_REPLAY_SYNC_SNAPSHOT_RECORDED, true);
-		tag.putInt(KEY_REPLAY_SYNC_SIGNAL_STRENGTH, replaySyncSignalStrength);
-		tag.putLong(KEY_REPLAY_SYNC_TICK, replaySyncTick);
-		tag.putInt(KEY_REPLAY_SYNC_SLOT, replaySyncSlot);
-		tag.putLong(KEY_REPLAY_SYNC_SEQ, replaySyncSeq);
+		output.putBoolean(KEY_REPLAY_SYNC_SNAPSHOT_RECORDED, true);
+		output.putInt(KEY_REPLAY_SYNC_SIGNAL_STRENGTH, replaySyncSignalStrength);
+		output.putLong(KEY_REPLAY_SYNC_TICK, replaySyncTick);
+		output.putInt(KEY_REPLAY_SYNC_SLOT, replaySyncSlot);
+		output.putLong(KEY_REPLAY_SYNC_SEQ, replaySyncSeq);
 	}
 
 	/**

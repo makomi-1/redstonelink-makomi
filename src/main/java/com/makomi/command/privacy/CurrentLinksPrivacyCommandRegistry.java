@@ -37,7 +37,7 @@ public final class CurrentLinksPrivacyCommandRegistry {
 	public static LiteralArgumentBuilder<CommandSourceStack> createRoot() {
 		return Commands
 			.literal("privacy")
-			.requires(source -> source.hasPermission(RedstoneLinkConfig.privacy().managePermissionLevel()))
+			.requires(source -> com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.privacy().managePermissionLevel()))
 			.then(
 				Commands
 					.literal("current_links")

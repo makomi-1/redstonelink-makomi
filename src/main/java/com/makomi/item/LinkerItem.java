@@ -79,11 +79,11 @@ public class LinkerItem extends Item implements PairableItem {
 
 		if (shouldOpenPairingUi(player, hand)) {
 			openPairingUi(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		if (canExecutePrimaryUse(player, hand)) {
 			executePrimaryUse(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}
@@ -107,12 +107,12 @@ public class LinkerItem extends Item implements PairableItem {
 		if (player != null
 			&& shouldOpenPairingUi(player, context.getHand())) {
 			openPairingUi(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		if (player != null
 			&& canExecutePrimaryUse(player, context.getHand())) {
 			executePrimaryUse(level, player, heldStack);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}
@@ -130,9 +130,9 @@ public class LinkerItem extends Item implements PairableItem {
 	 * @param isSelected 是否被选中
 	 */
 	@Override
-	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+	public void inventoryTick(ItemStack stack, net.minecraft.server.level.ServerLevel level, Entity entity, net.minecraft.world.entity.EquipmentSlot slot) {
 		ensureSerial(level, stack);
-		super.inventoryTick(stack, level, entity, slotId, isSelected);
+		super.inventoryTick(stack, level, entity, slot);
 	}
 
 	/**
@@ -253,8 +253,7 @@ public class LinkerItem extends Item implements PairableItem {
 	protected void appendGrayFooterTooltips(
 		ItemStack stack,
 		Item.TooltipContext context,
-		net.minecraft.world.item.component.TooltipDisplay tooltipDisplay,
-		java.util.function.Consumer<Component> tooltipAdder,
+		List<Component> tooltipComponents,
 		TooltipFlag tooltipFlag
 	) {
 		tooltipComponents.add(buildSignalSemanticTooltip());

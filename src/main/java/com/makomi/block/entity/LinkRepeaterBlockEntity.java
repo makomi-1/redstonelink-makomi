@@ -13,19 +13,17 @@ import com.makomi.data.RepeaterGraphSnapshotSupport;
 import com.makomi.util.NeighborFanoutUtil;
 import com.makomi.util.SerialParseUtil;
 import com.makomi.util.SignalStrengths;
+import com.mojang.serialization.Codec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * 转发器方块实体。
@@ -250,66 +248,66 @@ public class LinkRepeaterBlockEntity extends ActivatableTargetBlockEntity {
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
+	protected void loadAdditional(ValueInput input) {
 		// 基类会在 `super.loadAdditional(...)` 末尾按当前派生态决定是否登记
 		// 加载后静默 blockstate 校正；转发器的可见态又取决于“已派发输出”，
 		// 因此必须先把该持久化字段恢复出来，避免误用默认值 0。
-		dispatchedOutputPower = readPersistedDispatchedOutputPower(tag);
-		super.loadAdditional(tag, provider);
+		dispatchedOutputPower = readPersistedDispatchedOutputPower(input);
+		super.loadAdditional(input);
 		configSnapshot = new RepeaterConfigSnapshot(
-			tag.contains(KEY_INPUT_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_INPUT_SERIAL_EXPRESSION) : "",
-			tag.contains(KEY_OUTPUT_SERIAL_EXPRESSION, Tag.TAG_STRING) ? tag.getString(KEY_OUTPUT_SERIAL_EXPRESSION) : "",
-			RepeaterDelay.fromToken(tag.contains(KEY_DELAY, Tag.TAG_STRING) ? tag.getString(KEY_DELAY) : "")
+			input.getStringOr(KEY_INPUT_SERIAL_EXPRESSION, ""),
+			input.getStringOr(KEY_OUTPUT_SERIAL_EXPRESSION, ""),
+			RepeaterDelay.fromToken(input.getStringOr(KEY_DELAY, ""))
 		);
 		inputDisplayTexts = readDisplayTexts(
-			tag,
+			input,
 			KEY_INPUT_DISPLAY_TEXTS,
 			parseOrderedSerials(configSnapshot.inputSerialExpression())
 		);
 		outputDisplayTexts = readDisplayTexts(
-			tag,
+			input,
 			KEY_OUTPUT_DISPLAY_TEXTS,
 			parseOrderedSerials(configSnapshot.outputSerialExpression())
 		);
-		lastDispatchTick = Math.max(0L, tag.getLong(KEY_LAST_DISPATCH_TICK));
-		lastDispatchSlot = Math.max(0, tag.getInt(KEY_LAST_DISPATCH_SLOT));
-		lastDispatchSeq = Math.max(0L, tag.getLong(KEY_LAST_DISPATCH_SEQ));
-		pendingDispatchArmed = tag.getBoolean(KEY_PENDING_DISPATCH_ARMED);
-		pendingDispatchTick = Math.max(0L, tag.getLong(KEY_PENDING_DISPATCH_TICK));
-		pendingDispatchPower = SignalStrengths.clamp(tag.getInt(KEY_PENDING_DISPATCH_POWER));
-		nextDispatchSeq = Math.max(1L, tag.getLong(KEY_NEXT_DISPATCH_SEQ));
+		lastDispatchTick = Math.max(0L, input.getLongOr(KEY_LAST_DISPATCH_TICK, 0L));
+		lastDispatchSlot = Math.max(0, input.getIntOr(KEY_LAST_DISPATCH_SLOT, 0));
+		lastDispatchSeq = Math.max(0L, input.getLongOr(KEY_LAST_DISPATCH_SEQ, 0L));
+		pendingDispatchArmed = input.getBooleanOr(KEY_PENDING_DISPATCH_ARMED, false);
+		pendingDispatchTick = Math.max(0L, input.getLongOr(KEY_PENDING_DISPATCH_TICK, 0L));
+		pendingDispatchPower = SignalStrengths.clamp(input.getIntOr(KEY_PENDING_DISPATCH_POWER, 0));
+		nextDispatchSeq = Math.max(1L, input.getLongOr(KEY_NEXT_DISPATCH_SEQ, 1L));
 	}
 
 	@Override
-	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.saveAdditional(tag, provider);
+	protected void saveAdditional(ValueOutput output) {
+		super.saveAdditional(output);
 		if (!configSnapshot.inputSerialExpression().isBlank()) {
-			tag.putString(KEY_INPUT_SERIAL_EXPRESSION, configSnapshot.inputSerialExpression());
+			output.putString(KEY_INPUT_SERIAL_EXPRESSION, configSnapshot.inputSerialExpression());
 		}
 		if (!configSnapshot.outputSerialExpression().isBlank()) {
-			tag.putString(KEY_OUTPUT_SERIAL_EXPRESSION, configSnapshot.outputSerialExpression());
+			output.putString(KEY_OUTPUT_SERIAL_EXPRESSION, configSnapshot.outputSerialExpression());
 		}
-		tag.putString(KEY_DELAY, configSnapshot.delay().token());
-		writeDisplayTexts(tag, KEY_INPUT_DISPLAY_TEXTS, inputDisplayTexts);
-		writeDisplayTexts(tag, KEY_OUTPUT_DISPLAY_TEXTS, outputDisplayTexts);
+		output.putString(KEY_DELAY, configSnapshot.delay().token());
+		writeDisplayTexts(output, KEY_INPUT_DISPLAY_TEXTS, inputDisplayTexts);
+		writeDisplayTexts(output, KEY_OUTPUT_DISPLAY_TEXTS, outputDisplayTexts);
 		if (dispatchedOutputPower > 0) {
-			tag.putInt(KEY_DISPATCHED_OUTPUT_POWER, dispatchedOutputPower);
+			output.putInt(KEY_DISPATCHED_OUTPUT_POWER, dispatchedOutputPower);
 		}
 		if (lastDispatchTick > 0L) {
-			tag.putLong(KEY_LAST_DISPATCH_TICK, lastDispatchTick);
+			output.putLong(KEY_LAST_DISPATCH_TICK, lastDispatchTick);
 		}
 		if (lastDispatchSlot > 0) {
-			tag.putInt(KEY_LAST_DISPATCH_SLOT, lastDispatchSlot);
+			output.putInt(KEY_LAST_DISPATCH_SLOT, lastDispatchSlot);
 		}
 		if (lastDispatchSeq > 0L) {
-			tag.putLong(KEY_LAST_DISPATCH_SEQ, lastDispatchSeq);
+			output.putLong(KEY_LAST_DISPATCH_SEQ, lastDispatchSeq);
 		}
 		if (pendingDispatchArmed) {
-			tag.putBoolean(KEY_PENDING_DISPATCH_ARMED, true);
-			tag.putLong(KEY_PENDING_DISPATCH_TICK, pendingDispatchTick);
-			tag.putInt(KEY_PENDING_DISPATCH_POWER, pendingDispatchPower);
+			output.putBoolean(KEY_PENDING_DISPATCH_ARMED, true);
+			output.putLong(KEY_PENDING_DISPATCH_TICK, pendingDispatchTick);
+			output.putInt(KEY_PENDING_DISPATCH_POWER, pendingDispatchPower);
 		}
-		tag.putLong(KEY_NEXT_DISPATCH_SEQ, nextDispatchSeq);
+		output.putLong(KEY_NEXT_DISPATCH_SEQ, nextDispatchSeq);
 	}
 
 	private void armDelayedDispatch(ServerLevel serverLevel, int outputPower) {
@@ -458,44 +456,43 @@ public class LinkRepeaterBlockEntity extends ActivatableTargetBlockEntity {
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}
 
-	private static void writeDisplayTexts(CompoundTag tag, String key, List<String> displayTexts) {
-		if (tag == null || key == null || key.isBlank()) {
+	private static void writeDisplayTexts(ValueOutput output, String key, List<String> displayTexts) {
+		if (output == null || key == null || key.isBlank()) {
 			return;
 		}
 		if (displayTexts == null || displayTexts.isEmpty()) {
-			tag.remove(key);
+			output.discard(key);
 			return;
 		}
-		ListTag listTag = new ListTag();
+		ValueOutput.TypedOutputList<String> listTag = output.list(key, Codec.STRING);
+		boolean hasValue = false;
 		for (String displayText : displayTexts) {
 			String normalized = NodeAliasDisplayUtil.normalizeAlias(displayText);
 			if (!normalized.isEmpty()) {
-				listTag.add(StringTag.valueOf(normalized));
+				listTag.add(normalized);
+				hasValue = true;
 			}
 		}
-		if (listTag.isEmpty()) {
-			tag.remove(key);
-			return;
+		if (!hasValue) {
+			output.discard(key);
 		}
-		tag.put(key, listTag);
 	}
 
-	private static List<String> readDisplayTexts(CompoundTag tag, String key, List<Long> serials) {
+	private static List<String> readDisplayTexts(ValueInput input, String key, List<Long> serials) {
 		if (serials == null || serials.isEmpty()) {
 			return List.of();
 		}
-		if (tag == null || key == null || key.isBlank() || !tag.contains(key, Tag.TAG_LIST)) {
+		if (input == null || key == null || key.isBlank()) {
 			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
 		}
-		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
-		List<String> displayTexts = new ArrayList<>(listTag.size());
-		for (int index = 0; index < listTag.size(); index++) {
-			displayTexts.add(listTag.getString(index));
+		List<String> displayTexts = new ArrayList<>();
+		for (String displayText : input.listOrEmpty(key, Codec.STRING)) {
+			displayTexts.add(displayText);
 		}
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}
 
-	private static int readPersistedDispatchedOutputPower(CompoundTag tag) {
-		return SignalStrengths.clamp(tag.getInt(KEY_DISPATCHED_OUTPUT_POWER));
+	private static int readPersistedDispatchedOutputPower(ValueInput input) {
+		return SignalStrengths.clamp(input.getIntOr(KEY_DISPATCHED_OUTPUT_POWER, 0));
 	}
 }

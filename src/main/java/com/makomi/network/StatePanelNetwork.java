@@ -690,7 +690,7 @@ public final class StatePanelNetwork {
 		if (!CurrentLinksPrivacyService.canReadNodeState(player, nodeType, serial)) {
 			return normalizeDisplayText(serial, "");
 		}
-		return normalizeDisplayText(serial, NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), nodeType, serial));
+		return normalizeDisplayText(serial, NodeAliasServerSupport.resolveDisplayText(player.level(), nodeType, serial));
 	}
 
 	private static String normalizeDisplayText(long serial, String displayText) {

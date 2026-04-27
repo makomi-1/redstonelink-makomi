@@ -25,6 +25,7 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
@@ -34,6 +35,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.redstone.Orientation;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
@@ -116,19 +118,10 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 	}
 
 	@Override
-	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
-				// 走“待确认退役”路径，避免正常掉落被误判为销毁。
-				coreBlockEntity.markPhysicalRemovalInProgress();
-				coreBlockEntity.unregisterNode(true);
-			}
-			if (!level.isClientSide()) {
-				// 核心被破坏时对齐核心块：中心 + 六方向二级扇出，确保周边红石网络立即收敛。
-				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
-			}
-		}
-		super.onRemove(state, level, pos, newState, movedByPiston);
+	protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
+		super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
+		// 核心被破坏时对齐核心块：中心 + 六方向二级扇出，确保周边红石网络立即收敛。
+		NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 	}
 
 	@Override
@@ -137,16 +130,10 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 		Level level,
 		BlockPos pos,
 		net.minecraft.world.level.block.Block block,
-		BlockPos fromPos,
+		Orientation orientation,
 		boolean movedByPiston
 	) {
-		Direction supportFace = state.getValue(SUPPORT_FACE);
-		BlockPos supportPos = pos.relative(supportFace);
-		// L1 收敛：仅支撑侧变化才执行生存判定，避免无关邻居触发热路径。
-		if (!fromPos.equals(supportPos)) {
-			return;
-		}
-		if (!level.getBlockState(supportPos).isFaceSturdy(level, supportPos, supportFace.getOpposite())) {
+		if (!state.canSurvive(level, pos)) {
 			BlockEntity blockEntity = level.getBlockEntity(pos);
 			dropResources(state, level, pos, blockEntity);
 			// removeBlock 内部使用 flags=3（UPDATE_NEIGHBORS|UPDATE_CLIENTS），
@@ -191,11 +178,13 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 	@Override
 	protected BlockState updateShape(
 		BlockState state,
-		Direction direction,
-		BlockState neighborState,
-		LevelAccessor level,
+		LevelReader level,
+		ScheduledTickAccess scheduledTickAccess,
 		BlockPos pos,
-		BlockPos neighborPos
+		Direction direction,
+		BlockPos neighborPos,
+		BlockState neighborState,
+		RandomSource random
 	) {
 		Direction supportFace = state.getValue(SUPPORT_FACE);
 		// L1 收敛：仅当支撑方向邻居发生变化时，才需要判定是否掉落。
@@ -254,7 +243,7 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 	) {
 		if (RedstoneLinkConfig.canOpenPairingByPlacedBlock(player)) {
 			openPairingScreen(level, pos, player);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}

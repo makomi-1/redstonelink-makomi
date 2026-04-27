@@ -43,7 +43,7 @@ final class LinkFilterNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> LinkFilterNetworkServerHandlerSupport.handleSaveFilter(player, payload));
+			player.level().getServer().execute(() -> LinkFilterNetworkServerHandlerSupport.handleSaveFilter(player, payload));
 		});
 	}
 }

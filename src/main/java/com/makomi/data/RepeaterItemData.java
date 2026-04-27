@@ -177,7 +177,7 @@ public final class RepeaterItemData {
 	}
 
 	private static String readString(CompoundTag tag, String key) {
-		return tag != null && tag.contains(key, Tag.TAG_STRING) ? tag.getString(key) : "";
+		return tag != null && tag.contains(key) ? tag.getStringOr(key, "") : "";
 	}
 
 	private static void writeStringOrRemove(CompoundTag tag, String key, String value) {
@@ -222,13 +222,13 @@ public final class RepeaterItemData {
 		if (serials.isEmpty()) {
 			return List.of();
 		}
-		if (tag == null || !tag.contains(key, Tag.TAG_LIST)) {
+		if (tag == null || !tag.contains(key)) {
 			return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, List.of());
 		}
-		ListTag listTag = tag.getList(key, Tag.TAG_STRING);
+		ListTag listTag = tag.getListOrEmpty(key);
 		List<String> displayTexts = new ArrayList<>(listTag.size());
 		for (int index = 0; index < listTag.size(); index++) {
-			displayTexts.add(listTag.getString(index));
+			displayTexts.add(listTag.getStringOr(index, ""));
 		}
 		return NodeAliasDisplayUtil.normalizeDisplayTexts(serials, displayTexts);
 	}

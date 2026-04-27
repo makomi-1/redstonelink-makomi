@@ -50,7 +50,7 @@ public final class CrossChunkCommandRegistry {
 		return Commands
 			.literal("crosschunk")
 			.requires(source -> RedstoneLinkConfig.crossChunk().commandEnabled()
-				&& source.hasPermission(RedstoneLinkConfig.crossChunk().commandPermissionLevel()))
+				&& com.makomi.command.CommandPermissionCompat.hasPermission(source, RedstoneLinkConfig.crossChunk().commandPermissionLevel()))
 			.then(
 				Commands
 					.literal("whitelist")

@@ -108,9 +108,9 @@ public class SmartNodeContainerItem extends Item {
 	}
 
 	@Override
-	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+	public void inventoryTick(ItemStack stack, net.minecraft.server.level.ServerLevel level, Entity entity, net.minecraft.world.entity.EquipmentSlot slot) {
 		SmartNodeContainerData.syncModelState(stack);
-		super.inventoryTick(stack, level, entity, slotId, isSelected);
+		super.inventoryTick(stack, level, entity, slot);
 	}
 
 	@Override
@@ -175,7 +175,8 @@ public class SmartNodeContainerItem extends Item {
 		}
 		player.openMenu(
 			new SimpleMenuProvider(
-				(containerId, inventory, ignoredPlayer) -> new SmartNodeContainerMenu(containerId, inventory, inventory.selected),
+				(containerId, inventory, ignoredPlayer) ->
+					new SmartNodeContainerMenu(containerId, inventory, inventory.getSelectedSlot()),
 				Component.translatable("screen.redstonelink.smart_node_container.title")
 			)
 		);

@@ -86,49 +86,49 @@ final class QuickLinkNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleSaveQuickLink(player, payload));
+			player.level().getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleSaveQuickLink(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.CollectQuickLinkPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleCollectQuickLink(player, payload));
+			player.level().getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleCollectQuickLink(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleRequestQuickLinkChannelPreview(player, payload));
+			player.level().getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleRequestQuickLinkChannelPreview(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleRequestQuickLinkVisualizeSnapshot(player, payload));
+			player.level().getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleRequestQuickLinkVisualizeSnapshot(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.RequestQuickLinkVisualizeRefreshPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleRequestQuickLinkVisualizeRefresh(player, payload));
+			player.level().getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleRequestQuickLinkVisualizeRefresh(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleRequestApplyQuickLinkBaseline(player, payload));
+			player.level().getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleRequestApplyQuickLinkBaseline(player, payload));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.ApplyQuickLinkPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleApplyQuickLink(player, payload));
+			player.level().getServer().execute(() -> QuickLinkNetworkServerHandlerSupport.handleApplyQuickLink(player, payload));
 		});
 	}
 }

@@ -42,7 +42,7 @@ final class BenchCommandNetworkRegistrationSupport {
 			if (player == null) {
 				return;
 			}
-			player.getServer().execute(() -> BenchCommandNetworkServerHandlerSupport.handleExecutePlayerCommand(player, payload));
+			player.level().getServer().execute(() -> BenchCommandNetworkServerHandlerSupport.handleExecutePlayerCommand(player, payload));
 		});
 	}
 }

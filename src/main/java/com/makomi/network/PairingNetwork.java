@@ -93,11 +93,11 @@ public final class PairingNetwork {
 			return;
 		}
 		NodeLinksSnapshot linksSnapshot = NodeSnapshotQueryService.queryLinks(player, sourceType, sourceSerial);
-		LinkSavedData savedData = LinkSavedData.get(player.serverLevel());
+		LinkSavedData savedData = LinkSavedData.get(player.level());
 		LinkConnectionMode connectionMode = savedData.getConnectionMode(sourceType, sourceSerial);
 		long channel = savedData.getChannel(sourceType, sourceSerial);
-		String sourceAlias = NodeAliasServerSupport.resolveAlias(player.serverLevel(), sourceType, sourceSerial).orElse("");
-		String sourceDisplayText = NodeAliasServerSupport.resolveDisplayText(player.serverLevel(), sourceType, sourceSerial);
+		String sourceAlias = NodeAliasServerSupport.resolveAlias(player.level(), sourceType, sourceSerial).orElse("");
+		String sourceDisplayText = NodeAliasServerSupport.resolveDisplayText(player.level(), sourceType, sourceSerial);
 		ServerPlayNetworking.send(
 			player,
 			buildPayloadForSourceType(

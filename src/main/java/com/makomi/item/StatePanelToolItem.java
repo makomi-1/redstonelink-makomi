@@ -32,7 +32,7 @@ public class StatePanelToolItem extends Item {
 			return InteractionResult.PASS;
 		}
 		openPanel(level, player, heldStack);
-		return InteractionResult.sidedSuccess(level.isClientSide());
+		return InteractionResult.SUCCESS;
 	}
 
 	@Override
@@ -45,7 +45,7 @@ public class StatePanelToolItem extends Item {
 			return InteractionResult.PASS;
 		}
 		openPanel(context.getLevel(), player, context.getItemInHand());
-		return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
+		return InteractionResult.SUCCESS;
 	}
 
 	@Override

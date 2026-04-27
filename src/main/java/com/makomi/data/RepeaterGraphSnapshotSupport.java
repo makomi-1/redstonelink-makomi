@@ -146,20 +146,19 @@ public final class RepeaterGraphSnapshotSupport {
 		}
 		boolean changed = false;
 		Inventory inventory = player.getInventory();
-		changed |= syncRepeaterItemList(inventory.items, player.serverLevel(), serial);
-		changed |= syncRepeaterItemList(inventory.offhand, player.serverLevel(), serial);
-		changed |= syncRepeaterItemList(inventory.armor, player.serverLevel(), serial);
-		changed |= syncRepeaterStack(player.containerMenu.getCarried(), player.serverLevel(), serial);
+		ServerLevel level = player.level();
+		changed |= syncRepeaterInventory(inventory, level, serial);
+		changed |= syncRepeaterStack(player.containerMenu.getCarried(), level, serial);
 		return changed;
 	}
 
-	private static boolean syncRepeaterItemList(List<ItemStack> stacks, ServerLevel level, long serial) {
-		if (stacks == null || stacks.isEmpty()) {
+	private static boolean syncRepeaterInventory(Inventory inventory, ServerLevel level, long serial) {
+		if (inventory == null) {
 			return false;
 		}
 		boolean changed = false;
-		for (ItemStack stack : stacks) {
-			changed |= syncRepeaterStack(stack, level, serial);
+		for (int slotIndex = 0; slotIndex < inventory.getContainerSize(); slotIndex++) {
+			changed |= syncRepeaterStack(inventory.getItem(slotIndex), level, serial);
 		}
 		return changed;
 	}

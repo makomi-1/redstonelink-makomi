@@ -47,7 +47,7 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 		ensureSerial(level, stack);
 		if (shouldOpenEditor(player, hand)) {
 			openEditor(level, player, stack);
-			return InteractionResult.sidedSuccess(level.isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return InteractionResult.PASS;
 	}
@@ -61,15 +61,15 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 		ensureSerial(context.getLevel(), context.getItemInHand());
 		if (shouldOpenEditor(player, context.getHand())) {
 			openEditor(context.getLevel(), player, context.getItemInHand());
-			return InteractionResult.sidedSuccess(context.getLevel().isClientSide());
+			return InteractionResult.SUCCESS;
 		}
 		return super.useOn(context);
 	}
 
 	@Override
-	public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+	public void inventoryTick(ItemStack stack, net.minecraft.server.level.ServerLevel level, Entity entity, net.minecraft.world.entity.EquipmentSlot slot) {
 		ensureSerial(level, stack);
-		super.inventoryTick(stack, level, entity, slotId, isSelected);
+		super.inventoryTick(stack, level, entity, slot);
 	}
 
 	@Override

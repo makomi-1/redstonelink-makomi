@@ -98,7 +98,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		BlockPos blockPos = requestedNode.getBlockPos();
 		QuickLinkOperationFeedback feedback = QuickLinkCollectService.collect(
 			player,
-			player.serverLevel(),
+			player.level(),
 			blockPos,
 			mainHandItem,
 			expectedNodeType,
@@ -127,7 +127,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		}
 
 		java.util.List<Long> memberSerials = LinkSavedData
-			.get(player.serverLevel())
+			.get(player.level())
 			.getChannelMembers(cacheType, payload.channel())
 			.stream()
 			.filter(memberSerial -> memberSerial != null && memberSerial > 0L)
@@ -184,7 +184,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 
 		ServerPlayNetworking.send(
 			player,
-			toVisualizeSnapshotPayload(snapshot, LinkSavedData.get(player.serverLevel()).runtimeNodeVersion())
+			toVisualizeSnapshotPayload(snapshot, LinkSavedData.get(player.level()).runtimeNodeVersion())
 		);
 	}
 
@@ -198,7 +198,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (player == null || payload == null || !SmartGlassesAccessSupport.canRenderQuickLinkVisualization(player)) {
 			return;
 		}
-		ServerLevel level = player.serverLevel();
+		ServerLevel level = player.level();
 		LinkSavedData savedData = LinkSavedData.get(level);
 		long runtimeNodeVersion = savedData.runtimeNodeVersion();
 		boolean runtimeChanged = payload.runtimeNodeVersion() != runtimeNodeVersion;
@@ -333,7 +333,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 				.submit(
 					player.createCommandSourceStack(),
 					player,
-					player.serverLevel(),
+					player.level(),
 					requestedNodeType,
 					requestedTarget.expectedTargetSerial(),
 					snapshot.mode(),
@@ -379,7 +379,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 			LinkOccSupport.RevisionBaseline baseline = occTargetType == null
 				? new LinkOccSupport.RevisionBaseline(0L, 0L, 0L)
 				: LinkOccSupport.readBaseline(
-					LinkSavedData.get(player.serverLevel()),
+					LinkSavedData.get(player.level()),
 					occTargetType,
 					requestedTarget.expectedTargetSerial()
 				);
@@ -403,7 +403,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 			return;
 		}
 		LinkOccSupport.RevisionBaseline baseline = LinkOccSupport.readBaseline(
-			LinkSavedData.get(player.serverLevel()),
+			LinkSavedData.get(player.level()),
 			requestedNodeType,
 			requestedTarget.expectedTargetSerial()
 		);
@@ -617,7 +617,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (player == null || expectedFilterKind == null || dimensionKey == null || dimensionKey.isBlank()) {
 			return null;
 		}
-		ServerLevel serverLevel = player.serverLevel();
+		ServerLevel serverLevel = player.level();
 		if (serverLevel == null || !serverLevel.dimension().identifier().toString().equals(dimensionKey)) {
 			return null;
 		}
@@ -657,7 +657,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (player == null || dimensionKey == null || dimensionKey.isBlank() || expectedTargetSerial <= 0L) {
 			return null;
 		}
-		ServerLevel serverLevel = player.serverLevel();
+		ServerLevel serverLevel = player.level();
 		if (serverLevel == null || !serverLevel.dimension().identifier().toString().equals(dimensionKey)) {
 			return null;
 		}
@@ -696,7 +696,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		if (player == null || dimensionKey == null || dimensionKey.isBlank()) {
 			return null;
 		}
-		ServerLevel serverLevel = player.serverLevel();
+		ServerLevel serverLevel = player.level();
 		if (serverLevel == null || !serverLevel.dimension().identifier().toString().equals(dimensionKey)) {
 			return null;
 		}
@@ -737,7 +737,7 @@ final class QuickLinkNetworkServerHandlerSupport {
 		LinkNodeType occTargetType = resolveRepeaterOccTargetType(snapshot);
 		if (occTargetType != null) {
 			LinkOccSupport.OccConflict conflict = LinkOccSupport.resolveTargetConflict(
-				LinkSavedData.get(player.serverLevel()),
+				LinkSavedData.get(player.level()),
 				occTargetType,
 				repeaterBlockEntity.getSerial(),
 				expectedCoreRevision,

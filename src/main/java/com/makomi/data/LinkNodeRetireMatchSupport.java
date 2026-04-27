@@ -51,18 +51,8 @@ final class LinkNodeRetireMatchSupport {
 			if (player.getAbilities().instabuild) {
 				continue;
 			}
-			for (ItemStack stack : player.getInventory().items) {
-				if (isMatchingStack(stack, key, false)) {
-					return true;
-				}
-			}
-			for (ItemStack stack : player.getInventory().offhand) {
-				if (isMatchingStack(stack, key, false)) {
-					return true;
-				}
-			}
-			for (ItemStack stack : player.getInventory().armor) {
-				if (isMatchingStack(stack, key, false)) {
+			for (int slotIndex = 0; slotIndex < player.getInventory().getContainerSize(); slotIndex++) {
+				if (isMatchingStack(player.getInventory().getItem(slotIndex), key, false)) {
 					return true;
 				}
 			}

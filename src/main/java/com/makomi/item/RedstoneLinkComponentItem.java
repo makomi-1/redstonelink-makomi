@@ -20,8 +20,8 @@ public class RedstoneLinkComponentItem extends Item {
 	}
 
 	@Override
-	public void onCraftedBy(ItemStack stack, Level level, Player player) {
-		super.onCraftedBy(stack, level, player);
+	public void onCraftedBy(ItemStack stack, Player player) {
+		super.onCraftedBy(stack, player);
 		if (player instanceof ServerPlayer serverPlayer) {
 			RedstoneLinkAdvancementService.awardWirelessAge(serverPlayer);
 		}

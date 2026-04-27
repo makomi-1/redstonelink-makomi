@@ -16,7 +16,6 @@ import java.util.function.BiConsumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
@@ -25,6 +24,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * 可配对节点方块实体基类。
@@ -205,14 +206,10 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.loadAdditional(tag, provider);
-		if (tag.contains(KEY_SERIAL, Tag.TAG_LONG)) {
-			serial = tag.getLong(KEY_SERIAL);
-		}
-		cachedDisplayAlias = tag.contains(KEY_DISPLAY_ALIAS, Tag.TAG_STRING)
-			? NodeAliasDisplayUtil.normalizeAlias(tag.getString(KEY_DISPLAY_ALIAS))
-			: "";
+	protected void loadAdditional(ValueInput input) {
+		super.loadAdditional(input);
+		serial = input.getLongOr(KEY_SERIAL, 0L);
+		cachedDisplayAlias = NodeAliasDisplayUtil.normalizeAlias(input.getStringOr(KEY_DISPLAY_ALIAS, ""));
 		cachedDisplaySerial = Long.MIN_VALUE;
 		cachedRenderedAlias = "";
 		cachedDisplayText = "";
@@ -226,11 +223,18 @@ public abstract class PairableNodeBlockEntity extends BlockEntity {
 	}
 
 	@Override
-	protected void saveAdditional(CompoundTag tag, HolderLookup.Provider provider) {
-		super.saveAdditional(tag, provider);
+	protected void saveAdditional(ValueOutput output) {
+		super.saveAdditional(output);
 		if (serial > 0L) {
-			tag.putLong(KEY_SERIAL, serial);
+			output.putLong(KEY_SERIAL, serial);
 		}
+	}
+
+	@Override
+	public void preRemoveSideEffects(BlockPos blockPos, BlockState blockState) {
+		markPhysicalRemovalInProgress();
+		unregisterNode(true);
+		super.preRemoveSideEffects(blockPos, blockState);
 	}
 
 	@Override

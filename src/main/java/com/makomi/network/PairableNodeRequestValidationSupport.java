@@ -47,7 +47,7 @@ final class PairableNodeRequestValidationSupport {
 		if (player == null || expectedType == null || expectedSerial <= 0L || maxDistance < 0) {
 			return null;
 		}
-		ServerLevel serverLevel = player.serverLevel();
+		ServerLevel serverLevel = player.level();
 		if (serverLevel == null || !serverLevel.dimension().identifier().toString().equals(dimensionKey)) {
 			return null;
 		}

@@ -49,7 +49,7 @@ final class RepeaterNetworkServerHandlerSupport {
 		}
 
 		boolean blockTarget = payload.targetKind().usesBlockEntityTarget();
-		boolean canEditPlacedBlock = player.hasPermissions(RedstoneLinkConfig.command().permissionLevel());
+		boolean canEditPlacedBlock = com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().permissionLevel());
 		if (blockTarget && !canEditPlacedBlock) {
 			sendFeedback(player, false, "message.redstonelink.permission.insufficient");
 			return;
@@ -58,7 +58,7 @@ final class RepeaterNetworkServerHandlerSupport {
 		String normalizedAlias = NodeAliasDisplayUtil.normalizeAlias(payload.displayAlias());
 		String currentAlias = RepeaterGraphSnapshotSupport.resolveAlias(context.level(), context.serial(), context.currentDisplayAlias());
 		boolean aliasChanged = !normalizedAlias.equals(currentAlias);
-		if (aliasChanged && !player.hasPermissions(RedstoneLinkConfig.command().otherPermissionLevel())) {
+		if (aliasChanged && !com.makomi.command.CommandPermissionCompat.hasPermission(player, RedstoneLinkConfig.command().otherPermissionLevel())) {
 			sendFeedback(player, false, "message.redstonelink.permission.insufficient");
 			return;
 		}
@@ -198,12 +198,12 @@ final class RepeaterNetworkServerHandlerSupport {
 		if (heldStack.isEmpty()) {
 			return null;
 		}
-		long actualSerial = RepeaterItemData.ensureSerial(heldStack, player.serverLevel());
+		long actualSerial = RepeaterItemData.ensureSerial(heldStack, player.level());
 		if (actualSerial != serial) {
 			return null;
 		}
 		return new TargetContext(
-			player.serverLevel(),
+			player.level(),
 			actualSerial,
 			null,
 			heldStack,
@@ -220,7 +220,7 @@ final class RepeaterNetworkServerHandlerSupport {
 			return null;
 		}
 		ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionLocation);
-		ServerLevel level = player.getServer().getLevel(dimension);
+		ServerLevel level = player.level().getServer().getLevel(dimension);
 		if (level == null) {
 			return null;
 		}
@@ -231,7 +231,7 @@ final class RepeaterNetworkServerHandlerSupport {
 	}
 
 	private static ItemStack resolveHeldStack(ServerPlayer player, int selectedSlot) {
-		if (player == null || player.getInventory().selected != selectedSlot) {
+		if (player == null || player.getInventory().getSelectedSlot() != selectedSlot) {
 			return ItemStack.EMPTY;
 		}
 		ItemStack heldStack = player.getMainHandItem();
