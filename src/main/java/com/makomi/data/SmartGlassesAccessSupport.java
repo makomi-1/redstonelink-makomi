@@ -43,17 +43,6 @@ public final class SmartGlassesAccessSupport {
 	}
 
 	/**
-	 * 兼容旧入口：判断是否允许连线可视化相关“操作”。
-	 * <p>
-	 * 当前保留该方法作为旧调用别名，语义等同于
-	 * {@link #canOperateQuickLinkVisualization(Player)}。
-	 * </p>
-	 */
-	public static boolean canUseQuickLinkVisualization(Player player) {
-		return canOperateQuickLinkVisualization(player);
-	}
-
-	/**
 	 * 判断是否允许连线可视化相关“显示”。
 	 * <p>
 	 * 规则：只要求已穿戴智能眼镜；主手是否为空不影响显示。

@@ -39,9 +39,9 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
- * 快速连接工具命中描边与缓存外显渲染器。
+ * quick-link 世界命中描边、预览线框与智能眼镜第三形态外显渲染器。
  */
-public final class QuickLinkOutlineRenderer {
+public final class QuickLinkWorldOverlayRenderer {
 	private static final OutlineColor CORE_OUTLINE_COLOR = OutlineColor.fromPackedColor(
 		LinkSerialOverlayRenderCommon.resolveNodeTextColor(LinkNodeType.CORE)
 	);
@@ -114,7 +114,7 @@ public final class QuickLinkOutlineRenderer {
 	private static long visualizedRuntimeNodeVersion;
 	private static int nextVisualizedColorIndex;
 
-	private QuickLinkOutlineRenderer() {
+	private QuickLinkWorldOverlayRenderer() {
 	}
 
 	/**
@@ -220,9 +220,9 @@ public final class QuickLinkOutlineRenderer {
 	 * 注册方块描边与缓存外显事件。
 	 */
 	public static void register() {
-		WorldRenderEvents.BLOCK_OUTLINE.register(QuickLinkOutlineRenderer::onBlockOutline);
-		WorldRenderEvents.AFTER_TRANSLUCENT.register(QuickLinkOutlineRenderer::onAfterTranslucent);
-		WorldRenderEvents.LAST.register(QuickLinkOutlineRenderer::onLast);
+		WorldRenderEvents.BLOCK_OUTLINE.register(QuickLinkWorldOverlayRenderer::onBlockOutline);
+		WorldRenderEvents.AFTER_TRANSLUCENT.register(QuickLinkWorldOverlayRenderer::onAfterTranslucent);
+		WorldRenderEvents.LAST.register(QuickLinkWorldOverlayRenderer::onLast);
 	}
 
 	/**

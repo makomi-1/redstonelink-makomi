@@ -5,7 +5,7 @@ import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.client.render.QuickLinkFeedbackOverlayRenderer;
-import com.makomi.client.render.QuickLinkOutlineRenderer;
+import com.makomi.client.render.QuickLinkWorldOverlayRenderer;
 import com.makomi.client.screen.QuickLinkToolScreen;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeSemantics;
@@ -50,13 +50,13 @@ public final class QuickLinkNetworkClientHandlerSupport {
 			context.client().execute(() -> continuePendingApply(payload));
 		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkChannelPreviewPayload.TYPE, (payload, context) -> {
-			context.client().execute(() -> QuickLinkOutlineRenderer.acceptChannelPreview(payload));
+			context.client().execute(() -> QuickLinkWorldOverlayRenderer.acceptChannelPreview(payload));
 		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> acceptVisualizeSnapshot(payload));
 		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkVisualizeRefreshPayload.TYPE, (payload, context) -> {
-			context.client().execute(() -> QuickLinkOutlineRenderer.acceptVisualizeRefresh(payload));
+			context.client().execute(() -> QuickLinkWorldOverlayRenderer.acceptVisualizeRefresh(payload));
 		});
 		ClientPlayNetworking.registerGlobalReceiver(QuickLinkNetwork.QuickLinkFeedbackPayload.TYPE, (payload, context) -> {
 			context.client().execute(() ->
@@ -162,7 +162,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	 * 清空第三形态当前显示对象列表，并给出本地反馈。
 	 */
 	public static void clearVisualizedObjects() {
-		int removedCount = QuickLinkOutlineRenderer.clearVisualizedObjects();
+		int removedCount = QuickLinkWorldOverlayRenderer.clearVisualizedObjects();
 		nextVisualizeRefreshGameTick = 0L;
 		QuickLinkFeedbackOverlayRenderer.showFeedback(
 			true,
@@ -465,8 +465,8 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		if (payload == null || payload.objectSerial() <= 0L || payload.objectTypeToken().isBlank()) {
 			return;
 		}
-		boolean existed = QuickLinkOutlineRenderer.hasVisualizedObject(payload.objectTypeToken(), payload.objectSerial());
-		QuickLinkOutlineRenderer.acceptVisualizeSnapshot(payload);
+		boolean existed = QuickLinkWorldOverlayRenderer.hasVisualizedObject(payload.objectTypeToken(), payload.objectSerial());
+		QuickLinkWorldOverlayRenderer.acceptVisualizeSnapshot(payload);
 		nextVisualizeRefreshGameTick = 0L;
 		QuickLinkFeedbackOverlayRenderer.showFeedback(
 			true,
@@ -485,7 +485,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		if (target == null) {
 			return;
 		}
-		boolean removed = QuickLinkOutlineRenderer.removeVisualizedObject(target.expectedNodeTypeToken(), target.expectedNodeSerial());
+		boolean removed = QuickLinkWorldOverlayRenderer.removeVisualizedObject(target.expectedNodeTypeToken(), target.expectedNodeSerial());
 		if (removed) {
 			nextVisualizeRefreshGameTick = 0L;
 		}
@@ -526,7 +526,7 @@ public final class QuickLinkNetworkClientHandlerSupport {
 				|| client.player == null
 				|| client.level == null
 				|| !SmartGlassesAccessSupport.canRenderQuickLinkVisualization(client.player)
-				|| !QuickLinkOutlineRenderer.hasVisualizedObjects()
+				|| !QuickLinkWorldOverlayRenderer.hasVisualizedObjects()
 		) {
 			nextVisualizeRefreshGameTick = 0L;
 			return;
@@ -535,14 +535,14 @@ public final class QuickLinkNetworkClientHandlerSupport {
 		if (gameTime < nextVisualizeRefreshGameTick) {
 			return;
 		}
-		List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> trackedObjects = QuickLinkOutlineRenderer.snapshotVisualizedObjectBaselines();
+		List<QuickLinkNetwork.QuickLinkVisualizeTrackedObject> trackedObjects = QuickLinkWorldOverlayRenderer.snapshotVisualizedObjectBaselines();
 		if (trackedObjects.isEmpty()) {
 			nextVisualizeRefreshGameTick = 0L;
 			return;
 		}
 		ClientPlayNetworking.send(
 			new QuickLinkNetwork.RequestQuickLinkVisualizeRefreshPayload(
-				QuickLinkOutlineRenderer.visualizedRuntimeNodeVersion(),
+				QuickLinkWorldOverlayRenderer.visualizedRuntimeNodeVersion(),
 				trackedObjects
 			)
 		);

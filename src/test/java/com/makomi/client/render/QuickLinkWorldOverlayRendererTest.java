@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
  * quick-link 缓存方框边界提取回归测试。
  */
 @Tag("stable-core")
-class QuickLinkOutlineRendererTest {
+class QuickLinkWorldOverlayRendererTest {
 
 	@BeforeAll
 	static void bootstrapRegistries() {
@@ -56,7 +56,7 @@ class QuickLinkOutlineRendererTest {
 	 */
 	@Test
 	void visualizeObjectsShouldDeduplicateAndClear() {
-		QuickLinkOutlineRenderer.clearVisualizedObjects();
+		QuickLinkWorldOverlayRenderer.clearVisualizedObjects();
 		QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload payload = new QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload(
 			"link_repeater",
 			18L,
@@ -78,13 +78,13 @@ class QuickLinkOutlineRendererTest {
 			)
 		);
 
-		QuickLinkOutlineRenderer.acceptVisualizeSnapshot(payload);
-		assertTrue(QuickLinkOutlineRenderer.hasVisualizedObject("link_repeater", 18L));
+		QuickLinkWorldOverlayRenderer.acceptVisualizeSnapshot(payload);
+		assertTrue(QuickLinkWorldOverlayRenderer.hasVisualizedObject("link_repeater", 18L));
 
-		QuickLinkOutlineRenderer.acceptVisualizeSnapshot(payload);
-		assertEquals(1, QuickLinkOutlineRenderer.clearVisualizedObjects());
-		assertFalse(QuickLinkOutlineRenderer.hasVisualizedObject("link_repeater", 18L));
-		assertEquals(0, QuickLinkOutlineRenderer.clearVisualizedObjects());
+		QuickLinkWorldOverlayRenderer.acceptVisualizeSnapshot(payload);
+		assertEquals(1, QuickLinkWorldOverlayRenderer.clearVisualizedObjects());
+		assertFalse(QuickLinkWorldOverlayRenderer.hasVisualizedObject("link_repeater", 18L));
+		assertEquals(0, QuickLinkWorldOverlayRenderer.clearVisualizedObjects());
 	}
 
 	/**
@@ -92,8 +92,8 @@ class QuickLinkOutlineRendererTest {
 	 */
 	@Test
 	void resolveHoveredVisualizedTargetShouldReturnNormalizedTargetDisplay() {
-		QuickLinkOutlineRenderer.clearVisualizedObjects();
-		QuickLinkOutlineRenderer.acceptVisualizeSnapshot(
+		QuickLinkWorldOverlayRenderer.clearVisualizedObjects();
+		QuickLinkWorldOverlayRenderer.acceptVisualizeSnapshot(
 			new QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload(
 				"triggerSource",
 				4L,
@@ -116,7 +116,7 @@ class QuickLinkOutlineRendererTest {
 			)
 		);
 
-		QuickLinkOutlineRenderer.HoveredVisualizedTarget hoveredTarget = QuickLinkOutlineRenderer.resolveHoveredVisualizedTarget(
+		QuickLinkWorldOverlayRenderer.HoveredVisualizedTarget hoveredTarget = QuickLinkWorldOverlayRenderer.resolveHoveredVisualizedTarget(
 			"minecraft:overworld",
 			new Vec3(2.5D, 0.5D, -2.0D),
 			new Vec3(0.0D, 0.0D, 1.0D),
@@ -128,7 +128,7 @@ class QuickLinkOutlineRendererTest {
 		assertEquals(27L, hoveredTarget.objectSerial());
 		assertEquals("#27", hoveredTarget.displayText());
 		assertEquals(new BlockPos(4, 0, 0).asLong(), hoveredTarget.blockPosLong());
-		QuickLinkOutlineRenderer.clearVisualizedObjects();
+		QuickLinkWorldOverlayRenderer.clearVisualizedObjects();
 	}
 
 	private static int countBoundarySegments(Set<BlockPos> occupiedBlocks) throws Exception {

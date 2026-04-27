@@ -293,7 +293,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * 在未命中有效方块近外显时，回退到第三形态连线命中 HUD。
 	 */
 	private static void renderVisualizedHoverOverlay(GuiGraphics guiGraphics, Minecraft minecraft) {
-		QuickLinkOutlineRenderer.HoveredVisualizedTarget hoveredTarget = QuickLinkOutlineRenderer.resolveHoveredVisualizedTarget(
+		QuickLinkWorldOverlayRenderer.HoveredVisualizedTarget hoveredTarget = QuickLinkWorldOverlayRenderer.resolveHoveredVisualizedTarget(
 			minecraft
 		);
 		if (hoveredTarget == null) {
@@ -320,7 +320,7 @@ public final class LinkSerialHudOverlayRenderer {
 	/**
 	 * 为第三形态悬停 HUD 选择与目标对象一致的文本颜色。
 	 */
-	private static int resolveVisualizedHoverTextColor(QuickLinkOutlineRenderer.HoveredVisualizedTarget hoveredTarget) {
+	private static int resolveVisualizedHoverTextColor(QuickLinkWorldOverlayRenderer.HoveredVisualizedTarget hoveredTarget) {
 		if (hoveredTarget == null) {
 			return LinkSerialOverlayRenderCommon.resolveNodeTextColor(null);
 		}
@@ -333,7 +333,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * 为第三形态悬停 HUD 选择与目标对象一致的面板主题。
 	 */
 	private static LinkSerialHudOverlayDrawSupport.PanelStyle resolveVisualizedHoverPanelStyle(
-		QuickLinkOutlineRenderer.HoveredVisualizedTarget hoveredTarget
+		QuickLinkWorldOverlayRenderer.HoveredVisualizedTarget hoveredTarget
 	) {
 		if (hoveredTarget == null) {
 			return LinkSerialHudOverlayDrawSupport.PanelStyle.DEFAULT;

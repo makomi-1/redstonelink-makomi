@@ -15,7 +15,7 @@ import com.makomi.client.render.ChunkActivatorFarOverlayRenderer;
 import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
-import com.makomi.client.render.QuickLinkOutlineRenderer;
+import com.makomi.client.render.QuickLinkWorldOverlayRenderer;
 import com.makomi.client.screen.SmartNodeContainerScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
@@ -540,7 +540,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	private static void registerQuickLinkClientHooks() {
 		QuickLinkNetworkClientHandlerSupport.registerReceivers();
 		QuickLinkNetworkClientHandlerSupport.registerInteractionCallbacks();
-		QuickLinkOutlineRenderer.register();
+		QuickLinkWorldOverlayRenderer.register();
 	}
 
 	/**
