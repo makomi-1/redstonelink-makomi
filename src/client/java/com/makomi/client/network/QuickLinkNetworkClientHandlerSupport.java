@@ -24,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * 快速连接工具客户端接包与交互壳。
@@ -398,7 +399,24 @@ public final class QuickLinkNetworkClientHandlerSupport {
 	private static boolean canModifyVisualizedObjects(Minecraft minecraft) {
 		return minecraft != null
 			&& minecraft.player != null
-			&& SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(minecraft.player);
+			&& SmartGlassesAccessSupport.canModifyQuickLinkVisualizationObjects(minecraft.player)
+			&& isControlKeyDown(minecraft);
+	}
+
+	/**
+	 * 检查客户端窗口是否按住任意 Ctrl 键。
+	 * <p>
+	 * 智能眼镜的“添加/移除显示对象”是客户端独占手势，
+	 * 因此将 Ctrl 门槛收口在这里，避免影响 `Shift+B` 清空等共享判定。
+	 * </p>
+	 */
+	private static boolean isControlKeyDown(Minecraft minecraft) {
+		if (minecraft == null || minecraft.getWindow() == null) {
+			return false;
+		}
+		long windowHandle = minecraft.getWindow().handle();
+		return GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
+			|| GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
 	}
 
 	/**

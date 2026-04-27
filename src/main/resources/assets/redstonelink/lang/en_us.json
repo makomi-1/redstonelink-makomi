@@ -98,7 +98,7 @@
   "tooltip.redstonelink.quick_link.visualize.remove": "visualize: while standing, right-click a node or repeater to remove it from the display",
   "tooltip.redstonelink.quick_link.visualize.clear": "visualize: sneak and press the Quick Link mode key to clear all displayed objects",
   "tooltip.redstonelink.smart_glasses.overlay": "Wear to enable far/near overlays",
-  "tooltip.redstonelink.smart_glasses.visualize": "Wear with an empty main hand: while standing, left-click adds a displayed link target, right-click removes it, Shift+B clears all",
+  "tooltip.redstonelink.smart_glasses.visualize": "Wear with an empty main hand: while standing, hold Ctrl and left-click to add a displayed link target, hold Ctrl and right-click to remove it, Shift+B clears all",
   "tooltip.redstonelink.smart_node_container.current_type": "Current Placement Type: %s",
   "tooltip.redstonelink.smart_node_container.item_count": "Stored Nodes: %s",
   "tooltip.redstonelink.smart_node_container.auto_sort": "Auto Sort: %s",
