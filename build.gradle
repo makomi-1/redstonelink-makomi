@@ -96,6 +96,7 @@ def webappEntryHtml = file("webapp/index.html")
 def webappTsConfig = file("webapp/tsconfig.json")
 def webappViteConfig = file("webapp/vite.config.ts")
 def webappOutputDir = layout.buildDirectory.dir("generated/redstonelink-webapp")
+def clientResourcesOutputDir = layout.buildDirectory.dir("resources/client")
 def npmCommand = System.getProperty("os.name").toLowerCase().contains("windows") ? "npm.cmd" : "npm"
 
 tasks.register("npmInstallWebapp", Exec) {
@@ -156,6 +157,21 @@ processResources {
 	from(webappOutputDir) {
 		into "assets/redstonelink/webapp"
 	}
+}
+
+tasks.register("prepareClientResourcesDir") {
+	group = "build setup"
+	description = "Create the client resources output directory expected by dev client runs."
+	outputs.dir(clientResourcesOutputDir)
+	doLast {
+		// 1.21.11 development runs still add build/resources/client to the classpath even when
+		// there are no dedicated client resources; pre-create the directory to avoid false warnings.
+		clientResourcesOutputDir.get().asFile.mkdirs()
+	}
+}
+
+tasks.matching { it.name == "runClient" }.configureEach {
+	dependsOn(tasks.named("prepareClientResourcesDir"))
 }
 
 tasks.withType(JavaCompile).configureEach {
