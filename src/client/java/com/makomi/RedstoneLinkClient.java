@@ -461,6 +461,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	private static void registerClientLifecycleHooks() {
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
 			LocalWebAppBridgeService.stop();
+			QuickLinkWorldOverlayRenderer.close();
 			// 窗口关闭阶段会统一释放 GLFW callbacks，这里只清理 Java 侧引用，避免重复释放同一个 native 回调。
 			syncLinkerScrollCallback = null;
 			previousSyncLinkerScrollCallback = null;

@@ -95,6 +95,11 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 	}
 
 	@Override
+	public boolean shouldRenderOffScreen() {
+		return true;
+	}
+
+	@Override
 	public void submit(
 		LinkNodeFarOverlayRenderState renderState,
 		PoseStack poseStack,
@@ -127,9 +132,9 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 			visualText,
 			false,
 			Font.DisplayMode.POLYGON_OFFSET,
+			FULL_BRIGHT,
 			backgroundGlyphColor,
 			BACKGROUND_COLOR,
-			FULL_BRIGHT,
 			0
 		);
 		submitNodeCollector.submitText(
@@ -139,9 +144,9 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 			visualText,
 			false,
 			foregroundDisplayMode,
+			FULL_BRIGHT,
 			renderState.textColor,
 			0,
-			FULL_BRIGHT,
 			0
 		);
 		poseStack.popPose();
@@ -167,9 +172,9 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 		Direction outward
 	) {
 		poseStack.translate(
-			0.5D + outward.getStepX() * FACE_OFFSET,
-			0.5D + outward.getStepY() * FACE_OFFSET,
-			0.5D + outward.getStepZ() * FACE_OFFSET
+			0.5D + outward.getStepX() * (0.5D + FACE_OFFSET),
+			0.5D + outward.getStepY() * (0.5D + FACE_OFFSET),
+			0.5D + outward.getStepZ() * (0.5D + FACE_OFFSET)
 		);
 		poseStack.mulPose(cameraRenderState.orientation);
 	}

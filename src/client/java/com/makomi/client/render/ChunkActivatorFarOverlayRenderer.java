@@ -75,6 +75,11 @@ public final class ChunkActivatorFarOverlayRenderer
 	}
 
 	@Override
+	public boolean shouldRenderOffScreen() {
+		return true;
+	}
+
+	@Override
 	public void submit(
 		ChunkActivatorFarOverlayRenderState renderState,
 		PoseStack poseStack,
@@ -104,9 +109,9 @@ public final class ChunkActivatorFarOverlayRenderer
 			visualText,
 			false,
 			Font.DisplayMode.POLYGON_OFFSET,
+			FULL_BRIGHT,
 			backgroundGlyphColor,
 			BACKGROUND_COLOR,
-			FULL_BRIGHT,
 			0
 		);
 		submitNodeCollector.submitText(
@@ -116,9 +121,9 @@ public final class ChunkActivatorFarOverlayRenderer
 			visualText,
 			false,
 			foregroundDisplayMode,
+			FULL_BRIGHT,
 			renderState.textColor,
 			0,
-			FULL_BRIGHT,
 			0
 		);
 		poseStack.popPose();

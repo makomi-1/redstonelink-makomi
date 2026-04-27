@@ -127,6 +127,26 @@ public final class QuickLinkWorldOverlayRenderer {
 			clearVisualizedObjectState();
 			return;
 		}
+		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
+			return;
+		}
+		renderPreviewOutlines(worldRenderContext, minecraft);
+		if (!SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)) {
+			return;
+		}
+		// 1.21.11 的世界渲染事件将 END_MAIN 更偏向直接 framebuffer 输出；
+		// 第三形态连线继续写入 consumers() 会错过稳定的批次提交时机，因此统一收敛到半透明前事件。
+		renderVisualizedConnections(worldRenderContext, minecraft);
+	}
+
+	/**
+	 * 在半透明阶段前绘制 quick-link 缓存对象的穿墙线框预览。
+	 */
+	private static void renderPreviewOutlines(WorldRenderContext worldRenderContext, Minecraft minecraft) {
+		if (minecraft == null || minecraft.player == null || minecraft.level == null) {
+			clearTransientPreviewState();
+			return;
+		}
 		if (!(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
 			clearTransientPreviewState();
 			return;
@@ -155,31 +175,11 @@ public final class QuickLinkWorldOverlayRenderer {
 	}
 
 	/**
-	 * 在最终世界渲染阶段绘制第三形态穿墙连线。
-	 */
-	private static void onLast(WorldRenderContext worldRenderContext) {
-		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.player == null || minecraft.level == null) {
-			clearTransientPreviewState();
-			clearVisualizedObjectState();
-			return;
-		}
-		if (!SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)) {
-			return;
-		}
-		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
-			return;
-		}
-		renderVisualizedConnections(worldRenderContext, minecraft);
-	}
-
-	/**
 	 * 注册方块描边与缓存外显事件。
 	 */
 	public static void register() {
 		WorldRenderEvents.BEFORE_BLOCK_OUTLINE.register(QuickLinkWorldOverlayRenderer::onBlockOutline);
 		WorldRenderEvents.BEFORE_TRANSLUCENT.register(QuickLinkWorldOverlayRenderer::onAfterTranslucent);
-		WorldRenderEvents.END_MAIN.register(QuickLinkWorldOverlayRenderer::onLast);
 	}
 
 	/**
@@ -313,6 +313,17 @@ public final class QuickLinkWorldOverlayRenderer {
 		int removedCount = visualizedObjects.size();
 		clearVisualizedObjectState();
 		return removedCount;
+	}
+
+	/**
+	 * 释放第三形态渲染链持有的客户端资源。
+	 */
+	public static void close() {
+		clearTransientPreviewState();
+		clearVisualizedObjectState();
+		cachedChannelPreviewState = null;
+		pendingChannelPreviewRequest = null;
+		QuickLinkVisualizedLineRenderSupport.close();
 	}
 
 	/**
@@ -713,18 +724,29 @@ public final class QuickLinkWorldOverlayRenderer {
 		if (visibleConnections.isEmpty()) {
 			return;
 		}
-		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
-		PoseStack.Pose pose = worldRenderContext.matrices().last();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.linesTranslucent());
+		List<QuickLinkVisualizedLineRenderSupport.ColoredLineSegment> lineSegments = new ArrayList<>(visibleConnections.size());
 		for (VisualizedConnection visibleConnection : visibleConnections) {
-			renderPreviewLineSegment(
-				lineVertexConsumer,
-				pose,
-				visibleConnection.segment(),
-				cameraPosition,
-				visibleConnection.color()
+			OutlineColor color = visibleConnection.color();
+			LineSegment lineSegment = visibleConnection.segment();
+			lineSegments.add(
+				new QuickLinkVisualizedLineRenderSupport.ColoredLineSegment(
+					lineSegment.startX(),
+					lineSegment.startY(),
+					lineSegment.startZ(),
+					lineSegment.endX(),
+					lineSegment.endY(),
+					lineSegment.endZ(),
+					lineSegment.normalX(),
+					lineSegment.normalY(),
+					lineSegment.normalZ(),
+					Math.round(color.red() * 255.0F),
+					Math.round(color.green() * 255.0F),
+					Math.round(color.blue() * 255.0F),
+					255
+				)
 			);
 		}
+		QuickLinkVisualizedLineRenderSupport.render(worldRenderContext, lineSegments);
 	}
 
 	/**

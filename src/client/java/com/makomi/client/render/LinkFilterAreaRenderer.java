@@ -86,6 +86,11 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 	}
 
 	@Override
+	public boolean shouldRenderOffScreen() {
+		return true;
+	}
+
+	@Override
 	public void submit(
 		LinkFilterAreaRenderState renderState,
 		PoseStack poseStack,
@@ -100,7 +105,7 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 			);
 			submitNodeCollector.submitCustomGeometry(
 				poseStack,
-				RenderTypes.lines(),
+				RenderTypes.linesTranslucent(),
 				(pose, vertexConsumer) -> renderFilterOutline(pose, vertexConsumer)
 			);
 		}
@@ -127,9 +132,9 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 			visualText,
 			false,
 			Font.DisplayMode.POLYGON_OFFSET,
+			FULL_BRIGHT,
 			backgroundGlyphColor,
 			BACKGROUND_COLOR,
-			FULL_BRIGHT,
 			0
 		);
 		submitNodeCollector.submitText(
@@ -139,9 +144,9 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 			visualText,
 			false,
 			foregroundDisplayMode,
+			FULL_BRIGHT,
 			renderState.textColor,
 			0,
-			FULL_BRIGHT,
 			0
 		);
 		poseStack.popPose();
@@ -162,12 +167,12 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		float maxY = (float) FILTER_BOX.maxY;
 		float maxZ = (float) FILTER_BOX.maxZ;
 
-		addQuad(vertexConsumer, pose, minX, minY, minZ, maxX, minY, minZ, maxX, maxY, minZ, minX, maxY, minZ);
-		addQuad(vertexConsumer, pose, maxX, minY, maxZ, minX, minY, maxZ, minX, maxY, maxZ, maxX, maxY, maxZ);
-		addQuad(vertexConsumer, pose, minX, minY, maxZ, minX, minY, minZ, minX, maxY, minZ, minX, maxY, maxZ);
-		addQuad(vertexConsumer, pose, maxX, minY, minZ, maxX, minY, maxZ, maxX, maxY, maxZ, maxX, maxY, minZ);
-		addQuad(vertexConsumer, pose, minX, maxY, minZ, maxX, maxY, minZ, maxX, maxY, maxZ, minX, maxY, maxZ);
-		addQuad(vertexConsumer, pose, minX, minY, maxZ, maxX, minY, maxZ, maxX, minY, minZ, minX, minY, minZ);
+		addDoubleSidedQuad(vertexConsumer, pose, minX, minY, minZ, maxX, minY, minZ, maxX, maxY, minZ, minX, maxY, minZ);
+		addDoubleSidedQuad(vertexConsumer, pose, maxX, minY, maxZ, minX, minY, maxZ, minX, maxY, maxZ, maxX, maxY, maxZ);
+		addDoubleSidedQuad(vertexConsumer, pose, minX, minY, maxZ, minX, minY, minZ, minX, maxY, minZ, minX, maxY, maxZ);
+		addDoubleSidedQuad(vertexConsumer, pose, maxX, minY, minZ, maxX, minY, maxZ, maxX, maxY, maxZ, maxX, maxY, minZ);
+		addDoubleSidedQuad(vertexConsumer, pose, minX, maxY, minZ, maxX, maxY, minZ, maxX, maxY, maxZ, minX, maxY, maxZ);
+		addDoubleSidedQuad(vertexConsumer, pose, minX, minY, maxZ, maxX, minY, maxZ, maxX, minY, minZ, minX, minY, minZ);
 	}
 
 	/**
@@ -195,9 +200,13 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 	}
 
 	/**
-	 * 按四边形顺序写入单个面顶点。
+	 * 按双面四边形顺序写入单个面顶点。
+	 * <p>
+	 * 1.21.11 下范围面层会受背面剔除影响，直接单面提交会在不同观察角度缺面，
+	 * 因此这里显式补交一份反向 winding，保证过滤器范围体始终完整。
+	 * </p>
 	 */
-	private static void addQuad(
+	private static void addDoubleSidedQuad(
 		VertexConsumer vertexConsumer,
 		PoseStack.Pose pose,
 		float x1,
@@ -217,6 +226,10 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		addColoredVertex(vertexConsumer, pose, x2, y2, z2);
 		addColoredVertex(vertexConsumer, pose, x3, y3, z3);
 		addColoredVertex(vertexConsumer, pose, x4, y4, z4);
+		addColoredVertex(vertexConsumer, pose, x4, y4, z4);
+		addColoredVertex(vertexConsumer, pose, x3, y3, z3);
+		addColoredVertex(vertexConsumer, pose, x2, y2, z2);
+		addColoredVertex(vertexConsumer, pose, x1, y1, z1);
 	}
 
 	/**
