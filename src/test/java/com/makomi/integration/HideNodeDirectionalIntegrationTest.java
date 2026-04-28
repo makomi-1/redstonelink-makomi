@@ -1,11 +1,20 @@
 package com.makomi.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.makomi.block.AbstractLinkFilterBlock;
 import com.makomi.block.HideCoreBlock;
 import com.makomi.block.HideSyncTriggerSourceBlock;
+import com.makomi.block.LinkChunkActivatorBlock;
 import com.makomi.block.LinkCoreBlock;
+import com.makomi.block.LinkRepeaterBlock;
+import com.makomi.block.LinkSendFilterBlock;
+import com.makomi.block.LinkSyncEmitterBlock;
+import com.makomi.block.LinkToggleEmitterBlock;
+import com.makomi.block.entity.LinkRepeaterBlockEntity;
+import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -20,6 +29,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.sounds.SoundEvent;
@@ -40,6 +50,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.border.WorldBorder;
@@ -89,8 +100,14 @@ class HideNodeDirectionalIntegrationTest {
 		TestHideCoreBlock block = createHideCoreBlock();
 		TestLevel level = TestLevel.create();
 		BlockPos pos = new BlockPos(4, 80, 4);
+		BlockState hiddenDefaultState = block.defaultBlockState().setValue(LinkCoreBlock.ACTIVE, true);
+		level.setTestBlockState(pos, hiddenDefaultState);
+
+		assertEquals(0, block.exposeSignal(hiddenDefaultState, level, pos, Direction.EAST));
+		assertEquals(0, block.exposeDirectSignal(hiddenDefaultState, level, pos, Direction.WEST));
+
 		BlockState state = NodeFaceSetBlockStateSupport.withSingleFace(
-			block.defaultBlockState().setValue(LinkCoreBlock.ACTIVE, true),
+			hiddenDefaultState,
 			Direction.EAST
 		);
 		level.setTestBlockState(pos, state);
@@ -111,11 +128,16 @@ class HideNodeDirectionalIntegrationTest {
 		TestHideSyncTriggerSourceBlock block = createHideSyncTriggerSourceBlock();
 		TestLevel level = TestLevel.create();
 		BlockPos pos = new BlockPos(12, 70, 12);
-
-		BlockState northOnlyState = NodeFaceSetBlockStateSupport.withSingleFace(block.defaultBlockState(), Direction.NORTH);
-		level.setTestBlockState(pos, northOnlyState);
 		level.setTestSignal(pos.relative(Direction.NORTH), Direction.NORTH, 7);
 		level.setTestSignal(pos.relative(Direction.SOUTH), Direction.SOUTH, 15);
+
+		BlockState hiddenDefaultState = block.defaultBlockState();
+		level.setTestBlockState(pos, hiddenDefaultState);
+
+		assertEquals(0, block.exposeResolveInputSignalStrength(level, pos));
+
+		BlockState northOnlyState = NodeFaceSetBlockStateSupport.withSingleFace(hiddenDefaultState, Direction.NORTH);
+		level.setTestBlockState(pos, northOnlyState);
 
 		assertEquals(7, block.exposeResolveInputSignalStrength(level, pos));
 
@@ -123,6 +145,143 @@ class HideNodeDirectionalIntegrationTest {
 		level.setTestBlockState(pos, northSouthState);
 
 		assertEquals(15, block.exposeResolveInputSignalStrength(level, pos));
+	}
+
+	/**
+	 * 可见 `core` 默认全向，编辑后应只在启用输出面发信号。
+	 */
+	@Test
+	void visibleCoreShouldDefaultToAllFacesAndSupportDirectionalOutput() throws Exception {
+		TestVisibleCoreBlock block = createVisibleCoreBlock();
+		TestLevel level = TestLevel.create();
+		BlockPos pos = new BlockPos(20, 90, 20);
+		BlockState visibleDefaultState = block.defaultBlockState().setValue(LinkCoreBlock.ACTIVE, true);
+		level.setTestBlockState(pos, visibleDefaultState);
+
+		int eastSignal = block.exposeSignal(visibleDefaultState, level, pos, Direction.EAST);
+		assertTrue(eastSignal > 0, "可见核心块默认应保持全向输出");
+		assertEquals(eastSignal, block.exposeSignal(visibleDefaultState, level, pos, Direction.WEST));
+
+		BlockState eastOnlyState = NodeFaceSetBlockStateSupport.withSingleFace(visibleDefaultState, Direction.EAST);
+		level.setTestBlockState(pos, eastOnlyState);
+
+		assertEquals(eastSignal, block.exposeSignal(eastOnlyState, level, pos, Direction.EAST));
+		assertEquals(0, block.exposeSignal(eastOnlyState, level, pos, Direction.NORTH));
+		assertEquals(0, block.exposeDirectSignal(eastOnlyState, level, pos, Direction.WEST));
+	}
+
+	/**
+	 * 可见同步发射器默认全向，编辑后应只采样启用输入面。
+	 */
+	@Test
+	void visibleSyncTriggerSourceShouldDefaultToAllFacesAndSupportDirectionalInput() throws Exception {
+		TestVisibleSyncTriggerSourceBlock block = createVisibleSyncTriggerSourceBlock();
+		TestLevel level = TestLevel.create();
+		BlockPos pos = new BlockPos(28, 90, 28);
+		level.setTestSignal(pos.relative(Direction.NORTH), Direction.NORTH, 6);
+		level.setTestSignal(pos.relative(Direction.SOUTH), Direction.SOUTH, 13);
+
+		BlockState visibleDefaultState = block.defaultBlockState();
+		level.setTestBlockState(pos, visibleDefaultState);
+		assertEquals(13, block.exposeResolveInputSignalStrength(level, pos));
+
+		BlockState northOnlyState = NodeFaceSetBlockStateSupport.withSingleFace(visibleDefaultState, Direction.NORTH);
+		level.setTestBlockState(pos, northOnlyState);
+		assertEquals(6, block.exposeResolveInputSignalStrength(level, pos));
+	}
+
+	/**
+	 * 块状 `triggerSource` 默认全向，编辑后应只采样启用输入面。
+	 */
+	@Test
+	void blockTriggerSourceShouldDefaultToAllFacesAndSupportDirectionalInput() throws Exception {
+		TestToggleEmitterBlock block = createToggleEmitterBlock();
+		TestLevel level = TestLevel.create();
+		BlockPos pos = new BlockPos(36, 90, 36);
+		level.setTestSignal(pos.relative(Direction.NORTH), Direction.NORTH, 4);
+		level.setTestSignal(pos.relative(Direction.SOUTH), Direction.SOUTH, 12);
+
+		BlockState visibleDefaultState = block.defaultBlockState();
+		level.setTestBlockState(pos, visibleDefaultState);
+		assertEquals(12, block.exposeResolveInputSignalStrength(level, pos));
+
+		BlockState northOnlyState = NodeFaceSetBlockStateSupport.withSingleFace(visibleDefaultState, Direction.NORTH);
+		level.setTestBlockState(pos, northOnlyState);
+		assertEquals(4, block.exposeResolveInputSignalStrength(level, pos));
+
+		BlockState clearedState = NodeFaceSetBlockStateSupport.setAllFaces(visibleDefaultState, false);
+		level.setTestBlockState(pos, clearedState);
+		assertEquals(0, block.exposeResolveInputSignalStrength(level, pos));
+	}
+
+	/**
+	 * 过滤器默认全向，编辑后应按输入面更新 `POWERED` 外显。
+	 */
+	@Test
+	void filterShouldSupportDirectionalInputAndRefreshPoweredState() throws Exception {
+		LinkSendFilterBlock block = createSendFilterBlock();
+		TestLevel level = TestLevel.create();
+		BlockPos pos = new BlockPos(44, 90, 44);
+		level.setTestSignal(pos.relative(Direction.NORTH), Direction.NORTH, 0);
+		level.setTestSignal(pos.relative(Direction.SOUTH), Direction.SOUTH, 9);
+
+		BlockState visibleDefaultState = block.defaultBlockState();
+		level.setTestBlockState(pos, visibleDefaultState);
+		block.refreshStateFromCurrentInputs(level, pos, visibleDefaultState);
+		assertTrue(level.getBlockState(pos).getValue(AbstractLinkFilterBlock.POWERED));
+
+		BlockState northOnlyState = NodeFaceSetBlockStateSupport.withSingleFace(block.defaultBlockState(), Direction.NORTH);
+		level.setTestBlockState(pos, northOnlyState);
+		block.refreshStateFromCurrentInputs(level, pos, northOnlyState);
+		assertFalse(level.getBlockState(pos).getValue(AbstractLinkFilterBlock.POWERED));
+	}
+
+	/**
+	 * 区块激活器默认全向，编辑后应按输入面更新 `POWERED` 外显。
+	 */
+	@Test
+	void chunkActivatorShouldSupportDirectionalInputAndRefreshPoweredState() throws Exception {
+		LinkChunkActivatorBlock block = createChunkActivatorBlock();
+		TestLevel level = TestLevel.create();
+		BlockPos pos = new BlockPos(52, 90, 52);
+		level.setTestSignal(pos.relative(Direction.WEST), Direction.WEST, 0);
+		level.setTestSignal(pos.relative(Direction.EAST), Direction.EAST, 10);
+
+		BlockState visibleDefaultState = block.defaultBlockState();
+		level.setTestBlockState(pos, visibleDefaultState);
+		block.refreshStateFromCurrentInputs(level, pos, visibleDefaultState);
+		assertTrue(level.getBlockState(pos).getValue(LinkChunkActivatorBlock.POWERED));
+
+		BlockState westOnlyState = NodeFaceSetBlockStateSupport.withSingleFace(block.defaultBlockState(), Direction.WEST);
+		level.setTestBlockState(pos, westOnlyState);
+		block.refreshStateFromCurrentInputs(level, pos, westOnlyState);
+		assertFalse(level.getBlockState(pos).getValue(LinkChunkActivatorBlock.POWERED));
+	}
+
+	/**
+	 * 转发器默认全向，编辑后应只在启用输出面发信号。
+	 */
+	@Test
+	void repeaterShouldDefaultToAllFacesAndSupportDirectionalOutput() throws Exception {
+		TestRepeaterFixture fixture = createRepeaterFixture();
+		TestLevel level = TestLevel.create();
+		BlockPos pos = new BlockPos(60, 90, 60);
+		level.setTestBlockState(pos, fixture.state());
+		TestRepeaterEntity repeater = new TestRepeaterEntity(fixture.type(), pos, fixture.state());
+		CompoundTag tag = new CompoundTag();
+		tag.putInt("dispatchedOutputPower", 11);
+		repeater.loadForTest(tag);
+		level.setBlockEntity(repeater);
+
+		int eastSignal = fixture.block().exposeSignal(fixture.state(), level, pos, Direction.EAST);
+		assertTrue(eastSignal > 0, "转发器默认应保持全向输出");
+		assertEquals(eastSignal, fixture.block().exposeSignal(fixture.state(), level, pos, Direction.WEST));
+
+		BlockState eastOnlyState = NodeFaceSetBlockStateSupport.withSingleFace(fixture.state(), Direction.EAST);
+		level.setTestBlockState(pos, eastOnlyState);
+		assertEquals(eastSignal, fixture.block().exposeSignal(eastOnlyState, level, pos, Direction.EAST));
+		assertEquals(0, fixture.block().exposeSignal(eastOnlyState, level, pos, Direction.WEST));
+		assertEquals(0, fixture.block().exposeDirectSignal(eastOnlyState, level, pos, Direction.NORTH));
 	}
 
 	/**
@@ -165,6 +324,83 @@ class HideNodeDirectionalIntegrationTest {
 	}
 
 	/**
+	 * 暴露可见 `core` 的定向输出入口，供测试断言默认全向与单面裁剪。
+	 */
+	private static final class TestVisibleCoreBlock extends LinkCoreBlock {
+		private TestVisibleCoreBlock(BlockBehaviour.Properties properties) {
+			super(properties);
+		}
+
+		private int exposeSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+			return super.getSignal(state, level, pos, direction);
+		}
+
+		private int exposeDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+			return super.getDirectSignal(state, level, pos, direction);
+		}
+	}
+
+	/**
+	 * 暴露可见同步 `triggerSource` 的输入采样入口。
+	 */
+	private static final class TestVisibleSyncTriggerSourceBlock extends LinkSyncEmitterBlock {
+		private TestVisibleSyncTriggerSourceBlock(BlockBehaviour.Properties properties) {
+			super(properties);
+		}
+
+		private int exposeResolveInputSignalStrength(Level level, BlockPos pos) {
+			return super.resolveInputSignalStrength(level, pos);
+		}
+	}
+
+	/**
+	 * 暴露块状 `triggerSource` 基类的输入采样入口。
+	 */
+	private static final class TestToggleEmitterBlock extends LinkToggleEmitterBlock {
+		private TestToggleEmitterBlock(BlockBehaviour.Properties properties) {
+			super(properties);
+		}
+
+		private int exposeResolveInputSignalStrength(Level level, BlockPos pos) {
+			return super.resolveInputSignalStrength(level, pos);
+		}
+	}
+
+	/**
+	 * 暴露转发器输出入口，并复用最小方块实体类型做输出功率夹具。
+	 */
+	private static final class TestVisibleRepeaterBlock extends LinkRepeaterBlock {
+		private TestVisibleRepeaterBlock(BlockBehaviour.Properties properties) {
+			super(properties);
+		}
+
+		private int exposeSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+			return super.getSignal(state, level, pos, direction);
+		}
+
+		private int exposeDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+			return super.getDirectSignal(state, level, pos, direction);
+		}
+	}
+
+	/**
+	 * 最小转发器测试实体：只复用持久化输出功率恢复逻辑。
+	 */
+	private static final class TestRepeaterEntity extends LinkRepeaterBlockEntity {
+		private TestRepeaterEntity(
+			BlockEntityType<? extends PairableNodeBlockEntity> blockEntityType,
+			BlockPos pos,
+			BlockState state
+		) {
+			super(blockEntityType, pos, state);
+		}
+
+		private void loadForTest(CompoundTag tag) {
+			loadAdditional(tag, null);
+		}
+	}
+
+	/**
 	 * 为测试临时创建一个最小 `hide core`，避免依赖真实模组注册表项。
 	 */
 	private static TestHideCoreBlock createHideCoreBlock() throws Exception {
@@ -181,6 +417,73 @@ class HideNodeDirectionalIntegrationTest {
 			return new TestHideSyncTriggerSourceBlock(BlockBehaviour.Properties.of().noCollission());
 		}
 	}
+
+	/**
+	 * 为测试临时创建一个最小可见 `core`。
+	 */
+	private static TestVisibleCoreBlock createVisibleCoreBlock() throws Exception {
+		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
+			return new TestVisibleCoreBlock(BlockBehaviour.Properties.of());
+		}
+	}
+
+	/**
+	 * 为测试临时创建一个最小可见同步发射器。
+	 */
+	private static TestVisibleSyncTriggerSourceBlock createVisibleSyncTriggerSourceBlock() throws Exception {
+		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
+			return new TestVisibleSyncTriggerSourceBlock(BlockBehaviour.Properties.of());
+		}
+	}
+
+	/**
+	 * 为测试临时创建一个最小块状 `triggerSource`。
+	 */
+	private static TestToggleEmitterBlock createToggleEmitterBlock() throws Exception {
+		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
+			return new TestToggleEmitterBlock(BlockBehaviour.Properties.of());
+		}
+	}
+
+	/**
+	 * 为测试临时创建一个最小发送过滤器。
+	 */
+	private static LinkSendFilterBlock createSendFilterBlock() throws Exception {
+		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
+			return new LinkSendFilterBlock(BlockBehaviour.Properties.of());
+		}
+	}
+
+	/**
+	 * 为测试临时创建一个最小区块激活器。
+	 */
+	private static LinkChunkActivatorBlock createChunkActivatorBlock() throws Exception {
+		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
+			return new LinkChunkActivatorBlock(BlockBehaviour.Properties.of());
+		}
+	}
+
+	/**
+	 * 为测试临时创建一个最小可见转发器夹具。
+	 */
+	private static TestRepeaterFixture createRepeaterFixture() throws Exception {
+		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
+			TestVisibleRepeaterBlock block = new TestVisibleRepeaterBlock(BlockBehaviour.Properties.of());
+			@SuppressWarnings("unchecked")
+			BlockEntityType<? extends PairableNodeBlockEntity> type =
+				(BlockEntityType<? extends PairableNodeBlockEntity>) (BlockEntityType<?>) BlockEntityType.Builder.of(
+					(pos, state) -> null,
+					block
+				).build(null);
+			return new TestRepeaterFixture(type, block, block.defaultBlockState());
+		}
+	}
+
+	private record TestRepeaterFixture(
+		BlockEntityType<? extends PairableNodeBlockEntity> type,
+		TestVisibleRepeaterBlock block,
+		BlockState state
+	) {}
 
 	/**
 	 * 仅实现本测试所需读接口的最小 `Level` 替身。
@@ -237,6 +540,12 @@ class HideNodeDirectionalIntegrationTest {
 		@Override
 		public BlockState getBlockState(BlockPos pos) {
 			return blockStates.getOrDefault(pos, Blocks.AIR.defaultBlockState());
+		}
+
+		@Override
+		public boolean setBlock(BlockPos pos, BlockState state, int flags, int recursionLeft) {
+			blockStates.put(pos.immutable(), state);
+			return true;
 		}
 
 		@Override
@@ -466,22 +775,27 @@ class HideNodeDirectionalIntegrationTest {
 	}
 
 	/**
-	 * 注册表写窗口：仅在测试中短暂恢复 `BLOCK` 注册表的 intrusive holder 创建能力。
+	 * 注册表写窗口：仅在测试中短暂恢复 `BLOCK/BLOCK_ENTITY_TYPE` 注册表的 intrusive holder 创建能力。
 	 */
 	private static final class RegistryWriteWindow implements AutoCloseable {
-		private final RegistryState state;
+		private final RegistryState[] states;
 
-		private RegistryWriteWindow(RegistryState state) {
-			this.state = state;
+		private RegistryWriteWindow(RegistryState... states) {
+			this.states = states;
 		}
 
 		private static RegistryWriteWindow open() throws ReflectiveOperationException {
-			return new RegistryWriteWindow(RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK));
+			return new RegistryWriteWindow(
+				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK),
+				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK_ENTITY_TYPE)
+			);
 		}
 
 		@Override
 		public void close() throws ReflectiveOperationException {
-			state.close();
+			for (int index = states.length - 1; index >= 0; index--) {
+				states[index].close();
+			}
 		}
 	}
 

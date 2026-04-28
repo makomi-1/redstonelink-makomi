@@ -1,17 +1,18 @@
 package com.makomi.item;
 
-import com.makomi.block.HideCoreBlock;
-import com.makomi.block.HideSyncTriggerSourceBlock;
+import com.makomi.block.AbstractLinkFilterBlock;
+import com.makomi.block.LinkChunkActivatorBlock;
+import com.makomi.block.LinkCoreBlock;
+import com.makomi.block.LinkRepeaterBlock;
 import com.makomi.block.LinkSignalEmitterBlock;
+import com.makomi.block.LinkSyncEmitterBlock;
 import com.makomi.data.HideDirectionalEditorToolData;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -24,31 +25,12 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * 定向面集编辑工具。
  * <p>
- * 当前仅负责编辑隐藏节点的输入/输出面集，不承担配对或图结构修改逻辑。
+ * 负责编辑块状节点的输入/输出面集，不承担配对或图结构修改逻辑。
  * </p>
  */
 public class DirectionalFaceEditorItem extends Item {
 	public DirectionalFaceEditorItem(Item.Properties properties) {
 		super(properties);
-	}
-
-	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-		ItemStack heldStack = player.getItemInHand(hand);
-		if (hand != InteractionHand.MAIN_HAND) {
-			return InteractionResultHolder.pass(heldStack);
-		}
-		if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-			HideDirectionalEditorToolData.EditMode nextMode = HideDirectionalEditorToolData.cycleMode(heldStack);
-			serverPlayer.displayClientMessage(
-				Component.translatable(
-					"message.redstonelink.directional_face_editor.mode_switched",
-					Component.translatable(nextMode.translationKey())
-				),
-				true
-			);
-		}
-		return InteractionResultHolder.sidedSuccess(heldStack, level.isClientSide);
 	}
 
 	@Override
@@ -60,7 +42,7 @@ public class DirectionalFaceEditorItem extends Item {
 		Level level = context.getLevel();
 		BlockPos clickedPos = context.getClickedPos();
 		BlockState currentState = level.getBlockState(clickedPos);
-		if (!isSupportedHideNode(currentState.getBlock()) || !NodeFaceSetBlockStateSupport.hasFaceProperties(currentState)) {
+		if (!isSupportedFaceEditableNode(currentState.getBlock()) || !NodeFaceSetBlockStateSupport.hasFaceProperties(currentState)) {
 			return InteractionResult.PASS;
 		}
 
@@ -106,10 +88,14 @@ public class DirectionalFaceEditorItem extends Item {
 	}
 
 	/**
-	 * 判断当前命中方块是否属于本轮支持的隐藏节点。
+	 * 判断当前命中方块是否属于本轮支持的面集可编辑节点。
 	 */
-	private static boolean isSupportedHideNode(Block block) {
-		return block instanceof HideCoreBlock || block instanceof HideSyncTriggerSourceBlock;
+	private static boolean isSupportedFaceEditableNode(Block block) {
+		return block instanceof LinkCoreBlock
+			|| block instanceof LinkRepeaterBlock
+			|| block instanceof LinkSignalEmitterBlock
+			|| block instanceof AbstractLinkFilterBlock
+			|| block instanceof LinkChunkActivatorBlock;
 	}
 
 	/**
@@ -135,8 +121,8 @@ public class DirectionalFaceEditorItem extends Item {
 	/**
 	 * 将玩家点击的逻辑面转换为实际写入 `BlockState` 的存储面。
 	 * <p>
-	 * `hide core` 的底层输出方向与存储方向相反，因此编辑时需要写入对面；
-	 * `hide sync triggerSource` 仍按原面写入。
+	 * 输出型方块（`core/repeater`）的底层输出方向与存储方向相反，
+	 * 因此编辑时需要写入对面；输入型方块仍按原面写入。
 	 * </p>
 	 */
 	private static net.minecraft.core.Direction resolveEditedFace(
@@ -146,16 +132,26 @@ public class DirectionalFaceEditorItem extends Item {
 		if (clickedFace == null) {
 			return null;
 		}
-		return currentState != null && currentState.getBlock() instanceof HideCoreBlock ? clickedFace.getOpposite() : clickedFace;
+		return currentState != null
+				&& (currentState.getBlock() instanceof LinkCoreBlock || currentState.getBlock() instanceof LinkRepeaterBlock)
+			? clickedFace.getOpposite()
+			: clickedFace;
 	}
 
 	/**
-	 * 当编辑对象为 `triggerSource` 时，立即重采样输入，避免等待下一次邻居变化。
+	 * 按节点类型立即刷新运行态，避免等待下一次邻居变化才生效。
 	 */
 	private static void refreshRuntimeStateIfNeeded(Level level, BlockPos blockPos, BlockState updatedState) {
-		if (!(updatedState.getBlock() instanceof LinkSignalEmitterBlock signalEmitterBlock)) {
+		if (updatedState.getBlock() instanceof LinkSignalEmitterBlock signalEmitterBlock) {
+			signalEmitterBlock.refreshPoweredStateFromCurrentInputs(level, blockPos, updatedState);
 			return;
 		}
-		signalEmitterBlock.refreshPoweredStateFromCurrentInputs(level, blockPos, updatedState);
+		if (updatedState.getBlock() instanceof AbstractLinkFilterBlock filterBlock) {
+			filterBlock.refreshStateFromCurrentInputs(level, blockPos, updatedState);
+			return;
+		}
+		if (updatedState.getBlock() instanceof LinkChunkActivatorBlock chunkActivatorBlock) {
+			chunkActivatorBlock.refreshStateFromCurrentInputs(level, blockPos, updatedState);
+		}
 	}
 }

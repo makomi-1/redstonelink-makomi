@@ -36,6 +36,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -137,12 +138,19 @@ public final class QuickLinkWorldOverlayRenderer {
 		if (outlineColor == null) {
 			return true;
 		}
+		if (!SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)) {
+			// quick-link 自定义命中方框与普通节点保持同一眼镜门槛；
+			// 未戴眼镜时直接吞掉默认白框，避免 visible/hide 节点出现不一致外显。
+			return false;
+		}
 
 		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
 			return true;
 		}
 
-		VoxelShape voxelShape = blockOutlineContext.blockState().getShape(minecraft.level, blockOutlineContext.blockPos());
+		VoxelShape voxelShape = blockOutlineContext
+			.blockState()
+			.getShape(minecraft.level, blockOutlineContext.blockPos(), CollisionContext.of(minecraft.player));
 		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderType.lines());
 		LevelRenderer.renderVoxelShape(
 			worldRenderContext.matrixStack(),
@@ -171,6 +179,10 @@ public final class QuickLinkWorldOverlayRenderer {
 			return;
 		}
 		if (!(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+			clearTransientPreviewState();
+			return;
+		}
+		if (!SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)) {
 			clearTransientPreviewState();
 			return;
 		}

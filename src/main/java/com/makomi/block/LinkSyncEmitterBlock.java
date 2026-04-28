@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
 
 /**
  * 同步发射器：接收红石输入后，仅转发当前输入电平，不做切换或脉冲转换。
@@ -73,5 +74,15 @@ public class LinkSyncEmitterBlock extends LinkSignalEmitterBlock {
 		int normalizedStrength = SignalStrengths.clamp(signalStrength);
 		blockEntity.setLastObservedSignalStrength(normalizedStrength);
 		blockEntity.recordReplaySyncSnapshot(normalizedStrength, EventMeta.now(level));
+	}
+
+	@Override
+	protected void createBlockStateDefinition(StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
+		super.createBlockStateDefinition(builder);
+	}
+
+	@Override
+	protected int resolveInputSignalStrength(Level level, BlockPos pos) {
+		return super.resolveInputSignalStrength(level, pos);
 	}
 }

@@ -2,7 +2,9 @@ package com.makomi.data;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -11,7 +13,7 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
 /**
  * 节点面集 `BlockState` 支持工具。
  * <p>
- * 当前用于隐藏节点的输入/输出面集配置，并为后续推广到可见节点预留统一读写入口。
+ * 统一承接隐藏/可见节点的输入输出面集配置，并为运行时采样提供共享入口。
  * </p>
  */
 public final class NodeFaceSetBlockStateSupport {
@@ -114,6 +116,31 @@ public final class NodeFaceSetBlockStateSupport {
 			}
 		}
 		return List.copyOf(enabledFaces);
+	}
+
+	/**
+	 * 按当前面集规则采样邻居输入强度。
+	 * <p>
+	 * 若方块未声明面集属性，则保持原版“全向邻居最大输入”语义；
+	 * 若方块声明了面集属性，则只对启用面取最大值，空面集返回 0。
+	 * </p>
+	 */
+	public static int sampleNeighborSignalStrength(Level level, BlockPos pos, BlockState state) {
+		if (level == null || pos == null) {
+			return 0;
+		}
+		if (!hasFaceProperties(state)) {
+			return Math.max(0, level.getBestNeighborSignal(pos));
+		}
+		List<Direction> enabledFaces = resolveEnabledFaces(state);
+		if (enabledFaces.isEmpty()) {
+			return 0;
+		}
+		int strongestSignal = 0;
+		for (Direction direction : enabledFaces) {
+			strongestSignal = Math.max(strongestSignal, Math.max(0, level.getSignal(pos.relative(direction), direction)));
+		}
+		return strongestSignal;
 	}
 
 	/**

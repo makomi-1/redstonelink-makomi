@@ -5,7 +5,6 @@ import com.makomi.data.HideNodeShapeAccessSupport;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.BaseEntityBlock;
@@ -13,7 +12,6 @@ import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -28,7 +26,7 @@ public class HideCoreBlock extends LinkCoreBlock {
 
 	public HideCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(NodeFaceSetBlockStateSupport.withSingleFace(defaultBlockState(), Direction.NORTH));
+		registerDefaultState(NodeFaceSetBlockStateSupport.setAllFaces(defaultBlockState(), false));
 	}
 
 	@Override
@@ -48,9 +46,7 @@ public class HideCoreBlock extends LinkCoreBlock {
 
 	@Override
 	public BlockState getStateForPlacement(BlockPlaceContext context) {
-		Direction clickedFace = context == null ? Direction.NORTH : context.getClickedFace();
-		Direction storedFace = clickedFace == null ? Direction.SOUTH : clickedFace.getOpposite();
-		return NodeFaceSetBlockStateSupport.withSingleFace(defaultBlockState(), storedFace);
+		return NodeFaceSetBlockStateSupport.setAllFaces(defaultBlockState(), false);
 	}
 
 	@Override
@@ -61,23 +57,5 @@ public class HideCoreBlock extends LinkCoreBlock {
 	@Override
 	protected VoxelShape getVisualShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
 		return HideNodeShapeAccessSupport.resolveInteractionShape(context);
-	}
-
-	@Override
-	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return NodeFaceSetBlockStateSupport.isFaceEnabled(state, direction) ? super.getSignal(state, level, pos, direction) : 0;
-	}
-
-	@Override
-	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return NodeFaceSetBlockStateSupport.isFaceEnabled(state, direction)
-			? super.getDirectSignal(state, level, pos, direction)
-			: 0;
-	}
-
-	@Override
-	protected void createBlockStateDefinition(StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
-		builder.add(ACTIVE);
-		NodeFaceSetBlockStateSupport.appendProperties(builder);
 	}
 }

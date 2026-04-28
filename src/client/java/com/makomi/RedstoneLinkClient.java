@@ -25,8 +25,10 @@ import com.makomi.data.QuickLinkToolData;
 import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.data.SmartNodeContainerData;
 import com.makomi.data.SmartNodeContainerPlacementType;
+import com.makomi.item.DirectionalFaceEditorItem;
 import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.QuickLinkToolItem;
+import com.makomi.network.DirectionalFaceEditorNetwork;
 import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
 import com.makomi.network.SmartNodeContainerNetwork;
@@ -76,7 +78,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	private static final String CLIENT_DISPLAY_COMMAND_ROOT = "rlclient";
 	private static KeyMapping toggleSerialOverlayKey;
 	private static KeyMapping toggleQuickLinkModeKey;
-	private static boolean quickLinkClearKeyWasDown;
+	private static boolean pickItemKeyWasDown;
 	private static long syncLinkerScrollHookWindowHandle;
 	private static GLFWScrollCallback syncLinkerScrollCallback;
 	private static GLFWScrollCallbackI previousSyncLinkerScrollCallback;
@@ -202,11 +204,11 @@ public class RedstoneLinkClient implements ClientModInitializer {
 				handleQuickLinkModeKeyPress(client);
 			}
 
-			boolean quickLinkClearKeyDown = client.options.keyPickItem.isDown();
-			if (quickLinkClearKeyDown && !quickLinkClearKeyWasDown) {
-				handleQuickLinkApplyEditModeToggle(client);
+			boolean pickItemKeyDown = client.options.keyPickItem.isDown();
+			if (pickItemKeyDown && !pickItemKeyWasDown) {
+				handlePickItemShortcut(client);
 			}
-			quickLinkClearKeyWasDown = quickLinkClearKeyDown;
+			pickItemKeyWasDown = pickItemKeyDown;
 		});
 	}
 
@@ -295,9 +297,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	}
 
 	/**
-	 * 处理中键切换 quick-link 应用编辑模式。
+	 * 处理中键快捷键：始终按主手物品类型决定切换对象。
 	 */
-	private static void handleQuickLinkApplyEditModeToggle(Minecraft client) {
+	private static void handlePickItemShortcut(Minecraft client) {
 		if (client == null || client.player == null) {
 			return;
 		}
@@ -308,7 +310,21 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			handleSmartNodeContainerTypeCycle(client);
 			return;
 		}
-		if (!(client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)) {
+		if (client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem) {
+			handleQuickLinkApplyEditModeToggle(client);
+			return;
+		}
+		if (!(client.player.getMainHandItem().getItem() instanceof DirectionalFaceEditorItem)) {
+			return;
+		}
+		handleDirectionalFaceEditorModeCycle(client);
+	}
+
+	/**
+	 * 处理中键切换 quick-link 应用编辑模式。
+	 */
+	private static void handleQuickLinkApplyEditModeToggle(Minecraft client) {
+		if (client == null || client.player == null) {
 			return;
 		}
 		if (QuickLinkNetworkClientHandlerSupport.isVisualizeMode(client)) {
@@ -608,5 +624,15 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			),
 			true
 		);
+	}
+
+	/**
+	 * 处理中键切换主手定向面编辑器模式。
+	 */
+	private static void handleDirectionalFaceEditorModeCycle(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		ClientPlayNetworking.send(new DirectionalFaceEditorNetwork.CycleDirectionalFaceEditorModePayload());
 	}
 }

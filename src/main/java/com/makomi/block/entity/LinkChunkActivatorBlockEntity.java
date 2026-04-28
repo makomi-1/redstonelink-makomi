@@ -5,6 +5,7 @@ import com.makomi.data.ChunkActivatorConfigStateSnapshot;
 import com.makomi.data.ChunkActivatorImmediateEffectService;
 import com.makomi.data.ChunkActivatorMode;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.data.PlacedChunkActivatorSavedData;
@@ -166,7 +167,9 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	 */
 	public final int sampleNeighborSignalStrength() {
 		Level currentLevel = level;
-		return currentLevel == null ? 0 : Math.max(0, currentLevel.getBestNeighborSignal(worldPosition));
+		return currentLevel == null
+			? 0
+			: NodeFaceSetBlockStateSupport.sampleNeighborSignalStrength(currentLevel, worldPosition, getBlockState());
 	}
 
 	@Override

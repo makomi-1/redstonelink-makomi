@@ -15,6 +15,7 @@ import com.makomi.data.StatePanelRecordingSessionService;
 import com.makomi.data.input.InputPlaybackService;
 import com.makomi.network.BenchCommandNetwork;
 import com.makomi.network.ChunkActivatorNetwork;
+import com.makomi.network.DirectionalFaceEditorNetwork;
 import com.makomi.network.LinkFilterNetwork;
 import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
@@ -47,6 +48,7 @@ public class RedstoneLink implements ModInitializer {
 		BenchCommandNetwork.register();
 		PairingNetwork.register();
 		QuickLinkNetwork.register();
+		DirectionalFaceEditorNetwork.register();
 		LinkFilterNetwork.register();
 		ChunkActivatorNetwork.register();
 		RepeaterNetwork.register();

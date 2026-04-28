@@ -4,15 +4,11 @@ import com.makomi.block.entity.HideSyncTriggerSourceBlockEntity;
 import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.data.HideNodeShapeAccessSupport;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
-import java.util.List;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.world.item.context.BlockPlaceContext;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -25,7 +21,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public class HideSyncTriggerSourceBlock extends LinkSyncEmitterBlock {
 	public HideSyncTriggerSourceBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(NodeFaceSetBlockStateSupport.withSingleFace(defaultBlockState(), Direction.NORTH));
+		registerDefaultState(NodeFaceSetBlockStateSupport.setAllFaces(defaultBlockState(), false));
 	}
 
 	@Override
@@ -40,8 +36,7 @@ public class HideSyncTriggerSourceBlock extends LinkSyncEmitterBlock {
 
 	@Override
 	public BlockState getStateForPlacement(BlockPlaceContext context) {
-		Direction clickedFace = context == null ? Direction.NORTH : context.getClickedFace();
-		return NodeFaceSetBlockStateSupport.withSingleFace(defaultBlockState(), clickedFace == null ? Direction.NORTH : clickedFace);
+		return NodeFaceSetBlockStateSupport.setAllFaces(defaultBlockState(), false);
 	}
 
 	@Override
@@ -57,28 +52,5 @@ public class HideSyncTriggerSourceBlock extends LinkSyncEmitterBlock {
 		CollisionContext context
 	) {
 		return HideNodeShapeAccessSupport.resolveInteractionShape(context);
-	}
-
-	@Override
-	protected void createBlockStateDefinition(StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
-		builder.add(POWERED);
-		NodeFaceSetBlockStateSupport.appendProperties(builder);
-	}
-
-	@Override
-	protected int resolveInputSignalStrength(Level level, BlockPos pos) {
-		BlockState state = level.getBlockState(pos);
-		int realInputPower = 0;
-		if (NodeFaceSetBlockStateSupport.hasFaceProperties(state)) {
-			List<Direction> enabledFaces = NodeFaceSetBlockStateSupport.resolveEnabledFaces(state);
-			for (Direction direction : enabledFaces) {
-				realInputPower = Math.max(realInputPower, Math.max(0, level.getSignal(pos.relative(direction), direction)));
-			}
-		}
-		int simulatedInputPower = 0;
-		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
-			simulatedInputPower = triggerSourceBlockEntity.getSimulatedInputPower();
-		}
-		return Math.max(realInputPower, simulatedInputPower);
 	}
 }

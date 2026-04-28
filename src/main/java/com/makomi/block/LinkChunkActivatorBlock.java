@@ -3,6 +3,7 @@ package com.makomi.block;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.ChunkActivatorItemData;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.network.ChunkActivatorNetwork;
 import com.mojang.serialization.MapCodec;
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 
 	public LinkChunkActivatorBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(stateDefinition.any().setValue(POWERED, false));
+		registerDefaultState(NodeFaceSetBlockStateSupport.setAllFaces(stateDefinition.any().setValue(POWERED, false), true));
 	}
 
 	@Override
@@ -62,8 +63,7 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
 		super.onPlace(state, level, pos, oldState, movedByPiston);
 		if (!oldState.is(state.getBlock())) {
-			refreshPoweredState(level, pos, state);
-			refreshPlacedActivatorState(level, pos);
+			refreshStateFromCurrentInputs(level, pos, state);
 		}
 	}
 
@@ -113,8 +113,7 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 		boolean movedByPiston
 	) {
 		super.neighborChanged(state, level, pos, block, fromPos, movedByPiston);
-		refreshPoweredState(level, pos, state);
-		refreshPlacedActivatorState(level, pos);
+		refreshStateFromCurrentInputs(level, pos, state);
 	}
 
 	@Override
@@ -143,6 +142,15 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		builder.add(POWERED);
+		NodeFaceSetBlockStateSupport.appendProperties(builder);
+	}
+
+	/**
+	 * 立即按当前面集输入重采样区块激活器的外显与真值。
+	 */
+	public final void refreshStateFromCurrentInputs(Level level, BlockPos pos, BlockState state) {
+		refreshPoweredState(level, pos, state);
+		refreshPlacedActivatorState(level, pos);
 	}
 
 	private static void openEditor(Level level, BlockPos pos, Player player) {
@@ -161,7 +169,7 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 		if (level.isClientSide) {
 			return;
 		}
-		boolean powered = level.getBestNeighborSignal(pos) > 0;
+		boolean powered = NodeFaceSetBlockStateSupport.sampleNeighborSignalStrength(level, pos, state) > 0;
 		if (state.getValue(POWERED) == powered) {
 			return;
 		}
