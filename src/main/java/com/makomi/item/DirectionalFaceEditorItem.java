@@ -120,15 +120,33 @@ public class DirectionalFaceEditorItem extends Item {
 		net.minecraft.core.Direction clickedFace,
 		HideDirectionalEditorToolData.EditMode editMode
 	) {
+		net.minecraft.core.Direction editedFace = resolveEditedFace(currentState, clickedFace);
 		HideDirectionalEditorToolData.EditMode resolvedMode = editMode == null
 			? HideDirectionalEditorToolData.EditMode.TOGGLE
 			: editMode;
 		return switch (resolvedMode) {
-			case TOGGLE -> NodeFaceSetBlockStateSupport.toggleFace(currentState, clickedFace);
-			case SINGLE -> NodeFaceSetBlockStateSupport.withSingleFace(currentState, clickedFace);
+			case TOGGLE -> NodeFaceSetBlockStateSupport.toggleFace(currentState, editedFace);
+			case SINGLE -> NodeFaceSetBlockStateSupport.withSingleFace(currentState, editedFace);
 			case ALL -> NodeFaceSetBlockStateSupport.setAllFaces(currentState, true);
 			case CLEAR -> NodeFaceSetBlockStateSupport.setAllFaces(currentState, false);
 		};
+	}
+
+	/**
+	 * 将玩家点击的逻辑面转换为实际写入 `BlockState` 的存储面。
+	 * <p>
+	 * `hide core` 的底层输出方向与存储方向相反，因此编辑时需要写入对面；
+	 * `hide sync triggerSource` 仍按原面写入。
+	 * </p>
+	 */
+	private static net.minecraft.core.Direction resolveEditedFace(
+		BlockState currentState,
+		net.minecraft.core.Direction clickedFace
+	) {
+		if (clickedFace == null) {
+			return null;
+		}
+		return currentState != null && currentState.getBlock() instanceof HideCoreBlock ? clickedFace.getOpposite() : clickedFace;
 	}
 
 	/**

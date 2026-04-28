@@ -49,7 +49,8 @@ public class HideCoreBlock extends LinkCoreBlock {
 	@Override
 	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		Direction clickedFace = context == null ? Direction.NORTH : context.getClickedFace();
-		return NodeFaceSetBlockStateSupport.withSingleFace(defaultBlockState(), clickedFace == null ? Direction.NORTH : clickedFace);
+		Direction storedFace = clickedFace == null ? Direction.SOUTH : clickedFace.getOpposite();
+		return NodeFaceSetBlockStateSupport.withSingleFace(defaultBlockState(), storedFace);
 	}
 
 	@Override

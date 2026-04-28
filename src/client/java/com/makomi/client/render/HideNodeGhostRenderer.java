@@ -136,7 +136,10 @@ public final class HideNodeGhostRenderer<T extends PairableNodeBlockEntity> impl
 	private static boolean shouldRenderFaceVectors(Minecraft minecraft) {
 		return minecraft != null
 			&& minecraft.player != null
-			&& minecraft.player.getMainHandItem().getItem() instanceof DirectionalFaceEditorItem;
+			&& (
+				minecraft.player.getMainHandItem().getItem() instanceof DirectionalFaceEditorItem
+					|| minecraft.player.getOffhandItem().getItem() instanceof DirectionalFaceEditorItem
+			);
 	}
 
 	/**
@@ -155,8 +158,22 @@ public final class HideNodeGhostRenderer<T extends PairableNodeBlockEntity> impl
 		VertexConsumer vertexConsumer = buffer.getBuffer(HIDE_FACE_VECTOR_RENDER_TYPE);
 		PoseStack.Pose pose = poseStack.last();
 		for (Direction enabledFace : NodeFaceSetBlockStateSupport.resolveEnabledFaces(hiddenState)) {
-			renderFaceArrow(vertexConsumer, pose, enabledFace, red, green, blue);
+			renderFaceArrow(vertexConsumer, pose, resolveRenderedFaceDirection(hiddenState, enabledFace), red, green, blue);
 		}
+	}
+
+	/**
+	 * 将面集真值方向映射为实际显示方向。
+	 * <p>
+	 * `hide core` 的底层输出判定与玩家直觉显示方向相反，因此这里只修正显示，
+	 * 不改动实际输出语义；`hide sync triggerSource` 仍按原方向显示输入面。
+	 * </p>
+	 */
+	private static Direction resolveRenderedFaceDirection(BlockState hiddenState, Direction enabledFace) {
+		if (enabledFace == null) {
+			return null;
+		}
+		return hiddenState != null && hiddenState.getBlock() instanceof HideCoreBlock ? enabledFace.getOpposite() : enabledFace;
 	}
 
 	/**
