@@ -151,6 +151,7 @@ final class GuiHeaderContextSupport {
 			case LinkGuiDisplayContext.CORE,
 				LinkGuiDisplayContext.LINK_REDSTONE_CORE,
 				LinkGuiDisplayContext.LINK_REDSTONE_CORE_TRANSPARENT,
+				LinkGuiDisplayContext.HIDE_CORE,
 				LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE,
 				LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE_TRANSPARENT -> true;
 			default -> false;
@@ -172,6 +173,7 @@ final class GuiHeaderContextSupport {
 				LinkGuiDisplayContext.LINK_TOGGLE_EMITTER,
 				LinkGuiDisplayContext.LINK_PULSE_EMITTER,
 				LinkGuiDisplayContext.LINK_SYNC_EMITTER,
+				LinkGuiDisplayContext.HIDE_SYNC_TRIGGER_SOURCE,
 				LinkGuiDisplayContext.REDSTONELINK_TOGGLE_LINKER,
 				LinkGuiDisplayContext.REDSTONELINK_PULSE_LINKER,
 				LinkGuiDisplayContext.REDSTONELINK_SYNC_LINKER -> true;

@@ -17,6 +17,7 @@ public final class LinkGuiDisplayContext {
 	public static final String CORE = "core";
 	public static final String LINK_REDSTONE_CORE = "link_redstone_core";
 	public static final String LINK_REDSTONE_CORE_TRANSPARENT = "link_redstone_core_transparent";
+	public static final String HIDE_CORE = "hide_core";
 	public static final String LINK_REDSTONE_DUST_CORE = "link_redstone_dust_core";
 	public static final String LINK_REDSTONE_DUST_CORE_TRANSPARENT = "link_redstone_dust_core_transparent";
 	public static final String LINK_TOGGLE_BUTTON = "link_toggle_button";
@@ -25,6 +26,7 @@ public final class LinkGuiDisplayContext {
 	public static final String LINK_TOGGLE_EMITTER = "link_toggle_emitter";
 	public static final String LINK_PULSE_EMITTER = "link_pulse_emitter";
 	public static final String LINK_SYNC_EMITTER = "link_sync_emitter";
+	public static final String HIDE_SYNC_TRIGGER_SOURCE = "hide_sync_trigger_source";
 	public static final String LINK_REPEATER = "link_repeater";
 	public static final String REDSTONELINK_TOGGLE_LINKER = "redstonelink_toggle_linker";
 	public static final String REDSTONELINK_PULSE_LINKER = "redstonelink_pulse_linker";
@@ -112,6 +114,7 @@ public final class LinkGuiDisplayContext {
 			case CORE -> CORE;
 			case LINK_REDSTONE_CORE -> LINK_REDSTONE_CORE;
 			case LINK_REDSTONE_CORE_TRANSPARENT -> LINK_REDSTONE_CORE_TRANSPARENT;
+			case HIDE_CORE -> HIDE_CORE;
 			case LINK_REDSTONE_DUST_CORE -> LINK_REDSTONE_DUST_CORE;
 			case LINK_REDSTONE_DUST_CORE_TRANSPARENT -> LINK_REDSTONE_DUST_CORE_TRANSPARENT;
 			case LINK_TOGGLE_BUTTON -> LINK_TOGGLE_BUTTON;
@@ -120,6 +123,7 @@ public final class LinkGuiDisplayContext {
 			case LINK_TOGGLE_EMITTER -> LINK_TOGGLE_EMITTER;
 			case LINK_PULSE_EMITTER -> LINK_PULSE_EMITTER;
 			case LINK_SYNC_EMITTER -> LINK_SYNC_EMITTER;
+			case HIDE_SYNC_TRIGGER_SOURCE -> HIDE_SYNC_TRIGGER_SOURCE;
 			case LINK_REPEATER -> LINK_REPEATER;
 			case REDSTONELINK_TOGGLE_LINKER -> REDSTONELINK_TOGGLE_LINKER;
 			case REDSTONELINK_PULSE_LINKER -> REDSTONELINK_PULSE_LINKER;

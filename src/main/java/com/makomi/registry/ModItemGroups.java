@@ -23,6 +23,7 @@ public final class ModItemGroups {
 			.displayItems((parameters, output) -> {
 				output.accept(ModItems.LINK_REDSTONE_CORE, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_REDSTONE_CORE_TRANSPARENT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.HIDE_CORE, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_REDSTONE_DUST_CORE, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_REDSTONE_DUST_CORE_TRANSPARENT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_TOGGLE_BUTTON, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
@@ -31,6 +32,7 @@ public final class ModItemGroups {
 				output.accept(ModItems.LINK_TOGGLE_EMITTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_PULSE_EMITTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_SYNC_EMITTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.HIDE_SYNC_TRIGGER_SOURCE, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_SEND_FILTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_RECEIVE_FILTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.LINK_CHUNK_ACTIVATOR, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
@@ -42,6 +44,7 @@ public final class ModItemGroups {
 				output.accept(ModItems.SMART_GLASSES, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.SMART_NODE_CONTAINER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.GRAPH_VISUAL_EDITOR, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.DIRECTIONAL_FACE_EDITOR, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_STATUS_PANEL, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONE_LINK_COMPONENT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 			})

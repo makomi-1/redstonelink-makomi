@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -16,7 +17,18 @@ public class LinkSyncEmitterBlockEntity extends SyncReplaySourceBlockEntity {
 	private int lastObservedSignalStrength;
 
 	public LinkSyncEmitterBlockEntity(BlockPos blockPos, BlockState blockState) {
-		super(com.makomi.registry.ModBlockEntities.LINK_SYNC_EMITTER, blockPos, blockState);
+		this(com.makomi.registry.ModBlockEntities.LINK_SYNC_EMITTER, blockPos, blockState);
+	}
+
+	/**
+	 * 允许派生类切换为自定义实体类型，同时复用同步 `triggerSource` 运行态逻辑。
+	 */
+	protected LinkSyncEmitterBlockEntity(
+		BlockEntityType<? extends LinkTriggerSourceBlockEntity> blockEntityType,
+		BlockPos blockPos,
+		BlockState blockState
+	) {
+		super(blockEntityType, blockPos, blockState);
 	}
 
 	/**

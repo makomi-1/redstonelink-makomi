@@ -2,6 +2,8 @@ package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
 import com.makomi.block.LinkCoreBlock;
+import com.makomi.block.HideCoreBlock;
+import com.makomi.block.HideSyncTriggerSourceBlock;
 import com.makomi.block.LinkChunkActivatorBlock;
 import com.makomi.block.LinkPulseEmitterBlock;
 import com.makomi.block.LinkPulseButtonBlock;
@@ -47,6 +49,20 @@ public final class ModBlocks {
 		)
 	);
 
+	public static final HideCoreBlock HIDE_CORE = register(
+		"hide_core",
+		new HideCoreBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK)
+				.lightLevel(state -> 0)
+				.noOcclusion()
+				.noCollission()
+				.isViewBlocking((state, level, pos) -> false)
+				.isSuffocating((state, level, pos) -> false)
+				.isRedstoneConductor((state, level, pos) -> false)
+				.isValidSpawn((state, level, pos, entityType) -> false)
+		)
+	);
+
 	public static final LinkToggleButtonBlock LINK_TOGGLE_BUTTON = register(
 		"link_toggle_button",
 		new LinkToggleButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_BUTTON))
@@ -75,6 +91,19 @@ public final class ModBlocks {
 	public static final LinkSyncEmitterBlock LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
 		new LinkSyncEmitterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion())
+	);
+
+	public static final HideSyncTriggerSourceBlock HIDE_SYNC_TRIGGER_SOURCE = register(
+		"hide_sync_trigger_source",
+		new HideSyncTriggerSourceBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER)
+				.noOcclusion()
+				.noCollission()
+				.isViewBlocking((state, level, pos) -> false)
+				.isSuffocating((state, level, pos) -> false)
+				.isRedstoneConductor((state, level, pos) -> false)
+				.isValidSpawn((state, level, pos, entityType) -> false)
+		)
 	);
 
 	public static final LinkSendFilterBlock LINK_SEND_FILTER = register(

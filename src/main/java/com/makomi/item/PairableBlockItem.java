@@ -202,7 +202,9 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	 */
 	private static boolean isSyncTriggerSourceItem(ItemStack stack) {
 		Item item = stack.getItem();
-		return item == ModItems.LINK_SYNC_LEVER || item == ModItems.LINK_SYNC_EMITTER;
+		return item == ModItems.LINK_SYNC_LEVER
+			|| item == ModItems.LINK_SYNC_EMITTER
+			|| item == ModItems.HIDE_SYNC_TRIGGER_SOURCE;
 	}
 
 }
