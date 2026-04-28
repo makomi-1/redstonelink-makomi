@@ -1,6 +1,7 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.HideCoreBlockEntity;
+import com.makomi.data.HideNodeShapeAccessSupport;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
@@ -13,6 +14,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * 隐藏核心块。
@@ -47,6 +50,16 @@ public class HideCoreBlock extends LinkCoreBlock {
 	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		Direction clickedFace = context == null ? Direction.NORTH : context.getClickedFace();
 		return NodeFaceSetBlockStateSupport.withSingleFace(defaultBlockState(), clickedFace == null ? Direction.NORTH : clickedFace);
+	}
+
+	@Override
+	protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+		return HideNodeShapeAccessSupport.resolveInteractionShape(context);
+	}
+
+	@Override
+	protected VoxelShape getVisualShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+		return HideNodeShapeAccessSupport.resolveInteractionShape(context);
 	}
 
 	@Override
