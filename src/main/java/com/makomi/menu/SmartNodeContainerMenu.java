@@ -25,9 +25,11 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 	public static final int ROW_COUNT = 6;
 	public static final int CONTAINER_SLOT_COUNT = SmartNodeContainerData.SLOT_COUNT;
 	public static final int BUTTON_TOGGLE_AUTO_SORT = 0;
+	public static final int BUTTON_TOGGLE_CREATIVE_AUTO_CONSUME = 1;
 
 	private static final int DATA_SELECTED_TYPE = 0;
 	private static final int DATA_AUTO_SORT = 1;
+	private static final int DATA_CREATIVE_AUTO_CONSUME = 2;
 
 	private final SmartNodeContainerInventory container;
 	private final ContainerData containerData;
@@ -44,7 +46,7 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 			playerInventory,
 			playerInventory.selected,
 			new SmartNodeContainerInventory(NonNullList.withSize(CONTAINER_SLOT_COUNT, ItemStack.EMPTY)),
-			new SimpleContainerData(2)
+			new SimpleContainerData(3)
 		);
 	}
 
@@ -75,7 +77,7 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 	) {
 		super(ModMenuTypes.SMART_NODE_CONTAINER, containerId);
 		checkContainerSize(container, CONTAINER_SLOT_COUNT);
-		checkContainerDataCount(containerData, 2);
+		checkContainerDataCount(containerData, 3);
 		this.container = container;
 		this.containerData = containerData;
 		this.heldSlotIndex = heldSlotIndex;
@@ -133,11 +135,18 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 
 	@Override
 	public boolean clickMenuButton(Player player, int id) {
-		if (id != BUTTON_TOGGLE_AUTO_SORT) {
-			return super.clickMenuButton(player, id);
+		if (id == BUTTON_TOGGLE_AUTO_SORT) {
+			setAutoSortEnabled(!isAutoSortEnabled());
+			return true;
 		}
-		setAutoSortEnabled(!isAutoSortEnabled());
-		return true;
+		if (id == BUTTON_TOGGLE_CREATIVE_AUTO_CONSUME) {
+			if (!canToggleCreativeAutoConsume()) {
+				return false;
+			}
+			setCreativeAutoConsumeEnabled(!isCreativeAutoConsumeEnabled());
+			return true;
+		}
+		return super.clickMenuButton(player, id);
 	}
 
 	@Override
@@ -161,6 +170,20 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 	 */
 	public boolean isAutoSortEnabled() {
 		return containerData.get(DATA_AUTO_SORT) != 0;
+	}
+
+	/**
+	 * @return 创造模式下当前是否自动消耗容器内节点
+	 */
+	public boolean isCreativeAutoConsumeEnabled() {
+		return containerData.get(DATA_CREATIVE_AUTO_CONSUME) != 0;
+	}
+
+	/**
+	 * @return 当前玩家是否允许切换创造自动消耗开关
+	 */
+	public boolean canToggleCreativeAutoConsume() {
+		return owner != null && owner.getAbilities().instabuild;
 	}
 
 	private void addContainerSlots() {
@@ -235,6 +258,11 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 		persistToHeldItem();
 	}
 
+	private void setCreativeAutoConsumeEnabled(boolean creativeAutoConsumeEnabled) {
+		containerData.set(DATA_CREATIVE_AUTO_CONSUME, creativeAutoConsumeEnabled ? 1 : 0);
+		persistToHeldItem();
+	}
+
 	private void applySortedContents() {
 		sortingContents = true;
 		try {
@@ -261,16 +289,18 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 			owner.level().registryAccess(),
 			container.copyContents(),
 			selectedType(),
-			isAutoSortEnabled()
+			isAutoSortEnabled(),
+			isCreativeAutoConsumeEnabled()
 		);
 		owner.containerMenu.broadcastChanges();
 	}
 
 	private static ContainerData createDataSlots(ItemStack containerStack) {
 		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.read(containerStack);
-		SimpleContainerData data = new SimpleContainerData(2);
+		SimpleContainerData data = new SimpleContainerData(3);
 		data.set(DATA_SELECTED_TYPE, snapshot.selectedType().ordinal());
 		data.set(DATA_AUTO_SORT, snapshot.autoSortEnabled() ? 1 : 0);
+		data.set(DATA_CREATIVE_AUTO_CONSUME, snapshot.creativeAutoConsumeEnabled() ? 1 : 0);
 		return data;
 	}
 

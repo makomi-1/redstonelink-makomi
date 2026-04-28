@@ -27,6 +27,7 @@ public final class SmartNodeContainerData {
 	private static final String KEY_ITEMS = "rl_smart_node_container_items";
 	private static final String KEY_SELECTED_TYPE = "rl_smart_node_container_selected_type";
 	private static final String KEY_AUTO_SORT = "rl_smart_node_container_auto_sort";
+	private static final String KEY_CREATIVE_AUTO_CONSUME = "rl_smart_node_container_creative_auto_consume";
 	private static final String KEY_ITEM_COUNT = "rl_smart_node_container_item_count";
 
 	private SmartNodeContainerData() {
@@ -40,6 +41,7 @@ public final class SmartNodeContainerData {
 		return new Snapshot(
 			readSelectedType(tag),
 			tag.getBoolean(KEY_AUTO_SORT),
+			!tag.contains(KEY_CREATIVE_AUTO_CONSUME, Tag.TAG_BYTE) || tag.getBoolean(KEY_CREATIVE_AUTO_CONSUME),
 			Math.max(0, tag.getInt(KEY_ITEM_COUNT))
 		);
 	}
@@ -68,7 +70,8 @@ public final class SmartNodeContainerData {
 		HolderLookup.Provider provider,
 		NonNullList<ItemStack> contents,
 		SmartNodeContainerPlacementType selectedType,
-		boolean autoSortEnabled
+		boolean autoSortEnabled,
+		boolean creativeAutoConsumeEnabled
 	) {
 		NonNullList<ItemStack> normalizedContents = normalizeContents(contents);
 		SmartNodeContainerPlacementType normalizedType = normalizeSelectedType(selectedType);
@@ -81,10 +84,10 @@ public final class SmartNodeContainerData {
 			} else {
 				tag.put(KEY_ITEMS, itemsTag);
 			}
-			writeControlState(tag, normalizedType, autoSortEnabled, itemCount);
+			writeControlState(tag, normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, itemCount);
 		});
 		syncModelState(stack, itemCount, normalizedType);
-		return new Snapshot(normalizedType, autoSortEnabled, itemCount);
+		return new Snapshot(normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, itemCount);
 	}
 
 	/**
@@ -94,13 +97,18 @@ public final class SmartNodeContainerData {
 		ItemStack stack,
 		SmartNodeContainerPlacementType selectedType,
 		boolean autoSortEnabled,
+		boolean creativeAutoConsumeEnabled,
 		int itemCount
 	) {
 		SmartNodeContainerPlacementType normalizedType = normalizeSelectedType(selectedType);
 		int normalizedCount = Math.max(0, itemCount);
-		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> writeControlState(tag, normalizedType, autoSortEnabled, normalizedCount));
+		CustomData.update(
+			DataComponents.CUSTOM_DATA,
+			stack,
+			tag -> writeControlState(tag, normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, normalizedCount)
+		);
 		syncModelState(stack, normalizedCount, normalizedType);
-		return new Snapshot(normalizedType, autoSortEnabled, normalizedCount);
+		return new Snapshot(normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, normalizedCount);
 	}
 
 	/**
@@ -112,6 +120,21 @@ public final class SmartNodeContainerData {
 			stack,
 			currentSnapshot.selectedType().next(),
 			currentSnapshot.autoSortEnabled(),
+			currentSnapshot.creativeAutoConsumeEnabled(),
+			currentSnapshot.itemCount()
+		);
+	}
+
+	/**
+	 * 按当前持久化状态循环切换“创造自动消耗”。
+	 */
+	public static Snapshot toggleCreativeAutoConsume(ItemStack stack) {
+		Snapshot currentSnapshot = read(stack);
+		return writeControlState(
+			stack,
+			currentSnapshot.selectedType(),
+			currentSnapshot.autoSortEnabled(),
+			!currentSnapshot.creativeAutoConsumeEnabled(),
 			currentSnapshot.itemCount()
 		);
 	}
@@ -212,6 +235,46 @@ public final class SmartNodeContainerData {
 		return count;
 	}
 
+	/**
+	 * 复制一份可独立修改的容器内容快照。
+	 */
+	public static NonNullList<ItemStack> copyContents(NonNullList<ItemStack> contents) {
+		return normalizeContents(contents);
+	}
+
+	/**
+	 * 查找首个空槽位。
+	 */
+	public static int findFirstEmptySlot(NonNullList<ItemStack> contents) {
+		if (contents == null || contents.isEmpty()) {
+			return -1;
+		}
+		for (int index = 0; index < Math.min(SLOT_COUNT, contents.size()); index++) {
+			ItemStack stack = contents.get(index);
+			if (stack == null || stack.isEmpty()) {
+				return index;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * 尝试把一个节点物品写入首个空槽位。
+	 *
+	 * @return 写入成功返回 true；空间不足或物品不合法返回 false
+	 */
+	public static boolean tryInsertNodeItem(NonNullList<ItemStack> contents, ItemStack stack) {
+		if (contents == null || !isAllowedNodeItem(stack)) {
+			return false;
+		}
+		int emptySlot = findFirstEmptySlot(contents);
+		if (emptySlot < 0) {
+			return false;
+		}
+		contents.set(emptySlot, stack.copyWithCount(1));
+		return true;
+	}
+
 	private static NonNullList<ItemStack> normalizeContents(NonNullList<ItemStack> contents) {
 		NonNullList<ItemStack> normalizedContents = NonNullList.withSize(SLOT_COUNT, ItemStack.EMPTY);
 		if (contents == null) {
@@ -232,6 +295,7 @@ public final class SmartNodeContainerData {
 		CompoundTag tag,
 		SmartNodeContainerPlacementType selectedType,
 		boolean autoSortEnabled,
+		boolean creativeAutoConsumeEnabled,
 		int itemCount
 	) {
 		tag.putString(KEY_SELECTED_TYPE, normalizeSelectedType(selectedType).token());
@@ -239,6 +303,11 @@ public final class SmartNodeContainerData {
 			tag.putBoolean(KEY_AUTO_SORT, true);
 		} else {
 			tag.remove(KEY_AUTO_SORT);
+		}
+		if (creativeAutoConsumeEnabled) {
+			tag.putBoolean(KEY_CREATIVE_AUTO_CONSUME, true);
+		} else {
+			tag.putBoolean(KEY_CREATIVE_AUTO_CONSUME, false);
 		}
 		if (itemCount > 0) {
 			tag.putInt(KEY_ITEM_COUNT, itemCount);
@@ -280,6 +349,7 @@ public final class SmartNodeContainerData {
 	public record Snapshot(
 		SmartNodeContainerPlacementType selectedType,
 		boolean autoSortEnabled,
+		boolean creativeAutoConsumeEnabled,
 		int itemCount
 	) {
 		public Snapshot {

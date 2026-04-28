@@ -27,6 +27,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	private static final int RIGHT_PANEL_LABEL_Y = 20;
 	private static final int RIGHT_PANEL_VALUE_Y = 34;
 	private static final int RIGHT_PANEL_BUTTON_Y = 58;
+	private static final int RIGHT_PANEL_SECOND_BUTTON_Y = 84;
 	private static final int RIGHT_PANEL_BUTTON_WIDTH = RIGHT_PANEL_WIDTH - RIGHT_PANEL_INSET * 2;
 	private static final int RIGHT_PANEL_BUTTON_HEIGHT = 20;
 	private static final int RIGHT_PANEL_TOP = 12;
@@ -39,6 +40,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	);
 
 	private Button autoSortButton;
+	private Button creativeAutoConsumeButton;
 
 	public SmartNodeContainerScreen(SmartNodeContainerMenu menu, Inventory playerInventory, Component title) {
 		super(menu, playerInventory, title);
@@ -61,6 +63,17 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 				)
 				.build()
 		);
+		creativeAutoConsumeButton = addRenderableWidget(
+			Button
+				.builder(creativeAutoConsumeButtonLabel(), button -> toggleCreativeAutoConsume())
+				.bounds(
+					leftPos + RIGHT_PANEL_X + RIGHT_PANEL_INSET,
+					topPos + RIGHT_PANEL_SECOND_BUTTON_Y,
+					RIGHT_PANEL_BUTTON_WIDTH,
+					RIGHT_PANEL_BUTTON_HEIGHT
+				)
+				.build()
+		);
 	}
 
 	@Override
@@ -68,6 +81,10 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 		super.containerTick();
 		if (autoSortButton != null) {
 			autoSortButton.setMessage(autoSortButtonLabel());
+		}
+		if (creativeAutoConsumeButton != null) {
+			creativeAutoConsumeButton.setMessage(creativeAutoConsumeButtonLabel());
+			creativeAutoConsumeButton.active = menu.canToggleCreativeAutoConsume();
 		}
 	}
 
@@ -127,6 +144,13 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 			topPos + RIGHT_PANEL_BUTTON_Y - 7,
 			RIGHT_PANEL_DIVIDER
 		);
+		guiGraphics.fill(
+			panelLeft + RIGHT_PANEL_INSET,
+			topPos + RIGHT_PANEL_SECOND_BUTTON_Y - 8,
+			panelRight - RIGHT_PANEL_INSET,
+			topPos + RIGHT_PANEL_SECOND_BUTTON_Y - 7,
+			RIGHT_PANEL_DIVIDER
+		);
 	}
 
 	private void toggleAutoSort() {
@@ -136,11 +160,29 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 		minecraft.gameMode.handleInventoryButtonClick(menu.containerId, SmartNodeContainerMenu.BUTTON_TOGGLE_AUTO_SORT);
 	}
 
+	private void toggleCreativeAutoConsume() {
+		if (minecraft == null || minecraft.gameMode == null || !menu.canToggleCreativeAutoConsume()) {
+			return;
+		}
+		minecraft.gameMode.handleInventoryButtonClick(menu.containerId, SmartNodeContainerMenu.BUTTON_TOGGLE_CREATIVE_AUTO_CONSUME);
+	}
+
 	private Component autoSortButtonLabel() {
 		return Component.translatable(
 			"screen.redstonelink.smart_node_container.auto_sort",
 			Component.translatable(
 				menu.isAutoSortEnabled()
+					? "screen.redstonelink.smart_node_container.toggle.on"
+					: "screen.redstonelink.smart_node_container.toggle.off"
+			)
+		);
+	}
+
+	private Component creativeAutoConsumeButtonLabel() {
+		return Component.translatable(
+			"screen.redstonelink.smart_node_container.creative_auto_consume",
+			Component.translatable(
+				menu.isCreativeAutoConsumeEnabled()
 					? "screen.redstonelink.smart_node_container.toggle.on"
 					: "screen.redstonelink.smart_node_container.toggle.off"
 			)
