@@ -12,6 +12,8 @@ import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
 import com.makomi.client.network.RepeaterNetworkClientHandlerSupport;
 import com.makomi.client.network.StatePanelNetworkClientHandlerSupport;
 import com.makomi.client.render.ChunkActivatorFarOverlayRenderer;
+import com.makomi.client.render.DirectionalFaceVectorWorldOverlayRenderer;
+import com.makomi.client.render.HideNodeGhostRenderer;
 import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
@@ -24,8 +26,10 @@ import com.makomi.data.QuickLinkToolData;
 import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.data.SmartNodeContainerData;
 import com.makomi.data.SmartNodeContainerPlacementType;
+import com.makomi.item.DirectionalFaceEditorItem;
 import com.makomi.item.SyncLinkerItem;
 import com.makomi.item.QuickLinkToolItem;
+import com.makomi.network.DirectionalFaceEditorNetwork;
 import com.makomi.network.PairingNetwork;
 import com.makomi.network.QuickLinkNetwork;
 import com.makomi.network.SmartNodeContainerNetwork;
@@ -97,6 +101,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerPairingPacketReceivers();
 		registerBenchCommandClientHooks();
 		registerQuickLinkClientHooks();
+		registerDirectionalFaceVectorClientHooks();
 		registerStatePanelClientHooks();
 		registerLinkFilterClientHooks();
 		registerChunkActivatorClientHooks();
@@ -111,6 +116,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	private static void registerRenderLayers() {
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_CORE, ChunkSectionLayer.TRANSLUCENT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.HIDE_CORE, ChunkSectionLayer.TRANSLUCENT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT, ChunkSectionLayer.TRANSLUCENT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_TOGGLE_BUTTON, ChunkSectionLayer.CUTOUT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_PUSH_BUTTON, ChunkSectionLayer.CUTOUT);
@@ -118,6 +124,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_TOGGLE_EMITTER, ChunkSectionLayer.TRANSLUCENT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_PULSE_EMITTER, ChunkSectionLayer.TRANSLUCENT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_SYNC_EMITTER, ChunkSectionLayer.TRANSLUCENT);
+		BlockRenderLayerMap.putBlock(ModBlocks.HIDE_SYNC_TRIGGER_SOURCE, ChunkSectionLayer.TRANSLUCENT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_SEND_FILTER, ChunkSectionLayer.TRANSLUCENT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_RECEIVE_FILTER, ChunkSectionLayer.TRANSLUCENT);
 		BlockRenderLayerMap.putBlock(ModBlocks.LINK_CHUNK_ACTIVATOR, ChunkSectionLayer.TRANSLUCENT);
@@ -132,6 +139,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		// 使用原版注册入口，避免依赖已废弃的 Fabric 渲染器注册 API。
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_CORE_TRANSPARENT, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_CORE, HideNodeGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REDSTONE_DUST_CORE_TRANSPARENT, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_BUTTON, LinkNodeFarOverlayRenderer::new);
@@ -140,6 +148,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_SYNC_TRIGGER_SOURCE, HideNodeGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SEND_FILTER, LinkFilterAreaRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_RECEIVE_FILTER, LinkFilterAreaRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_CHUNK_ACTIVATOR, ChunkActivatorFarOverlayRenderer::new);
@@ -204,7 +213,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 
 			boolean quickLinkClearKeyDown = client.options.keyPickItem.isDown();
 			if (quickLinkClearKeyDown && !quickLinkClearKeyWasDown) {
-				handleQuickLinkApplyEditModeToggle(client);
+				handlePickItemShortcut(client);
 			}
 			quickLinkClearKeyWasDown = quickLinkClearKeyDown;
 		});
@@ -332,6 +341,30 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			),
 			true
 		);
+	}
+
+	/**
+	 * 处理中键快捷键：始终按主手物品类型决定切换对象。
+	 */
+	private static void handlePickItemShortcut(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		if (client.screen != null) {
+			return;
+		}
+		if (isHoldingSmartNodeContainer(client.player)) {
+			handleSmartNodeContainerTypeCycle(client);
+			return;
+		}
+		if (client.player.getMainHandItem().getItem() instanceof QuickLinkToolItem) {
+			handleQuickLinkApplyEditModeToggle(client);
+			return;
+		}
+		if (!(client.player.getMainHandItem().getItem() instanceof DirectionalFaceEditorItem)) {
+			return;
+		}
+		handleDirectionalFaceEditorModeCycle(client);
 	}
 
 	/**
@@ -560,6 +593,13 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	}
 
 	/**
+	 * 注册定向面箭头的世界后置渲染钩子。
+	 */
+	private static void registerDirectionalFaceVectorClientHooks() {
+		DirectionalFaceVectorWorldOverlayRenderer.register();
+	}
+
+	/**
 	 * 注册状态面板工具客户端接包。
 	 */
 	private static void registerStatePanelClientHooks() {
@@ -621,5 +661,15 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			),
 			true
 		);
+	}
+
+	/**
+	 * 处理中键切换主手定向面编辑器模式。
+	 */
+	private static void handleDirectionalFaceEditorModeCycle(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		ClientPlayNetworking.send(new DirectionalFaceEditorNetwork.CycleDirectionalFaceEditorModePayload());
 	}
 }

@@ -17,6 +17,7 @@ import com.makomi.data.LinkFilterSignalThresholdSource;
 import com.makomi.data.LinkFilterTargetMode;
 import com.makomi.data.LinkNodeSemantics;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.RepeaterConfigSnapshot;
 import com.makomi.data.RepeaterDelay;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.function.ToIntFunction;
 import net.minecraft.client.gui.Font;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
@@ -45,6 +47,7 @@ final class LinkSerialHudOverlayTextSupport {
 	private static final String KEY_NEAR_OVERLAY_SERIAL_LINE = "hud.redstonelink.near_overlay.serial_line";
 	private static final String KEY_NEAR_OVERLAY_STATUS_LINE = "hud.redstonelink.near_overlay.status_line";
 	private static final String KEY_NEAR_OVERLAY_FINAL_IO_LINE = "hud.redstonelink.near_overlay.final_io_line";
+	private static final String KEY_NEAR_OVERLAY_FACES_LINE = "hud.redstonelink.near_overlay.faces_line";
 	private static final String KEY_NEAR_OVERLAY_LINKS_LINE = "hud.redstonelink.near_overlay.links_line";
 	private static final String KEY_NEAR_OVERLAY_CHANNEL_LINE = "hud.redstonelink.near_overlay.channel_line";
 	private static final String KEY_NEAR_OVERLAY_CROSSCHUNK_LINE = "hud.redstonelink.near_overlay.crosschunk_line";
@@ -57,6 +60,12 @@ final class LinkSerialHudOverlayTextSupport {
 	private static final String KEY_NEAR_OVERLAY_TYPE_CORE = "hud.redstonelink.near_overlay.type_core";
 	private static final String KEY_NEAR_OVERLAY_TYPE_TRIGGER_SOURCE = "hud.redstonelink.near_overlay.type_trigger_source";
 	private static final String KEY_NEAR_OVERLAY_TYPE_NODE = "hud.redstonelink.near_overlay.type_node";
+	private static final String KEY_FACE_UP = "hud.redstonelink.face.up";
+	private static final String KEY_FACE_DOWN = "hud.redstonelink.face.down";
+	private static final String KEY_FACE_NORTH = "hud.redstonelink.face.north";
+	private static final String KEY_FACE_SOUTH = "hud.redstonelink.face.south";
+	private static final String KEY_FACE_WEST = "hud.redstonelink.face.west";
+	private static final String KEY_FACE_EAST = "hud.redstonelink.face.east";
 	private static final String KEY_NEAR_OVERLAY_FILTER_TITLE_LINE = "hud.redstonelink.near_overlay.filter_title_line";
 	private static final String KEY_NEAR_OVERLAY_FILTER_SERVICE_LINE = "hud.redstonelink.near_overlay.filter_service_line";
 	private static final String KEY_NEAR_OVERLAY_FILTER_NODE_SET_LINE = "hud.redstonelink.near_overlay.filter_node_set_line";
@@ -90,11 +99,18 @@ final class LinkSerialHudOverlayTextSupport {
 			"|",
 			translate(KEY_NEAR_OVERLAY_STATUS_LINE, ""),
 			translate(KEY_NEAR_OVERLAY_FINAL_IO_LINE, "", ""),
+			translate(KEY_NEAR_OVERLAY_FACES_LINE, ""),
 			translate(KEY_NEAR_OVERLAY_CHANNEL_LINE, ""),
 			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_LINE, ""),
 			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_NORMAL),
 			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_FORCE_LOAD),
-			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_RESIDENT)
+			translate(KEY_NEAR_OVERLAY_CROSSCHUNK_RESIDENT),
+			translate(KEY_FACE_UP),
+			translate(KEY_FACE_DOWN),
+			translate(KEY_FACE_NORTH),
+			translate(KEY_FACE_SOUTH),
+			translate(KEY_FACE_WEST),
+			translate(KEY_FACE_EAST)
 		);
 	}
 
@@ -128,6 +144,7 @@ final class LinkSerialHudOverlayTextSupport {
 		String languageSignature
 	) {
 		ActivationStatusToken activationStatusToken = resolveActivationStatusToken(pairableNodeBlockEntity);
+		String faceSignature = NodeFaceSetBlockStateSupport.buildEnabledFaceTokenText(pairableNodeBlockEntity.getBlockState());
 		Block block = pairableNodeBlockEntity.getBlockState().getBlock();
 		int fontIdentity = System.identityHashCode(font);
 		CachedNearOverlayLines cached = cachedNearOverlayLines;
@@ -137,6 +154,7 @@ final class LinkSerialHudOverlayTextSupport {
 			languageSignature,
 			serialText,
 			activationStatusToken,
+			faceSignature,
 			block,
 			currentLinksSnapshot,
 			runtimeHudSnapshot,
@@ -145,7 +163,7 @@ final class LinkSerialHudOverlayTextSupport {
 			return cached.lines();
 		}
 
-		List<String> lines = new ArrayList<>(6);
+		List<String> lines = new ArrayList<>(7);
 		lines.add(translate(KEY_NEAR_OVERLAY_SERIAL_LINE, resolveItemPrefix(pairableNodeBlockEntity), serialText));
 		lines.add(translate(KEY_NEAR_OVERLAY_STATUS_LINE, resolveActivationStatusText(activationStatusToken)));
 		lines.add(translate(
@@ -153,6 +171,7 @@ final class LinkSerialHudOverlayTextSupport {
 			resolveRuntimeHudPowerText(runtimeHudSnapshot, true),
 			resolveRuntimeHudPowerText(runtimeHudSnapshot, false)
 		));
+		appendFaceSetLineIfNeeded(lines, pairableNodeBlockEntity.getBlockState());
 		lines.add(
 			translate(
 				KEY_NEAR_OVERLAY_LINKS_LINE,
@@ -179,6 +198,7 @@ final class LinkSerialHudOverlayTextSupport {
 			languageSignature,
 			serialText,
 			activationStatusToken,
+			faceSignature,
 			block,
 			currentLinksSnapshot,
 			runtimeHudSnapshot,
@@ -312,6 +332,51 @@ final class LinkSerialHudOverlayTextSupport {
 			return translate(KEY_NEAR_OVERLAY_LINKS_EMPTY);
 		}
 		return Integer.toString(inputSide ? runtimeHudSnapshot.inputPower() : runtimeHudSnapshot.outputPower());
+	}
+
+	/**
+	 * 仅在命中节点具备面集属性时追加“当前启用面”一行。
+	 */
+	private static void appendFaceSetLineIfNeeded(List<String> lines, BlockState state) {
+		if (lines == null || state == null || !NodeFaceSetBlockStateSupport.hasFaceProperties(state)) {
+			return;
+		}
+		lines.add(translate(KEY_NEAR_OVERLAY_FACES_LINE, resolveFaceSetText(state)));
+	}
+
+	/**
+	 * 将启用面列表格式化为 HUD 文本。
+	 */
+	private static String resolveFaceSetText(BlockState state) {
+		if (state == null || !NodeFaceSetBlockStateSupport.hasFaceProperties(state)) {
+			return "-";
+		}
+		List<Direction> enabledFaces = NodeFaceSetBlockStateSupport.resolveEnabledFaces(state);
+		if (enabledFaces.isEmpty()) {
+			return "-";
+		}
+		List<String> faceTexts = new ArrayList<>(enabledFaces.size());
+		for (Direction enabledFace : enabledFaces) {
+			faceTexts.add(resolveFaceDisplayName(enabledFace));
+		}
+		return String.join(" / ", faceTexts);
+	}
+
+	/**
+	 * 解析单个方向面的本地化显示文本。
+	 */
+	private static String resolveFaceDisplayName(Direction face) {
+		if (face == null) {
+			return "-";
+		}
+		return switch (face) {
+			case UP -> translate(KEY_FACE_UP);
+			case DOWN -> translate(KEY_FACE_DOWN);
+			case NORTH -> translate(KEY_FACE_NORTH);
+			case SOUTH -> translate(KEY_FACE_SOUTH);
+			case WEST -> translate(KEY_FACE_WEST);
+			case EAST -> translate(KEY_FACE_EAST);
+		};
 	}
 
 	/**
@@ -672,6 +737,7 @@ final class LinkSerialHudOverlayTextSupport {
 	 * @param languageSignature 语言签名
 	 * @param serialText 序号文本
 	 * @param activationStatusToken 激活状态令牌
+	 * @param faceSignature 面集签名
 	 * @param block 命中方块
 	 * @param currentLinksSnapshotRef 当前连接与跨区块身份快照引用
 	 * @param runtimeHudSnapshotRef 最终 IO 快照引用
@@ -684,6 +750,7 @@ final class LinkSerialHudOverlayTextSupport {
 		String languageSignature,
 		String serialText,
 		ActivationStatusToken activationStatusToken,
+		String faceSignature,
 		Block block,
 		LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot currentLinksSnapshotRef,
 		LinkSerialHudOverlaySnapshotSupport.CachedRuntimeHudSnapshot runtimeHudSnapshotRef,
@@ -697,6 +764,7 @@ final class LinkSerialHudOverlayTextSupport {
 				"",
 				"",
 				ActivationStatusToken.OFF,
+				"",
 				null,
 				LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot.empty(),
 				LinkSerialHudOverlaySnapshotSupport.CachedRuntimeHudSnapshot.empty(),
@@ -711,6 +779,7 @@ final class LinkSerialHudOverlayTextSupport {
 			String currentLanguageSignature,
 			String currentSerialText,
 			ActivationStatusToken currentActivationStatusToken,
+			String currentFaceSignature,
 			Block currentBlock,
 			LinkSerialHudOverlaySnapshotSupport.CachedCurrentLinksSnapshot currentCurrentLinksSnapshotRef,
 			LinkSerialHudOverlaySnapshotSupport.CachedRuntimeHudSnapshot currentRuntimeHudSnapshotRef,
@@ -724,6 +793,7 @@ final class LinkSerialHudOverlayTextSupport {
 				&& runtimeHudSnapshotRef == currentRuntimeHudSnapshotRef
 				&& dimensionKey.equals(currentDimensionKey)
 				&& languageSignature.equals(currentLanguageSignature)
+				&& faceSignature.equals(currentFaceSignature)
 				&& serialText.equals(currentSerialText);
 		}
 	}
