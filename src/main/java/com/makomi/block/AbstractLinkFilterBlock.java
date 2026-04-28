@@ -3,6 +3,7 @@ package com.makomi.block;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkFilterItemData;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.network.LinkFilterNetwork;
 import com.mojang.serialization.MapCodec;
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 
 	protected AbstractLinkFilterBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(stateDefinition.any().setValue(POWERED, false));
+		registerDefaultState(NodeFaceSetBlockStateSupport.setAllFaces(stateDefinition.any().setValue(POWERED, false), true));
 	}
 
 	@Override
@@ -58,8 +59,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
 		super.onPlace(state, level, pos, oldState, movedByPiston);
 		if (!oldState.is(state.getBlock())) {
-			refreshPoweredState(level, pos, state);
-			refreshPlacedFilterState(level, pos);
+			refreshStateFromCurrentInputs(level, pos, state);
 		}
 	}
 
@@ -106,8 +106,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 		boolean movedByPiston
 	) {
 		super.neighborChanged(state, level, pos, block, orientation, movedByPiston);
-		refreshPoweredState(level, pos, state);
-		refreshPlacedFilterState(level, pos);
+		refreshStateFromCurrentInputs(level, pos, state);
 	}
 
 	@Override
@@ -128,6 +127,15 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		builder.add(POWERED);
+		NodeFaceSetBlockStateSupport.appendProperties(builder);
+	}
+
+	/**
+	 * 立即按当前面集输入重采样过滤器的外显与真值。
+	 */
+	public final void refreshStateFromCurrentInputs(Level level, BlockPos pos, BlockState state) {
+		refreshPoweredState(level, pos, state);
+		refreshPlacedFilterState(level, pos);
 	}
 
 	/**
@@ -149,7 +157,7 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 		if (level.isClientSide()) {
 			return;
 		}
-		boolean powered = level.getBestNeighborSignal(pos) > 0;
+		boolean powered = NodeFaceSetBlockStateSupport.sampleNeighborSignalStrength(level, pos, state) > 0;
 		if (state.getValue(POWERED) == powered) {
 			return;
 		}

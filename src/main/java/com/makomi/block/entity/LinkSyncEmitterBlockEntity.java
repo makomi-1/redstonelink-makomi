@@ -2,6 +2,7 @@ package com.makomi.block.entity;
 
 import com.makomi.util.SignalStrengths;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -15,7 +16,18 @@ public class LinkSyncEmitterBlockEntity extends SyncReplaySourceBlockEntity {
 	private int lastObservedSignalStrength;
 
 	public LinkSyncEmitterBlockEntity(BlockPos blockPos, BlockState blockState) {
-		super(com.makomi.registry.ModBlockEntities.LINK_SYNC_EMITTER, blockPos, blockState);
+		this(com.makomi.registry.ModBlockEntities.LINK_SYNC_EMITTER, blockPos, blockState);
+	}
+
+	/**
+	 * 允许派生类切换为自定义实体类型，同时复用同步 `triggerSource` 运行态逻辑。
+	 */
+	protected LinkSyncEmitterBlockEntity(
+		BlockEntityType<? extends LinkTriggerSourceBlockEntity> blockEntityType,
+		BlockPos blockPos,
+		BlockState blockState
+	) {
+		super(blockEntityType, blockPos, blockState);
 	}
 
 	/**

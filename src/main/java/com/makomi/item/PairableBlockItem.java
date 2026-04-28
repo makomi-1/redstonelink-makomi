@@ -150,6 +150,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 			);
 		}
 		appendTriggerSourceSignalSemanticTooltipIfNeeded(stack, tooltipComponents);
+		appendHideNodeVisibilityTooltipIfNeeded(stack, tooltipComponents);
 		tooltipComponents.forEach(tooltipAdder);
 		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
@@ -200,11 +201,31 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	}
 
 	/**
+	 * 为隐藏节点物品补充“需佩戴智能眼镜才可见并可交互”的说明。
+	 */
+	private static void appendHideNodeVisibilityTooltipIfNeeded(ItemStack stack, List<Component> tooltipComponents) {
+		if (!isHideNodeItem(stack)) {
+			return;
+		}
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.hide_node.smart_glasses_required").withStyle(ChatFormatting.GRAY));
+	}
+
+	/**
 	 * 判断当前 triggerSource 是否属于 sync 状态信号类型。
 	 */
 	private static boolean isSyncTriggerSourceItem(ItemStack stack) {
 		Item item = stack.getItem();
-		return item == ModItems.LINK_SYNC_LEVER || item == ModItems.LINK_SYNC_EMITTER;
+		return item == ModItems.LINK_SYNC_LEVER
+			|| item == ModItems.LINK_SYNC_EMITTER
+			|| item == ModItems.HIDE_SYNC_TRIGGER_SOURCE;
+	}
+
+	/**
+	 * 判断当前物品是否属于隐藏节点。
+	 */
+	private static boolean isHideNodeItem(ItemStack stack) {
+		Item item = stack.getItem();
+		return item == ModItems.HIDE_CORE || item == ModItems.HIDE_SYNC_TRIGGER_SOURCE;
 	}
 
 }

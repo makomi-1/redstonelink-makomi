@@ -6,6 +6,7 @@ import com.makomi.data.LinkNodeType;
 import com.makomi.data.RepeaterItemData;
 import com.makomi.data.SmartNodeContainerData;
 import com.makomi.data.SmartNodeContainerPlacementType;
+import com.makomi.data.SmartNodeContainerRecoverySupport;
 import com.makomi.menu.SmartNodeContainerMenu;
 import com.makomi.registry.ModItems;
 import java.util.List;
@@ -28,6 +29,8 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 
 /**
@@ -57,15 +60,21 @@ public class SmartNodeContainerItem extends Item {
 		if (player == null || context.getHand() != InteractionHand.MAIN_HAND) {
 			return InteractionResult.PASS;
 		}
+		Level level = context.getLevel();
 		ItemStack containerStack = context.getItemInHand();
+		BlockState clickedState = level.getBlockState(context.getClickedPos());
+		BlockEntity clickedBlockEntity = level.getBlockEntity(context.getClickedPos());
+		if (player.isShiftKeyDown() && SmartNodeContainerRecoverySupport.isRecoverableNode(clickedState, clickedBlockEntity)) {
+			return tryRecoverNode(context, player, containerStack, clickedState, clickedBlockEntity);
+		}
 		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.read(containerStack);
 		if (!snapshot.hasItems()) {
 			return InteractionResult.PASS;
 		}
-		if (context.getLevel().isClientSide()) {
+		if (level.isClientSide()) {
 			return InteractionResult.SUCCESS;
 		}
-		if (!(context.getLevel() instanceof ServerLevel serverLevel)) {
+		if (!(level instanceof ServerLevel serverLevel)) {
 			return InteractionResult.PASS;
 		}
 
@@ -75,13 +84,15 @@ public class SmartNodeContainerItem extends Item {
 			return InteractionResult.PASS;
 		}
 
-		ItemStack nestedStack = contents.get(selectedSlotIndex).copy();
-		if (!(nestedStack.getItem() instanceof BlockItem blockItem)) {
+		ItemStack storedStack = contents.get(selectedSlotIndex);
+		if (!(storedStack.getItem() instanceof BlockItem blockItem)) {
 			return InteractionResult.PASS;
 		}
-		ensureNestedNodeSerial(serverLevel, nestedStack);
+		ensureNestedNodeSerial(serverLevel, storedStack);
+		boolean shouldConsumeOnPlacement = shouldConsumeOnPlacement(player, snapshot);
+		ItemStack nestedStack = storedStack.copy();
 		UseOnContext nestedContext = new UseOnContext(
-			context.getLevel(),
+			level,
 			player,
 			context.getHand(),
 			nestedStack,
@@ -92,7 +103,9 @@ public class SmartNodeContainerItem extends Item {
 			return result;
 		}
 
-		contents.set(selectedSlotIndex, nestedStack.isEmpty() ? ItemStack.EMPTY : nestedStack);
+		if (shouldConsumeOnPlacement) {
+			contents.set(selectedSlotIndex, resolveConsumedSlotReplacement(nestedStack, player.getAbilities().instabuild));
+		}
 		if (snapshot.autoSortEnabled()) {
 			contents = SmartNodeContainerData.sortContents(contents);
 		}
@@ -101,7 +114,8 @@ public class SmartNodeContainerItem extends Item {
 			serverLevel.registryAccess(),
 			contents,
 			snapshot.selectedType(),
-			snapshot.autoSortEnabled()
+			snapshot.autoSortEnabled(),
+			snapshot.creativeAutoConsumeEnabled()
 		);
 		player.containerMenu.broadcastChanges();
 		return result;
@@ -152,9 +166,20 @@ public class SmartNodeContainerItem extends Item {
 				)
 			)
 		);
+		tooltipComponents.add(
+			Component.translatable(
+				"tooltip.redstonelink.smart_node_container.creative_auto_consume",
+				Component.translatable(
+					snapshot.creativeAutoConsumeEnabled()
+						? "screen.redstonelink.smart_node_container.toggle.on"
+						: "screen.redstonelink.smart_node_container.toggle.off"
+				)
+			)
+		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.open"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.cycle_type"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.place"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.recover"));
 		tooltipComponents.add(
 			Component.translatable("tooltip.redstonelink.smart_node_container.connection_sync_notice").withStyle(ChatFormatting.GRAY)
 		);
@@ -175,8 +200,7 @@ public class SmartNodeContainerItem extends Item {
 		}
 		player.openMenu(
 			new SimpleMenuProvider(
-				(containerId, inventory, ignoredPlayer) ->
-					new SmartNodeContainerMenu(containerId, inventory, inventory.getSelectedSlot()),
+				(containerId, inventory, ignoredPlayer) -> new SmartNodeContainerMenu(containerId, inventory, inventory.getSelectedSlot()),
 				Component.translatable("screen.redstonelink.smart_node_container.title")
 			)
 		);
@@ -194,5 +218,83 @@ public class SmartNodeContainerItem extends Item {
 			LinkNodeType nodeType = pairableItem.getNodeType();
 			LinkItemData.ensureSerial(nestedStack, level, nodeType);
 		}
+	}
+
+	/**
+	 * 潜行时优先尝试把命中的节点方块受控回收到当前容器。
+	 */
+	private static InteractionResult tryRecoverNode(
+		UseOnContext context,
+		Player player,
+		ItemStack containerStack,
+		BlockState clickedState,
+		BlockEntity clickedBlockEntity
+	) {
+		if (context.getLevel().isClientSide()) {
+			return InteractionResult.SUCCESS;
+		}
+		if (!(context.getLevel() instanceof ServerLevel serverLevel)) {
+			return InteractionResult.FAIL;
+		}
+		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.read(containerStack);
+		NonNullList<ItemStack> contents = SmartNodeContainerData.readContents(containerStack, serverLevel.registryAccess());
+		SmartNodeContainerRecoverySupport.RecoveryResult recoveryResult = SmartNodeContainerRecoverySupport.recoverNodeIntoContainer(
+			serverLevel,
+			player,
+			containerStack,
+			contents,
+			context.getClickedPos(),
+			clickedState,
+			clickedBlockEntity
+		);
+		if (!recoveryResult.recovered()) {
+			return InteractionResult.FAIL;
+		}
+		NonNullList<ItemStack> updatedContents = snapshot.autoSortEnabled()
+			? SmartNodeContainerData.sortContents(recoveryResult.updatedContents())
+			: recoveryResult.updatedContents();
+		SmartNodeContainerData.write(
+			containerStack,
+			serverLevel.registryAccess(),
+			updatedContents,
+			snapshot.selectedType(),
+			snapshot.autoSortEnabled(),
+			snapshot.creativeAutoConsumeEnabled()
+		);
+		player.containerMenu.broadcastChanges();
+		if (player instanceof ServerPlayer serverPlayer) {
+			serverPlayer.displayClientMessage(
+				Component.translatable(
+					"message.redstonelink.smart_node_container.recovered",
+					Integer.toString(recoveryResult.insertedCount()),
+					Integer.toString(recoveryResult.droppedCount())
+				),
+				true
+			);
+		}
+		return InteractionResult.SUCCESS;
+	}
+
+	/**
+	 * 解析本次放置是否应消耗容器内节点。
+	 */
+	private static boolean shouldConsumeOnPlacement(Player player, SmartNodeContainerData.Snapshot snapshot) {
+		if (player == null || snapshot == null) {
+			return true;
+		}
+		if (!player.getAbilities().instabuild) {
+			return true;
+		}
+		return snapshot.creativeAutoConsumeEnabled();
+	}
+
+	/**
+	 * 解析“本次放置已确认成功且需要消费”后，容器槽位应保留的物品状态。
+	 */
+	static ItemStack resolveConsumedSlotReplacement(ItemStack nestedStack, boolean creativeInstabuild) {
+		if (creativeInstabuild) {
+			return ItemStack.EMPTY;
+		}
+		return nestedStack == null || nestedStack.isEmpty() ? ItemStack.EMPTY : nestedStack;
 	}
 }

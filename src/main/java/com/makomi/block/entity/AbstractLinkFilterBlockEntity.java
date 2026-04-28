@@ -8,6 +8,7 @@ import com.makomi.data.LinkFilterNodeSetMode;
 import com.makomi.data.LinkFilterSignalMode;
 import com.makomi.data.LinkFilterSignalThresholdSource;
 import com.makomi.data.LinkFilterTargetMode;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.NodeAliasServerSupport;
 import com.makomi.util.SerialParseUtil;
@@ -211,7 +212,7 @@ public abstract class AbstractLinkFilterBlockEntity extends BlockEntity {
 	 * 采样过滤器自身邻居最大输入。
 	 */
 	public final int sampleNeighborSignalStrength() {
-		return level == null ? 0 : Math.max(0, level.getBestNeighborSignal(worldPosition));
+		return level == null ? 0 : NodeFaceSetBlockStateSupport.sampleNeighborSignalStrength(level, worldPosition, getBlockState());
 	}
 
 	@Override

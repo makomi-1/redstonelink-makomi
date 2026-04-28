@@ -1,6 +1,8 @@
 package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
+import com.makomi.block.entity.HideCoreBlockEntity;
+import com.makomi.block.entity.HideSyncTriggerSourceBlockEntity;
 import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
@@ -35,6 +37,11 @@ public final class ModBlockEntities {
 		FabricBlockEntityTypeBuilder.create(LinkTransparentCoreBlockEntity::new, ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT).build()
 	);
 
+	public static final BlockEntityType<HideCoreBlockEntity> HIDE_CORE = register(
+		"hide_core",
+		FabricBlockEntityTypeBuilder.create(HideCoreBlockEntity::new, ModBlocks.HIDE_CORE).build()
+	);
+
 	public static final BlockEntityType<LinkToggleButtonBlockEntity> LINK_TOGGLE_BUTTON = register(
 		"link_toggle_button",
 		FabricBlockEntityTypeBuilder.create(LinkToggleButtonBlockEntity::new, ModBlocks.LINK_TOGGLE_BUTTON).build()
@@ -63,6 +70,11 @@ public final class ModBlockEntities {
 	public static final BlockEntityType<LinkSyncEmitterBlockEntity> LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
 		FabricBlockEntityTypeBuilder.create(LinkSyncEmitterBlockEntity::new, ModBlocks.LINK_SYNC_EMITTER).build()
+	);
+
+	public static final BlockEntityType<HideSyncTriggerSourceBlockEntity> HIDE_SYNC_TRIGGER_SOURCE = register(
+		"hide_sync_trigger_source",
+		FabricBlockEntityTypeBuilder.create(HideSyncTriggerSourceBlockEntity::new, ModBlocks.HIDE_SYNC_TRIGGER_SOURCE).build()
 	);
 
 	public static final BlockEntityType<LinkSendFilterBlockEntity> LINK_SEND_FILTER = register(

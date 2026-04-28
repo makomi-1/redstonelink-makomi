@@ -169,6 +169,20 @@ public final class LinkNodeRetireEvents {
 	}
 
 	/**
+	 * 显式取消指定节点的待退役任务。
+	 * <p>
+	 * 供“受控回收/受控保留”路径在确认节点物品已被安全接管后调用，
+	 * 避免宽限期结束后把仍有载体的节点误退役。
+	 * </p>
+	 */
+	public static void cancelPendingRetire(ServerLevel level, LinkNodeType nodeType, long serial) {
+		if (level == null || nodeType == null || serial <= 0L) {
+			return;
+		}
+		cancelPending(level.getServer(), new PendingKey(nodeType, serial));
+	}
+
+	/**
 	 * 标记“该物品实体即将因伤害导致 DISCARDED”，用于与“被拾取触发 DISCARDED”区分。
 	 *
 	 * @param itemEntity 物品实体

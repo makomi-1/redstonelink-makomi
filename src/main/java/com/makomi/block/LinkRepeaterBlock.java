@@ -3,6 +3,7 @@ package com.makomi.block;
 import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.data.RepeaterItemData;
 import com.makomi.network.RepeaterNetwork;
 import com.makomi.util.NeighborFanoutUtil;
@@ -44,7 +45,7 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 
 	public LinkRepeaterBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(stateDefinition.any().setValue(ACTIVE, false));
+		registerDefaultState(NodeFaceSetBlockStateSupport.setAllFaces(stateDefinition.any().setValue(ACTIVE, false), true));
 	}
 
 	@Override
@@ -103,6 +104,8 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 	@Override
 	protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
 		super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
+		// 转发器的双身份注销已由方块实体 `preRemoveSideEffects(...)` 统一处理；
+		// 这里仅补齐周边红石网络的立即收敛。
 		NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 	}
 
@@ -113,12 +116,12 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 
 	@Override
 	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return resolveOutputPower(level, pos);
+		return NodeFaceSetBlockStateSupport.isFaceEnabled(state, direction) ? resolveOutputPower(level, pos) : 0;
 	}
 
 	@Override
 	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return resolveOutputPower(level, pos);
+		return NodeFaceSetBlockStateSupport.isFaceEnabled(state, direction) ? resolveOutputPower(level, pos) : 0;
 	}
 
 	@Override
@@ -139,6 +142,7 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		builder.add(ACTIVE);
+		NodeFaceSetBlockStateSupport.appendProperties(builder);
 	}
 
 	@Override

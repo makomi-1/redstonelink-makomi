@@ -7,6 +7,7 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.network.PairingNetwork;
 import com.makomi.util.NeighborFanoutUtil;
 import java.util.ArrayList;
@@ -47,7 +48,7 @@ public class LinkCoreBlock extends BaseEntityBlock {
 
 	public LinkCoreBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(stateDefinition.any().setValue(ACTIVE, false));
+		registerDefaultState(NodeFaceSetBlockStateSupport.setAllFaces(stateDefinition.any().setValue(ACTIVE, false), true));
 	}
 
 	@Override
@@ -110,8 +111,8 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	@Override
 	protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
 		super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
-		// 核心块被破坏时主动补齐二级扇出：中心 + 六方向。
-		// 目的：让与核心块相邻及次邻接的红石网络在同 tick 内完成收敛。
+		// 1.21.11 由方块实体 `preRemoveSideEffects(...)` 承接注销逻辑；
+		// 这里仅保留红石二级扇出，确保核心块拆除后周边网络立即收敛。
 		NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 	}
 
@@ -122,12 +123,12 @@ public class LinkCoreBlock extends BaseEntityBlock {
 
 	@Override
 	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return resolveOutputPower(state, level, pos);
+		return NodeFaceSetBlockStateSupport.isFaceEnabled(state, direction) ? resolveOutputPower(state, level, pos) : 0;
 	}
 
 	@Override
 	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return resolveOutputPower(state, level, pos);
+		return NodeFaceSetBlockStateSupport.isFaceEnabled(state, direction) ? resolveOutputPower(state, level, pos) : 0;
 	}
 
 	@Override
@@ -148,6 +149,7 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		builder.add(ACTIVE);
+		NodeFaceSetBlockStateSupport.appendProperties(builder);
 	}
 
 	@Override

@@ -5,6 +5,7 @@ import com.makomi.block.entity.ActivationMode;
 import com.makomi.data.LinkFilterKind;
 import com.makomi.item.GraphVisualEditorItem;
 import com.makomi.item.ChunkActivatorBlockItem;
+import com.makomi.item.DirectionalFaceEditorItem;
 import com.makomi.item.LinkerItem;
 import com.makomi.item.LinkFilterBlockItem;
 import com.makomi.item.PairableBlockItem;
@@ -86,6 +87,11 @@ public final class ModItems {
 		)
 	);
 
+	public static final Item HIDE_CORE = register(
+		"hide_core",
+		new PairableBlockItem(ModBlocks.HIDE_CORE, itemProperties("hide_core").stacksTo(1), LinkNodeType.CORE)
+	);
+
 	public static final Item LINK_REDSTONE_DUST_CORE = register(
 		"link_redstone_dust_core",
 		new PairableBlockItem(ModBlocks.LINK_REDSTONE_DUST_CORE, itemProperties("link_redstone_dust_core").stacksTo(1), LinkNodeType.CORE)
@@ -128,6 +134,15 @@ public final class ModItems {
 	public static final Item LINK_SYNC_EMITTER = register(
 		"link_sync_emitter",
 		new PairableBlockItem(ModBlocks.LINK_SYNC_EMITTER, itemProperties("link_sync_emitter").stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item HIDE_SYNC_TRIGGER_SOURCE = register(
+		"hide_sync_trigger_source",
+		new PairableBlockItem(
+			ModBlocks.HIDE_SYNC_TRIGGER_SOURCE,
+			itemProperties("hide_sync_trigger_source").stacksTo(1),
+			LinkNodeType.TRIGGER_SOURCE
+		)
 	);
 
 	public static final Item LINK_SEND_FILTER = register(
@@ -183,6 +198,11 @@ public final class ModItems {
 	public static final Item GRAPH_VISUAL_EDITOR = register(
 		"graph_visual_editor",
 		new GraphVisualEditorItem(itemProperties("graph_visual_editor").stacksTo(1))
+	);
+
+	public static final Item DIRECTIONAL_FACE_EDITOR = register(
+		"directional_face_editor",
+		new DirectionalFaceEditorItem(itemProperties("directional_face_editor").stacksTo(1))
 	);
 
 	public static final Item REDSTONELINK_STATUS_PANEL = register(

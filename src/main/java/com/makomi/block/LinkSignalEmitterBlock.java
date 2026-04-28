@@ -6,6 +6,7 @@ import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeType;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.network.PairingNetwork;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +45,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 
 	protected LinkSignalEmitterBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(stateDefinition.any().setValue(POWERED, false));
+		registerDefaultState(NodeFaceSetBlockStateSupport.setAllFaces(stateDefinition.any().setValue(POWERED, false), true));
 	}
 
 	@Override
@@ -153,6 +154,7 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		builder.add(POWERED);
+		NodeFaceSetBlockStateSupport.appendProperties(builder);
 	}
 
 	private static void openPairingScreen(Level level, BlockPos pos, Player player) {
@@ -241,7 +243,8 @@ public abstract class LinkSignalEmitterBlock extends Block implements EntityBloc
 	 * 解析当前输入强度。
 	 */
 	protected int resolveInputSignalStrength(Level level, BlockPos pos) {
-		int realInputPower = Math.max(0, level.getBestNeighborSignal(pos));
+		BlockState state = level.getBlockState(pos);
+		int realInputPower = NodeFaceSetBlockStateSupport.sampleNeighborSignalStrength(level, pos, state);
 		int simulatedInputPower = 0;
 		if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
 			simulatedInputPower = triggerSourceBlockEntity.getSimulatedInputPower();
