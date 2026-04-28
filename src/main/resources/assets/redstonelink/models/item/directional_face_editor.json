@@ -1,6 +1,6 @@
 {
   "parent": "item/generated",
   "textures": {
-    "layer0": "redstonelink:item/graph_visual_editor"
+    "layer0": "redstonelink:item/face_editor"
   }
 }

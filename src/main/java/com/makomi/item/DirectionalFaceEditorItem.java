@@ -12,6 +12,7 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -35,6 +36,9 @@ public class DirectionalFaceEditorItem extends Item {
 
 	@Override
 	public InteractionResult useOn(UseOnContext context) {
+		if (context.getHand() != InteractionHand.MAIN_HAND) {
+			return InteractionResult.PASS;
+		}
 		Player player = context.getPlayer();
 		if (player == null) {
 			return InteractionResult.PASS;

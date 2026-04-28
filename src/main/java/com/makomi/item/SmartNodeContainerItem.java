@@ -106,7 +106,10 @@ public class SmartNodeContainerItem extends Item {
 		}
 
 		if (shouldConsumeOnPlacement) {
-			contents.set(selectedSlotIndex, nestedStack.isEmpty() ? ItemStack.EMPTY : nestedStack);
+			contents.set(
+				selectedSlotIndex,
+				resolveConsumedSlotReplacement(nestedStack, player.getAbilities().instabuild)
+			);
 		}
 		if (snapshot.autoSortEnabled()) {
 			contents = SmartNodeContainerData.sortContents(contents);
@@ -285,5 +288,20 @@ public class SmartNodeContainerItem extends Item {
 			return true;
 		}
 		return snapshot.creativeAutoConsumeEnabled();
+	}
+
+	/**
+	 * 解析“本次放置已确认成功且需要消费”后，容器槽位应保留的物品状态。
+	 * <p>
+	 * 生存模式沿用 `BlockItem.place(...)` 对临时物品栈的真实改写结果；
+	 * 创造模式下由于 `instabuild` 不会减少临时物品栈，因此这里显式清空槽位，
+	 * 让“创造自动消耗”开关具备真实的节点扣减效果。
+	 * </p>
+	 */
+	static ItemStack resolveConsumedSlotReplacement(ItemStack nestedStack, boolean creativeInstabuild) {
+		if (creativeInstabuild) {
+			return ItemStack.EMPTY;
+		}
+		return nestedStack == null || nestedStack.isEmpty() ? ItemStack.EMPTY : nestedStack;
 	}
 }
