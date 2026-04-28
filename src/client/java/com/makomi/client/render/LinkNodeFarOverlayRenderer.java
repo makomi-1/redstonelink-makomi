@@ -55,10 +55,10 @@ public final class LinkNodeFarOverlayRenderer<T extends PairableNodeBlockEntity>
 		int packedLight,
 		int packedOverlay
 	) {
+		Minecraft minecraft = Minecraft.getInstance();
 		if (!RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
 			return;
 		}
-		Minecraft minecraft = Minecraft.getInstance();
 		if (!SmartGlassesAccessSupport.canRenderSerialOverlay(minecraft.player)) {
 			return;
 		}

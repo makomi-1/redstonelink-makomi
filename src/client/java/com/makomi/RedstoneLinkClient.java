@@ -12,6 +12,7 @@ import com.makomi.client.network.QuickLinkNetworkClientHandlerSupport;
 import com.makomi.client.network.RepeaterNetworkClientHandlerSupport;
 import com.makomi.client.network.StatePanelNetworkClientHandlerSupport;
 import com.makomi.client.render.ChunkActivatorFarOverlayRenderer;
+import com.makomi.client.render.DirectionalFaceVectorWorldOverlayRenderer;
 import com.makomi.client.render.HideNodeGhostRenderer;
 import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
@@ -97,6 +98,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		registerPairingPacketReceivers();
 		registerBenchCommandClientHooks();
 		registerQuickLinkClientHooks();
+		registerDirectionalFaceVectorClientHooks();
 		registerStatePanelClientHooks();
 		registerLinkFilterClientHooks();
 		registerChunkActivatorClientHooks();
@@ -560,6 +562,13 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		QuickLinkNetworkClientHandlerSupport.registerReceivers();
 		QuickLinkNetworkClientHandlerSupport.registerInteractionCallbacks();
 		QuickLinkWorldOverlayRenderer.register();
+	}
+
+	/**
+	 * 注册定向面箭头的世界后置渲染钩子。
+	 */
+	private static void registerDirectionalFaceVectorClientHooks() {
+		DirectionalFaceVectorWorldOverlayRenderer.register();
 	}
 
 	/**

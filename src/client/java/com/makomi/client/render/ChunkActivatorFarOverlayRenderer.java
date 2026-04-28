@@ -38,10 +38,10 @@ public final class ChunkActivatorFarOverlayRenderer implements BlockEntityRender
 		int packedLight,
 		int packedOverlay
 	) {
+		Minecraft minecraft = Minecraft.getInstance();
 		if (!RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
 			return;
 		}
-		Minecraft minecraft = Minecraft.getInstance();
 		if (!SmartGlassesAccessSupport.canRenderSerialOverlay(minecraft.player)) {
 			return;
 		}

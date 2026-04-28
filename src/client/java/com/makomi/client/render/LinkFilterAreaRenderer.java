@@ -71,10 +71,13 @@ public final class LinkFilterAreaRenderer<T extends AbstractLinkFilterBlockEntit
 		int packedLight,
 		int packedOverlay
 	) {
-		if (blockEntity == null || !RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
+		if (blockEntity == null) {
 			return;
 		}
 		Minecraft minecraft = Minecraft.getInstance();
+		if (!RedstoneLinkClientDisplayConfig.overlay().farOverlayEnabled()) {
+			return;
+		}
 		if (!SmartGlassesAccessSupport.canRenderSerialOverlay(minecraft.player)) {
 			return;
 		}
