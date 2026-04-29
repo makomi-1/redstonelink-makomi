@@ -18,6 +18,8 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import java.util.List;
+import java.util.Optional;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -263,6 +265,7 @@ public class LinkFilterEditorScreen extends Screen {
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
+		renderSignalModeTooltip(guiGraphics, mouseX, mouseY);
 	}
 
 	@Override
@@ -631,6 +634,44 @@ public class LinkFilterEditorScreen extends Screen {
 	 */
 	private Button createActionButton(Component message, int x, int y, int width, Button.OnPress onPress) {
 		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, FILTER_BUTTON_STYLE);
+	}
+
+	/**
+	 * 为“通过上界 / 通过下界”按钮补齐悬停 tooltip。
+	 * <p>
+	 * 这两个按钮名称本身较短，直接看按钮文字容易误解为“拦截阈值边界”；
+	 * tooltip 负责明确“什么情况下通过、什么情况下拦截”的真实判定语义。
+	 * </p>
+	 */
+	private void renderSignalModeTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (signalModeButtons.length < 2) {
+			return;
+		}
+		if (signalModeButtons[0] != null && signalModeButtons[0].isHoveredOrFocused()) {
+			guiGraphics.renderTooltip(
+				font,
+				List.of(
+					Component.translatable("tooltip.redstonelink.link_filter.signal_mode.upper_bound.line1"),
+					Component.translatable("tooltip.redstonelink.link_filter.signal_mode.upper_bound.line2")
+				),
+				Optional.empty(),
+				mouseX,
+				mouseY
+			);
+			return;
+		}
+		if (signalModeButtons[1] != null && signalModeButtons[1].isHoveredOrFocused()) {
+			guiGraphics.renderTooltip(
+				font,
+				List.of(
+					Component.translatable("tooltip.redstonelink.link_filter.signal_mode.lower_bound.line1"),
+					Component.translatable("tooltip.redstonelink.link_filter.signal_mode.lower_bound.line2")
+				),
+				Optional.empty(),
+				mouseX,
+				mouseY
+			);
+		}
 	}
 
 	/**
