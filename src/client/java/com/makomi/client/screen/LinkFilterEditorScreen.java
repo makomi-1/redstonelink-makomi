@@ -21,6 +21,8 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * 过滤器编辑界面。
@@ -265,6 +267,7 @@ public class LinkFilterEditorScreen extends Screen {
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
+		renderSignalModeTooltip(guiGraphics, mouseX, mouseY);
 	}
 
 	@Override
@@ -639,6 +642,40 @@ public class LinkFilterEditorScreen extends Screen {
 	 */
 	private Button createActionButton(Component message, int x, int y, int width, Button.OnPress onPress) {
 		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, FILTER_BUTTON_STYLE);
+	}
+
+	/**
+	 * 为“通过上界 / 通过下界”按钮补充准确的含义说明，避免被误解为区间边界。
+	 */
+	private void renderSignalModeTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+		if (signalModeButtons.length < 2) {
+			return;
+		}
+		if (signalModeButtons[0] != null && signalModeButtons[0].isHoveredOrFocused()) {
+			guiGraphics.setTooltipForNextFrame(
+				font,
+				List.<Component>of(
+					Component.translatable("tooltip.redstonelink.link_filter.signal_mode.upper_bound.line1"),
+					Component.translatable("tooltip.redstonelink.link_filter.signal_mode.upper_bound.line2")
+				),
+				Optional.empty(),
+				mouseX,
+				mouseY
+			);
+			return;
+		}
+		if (signalModeButtons[1] != null && signalModeButtons[1].isHoveredOrFocused()) {
+			guiGraphics.setTooltipForNextFrame(
+				font,
+				List.<Component>of(
+					Component.translatable("tooltip.redstonelink.link_filter.signal_mode.lower_bound.line1"),
+					Component.translatable("tooltip.redstonelink.link_filter.signal_mode.lower_bound.line2")
+				),
+				Optional.empty(),
+				mouseX,
+				mouseY
+			);
+		}
 	}
 
 	/**
