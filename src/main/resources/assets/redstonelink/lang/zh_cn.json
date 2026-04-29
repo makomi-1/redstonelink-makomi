@@ -54,6 +54,7 @@
     "tooltip.redstonelink.open_pairing":  "潜行且左手为空时右键可打开配对界面",
     "tooltip.redstonelink.trigger_source.signal_semantic.event":  "此类为事件信号，没有完整生命周期和跨区块支持",
     "tooltip.redstonelink.trigger_source.signal_semantic.state":  "此类为状态信号，享有完整生命周期和跨区块支持",
+    "tooltip.redstonelink.hide_node.smart_glasses_required":  "你需要穿戴智能眼镜才能可见和交互",
     "tooltip.redstonelink.link_filter.alias":  "别名: %s",
     "tooltip.redstonelink.link_filter.service_target":  "服务对象: %s",
     "tooltip.redstonelink.link_filter.serial_expression":  "节点集: %s",
