@@ -52,6 +52,23 @@
 </table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:link_redstone_core</div><div class='count'>数量 x1</div></div></div></section>
 <section class='card'><div class='row'><table class='grid'>
 <tr>
+<td>redstonelink:link_redstone_core</td>
+<td>minecraft:glass</td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+</table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:hide_core</div><div class='count'>数量 x1</div></div></div></section>
+<section class='card'><div class='row'><table class='grid'>
+<tr>
 <td>redstonelink:link_redstone_core_transparent</td>
 <td class='empty'></td>
 <td class='empty'></td>
@@ -154,6 +171,23 @@
 </table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:link_sync_emitter</div><div class='count'>数量 x1</div></div></div></section>
 <section class='card'><div class='row'><table class='grid'>
 <tr>
+<td>redstonelink:link_sync_emitter</td>
+<td>minecraft:glass</td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td class='empty'></td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+</table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:hide_sync_trigger_source</div><div class='count'>数量 x1</div></div></div></section>
+<section class='card'><div class='row'><table class='grid'>
+<tr>
 <td class='empty'></td>
 <td class='empty'></td>
 <td class='empty'></td>
@@ -254,6 +288,23 @@
 <td class='empty'></td>
 </tr>
 </table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:smart_node_container</div><div class='count'>数量 x1</div></div></div></section>
+<section class='card'><div class='row'><table class='grid'>
+<tr>
+<td>redstonelink:redstone_link_component</td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td>redstonelink:redstone_link_component</td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+<tr>
+<td>minecraft:stick</td>
+<td class='empty'></td>
+<td class='empty'></td>
+</tr>
+</table><div class='arrow'></div><div class='result'><div class='out'>redstonelink:directional_face_editor</div><div class='count'>数量 x1</div></div></div></section>
 <section class='card'><div class='row'><table class='grid'>
 <tr>
 <td class='empty'></td>
@@ -544,6 +595,7 @@
 		'link_pulse_emitter': 'redstonelink:block/link_pulse_emitter',
 		'link_push_button': 'redstonelink:item/link_push_button_blue_overlay',
 		'link_redstone_core': 'redstonelink:block/link_redstone_core_blue',
+		'hide_core': 'redstonelink:item/link_redstone_core_hide',
 		'link_redstone_core_transparent': 'redstonelink:item/link_redstone_core_transparent_blue',
 		'link_redstone_dust_core': 'redstonelink:item/link_redstone_dust_core_blue',
 		'link_redstone_dust_core_transparent': 'redstonelink:item/link_redstone_dust_core_transparent_blue',
@@ -552,11 +604,13 @@
 		'link_receive_filter': 'redstonelink:block/link_receive_filter',
 		'link_send_filter': 'redstonelink:block/link_send_filter',
 		'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
+		'hide_sync_trigger_source': 'redstonelink:item/link_sync_emitter_hide',
 		'link_sync_lever': 'redstonelink:item/link_sync_lever_blue_overlay',
 		'smart_glasses': 'redstonelink:item/smart_glasses',
 		'smart_node_container': 'redstonelink:item/smart_node_container_side',
 		'link_toggle_button': 'redstonelink:item/link_toggle_button_blue_overlay',
 		'link_toggle_emitter': 'redstonelink:block/link_toggle_emitter',
+		'directional_face_editor': 'redstonelink:item/face_editor',
 		'quick_link_tool': 'redstonelink:item/fast_link_tool_sd',
 		'redstone_link_component': 'redstonelink:item/redstone_link_component',
 		'redstonelink_pulse_linker': 'redstonelink:item/redstonelink_pulse_linker',
@@ -578,6 +632,7 @@
 		'mangrove_button': { type: 'block', path: 'mangrove_planks' },
 		'bamboo_button': { type: 'block', path: 'bamboo_planks' },
 		'cherry_button': { type: 'block', path: 'cherry_planks' },
+		'chest': { type: 'block', path: 'chest' },
 		'glass_pane': { type: 'block', path: 'glass' }
 	};
 
@@ -641,6 +696,7 @@
 		'link_pulse_emitter': true,
 		'link_push_button': true,
 		'link_redstone_core': true,
+		'hide_core': true,
 		'link_redstone_core_transparent': true,
 		'link_redstone_dust_core': true,
 		'link_redstone_dust_core_transparent': true,
@@ -649,6 +705,7 @@
 		'link_receive_filter': true,
 		'link_send_filter': true,
 		'link_sync_emitter': true,
+		'hide_sync_trigger_source': true,
 		'link_sync_lever': true,
 		'smart_node_container': true,
 		'link_toggle_button': true,
@@ -697,6 +754,7 @@
 		'dirt': true,
 		'redstone_block': true,
 		'glass': true,
+		'chest': true,
 		'lever': true,
 		'stone_button': true,
 		'oak_button': true
@@ -728,6 +786,7 @@
 	// 这些命名与本地语言文件 src/main/resources/assets/redstonelink/lang/*.json 保持一致。
 	var modBilingualNamesByPath = {
 		'link_redstone_core': ['连接核心块', 'Linked Redstone Core'],
+		'hide_core': ['隐藏核心块', 'Hidden Core'],
 		'link_redstone_core_transparent': ['连接核心块（透明）', 'Linked Redstone Core (Transparent)'],
 		'link_redstone_dust_core': ['连接核心片', 'Linked Redstone Dust Core'],
 		'link_redstone_dust_core_transparent': ['连接核心片（透明）', 'Linked Redstone Dust Core (Transparent)'],
@@ -740,6 +799,7 @@
 		'link_toggle_emitter': ['切换发射器', 'Linked Toggle Emitter'],
 		'link_pulse_emitter': ['脉冲发射器', 'Linked Pulse Emitter'],
 		'link_sync_emitter': ['同步发射器', 'Linked Sync Emitter'],
+		'hide_sync_trigger_source': ['隐藏同步 triggerSource', 'Hidden Sync triggerSource'],
 		'link_chunk_activator': ['区块激活器', 'Chunk Activator'],
 		'redstonelink_toggle_linker': ['切换遥控器', 'Linked Toggle Linker'],
 		'redstonelink_pulse_linker': ['脉冲遥控器', 'Linked Pulse Linker'],
@@ -747,6 +807,7 @@
 		'quick_link_tool': ['快速连接工具', 'Quick Link Tool'],
 		'smart_glasses': ['智能眼镜', 'Smart Glasses'],
 		'smart_node_container': ['智能节点容器', 'Smart Node Container'],
+		'directional_face_editor': ['定向面编辑工具', 'Directional Face Editor'],
 		'graph_visual_editor': ['图可视化编辑器', 'Graph Visual Editor'],
 		'redstone_link_component': ['连接原件', 'Redstone Link Component'],
 		'redstonelink_status_panel': ['状态面板工具', 'State Panel Tool']
@@ -1718,6 +1779,7 @@
 		if (
 			outputId === 'redstonelink:link_pulse_emitter' ||
 			outputId === 'redstonelink:link_sync_emitter' ||
+			outputId === 'redstonelink:hide_sync_trigger_source' ||
 			outputId === 'redstonelink:link_toggle_emitter' ||
 			outputId === 'redstonelink:link_push_button' ||
 			outputId === 'redstonelink:link_sync_lever' ||
@@ -1728,6 +1790,7 @@
 
 		if (
 			outputId === 'redstonelink:link_redstone_core' ||
+			outputId === 'redstonelink:hide_core' ||
 			outputId === 'redstonelink:link_redstone_core_transparent' ||
 			outputId === 'redstonelink:link_redstone_dust_core' ||
 			outputId === 'redstonelink:link_redstone_dust_core_transparent'
@@ -1745,6 +1808,7 @@
 
 		if (
 			outputId === 'redstonelink:link_chunk_activator' ||
+			outputId === 'redstonelink:directional_face_editor' ||
 			outputId === 'redstonelink:quick_link_tool' ||
 			outputId === 'redstonelink:smart_glasses' ||
 			outputId === 'redstonelink:smart_node_container' ||

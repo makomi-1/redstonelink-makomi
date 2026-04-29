@@ -24,7 +24,10 @@ class RecipeResourceLayoutTest {
 	private static final Path RECIPE_DIR = Path.of("src/main/resources/data/redstonelink/recipe");
 	private static final Path NON_STANDARD_RECIPES_DIR = Path.of("src/main/resources/data/redstonelink/recipes");
 	private static final Set<String> EXPECTED_RECIPE_FILES = Set.of(
+		"directional_face_editor.json",
 		"graph_visual_editor.json",
+		"hide_core.json",
+		"hide_sync_trigger_source.json",
 		"link_chunk_activator.json",
 		"link_pulse_emitter.json",
 		"link_push_button.json",

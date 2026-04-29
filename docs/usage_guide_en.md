@@ -15,15 +15,16 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 ## I. Quick Start for Players
 
 - Best for: players using the mod for the first time and only wanting everyday linking plus state checks.
-- Recommended reading order: `Smart Glasses` -> `Quick Link Tool` -> `Smart Node Container` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `Link Repeater` -> `State Panel Tool` -> `Graph Visual Editor` -> `Batch Serial Input Format for Commands/GUI`.
+- Recommended reading order: `Smart Glasses` -> `Hidden Nodes` -> `Directional Face Editor` -> `Quick Link Tool` -> `Smart Node Container` -> `Send/Receive Filters` -> `Linked Sync Linker` -> `Link Repeater` -> `State Panel Tool` -> `Graph Visual Editor` -> `Batch Serial Input Format for Commands/GUI`.
 
 ### Smart Glasses
 - Item name: `Smart Glasses`.
 - Worn behavior:
 1. Wearing them enables far/near overlays.
 2. Wearing them is also required before `visualize` can render through-wall links or aim-at tooltips.
-3. Once they are worn, displayed links stay visible even if the main hand switches back to the Quick Link Tool or some other tool.
-4. `visualize` operations themselves still require an empty main hand; add/remove also require standing and holding `Ctrl`, while `Shift + B` clear does not.
+3. Hidden nodes are only visible, targetable, and interactable while they are worn.
+4. Once they are worn, displayed links stay visible even if the main hand switches back to the Quick Link Tool or some other tool.
+5. `visualize` operations themselves still require an empty main hand; add/remove also require standing and holding `Ctrl`, while `Shift + B` clear does not.
 - Notes:
 1. Smart Glasses are only an observation gate. They do not pair, rewrite links, or edit caches by themselves.
 2. Without them, far/near overlays and `visualize` rendering do not appear at all.
@@ -36,6 +37,46 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
    `   `
    `G = minecraft:glass_pane`
    `L = redstonelink:redstone_link_component`
+
+### Hidden Nodes
+- Item names: `Hidden Core` and `Hidden Sync triggerSource`.
+- Basic behavior:
+1. `Hidden Core` is the hidden version of a `core`, and `Hidden Sync triggerSource` is the hidden version of a state-style `triggerSource`.
+2. Without Smart Glasses, they stay invisible and do not behave like normally targetable or interactable nodes.
+3. Once Smart Glasses are worn, they can be viewed, edited, recovered, and used like normal nodes.
+- Directional behavior:
+1. `Hidden Core` only outputs through enabled faces.
+2. `Hidden Sync triggerSource` only samples input from enabled faces.
+3. Both start with an empty face set after placement, so you should enable faces first with the Directional Face Editor.
+- Crafting recipe:
+1. `Linked Redstone Core + Glass -> Hidden Core`
+2. `Linked Sync Emitter + Glass -> Hidden Sync triggerSource`
+3. Both recipes are shapeless.
+
+### Directional Face Editor
+- Item name: `Directional Face Editor`.
+- Basic interaction:
+1. Middle mouse cycles the four modes: `toggle / single / all / clear`.
+2. Right-click a supported node face with the main hand to edit that node's face set using the current mode.
+3. Holding the tool in the offhand only shows arrows and does not actually edit.
+4. With Smart Glasses worn, holding the tool in either hand shows directional arrows for the node's enabled faces.
+- Currently supported:
+1. `core` and `hide core`
+2. Block-style `triggerSource` nodes and `hide sync triggerSource`
+3. `repeater`
+4. `send/receive` filters
+5. `chunk activator`
+- Default rules:
+1. Visible nodes start fully enabled in all directions.
+2. `hide` nodes start with an empty face set.
+- Crafting recipe:
+1. `Redstone Link Component -> Redstone Link Component -> Stick -> Directional Face Editor`
+2. Pattern:
+   `L`
+   `L`
+   `S`
+   `L = redstonelink:redstone_link_component`
+   `S = minecraft:stick`
 
 ### Quick Link Tool
 - Item name: `Quick Link Tool`.
@@ -146,16 +187,18 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Item name: `Smart Node Container`.
 - Basic interaction:
 1. While held in the main hand, press the Quick Link mode key (default `B`) to open a chest-like GUI with `6` rows / `54` slots.
-2. The right side of the GUI shows the current placement type and auto-sort state. Both container slots and player inventory slots keep normal hover tooltips like a vanilla chest.
+2. The right side of the GUI shows the current placement type, auto-sort state, and the creative-only auto-consume toggle. Both container slots and player inventory slots keep normal hover tooltips like a vanilla chest.
 3. Middle mouse cycles the current placement type: `core -> triggerSource -> repeater`.
 4. Main-hand right-click ejects one node of the selected type and immediately tries to place it.
+5. Sneak + main-hand right-click can recover visible or hidden nodes into the container; overflow falls back to dropped items.
 - Storage rules:
-1. It only accepts single, non-aggregated node items: `core`, `triggerSource`, and `repeater`.
+1. It only accepts single, non-aggregated node items: `core`, `triggerSource`, and `repeater`, including hidden node variants.
 2. The container stores full item-stack snapshots, so the node's own serial, channel, and other item-side state stay with the stored item.
 3. With auto-sort enabled, contents are ordered as `core -> triggerSource -> repeater`, then by ascending serial inside each class.
 4. When the container is non-empty, its side visual follows the currently selected placement type.
 5. When nodes are stored inside, connection-info tooltips do not auto-sync to outside changes; this matches vanilla chest behavior.
 6. If the item entity is truly destroyed, the contained nodes are retired recursively instead of being dropped out first.
+7. In creative mode, auto-consume can be toggled; when enabled, successful placement really consumes the stored node, and when disabled it does not.
 - Crafting recipe:
 1. `Chest + Redstone Link Component -> Smart Node Container`
 2. Pattern:
