@@ -34,6 +34,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -143,6 +144,11 @@ public final class QuickLinkWorldOverlayRenderer {
 			// 未戴眼镜时直接吞掉默认白框，避免 visible/hide 节点出现不一致外显。
 			return false;
 		}
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			// Iris 下 block outline 事件自身会出现轻微漂移；
+			// 这里只负责拦截 vanilla 白框，实际兼容描边统一延后到 LAST 阶段绘制。
+			return false;
+		}
 
 		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
 			return true;
@@ -186,6 +192,10 @@ public final class QuickLinkWorldOverlayRenderer {
 			clearTransientPreviewState();
 			return;
 		}
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			// Iris 下统一把 preview 线框改到 LAST 阶段，避免 AFTER_TRANSLUCENT + 自定义 line target 的兼容问题。
+			return;
+		}
 		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
 			return;
 		}
@@ -201,7 +211,7 @@ public final class QuickLinkWorldOverlayRenderer {
 
 		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
 		PoseStack.Pose pose = worldRenderContext.matrixStack().last();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(QUICK_LINK_PREVIEW_RENDER_TYPE);
+		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(resolvePreviewRenderType());
 		for (PreviewOutlineBatch previewBatch : previewBatches) {
 			for (LineSegment lineSegment : previewBatch.segments()) {
 				renderPreviewLineSegment(lineVertexConsumer, pose, lineSegment, cameraPosition, previewBatch.color());
@@ -224,6 +234,10 @@ public final class QuickLinkWorldOverlayRenderer {
 		}
 		if (worldRenderContext.matrixStack() == null || worldRenderContext.consumers() == null) {
 			return;
+		}
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			renderIrisCompatibleCurrentOutline(worldRenderContext, minecraft);
+			renderIrisCompatiblePreviewOutlines(worldRenderContext, minecraft);
 		}
 		renderVisualizedConnections(worldRenderContext, minecraft);
 	}
@@ -754,6 +768,81 @@ public final class QuickLinkWorldOverlayRenderer {
 	}
 
 	/**
+	 * 在 Iris 兼容分支中重绘当前命中节点描边。
+	 * <p>
+	 * block outline 事件在 Iris 下会出现轻微漂移，因此兼容分支统一改到 LAST 阶段按相机相对坐标重绘。
+	 * </p>
+	 */
+	private static void renderIrisCompatibleCurrentOutline(WorldRenderContext worldRenderContext, Minecraft minecraft) {
+		if (
+			worldRenderContext == null
+				|| minecraft == null
+				|| minecraft.player == null
+				|| minecraft.level == null
+				|| !worldRenderContext.blockOutlines()
+				|| !(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)
+				|| !(minecraft.hitResult instanceof BlockHitResult blockHitResult)
+		) {
+			return;
+		}
+		BlockPos blockPos = blockHitResult.getBlockPos();
+		OutlineColor outlineColor = resolveOutlineColor(minecraft, blockPos);
+		if (outlineColor == null) {
+			return;
+		}
+		VoxelShape voxelShape = minecraft
+			.level
+			.getBlockState(blockPos)
+			.getShape(minecraft.level, blockPos, CollisionContext.of(minecraft.player));
+		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
+		List<IrisDirectLineRenderSupport.ColoredLineSegment> segments = new ArrayList<>();
+		appendOutlineSegments(
+			voxelShape,
+			(double) blockPos.getX() - cameraPosition.x,
+			(double) blockPos.getY() - cameraPosition.y,
+			(double) blockPos.getZ() - cameraPosition.z,
+			outlineColor,
+			segments
+		);
+		IrisDirectLineRenderSupport.drawSegments(worldRenderContext.matrixStack().last(), segments, 2.5F);
+	}
+
+	/**
+	 * 在 Iris 兼容分支中重绘 quick-link preview 线框。
+	 * <p>
+	 * 兼容分支统一改走 LAST + vanilla `RenderType.lines()`，
+	 * 避免 AFTER_TRANSLUCENT 与自定义 line target 在 shader 管线中被错误覆盖。
+	 * </p>
+	 */
+	private static void renderIrisCompatiblePreviewOutlines(WorldRenderContext worldRenderContext, Minecraft minecraft) {
+		if (
+			worldRenderContext == null
+				|| minecraft == null
+				|| minecraft.player == null
+				|| minecraft.level == null
+				|| !(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)
+		) {
+			return;
+		}
+		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
+		if (snapshot.mode() == QuickLinkToolData.Mode.VISUALIZE) {
+			return;
+		}
+		List<PreviewOutlineBatch> previewBatches = resolvePreviewOutlineBatches(minecraft);
+		if (previewBatches.isEmpty()) {
+			return;
+		}
+		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
+		List<IrisDirectLineRenderSupport.ColoredLineSegment> segments = new ArrayList<>();
+		for (PreviewOutlineBatch previewBatch : previewBatches) {
+			for (LineSegment lineSegment : previewBatch.segments()) {
+				appendDirectLineSegment(segments, lineSegment, cameraPosition, previewBatch.color());
+			}
+		}
+		IrisDirectLineRenderSupport.drawSegments(worldRenderContext.matrixStack().last(), segments, 2.5F);
+	}
+
+	/**
 	 * 绘制第三形态全部显示对象的穿墙连线。
 	 */
 	private static void renderVisualizedConnections(WorldRenderContext worldRenderContext, Minecraft minecraft) {
@@ -768,7 +857,15 @@ public final class QuickLinkWorldOverlayRenderer {
 		}
 		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
 		PoseStack.Pose pose = worldRenderContext.matrixStack().last();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(QUICK_LINK_VISUALIZE_RENDER_TYPE);
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			List<IrisDirectLineRenderSupport.ColoredLineSegment> segments = new ArrayList<>(visibleConnections.size());
+			for (VisualizedConnection visibleConnection : visibleConnections) {
+				appendDirectLineSegment(segments, visibleConnection.segment(), cameraPosition, visibleConnection.color());
+			}
+			IrisDirectLineRenderSupport.drawSegments(pose, segments, 2.5F);
+			return;
+		}
+		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(resolveVisualizeRenderType());
 		for (VisualizedConnection visibleConnection : visibleConnections) {
 			renderPreviewLineSegment(
 				lineVertexConsumer,
@@ -778,6 +875,86 @@ public final class QuickLinkWorldOverlayRenderer {
 				visibleConnection.color()
 			);
 		}
+	}
+
+	/**
+	 * 把单条预览/连线线段转成 Iris 直接绘制线段。
+	 */
+	private static void appendDirectLineSegment(
+		List<IrisDirectLineRenderSupport.ColoredLineSegment> output,
+		LineSegment lineSegment,
+		Vec3 cameraPosition,
+		OutlineColor color
+	) {
+		if (output == null || lineSegment == null || cameraPosition == null || color == null) {
+			return;
+		}
+		int red = Math.round(color.red() * 255.0F);
+		int green = Math.round(color.green() * 255.0F);
+		int blue = Math.round(color.blue() * 255.0F);
+		output.add(
+			IrisDirectLineRenderSupport.ColoredLineSegment.of(
+				lineSegment.startX() - cameraPosition.x,
+				lineSegment.startY() - cameraPosition.y,
+				lineSegment.startZ() - cameraPosition.z,
+				lineSegment.endX() - cameraPosition.x,
+				lineSegment.endY() - cameraPosition.y,
+				lineSegment.endZ() - cameraPosition.z,
+				red,
+				green,
+				blue,
+				255
+			)
+		);
+	}
+
+	/**
+	 * 从 voxel shape 中提取全部轮廓边，供 Iris 兼容分支直接绘制。
+	 */
+	private static void appendOutlineSegments(
+		VoxelShape voxelShape,
+		double offsetX,
+		double offsetY,
+		double offsetZ,
+		OutlineColor outlineColor,
+		List<IrisDirectLineRenderSupport.ColoredLineSegment> output
+	) {
+		if (voxelShape == null || voxelShape.isEmpty() || outlineColor == null || output == null) {
+			return;
+		}
+		int red = Math.round(outlineColor.red() * 255.0F);
+		int green = Math.round(outlineColor.green() * 255.0F);
+		int blue = Math.round(outlineColor.blue() * 255.0F);
+		voxelShape.forAllEdges((startX, startY, startZ, endX, endY, endZ) ->
+			output.add(
+				IrisDirectLineRenderSupport.ColoredLineSegment.of(
+					startX + offsetX,
+					startY + offsetY,
+					startZ + offsetZ,
+					endX + offsetX,
+					endY + offsetY,
+					endZ + offsetZ,
+					red,
+					green,
+					blue,
+					255
+				)
+			)
+		);
+	}
+
+	/**
+	 * 解析 preview 线框当前应使用的渲染层。
+	 */
+	private static RenderType resolvePreviewRenderType() {
+		return IrisRenderCompatSupport.shouldUseCompatibilityBranch() ? RenderType.lines() : QUICK_LINK_PREVIEW_RENDER_TYPE;
+	}
+
+	/**
+	 * 解析第三形态连线当前应使用的渲染层。
+	 */
+	private static RenderType resolveVisualizeRenderType() {
+		return IrisRenderCompatSupport.shouldUseCompatibilityBranch() ? RenderType.lines() : QUICK_LINK_VISUALIZE_RENDER_TYPE;
 	}
 
 	/**

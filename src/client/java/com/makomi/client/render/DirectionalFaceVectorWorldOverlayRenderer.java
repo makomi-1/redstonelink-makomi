@@ -80,7 +80,11 @@ public final class DirectionalFaceVectorWorldOverlayRenderer {
 						blockPos.getY() - cameraPosition.y,
 						blockPos.getZ() - cameraPosition.z
 					);
-					DirectionalFaceVectorRenderSupport.renderEnabledFaceVectors(blockEntity, poseStack, worldRenderContext.consumers());
+					if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+						DirectionalFaceVectorRenderSupport.renderEnabledFaceVectorsIrisDirect(blockEntity, poseStack.last());
+					} else {
+						DirectionalFaceVectorRenderSupport.renderEnabledFaceVectors(blockEntity, poseStack, worldRenderContext.consumers());
+					}
 					poseStack.popPose();
 				}
 			}

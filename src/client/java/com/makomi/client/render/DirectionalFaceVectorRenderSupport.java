@@ -12,6 +12,8 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.OptionalDouble;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -111,7 +113,7 @@ public final class DirectionalFaceVectorRenderSupport {
 		PoseStack.Pose pose = poseStack.last();
 		renderFaceVectorPass(
 			NodeFaceSetBlockStateSupport.resolveEnabledFaces(blockState),
-			buffer.getBuffer(FACE_VECTOR_RENDER_TYPE),
+			buffer.getBuffer(resolveFaceVectorRenderType()),
 			pose,
 			blockState,
 			red,
@@ -119,6 +121,26 @@ public final class DirectionalFaceVectorRenderSupport {
 			blue,
 			255
 		);
+	}
+
+	/**
+	 * 在 Iris 兼容分支中直接绘制启用面箭头。
+	 * <p>
+	 * 仅在需要穿透显示时使用，避免继续依赖被 Iris 改写过的常规 line render path。
+	 * </p>
+	 */
+	public static void renderEnabledFaceVectorsIrisDirect(BlockEntity blockEntity, PoseStack.Pose pose) {
+		if (blockEntity == null || pose == null || !supportsFaceVectorRendering(blockEntity)) {
+			return;
+		}
+		BlockState blockState = blockEntity.getBlockState();
+		int packedColor = resolveThemeColor(blockEntity);
+		int red = (packedColor >> 16) & 0xFF;
+		int green = (packedColor >> 8) & 0xFF;
+		int blue = packedColor & 0xFF;
+		List<IrisDirectLineRenderSupport.ColoredLineSegment> segments = new ArrayList<>();
+		appendFaceVectorSegments(NodeFaceSetBlockStateSupport.resolveEnabledFaces(blockState), blockState, red, green, blue, 255, segments);
+		IrisDirectLineRenderSupport.drawSegments(pose, segments, 4.0F);
 	}
 
 	/**
@@ -150,6 +172,37 @@ public final class DirectionalFaceVectorRenderSupport {
 				blue,
 				alpha
 			);
+		}
+	}
+
+	/**
+	 * 解析当前箭头应使用的线型渲染层。
+	 * <p>
+	 * Iris 下优先回退到 vanilla `RenderType.lines()`，
+	 * 避免当前自定义 line target 在 shader 管线中出现深度与覆盖异常。
+	 * </p>
+	 */
+	private static RenderType resolveFaceVectorRenderType() {
+		return IrisRenderCompatSupport.shouldUseCompatibilityBranch() ? RenderType.lines() : FACE_VECTOR_RENDER_TYPE;
+	}
+
+	/**
+	 * 把全部启用面箭头追加为直接绘制线段。
+	 */
+	private static void appendFaceVectorSegments(
+		List<Direction> enabledFaces,
+		BlockState blockState,
+		int red,
+		int green,
+		int blue,
+		int alpha,
+		List<IrisDirectLineRenderSupport.ColoredLineSegment> output
+	) {
+		if (enabledFaces == null || enabledFaces.isEmpty() || blockState == null || output == null) {
+			return;
+		}
+		for (Direction enabledFace : enabledFaces) {
+			appendFaceArrowSegments(output, resolveRenderedFaceDirection(blockState, enabledFace), red, green, blue, alpha);
 		}
 	}
 
@@ -238,6 +291,52 @@ public final class DirectionalFaceVectorRenderSupport {
 				green,
 				blue,
 				alpha
+			);
+		}
+	}
+
+	/**
+	 * 以线段列表形式追加单个面的箭头。
+	 */
+	private static void appendFaceArrowSegments(
+		List<IrisDirectLineRenderSupport.ColoredLineSegment> output,
+		Direction face,
+		int red,
+		int green,
+		int blue,
+		int alpha
+	) {
+		if (output == null || face == null) {
+			return;
+		}
+		float directionX = face.getStepX();
+		float directionY = face.getStepY();
+		float directionZ = face.getStepZ();
+		float startX = 0.5F + directionX * ARROW_SHAFT_START;
+		float startY = 0.5F + directionY * ARROW_SHAFT_START;
+		float startZ = 0.5F + directionZ * ARROW_SHAFT_START;
+		float endX = 0.5F + directionX * ARROW_SHAFT_END;
+		float endY = 0.5F + directionY * ARROW_SHAFT_END;
+		float endZ = 0.5F + directionZ * ARROW_SHAFT_END;
+		output.add(IrisDirectLineRenderSupport.ColoredLineSegment.of(startX, startY, startZ, endX, endY, endZ, red, green, blue, alpha));
+
+		float baseX = endX - directionX * ARROW_HEAD_LENGTH;
+		float baseY = endY - directionY * ARROW_HEAD_LENGTH;
+		float baseZ = endZ - directionZ * ARROW_HEAD_LENGTH;
+		for (float[] offset : resolveArrowHeadOffsets(face)) {
+			output.add(
+				IrisDirectLineRenderSupport.ColoredLineSegment.of(
+					endX,
+					endY,
+					endZ,
+					baseX + offset[0],
+					baseY + offset[1],
+					baseZ + offset[2],
+					red,
+					green,
+					blue,
+					alpha
+				)
 			);
 		}
 	}
