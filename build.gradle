@@ -11,8 +11,10 @@ base {
 	archivesName = "${project.archives_base_name}-fabric-${project.minecraft_version}"
 }
 
+def requestedTaskNames = gradle.startParameter.taskNames.collect { it?.toString() ?: "" }
+def enableClientModStack = requestedTaskNames.any { it == "runClientModStack" || it.endsWith(":runClientModStack") }
 def withRuntimeMod = { String propertyName ->
-	((project.findProperty(propertyName)?.toString()?.toBoolean()) ?: false)
+	enableClientModStack || ((project.findProperty(propertyName)?.toString()?.toBoolean()) ?: false)
 }
 boolean withLithium = withRuntimeMod("withLithium")
 boolean withJei = withRuntimeMod("withJei")
@@ -184,6 +186,12 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
+}
+
+tasks.register("runClientModStack") {
+	group = "fabric"
+	description = "Run the client with Lithium, JEI, Sodium, and Iris enabled."
+	dependsOn(tasks.named("runClient"))
 }
 
 tasks.named("test", Test).configure {
