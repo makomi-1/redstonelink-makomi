@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "redstonelink:item/hide_sync_trigger_source"
+  }
+}

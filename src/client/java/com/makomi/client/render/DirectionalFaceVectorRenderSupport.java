@@ -223,7 +223,20 @@ public final class DirectionalFaceVectorRenderSupport {
 		int blue,
 		int alpha
 	) {
-		vertexConsumer.addVertex(pose, startX, startY, startZ).setColor(red, green, blue, alpha).setNormal(pose, normalX, normalY, normalZ);
-		vertexConsumer.addVertex(pose, endX, endY, endZ).setColor(red, green, blue, alpha).setNormal(pose, normalX, normalY, normalZ);
+		// 1.21.11 的线段顶点格式要求显式写入 LineWidth，旧版仅颜色/法线会在提交阶段崩溃。
+		float length = (float) Math.sqrt(normalX * normalX + normalY * normalY + normalZ * normalZ);
+		float resolvedNormalX = length <= 0.0F ? 1.0F : normalX / length;
+		float resolvedNormalY = length <= 0.0F ? 0.0F : normalY / length;
+		float resolvedNormalZ = length <= 0.0F ? 0.0F : normalZ / length;
+		vertexConsumer
+			.addVertex(pose, startX, startY, startZ)
+			.setColor(red, green, blue, alpha)
+			.setNormal(pose, resolvedNormalX, resolvedNormalY, resolvedNormalZ)
+			.setLineWidth(1.0F);
+		vertexConsumer
+			.addVertex(pose, endX, endY, endZ)
+			.setColor(red, green, blue, alpha)
+			.setNormal(pose, resolvedNormalX, resolvedNormalY, resolvedNormalZ)
+			.setLineWidth(1.0F);
 	}
 }

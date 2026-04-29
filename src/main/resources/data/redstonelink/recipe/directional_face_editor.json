@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "L": "redstonelink:redstone_link_component",
+    "S": "minecraft:stick"
+  },
+  "pattern": [
+    "L",
+    "L",
+    "S"
+  ],
+  "result": {
+    "count": 1,
+    "id": "redstonelink:directional_face_editor"
+  }
+}
