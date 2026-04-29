@@ -11,6 +11,20 @@ base {
 	archivesName = "${project.archives_base_name}-fabric-${project.minecraft_version}"
 }
 
+def requestedTaskNames = gradle.startParameter.taskNames.collect { it?.toString() ?: "" }
+def enableClientModStack = requestedTaskNames.any { it == "runClientModStack" || it.endsWith(":runClientModStack") }
+def withRuntimeMod = { String propertyName ->
+	enableClientModStack || ((project.findProperty(propertyName)?.toString()?.toBoolean()) ?: false)
+}
+boolean withLithium = withRuntimeMod("withLithium")
+boolean withJei = withRuntimeMod("withJei")
+boolean withSodium = withRuntimeMod("withSodium")
+boolean withIris = withRuntimeMod("withIris")
+if (withIris) {
+	// Iris 依赖 Sodium；手动仅开启 Iris 时也自动补齐渲染基座。
+	withSodium = true
+}
+
 repositories {
 	// Prefer official repositories for stable artifact provenance.
 	maven {
@@ -77,8 +91,20 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	// Lithium runtime dependency for local runClient testing (opt-in via -PwithLithium=true).
-	if ((project.findProperty("withLithium")?.toString()?.toBoolean()) ?: false) {
+	if (withLithium) {
 		modRuntimeOnly "maven.modrinth:lithium:${project.lithium_version}"
+	}
+	// JEI runtime dependency for local runClient testing (opt-in via -PwithJei=true).
+	if (withJei) {
+		modRuntimeOnly "maven.modrinth:jei:${project.jei_version}"
+	}
+	// Sodium runtime dependency for local runClient testing (opt-in via -PwithSodium=true).
+	if (withSodium) {
+		modRuntimeOnly "maven.modrinth:sodium:${project.sodium_version}"
+	}
+	// Iris runtime dependency for local runClient testing (opt-in via -PwithIris=true).
+	if (withIris) {
+		modRuntimeOnly "maven.modrinth:iris:${project.iris_version}"
 	}
 
 	// Test baseline: JUnit 5
@@ -157,6 +183,12 @@ processResources {
 	from(webappOutputDir) {
 		into "assets/redstonelink/webapp"
 	}
+}
+
+tasks.register("runClientModStack") {
+	group = "fabric"
+	description = "Run the client with Lithium, JEI, Sodium, and Iris enabled."
+	dependsOn(tasks.named("runClient"))
 }
 
 tasks.register("prepareClientResourcesDir") {
