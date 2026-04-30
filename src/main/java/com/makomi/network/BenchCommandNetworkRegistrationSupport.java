@@ -23,11 +23,11 @@ final class BenchCommandNetworkRegistrationSupport {
 	 * 注册 bench 命令桥使用的 C2S / S2C payload。
 	 */
 	private static void registerPayloadTypes() {
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			BenchCommandNetwork.ExecutePlayerCommandPayload.TYPE,
 			BenchCommandNetwork.ExecutePlayerCommandPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			BenchCommandNetwork.PlayerCommandResultPayload.TYPE,
 			BenchCommandNetwork.PlayerCommandResultPayload.CODEC
 		);

@@ -263,7 +263,7 @@ public class SmartNodeContainerItem extends Item {
 		);
 		player.containerMenu.broadcastChanges();
 		if (player instanceof ServerPlayer serverPlayer) {
-			serverPlayer.displayClientMessage(
+			serverPlayer.sendSystemMessage(
 				Component.translatable(
 					"message.redstonelink.smart_node_container.recovered",
 					Integer.toString(recoveryResult.insertedCount()),

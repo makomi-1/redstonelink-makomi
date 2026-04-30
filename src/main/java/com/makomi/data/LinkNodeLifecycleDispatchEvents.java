@@ -169,7 +169,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 		if (level == null) {
 			return ConsumeResult.DEFERRED;
 		}
-		LevelChunk chunk = level.getChunkSource().getChunkNow(task.chunkPos().x, task.chunkPos().z);
+		LevelChunk chunk = level.getChunkSource().getChunkNow(task.chunkPos().x(), task.chunkPos().z());
 		if (chunk == null) {
 			return ConsumeResult.DEFERRED;
 		}
@@ -404,7 +404,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 	) {
 		private NodeLifecycleTask {
 			blockPos = blockPos == null ? BlockPos.ZERO : blockPos.immutable();
-			chunkPos = chunkPos == null ? new ChunkPos(blockPos) : new ChunkPos(chunkPos.x, chunkPos.z);
+			chunkPos = chunkPos == null ? ChunkPos.containing(blockPos) : chunkPos;
 		}
 
 		private static NodeLifecycleTask attach(
@@ -414,7 +414,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 			BlockPos blockPos,
 			int attempt
 		) {
-			return new NodeLifecycleTask(NodeLifecycleKind.ATTACH, dimension, nodeType, serial, blockPos, new ChunkPos(blockPos), attempt);
+			return new NodeLifecycleTask(NodeLifecycleKind.ATTACH, dimension, nodeType, serial, blockPos, ChunkPos.containing(blockPos), attempt);
 		}
 
 		private static NodeLifecycleTask detach(
@@ -423,7 +423,7 @@ public final class LinkNodeLifecycleDispatchEvents {
 			long serial,
 			BlockPos blockPos
 		) {
-			return new NodeLifecycleTask(NodeLifecycleKind.DETACH, dimension, nodeType, serial, blockPos, new ChunkPos(blockPos), 0);
+			return new NodeLifecycleTask(NodeLifecycleKind.DETACH, dimension, nodeType, serial, blockPos, ChunkPos.containing(blockPos), 0);
 		}
 
 		private NodeLifecycleTaskKey key() {

@@ -17,19 +17,19 @@ final class RepeaterNetworkRegistrationSupport {
 	}
 
 	private static void registerPayloadTypes() {
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			RepeaterNetwork.OpenRepeaterEditorPayload.TYPE,
 			RepeaterNetwork.OpenRepeaterEditorPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			RepeaterNetwork.SaveRepeaterPayload.TYPE,
 			RepeaterNetwork.SaveRepeaterPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			RepeaterNetwork.OpenRepeaterPairingPayload.TYPE,
 			RepeaterNetwork.OpenRepeaterPairingPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			RepeaterNetwork.RepeaterFeedbackPayload.TYPE,
 			RepeaterNetwork.RepeaterFeedbackPayload.CODEC
 		);

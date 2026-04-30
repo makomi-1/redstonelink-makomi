@@ -23,55 +23,55 @@ final class QuickLinkNetworkRegistrationSupport {
 	 * 注册 C2S / S2C payload 类型。
 	 */
 	private static void registerPayloadTypes() {
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			QuickLinkNetwork.OpenQuickLinkEditorPayload.TYPE,
 			QuickLinkNetwork.OpenQuickLinkEditorPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			QuickLinkNetwork.SaveQuickLinkPayload.TYPE,
 			QuickLinkNetwork.SaveQuickLinkPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			QuickLinkNetwork.CollectQuickLinkPayload.TYPE,
 			QuickLinkNetwork.CollectQuickLinkPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload.TYPE,
 			QuickLinkNetwork.RequestQuickLinkChannelPreviewPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload.TYPE,
 			QuickLinkNetwork.RequestQuickLinkVisualizeSnapshotPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			QuickLinkNetwork.RequestQuickLinkVisualizeRefreshPayload.TYPE,
 			QuickLinkNetwork.RequestQuickLinkVisualizeRefreshPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload.TYPE,
 			QuickLinkNetwork.RequestApplyQuickLinkBaselinePayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			QuickLinkNetwork.ApplyQuickLinkPayload.TYPE,
 			QuickLinkNetwork.ApplyQuickLinkPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			QuickLinkNetwork.ApplyQuickLinkBaselinePayload.TYPE,
 			QuickLinkNetwork.ApplyQuickLinkBaselinePayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			QuickLinkNetwork.QuickLinkChannelPreviewPayload.TYPE,
 			QuickLinkNetwork.QuickLinkChannelPreviewPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload.TYPE,
 			QuickLinkNetwork.QuickLinkVisualizeSnapshotPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			QuickLinkNetwork.QuickLinkVisualizeRefreshPayload.TYPE,
 			QuickLinkNetwork.QuickLinkVisualizeRefreshPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			QuickLinkNetwork.QuickLinkFeedbackPayload.TYPE,
 			QuickLinkNetwork.QuickLinkFeedbackPayload.CODEC
 		);

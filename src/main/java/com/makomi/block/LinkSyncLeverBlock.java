@@ -111,7 +111,7 @@ public class LinkSyncLeverBlock extends LeverBlock implements EntityBlock {
 		if (level.isClientSide()) {
 			// 客户端点击预览阶段不走父类红色粒子逻辑，改为“仅在切换为激活时”发橙色粒子。
 			if (!state.getValue(POWERED)) {
-				spawnOrangeParticle(level, pos, level.random, 0.98F, 0.36F);
+				spawnOrangeParticle(level, pos, level.getRandom(), 0.98F, 0.36F);
 			}
 			return InteractionResult.SUCCESS;
 		}

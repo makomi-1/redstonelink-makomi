@@ -59,11 +59,10 @@ public final class LinkSavedData extends SavedData {
 		LinkSavedData::load,
 		LinkSavedData::toTag
 	);
-	private static final SavedDataType<LinkSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<LinkSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		LinkSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	long nextCoreSerial = 1L;
@@ -513,7 +512,7 @@ public final class LinkSavedData extends SavedData {
 		if (node == null || node.dimension() == null || node.type() == null || node.serial() <= 0L || node.pos() == null) {
 			return;
 		}
-		long chunkKey = new ChunkPos(node.pos()).toLong();
+		long chunkKey = ChunkPos.pack(node.pos());
 		nodeChunkIndex
 			.computeIfAbsent(node.dimension(), ignored -> new HashMap<>())
 			.computeIfAbsent(node.type(), ignored -> new HashMap<>())
@@ -536,13 +535,13 @@ public final class LinkSavedData extends SavedData {
 		if (indexByChunk == null) {
 			return;
 		}
-		Set<Long> serials = indexByChunk.get(new ChunkPos(node.pos()).toLong());
+		Set<Long> serials = indexByChunk.get(ChunkPos.pack(node.pos()));
 		if (serials == null) {
 			return;
 		}
 		serials.remove(node.serial());
 		if (serials.isEmpty()) {
-			indexByChunk.remove(new ChunkPos(node.pos()).toLong());
+			indexByChunk.remove(ChunkPos.pack(node.pos()));
 		}
 		if (indexByChunk.isEmpty()) {
 			indexByType.remove(node.type());
@@ -577,7 +576,7 @@ public final class LinkSavedData extends SavedData {
 		LinkedHashSet<LinkNode> nodes = new LinkedHashSet<>();
 		for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
 			for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-				Set<Long> serials = indexByChunk.get(new ChunkPos(chunkX, chunkZ).toLong());
+				Set<Long> serials = indexByChunk.get(ChunkPos.pack(chunkX, chunkZ));
 				if (serials == null || serials.isEmpty()) {
 					continue;
 				}

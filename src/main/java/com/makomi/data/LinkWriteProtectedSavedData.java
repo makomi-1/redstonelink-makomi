@@ -27,11 +27,10 @@ public final class LinkWriteProtectedSavedData extends SavedData {
 		LinkWriteProtectedSavedData::load,
 		LinkWriteProtectedSavedData::toTag
 	);
-	private static final SavedDataType<LinkWriteProtectedSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<LinkWriteProtectedSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		LinkWriteProtectedSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	private final Set<Long> protectedTriggerSourceSerials = new HashSet<>();

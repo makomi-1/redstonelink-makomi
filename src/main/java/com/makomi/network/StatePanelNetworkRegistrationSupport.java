@@ -25,75 +25,75 @@ final class StatePanelNetworkRegistrationSupport {
 	 * 注册 C2S / S2C payload 类型。
 	 */
 	private static void registerPayloadTypes() {
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			StatePanelNetwork.OpenStatePanelPayload.TYPE,
 			StatePanelNetwork.OpenStatePanelPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.SubscribeStatePanelPayload.TYPE,
 			StatePanelNetwork.SubscribeStatePanelPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.RefreshStatePanelPayload.TYPE,
 			StatePanelNetwork.RefreshStatePanelPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.QueryStatePanelRecordingPayload.TYPE,
 			StatePanelNetwork.QueryStatePanelRecordingPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.StartStatePanelRecordingPayload.TYPE,
 			StatePanelNetwork.StartStatePanelRecordingPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.StopStatePanelRecordingPayload.TYPE,
 			StatePanelNetwork.StopStatePanelRecordingPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.RemoveStatePanelSerialPayload.TYPE,
 			StatePanelNetwork.RemoveStatePanelSerialPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.RecordStatePanelPayload.TYPE,
 			StatePanelNetwork.RecordStatePanelPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.ExportStatePanelGraphPayload.TYPE,
 			StatePanelNetwork.ExportStatePanelGraphPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.SubmitGraphWritePayload.TYPE,
 			StatePanelNetwork.SubmitGraphWritePayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.PreviewGraphWritePayload.TYPE,
 			StatePanelNetwork.PreviewGraphWritePayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			StatePanelNetwork.CleanAllStatePanelPayload.TYPE,
 			StatePanelNetwork.CleanAllStatePanelPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			StatePanelNetwork.StatePanelSnapshotPayload.TYPE,
 			StatePanelNetwork.StatePanelSnapshotPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			StatePanelNetwork.StatePanelFeedbackPayload.TYPE,
 			StatePanelNetwork.StatePanelFeedbackPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			StatePanelNetwork.StatePanelRecordingSessionPayload.TYPE,
 			StatePanelNetwork.StatePanelRecordingSessionPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			StatePanelNetwork.StatePanelRecordingExportChunkPayload.TYPE,
 			StatePanelNetwork.StatePanelRecordingExportChunkPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			StatePanelNetwork.StatePanelGraphExportChunkPayload.TYPE,
 			StatePanelNetwork.StatePanelGraphExportChunkPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			StatePanelNetwork.GraphWriteResultPayload.TYPE,
 			StatePanelNetwork.GraphWriteResultPayload.CODEC
 		);

@@ -40,7 +40,7 @@ final class SmartNodeContainerNetworkServerHandlerSupport {
 		}
 		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.cycleSelectedType(mainHandItem);
 		player.containerMenu.broadcastChanges();
-		player.displayClientMessage(
+		player.sendSystemMessage(
 			Component.translatable(
 				"message.redstonelink.smart_node_container.selected_type_switched",
 				Component.translatable(snapshot.selectedType().translationKey())

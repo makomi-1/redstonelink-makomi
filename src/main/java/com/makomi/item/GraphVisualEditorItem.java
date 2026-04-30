@@ -75,7 +75,7 @@ public class GraphVisualEditorItem extends Item {
 			return;
 		}
 		if (!WebFeaturePermissionService.canUseGraphFeature(serverPlayer)) {
-			serverPlayer.displayClientMessage(Component.translatable("message.redstonelink.permission.insufficient"), true);
+			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.permission.insufficient"), true);
 			return;
 		}
 		try {
@@ -84,13 +84,13 @@ public class GraphVisualEditorItem extends Item {
 				false,
 				true
 			);
-			serverPlayer.displayClientMessage(
+			serverPlayer.sendSystemMessage(
 				Component.translatable("message.redstonelink.graph.export.done", exportBundle.fileName()),
 				true
 			);
 		} catch (IOException | RuntimeException exception) {
 			RedstoneLink.LOGGER.warn("图可视化编辑器导出 graph 失败: player={}", serverPlayer.getScoreboardName(), exception);
-			serverPlayer.displayClientMessage(Component.translatable("message.redstonelink.graph.export.failed"), true);
+			serverPlayer.sendSystemMessage(Component.translatable("message.redstonelink.graph.export.failed"), true);
 		}
 	}
 }

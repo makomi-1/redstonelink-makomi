@@ -15,7 +15,7 @@ final class DirectionalFaceEditorNetworkRegistrationSupport {
 	 * 注册全部 payload 与服务端接包器。
 	 */
 	static void register() {
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			DirectionalFaceEditorNetwork.CycleDirectionalFaceEditorModePayload.TYPE,
 			DirectionalFaceEditorNetwork.CycleDirectionalFaceEditorModePayload.CODEC
 		);

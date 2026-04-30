@@ -27,11 +27,10 @@ public final class CurrentLinksPrivacySavedData extends SavedData {
 		CurrentLinksPrivacySavedData::load,
 		CurrentLinksPrivacySavedData::toTag
 	);
-	private static final SavedDataType<CurrentLinksPrivacySavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<CurrentLinksPrivacySavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		CurrentLinksPrivacySavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	private final Set<Long> maskedTriggerSourceSerials = new HashSet<>();

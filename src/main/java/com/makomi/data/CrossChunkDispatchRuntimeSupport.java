@@ -823,7 +823,7 @@ final class CrossChunkDispatchRuntimeSupport {
 			return 0;
 		}
 		CrossChunkDispatchService.TargetChunkKey targetChunkKey =
-			new CrossChunkDispatchService.TargetChunkKey(dimension, chunkPos.x, chunkPos.z);
+			new CrossChunkDispatchService.TargetChunkKey(dimension, chunkPos.x(), chunkPos.z());
 		Set<CrossChunkDispatchService.PendingAttemptKey> indexedAttemptKeys =
 			state.waitingUnlimitedAttemptKeysByTargetChunk.get(targetChunkKey);
 		if (indexedAttemptKeys == null || indexedAttemptKeys.isEmpty()) {

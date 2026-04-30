@@ -32,11 +32,10 @@ public final class GraphExportDedupeSavedData extends SavedData {
 		GraphExportDedupeSavedData::load,
 		GraphExportDedupeSavedData::toTag
 	);
-	private static final SavedDataType<GraphExportDedupeSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<GraphExportDedupeSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		GraphExportDedupeSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	private final Map<UUID, LinkedHashMap<String, String>> fileNameByChecksumByPlayer = new HashMap<>();

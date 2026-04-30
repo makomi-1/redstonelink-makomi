@@ -52,11 +52,10 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		PlacedLinkFilterSavedData::load,
 		PlacedLinkFilterSavedData::toTag
 	);
-	private static final SavedDataType<PlacedLinkFilterSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<PlacedLinkFilterSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		PlacedLinkFilterSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	private final Map<FilterEntryKey, FilterEntry> entriesByKey = new LinkedHashMap<>();
@@ -217,7 +216,7 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		if (chunkIndexByKind == null) {
 			return List.of();
 		}
-		LinkedHashSet<FilterEntryKey> candidates = chunkIndexByKind.get(new ChunkPos(nodePos).toLong());
+		LinkedHashSet<FilterEntryKey> candidates = chunkIndexByKind.get(ChunkPos.pack(nodePos));
 		if (candidates == null || candidates.isEmpty()) {
 			return List.of();
 		}
@@ -409,7 +408,7 @@ public final class PlacedLinkFilterSavedData extends SavedData {
 		List<Long> coveredChunkKeys = new ArrayList<>((maxChunkX - minChunkX + 1) * (maxChunkZ - minChunkZ + 1));
 		for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
 			for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-				coveredChunkKeys.add(new ChunkPos(chunkX, chunkZ).toLong());
+				coveredChunkKeys.add(ChunkPos.pack(chunkX, chunkZ));
 			}
 		}
 		return List.copyOf(coveredChunkKeys);

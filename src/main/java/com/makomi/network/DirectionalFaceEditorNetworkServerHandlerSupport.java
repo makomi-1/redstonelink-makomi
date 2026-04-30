@@ -26,7 +26,7 @@ final class DirectionalFaceEditorNetworkServerHandlerSupport {
 		}
 		HideDirectionalEditorToolData.EditMode nextMode = HideDirectionalEditorToolData.cycleMode(mainHandItem);
 		player.containerMenu.broadcastChanges();
-		player.displayClientMessage(
+		player.sendSystemMessage(
 			Component.translatable(
 				"message.redstonelink.directional_face_editor.mode_switched",
 				Component.translatable(nextMode.translationKey())

@@ -26,36 +26,36 @@ final class PairingNetworkRegistrationSupport {
 	 * 注册全部 C2S/S2C payload 类型。
 	 */
 	private static void registerPayloadTypes() {
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			PairingNetwork.OpenTriggerSourcePairingPayload.TYPE,
 			PairingNetwork.OpenTriggerSourcePairingPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(PairingNetwork.OpenCorePairingPayload.TYPE, PairingNetwork.OpenCorePairingPayload.CODEC);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.clientboundPlay().register(PairingNetwork.OpenCorePairingPayload.TYPE, PairingNetwork.OpenCorePairingPayload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(
 			PairingNetwork.SubmitTriggerSourcePairingPayload.TYPE,
 			PairingNetwork.SubmitTriggerSourcePairingPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(PairingNetwork.SubmitCorePairingPayload.TYPE, PairingNetwork.SubmitCorePairingPayload.CODEC);
-		PayloadTypeRegistry.playC2S().register(PairingNetwork.SubmitPairingAliasPayload.TYPE, PairingNetwork.SubmitPairingAliasPayload.CODEC);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(PairingNetwork.SubmitCorePairingPayload.TYPE, PairingNetwork.SubmitCorePairingPayload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(PairingNetwork.SubmitPairingAliasPayload.TYPE, PairingNetwork.SubmitPairingAliasPayload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(
 			PairingNetwork.SaveSyncLinkerSignalStrengthPayload.TYPE,
 			PairingNetwork.SaveSyncLinkerSignalStrengthPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(PairingNetwork.PairingFeedbackPayload.TYPE, PairingNetwork.PairingFeedbackPayload.CODEC);
-		PayloadTypeRegistry.playS2C().register(PairingNetwork.PairingAliasStatePayload.TYPE, PairingNetwork.PairingAliasStatePayload.CODEC);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.clientboundPlay().register(PairingNetwork.PairingFeedbackPayload.TYPE, PairingNetwork.PairingFeedbackPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(PairingNetwork.PairingAliasStatePayload.TYPE, PairingNetwork.PairingAliasStatePayload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(
 			PairingNetwork.RequestCurrentLinksPayload.TYPE,
 			PairingNetwork.RequestCurrentLinksPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			PairingNetwork.CurrentLinksSnapshotPayload.TYPE,
 			PairingNetwork.CurrentLinksSnapshotPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			PairingNetwork.RequestRuntimeHudSnapshotPayload.TYPE,
 			PairingNetwork.RequestRuntimeHudSnapshotPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			PairingNetwork.RuntimeHudSnapshotPayload.TYPE,
 			PairingNetwork.RuntimeHudSnapshotPayload.CODEC
 		);

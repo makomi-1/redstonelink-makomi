@@ -35,11 +35,10 @@ public final class NodeAliasSavedData extends SavedData {
 		NodeAliasSavedData::load,
 		NodeAliasSavedData::toTag
 	);
-	private static final SavedDataType<NodeAliasSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<NodeAliasSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		NodeAliasSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	private final Map<Long, String> triggerSourceAliasesBySerial = new HashMap<>();

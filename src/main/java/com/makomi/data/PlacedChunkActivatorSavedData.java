@@ -59,11 +59,10 @@ public final class PlacedChunkActivatorSavedData extends SavedData {
 		PlacedChunkActivatorSavedData::load,
 		PlacedChunkActivatorSavedData::toTag
 	);
-	private static final SavedDataType<PlacedChunkActivatorSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<PlacedChunkActivatorSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		PlacedChunkActivatorSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	private final Map<ActivatorEntryKey, ActivatorEntry> entriesByKey = new LinkedHashMap<>();

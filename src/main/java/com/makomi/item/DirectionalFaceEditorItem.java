@@ -59,7 +59,7 @@ public class DirectionalFaceEditorItem extends Item {
 		}
 
 		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
-			serverPlayer.displayClientMessage(
+			serverPlayer.sendSystemMessage(
 				Component.translatable(
 					"message.redstonelink.directional_face_editor.applied",
 					Component.translatable(editMode.translationKey()),

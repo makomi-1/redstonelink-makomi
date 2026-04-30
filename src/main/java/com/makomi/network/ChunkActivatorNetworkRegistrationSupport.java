@@ -17,15 +17,15 @@ final class ChunkActivatorNetworkRegistrationSupport {
 	}
 
 	private static void registerPayloadTypes() {
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			ChunkActivatorNetwork.OpenChunkActivatorEditorPayload.TYPE,
 			ChunkActivatorNetwork.OpenChunkActivatorEditorPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(
+		PayloadTypeRegistry.serverboundPlay().register(
 			ChunkActivatorNetwork.SaveChunkActivatorPayload.TYPE,
 			ChunkActivatorNetwork.SaveChunkActivatorPayload.CODEC
 		);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			ChunkActivatorNetwork.ChunkActivatorFeedbackPayload.TYPE,
 			ChunkActivatorNetwork.ChunkActivatorFeedbackPayload.CODEC
 		);

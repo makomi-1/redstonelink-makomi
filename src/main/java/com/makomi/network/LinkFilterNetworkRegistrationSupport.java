@@ -23,12 +23,12 @@ final class LinkFilterNetworkRegistrationSupport {
 	 * 注册全部 C2S/S2C payload 类型。
 	 */
 	private static void registerPayloadTypes() {
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.clientboundPlay().register(
 			LinkFilterNetwork.OpenFilterEditorPayload.TYPE,
 			LinkFilterNetwork.OpenFilterEditorPayload.CODEC
 		);
-		PayloadTypeRegistry.playC2S().register(LinkFilterNetwork.SaveFilterPayload.TYPE, LinkFilterNetwork.SaveFilterPayload.CODEC);
-		PayloadTypeRegistry.playS2C().register(
+		PayloadTypeRegistry.serverboundPlay().register(LinkFilterNetwork.SaveFilterPayload.TYPE, LinkFilterNetwork.SaveFilterPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(
 			LinkFilterNetwork.FilterFeedbackPayload.TYPE,
 			LinkFilterNetwork.FilterFeedbackPayload.CODEC
 		);

@@ -39,11 +39,10 @@ public final class PendingRetireQueueSavedData extends SavedData {
 		PendingRetireQueueSavedData::load,
 		PendingRetireQueueSavedData::toTag
 	);
-	private static final SavedDataType<PendingRetireQueueSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<PendingRetireQueueSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		PendingRetireQueueSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	private final Map<PendingKey, PendingRetireEntry> entriesByKey = new HashMap<>();

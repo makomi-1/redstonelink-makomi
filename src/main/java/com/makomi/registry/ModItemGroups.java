@@ -1,7 +1,7 @@
 package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
+import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -16,7 +16,7 @@ public final class ModItemGroups {
 	public static final CreativeModeTab REDSTONELINK = Registry.register(
 		BuiltInRegistries.CREATIVE_MODE_TAB,
 		id("redstonelink"),
-		FabricItemGroup
+		FabricCreativeModeTab
 			.builder()
 			.title(Component.translatable("itemGroup.redstonelink"))
 			.icon(() -> new ItemStack(ModItems.RL_ICON))

@@ -35,11 +35,10 @@ public final class CrossChunkWhitelistSavedData extends SavedData {
 		CrossChunkWhitelistSavedData::load,
 		CrossChunkWhitelistSavedData::toTag
 	);
-	private static final SavedDataType<CrossChunkWhitelistSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<CrossChunkWhitelistSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		CrossChunkWhitelistSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	private final Map<LinkNodeType, Set<Long>> sourceWhitelist = new HashMap<>();

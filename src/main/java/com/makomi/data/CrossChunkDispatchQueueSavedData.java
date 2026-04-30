@@ -50,11 +50,10 @@ public final class CrossChunkDispatchQueueSavedData extends SavedData {
 		CrossChunkDispatchQueueSavedData::load,
 		CrossChunkDispatchQueueSavedData::toTag
 	);
-	private static final SavedDataType<CrossChunkDispatchQueueSavedData> TYPE = new SavedDataType<>(
+	private static final SavedDataType<CrossChunkDispatchQueueSavedData> TYPE = SavedDataTypeSupport.levelType(
 		DATA_NAME,
 		CrossChunkDispatchQueueSavedData::new,
-		CODEC,
-		DataFixTypes.LEVEL
+		CODEC
 	);
 
 	static final Comparator<DispatchKey> DISPATCH_KEY_COMPARATOR = Comparator
