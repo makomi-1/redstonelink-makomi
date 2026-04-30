@@ -14,7 +14,7 @@ import net.minecraft.server.dedicated.DedicatedServer;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.storage.DimensionDataStorage;
+import net.minecraft.world.level.storage.SavedDataStorage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -59,7 +59,7 @@ class LinkRetireCoordinatorTest {
 		ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);
 		DedicatedServer server = (DedicatedServer) unsafe.allocateInstance(DedicatedServer.class);
 		ServerChunkCache chunkCache = (ServerChunkCache) unsafe.allocateInstance(ServerChunkCache.class);
-		DimensionDataStorage dataStorage = TestMinecraftSupport.createDimensionDataStorage(tempDir);
+		SavedDataStorage dataStorage = TestMinecraftSupport.createSavedDataStorage(tempDir);
 		Object levelDataProxy = createLevelDataProxy();
 
 		setField(Level.class, level, "isClientSide", false);

@@ -30,11 +30,11 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraft.world.level.storage.DimensionDataStorage;
+import net.minecraft.world.level.storage.SavedDataStorage;
 import net.minecraft.world.level.storage.TagValueInput;
 
 /**
- * 1.21.11 测试兼容辅助。
+ * 26.1 测试兼容辅助。
  * <p>
  * 统一封装新版 NBT / SavedData / BlockEntity 持久化入口，避免各测试重复散落兼容逻辑。
  * </p>
@@ -64,14 +64,14 @@ public final class TestMinecraftSupport {
 	}
 
 	/**
-	 * 使用 1.21.11 新入口保存方块实体的自定义 NBT。
+	 * 使用 26.1 新入口保存方块实体的自定义 NBT。
 	 */
 	public static CompoundTag saveBlockEntityCustomOnly(BlockEntity blockEntity) {
 		return blockEntity.saveCustomOnly(lookupProvider());
 	}
 
 	/**
-	 * 使用 1.21.11 新入口加载方块实体的自定义 NBT。
+	 * 使用 26.1 新入口加载方块实体的自定义 NBT。
 	 */
 	public static void loadBlockEntityCustomOnly(BlockEntity blockEntity, CompoundTag tag) {
 		blockEntity.loadCustomOnly(TagValueInput.create(ProblemReporter.DISCARDING, lookupProvider(), tag));
@@ -151,10 +151,10 @@ public final class TestMinecraftSupport {
 	}
 
 	/**
-	 * 创建带默认 lookup 上下文的维度数据存储，适配 1.21.11 构造器签名。
+	 * 创建带默认 lookup 上下文的 SavedData 存储，适配 26.1 构造器签名。
 	 */
-	public static DimensionDataStorage createDimensionDataStorage(Path path) {
-		return new DimensionDataStorage(path, null, lookupProvider());
+	public static SavedDataStorage createSavedDataStorage(Path path) {
+		return new SavedDataStorage(path, null, lookupProvider());
 	}
 
 	/**
