@@ -110,6 +110,7 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.open_editor"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.repeater.dual_identity").withStyle(ChatFormatting.GRAY));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		HideNodeItemTooltipSupport.appendIfNeeded(stack, tooltipComponents);
 	}
 
 	@Override

@@ -173,6 +173,8 @@ final class GuiHeaderContextSupport {
 				LinkGuiDisplayContext.LINK_TOGGLE_EMITTER,
 				LinkGuiDisplayContext.LINK_PULSE_EMITTER,
 				LinkGuiDisplayContext.LINK_SYNC_EMITTER,
+				LinkGuiDisplayContext.HIDE_TOGGLE_EMITTER,
+				LinkGuiDisplayContext.HIDE_PULSE_EMITTER,
 				LinkGuiDisplayContext.HIDE_SYNC_TRIGGER_SOURCE,
 				LinkGuiDisplayContext.REDSTONELINK_TOGGLE_LINKER,
 				LinkGuiDisplayContext.REDSTONELINK_PULSE_LINKER,

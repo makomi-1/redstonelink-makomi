@@ -1,6 +1,6 @@
 package com.makomi.client.render;
 
-import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.data.HideNodeSupport;
 import com.makomi.data.SmartGlassesAccessSupport;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -11,16 +11,16 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * 隐藏节点幽灵模型渲染器。
+ * 隐藏过滤器 ghost 模型渲染器。
  * <p>
- * 仅在佩戴智能眼镜时，为隐藏节点补一层半透明普通模型。
+ * 仅在佩戴智能眼镜时绘制半透明普通过滤器模型，并继续复用过滤器原有作用域外显。
  * </p>
  */
-public final class HideNodeGhostRenderer<T extends PairableNodeBlockEntity> implements BlockEntityRenderer<T> {
-	private final LinkNodeFarOverlayRenderer<T> farOverlayRenderer;
+public final class HideFilterGhostRenderer<T extends AbstractLinkFilterBlockEntity> implements BlockEntityRenderer<T> {
+	private final LinkFilterAreaRenderer<T> areaRenderer;
 
-	public HideNodeGhostRenderer(BlockEntityRendererProvider.Context context) {
-		this.farOverlayRenderer = new LinkNodeFarOverlayRenderer<>(context);
+	public HideFilterGhostRenderer(BlockEntityRendererProvider.Context context) {
+		this.areaRenderer = new LinkFilterAreaRenderer<>(context);
 	}
 
 	@Override
@@ -39,11 +39,11 @@ public final class HideNodeGhostRenderer<T extends PairableNodeBlockEntity> impl
 				HideGhostRenderSupport.renderGhostModel(minecraft, ghostDisplayState, poseStack, buffer, packedOverlay);
 			}
 		}
-		farOverlayRenderer.render(blockEntity, partialTick, poseStack, buffer, packedLight, packedOverlay);
+		areaRenderer.render(blockEntity, partialTick, poseStack, buffer, packedLight, packedOverlay);
 	}
 
 	@Override
 	public int getViewDistance() {
-		return farOverlayRenderer.getViewDistance();
+		return areaRenderer.getViewDistance();
 	}
 }

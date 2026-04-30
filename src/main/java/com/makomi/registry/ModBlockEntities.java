@@ -1,9 +1,15 @@
 package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
+import com.makomi.block.entity.HideChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.block.entity.HideCoreBlockEntity;
+import com.makomi.block.entity.HidePulseEmitterBlockEntity;
+import com.makomi.block.entity.HideReceiveFilterBlockEntity;
+import com.makomi.block.entity.HideRepeaterBlockEntity;
+import com.makomi.block.entity.HideSendFilterBlockEntity;
 import com.makomi.block.entity.HideSyncTriggerSourceBlockEntity;
+import com.makomi.block.entity.HideToggleEmitterBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkPulseButtonBlockEntity;
 import com.makomi.block.entity.LinkPulseEmitterBlockEntity;
@@ -61,9 +67,19 @@ public final class ModBlockEntities {
 		BlockEntityType.Builder.of(LinkToggleEmitterBlockEntity::new, ModBlocks.LINK_TOGGLE_EMITTER).build(null)
 	);
 
+	public static final BlockEntityType<HideToggleEmitterBlockEntity> HIDE_TOGGLE_EMITTER = register(
+		"hide_toggle_emitter",
+		BlockEntityType.Builder.of(HideToggleEmitterBlockEntity::new, ModBlocks.HIDE_TOGGLE_EMITTER).build(null)
+	);
+
 	public static final BlockEntityType<LinkPulseEmitterBlockEntity> LINK_PULSE_EMITTER = register(
 		"link_pulse_emitter",
 		BlockEntityType.Builder.of(LinkPulseEmitterBlockEntity::new, ModBlocks.LINK_PULSE_EMITTER).build(null)
+	);
+
+	public static final BlockEntityType<HidePulseEmitterBlockEntity> HIDE_PULSE_EMITTER = register(
+		"hide_pulse_emitter",
+		BlockEntityType.Builder.of(HidePulseEmitterBlockEntity::new, ModBlocks.HIDE_PULSE_EMITTER).build(null)
 	);
 
 	public static final BlockEntityType<LinkSyncEmitterBlockEntity> LINK_SYNC_EMITTER = register(
@@ -81,9 +97,19 @@ public final class ModBlockEntities {
 		BlockEntityType.Builder.of(LinkSendFilterBlockEntity::new, ModBlocks.LINK_SEND_FILTER).build(null)
 	);
 
+	public static final BlockEntityType<HideSendFilterBlockEntity> HIDE_SEND_FILTER = register(
+		"hide_send_filter",
+		BlockEntityType.Builder.of(HideSendFilterBlockEntity::new, ModBlocks.HIDE_SEND_FILTER).build(null)
+	);
+
 	public static final BlockEntityType<LinkReceiveFilterBlockEntity> LINK_RECEIVE_FILTER = register(
 		"link_receive_filter",
 		BlockEntityType.Builder.of(LinkReceiveFilterBlockEntity::new, ModBlocks.LINK_RECEIVE_FILTER).build(null)
+	);
+
+	public static final BlockEntityType<HideReceiveFilterBlockEntity> HIDE_RECEIVE_FILTER = register(
+		"hide_receive_filter",
+		BlockEntityType.Builder.of(HideReceiveFilterBlockEntity::new, ModBlocks.HIDE_RECEIVE_FILTER).build(null)
 	);
 
 	public static final BlockEntityType<LinkChunkActivatorBlockEntity> LINK_CHUNK_ACTIVATOR = register(
@@ -91,9 +117,19 @@ public final class ModBlockEntities {
 		BlockEntityType.Builder.of(LinkChunkActivatorBlockEntity::new, ModBlocks.LINK_CHUNK_ACTIVATOR).build(null)
 	);
 
+	public static final BlockEntityType<HideChunkActivatorBlockEntity> HIDE_CHUNK_ACTIVATOR = register(
+		"hide_chunk_activator",
+		BlockEntityType.Builder.of(HideChunkActivatorBlockEntity::new, ModBlocks.HIDE_CHUNK_ACTIVATOR).build(null)
+	);
+
 	public static final BlockEntityType<LinkRepeaterBlockEntity> LINK_REPEATER = register(
 		"link_repeater",
 		BlockEntityType.Builder.of(LinkRepeaterBlockEntity::new, ModBlocks.LINK_REPEATER).build(null)
+	);
+
+	public static final BlockEntityType<HideRepeaterBlockEntity> HIDE_REPEATER = register(
+		"hide_repeater",
+		BlockEntityType.Builder.of(HideRepeaterBlockEntity::new, ModBlocks.HIDE_REPEATER).build(null)
 	);
 
 	public static final BlockEntityType<LinkRedstoneDustCoreBlockEntity> LINK_REDSTONE_DUST_CORE = register(

@@ -117,9 +117,19 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.LINK_TOGGLE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
+	public static final Item HIDE_TOGGLE_EMITTER = register(
+		"hide_toggle_emitter",
+		new PairableBlockItem(ModBlocks.HIDE_TOGGLE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
 	public static final Item LINK_PULSE_EMITTER = register(
 		"link_pulse_emitter",
 		new PairableBlockItem(ModBlocks.LINK_PULSE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item HIDE_PULSE_EMITTER = register(
+		"hide_pulse_emitter",
+		new PairableBlockItem(ModBlocks.HIDE_PULSE_EMITTER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
 	public static final Item LINK_SYNC_EMITTER = register(
@@ -137,9 +147,19 @@ public final class ModItems {
 		new LinkFilterBlockItem(ModBlocks.LINK_SEND_FILTER, new Item.Properties().stacksTo(1), LinkFilterKind.SEND)
 	);
 
+	public static final Item HIDE_SEND_FILTER = register(
+		"hide_send_filter",
+		new LinkFilterBlockItem(ModBlocks.HIDE_SEND_FILTER, new Item.Properties().stacksTo(1), LinkFilterKind.SEND)
+	);
+
 	public static final Item LINK_RECEIVE_FILTER = register(
 		"link_receive_filter",
 		new LinkFilterBlockItem(ModBlocks.LINK_RECEIVE_FILTER, new Item.Properties().stacksTo(1), LinkFilterKind.RECEIVE)
+	);
+
+	public static final Item HIDE_RECEIVE_FILTER = register(
+		"hide_receive_filter",
+		new LinkFilterBlockItem(ModBlocks.HIDE_RECEIVE_FILTER, new Item.Properties().stacksTo(1), LinkFilterKind.RECEIVE)
 	);
 
 	public static final Item LINK_CHUNK_ACTIVATOR = register(
@@ -147,9 +167,19 @@ public final class ModItems {
 		new ChunkActivatorBlockItem(ModBlocks.LINK_CHUNK_ACTIVATOR, new Item.Properties().stacksTo(1))
 	);
 
+	public static final Item HIDE_CHUNK_ACTIVATOR = register(
+		"hide_chunk_activator",
+		new ChunkActivatorBlockItem(ModBlocks.HIDE_CHUNK_ACTIVATOR, new Item.Properties().stacksTo(1))
+	);
+
 	public static final Item LINK_REPEATER = register(
 		"link_repeater",
 		new RepeaterBlockItem(ModBlocks.LINK_REPEATER, new Item.Properties().stacksTo(1))
+	);
+
+	public static final Item HIDE_REPEATER = register(
+		"hide_repeater",
+		new RepeaterBlockItem(ModBlocks.HIDE_REPEATER, new Item.Properties().stacksTo(1))
 	);
 
 	public static final Item REDSTONELINK_TOGGLE_LINKER = register(

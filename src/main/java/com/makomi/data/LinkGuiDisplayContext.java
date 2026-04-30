@@ -26,6 +26,8 @@ public final class LinkGuiDisplayContext {
 	public static final String LINK_TOGGLE_EMITTER = "link_toggle_emitter";
 	public static final String LINK_PULSE_EMITTER = "link_pulse_emitter";
 	public static final String LINK_SYNC_EMITTER = "link_sync_emitter";
+	public static final String HIDE_TOGGLE_EMITTER = "hide_toggle_emitter";
+	public static final String HIDE_PULSE_EMITTER = "hide_pulse_emitter";
 	public static final String HIDE_SYNC_TRIGGER_SOURCE = "hide_sync_trigger_source";
 	public static final String LINK_REPEATER = "link_repeater";
 	public static final String REDSTONELINK_TOGGLE_LINKER = "redstonelink_toggle_linker";
@@ -123,6 +125,8 @@ public final class LinkGuiDisplayContext {
 			case LINK_TOGGLE_EMITTER -> LINK_TOGGLE_EMITTER;
 			case LINK_PULSE_EMITTER -> LINK_PULSE_EMITTER;
 			case LINK_SYNC_EMITTER -> LINK_SYNC_EMITTER;
+			case HIDE_TOGGLE_EMITTER -> HIDE_TOGGLE_EMITTER;
+			case HIDE_PULSE_EMITTER -> HIDE_PULSE_EMITTER;
 			case HIDE_SYNC_TRIGGER_SOURCE -> HIDE_SYNC_TRIGGER_SOURCE;
 			case LINK_REPEATER -> LINK_REPEATER;
 			case REDSTONELINK_TOGGLE_LINKER -> REDSTONELINK_TOGGLE_LINKER;

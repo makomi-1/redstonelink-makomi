@@ -1,5 +1,6 @@
 package com.makomi.item;
 
+import com.makomi.data.HideNodeSupport;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkGuiDisplayContext;
 import com.makomi.data.LinkNodeRetireEvents;
@@ -202,10 +203,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	 * 为隐藏节点物品补充“需佩戴智能眼镜才可见并可交互”的说明。
 	 */
 	private static void appendHideNodeVisibilityTooltipIfNeeded(ItemStack stack, List<Component> tooltipComponents) {
-		if (!isHideNodeItem(stack)) {
-			return;
-		}
-		tooltipComponents.add(Component.translatable("tooltip.redstonelink.hide_node.smart_glasses_required").withStyle(ChatFormatting.GRAY));
+		HideNodeItemTooltipSupport.appendIfNeeded(stack, tooltipComponents);
 	}
 
 	/**
@@ -222,8 +220,7 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	 * 判断当前物品是否属于隐藏节点。
 	 */
 	private static boolean isHideNodeItem(ItemStack stack) {
-		Item item = stack.getItem();
-		return item == ModItems.HIDE_CORE || item == ModItems.HIDE_SYNC_TRIGGER_SOURCE;
+		return HideNodeSupport.isHideNodeItem(stack.getItem());
 	}
 
 }

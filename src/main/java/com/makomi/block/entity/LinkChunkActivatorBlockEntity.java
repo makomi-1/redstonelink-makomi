@@ -26,6 +26,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -58,7 +59,18 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	private final ChunkActivatorLifecycleState lifecycleState = new ChunkActivatorLifecycleState();
 
 	public LinkChunkActivatorBlockEntity(BlockPos blockPos, BlockState blockState) {
-		super(com.makomi.registry.ModBlockEntities.LINK_CHUNK_ACTIVATOR, blockPos, blockState);
+		this(com.makomi.registry.ModBlockEntities.LINK_CHUNK_ACTIVATOR, blockPos, blockState);
+	}
+
+	/**
+	 * 允许 hide 变种切换为自定义实体类型，同时复用区块激活器完整真值与配置逻辑。
+	 */
+	protected LinkChunkActivatorBlockEntity(
+		BlockEntityType<? extends LinkChunkActivatorBlockEntity> blockEntityType,
+		BlockPos blockPos,
+		BlockState blockState
+	) {
+		super(blockEntityType, blockPos, blockState);
 	}
 
 	/**

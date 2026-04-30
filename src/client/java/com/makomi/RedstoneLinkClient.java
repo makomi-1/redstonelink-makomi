@@ -13,6 +13,8 @@ import com.makomi.client.network.RepeaterNetworkClientHandlerSupport;
 import com.makomi.client.network.StatePanelNetworkClientHandlerSupport;
 import com.makomi.client.render.ChunkActivatorFarOverlayRenderer;
 import com.makomi.client.render.DirectionalFaceVectorWorldOverlayRenderer;
+import com.makomi.client.render.HideChunkActivatorGhostRenderer;
+import com.makomi.client.render.HideFilterGhostRenderer;
 import com.makomi.client.render.HideNodeGhostRenderer;
 import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
@@ -141,13 +143,19 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PUSH_BUTTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_LEVER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_TOGGLE_EMITTER, HideNodeGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_PULSE_EMITTER, HideNodeGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.HIDE_SYNC_TRIGGER_SOURCE, HideNodeGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SEND_FILTER, LinkFilterAreaRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_SEND_FILTER, HideFilterGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_RECEIVE_FILTER, LinkFilterAreaRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_RECEIVE_FILTER, HideFilterGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_CHUNK_ACTIVATOR, ChunkActivatorFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_CHUNK_ACTIVATOR, HideChunkActivatorGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REPEATER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_REPEATER, HideNodeGhostRenderer::new);
 	}
 
 	/**

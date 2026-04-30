@@ -97,6 +97,7 @@ public class ChunkActivatorBlockItem extends BlockItem {
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.chunk_activator.open_editor"));
 		tooltipComponents.add(modeDetailTooltip(activeConfig.mode()));
 		super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+		HideNodeItemTooltipSupport.appendIfNeeded(stack, tooltipComponents);
 	}
 
 	private static boolean shouldOpenEditor(Player player, InteractionHand hand) {
