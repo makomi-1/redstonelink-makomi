@@ -81,7 +81,11 @@ public class SmartNodeContainerItem extends Item {
 		}
 
 		NonNullList<ItemStack> contents = SmartNodeContainerData.readContents(containerStack, serverLevel.registryAccess());
-		int selectedSlotIndex = SmartNodeContainerData.findFirstSlotForType(contents, snapshot.selectedType());
+		int selectedSlotIndex = SmartNodeContainerData.resolvePreferredSlotForType(
+			contents,
+			snapshot.selectedType(),
+			snapshot.temporarySelectedSlotIndex()
+		);
 		if (selectedSlotIndex < 0) {
 			return InteractionResult.PASS;
 		}
@@ -120,7 +124,8 @@ public class SmartNodeContainerItem extends Item {
 			contents,
 			snapshot.selectedType(),
 			snapshot.autoSortEnabled(),
-			snapshot.creativeAutoConsumeEnabled()
+			snapshot.creativeAutoConsumeEnabled(),
+			-1
 		);
 		player.containerMenu.broadcastChanges();
 		return result;
@@ -179,6 +184,7 @@ public class SmartNodeContainerItem extends Item {
 				)
 			)
 		);
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.temporary_select"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.open"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.cycle_type"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.place"));
@@ -261,7 +267,8 @@ public class SmartNodeContainerItem extends Item {
 			updatedContents,
 			snapshot.selectedType(),
 			snapshot.autoSortEnabled(),
-			snapshot.creativeAutoConsumeEnabled()
+			snapshot.creativeAutoConsumeEnabled(),
+			snapshot.temporarySelectedSlotIndex()
 		);
 		player.containerMenu.broadcastChanges();
 		if (player instanceof ServerPlayer serverPlayer) {

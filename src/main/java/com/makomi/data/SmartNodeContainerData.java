@@ -29,6 +29,7 @@ public final class SmartNodeContainerData {
 	private static final String KEY_AUTO_SORT = "rl_smart_node_container_auto_sort";
 	private static final String KEY_CREATIVE_AUTO_CONSUME = "rl_smart_node_container_creative_auto_consume";
 	private static final String KEY_ITEM_COUNT = "rl_smart_node_container_item_count";
+	private static final String KEY_TEMPORARY_SELECTED_SLOT = "rl_smart_node_container_temporary_selected_slot";
 
 	private SmartNodeContainerData() {
 	}
@@ -42,7 +43,8 @@ public final class SmartNodeContainerData {
 			readSelectedType(tag),
 			tag.getBoolean(KEY_AUTO_SORT),
 			!tag.contains(KEY_CREATIVE_AUTO_CONSUME, Tag.TAG_BYTE) || tag.getBoolean(KEY_CREATIVE_AUTO_CONSUME),
-			Math.max(0, tag.getInt(KEY_ITEM_COUNT))
+			Math.max(0, tag.getInt(KEY_ITEM_COUNT)),
+			readTemporarySelectedSlotIndex(tag)
 		);
 	}
 
@@ -71,7 +73,8 @@ public final class SmartNodeContainerData {
 		NonNullList<ItemStack> contents,
 		SmartNodeContainerPlacementType selectedType,
 		boolean autoSortEnabled,
-		boolean creativeAutoConsumeEnabled
+		boolean creativeAutoConsumeEnabled,
+		int temporarySelectedSlotIndex
 	) {
 		NonNullList<ItemStack> normalizedContents = normalizeContents(contents);
 		SmartNodeContainerPlacementType normalizedType = normalizeSelectedType(selectedType);
@@ -84,10 +87,10 @@ public final class SmartNodeContainerData {
 			} else {
 				tag.put(KEY_ITEMS, itemsTag);
 			}
-			writeControlState(tag, normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, itemCount);
+			writeControlState(tag, normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, itemCount, temporarySelectedSlotIndex);
 		});
 		syncModelState(stack, itemCount, normalizedType);
-		return new Snapshot(normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, itemCount);
+		return new Snapshot(normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, itemCount, sanitizeTemporarySelectedSlotIndex(temporarySelectedSlotIndex));
 	}
 
 	/**
@@ -98,17 +101,32 @@ public final class SmartNodeContainerData {
 		SmartNodeContainerPlacementType selectedType,
 		boolean autoSortEnabled,
 		boolean creativeAutoConsumeEnabled,
-		int itemCount
+		int itemCount,
+		int temporarySelectedSlotIndex
 	) {
 		SmartNodeContainerPlacementType normalizedType = normalizeSelectedType(selectedType);
 		int normalizedCount = Math.max(0, itemCount);
+		int normalizedTemporarySelectedSlotIndex = sanitizeTemporarySelectedSlotIndex(temporarySelectedSlotIndex);
 		CustomData.update(
 			DataComponents.CUSTOM_DATA,
 			stack,
-			tag -> writeControlState(tag, normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, normalizedCount)
+			tag -> writeControlState(
+				tag,
+				normalizedType,
+				autoSortEnabled,
+				creativeAutoConsumeEnabled,
+				normalizedCount,
+				normalizedTemporarySelectedSlotIndex
+			)
 		);
 		syncModelState(stack, normalizedCount, normalizedType);
-		return new Snapshot(normalizedType, autoSortEnabled, creativeAutoConsumeEnabled, normalizedCount);
+		return new Snapshot(
+			normalizedType,
+			autoSortEnabled,
+			creativeAutoConsumeEnabled,
+			normalizedCount,
+			normalizedTemporarySelectedSlotIndex
+		);
 	}
 
 	/**
@@ -121,7 +139,8 @@ public final class SmartNodeContainerData {
 			currentSnapshot.selectedType().next(),
 			currentSnapshot.autoSortEnabled(),
 			currentSnapshot.creativeAutoConsumeEnabled(),
-			currentSnapshot.itemCount()
+			currentSnapshot.itemCount(),
+			-1
 		);
 	}
 
@@ -135,7 +154,23 @@ public final class SmartNodeContainerData {
 			currentSnapshot.selectedType(),
 			currentSnapshot.autoSortEnabled(),
 			!currentSnapshot.creativeAutoConsumeEnabled(),
-			currentSnapshot.itemCount()
+			currentSnapshot.itemCount(),
+			currentSnapshot.temporarySelectedSlotIndex()
+		);
+	}
+
+	/**
+	 * 仅写回一次性临时槽位选择。
+	 */
+	public static Snapshot writeTemporarySelectedSlot(ItemStack stack, int temporarySelectedSlotIndex) {
+		Snapshot currentSnapshot = read(stack);
+		return writeControlState(
+			stack,
+			currentSnapshot.selectedType(),
+			currentSnapshot.autoSortEnabled(),
+			currentSnapshot.creativeAutoConsumeEnabled(),
+			currentSnapshot.itemCount(),
+			temporarySelectedSlotIndex
 		);
 	}
 
@@ -164,7 +199,7 @@ public final class SmartNodeContainerData {
 		if (stack == null || stack.isEmpty()) {
 			return null;
 		}
-		if (stack.getItem() == ModItems.LINK_REPEATER) {
+		if (stack.getItem() == ModItems.LINK_REPEATER || stack.getItem() == ModItems.HIDE_REPEATER) {
 			return SmartNodeContainerPlacementType.REPEATER;
 		}
 		if (!(stack.getItem() instanceof PairableItem pairableItem)) {
@@ -193,6 +228,65 @@ public final class SmartNodeContainerData {
 			}
 		}
 		return -1;
+	}
+
+	/**
+	 * 解析给定放置类型对应的全部候选槽位，顺序与当前容器内容顺序一致。
+	 */
+	public static List<Integer> findSlotsForType(NonNullList<ItemStack> contents, SmartNodeContainerPlacementType selectedType) {
+		List<Integer> slotIndexes = new ArrayList<>();
+		if (contents == null || contents.isEmpty()) {
+			return slotIndexes;
+		}
+		SmartNodeContainerPlacementType normalizedType = normalizeSelectedType(selectedType);
+		for (int index = 0; index < contents.size(); index++) {
+			if (classify(contents.get(index)) == normalizedType) {
+				slotIndexes.add(index);
+			}
+		}
+		return slotIndexes;
+	}
+
+	/**
+	 * 在当前类型候选槽位中循环到下一个槽位。
+	 */
+	public static int cycleTemporarySelectedSlot(
+		NonNullList<ItemStack> contents,
+		SmartNodeContainerPlacementType selectedType,
+		int currentTemporarySelectedSlotIndex,
+		int delta
+	) {
+		List<Integer> candidateSlotIndexes = findSlotsForType(contents, selectedType);
+		if (candidateSlotIndexes.isEmpty()) {
+			return -1;
+		}
+		if (candidateSlotIndexes.size() == 1 || delta == 0) {
+			return candidateSlotIndexes.get(0);
+		}
+		int currentListIndex = candidateSlotIndexes.indexOf(currentTemporarySelectedSlotIndex);
+		if (currentListIndex < 0) {
+			currentListIndex = delta > 0 ? -1 : 0;
+		}
+		int nextListIndex = Math.floorMod(currentListIndex + (delta > 0 ? 1 : -1), candidateSlotIndexes.size());
+		return candidateSlotIndexes.get(nextListIndex);
+	}
+
+	/**
+	 * 解析当前放置应优先使用的槽位：先看临时槽位，再回退到默认首槽。
+	 */
+	public static int resolvePreferredSlotForType(
+		NonNullList<ItemStack> contents,
+		SmartNodeContainerPlacementType selectedType,
+		int temporarySelectedSlotIndex
+	) {
+		List<Integer> candidateSlotIndexes = findSlotsForType(contents, selectedType);
+		if (candidateSlotIndexes.isEmpty()) {
+			return -1;
+		}
+		if (candidateSlotIndexes.contains(temporarySelectedSlotIndex)) {
+			return temporarySelectedSlotIndex;
+		}
+		return candidateSlotIndexes.get(0);
 	}
 
 	/**
@@ -296,7 +390,8 @@ public final class SmartNodeContainerData {
 		SmartNodeContainerPlacementType selectedType,
 		boolean autoSortEnabled,
 		boolean creativeAutoConsumeEnabled,
-		int itemCount
+		int itemCount,
+		int temporarySelectedSlotIndex
 	) {
 		tag.putString(KEY_SELECTED_TYPE, normalizeSelectedType(selectedType).token());
 		if (autoSortEnabled) {
@@ -314,6 +409,11 @@ public final class SmartNodeContainerData {
 		} else {
 			tag.remove(KEY_ITEM_COUNT);
 		}
+		if (temporarySelectedSlotIndex >= 0) {
+			tag.putInt(KEY_TEMPORARY_SELECTED_SLOT, temporarySelectedSlotIndex);
+		} else {
+			tag.remove(KEY_TEMPORARY_SELECTED_SLOT);
+		}
 	}
 
 	private static SmartNodeContainerPlacementType readSelectedType(CompoundTag tag) {
@@ -321,6 +421,17 @@ public final class SmartNodeContainerData {
 			return SmartNodeContainerPlacementType.CORE;
 		}
 		return SmartNodeContainerPlacementType.parse(tag.getString(KEY_SELECTED_TYPE));
+	}
+
+	private static int readTemporarySelectedSlotIndex(CompoundTag tag) {
+		if (tag == null || !tag.contains(KEY_TEMPORARY_SELECTED_SLOT, Tag.TAG_INT)) {
+			return -1;
+		}
+		return sanitizeTemporarySelectedSlotIndex(tag.getInt(KEY_TEMPORARY_SELECTED_SLOT));
+	}
+
+	private static int sanitizeTemporarySelectedSlotIndex(int slotIndex) {
+		return slotIndex >= 0 && slotIndex < SLOT_COUNT ? slotIndex : -1;
 	}
 
 	private static void syncModelState(
@@ -350,11 +461,13 @@ public final class SmartNodeContainerData {
 		SmartNodeContainerPlacementType selectedType,
 		boolean autoSortEnabled,
 		boolean creativeAutoConsumeEnabled,
-		int itemCount
+		int itemCount,
+		int temporarySelectedSlotIndex
 	) {
 		public Snapshot {
 			selectedType = normalizeSelectedType(selectedType);
 			itemCount = Math.max(0, itemCount);
+			temporarySelectedSlotIndex = sanitizeTemporarySelectedSlotIndex(temporarySelectedSlotIndex);
 		}
 
 		/**

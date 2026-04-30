@@ -57,4 +57,22 @@ public final class SmartNodeContainerNetwork {
 			return TYPE;
 		}
 	}
+
+	/**
+	 * 客户端请求更新当前一次性临时槽位选择。
+	 */
+	public record SelectSmartNodeContainerSlotPayload(int slotIndex) implements CustomPacketPayload {
+		public static final Type<SelectSmartNodeContainerSlotPayload> TYPE = new Type<>(
+			ResourceLocation.fromNamespaceAndPath(RedstoneLink.MOD_ID, "select_smart_node_container_slot")
+		);
+		public static final StreamCodec<FriendlyByteBuf, SelectSmartNodeContainerSlotPayload> CODEC = CustomPacketPayload.codec(
+			(payload, buffer) -> buffer.writeVarInt(payload.slotIndex()),
+			buffer -> new SelectSmartNodeContainerSlotPayload(buffer.readVarInt())
+		);
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
 }

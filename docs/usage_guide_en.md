@@ -39,19 +39,19 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
    `L = redstonelink:redstone_link_component`
 
 ### Hidden Nodes
-- Item names: `Hidden Core` and `Hidden Sync triggerSource`.
+- Item names: `Hidden Core`, `Hidden Sync triggerSource`, `Hidden Toggle Emitter`, `Hidden Pulse Emitter`, `Hidden Send Filter`, `Hidden Receive Filter`, `Hidden Chunk Activator`, and `Hidden Repeater`.
 - Basic behavior:
-1. `Hidden Core` is the hidden version of a `core`, and `Hidden Sync triggerSource` is the hidden version of a state-style `triggerSource`.
+1. These items are hidden carriers for their visible block-style counterparts. They keep the same `triggerSource/core` semantic and only change visibility and interaction requirements.
 2. Without Smart Glasses, they stay invisible and do not behave like normally targetable or interactable nodes.
 3. Once Smart Glasses are worn, they can be viewed, edited, recovered, and used like normal nodes.
 - Directional behavior:
 1. `Hidden Core` only outputs through enabled faces.
-2. `Hidden Sync triggerSource` only samples input from enabled faces.
-3. Both start with an empty face set after placement, so you should enable faces first with the Directional Face Editor.
+2. Hidden block-style `triggerSource` nodes, hidden filters, the hidden chunk activator, and the hidden repeater all reuse the directional input/output semantics of their visible counterparts.
+3. All hidden block nodes start with an empty face set after placement, so you should enable faces first with the Directional Face Editor.
 - Crafting recipe:
 1. `Linked Redstone Core + Glass -> Hidden Core`
 2. `Linked Sync Emitter + Glass -> Hidden Sync triggerSource`
-3. Both recipes are shapeless.
+3. All other hidden block nodes also use the same shapeless `base node + glass` rule.
 
 ### Directional Face Editor
 - Item name: `Directional Face Editor`.
@@ -62,10 +62,11 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 4. With Smart Glasses worn, holding the tool in either hand shows directional arrows for the node's enabled faces.
 - Currently supported:
 1. `core` and `hide core`
-2. Block-style `triggerSource` nodes and `hide sync triggerSource`
+2. Block-style `triggerSource` nodes and their hidden block-style variants
 3. `repeater`
 4. `send/receive` filters
 5. `chunk activator`
+6. Hidden variants of the supported block nodes above
 - Default rules:
 1. Visible nodes start fully enabled in all directions.
 2. `hide` nodes start with an empty face set.
@@ -189,7 +190,8 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 1. While held in the main hand, press the Quick Link mode key (default `B`) to open a chest-like GUI with `6` rows / `54` slots.
 2. The right side of the GUI shows the current placement type, auto-sort state, and the creative-only auto-consume toggle. Both container slots and player inventory slots keep normal hover tooltips like a vanilla chest.
 3. Middle mouse cycles the current placement type: `core -> triggerSource -> repeater`.
-4. Main-hand right-click ejects one node of the selected type and immediately tries to place it.
+4. `Ctrl + mouse wheel` in the main hand temporarily selects one sorted node inside the current placement type; that override only applies to the next successful action, then falls back to the default order unless you select again.
+5. Main-hand right-click ejects one node of the selected type and immediately tries to place it; if a temporary selection is active, that node is used first.
 5. Sneak + main-hand right-click can recover visible or hidden nodes into the container; overflow falls back to dropped items.
 - Storage rules:
 1. It only accepts single, non-aggregated node items: `core`, `triggerSource`, and `repeater`, including hidden node variants.
@@ -199,6 +201,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 5. When nodes are stored inside, connection-info tooltips do not auto-sync to outside changes; this matches vanilla chest behavior.
 6. If the item entity is truly destroyed, the contained nodes are retired recursively instead of being dropped out first.
 7. In creative mode, auto-consume can be toggled; when enabled, successful placement really consumes the stored node, and when disabled it does not.
+8. `hide repeater` is now classified and placed the same way as the visible repeater under the `repeater` placement type.
 - Crafting recipe:
 1. `Chest + Redstone Link Component -> Smart Node Container`
 2. Pattern:
@@ -239,13 +242,14 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 - Basic interaction:
 1. Place it as a repeater node; sneak and right-click with an empty offhand to open the repeater editor.
 2. The editor exposes separate `triggerSource` input and `core` output sides, both edited against current graph truth.
-3. Fixed delay currently supports only `1 tick / 2 ticks`.
+3. Fixed delay now accepts any positive integer tick value; values above `2 ticks` are experimental.
 - Runtime semantics:
 1. The repeater uses one shared serial while carrying both `triggerSource/core` identities; the real external direction still stays `triggerSource -> core`.
 2. Its input side expresses “which triggerSources point into this repeater”, while its output side expresses “which cores this repeater points to”.
-3. It forwards the observed input-side state to downstream `core` nodes with a fixed `1/2 tick` delay, making it suitable as a buffering and fixed-latency node.
+3. It forwards the observed input-side state to downstream `core` nodes with the currently configured positive-integer tick delay, making it suitable as a buffering and fixed-latency node.
 4. The repeater runs on the state-signal path, so it keeps full lifecycle and cross-chunk support.
 5. Internal self-links are automatically isolated; invalid same-serial `triggerSource -> core` self-links are not kept.
+6. If a new input arrives while a delayed dispatch is pending, the old pending result is discarded and the delay is re-armed from the new input.
 - Crafting recipe:
 1. `Linked Redstone Core + Redstone Link Component + Linked Sync Emitter -> Link Repeater`
 2. Pattern:

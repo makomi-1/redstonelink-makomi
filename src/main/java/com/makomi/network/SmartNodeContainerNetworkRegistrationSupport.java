@@ -23,6 +23,10 @@ final class SmartNodeContainerNetworkRegistrationSupport {
 			SmartNodeContainerNetwork.CycleSmartNodeContainerTypePayload.TYPE,
 			SmartNodeContainerNetwork.CycleSmartNodeContainerTypePayload.CODEC
 		);
+		PayloadTypeRegistry.playC2S().register(
+			SmartNodeContainerNetwork.SelectSmartNodeContainerSlotPayload.TYPE,
+			SmartNodeContainerNetwork.SelectSmartNodeContainerSlotPayload.CODEC
+		);
 
 		ServerPlayNetworking.registerGlobalReceiver(SmartNodeContainerNetwork.OpenSmartNodeContainerPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
@@ -37,6 +41,13 @@ final class SmartNodeContainerNetworkRegistrationSupport {
 				return;
 			}
 			player.server.execute(() -> SmartNodeContainerNetworkServerHandlerSupport.handleCycleSelectedType(player));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(SmartNodeContainerNetwork.SelectSmartNodeContainerSlotPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (player == null) {
+				return;
+			}
+			player.server.execute(() -> SmartNodeContainerNetworkServerHandlerSupport.handleSelectTemporarySlot(player, payload.slotIndex()));
 		});
 	}
 }

@@ -290,7 +290,8 @@ public class SmartNodeContainerMenu extends AbstractContainerMenu {
 			container.copyContents(),
 			selectedType(),
 			isAutoSortEnabled(),
-			isCreativeAutoConsumeEnabled()
+			isCreativeAutoConsumeEnabled(),
+			SmartNodeContainerData.read(heldStack).temporarySelectedSlotIndex()
 		);
 		owner.containerMenu.broadcastChanges();
 	}

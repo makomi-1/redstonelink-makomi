@@ -1,3 +1,6 @@
 {
-  "parent": "redstonelink:block/link_repeater"
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "redstonelink:item/reapter_hide"
+  }
 }

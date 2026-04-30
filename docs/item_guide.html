@@ -548,12 +548,18 @@
         'link_redstone_core': 'redstonelink:block/link_redstone_core_blue',
         'link_redstone_core_transparent': 'redstonelink:item/link_redstone_core_transparent_blue',
         'hide_core': 'redstonelink:item/link_redstone_core_hide',
+        'hide_toggle_emitter': 'redstonelink:item/link_toggle_emitter_hide',
+        'hide_pulse_emitter': 'redstonelink:item/link_pulse_emitter_hide',
         'link_redstone_dust_core': 'redstonelink:item/link_redstone_dust_core_blue',
         'link_redstone_dust_core_transparent': 'redstonelink:item/link_redstone_dust_core_transparent_blue',
         'link_chunk_activator': 'redstonelink:block/chunk_activator',
+        'hide_chunk_activator': 'redstonelink:item/chunk_activator_hide',
         'link_repeater': 'redstonelink:block/reapter',
+        'hide_repeater': 'redstonelink:item/reapter_hide',
         'link_receive_filter': 'redstonelink:block/link_receive_filter',
+        'hide_receive_filter': 'redstonelink:item/link_receive_filter_hide',
         'link_send_filter': 'redstonelink:block/link_send_filter',
+        'hide_send_filter': 'redstonelink:item/link_send_filter_hide',
         'link_sync_emitter': 'redstonelink:block/link_sync_emitter',
         'hide_sync_trigger_source': 'redstonelink:item/link_sync_emitter_hide',
         'link_sync_lever': 'redstonelink:item/link_sync_lever_blue_overlay',
@@ -774,6 +780,36 @@
           }
         },
         {
+          path: 'hide_toggle_emitter',
+          category: 'triggerSource',
+          role: 'triggerSource',
+          render: 'block',
+          name: { zh: '隐藏切换发射器', en: 'Hidden Toggle Emitter' },
+          effect: {
+            zh: '隐藏版切换 triggerSource 节点，沿用可见切换发射器的事件信号语义。',
+            en: 'A hidden toggle triggerSource node that keeps the event-signal semantic of the visible toggle emitter.'
+          },
+          usage: {
+            zh: ['默认不可见；佩戴智能眼镜后才可查看、命中和交互。', '放置后默认面集为空，需要先用定向面编辑工具启用输入面。', '它适合需要隐蔽事件输入点的布局。'],
+            en: ['It is hidden by default, and only becomes visible, targetable, and interactable after Smart Glasses are worn.', 'It starts with an empty face set after placement, so you should enable input faces first with the Directional Face Editor.', 'It is useful when you need concealed event-style input points.']
+          }
+        },
+        {
+          path: 'hide_pulse_emitter',
+          category: 'triggerSource',
+          role: 'triggerSource',
+          render: 'block',
+          name: { zh: '隐藏脉冲发射器', en: 'Hidden Pulse Emitter' },
+          effect: {
+            zh: '隐藏版脉冲 triggerSource 节点，沿用可见脉冲发射器的事件信号语义。',
+            en: 'A hidden pulse triggerSource node that keeps the event-signal semantic of the visible pulse emitter.'
+          },
+          usage: {
+            zh: ['默认不可见；佩戴智能眼镜后才可查看、命中和交互。', '放置后默认面集为空，需要先用定向面编辑工具启用输入面。', '它适合需要隐蔽脉冲输入点的布局。'],
+            en: ['It is hidden by default, and only becomes visible, targetable, and interactable after Smart Glasses are worn.', 'It starts with an empty face set after placement, so you should enable input faces first with the Directional Face Editor.', 'It is useful when you need concealed pulse-style input points.']
+          }
+        },
+        {
           path: 'link_repeater',
           category: 'repeater',
           role: 'repeater',
@@ -784,12 +820,27 @@
             en: 'A state-forwarding composite node that carries triggerSource input and core output identities, forwarding input state with fixed delay.'
           },
           usage: {
-            zh: ['放置后作为复合节点使用。', '潜行右键可打开转发器编辑器，并分别编辑输入 triggerSource 与输出 core。', '固定延迟仅支持 1 tick 与 2 ticks 两档。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
-            en: ['Place it as a composite node.', 'Sneak right-click to open the repeater editor and edit triggerSource input / core output separately.', 'Fixed delay currently supports only 1 tick and 2 ticks.', 'This is a state signal with full lifecycle and cross-chunk support.']
+            zh: ['放置后作为复合节点使用。', '潜行右键可打开转发器编辑器，并分别编辑输入 triggerSource 与输出 core。', '固定延迟现在支持任意大于 0 的正整数 tick，超过 2 tick 属于实验性配置。', '此类为状态信号，享有完整生命周期和跨区块支持。'],
+            en: ['Place it as a composite node.', 'Sneak right-click to open the repeater editor and edit triggerSource input / core output separately.', 'Fixed delay now supports any positive integer tick value, while values above 2 ticks are experimental.', 'This is a state signal with full lifecycle and cross-chunk support.']
           },
           note: {
-            zh: '转发器使用统一序号同时承载 core/triggerSource 双身份，内部自连会被自动隔离。',
-            en: 'The repeater uses one shared serial for both core/triggerSource identities, and internal self-links are automatically isolated.'
+            zh: '转发器使用统一序号同时承载 core/triggerSource 双身份，内部自连会被自动隔离；若延迟期间来了新输入，旧待派发结果会被丢弃并重新计时。',
+            en: 'The repeater uses one shared serial for both core/triggerSource identities, and internal self-links are automatically isolated; if a new input arrives during a pending delay, the old pending result is dropped and the delay is re-armed.'
+          }
+        },
+        {
+          path: 'hide_repeater',
+          category: 'repeater',
+          role: 'repeater',
+          render: 'block',
+          name: { zh: '隐藏转发器', en: 'Hidden Repeater' },
+          effect: {
+            zh: '隐藏版复合节点转发器，沿用可见转发器的输入/输出与延迟语义。',
+            en: 'A hidden composite repeater node that keeps the input/output and delay semantic of the visible repeater.'
+          },
+          usage: {
+            zh: ['默认不可见；佩戴智能眼镜后才可查看、命中和交互。', '放置后默认面集为空，需要先用定向面编辑工具启用输入面和输出面。', '潜行右键可打开转发器编辑器，并配置任意大于 0 的正整数延迟 tick；超过 2 tick 属于实验性配置。'],
+            en: ['It is hidden by default, and only becomes visible, targetable, and interactable after Smart Glasses are worn.', 'It starts with an empty face set after placement, so you should enable input and output faces first with the Directional Face Editor.', 'Sneak right-click opens the repeater editor, where any positive integer delay tick can be configured; values above 2 ticks are experimental.']
           }
         },
         {
@@ -895,6 +946,21 @@
           }
         },
         {
+          path: 'hide_send_filter',
+          category: 'filters',
+          role: 'filter',
+          render: 'block',
+          name: { zh: '隐藏发送过滤器', en: 'Hidden Send Filter' },
+          effect: {
+            zh: '隐藏版发送过滤器，沿用可见发送过滤器的筛选语义与配置能力。',
+            en: 'A hidden send filter that keeps the filtering semantic and configuration capabilities of the visible send filter.'
+          },
+          usage: {
+            zh: ['默认不可见；佩戴智能眼镜后才可查看、命中和交互。', '放置后默认面集为空，需要先用定向面编辑工具启用输入面。', '其它 GUI、配置快照与掉落保留行为与可见发送过滤器一致。'],
+            en: ['It is hidden by default, and only becomes visible, targetable, and interactable after Smart Glasses are worn.', 'It starts with an empty face set after placement, so you should enable input faces first with the Directional Face Editor.', 'Other GUI behavior, config snapshot retention, and drop persistence match the visible send filter.']
+          }
+        },
+        {
           path: 'link_receive_filter',
           category: 'filters',
           role: 'filter',
@@ -911,6 +977,21 @@
           note: {
             zh: '快速连接工具站立右键可把 core 序号缓存或当前频道缓存应用到该过滤器；节点在检测时会按自身当前连接模式选择序号或频道匹配；运行期配置变化会对 sync 触发失效/补发重算。',
             en: 'The Quick Link Tool can standing-right-click this filter to apply core serial cache or the current channel cache; at runtime the served node chooses serial or channel matching from its own current mode; config changes still trigger sync invalidation/resend reconciliation.'
+          }
+        },
+        {
+          path: 'hide_receive_filter',
+          category: 'filters',
+          role: 'filter',
+          render: 'block',
+          name: { zh: '隐藏接收过滤器', en: 'Hidden Receive Filter' },
+          effect: {
+            zh: '隐藏版接收过滤器，沿用可见接收过滤器的筛选语义与配置能力。',
+            en: 'A hidden receive filter that keeps the filtering semantic and configuration capabilities of the visible receive filter.'
+          },
+          usage: {
+            zh: ['默认不可见；佩戴智能眼镜后才可查看、命中和交互。', '放置后默认面集为空，需要先用定向面编辑工具启用输入面。', '其它 GUI、配置快照与掉落保留行为与可见接收过滤器一致。'],
+            en: ['It is hidden by default, and only becomes visible, targetable, and interactable after Smart Glasses are worn.', 'It starts with an empty face set after placement, so you should enable input faces first with the Directional Face Editor.', 'Other GUI behavior, config snapshot retention, and drop persistence match the visible receive filter.']
           }
         },
         {
@@ -977,6 +1058,21 @@
             en: ['After placement it is controlled by neighboring redstone; sneak right-click opens the editor.', 'It keeps separate `triggerSource/core` node sets and modes while only one set is active at a time; switching the active type does not clear the other configuration.', 'Each node set holds up to 32 entries; normal chunk unload does not discard the config, while physical breaking removes the persisted entry.']
           },
           
+        },
+        {
+          path: 'hide_chunk_activator',
+          category: 'tools',
+          role: 'utility',
+          render: 'block',
+          name: { zh: '隐藏区块激活器', en: 'Hidden Chunk Activator' },
+          effect: {
+            zh: '隐藏版区块激活器，沿用可见区块激活器的跨区块白名单贡献语义。',
+            en: 'A hidden chunk activator that keeps the cross-chunk whitelist contribution semantic of the visible chunk activator.'
+          },
+          usage: {
+            zh: ['默认不可见；佩戴智能眼镜后才可查看、命中和交互。', '放置后默认面集为空，需要先用定向面编辑工具启用输入面。', '其它编辑器、节点集容量与跨区块行为与可见区块激活器一致。'],
+            en: ['It is hidden by default, and only becomes visible, targetable, and interactable after Smart Glasses are worn.', 'It starts with an empty face set after placement, so you should enable input faces first with the Directional Face Editor.', 'Its editor, node-set capacity, and cross-chunk behavior match the visible chunk activator.']
+          }
         },
         {
           path: 'smart_glasses',
@@ -1046,12 +1142,12 @@
             en: 'A handheld 54-slot node container that stores core/triggerSource/repeater items and quickly places the currently selected type.'
           },
           usage: {
-            zh: ['主手持有时按快速连接模式键（默认 B）打开 6 行箱子式 GUI。', 'GUI 右侧显示当前放置类型、自动排序，以及创造模式下的自动消耗开关；容器槽位和背包槽位都可像普通箱子一样悬停查看 tooltip。', '鼠标中键循环切换当前放置类型；主手右键会按当前类型弹出一个节点并尝试放置。', '潜行主手右键可把可见或隐藏节点受控回收到容器；容器满时回退为掉落物。'],
-            en: ['While held in the main hand, press the Quick Link mode key (default B) to open its 6-row chest-style GUI.', 'The right side of the GUI shows the current placement type, auto-sort state, and the creative-only auto-consume toggle; both container slots and player inventory slots keep normal hover tooltips like a vanilla chest.', 'Middle mouse cycles the current placement type, and main-hand right-click ejects one node of that type and tries to place it.', 'Sneak + main-hand right-click can recover visible or hidden nodes into the container; overflow falls back to dropped items.']
+            zh: ['主手持有时按快速连接模式键（默认 B）打开 6 行箱子式 GUI。', 'GUI 右侧显示当前放置类型、自动排序，以及创造模式下的自动消耗开关；容器槽位和背包槽位都可像普通箱子一样悬停查看 tooltip。', '鼠标中键循环切换当前放置类型；主手按住 Ctrl + 鼠标滚轮可在当前类型内做一次性临时选取，成功作用一次后自动回到默认顺序。', '主手右键会按当前类型弹出一个节点并尝试放置；潜行主手右键可把可见或隐藏节点受控回收到容器，容器满时回退为掉落物。'],
+            en: ['While held in the main hand, press the Quick Link mode key (default B) to open its 6-row chest-style GUI.', 'The right side of the GUI shows the current placement type, auto-sort state, and the creative-only auto-consume toggle; both container slots and player inventory slots keep normal hover tooltips like a vanilla chest.', 'Middle mouse cycles the current placement type, while Ctrl + mouse wheel in the main hand performs a one-shot temporary selection inside that type and falls back to the default order after the next successful action.', 'Main-hand right-click ejects one node of the current type and tries to place it; sneak + main-hand right-click can recover visible or hidden nodes into the container, with overflow falling back to dropped items.']
           },
           note: {
-            zh: '容器只接受 core/triggerSource/repeater（包含隐藏节点变体），自动排序时按 core -> triggerSource -> repeater、类内序号升序排列；容器非空时侧面外显跟随当前放置类型切换，若容器物品实体被真正销毁，内部节点会递归退役而不是先掉出来；创造模式下可切换放置是否自动消耗。',
-            en: 'The container only accepts core/triggerSource/repeater items, including hidden-node variants, and auto-sorts as core -> triggerSource -> repeater with ascending serial inside each class; when non-empty, its side appearance follows the current placement type, and if the item entity is truly destroyed, contained nodes retire recursively instead of dropping out first; in creative mode, placement auto-consume can be toggled on or off.'
+            zh: '容器只接受 core/triggerSource/repeater（包含隐藏节点变体），自动排序时按 core -> triggerSource -> repeater、类内序号升序排列；容器非空时侧面外显跟随当前放置类型切换，若容器物品实体被真正销毁，内部节点会递归退役而不是先掉出来；创造模式下可切换放置是否自动消耗；hide 转发器现在会被正确归到 repeater 类型并参与临时选取与正常放置。',
+            en: 'The container only accepts core/triggerSource/repeater items, including hidden-node variants, and auto-sorts as core -> triggerSource -> repeater with ascending serial inside each class; when non-empty, its side appearance follows the current placement type, and if the item entity is truly destroyed, contained nodes retire recursively instead of dropping out first; in creative mode, placement auto-consume can be toggled on or off; hide repeaters are now correctly classified as repeater items for both temporary selection and normal placement.'
           }
         },
         {

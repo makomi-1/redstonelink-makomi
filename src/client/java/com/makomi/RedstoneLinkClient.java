@@ -24,6 +24,7 @@ import com.makomi.client.screen.SmartNodeContainerScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.data.SmartNodeContainerData;
@@ -395,6 +396,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		if (verticalAmount == 0.0D) {
 			return false;
 		}
+		if (isHoldingSmartNodeContainer(client.player)) {
+			return handleSmartNodeContainerMouseScroll(client, verticalAmount);
+		}
 		ItemStack mainHandItem = client.player.getMainHandItem();
 		if (mainHandItem.isEmpty() || !(mainHandItem.getItem() instanceof SyncLinkerItem)) {
 			return false;
@@ -412,6 +416,52 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			Component.translatable(
 				"message.redstonelink.sync_linker.signal_strength_changed",
 				Integer.toString(nextSignalStrength)
+			),
+			true
+		);
+		return true;
+	}
+
+	/**
+	 * 处理智能节点容器的 `Ctrl + 鼠标滚轮` 一次性临时选取。
+	 */
+	private static boolean handleSmartNodeContainerMouseScroll(Minecraft client, double verticalAmount) {
+		if (client == null || client.player == null) {
+			return false;
+		}
+		ItemStack mainHandItem = client.player.getMainHandItem();
+		if (mainHandItem.isEmpty() || mainHandItem.getItem() != ModItems.SMART_NODE_CONTAINER) {
+			return false;
+		}
+		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.read(mainHandItem);
+		if (!snapshot.hasItems()) {
+			return false;
+		}
+		List<Integer> candidateSlotIndexes = SmartNodeContainerData.findSlotsForType(
+			SmartNodeContainerData.readContents(mainHandItem, client.player.registryAccess()),
+			snapshot.selectedType()
+		);
+		if (candidateSlotIndexes.isEmpty()) {
+			return false;
+		}
+		int delta = verticalAmount > 0.0D ? 1 : -1;
+		int selectedSlotIndex = SmartNodeContainerData.cycleTemporarySelectedSlot(
+			SmartNodeContainerData.readContents(mainHandItem, client.player.registryAccess()),
+			snapshot.selectedType(),
+			snapshot.temporarySelectedSlotIndex(),
+			delta
+		);
+		if (selectedSlotIndex < 0) {
+			return false;
+		}
+		SmartNodeContainerData.writeTemporarySelectedSlot(mainHandItem, selectedSlotIndex);
+		ClientPlayNetworking.send(new SmartNodeContainerNetwork.SelectSmartNodeContainerSlotPayload(selectedSlotIndex));
+
+		ItemStack selectedStack = SmartNodeContainerData.readContents(mainHandItem, client.player.registryAccess()).get(selectedSlotIndex);
+		client.player.displayClientMessage(
+			Component.translatable(
+				"message.redstonelink.smart_node_container.temporary_selected",
+				NodeAliasDisplayUtil.formatDisplayText(LinkItemData.getDisplayAlias(selectedStack), LinkItemData.getSerial(selectedStack))
 			),
 			true
 		);

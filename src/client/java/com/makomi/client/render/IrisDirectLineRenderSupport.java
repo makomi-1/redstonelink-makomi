@@ -21,10 +21,10 @@ import org.joml.Vector3f;
  */
 public final class IrisDirectLineRenderSupport {
 	private static final float SEGMENT_EPSILON = 1.0E-5F;
-	private static final float MIN_HALF_WIDTH = 0.010F;
-	private static final float MAX_HALF_WIDTH = 0.080F;
-	private static final float BASE_HALF_WIDTH_SCALE = 0.0035F;
-	private static final float DISTANCE_HALF_WIDTH_SCALE = 0.0022F;
+	private static final float MIN_HALF_WIDTH = 0.006F;
+	private static final float MAX_HALF_WIDTH = 0.050F;
+	private static final float BASE_HALF_WIDTH_SCALE = 0.0022F;
+	private static final float DISTANCE_HALF_WIDTH_SCALE = 0.0005F;
 
 	private IrisDirectLineRenderSupport() {
 	}
