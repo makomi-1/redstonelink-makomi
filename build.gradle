@@ -11,6 +11,16 @@ base {
 	archivesName = "${project.archives_base_name}-fabric-${project.minecraft_version}"
 }
 
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+def java25Launcher = javaToolchains.launcherFor {
+	languageVersion = JavaLanguageVersion.of(25)
+}
+
 def requestedTaskNames = gradle.startParameter.taskNames.collect { it?.toString() ?: "" }
 def enableClientModStack = requestedTaskNames.any { it == "runClientModStack" || it.endsWith(":runClientModStack") }
 def withRuntimeMod = { String propertyName ->
@@ -209,6 +219,15 @@ tasks.matching { it.name == "runClient" }.configureEach {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 25
+}
+
+tasks.withType(JavaExec).configureEach {
+	// 26.1 运行链路要求 Java 25，避免默认跟随调用方的 JAVA_HOME。
+	javaLauncher = java25Launcher
+}
+
+tasks.withType(Test).configureEach {
+	javaLauncher = java25Launcher
 }
 
 tasks.named("test", Test).configure {
