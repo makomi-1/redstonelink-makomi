@@ -1,5 +1,5 @@
 plugins {
-	id 'fabric-loom' version "${loom_version}"
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
 	id 'jacoco'
 }
@@ -85,11 +85,10 @@ fabricApi {
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings loom.officialMojangMappings()
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	// Lithium runtime dependency for local runClient testing (opt-in via -PwithLithium=true).
 	if (withLithium) {
 		modRuntimeOnly "maven.modrinth:lithium:${project.lithium_version}"
@@ -196,7 +195,7 @@ tasks.register("prepareClientResourcesDir") {
 	description = "Create the client resources output directory expected by dev client runs."
 	outputs.dir(clientResourcesOutputDir)
 	doLast {
-		// 1.21.11 development runs still add build/resources/client to the classpath even when
+		// 26.1 development runs still add build/resources/client to the classpath even when
 		// there are no dedicated client resources; pre-create the directory to avoid false warnings.
 		clientResourcesOutputDir.get().asFile.mkdirs()
 	}
@@ -207,7 +206,7 @@ tasks.matching { it.name == "runClient" }.configureEach {
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+	it.options.release = 25
 }
 
 tasks.named("test", Test).configure {
@@ -370,8 +369,8 @@ java {
 	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
 }
 
 jar {
