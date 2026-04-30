@@ -25,10 +25,12 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 3. Hidden nodes are only visible, targetable, and interactable while they are worn.
 4. Once they are worn, displayed links stay visible even if the main hand switches back to the Quick Link Tool or some other tool.
 5. `visualize` operations themselves still require an empty main hand; add/remove also require standing and holding `Ctrl`, while `Shift + B` clear does not.
+6. `Ctrl + K` now toggles persistent directional face vectors, and this display condition is unioned with the Directional Face Editor.
 - Notes:
 1. Smart Glasses are only an observation gate. They do not pair, rewrite links, or edit caches by themselves.
 2. Without them, far/near overlays and `visualize` rendering do not appear at all.
 3. They currently reuse the helmet equipment slot and vanilla armor render chain, but provide no extra armor attributes and no normal helmet durability.
+4. Persistent face-vector display is a pure client-side observation toggle and does not change any `triggerSource/core` truth or node config.
 - Crafting recipe:
 1. `Glass Pane + Redstone Link Component + Glass Pane -> Smart Glasses`
 2. Pattern:
@@ -60,6 +62,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 2. Right-click a supported node face with the main hand to edit that node's face set using the current mode.
 3. Holding the tool in the offhand only shows arrows and does not actually edit.
 4. With Smart Glasses worn, holding the tool in either hand shows directional arrows for the node's enabled faces.
+5. If the Smart Glasses `Ctrl + K` face-vector toggle is enabled, those arrows remain visible even when the tool is not currently held.
 - Currently supported:
 1. `core` and `hide core`
 2. Block-style `triggerSource` nodes and their hidden block-style variants

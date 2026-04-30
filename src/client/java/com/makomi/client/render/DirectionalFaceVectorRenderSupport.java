@@ -6,6 +6,7 @@ import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.item.DirectionalFaceEditorItem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -69,7 +70,7 @@ public final class DirectionalFaceVectorRenderSupport {
 	/**
 	 * 判断当前是否需要进入“定向面可视化”状态。
 	 * <p>
-	 * 只要玩家主手或副手持有定向编辑器，即可显示箭头。
+	 * 只要玩家主手或副手持有定向编辑器，或智能眼镜方向箭头持续显示开关已开启，即可显示箭头。
 	 * </p>
 	 */
 	public static boolean shouldRenderFaceVectors(Minecraft minecraft) {
@@ -78,6 +79,7 @@ public final class DirectionalFaceVectorRenderSupport {
 			&& (
 				minecraft.player.getMainHandItem().getItem() instanceof DirectionalFaceEditorItem
 					|| minecraft.player.getOffhandItem().getItem() instanceof DirectionalFaceEditorItem
+					|| RedstoneLinkClientDisplayConfig.isSmartGlassesFaceVectorEnabled()
 			);
 	}
 

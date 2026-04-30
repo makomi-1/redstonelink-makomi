@@ -78,9 +78,12 @@ import org.lwjgl.glfw.GLFWScrollCallbackI;
 public class RedstoneLinkClient implements ClientModInitializer {
 	private static final String KEY_CATEGORY = "key.categories.redstonelink";
 	private static final String KEY_TOGGLE_SERIAL_OVERLAY = "key.redstonelink.toggle_serial_overlay";
+	private static final String KEY_TOGGLE_SMART_GLASSES_FACE_VECTORS =
+		"key.redstonelink.toggle_smart_glasses_face_vectors";
 	private static final String KEY_TOGGLE_QUICK_LINK_MODE = "key.redstonelink.toggle_quick_link_mode";
 	private static final String CLIENT_DISPLAY_COMMAND_ROOT = "rlclient";
 	private static KeyMapping toggleSerialOverlayKey;
+	private static KeyMapping toggleSmartGlassesFaceVectorsKey;
 	private static KeyMapping toggleQuickLinkModeKey;
 	private static boolean pickItemKeyWasDown;
 	private static long syncLinkerScrollHookWindowHandle;
@@ -181,12 +184,22 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerClientKeyBindings() {
 		InputConstants.Key defaultToggleKey = RedstoneLinkClientDisplayConfig.overlay().toggleKey();
+		InputConstants.Key defaultSmartGlassesFaceVectorToggleKey =
+			RedstoneLinkClientDisplayConfig.overlay().faceVectorToggleKey();
 		InputConstants.Key defaultQuickLinkToggleKey = RedstoneLinkClientDisplayConfig.quickLink().modeToggleKey();
 		toggleSerialOverlayKey = KeyBindingHelper.registerKeyBinding(
 			new KeyMapping(
 				KEY_TOGGLE_SERIAL_OVERLAY,
 				defaultToggleKey.getType(),
 				defaultToggleKey.getValue(),
+				KEY_CATEGORY
+			)
+		);
+		toggleSmartGlassesFaceVectorsKey = KeyBindingHelper.registerKeyBinding(
+			new KeyMapping(
+				KEY_TOGGLE_SMART_GLASSES_FACE_VECTORS,
+				defaultSmartGlassesFaceVectorToggleKey.getType(),
+				defaultSmartGlassesFaceVectorToggleKey.getValue(),
 				KEY_CATEGORY
 			)
 		);
@@ -202,6 +215,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			ensureSyncLinkerScrollHookInstalled(client);
 			while (toggleSerialOverlayKey.consumeClick()) {
+				if (Screen.hasControlDown()) {
+					continue;
+				}
 				RedstoneLinkClientDisplayConfig.SerialOverlayMode mode = RedstoneLinkClientDisplayConfig.cycleSerialOverlayMode();
 				if (client.player != null) {
 					client.player.displayClientMessage(
@@ -209,6 +225,13 @@ public class RedstoneLinkClient implements ClientModInitializer {
 						true
 					);
 				}
+			}
+
+			while (toggleSmartGlassesFaceVectorsKey.consumeClick()) {
+				if (!Screen.hasControlDown()) {
+					continue;
+				}
+				handleSmartGlassesFaceVectorToggle(client);
 			}
 
 			while (toggleQuickLinkModeKey.consumeClick()) {
@@ -221,6 +244,24 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			}
 			pickItemKeyWasDown = pickItemKeyDown;
 		});
+	}
+
+	/**
+	 * 处理智能眼镜定向方向箭头显示开关。
+	 */
+	private static void handleSmartGlassesFaceVectorToggle(Minecraft client) {
+		if (client == null || client.player == null) {
+			return;
+		}
+		boolean enabled = RedstoneLinkClientDisplayConfig.toggleSmartGlassesFaceVectorEnabled();
+		client.player.displayClientMessage(
+			Component.translatable(
+				enabled
+					? "message.redstonelink.smart_glasses.face_vectors.enabled"
+					: "message.redstonelink.smart_glasses.face_vectors.disabled"
+			),
+			true
+		);
 	}
 
 	/**

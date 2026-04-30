@@ -44,6 +44,7 @@ public final class HideNodeGhostRenderer<T extends PairableNodeBlockEntity> impl
 
 	@Override
 	public int getViewDistance() {
-		return farOverlayRenderer.getViewDistance();
+		// hide 节点在佩戴智能眼镜后不再受常规 far overlay 距离裁剪。
+		return Integer.MAX_VALUE;
 	}
 }

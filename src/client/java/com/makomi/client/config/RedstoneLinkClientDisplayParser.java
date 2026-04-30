@@ -14,6 +14,8 @@ final class RedstoneLinkClientDisplayParser {
 	static final String KEY_SERIAL_OVERLAY_FONT_SCALE = "client.serialOverlayFontScale";
 	static final String KEY_SERIAL_OVERLAY_TOGGLE_KEY = "client.serialOverlayToggleKey";
 	static final String KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH = "client.serialOverlayFarSeeThrough";
+	static final String KEY_SMART_GLASSES_FACE_VECTOR_TOGGLE_KEY = "client.smartGlassesFaceVectorToggleKey";
+	static final String KEY_SMART_GLASSES_FACE_VECTOR_ENABLED = "client.smartGlassesFaceVectorEnabled";
 	static final String KEY_PAIRING_INPUT_MAX_LENGTH = "client.pairingInputMaxLength";
 	static final String KEY_QUICK_LINK_MODE_TOGGLE_KEY = "client.quickLinkModeToggleKey";
 	static final String KEY_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH = "client.quickLinkSerialCacheMaxLength";
@@ -26,6 +28,8 @@ final class RedstoneLinkClientDisplayParser {
 	static final int DEFAULT_NEAR_OVERLAY_DISTANCE = 8;
 	static final String DEFAULT_SERIAL_OVERLAY_TOGGLE_KEY = "key.keyboard.k";
 	static final boolean DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH = false;
+	static final String DEFAULT_SMART_GLASSES_FACE_VECTOR_TOGGLE_KEY = "key.keyboard.k";
+	static final boolean DEFAULT_SMART_GLASSES_FACE_VECTOR_ENABLED = false;
 	static final int DEFAULT_PAIRING_INPUT_MAX_LENGTH = 1024;
 	static final String DEFAULT_QUICK_LINK_MODE_TOGGLE_KEY = "key.keyboard.b";
 	static final int DEFAULT_QUICK_LINK_SERIAL_CACHE_MAX_LENGTH = 1024;
@@ -72,6 +76,18 @@ final class RedstoneLinkClientDisplayParser {
 					properties,
 					KEY_SERIAL_OVERLAY_FAR_SEE_THROUGH,
 					DEFAULT_SERIAL_OVERLAY_FAR_SEE_THROUGH,
+					logger
+				),
+				RedstoneLinkClientKeyConfigSupport.parseKey(
+					properties.getProperty(KEY_SMART_GLASSES_FACE_VECTOR_TOGGLE_KEY),
+					KEY_SMART_GLASSES_FACE_VECTOR_TOGGLE_KEY,
+					DEFAULT_SMART_GLASSES_FACE_VECTOR_TOGGLE_KEY,
+					logger
+				),
+				parseBoolean(
+					properties,
+					KEY_SMART_GLASSES_FACE_VECTOR_ENABLED,
+					DEFAULT_SMART_GLASSES_FACE_VECTOR_ENABLED,
 					logger
 				)
 			),

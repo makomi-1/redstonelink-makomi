@@ -44,6 +44,7 @@ public final class HideChunkActivatorGhostRenderer implements BlockEntityRendere
 
 	@Override
 	public int getViewDistance() {
-		return farOverlayRenderer.getViewDistance();
+		// hide 区块激活器在佩戴智能眼镜后不再受常规 far overlay 距离裁剪。
+		return Integer.MAX_VALUE;
 	}
 }
