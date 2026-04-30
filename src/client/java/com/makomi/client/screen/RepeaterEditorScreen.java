@@ -22,17 +22,18 @@ import org.lwjgl.glfw.GLFW;
 /**
  * 转发器最小编辑界面。
  * <p>
- * 仅暴露统一别名、固定延迟档位，以及跳转到输入/输出两侧配对界面的入口。
+ * 仅暴露统一别名、自定义正整数延迟，以及跳转到输入/输出两侧配对界面的入口。
  * </p>
  */
 public class RepeaterEditorScreen extends Screen {
 	private static final int SCREEN_EDGE_MARGIN = 16;
 	private static final int PANEL_PREFERRED_WIDTH = 320;
-	private static final int PANEL_CONTENT_HEIGHT = 224;
+	private static final int PANEL_CONTENT_HEIGHT = 244;
 	private static final int TITLE_TOP_MARGIN = 22;
 	private static final int GROUP_LABEL_MARGIN = 8;
 	private static final int BUTTON_HEIGHT = 20;
 	private static final int BUTTON_GAP = 4;
+	private static final int STATUS_MESSAGE_MARGIN = 10;
 	private static final int BACKGROUND_HORIZONTAL_PADDING = 12;
 	private static final int BACKGROUND_TOP_PADDING = 16;
 	private static final int BACKGROUND_BOTTOM_PADDING = 22;
@@ -81,8 +82,8 @@ public class RepeaterEditorScreen extends Screen {
 	private final String outputSummary;
 
 	private StyledEditBox aliasInput;
-	private Button[] delayButtons = new Button[0];
-	private RepeaterDelay currentDelay;
+	private StyledEditBox delayInput;
+	private Component statusMessage = Component.empty();
 
 	public RepeaterEditorScreen(
 		LinkFilterEditorTargetKind targetKind,
@@ -106,7 +107,6 @@ public class RepeaterEditorScreen extends Screen {
 		this.initialSnapshot = initialSnapshot == null ? RepeaterConfigSnapshot.empty() : initialSnapshot;
 		this.expectedCoreRevision = Math.max(0L, expectedCoreRevision);
 		this.expectedSourceRevision = Math.max(0L, expectedSourceRevision);
-		this.currentDelay = this.initialSnapshot.delay();
 		this.initialAlias = NodeAliasDisplayUtil.normalizeAlias(initialDisplayAlias);
 		this.inputDisplayTexts = normalizeDisplayTexts(this.initialSnapshot.inputSerialExpression(), inputDisplayTexts);
 		this.outputDisplayTexts = normalizeDisplayTexts(this.initialSnapshot.outputSerialExpression(), outputDisplayTexts);
@@ -121,6 +121,7 @@ public class RepeaterEditorScreen extends Screen {
 		super.init();
 		RepeaterLayout layout = resolveLayout(width, height, font.lineHeight);
 		String preservedAlias = aliasInput == null ? initialAlias : aliasInput.getValue();
+		String preservedDelayText = delayInput == null ? Integer.toString(initialSnapshot.delay().delayTicks()) : delayInput.getValue();
 
 		aliasInput = createAliasInputBox(layout);
 		aliasInput.setMaxLength(NodeAliasSavedData.maxAliasLength());
@@ -128,16 +129,11 @@ public class RepeaterEditorScreen extends Screen {
 		aliasInput.setValue(preservedAlias);
 		addRenderableWidget(aliasInput);
 
-		int splitButtonWidth = CenteredFormLayoutSupport.resolveSplitWidth(layout.panelWidth(), BUTTON_GAP, 2);
-		delayButtons = new Button[] {
-			createOptionButton(layout.panelLeft(), layout.delayRowY(), splitButtonWidth, () -> currentDelay = RepeaterDelay.ONE_TICK),
-			createOptionButton(
-				layout.panelLeft() + splitButtonWidth + BUTTON_GAP,
-				layout.delayRowY(),
-				splitButtonWidth,
-				() -> currentDelay = RepeaterDelay.TWO_TICKS
-			)
-		};
+		delayInput = createDelayInputBox(layout);
+		delayInput.setMaxLength(10);
+		delayInput.setFilter(value -> value.chars().allMatch(Character::isDigit));
+		delayInput.setValue(preservedDelayText);
+		addRenderableWidget(delayInput);
 
 		addRenderableWidget(
 			createActionButton(
@@ -177,8 +173,6 @@ public class RepeaterEditorScreen extends Screen {
 				button -> onClose()
 			)
 		);
-
-		refreshDelayButtonMessages();
 		setInitialFocus(aliasInput);
 	}
 
@@ -195,6 +189,10 @@ public class RepeaterEditorScreen extends Screen {
 		guiGraphics.drawString(font, Component.literal(truncateSummary(inputSummary, layout.panelWidth())), layout.panelLeft(), layout.inputValueY(), themeTextColor(), false);
 		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.repeater.output_summary"), layout.panelLeft(), layout.outputLabelY(), 0xFFFFFF, false);
 		guiGraphics.drawString(font, Component.literal(truncateSummary(outputSummary, layout.panelWidth())), layout.panelLeft(), layout.outputValueY(), themeTextColor(), false);
+		if (!statusMessage.getString().isEmpty()) {
+			guiGraphics.drawCenteredString(font, statusMessage, width / 2, layout.statusMessageY(), 0xFF6666);
+		}
+		renderDelayTooltip(guiGraphics, layout, mouseX, mouseY);
 		renderSummaryTooltip(guiGraphics, layout, mouseX, mouseY);
 	}
 
@@ -243,6 +241,12 @@ public class RepeaterEditorScreen extends Screen {
 	}
 
 	private void saveAndClose() {
+		Optional<RepeaterDelay> parsedDelay = parseDelayInput();
+		if (parsedDelay.isEmpty()) {
+			statusMessage = Component.translatable("screen.redstonelink.repeater.delay.invalid_positive");
+			return;
+		}
+		statusMessage = Component.empty();
 		ClientPlayNetworking.send(
 			new RepeaterNetwork.SaveRepeaterPayload(
 				targetKind,
@@ -254,35 +258,13 @@ public class RepeaterEditorScreen extends Screen {
 				new RepeaterConfigSnapshot(
 					initialSnapshot.inputSerialExpression(),
 					initialSnapshot.outputSerialExpression(),
-					currentDelay
+					parsedDelay.get()
 				),
 				expectedCoreRevision,
 				expectedSourceRevision
 			)
 		);
 		onClose();
-	}
-
-	private void refreshDelayButtonMessages() {
-		setOptionButtonMessage(
-			delayButtons[0],
-			currentDelay == RepeaterDelay.ONE_TICK,
-			Component.translatable("screen.redstonelink.repeater.delay.one_tick")
-		);
-		setOptionButtonMessage(
-			delayButtons[1],
-			currentDelay == RepeaterDelay.TWO_TICKS,
-			Component.translatable("screen.redstonelink.repeater.delay.two_ticks")
-		);
-	}
-
-	private Button createOptionButton(int x, int y, int width, Runnable onPress) {
-		Button button = new StyledButton(x, y, width, BUTTON_HEIGHT, Component.empty(), value -> {
-			onPress.run();
-			refreshDelayButtonMessages();
-		}, BUTTON_STYLE);
-		addRenderableWidget(button);
-		return button;
 	}
 
 	private StyledEditBox createAliasInputBox(RepeaterLayout layout) {
@@ -297,13 +279,38 @@ public class RepeaterEditorScreen extends Screen {
 		);
 	}
 
+	private StyledEditBox createDelayInputBox(RepeaterLayout layout) {
+		return new StyledEditBox(
+			font,
+			layout.panelLeft(),
+			layout.delayInputY(),
+			layout.panelWidth(),
+			BUTTON_HEIGHT,
+			Component.translatable("screen.redstonelink.repeater.delay"),
+			EDIT_BOX_STYLE
+		);
+	}
+
 	private Button createActionButton(Component message, int x, int y, int width, Button.OnPress onPress) {
 		return new StyledButton(x, y, width, BUTTON_HEIGHT, message, onPress, BUTTON_STYLE);
 	}
 
-	private static void setOptionButtonMessage(Button button, boolean selected, Component label) {
-		if (button != null) {
-			button.setMessage(Component.literal(selected ? "* " : "o ").append(label));
+	/**
+	 * 解析延迟输入框；仅允许大于 `0` 的正整数 tick。
+	 */
+	private Optional<RepeaterDelay> parseDelayInput() {
+		String rawValue = delayInput == null ? "" : delayInput.getValue().trim();
+		if (rawValue.isEmpty()) {
+			return Optional.empty();
+		}
+		try {
+			int delayTicks = Integer.parseInt(rawValue);
+			if (delayTicks <= 0) {
+				return Optional.empty();
+			}
+			return Optional.of(RepeaterDelay.ofTicks(delayTicks));
+		} catch (NumberFormatException exception) {
+			return Optional.empty();
 		}
 	}
 
@@ -363,6 +370,32 @@ public class RepeaterEditorScreen extends Screen {
 				mouseY
 			);
 		}
+	}
+
+	/**
+	 * 为延迟输入框补充规则说明与实验性提示。
+	 */
+	private void renderDelayTooltip(GuiGraphics guiGraphics, RepeaterLayout layout, int mouseX, int mouseY) {
+		if (
+			isMouseOver(
+				layout.panelLeft(),
+				layout.delayLabelY(),
+				layout.panelWidth(),
+				layout.delayInputY() + BUTTON_HEIGHT - layout.delayLabelY(),
+				mouseX,
+				mouseY
+			)
+		) {
+			renderTooltipIfPresent(guiGraphics, buildDelayTooltipLines(), mouseX, mouseY);
+		}
+	}
+
+	private List<Component> buildDelayTooltipLines() {
+		return List.of(
+			Component.translatable("tooltip.redstonelink.repeater.delay.input.line1"),
+			Component.translatable("tooltip.redstonelink.repeater.delay.input.line2"),
+			Component.translatable("tooltip.redstonelink.repeater.delay.input.line3")
+		);
 	}
 
 	/**
@@ -468,14 +501,15 @@ public class RepeaterEditorScreen extends Screen {
 		int aliasLabelY = titleY + TITLE_TOP_MARGIN;
 		int aliasInputY = aliasLabelY + GROUP_LABEL_MARGIN;
 		int delayLabelY = aliasInputY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
-		int delayRowY = delayLabelY + GROUP_LABEL_MARGIN;
-		int inputLabelY = delayRowY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
+		int delayInputY = delayLabelY + GROUP_LABEL_MARGIN;
+		int inputLabelY = delayInputY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
 		int inputValueY = inputLabelY + GROUP_LABEL_MARGIN;
 		int inputButtonY = inputValueY + fontLineHeight + GROUP_LABEL_MARGIN;
 		int outputLabelY = inputButtonY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
 		int outputValueY = outputLabelY + GROUP_LABEL_MARGIN;
 		int outputButtonY = outputValueY + fontLineHeight + GROUP_LABEL_MARGIN;
 		int actionButtonY = outputButtonY + BUTTON_HEIGHT + GROUP_LABEL_MARGIN;
+		int statusMessageY = actionButtonY + BUTTON_HEIGHT + STATUS_MESSAGE_MARGIN;
 		return new RepeaterLayout(
 			panelBox.left(),
 			panelBox.top(),
@@ -484,14 +518,15 @@ public class RepeaterEditorScreen extends Screen {
 			aliasLabelY,
 			aliasInputY,
 			delayLabelY,
-			delayRowY,
+			delayInputY,
 			inputLabelY,
 			inputValueY,
 			inputButtonY,
 			outputLabelY,
 			outputValueY,
 			outputButtonY,
-			actionButtonY
+			actionButtonY,
+			statusMessageY
 		);
 	}
 
@@ -540,7 +575,7 @@ public class RepeaterEditorScreen extends Screen {
 			);
 		bounds =
 			bounds.include(
-				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.delayRowY(), layout.panelWidth(), BUTTON_HEIGHT)
+				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.delayInputY(), layout.panelWidth(), BUTTON_HEIGHT)
 			);
 		bounds =
 			bounds.include(
@@ -578,11 +613,19 @@ public class RepeaterEditorScreen extends Screen {
 			bounds.include(
 				new GuiBackgroundRenderSupport.RegionBounds(layout.panelLeft(), layout.actionButtonY(), layout.panelWidth(), BUTTON_HEIGHT)
 			);
+		if (!statusMessage.getString().isEmpty()) {
+			bounds = bounds.include(centeredTextBounds(statusMessage, width / 2, layout.statusMessageY()));
+		}
 		return bounds;
 	}
 
 	private GuiBackgroundRenderSupport.RegionBounds leftAlignedTextBounds(Component text, int left, int top) {
 		return new GuiBackgroundRenderSupport.RegionBounds(left, top, Math.max(1, font.width(text)), font.lineHeight);
+	}
+
+	private GuiBackgroundRenderSupport.RegionBounds centeredTextBounds(Component text, int centerX, int top) {
+		int textWidth = Math.max(1, font.width(text));
+		return new GuiBackgroundRenderSupport.RegionBounds(centerX - (textWidth / 2), top, textWidth, font.lineHeight);
 	}
 
 	static record RepeaterLayout(
@@ -593,14 +636,15 @@ public class RepeaterEditorScreen extends Screen {
 		int aliasLabelY,
 		int aliasInputY,
 		int delayLabelY,
-		int delayRowY,
+		int delayInputY,
 		int inputLabelY,
 		int inputValueY,
 		int inputButtonY,
 		int outputLabelY,
 		int outputValueY,
 		int outputButtonY,
-		int actionButtonY
+		int actionButtonY,
+		int statusMessageY
 	) {
 	}
 }

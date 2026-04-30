@@ -687,10 +687,9 @@ final class LinkSerialHudOverlayTextSupport {
 	 */
 	private static String resolveRepeaterDelayText(RepeaterDelay delay) {
 		RepeaterDelay normalizedDelay = delay == null ? RepeaterDelay.ONE_TICK : delay;
-		return switch (normalizedDelay) {
-			case ONE_TICK -> translate("screen.redstonelink.repeater.delay.one_tick");
-			case TWO_TICKS -> translate("screen.redstonelink.repeater.delay.two_ticks");
-		};
+		return normalizedDelay.displayTranslationNeedsTickArgument()
+			? translate(normalizedDelay.displayTranslationKey(), normalizedDelay.delayTicks())
+			: translate(normalizedDelay.displayTranslationKey());
 	}
 
 	/**

@@ -28,7 +28,7 @@ class RepeaterNetworkPayloadTest {
 			-1,
 			42L,
 			"中继A",
-			new RepeaterConfigSnapshot("1/3", "7", RepeaterDelay.TWO_TICKS),
+			new RepeaterConfigSnapshot("1/3", "7", RepeaterDelay.ofTicks(5)),
 			List.of("门厅(#1)"),
 			List.of(),
 			9L,
@@ -87,7 +87,7 @@ class RepeaterNetworkPayloadTest {
 			2,
 			91L,
 			"背包转发器",
-			new RepeaterConfigSnapshot("5", "11/12", RepeaterDelay.TWO_TICKS),
+			new RepeaterConfigSnapshot("5", "11/12", RepeaterDelay.ofTicks(7)),
 			21L,
 			22L
 		);
