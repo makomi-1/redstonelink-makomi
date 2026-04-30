@@ -9,7 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.input.KeyEvent;
@@ -177,14 +177,14 @@ public class StatePanelToolScreen extends Screen {
 	}
 
 	@Override
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		StatePanelLayout layout = resolveLayout(width, height);
 		applyWidgetLayout(layout);
-		super.render(guiGraphics, mouseX, mouseY, partialTick);
+		super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), width / 2, layout.panelTop(), baseContentBounds);
-		guiGraphics.drawString(
+		guiGraphics.text(
 			font,
 			Component.translatable("screen.redstonelink.state_panel.input"),
 			layout.panelLeft(),
@@ -198,12 +198,12 @@ public class StatePanelToolScreen extends Screen {
 		renderStatusHeaderTooltip(guiGraphics, layout, mouseX, mouseY);
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawString(font, statusMessage, layout.panelLeft(), layout.statusMessageY(), statusMessageColor, false);
+			guiGraphics.text(font, statusMessage, layout.panelLeft(), layout.statusMessageY(), statusMessageColor, false);
 		}
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractBackground(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		StatePanelLayout layout = resolveLayout(width, height);
 		GuiBackgroundRenderSupport.renderWrappedRegion(
 			guiGraphics,
@@ -362,8 +362,8 @@ public class StatePanelToolScreen extends Screen {
 	/**
 	 * 渲染表头行，含列标签与右侧 clean all 按钮。
 	 */
-	private void renderHeader(GuiGraphics guiGraphics, StatePanelLayout layout) {
-		guiGraphics.drawString(
+	private void renderHeader(GuiGraphicsExtractor guiGraphics, StatePanelLayout layout) {
+		guiGraphics.text(
 			font,
 			clipTextToWidth(HEADER_TYPE.getString(), layout.typeWidth()),
 			layout.typeX(),
@@ -371,7 +371,7 @@ public class StatePanelToolScreen extends Screen {
 			HEADER_TEXT_COLOR,
 			false
 		);
-		guiGraphics.drawString(
+		guiGraphics.text(
 			font,
 			clipTextToWidth(HEADER_SERIAL.getString(), layout.serialWidth()),
 			layout.serialX(),
@@ -379,7 +379,7 @@ public class StatePanelToolScreen extends Screen {
 			HEADER_TEXT_COLOR,
 			false
 		);
-		guiGraphics.drawString(
+		guiGraphics.text(
 			font,
 			clipTextToWidth(HEADER_STATUS.getString(), layout.statusWidth()),
 			layout.statusX(),
@@ -392,7 +392,7 @@ public class StatePanelToolScreen extends Screen {
 	/**
 	 * 为“状态”列表头提供字段释义 tooltip，帮助理解状态缩写。
 	 */
-	private void renderStatusHeaderTooltip(GuiGraphics guiGraphics, StatePanelLayout layout, int mouseX, int mouseY) {
+	private void renderStatusHeaderTooltip(GuiGraphicsExtractor guiGraphics, StatePanelLayout layout, int mouseX, int mouseY) {
 		String visibleHeaderText = clipTextToWidth(HEADER_STATUS.getString(), layout.statusWidth());
 		int hoverWidth = font.width(visibleHeaderText);
 		if (hoverWidth <= 0) {
@@ -407,12 +407,12 @@ public class StatePanelToolScreen extends Screen {
 	/**
 	 * 渲染列表数据行，每列独立绘制，保证列对齐。
 	 */
-	private void renderList(GuiGraphics guiGraphics, StatePanelLayout layout) {
+	private void renderList(GuiGraphicsExtractor guiGraphics, StatePanelLayout layout) {
 		for (int row = 0; row < VISIBLE_ROWS; row++) {
 			int index = scrollOffset + row;
 			int rowY = layout.listRowY(row);
 			if (index >= entries.size()) {
-				guiGraphics.drawString(font, "-", layout.typeX(), rowY + LIST_ROW_TEXT_OFFSET_Y, LIST_EMPTY_TEXT_COLOR, false);
+				guiGraphics.text(font, "-", layout.typeX(), rowY + LIST_ROW_TEXT_OFFSET_Y, LIST_EMPTY_TEXT_COLOR, false);
 				continue;
 			}
 			StatePanelNetwork.StatePanelSnapshotEntry entry = entries.get(index);
@@ -420,7 +420,7 @@ public class StatePanelToolScreen extends Screen {
 			String serialLabel = resolveDisplayText(entry);
 			String status = buildStatusText(entry, hasAppliedServerSnapshot);
 
-			guiGraphics.drawString(
+			guiGraphics.text(
 				font,
 				clipTextToWidth(typeLabel, layout.typeWidth()),
 				layout.typeX(),
@@ -428,7 +428,7 @@ public class StatePanelToolScreen extends Screen {
 				LIST_TYPE_TEXT_COLOR,
 				false
 			);
-			guiGraphics.drawString(
+			guiGraphics.text(
 				font,
 				clipTextToWidth(serialLabel, layout.serialWidth()),
 				layout.serialX(),
@@ -436,7 +436,7 @@ public class StatePanelToolScreen extends Screen {
 				LIST_SERIAL_TEXT_COLOR,
 				false
 			);
-			guiGraphics.drawString(
+			guiGraphics.text(
 				font,
 				clipTextToWidth(status, layout.statusWidth()),
 				layout.statusX(),

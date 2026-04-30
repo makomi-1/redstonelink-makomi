@@ -2,11 +2,12 @@ package com.makomi.client.render;
 
 import com.makomi.RedstoneLink;
 import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
@@ -15,7 +16,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MappableRingBuffer;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -39,8 +40,7 @@ final class QuickLinkVisualizedLineRenderSupport {
 		RenderPipeline
 			.builder(RenderPipelines.LINES_SNIPPET)
 			.withLocation(Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "pipeline/visualized_lines_through_walls"))
-			.withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
-			.withDepthWrite(false)
+			.withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, false))
 			.build()
 	);
 	private static final ByteBufferBuilder ALLOCATOR = new ByteBufferBuilder(RenderType.SMALL_BUFFER_SIZE);
@@ -55,11 +55,11 @@ final class QuickLinkVisualizedLineRenderSupport {
 	/**
 	 * 按当前世界渲染上下文提交并立即绘制穿墙连线。
 	 */
-	static void render(WorldRenderContext worldRenderContext, List<ColoredLineSegment> lineSegments) {
+	static void render(LevelRenderContext worldRenderContext, List<ColoredLineSegment> lineSegments) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (
 			worldRenderContext == null
-				|| worldRenderContext.matrices() == null
+				|| worldRenderContext.poseStack() == null
 				|| lineSegments == null
 				|| lineSegments.isEmpty()
 				|| minecraft == null
@@ -73,7 +73,7 @@ final class QuickLinkVisualizedLineRenderSupport {
 			VISUALIZED_LINES_THROUGH_WALLS.getVertexFormatMode(),
 			VISUALIZED_LINES_THROUGH_WALLS.getVertexFormat()
 		);
-		PoseStack.Pose pose = worldRenderContext.matrices().last();
+		PoseStack.Pose pose = worldRenderContext.poseStack().last();
 		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
 		for (ColoredLineSegment lineSegment : lineSegments) {
 			writeLine(bufferBuilder, pose, cameraPosition, lineSegment);

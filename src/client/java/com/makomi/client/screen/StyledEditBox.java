@@ -1,7 +1,7 @@
 package com.makomi.client.screen;
 
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -67,7 +67,7 @@ final class StyledEditBox extends EditBox {
 	}
 
 	@Override
-	public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractWidgetRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		VisualColors colors = resolveVisualColors();
 		guiGraphics.fill(outerX, outerY, outerX + outerWidth, outerY + outerHeight, withAlpha(colors.borderColor()));
 		guiGraphics.fill(
@@ -79,7 +79,7 @@ final class StyledEditBox extends EditBox {
 		);
 		setTextColor(withAlpha(colors.textColor()));
 		setTextColorUneditable(withAlpha(colors.disabledTextColor()));
-		super.renderWidget(guiGraphics, mouseX, mouseY, partialTick);
+		super.extractWidgetRenderState(guiGraphics, mouseX, mouseY, partialTick);
 	}
 
 	/**

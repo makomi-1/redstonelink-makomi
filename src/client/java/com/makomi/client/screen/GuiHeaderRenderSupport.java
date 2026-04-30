@@ -2,7 +2,7 @@ package com.makomi.client.screen;
 
 import com.makomi.RedstoneLink;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -50,7 +50,7 @@ final class GuiHeaderRenderSupport {
 	/**
 	 * 绘制居中的头部区域。
 	 */
-	static void drawCenteredHeader(GuiGraphics guiGraphics, Font font, HeaderSpec spec, int centerX, int topY) {
+	static void drawCenteredHeader(GuiGraphicsExtractor guiGraphics, Font font, HeaderSpec spec, int centerX, int topY) {
 		drawCenteredHeader(guiGraphics, font, spec, centerX, topY, resolveCenteredHeaderTextBounds(font, spec, centerX, topY));
 	}
 
@@ -58,7 +58,7 @@ final class GuiHeaderRenderSupport {
 	 * 绘制居中的头部区域，并将角标锚定到指定组件包围盒的左右上角。
 	 */
 	static void drawCenteredHeader(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Font font,
 		HeaderSpec spec,
 		int centerX,
@@ -199,7 +199,7 @@ final class GuiHeaderRenderSupport {
 	/**
 	 * 渲染头部角标图标。
 	 */
-	private static void renderIcon(GuiGraphics guiGraphics, Identifier texture, int left, int top) {
+	private static void renderIcon(GuiGraphicsExtractor guiGraphics, Identifier texture, int left, int top) {
 		if (texture == null) {
 			return;
 		}

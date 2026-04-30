@@ -21,12 +21,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.state.BlockOutlineRenderState;
+import net.minecraft.client.renderer.state.level.BlockOutlineRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -81,7 +81,7 @@ public final class QuickLinkWorldOverlayRenderer {
 	 * @return `false` 表示已自行渲染并取消默认白色描边；其余情况保持默认行为
 	 */
 	public static boolean onBlockOutline(
-		WorldRenderContext worldRenderContext,
+		LevelRenderContext worldRenderContext,
 		BlockOutlineRenderState blockOutlineRenderState
 	) {
 		Minecraft minecraft = Minecraft.getInstance();
@@ -102,15 +102,15 @@ public final class QuickLinkWorldOverlayRenderer {
 			return false;
 		}
 
-		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.poseStack() == null || worldRenderContext.bufferSource() == null) {
 			return true;
 		}
 
 		VoxelShape voxelShape = blockOutlineRenderState.shape();
 		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.lines());
+		VertexConsumer lineVertexConsumer = worldRenderContext.bufferSource().getBuffer(RenderTypes.lines());
 		ShapeRenderer.renderShape(
-			worldRenderContext.matrices(),
+			worldRenderContext.poseStack(),
 			lineVertexConsumer,
 			voxelShape,
 			(double) blockPos.getX() - cameraPosition.x,
@@ -125,14 +125,14 @@ public final class QuickLinkWorldOverlayRenderer {
 	/**
 	 * 在半透明阶段后额外绘制 quick-link 缓存对象的穿墙线框外显。
 	 */
-	private static void onAfterTranslucent(WorldRenderContext worldRenderContext) {
+	private static void onAfterTranslucent(LevelRenderContext worldRenderContext) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null || minecraft.level == null) {
 			clearTransientPreviewState();
 			clearVisualizedObjectState();
 			return;
 		}
-		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.poseStack() == null || worldRenderContext.bufferSource() == null) {
 			return;
 		}
 		renderPreviewOutlines(worldRenderContext, minecraft);
@@ -147,7 +147,7 @@ public final class QuickLinkWorldOverlayRenderer {
 	/**
 	 * 在半透明阶段前绘制 quick-link 缓存对象的穿墙线框预览。
 	 */
-	private static void renderPreviewOutlines(WorldRenderContext worldRenderContext, Minecraft minecraft) {
+	private static void renderPreviewOutlines(LevelRenderContext worldRenderContext, Minecraft minecraft) {
 		if (minecraft == null || minecraft.player == null || minecraft.level == null) {
 			clearTransientPreviewState();
 			return;
@@ -160,7 +160,7 @@ public final class QuickLinkWorldOverlayRenderer {
 			clearTransientPreviewState();
 			return;
 		}
-		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.poseStack() == null || worldRenderContext.bufferSource() == null) {
 			return;
 		}
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
@@ -174,8 +174,8 @@ public final class QuickLinkWorldOverlayRenderer {
 		}
 
 		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
-		PoseStack.Pose pose = worldRenderContext.matrices().last();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.linesTranslucent());
+		PoseStack.Pose pose = worldRenderContext.poseStack().last();
+		VertexConsumer lineVertexConsumer = worldRenderContext.bufferSource().getBuffer(RenderTypes.linesTranslucent());
 		for (PreviewOutlineBatch previewBatch : previewBatches) {
 			for (LineSegment lineSegment : previewBatch.segments()) {
 				renderPreviewLineSegment(lineVertexConsumer, pose, lineSegment, cameraPosition, previewBatch.color());
@@ -187,8 +187,8 @@ public final class QuickLinkWorldOverlayRenderer {
 	 * 注册方块描边与缓存外显事件。
 	 */
 	public static void register() {
-		WorldRenderEvents.BEFORE_BLOCK_OUTLINE.register(QuickLinkWorldOverlayRenderer::onBlockOutline);
-		WorldRenderEvents.BEFORE_TRANSLUCENT.register(QuickLinkWorldOverlayRenderer::onAfterTranslucent);
+		LevelRenderEvents.BEFORE_BLOCK_OUTLINE.register(QuickLinkWorldOverlayRenderer::onBlockOutline);
+		LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(QuickLinkWorldOverlayRenderer::onAfterTranslucent);
 	}
 
 	/**
@@ -454,8 +454,8 @@ public final class QuickLinkWorldOverlayRenderer {
 		}
 
 		String dimensionKey = minecraft.level.dimension().identifier().toString();
-		int playerChunkX = minecraft.player.chunkPosition().x;
-		int playerChunkZ = minecraft.player.chunkPosition().z;
+		int playerChunkX = minecraft.player.chunkPosition().x();
+		int playerChunkZ = minecraft.player.chunkPosition().z();
 		int renderDistance = minecraft.options.renderDistance().get();
 		long gameTime = minecraft.level.getGameTime();
 		if (
@@ -723,7 +723,7 @@ public final class QuickLinkWorldOverlayRenderer {
 	/**
 	 * 绘制第三形态全部显示对象的穿墙连线。
 	 */
-	private static void renderVisualizedConnections(WorldRenderContext worldRenderContext, Minecraft minecraft) {
+	private static void renderVisualizedConnections(LevelRenderContext worldRenderContext, Minecraft minecraft) {
 		if (worldRenderContext == null || minecraft == null || minecraft.level == null || visualizedObjects.isEmpty()) {
 			return;
 		}

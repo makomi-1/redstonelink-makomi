@@ -1,7 +1,7 @@
 package com.makomi.client.screen;
 
 import com.makomi.RedstoneLink;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
@@ -53,7 +53,7 @@ final class GuiBackgroundRenderSupport {
 	/**
 	 * 绘制整屏背景。
 	 */
-	static void renderFullscreen(GuiGraphics guiGraphics, BackgroundPreset preset, int screenWidth, int screenHeight) {
+	static void renderFullscreen(GuiGraphicsExtractor guiGraphics, BackgroundPreset preset, int screenWidth, int screenHeight) {
 		renderRegion(guiGraphics, preset, 0, 0, screenWidth, screenHeight);
 	}
 
@@ -61,7 +61,7 @@ final class GuiBackgroundRenderSupport {
 	 * 按内容包围盒和额外留白绘制背景。
 	 */
 	static void renderWrappedRegion(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		BackgroundPreset preset,
 		RegionBounds contentBounds,
 		RegionPadding padding
@@ -79,7 +79,7 @@ final class GuiBackgroundRenderSupport {
 	/**
 	 * 按指定矩形区域绘制背景。
 	 */
-	static void renderRegion(GuiGraphics guiGraphics, BackgroundPreset preset, int left, int top, int width, int height) {
+	static void renderRegion(GuiGraphicsExtractor guiGraphics, BackgroundPreset preset, int left, int top, int width, int height) {
 		if (preset == null || width <= 0 || height <= 0) {
 			return;
 		}
@@ -90,7 +90,7 @@ final class GuiBackgroundRenderSupport {
 	 * 通过 nine-slice 方式拉伸背景，尽量保持边框厚度稳定。
 	 */
 	private static void renderNineSlice(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		BackgroundStyle style,
 		int left,
 		int top,
@@ -217,7 +217,7 @@ final class GuiBackgroundRenderSupport {
 	 * 绘制单个切片。
 	 */
 	private static void blitSlice(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		BackgroundStyle style,
 		int left,
 		int top,

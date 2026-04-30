@@ -10,7 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -265,7 +265,7 @@ public class StatePanelRecordingScreen extends Screen {
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractBackground(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		PanelLayout layout = resolveLayout(width, height);
 		GuiBackgroundRenderSupport.renderWrappedRegion(
 			guiGraphics,
@@ -276,12 +276,12 @@ public class StatePanelRecordingScreen extends Screen {
 	}
 
 	@Override
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		PanelLayout layout = resolveLayout(width, height);
-		super.render(guiGraphics, mouseX, mouseY, partialTick);
+		super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
-		guiGraphics.drawCenteredString(font, TITLE, width / 2, layout.titleY(), VALUE_TEXT_COLOR);
-		guiGraphics.drawString(
+		guiGraphics.centeredText(font, TITLE, width / 2, layout.titleY(), VALUE_TEXT_COLOR);
+		guiGraphics.text(
 			font,
 			Component.translatable(
 				"screen.redstonelink.state_panel.recording.subscription_count",
@@ -292,7 +292,7 @@ public class StatePanelRecordingScreen extends Screen {
 			LABEL_TEXT_COLOR,
 			false
 		);
-		guiGraphics.drawString(
+		guiGraphics.text(
 			font,
 			Component.translatable(
 				sessionSnapshot != null && sessionSnapshot.active()
@@ -304,8 +304,8 @@ public class StatePanelRecordingScreen extends Screen {
 			sessionSnapshot != null && sessionSnapshot.active() ? STATUS_SUCCESS_TEXT_COLOR : SUBTEXT_COLOR,
 			false
 		);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.state_panel.recording.title_label"), layout.panelLeft(), layout.titleFieldY() + 6, LABEL_TEXT_COLOR, false);
-		guiGraphics.drawString(
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.state_panel.recording.title_label"), layout.panelLeft(), layout.titleFieldY() + 6, LABEL_TEXT_COLOR, false);
+		guiGraphics.text(
 			font,
 			Component.translatable("screen.redstonelink.state_panel.recording.sample_every_ticks"),
 			layout.panelLeft(),
@@ -313,7 +313,7 @@ public class StatePanelRecordingScreen extends Screen {
 			LABEL_TEXT_COLOR,
 			false
 		);
-		guiGraphics.drawString(
+		guiGraphics.text(
 			font,
 			Component.translatable("screen.redstonelink.state_panel.recording.capacity"),
 			layout.panelLeft(),
@@ -321,7 +321,7 @@ public class StatePanelRecordingScreen extends Screen {
 			LABEL_TEXT_COLOR,
 			false
 		);
-		guiGraphics.drawString(
+		guiGraphics.text(
 			font,
 			Component.translatable("screen.redstonelink.state_panel.recording.duration_ticks"),
 			layout.panelLeft(),
@@ -331,7 +331,7 @@ public class StatePanelRecordingScreen extends Screen {
 		);
 
 		if (sessionSnapshot != null && sessionSnapshot.active()) {
-			guiGraphics.drawString(
+			guiGraphics.text(
 				font,
 				Component.translatable(
 					"screen.redstonelink.state_panel.recording.started_tick",
@@ -342,7 +342,7 @@ public class StatePanelRecordingScreen extends Screen {
 				SUBTEXT_COLOR,
 				false
 			);
-			guiGraphics.drawString(
+			guiGraphics.text(
 				font,
 				Component.translatable(
 					"screen.redstonelink.state_panel.recording.mounted_count",
@@ -359,7 +359,7 @@ public class StatePanelRecordingScreen extends Screen {
 		renderSelectionSummary(guiGraphics, layout);
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawString(font, statusMessage, layout.panelLeft(), layout.statusMessageY(), statusMessageColor, false);
+			guiGraphics.text(font, statusMessage, layout.panelLeft(), layout.statusMessageY(), statusMessageColor, false);
 		}
 	}
 
@@ -559,8 +559,8 @@ public class StatePanelRecordingScreen extends Screen {
 		refreshSubscriptionButtons();
 	}
 
-	private void renderSelectionSummary(GuiGraphics guiGraphics, PanelLayout layout) {
-		guiGraphics.drawString(
+	private void renderSelectionSummary(GuiGraphicsExtractor guiGraphics, PanelLayout layout) {
+		guiGraphics.text(
 			font,
 			Component.translatable("screen.redstonelink.state_panel.recording.subscription_selection"),
 			layout.panelLeft(),
@@ -568,7 +568,7 @@ public class StatePanelRecordingScreen extends Screen {
 			LABEL_TEXT_COLOR,
 			false
 		);
-		guiGraphics.drawString(
+		guiGraphics.text(
 			font,
 			Component.translatable(
 				"screen.redstonelink.state_panel.recording.selected_count",

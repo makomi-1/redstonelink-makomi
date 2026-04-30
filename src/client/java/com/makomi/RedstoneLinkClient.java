@@ -1,6 +1,7 @@
 package com.makomi;
 
 import com.makomi.client.ClientHooks;
+import com.makomi.client.ClientMessageDisplaySupport;
 import com.makomi.client.bench.BenchClientAutomationController;
 import com.makomi.client.bench.BenchClientCommandBridge;
 import com.makomi.client.network.BenchCommandNetworkClientHandlerSupport;
@@ -44,21 +45,19 @@ import com.mojang.brigadier.context.CommandContext;
 import java.net.URI;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -112,24 +111,12 @@ public class RedstoneLinkClient implements ClientModInitializer {
 
 	/**
 	 * 注册需要透明/裁切渲染的方块层级。
+	 * <p>
+	 * 26.1 起方块渲染层会根据模型 JSON 的 render type 自动推导，
+	 * 这里不再保留旧版 Fabric 的显式注册调用。
+	 * </p>
 	 */
 	private static void registerRenderLayers() {
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_CORE, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.HIDE_CORE, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_TOGGLE_BUTTON, ChunkSectionLayer.CUTOUT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_PUSH_BUTTON, ChunkSectionLayer.CUTOUT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_SYNC_LEVER, ChunkSectionLayer.CUTOUT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_TOGGLE_EMITTER, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_PULSE_EMITTER, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_SYNC_EMITTER, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.HIDE_SYNC_TRIGGER_SOURCE, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_SEND_FILTER, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_RECEIVE_FILTER, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_CHUNK_ACTIVATOR, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REPEATER, ChunkSectionLayer.TRANSLUCENT);
-		BlockRenderLayerMap.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, ChunkSectionLayer.TRANSLUCENT);
 	}
 
 	/**
@@ -159,7 +146,10 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 * 注册 HUD 序号外显渲染器。
 	 */
 	private static void registerHudRenderers() {
-		HudRenderCallback.EVENT.register(LinkSerialHudOverlayRenderer::onHudRender);
+		HudElementRegistry.addLast(
+			Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "serial_overlay"),
+			LinkSerialHudOverlayRenderer::onHudRender
+		);
 	}
 
 	/**
@@ -178,7 +168,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	private static void registerClientKeyBindings() {
 		InputConstants.Key defaultToggleKey = RedstoneLinkClientDisplayConfig.overlay().toggleKey();
 		InputConstants.Key defaultQuickLinkToggleKey = RedstoneLinkClientDisplayConfig.quickLink().modeToggleKey();
-		toggleSerialOverlayKey = KeyBindingHelper.registerKeyBinding(
+		toggleSerialOverlayKey = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping(
 				KEY_TOGGLE_SERIAL_OVERLAY,
 				defaultToggleKey.getType(),
@@ -186,7 +176,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 				KEY_CATEGORY
 			)
 		);
-		toggleQuickLinkModeKey = KeyBindingHelper.registerKeyBinding(
+		toggleQuickLinkModeKey = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping(
 				KEY_TOGGLE_QUICK_LINK_MODE,
 				defaultQuickLinkToggleKey.getType(),
@@ -200,10 +190,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 			while (toggleSerialOverlayKey.consumeClick()) {
 				RedstoneLinkClientDisplayConfig.SerialOverlayMode mode = RedstoneLinkClientDisplayConfig.cycleSerialOverlayMode();
 				if (client.player != null) {
-					client.player.displayClientMessage(
-						Component.translatable(mode.messageKey()),
-						true
-					);
+					ClientMessageDisplaySupport.show(client, Component.translatable(mode.messageKey()), true);
 				}
 			}
 
@@ -263,7 +250,8 @@ public class RedstoneLinkClient implements ClientModInitializer {
 				snapshot.applyEditMode().token()
 			)
 		);
-		client.player.displayClientMessage(
+		ClientMessageDisplaySupport.show(
+			client,
 			Component.translatable(
 				"message.redstonelink.quick_link.mode_switched",
 				Component.translatable(nextMode.translationKey())
@@ -300,7 +288,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 				cleared.applyEditMode().token()
 			)
 		);
-		client.player.displayClientMessage(Component.translatable("message.redstonelink.quick_link.cache_cleared"), true);
+		ClientMessageDisplaySupport.show(client, Component.translatable("message.redstonelink.quick_link.cache_cleared"), true);
 	}
 
 	/**
@@ -334,7 +322,8 @@ public class RedstoneLinkClient implements ClientModInitializer {
 				nextSnapshot.applyEditMode().token()
 			)
 		);
-		client.player.displayClientMessage(
+		ClientMessageDisplaySupport.show(
+			client,
 			Component.translatable(
 				"message.redstonelink.quick_link.apply_edit_mode_switched",
 				Component.translatable(nextSnapshot.applyEditMode().translationKey())
@@ -415,7 +404,8 @@ public class RedstoneLinkClient implements ClientModInitializer {
 				new PairingNetwork.SaveSyncLinkerSignalStrengthPayload(LinkItemData.getSerial(mainHandItem), nextSignalStrength)
 			);
 		}
-		client.player.displayClientMessage(
+		ClientMessageDisplaySupport.show(
+			client,
 			Component.translatable(
 				"message.redstonelink.sync_linker.signal_strength_changed",
 				Integer.toString(nextSignalStrength)
@@ -446,40 +436,40 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerClientCommands() {
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
-			ClientCommandManager
+			ClientCommands
 				.literal(CLIENT_DISPLAY_COMMAND_ROOT)
 				.then(
-					ClientCommandManager
+					ClientCommands
 						.literal("display")
 						.then(
-							ClientCommandManager
+							ClientCommands
 								.literal("far_overlay")
 								.then(
-									ClientCommandManager
+									ClientCommands
 										.literal("occluded")
 										.executes(context -> executeSetFarOverlayDisplayMode(context, false))
 								)
 								.then(
-									ClientCommandManager
+									ClientCommands
 										.literal("see_through")
 										.executes(context -> executeSetFarOverlayDisplayMode(context, true))
 								)
 						)
 				)
 				.then(
-					ClientCommandManager
+					ClientCommands
 						.literal("web")
 						.then(
-							ClientCommandManager
+							ClientCommands
 								.literal("graph")
 								.executes(RedstoneLinkClient::executeExportGraphSnapshot)
 								.then(
-									ClientCommandManager
+									ClientCommands
 										.literal("open")
 										.executes(RedstoneLinkClient::executeOpenGraphPage)
 								)
 								.then(
-									ClientCommandManager
+									ClientCommands
 										.literal("export")
 										.executes(RedstoneLinkClient::executeExportGraphSnapshot)
 								)
@@ -654,7 +644,8 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.cycleSelectedType(client.player.getMainHandItem());
 		SmartNodeContainerPlacementType selectedType = snapshot.selectedType();
 		ClientPlayNetworking.send(new SmartNodeContainerNetwork.CycleSmartNodeContainerTypePayload());
-		client.player.displayClientMessage(
+		ClientMessageDisplaySupport.show(
+			client,
 			Component.translatable(
 				"message.redstonelink.smart_node_container.selected_type_switched",
 				Component.translatable(selectedType.translationKey())

@@ -14,7 +14,7 @@ import com.makomi.util.SerialParseUtil;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.input.KeyEvent;
@@ -183,15 +183,15 @@ public class ChunkActivatorEditorScreen extends Screen {
 	}
 
 	@Override
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		super.render(guiGraphics, mouseX, mouseY, partialTick);
+	public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+		super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
 		ChunkActivatorLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.chunk_activator.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.chunk_activator.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(
 			font,
 			Component.translatable("screen.redstonelink.chunk_activator.active_type"),
 			layout.panelLeft(),
@@ -199,16 +199,16 @@ public class ChunkActivatorEditorScreen extends Screen {
 			0xFFFFFF,
 			false
 		);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.chunk_activator.mode"), layout.panelLeft(), layout.modeLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.chunk_activator.serial_input"), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.chunk_activator.mode"), layout.panelLeft(), layout.modeLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.chunk_activator.serial_input"), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
+			guiGraphics.centeredText(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
 		renderModeButtonTooltip(guiGraphics, mouseX, mouseY);
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractBackground(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		ChunkActivatorLayout layout = resolveLayout(width, height, font.lineHeight);
 		GuiBackgroundRenderSupport.renderWrappedRegion(
 			guiGraphics,
@@ -375,7 +375,7 @@ public class ChunkActivatorEditorScreen extends Screen {
 	/**
 	 * 为强加载/常驻模式按钮渲染悬停提示，直接解释当前模式的跨区块语义。
 	 */
-	private void renderModeButtonTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+	private void renderModeButtonTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
 		if (modeButtons.length < 2) {
 			return;
 		}

@@ -1,5 +1,6 @@
 package com.makomi.client.network;
 
+import com.makomi.client.ClientMessageDisplaySupport;
 import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.screen.AbstractMultiPairingScreen;
 import com.makomi.client.screen.CorePairingScreen;
@@ -229,7 +230,7 @@ public final class PairingNetworkClientHandlerSupport {
 			return;
 		}
 		Object[] args = (messageArgs == null ? List.<String>of() : messageArgs).toArray();
-		minecraft.player.displayClientMessage(Component.translatable(messageKey, args), false);
+		ClientMessageDisplaySupport.show(minecraft, Component.translatable(messageKey, args), false);
 	}
 
 	/**

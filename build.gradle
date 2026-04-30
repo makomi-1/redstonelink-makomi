@@ -89,6 +89,8 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	// 26.1 下键位映射 helper 需要显式引入 client-only 子模块，避免聚合件在编译期缺失该 API。
+	implementation "net.fabricmc.fabric-api:fabric-key-mapping-api-v1:2.0.4+e2bdee7847"
 	// Lithium runtime dependency for local runClient testing (opt-in via -PwithLithium=true).
 	if (withLithium) {
 		modRuntimeOnly "maven.modrinth:lithium:${project.lithium_version}"

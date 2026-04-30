@@ -1,7 +1,7 @@
 package com.makomi.client.screen;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -25,7 +25,7 @@ final class StyledButton extends Button {
 	}
 
 	@Override
-	protected void renderContents(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	protected void extractContents(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		VisualColors colors = resolveVisualColors();
 		int left = getX();
 		int top = getY();
@@ -36,7 +36,7 @@ final class StyledButton extends Button {
 
 		int textColor = withAlpha(colors.textColor());
 		int textY = top + (getHeight() - 8) / 2;
-		guiGraphics.drawCenteredString(Minecraft.getInstance().font, getMessage(), left + (getWidth() / 2), textY, textColor);
+		guiGraphics.centeredText(Minecraft.getInstance().font, getMessage(), left + (getWidth() / 2), textY, textColor);
 	}
 
 	/**

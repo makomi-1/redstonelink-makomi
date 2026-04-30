@@ -3,7 +3,7 @@ package com.makomi.client.screen;
 import com.makomi.data.SmartNodeContainerPlacementType;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.makomi.menu.SmartNodeContainerMenu;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -50,9 +50,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	private Button creativeAutoConsumeButton;
 
 	public SmartNodeContainerScreen(SmartNodeContainerMenu menu, Inventory playerInventory, Component title) {
-		super(menu, playerInventory, title);
-		imageWidth = CHEST_IMAGE_WIDTH + RIGHT_PANEL_GAP + RIGHT_PANEL_WIDTH;
-		imageHeight = 222;
+		super(menu, playerInventory, title, CHEST_IMAGE_WIDTH + RIGHT_PANEL_GAP + RIGHT_PANEL_WIDTH, 222);
 		inventoryLabelY = imageHeight - 94;
 	}
 
@@ -96,7 +94,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	}
 
 	@Override
-	protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
+	public void extractContents(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		// 1.21.11 下原版容器底图需要显式走 GUI_TEXTURED 管线，直接 blit 资源路径会导致箱子槽位与背景缺失。
 		guiGraphics.blit(
 			CONTAINER_RENDER_PIPELINE,
@@ -123,12 +121,13 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 			256
 		);
 		renderRightPanelBackground(guiGraphics);
+		super.extractContents(guiGraphics, mouseX, mouseY, partialTick);
 	}
 
 	@Override
-	protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		guiGraphics.drawString(font, title, titleLabelX, titleLabelY, 0xFF404040, false);
-		guiGraphics.drawString(
+	protected void extractLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+		guiGraphics.text(font, title, titleLabelX, titleLabelY, 0xFF404040, false);
+		guiGraphics.text(
 			font,
 			Component.translatable("screen.redstonelink.smart_node_container.selected_type_label"),
 			RIGHT_PANEL_X + RIGHT_PANEL_INSET,
@@ -136,7 +135,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 			0xFFF4E8D8,
 			false
 		);
-		guiGraphics.drawString(
+		guiGraphics.text(
 			font,
 			Component.translatable(
 				currentSelectedType().translationKey()
@@ -146,21 +145,16 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 			0xFFFFFFFF,
 			false
 		);
-		guiGraphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0xFF404040, false);
+		guiGraphics.text(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0xFF404040, false);
 	}
 
 	@Override
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		super.render(guiGraphics, mouseX, mouseY, partialTick);
+	protected void extractTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+		// tooltip 改为在 render 末尾统一绘制，避免继续依赖父类内部维护的 hoveredSlot 状态。
 		renderHoveredSlotTooltip(guiGraphics, mouseX, mouseY);
 	}
 
-	@Override
-	protected void renderTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		// tooltip 改为在 render 末尾统一绘制，避免继续依赖父类内部维护的 hoveredSlot 状态。
-	}
-
-	private void renderRightPanelBackground(GuiGraphics guiGraphics) {
+	private void renderRightPanelBackground(GuiGraphicsExtractor guiGraphics) {
 		int panelLeft = leftPos + RIGHT_PANEL_X;
 		int panelTop = topPos + RIGHT_PANEL_TOP;
 		int panelRight = leftPos + imageWidth;
@@ -238,7 +232,7 @@ public class SmartNodeContainerScreen extends AbstractContainerScreen<SmartNodeC
 	 * tooltip 继续受父类内部状态影响。
 	 * </p>
 	 */
-	private void renderHoveredSlotTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+	private void renderHoveredSlotTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
 		if (!menu.getCarried().isEmpty()) {
 			return;
 		}

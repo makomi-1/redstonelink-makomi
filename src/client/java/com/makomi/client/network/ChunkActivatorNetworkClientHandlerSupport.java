@@ -1,5 +1,6 @@
 package com.makomi.client.network;
 
+import com.makomi.client.ClientMessageDisplaySupport;
 import com.makomi.client.screen.ChunkActivatorEditorScreen;
 import com.makomi.network.ChunkActivatorNetwork;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -50,7 +51,8 @@ public final class ChunkActivatorNetworkClientHandlerSupport {
 		if (minecraft.player == null) {
 			return;
 		}
-		minecraft.player.displayClientMessage(
+		ClientMessageDisplaySupport.show(
+			minecraft,
 			Component.translatable(messageKey, (messageArgs == null ? java.util.List.<String>of() : messageArgs).toArray()),
 			false
 		);

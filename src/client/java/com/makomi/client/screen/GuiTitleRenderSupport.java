@@ -1,7 +1,7 @@
 package com.makomi.client.screen;
 
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
@@ -28,14 +28,14 @@ final class GuiTitleRenderSupport {
 	/**
 	 * 绘制默认主标题样式。
 	 */
-	static void drawCenteredPrimaryTitle(GuiGraphics guiGraphics, Font font, Component text, int centerX, int y) {
+	static void drawCenteredPrimaryTitle(GuiGraphicsExtractor guiGraphics, Font font, Component text, int centerX, int y) {
 		drawCenteredOutlinedText(guiGraphics, font, text, centerX, y, PRIMARY_TITLE_STYLE);
 	}
 
 	/**
 	 * 按指定文字颜色绘制副标题，并自动生成更深的描边色。
 	 */
-	static void drawCenteredSecondaryTitle(GuiGraphics guiGraphics, Font font, Component text, int centerX, int y, int textColor) {
+	static void drawCenteredSecondaryTitle(GuiGraphicsExtractor guiGraphics, Font font, Component text, int centerX, int y, int textColor) {
 		drawCenteredOutlinedText(guiGraphics, font, text, centerX, y, TitleStyle.secondary(textColor));
 	}
 
@@ -43,7 +43,7 @@ final class GuiTitleRenderSupport {
 	 * 绘制居中描边文本。
 	 */
 	static void drawCenteredOutlinedText(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Font font,
 		Component text,
 		int centerX,
@@ -56,7 +56,7 @@ final class GuiTitleRenderSupport {
 		FormattedCharSequence visualText = text.getVisualOrderText();
 		int left = centerX - (font.width(visualText) / 2);
 		drawOutline(guiGraphics, font, visualText, left, y, style.outlineColor());
-		guiGraphics.drawString(font, visualText, left, y, style.textColor(), false);
+		guiGraphics.text(font, visualText, left, y, style.textColor(), false);
 	}
 
 	/**
@@ -66,12 +66,12 @@ final class GuiTitleRenderSupport {
 	 * 无阴影的四向描边，避免八向叠涂把中文笔画糊成一团。
 	 * </p>
 	 */
-	private static void drawOutline(GuiGraphics guiGraphics, Font font, FormattedCharSequence text, int left, int top, int outlineColor) {
+	private static void drawOutline(GuiGraphicsExtractor guiGraphics, Font font, FormattedCharSequence text, int left, int top, int outlineColor) {
 		for (int[] offset : OUTLINE_OFFSETS) {
 			if (offset == null || offset.length < 2) {
 				continue;
 			}
-			guiGraphics.drawString(font, text, left + offset[0], top + offset[1], outlineColor, false);
+			guiGraphics.text(font, text, left + offset[0], top + offset[1], outlineColor, false);
 		}
 	}
 

@@ -3,7 +3,7 @@ package com.makomi.datagen;
 import com.makomi.RedstoneLink;
 import com.makomi.registry.ModItems;
 import java.util.concurrent.CompletableFuture;
-import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput;
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
 import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
@@ -34,7 +34,7 @@ public class RedstoneLinkRecipeProvider extends FabricRecipeProvider {
 	 * @param registriesFuture 注册表查询上下文
 	 */
 	public RedstoneLinkRecipeProvider(
-		FabricDataOutput output,
+		FabricPackOutput output,
 		CompletableFuture<HolderLookup.Provider> registriesFuture
 	) {
 		super(output, registriesFuture);

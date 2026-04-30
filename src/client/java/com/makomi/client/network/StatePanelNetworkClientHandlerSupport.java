@@ -1,6 +1,7 @@
 package com.makomi.client.network;
 
 import com.makomi.RedstoneLink;
+import com.makomi.client.ClientMessageDisplaySupport;
 import com.makomi.client.screen.StatePanelRecordingScreen;
 import com.makomi.client.screen.StatePanelToolScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
@@ -235,7 +236,7 @@ public final class StatePanelNetworkClientHandlerSupport {
 			return;
 		}
 		Object[] args = messageArgs == null ? new Object[0] : messageArgs.toArray();
-		minecraft.player.displayClientMessage(Component.translatable(messageKey, args), true);
+		ClientMessageDisplaySupport.show(minecraft, Component.translatable(messageKey, args), true);
 	}
 
 	/**

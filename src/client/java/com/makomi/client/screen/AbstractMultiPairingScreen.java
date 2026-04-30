@@ -11,7 +11,7 @@ import com.makomi.util.CurrentLinksDisplayFormatUtil;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.input.KeyEvent;
@@ -348,8 +348,8 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	@Override
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		super.render(guiGraphics, mouseX, mouseY, partialTick);
+	public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+		super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
 		MultiPairingLayout layout = resolveLayoutForCurrentContext();
 		int centerX = width / 2;
@@ -360,16 +360,16 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, baseY, baseContentBounds);
-		guiGraphics.drawString(font, aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY(), currentLinksTextColor(), false);
+		guiGraphics.text(font, aliasSerialSuffix(), aliasSuffixX(layout), layout.aliasSuffixY(), currentLinksTextColor(), false);
 		String currentLinksText = buildCurrentLinksText(currentTargets, currentTargetDisplayTexts);
 		Component currentLinksLabel = currentLinksLine("");
 		Component currentLinksValue = Component.literal(currentLinksText);
-		guiGraphics.drawString(font, currentLinksLabel, currentLinksX, currentLinksY, currentLinksTextColor(), false);
-		guiGraphics.drawString(font, currentLinksValue, currentLinksX, currentLinksValueY, currentLinksTextColor(), false);
-		guiGraphics.drawString(font, inputLabel(), currentLinksX, layout.inputLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(font, currentLinksLabel, currentLinksX, currentLinksY, currentLinksTextColor(), false);
+		guiGraphics.text(font, currentLinksValue, currentLinksX, currentLinksValueY, currentLinksTextColor(), false);
+		guiGraphics.text(font, inputLabel(), currentLinksX, layout.inputLabelY(), 0xFFFFFF, false);
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), statusMessageColor);
+			guiGraphics.centeredText(font, statusMessage, centerX, layout.statusMessageY(), statusMessageColor);
 		}
 
 		if (isMouseOverInput(mouseX, mouseY)) {
@@ -396,7 +396,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractBackground(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		// 配对界面背景只包裹实际内容区域，并通过更大的垂直留白形成稳定的表单容器感。
 		MultiPairingLayout layout = resolveLayoutForCurrentContext();
 		GuiBackgroundRenderSupport.renderWrappedRegion(

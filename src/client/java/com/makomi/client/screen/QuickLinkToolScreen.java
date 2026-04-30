@@ -7,7 +7,7 @@ import com.makomi.data.QuickLinkToolData;
 import com.makomi.network.QuickLinkNetwork;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.input.KeyEvent;
@@ -152,8 +152,8 @@ public class QuickLinkToolScreen extends Screen {
 	}
 
 	@Override
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		super.render(guiGraphics, mouseX, mouseY, partialTick);
+	public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+		super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
 		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
@@ -161,15 +161,15 @@ public class QuickLinkToolScreen extends Screen {
 		Theme theme = currentTheme();
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
-		guiGraphics.drawString(font, inputLabel(), leftX, layout.inputLabelY(), theme.labelTextColor(), false);
+		guiGraphics.text(font, inputLabel(), leftX, layout.inputLabelY(), theme.labelTextColor(), false);
 
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), theme.statusMessageColor());
+			guiGraphics.centeredText(font, statusMessage, centerX, layout.statusMessageY(), theme.statusMessageColor());
 		}
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractBackground(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		QuickLinkLayout layout = resolveLayout(width, height, font.lineHeight);
 		GuiBackgroundRenderSupport.renderWrappedRegion(
 			guiGraphics,

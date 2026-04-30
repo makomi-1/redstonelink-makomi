@@ -2,9 +2,7 @@ package com.makomi.client.screen;
 
 import java.util.List;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
-import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -21,15 +19,10 @@ final class GuiTooltipRenderSupport {
 	/**
 	 * 直接按当前帧渲染组件 tooltip。
 	 */
-	static void renderComponentTooltip(GuiGraphics guiGraphics, Font font, List<Component> tooltipLines, int mouseX, int mouseY) {
+	static void renderComponentTooltip(GuiGraphicsExtractor guiGraphics, Font font, List<Component> tooltipLines, int mouseX, int mouseY) {
 		if (guiGraphics == null || font == null || tooltipLines == null || tooltipLines.isEmpty()) {
 			return;
 		}
-		List<ClientTooltipComponent> tooltipComponents = tooltipLines
-			.stream()
-			.map(Component::getVisualOrderText)
-			.map(ClientTooltipComponent::create)
-			.toList();
-		guiGraphics.renderTooltip(font, tooltipComponents, mouseX, mouseY, DefaultTooltipPositioner.INSTANCE, null);
+		guiGraphics.setComponentTooltipForNextFrame(font, tooltipLines, mouseX, mouseY);
 	}
 }

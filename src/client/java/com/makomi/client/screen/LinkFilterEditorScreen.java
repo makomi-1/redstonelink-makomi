@@ -11,7 +11,7 @@ import com.makomi.data.NodeAliasSavedData;
 import com.makomi.network.LinkFilterEditorTargetKind;
 import com.makomi.network.LinkFilterNetwork;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -137,7 +137,7 @@ public class LinkFilterEditorScreen extends Screen {
 		addRenderableWidget(serialInputBox);
 		channelInputBox = createChannelInputBox(layout);
 		channelInputBox.setMaxLength(CHANNEL_INPUT_MAX_LENGTH);
-		channelInputBox.setFilter(value -> value.chars().allMatch(Character::isDigit));
+		installDigitOnlyResponder(channelInputBox);
 		channelInputBox.setValue(preservedChannel);
 		addRenderableWidget(channelInputBox);
 
@@ -222,7 +222,7 @@ public class LinkFilterEditorScreen extends Screen {
 			FILTER_EDIT_BOX_STYLE
 		);
 		fixedThresholdBox.setMaxLength(2);
-		fixedThresholdBox.setFilter(value -> value.chars().allMatch(Character::isDigit));
+		installDigitOnlyResponder(fixedThresholdBox);
 		fixedThresholdBox.setValue(preservedFixedThreshold);
 		addRenderableWidget(fixedThresholdBox);
 
@@ -247,16 +247,16 @@ public class LinkFilterEditorScreen extends Screen {
 	}
 
 	@Override
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		super.render(guiGraphics, mouseX, mouseY, partialTick);
+	public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+		super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
 		LinkFilterLayout layout = resolveLayout(width, height, font.lineHeight);
 		int centerX = width / 2;
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), centerX, layout.titleY(), baseContentBounds);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.link_filter.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(font, currentTargetInputLabel(), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.link_filter.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(font, currentTargetInputLabel(), layout.panelLeft(), layout.serialLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(
 			font,
 			Component.translatable("screen.redstonelink.link_filter.fixed_threshold"),
 			layout.panelLeft(),
@@ -265,13 +265,13 @@ public class LinkFilterEditorScreen extends Screen {
 			false
 		);
 		if (!statusMessage.getString().isEmpty()) {
-			guiGraphics.drawCenteredString(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
+			guiGraphics.centeredText(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
 		renderSignalModeTooltip(guiGraphics, mouseX, mouseY);
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractBackground(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		LinkFilterLayout layout = resolveLayout(width, height, font.lineHeight);
 		GuiBackgroundRenderSupport.renderWrappedRegion(
 			guiGraphics,
@@ -645,9 +645,41 @@ public class LinkFilterEditorScreen extends Screen {
 	}
 
 	/**
+	 * 26.1 的 `EditBox` 不再提供 `setFilter`，这里改为输入后即时归一化。
+	 */
+	private static void installDigitOnlyResponder(EditBox editBox) {
+		if (editBox == null) {
+			return;
+		}
+		editBox.setResponder(value -> {
+			String normalized = retainDigitsOnly(value);
+			if (normalized.equals(value)) {
+				return;
+			}
+			int cursorPosition = Math.min(editBox.getCursorPosition(), normalized.length());
+			editBox.setValue(normalized);
+			editBox.setCursorPosition(cursorPosition);
+		});
+	}
+
+	private static String retainDigitsOnly(String value) {
+		if (value == null || value.isEmpty()) {
+			return "";
+		}
+		StringBuilder normalized = new StringBuilder(value.length());
+		for (int index = 0; index < value.length(); index++) {
+			char currentChar = value.charAt(index);
+			if (Character.isDigit(currentChar)) {
+				normalized.append(currentChar);
+			}
+		}
+		return normalized.toString();
+	}
+
+	/**
 	 * 为“通过上界 / 通过下界”按钮补充准确的含义说明，避免被误解为区间边界。
 	 */
-	private void renderSignalModeTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+	private void renderSignalModeTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
 		if (signalModeButtons.length < 2) {
 			return;
 		}

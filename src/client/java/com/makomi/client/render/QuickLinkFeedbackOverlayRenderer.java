@@ -1,5 +1,6 @@
 package com.makomi.client.render;
 
+import com.makomi.client.ClientMessageDisplaySupport;
 import net.minecraft.ChatFormatting;
 import java.util.List;
 import net.minecraft.client.Minecraft;
@@ -24,7 +25,8 @@ public final class QuickLinkFeedbackOverlayRenderer {
 		if (message.getString().isEmpty()) {
 			return;
 		}
-		minecraft.player.displayClientMessage(
+		ClientMessageDisplaySupport.show(
+			minecraft,
 			message.copy().withStyle(successState ? ChatFormatting.GREEN : ChatFormatting.RED),
 			true
 		);

@@ -2,7 +2,7 @@ package com.makomi.client.render;
 
 import java.util.List;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
  * 近外显实际绘制支持。
@@ -24,7 +24,7 @@ final class LinkSerialHudOverlayDrawSupport {
 	 * @param scale 字体缩放
 	 */
 	static void drawCenteredWithDeepBackground(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Font font,
 		List<String> lines,
 		int textColor,
@@ -64,7 +64,7 @@ final class LinkSerialHudOverlayDrawSupport {
 	 * 在屏幕中心按指定面板主题绘制文本。
 	 */
 	static void drawCenteredWithPanel(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Font font,
 		List<String> lines,
 		int textColor,
@@ -129,7 +129,7 @@ final class LinkSerialHudOverlayDrawSupport {
 		float currentY = 0.0F;
 		for (String line : lines) {
 			float lineStartX = (maxLineWidth - font.width(line)) / 2.0F;
-			guiGraphics.drawString(font, line, Math.round(lineStartX), Math.round(currentY), textColor, false);
+			guiGraphics.text(font, line, Math.round(lineStartX), Math.round(currentY), textColor, false);
 			currentY += font.lineHeight + LinkSerialHudOverlayLayoutSupport.LINE_SPACING;
 		}
 		poseStack.popMatrix();

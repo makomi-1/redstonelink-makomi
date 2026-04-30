@@ -1,5 +1,6 @@
 package com.makomi.client.network;
 
+import com.makomi.client.ClientMessageDisplaySupport;
 import com.makomi.client.screen.LinkFilterEditorScreen;
 import com.makomi.network.LinkFilterNetwork;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -57,6 +58,10 @@ public final class LinkFilterNetworkClientHandlerSupport {
 		if (minecraft.player == null) {
 			return;
 		}
-		minecraft.player.displayClientMessage(Component.translatable(messageKey, (messageArgs == null ? java.util.List.<String>of() : messageArgs).toArray()), false);
+		ClientMessageDisplaySupport.show(
+			minecraft,
+			Component.translatable(messageKey, (messageArgs == null ? java.util.List.<String>of() : messageArgs).toArray()),
+			false
+		);
 	}
 }

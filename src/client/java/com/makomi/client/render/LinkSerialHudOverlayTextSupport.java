@@ -475,7 +475,7 @@ final class LinkSerialHudOverlayTextSupport {
 		Block block = state.getBlock();
 		Item blockItem = block.asItem();
 		if (blockItem != Items.AIR) {
-			String itemName = blockItem.getName().getString();
+			String itemName = blockItem.getName(new net.minecraft.world.item.ItemStack(blockItem)).getString();
 			if (!itemName.isBlank()) {
 				return itemName;
 			}

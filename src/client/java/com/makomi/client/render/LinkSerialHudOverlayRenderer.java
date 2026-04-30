@@ -11,7 +11,7 @@ import com.makomi.data.SmartGlassesAccessSupport;
 import java.util.List;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -99,7 +99,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * @param guiGraphics HUD 绘图上下文
 	 * @param tickCounter HUD 渲染 tick 计数器；当前仅保持与 Fabric 回调签名一致
 	 */
-	public static void onHudRender(GuiGraphics guiGraphics, DeltaTracker tickCounter) {
+	public static void onHudRender(GuiGraphicsExtractor guiGraphics, DeltaTracker tickCounter) {
 		if (!RedstoneLinkClientDisplayConfig.overlay().nearOverlayEnabled()) {
 			return;
 		}
@@ -142,7 +142,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * 绘制转发器近外显。
 	 */
 	private static boolean renderRepeaterOverlay(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Minecraft minecraft,
 		LinkRepeaterBlockEntity repeaterBlockEntity
 	) {
@@ -185,7 +185,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * 绘制节点近外显。
 	 */
 	private static boolean renderNodeOverlay(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Minecraft minecraft,
 		BlockHitResult blockHitResult,
 		PairableNodeBlockEntity pairableNodeBlockEntity
@@ -238,7 +238,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * 绘制过滤器近外显。
 	 */
 	private static boolean renderFilterOverlay(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Minecraft minecraft,
 		AbstractLinkFilterBlockEntity filterBlockEntity
 	) {
@@ -267,7 +267,7 @@ public final class LinkSerialHudOverlayRenderer {
 	 * 绘制区块激活器近外显。
 	 */
 	private static boolean renderChunkActivatorOverlay(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Minecraft minecraft,
 		LinkChunkActivatorBlockEntity chunkActivatorBlockEntity
 	) {
@@ -292,7 +292,7 @@ public final class LinkSerialHudOverlayRenderer {
 	/**
 	 * 在未命中有效方块近外显时，回退到第三形态连线命中 HUD。
 	 */
-	private static void renderVisualizedHoverOverlay(GuiGraphics guiGraphics, Minecraft minecraft) {
+	private static void renderVisualizedHoverOverlay(GuiGraphicsExtractor guiGraphics, Minecraft minecraft) {
 		QuickLinkWorldOverlayRenderer.HoveredVisualizedTarget hoveredTarget = QuickLinkWorldOverlayRenderer.resolveHoveredVisualizedTarget(
 			minecraft
 		);

@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToIntFunction;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.gui.screens.Screen;
@@ -183,23 +183,23 @@ public class RepeaterEditorScreen extends Screen {
 	}
 
 	@Override
-	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		super.render(guiGraphics, mouseX, mouseY, partialTick);
+	public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+		super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
 		RepeaterLayout layout = resolveLayout(width, height, font.lineHeight);
 		GuiBackgroundRenderSupport.RegionBounds baseContentBounds = resolveBaseContentBounds(layout);
 		GuiHeaderRenderSupport.drawCenteredHeader(guiGraphics, font, headerSpec(), width / 2, layout.titleY(), baseContentBounds);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.repeater.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.repeater.delay"), layout.panelLeft(), layout.delayLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.repeater.input_summary"), layout.panelLeft(), layout.inputLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(font, Component.literal(truncateSummary(inputSummary, layout.panelWidth())), layout.panelLeft(), layout.inputValueY(), themeTextColor(), false);
-		guiGraphics.drawString(font, Component.translatable("screen.redstonelink.repeater.output_summary"), layout.panelLeft(), layout.outputLabelY(), 0xFFFFFF, false);
-		guiGraphics.drawString(font, Component.literal(truncateSummary(outputSummary, layout.panelWidth())), layout.panelLeft(), layout.outputValueY(), themeTextColor(), false);
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.repeater.alias"), layout.panelLeft(), layout.aliasLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.repeater.delay"), layout.panelLeft(), layout.delayLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.repeater.input_summary"), layout.panelLeft(), layout.inputLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(font, Component.literal(truncateSummary(inputSummary, layout.panelWidth())), layout.panelLeft(), layout.inputValueY(), themeTextColor(), false);
+		guiGraphics.text(font, Component.translatable("screen.redstonelink.repeater.output_summary"), layout.panelLeft(), layout.outputLabelY(), 0xFFFFFF, false);
+		guiGraphics.text(font, Component.literal(truncateSummary(outputSummary, layout.panelWidth())), layout.panelLeft(), layout.outputValueY(), themeTextColor(), false);
 		renderSummaryTooltip(guiGraphics, layout, mouseX, mouseY);
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+	public void extractBackground(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
 		RepeaterLayout layout = resolveLayout(width, height, font.lineHeight);
 		GuiBackgroundRenderSupport.renderWrappedRegion(
 			guiGraphics,
@@ -346,7 +346,7 @@ public class RepeaterEditorScreen extends Screen {
 	/**
 	 * 为输入侧与输出侧摘要补充完整悬停提示。
 	 */
-	private void renderSummaryTooltip(GuiGraphics guiGraphics, RepeaterLayout layout, int mouseX, int mouseY) {
+	private void renderSummaryTooltip(GuiGraphicsExtractor guiGraphics, RepeaterLayout layout, int mouseX, int mouseY) {
 		if (isMouseOverSummary(layout.panelLeft(), layout.inputLabelY(), layout.panelWidth(), layout.inputValueY(), mouseX, mouseY)) {
 			renderTooltipIfPresent(
 				guiGraphics,
@@ -437,7 +437,7 @@ public class RepeaterEditorScreen extends Screen {
 	/**
 	 * 仅在 tooltip 有内容时才触发绘制，避免空提示闪烁。
 	 */
-	private void renderTooltipIfPresent(GuiGraphics guiGraphics, List<Component> tooltipLines, int mouseX, int mouseY) {
+	private void renderTooltipIfPresent(GuiGraphicsExtractor guiGraphics, List<Component> tooltipLines, int mouseX, int mouseY) {
 		if (!tooltipLines.isEmpty()) {
 			GuiTooltipRenderSupport.renderComponentTooltip(guiGraphics, font, tooltipLines, mouseX, mouseY);
 		}
