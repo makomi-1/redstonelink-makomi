@@ -78,7 +78,7 @@ public final class TestMinecraftSupport {
 	}
 
 	/**
-	 * 在测试中短暂恢复 block / block entity intrusive holder 写窗。
+	 * 在测试中短暂恢复 block / item / block entity intrusive holder 写窗。
 	 */
 	public static <T> T withWritableBlockRegistries(Supplier<T> supplier) {
 		bootstrapMinecraft();
@@ -248,6 +248,7 @@ public final class TestMinecraftSupport {
 		private static RegistryWriteWindow open() throws ReflectiveOperationException {
 			return new RegistryWriteWindow(
 				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK),
+				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.ITEM),
 				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK_ENTITY_TYPE)
 			);
 		}

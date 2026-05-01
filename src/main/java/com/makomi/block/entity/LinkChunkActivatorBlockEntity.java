@@ -61,7 +61,18 @@ public class LinkChunkActivatorBlockEntity extends BlockEntity {
 	private final ChunkActivatorLifecycleState lifecycleState = new ChunkActivatorLifecycleState();
 
 	public LinkChunkActivatorBlockEntity(BlockPos blockPos, BlockState blockState) {
-		super(com.makomi.registry.ModBlockEntities.LINK_CHUNK_ACTIVATOR, blockPos, blockState);
+		this(com.makomi.registry.ModBlockEntities.LINK_CHUNK_ACTIVATOR, blockPos, blockState);
+	}
+
+	/**
+	 * 允许 hide 变种切换为自定义实体类型，同时复用区块激活器完整真值与配置逻辑。
+	 */
+	protected LinkChunkActivatorBlockEntity(
+		net.minecraft.world.level.block.entity.BlockEntityType<? extends LinkChunkActivatorBlockEntity> blockEntityType,
+		BlockPos blockPos,
+		BlockState blockState
+	) {
+		super(blockEntityType, blockPos, blockState);
 	}
 
 	/**

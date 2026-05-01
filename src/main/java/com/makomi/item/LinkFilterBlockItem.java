@@ -142,6 +142,7 @@ public class LinkFilterBlockItem extends BlockItem {
 			)
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.link_filter.open_editor"));
+		HideNodeItemTooltipSupport.appendIfNeeded(stack, tooltipComponents);
 		tooltipComponents.forEach(tooltipAdder);
 		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}
