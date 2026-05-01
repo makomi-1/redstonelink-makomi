@@ -8,8 +8,7 @@ import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.item.DirectionalFaceEditorItem;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
@@ -60,23 +59,24 @@ public final class DirectionalFaceVectorRenderSupport {
 	/**
 	 * 按方块状态的启用面集合，为对应方块实体绘制箭头向量。
 	 */
-	public static void renderEnabledFaceVectors(BlockEntity blockEntity, PoseStack poseStack, VertexConsumer vertexConsumer) {
-		if (blockEntity == null || poseStack == null || vertexConsumer == null || !supportsFaceVectorRendering(blockEntity)) {
-			return;
+	public static List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> collectEnabledFaceVectors(BlockEntity blockEntity) {
+		if (blockEntity == null || !supportsFaceVectorRendering(blockEntity)) {
+			return List.of();
 		}
 		BlockState blockState = blockEntity.getBlockState();
 		int packedColor = resolveThemeColor(blockEntity);
-		PoseStack.Pose pose = poseStack.last();
-		renderFaceVectorPass(
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> lineSegments = new ArrayList<>();
+		collectFaceVectorPass(
 			NodeFaceSetBlockStateSupport.resolveEnabledFaces(blockState),
-			vertexConsumer,
-			pose,
+			lineSegments,
+			blockEntity,
 			blockState,
 			(packedColor >> 16) & 0xFF,
 			(packedColor >> 8) & 0xFF,
 			packedColor & 0xFF,
 			255
 		);
+		return lineSegments.isEmpty() ? List.of() : List.copyOf(lineSegments);
 	}
 
 	/**
@@ -98,23 +98,28 @@ public final class DirectionalFaceVectorRenderSupport {
 		return 0xFFFFFFFF;
 	}
 
-	private static void renderFaceVectorPass(
+	private static void collectFaceVectorPass(
 		List<Direction> enabledFaces,
-		VertexConsumer vertexConsumer,
-		PoseStack.Pose pose,
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> lineSegments,
+		BlockEntity blockEntity,
 		BlockState blockState,
 		int red,
 		int green,
 		int blue,
 		int alpha
 	) {
-		if (enabledFaces == null || enabledFaces.isEmpty() || vertexConsumer == null || pose == null || blockState == null) {
+		if (enabledFaces == null || enabledFaces.isEmpty() || lineSegments == null || blockEntity == null || blockState == null) {
 			return;
 		}
+		double originX = blockEntity.getBlockPos().getX();
+		double originY = blockEntity.getBlockPos().getY();
+		double originZ = blockEntity.getBlockPos().getZ();
 		for (Direction enabledFace : enabledFaces) {
-			renderFaceArrow(
-				vertexConsumer,
-				pose,
+			collectFaceArrow(
+				lineSegments,
+				originX,
+				originY,
+				originZ,
 				resolveRenderedFaceDirection(blockState, enabledFace),
 				red,
 				green,
@@ -136,16 +141,18 @@ public final class DirectionalFaceVectorRenderSupport {
 			: enabledFace;
 	}
 
-	private static void renderFaceArrow(
-		VertexConsumer vertexConsumer,
-		PoseStack.Pose pose,
+	private static void collectFaceArrow(
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> lineSegments,
+		double originX,
+		double originY,
+		double originZ,
 		Direction face,
 		int red,
 		int green,
 		int blue,
 		int alpha
 	) {
-		if (vertexConsumer == null || pose == null || face == null) {
+		if (lineSegments == null || face == null) {
 			return;
 		}
 		float directionX = face.getStepX();
@@ -157,21 +164,35 @@ public final class DirectionalFaceVectorRenderSupport {
 		float endX = 0.5F + directionX * ARROW_SHAFT_END;
 		float endY = 0.5F + directionY * ARROW_SHAFT_END;
 		float endZ = 0.5F + directionZ * ARROW_SHAFT_END;
-		renderLine(vertexConsumer, pose, startX, startY, startZ, endX, endY, endZ, directionX, directionY, directionZ, red, green, blue, alpha);
+		addWorldLine(
+			lineSegments,
+			originX + startX,
+			originY + startY,
+			originZ + startZ,
+			originX + endX,
+			originY + endY,
+			originZ + endZ,
+			directionX,
+			directionY,
+			directionZ,
+			red,
+			green,
+			blue,
+			alpha
+		);
 
 		float baseX = endX - directionX * ARROW_HEAD_LENGTH;
 		float baseY = endY - directionY * ARROW_HEAD_LENGTH;
 		float baseZ = endZ - directionZ * ARROW_HEAD_LENGTH;
 		for (float[] offset : resolveArrowHeadOffsets(face)) {
-			renderLine(
-				vertexConsumer,
-				pose,
-				endX,
-				endY,
-				endZ,
-				baseX + offset[0],
-				baseY + offset[1],
-				baseZ + offset[2],
+			addWorldLine(
+				lineSegments,
+				originX + endX,
+				originY + endY,
+				originZ + endZ,
+				originX + baseX + offset[0],
+				originY + baseY + offset[1],
+				originZ + baseZ + offset[2],
 				directionX,
 				directionY,
 				directionZ,
@@ -206,15 +227,14 @@ public final class DirectionalFaceVectorRenderSupport {
 		};
 	}
 
-	private static void renderLine(
-		VertexConsumer vertexConsumer,
-		PoseStack.Pose pose,
-		float startX,
-		float startY,
-		float startZ,
-		float endX,
-		float endY,
-		float endZ,
+	private static void addWorldLine(
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> lineSegments,
+		double startX,
+		double startY,
+		double startZ,
+		double endX,
+		double endY,
+		double endZ,
 		float normalX,
 		float normalY,
 		float normalZ,
@@ -223,20 +243,28 @@ public final class DirectionalFaceVectorRenderSupport {
 		int blue,
 		int alpha
 	) {
-		// 1.21.11 的线段顶点格式要求显式写入 LineWidth，旧版仅颜色/法线会在提交阶段崩溃。
+		// 1.21.11 的线段顶点格式要求显式携带 LineWidth。
+		// 穿透管线最终仍会写入 LineWidth，这里只统一沉淀世界空间线段与法线参数。
 		float length = (float) Math.sqrt(normalX * normalX + normalY * normalY + normalZ * normalZ);
 		float resolvedNormalX = length <= 0.0F ? 1.0F : normalX / length;
 		float resolvedNormalY = length <= 0.0F ? 0.0F : normalY / length;
 		float resolvedNormalZ = length <= 0.0F ? 0.0F : normalZ / length;
-		vertexConsumer
-			.addVertex(pose, startX, startY, startZ)
-			.setColor(red, green, blue, alpha)
-			.setNormal(pose, resolvedNormalX, resolvedNormalY, resolvedNormalZ)
-			.setLineWidth(1.0F);
-		vertexConsumer
-			.addVertex(pose, endX, endY, endZ)
-			.setColor(red, green, blue, alpha)
-			.setNormal(pose, resolvedNormalX, resolvedNormalY, resolvedNormalZ)
-			.setLineWidth(1.0F);
+		lineSegments.add(
+			new SeeThroughWorldGeometryRenderSupport.ColoredLineSegment(
+				startX,
+				startY,
+				startZ,
+				endX,
+				endY,
+				endZ,
+				resolvedNormalX,
+				resolvedNormalY,
+				resolvedNormalZ,
+				red,
+				green,
+				blue,
+				alpha
+			)
+		);
 	}
 }

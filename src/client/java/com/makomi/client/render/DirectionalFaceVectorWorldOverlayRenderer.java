@@ -2,16 +2,15 @@ package com.makomi.client.render;
 
 import com.makomi.client.config.RedstoneLinkClientDisplayConfig;
 import com.makomi.data.SmartGlassesAccessSupport;
-import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.ArrayList;
+import java.util.List;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
-import net.minecraft.world.phys.Vec3;
 
 /**
  * 定向面箭头世界后置渲染器。
@@ -35,7 +34,6 @@ public final class DirectionalFaceVectorWorldOverlayRenderer {
 				|| !SmartGlassesAccessSupport.canRenderSerialOverlay(minecraft.player)
 				|| !DirectionalFaceVectorRenderSupport.shouldRenderFaceVectors(minecraft)
 				|| worldRenderContext.poseStack() == null
-				|| worldRenderContext.bufferSource() == null
 		) {
 			return;
 		}
@@ -48,9 +46,7 @@ public final class DirectionalFaceVectorWorldOverlayRenderer {
 		int renderDistance = Math.max(1, (int) Math.ceil(maxDistance / 16.0D));
 		int playerChunkX = minecraft.player.chunkPosition().x();
 		int playerChunkZ = minecraft.player.chunkPosition().z();
-		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
-		PoseStack poseStack = worldRenderContext.poseStack();
-		var vertexConsumer = worldRenderContext.bufferSource().getBuffer(RenderTypes.linesTranslucent());
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> lineSegments = new ArrayList<>();
 
 		for (int chunkX = playerChunkX - renderDistance; chunkX <= playerChunkX + renderDistance; chunkX++) {
 			for (int chunkZ = playerChunkZ - renderDistance; chunkZ <= playerChunkZ + renderDistance; chunkZ++) {
@@ -69,16 +65,14 @@ public final class DirectionalFaceVectorWorldOverlayRenderer {
 					if (minecraft.player.distanceToSqr(centerX, centerY, centerZ) > maxDistanceSqr) {
 						continue;
 					}
-					poseStack.pushPose();
-					poseStack.translate(
-						blockPos.getX() - cameraPosition.x,
-						blockPos.getY() - cameraPosition.y,
-						blockPos.getZ() - cameraPosition.z
-					);
-					DirectionalFaceVectorRenderSupport.renderEnabledFaceVectors(blockEntity, poseStack, vertexConsumer);
-					poseStack.popPose();
+					lineSegments.addAll(DirectionalFaceVectorRenderSupport.collectEnabledFaceVectors(blockEntity));
 				}
 			}
+		}
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			IrisDirectLineRenderSupport.drawWorldSegments(worldRenderContext, lineSegments, 4.0F);
+		} else {
+			SeeThroughWorldGeometryRenderSupport.renderLines(worldRenderContext, lineSegments);
 		}
 	}
 }
