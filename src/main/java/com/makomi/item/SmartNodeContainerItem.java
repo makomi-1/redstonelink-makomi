@@ -7,6 +7,7 @@ import com.makomi.data.RepeaterItemData;
 import com.makomi.data.SmartNodeContainerData;
 import com.makomi.data.SmartNodeContainerPlacementType;
 import com.makomi.data.SmartNodeContainerRecoverySupport;
+import java.util.ArrayList;
 import com.makomi.menu.SmartNodeContainerMenu;
 import com.makomi.registry.ModItems;
 import java.util.List;
@@ -28,6 +29,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -67,6 +69,9 @@ public class SmartNodeContainerItem extends Item {
 		if (player.isShiftKeyDown() && SmartNodeContainerRecoverySupport.isRecoverableNode(clickedState, clickedBlockEntity)) {
 			return tryRecoverNode(context, player, containerStack, clickedState, clickedBlockEntity);
 		}
+		if (player.isShiftKeyDown() && isDropOnlyTarget(clickedState, clickedBlockEntity)) {
+			return tryDropConfiguredBlock(context, player, containerStack, clickedState, clickedBlockEntity);
+		}
 		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.read(containerStack);
 		if (!snapshot.hasItems()) {
 			return InteractionResult.PASS;
@@ -79,7 +84,11 @@ public class SmartNodeContainerItem extends Item {
 		}
 
 		NonNullList<ItemStack> contents = SmartNodeContainerData.readContents(containerStack, serverLevel.registryAccess());
-		int selectedSlotIndex = SmartNodeContainerData.findFirstSlotForType(contents, snapshot.selectedType());
+		int selectedSlotIndex = SmartNodeContainerData.resolvePreferredSlotForType(
+			contents,
+			snapshot.selectedType(),
+			snapshot.temporarySelectedSlotIndex()
+		);
 		if (selectedSlotIndex < 0) {
 			return InteractionResult.PASS;
 		}
@@ -115,7 +124,8 @@ public class SmartNodeContainerItem extends Item {
 			contents,
 			snapshot.selectedType(),
 			snapshot.autoSortEnabled(),
-			snapshot.creativeAutoConsumeEnabled()
+			snapshot.creativeAutoConsumeEnabled(),
+			-1
 		);
 		player.containerMenu.broadcastChanges();
 		return result;
@@ -176,10 +186,12 @@ public class SmartNodeContainerItem extends Item {
 				)
 			)
 		);
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.temporary_select"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.open"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.cycle_type"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.place"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.recover"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_node_container.drop_configured_blocks"));
 		tooltipComponents.add(
 			Component.translatable("tooltip.redstonelink.smart_node_container.connection_sync_notice").withStyle(ChatFormatting.GRAY)
 		);
@@ -259,7 +271,8 @@ public class SmartNodeContainerItem extends Item {
 			updatedContents,
 			snapshot.selectedType(),
 			snapshot.autoSortEnabled(),
-			snapshot.creativeAutoConsumeEnabled()
+			snapshot.creativeAutoConsumeEnabled(),
+			snapshot.temporarySelectedSlotIndex()
 		);
 		player.containerMenu.broadcastChanges();
 		if (player instanceof ServerPlayer serverPlayer) {
@@ -296,5 +309,46 @@ public class SmartNodeContainerItem extends Item {
 			return ItemStack.EMPTY;
 		}
 		return nestedStack == null || nestedStack.isEmpty() ? ItemStack.EMPTY : nestedStack;
+	}
+
+	/**
+	 * 判断当前命中的方块是否属于“只掉落、不回收”的受控对象。
+	 */
+	private static boolean isDropOnlyTarget(BlockState state, BlockEntity blockEntity) {
+		return blockEntity instanceof com.makomi.block.entity.AbstractLinkFilterBlockEntity
+			|| blockEntity instanceof com.makomi.block.entity.LinkChunkActivatorBlockEntity;
+	}
+
+	/**
+	 * 潜行主手右键过滤器或区块激活器时，直接按真实掉落链掉出物品，不写入容器。
+	 */
+	private static InteractionResult tryDropConfiguredBlock(
+		UseOnContext context,
+		Player player,
+		ItemStack containerStack,
+		BlockState clickedState,
+		BlockEntity clickedBlockEntity
+	) {
+		if (context.getLevel().isClientSide()) {
+			return InteractionResult.SUCCESS;
+		}
+		if (!(context.getLevel() instanceof ServerLevel serverLevel)) {
+			return InteractionResult.FAIL;
+		}
+		List<ItemStack> resolvedDrops = new ArrayList<>(
+			Block.getDrops(clickedState, serverLevel, context.getClickedPos(), clickedBlockEntity, player, containerStack.copy())
+		);
+		if (resolvedDrops.isEmpty()) {
+			return InteractionResult.FAIL;
+		}
+		if (!serverLevel.removeBlock(context.getClickedPos(), false)) {
+			return InteractionResult.FAIL;
+		}
+		for (ItemStack resolvedDrop : resolvedDrops) {
+			if (resolvedDrop != null && !resolvedDrop.isEmpty()) {
+				Block.popResource(serverLevel, context.getClickedPos(), resolvedDrop);
+			}
+		}
+		return InteractionResult.SUCCESS;
 	}
 }
