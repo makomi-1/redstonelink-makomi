@@ -59,6 +59,21 @@ class RepeaterItemDataTest {
 		assertEquals(RepeaterDelay.TWO_TICKS, nextSnapshot.delay());
 	}
 
+	/**
+	 * 物品 NBT 往返应保留自定义正整数延迟。
+	 */
+	@Test
+	void readWriteShouldPreserveCustomPositiveDelay() {
+		ItemStack stack = new ItemStack(Items.STICK);
+
+		RepeaterItemData.write(stack, new RepeaterConfigSnapshot("1/2", "3/4", RepeaterDelay.ofTicks(6)));
+		RepeaterConfigSnapshot snapshot = RepeaterItemData.read(stack);
+
+		assertEquals("1/2", snapshot.inputSerialExpression());
+		assertEquals("3/4", snapshot.outputSerialExpression());
+		assertEquals(RepeaterDelay.ofTicks(6), snapshot.delay());
+	}
+
 	private static ServerLevel createServerLevel(Path tempDir) throws Exception {
 		Unsafe unsafe = unsafe();
 		ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);

@@ -123,7 +123,9 @@ public class RepeaterBlockItem extends BlockItem implements PairableItem {
 
 	private static Component delayLabel(RepeaterDelay delay) {
 		RepeaterDelay normalized = delay == null ? RepeaterDelay.ONE_TICK : delay;
-		return Component.translatable(normalized.translationKey());
+		return normalized.displayTranslationNeedsTickArgument()
+			? Component.translatable(normalized.displayTranslationKey(), normalized.delayTicks())
+			: Component.translatable(normalized.displayTranslationKey());
 	}
 
 	private static boolean shouldOpenEditor(Player player, InteractionHand hand) {
