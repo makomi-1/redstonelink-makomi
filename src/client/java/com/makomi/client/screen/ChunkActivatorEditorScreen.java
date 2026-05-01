@@ -204,6 +204,7 @@ public class ChunkActivatorEditorScreen extends Screen {
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.centeredText(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
+		renderSerialInputDecorations(guiGraphics);
 		renderModeButtonTooltip(guiGraphics, mouseX, mouseY);
 	}
 
@@ -221,6 +222,7 @@ public class ChunkActivatorEditorScreen extends Screen {
 				BACKGROUND_BOTTOM_PADDING
 			)
 		);
+		renderSerialInputBackground(guiGraphics);
 	}
 
 	@Override
@@ -429,6 +431,30 @@ public class ChunkActivatorEditorScreen extends Screen {
 			Component.translatable("screen.redstonelink.chunk_activator.alias"),
 			EDIT_BOX_STYLE
 		);
+	}
+
+	/**
+	 * 26.1 多行输入框不再开放主题背景覆写，这里在背景层补画区块激活器配色外壳。
+	 */
+	private void renderSerialInputBackground(GuiGraphicsExtractor guiGraphics) {
+		if (serialInputBox != null) {
+			StyledMultiLineEditBox.renderBackground(guiGraphics, serialInputBox, SERIAL_INPUT_BOX_STYLE);
+		}
+	}
+
+	/**
+	 * 统一补画无阴影容量计数，避免当前版本原版 decorations 恢复阴影计数。
+	 */
+	private void renderSerialInputDecorations(GuiGraphicsExtractor guiGraphics) {
+		if (serialInputBox != null) {
+			ShadowlessCounterMultiLineEditBox.renderCharacterLimitCounter(
+				guiGraphics,
+				serialInputBox,
+				font,
+				com.makomi.config.RedstoneLinkConfig.command().linkSetMaxInputLength(),
+				SERIAL_INPUT_BOX_STYLE.counterTextColor()
+			);
+		}
 	}
 
 	private Button createActionButton(Component message, int x, int y, int width, Button.OnPress onPress) {

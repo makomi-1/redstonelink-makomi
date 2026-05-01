@@ -267,6 +267,7 @@ public class LinkFilterEditorScreen extends Screen {
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.centeredText(font, statusMessage, centerX, layout.statusMessageY(), 0xFF6666);
 		}
+		renderSerialInputDecorations(guiGraphics);
 		renderSignalModeTooltip(guiGraphics, mouseX, mouseY);
 	}
 
@@ -284,6 +285,7 @@ public class LinkFilterEditorScreen extends Screen {
 				BACKGROUND_BOTTOM_PADDING
 			)
 		);
+		renderSerialInputBackground(guiGraphics);
 	}
 
 	@Override
@@ -635,6 +637,30 @@ public class LinkFilterEditorScreen extends Screen {
 			Component.translatable("screen.redstonelink.link_filter.alias"),
 			FILTER_EDIT_BOX_STYLE
 		);
+	}
+
+	/**
+	 * 26.1 下过滤器多行输入框主题壳改由屏幕层补画，保留原版编辑与滚动逻辑。
+	 */
+	private void renderSerialInputBackground(GuiGraphicsExtractor guiGraphics) {
+		if (serialInputBox != null && serialInputBox.visible) {
+			StyledMultiLineEditBox.renderBackground(guiGraphics, serialInputBox, FILTER_INPUT_BOX_STYLE);
+		}
+	}
+
+	/**
+	 * 容量计数改为无阴影显示，和迁移目标保持一致。
+	 */
+	private void renderSerialInputDecorations(GuiGraphicsExtractor guiGraphics) {
+		if (serialInputBox != null && serialInputBox.visible) {
+			ShadowlessCounterMultiLineEditBox.renderCharacterLimitCounter(
+				guiGraphics,
+				serialInputBox,
+				font,
+				com.makomi.config.RedstoneLinkConfig.command().linkSetMaxInputLength(),
+				FILTER_INPUT_BOX_STYLE.counterTextColor()
+			);
+		}
 	}
 
 	/**

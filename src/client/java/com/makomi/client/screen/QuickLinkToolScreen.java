@@ -166,6 +166,7 @@ public class QuickLinkToolScreen extends Screen {
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.centeredText(font, statusMessage, centerX, layout.statusMessageY(), theme.statusMessageColor());
 		}
+		renderInputDecorations(guiGraphics);
 	}
 
 	@Override
@@ -182,6 +183,7 @@ public class QuickLinkToolScreen extends Screen {
 				BACKGROUND_BOTTOM_PADDING
 			)
 		);
+		renderInputBackground(guiGraphics);
 	}
 
 	@Override
@@ -308,6 +310,30 @@ public class QuickLinkToolScreen extends Screen {
 	 */
 	private Theme currentTheme() {
 		return currentMode() == QuickLinkToolData.Mode.CHANNEL ? QUICK_LINK_CHANNEL_THEME : QUICK_LINK_SERIAL_THEME;
+	}
+
+	/**
+	 * 26.1 下多行输入框主题壳改由屏幕层补画，保持 quick-link 两种模式的专属配色。
+	 */
+	private void renderInputBackground(GuiGraphicsExtractor guiGraphics) {
+		if (inputBox != null) {
+			StyledMultiLineEditBox.renderBackground(guiGraphics, inputBox, currentTheme().inputBoxStyle());
+		}
+	}
+
+	/**
+	 * 26.1 原版容量计数固定带阴影，这里补成与旧版一致的无阴影样式。
+	 */
+	private void renderInputDecorations(GuiGraphicsExtractor guiGraphics) {
+		if (inputBox != null) {
+			ShadowlessCounterMultiLineEditBox.renderCharacterLimitCounter(
+				guiGraphics,
+				inputBox,
+				font,
+				RedstoneLinkClientDisplayConfig.quickLink().serialCacheMaxLength(),
+				currentTheme().inputBoxStyle().counterTextColor()
+			);
+		}
 	}
 
 	/**

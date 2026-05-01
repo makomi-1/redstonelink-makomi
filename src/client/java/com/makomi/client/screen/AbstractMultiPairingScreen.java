@@ -371,6 +371,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 		if (!statusMessage.getString().isEmpty()) {
 			guiGraphics.centeredText(font, statusMessage, centerX, layout.statusMessageY(), statusMessageColor);
 		}
+		renderSerialInputDecorations(guiGraphics);
 
 		if (isMouseOverInput(mouseX, mouseY)) {
 			List<Component> tooltipLines = buildInputTooltipLines();
@@ -410,6 +411,7 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 				BACKGROUND_BOTTOM_PADDING
 			)
 		);
+		renderSerialInputBackground(guiGraphics);
 	}
 
 	@Override
@@ -779,6 +781,37 @@ public abstract class AbstractMultiPairingScreen extends Screen {
 			ALIAS_INPUT_HEIGHT,
 			Component.empty(),
 			aliasInputStyle()
+		);
+	}
+
+	/**
+	 * 26.1 下主题化多行输入框改为屏幕层补画主题壳，避免依赖旧版可覆写背景路径。
+	 */
+	private void renderSerialInputBackground(GuiGraphicsExtractor guiGraphics) {
+		if (serialInput == null) {
+			return;
+		}
+		StyledMultiLineEditBox.Style style = inputBoxStyle();
+		if (style != null) {
+			StyledMultiLineEditBox.renderBackground(guiGraphics, serialInput, style);
+		}
+	}
+
+	/**
+	 * 26.1 下原版容量计数仍走带阴影路径，这里统一补成无阴影显示。
+	 */
+	private void renderSerialInputDecorations(GuiGraphicsExtractor guiGraphics) {
+		if (serialInput == null) {
+			return;
+		}
+		StyledMultiLineEditBox.Style style = inputBoxStyle();
+		int counterTextColor = style == null ? 0xFFA0A0A0 : style.counterTextColor();
+		ShadowlessCounterMultiLineEditBox.renderCharacterLimitCounter(
+			guiGraphics,
+			serialInput,
+			font,
+			com.makomi.client.config.RedstoneLinkClientDisplayConfig.pairing().inputMaxLength(),
+			counterTextColor
 		);
 	}
 
