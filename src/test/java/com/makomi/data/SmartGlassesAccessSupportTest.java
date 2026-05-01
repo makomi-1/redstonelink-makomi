@@ -1,15 +1,13 @@
 package com.makomi.data;
 
-import com.makomi.item.SmartGlassesItem;
+import com.makomi.registry.ModItems;
+import com.makomi.testsupport.TestMinecraftSupport;
 import com.mojang.authlib.GameProfile;
 import java.lang.reflect.Field;
 import java.util.UUID;
-import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.Bootstrap;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -28,8 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SmartGlassesAccessSupportTest {
 	@BeforeAll
 	static void bootstrapRegistries() {
-		SharedConstants.tryDetectVersion();
-		Bootstrap.bootStrap();
+		TestMinecraftSupport.bootstrapMinecraft();
+		TestMinecraftSupport.withWritableBlockRegistries(() -> {
+			ModItems.register();
+			return null;
+		});
 	}
 
 	/**
@@ -58,7 +59,7 @@ class SmartGlassesAccessSupportTest {
 	 */
 	@Test
 	void renderPermissionShouldOnlyRequireWearingSmartGlasses() throws Exception {
-		TestPlayer player = createPlayer(createSmartGlassesStack(), new ItemStack(Items.STONE), true);
+		TestPlayer player = createPlayer(createSmartGlassesStack(), TestMinecraftSupport.createVanillaStack(Items.STONE), true);
 
 		assertTrue(SmartGlassesAccessSupport.canRenderQuickLinkVisualization(player));
 		assertFalse(SmartGlassesAccessSupport.canOperateQuickLinkVisualization(player));
@@ -90,10 +91,8 @@ class SmartGlassesAccessSupportTest {
 	/**
 	 * 构造一份能命中 `SmartGlassesItem` 类型判定的最小物品栈。
 	 */
-	private static ItemStack createSmartGlassesStack() throws Exception {
-		ItemStack stack = new ItemStack(Items.STONE);
-		setField(ItemStack.class, stack, "item", (Item) unsafe().allocateInstance(SmartGlassesItem.class));
-		return stack;
+	private static ItemStack createSmartGlassesStack() {
+		return new ItemStack(ModItems.SMART_GLASSES);
 	}
 
 	/**
@@ -103,15 +102,6 @@ class SmartGlassesAccessSupportTest {
 		Field field = Unsafe.class.getDeclaredField("theUnsafe");
 		field.setAccessible(true);
 		return (Unsafe) field.get(null);
-	}
-
-	/**
-	 * 设置测试对象字段，复用既有反射样板。
-	 */
-	private static void setField(Class<?> owner, Object target, String fieldName, Object value) throws Exception {
-		Field field = owner.getDeclaredField(fieldName);
-		field.setAccessible(true);
-		field.set(target, value);
 	}
 
 	/**

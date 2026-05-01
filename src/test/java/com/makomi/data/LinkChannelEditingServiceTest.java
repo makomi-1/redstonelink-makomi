@@ -16,8 +16,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import net.minecraft.SharedConstants;
-import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.dedicated.DedicatedServer;
 import net.minecraft.server.level.ServerChunkCache;
@@ -37,8 +35,7 @@ import sun.misc.Unsafe;
 class LinkChannelEditingServiceTest {
 	@BeforeAll
 	static void bootstrapMinecraft() {
-		SharedConstants.tryDetectVersion();
-		Bootstrap.bootStrap();
+		TestMinecraftSupport.bootstrapMinecraft();
 	}
 
 	/**
@@ -226,9 +223,11 @@ class LinkChannelEditingServiceTest {
 	 * 通过反射写入最小测试夹具字段。
 	 */
 	private static void setField(Class<?> owner, Object target, String fieldName, Object value) throws Exception {
-		Field field = owner.getDeclaredField(fieldName);
-		field.setAccessible(true);
-		field.set(target, value);
+		if (owner == ServerChunkCache.class && ("dataStorage".equals(fieldName) || "savedDataStorage".equals(fieldName))) {
+			TestMinecraftSupport.setFieldByCandidates(owner, target, value, "savedDataStorage", "dataStorage");
+			return;
+		}
+		TestMinecraftSupport.setFieldByCandidates(owner, target, value, fieldName);
 	}
 
 	/**

@@ -4,9 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.makomi.testsupport.TestMinecraftSupport;
-import net.minecraft.SharedConstants;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomModelData;
@@ -21,8 +19,7 @@ import org.junit.jupiter.api.Test;
 class QuickLinkToolDataTest {
 	@BeforeAll
 	static void bootstrapRegistries() {
-		SharedConstants.tryDetectVersion();
-		Bootstrap.bootStrap();
+		TestMinecraftSupport.bootstrapMinecraft();
 	}
 
 	/**

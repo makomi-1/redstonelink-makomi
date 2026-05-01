@@ -23,7 +23,10 @@ import net.minecraft.nbt.LongTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -41,6 +44,7 @@ import net.minecraft.world.level.storage.TagValueInput;
  */
 public final class TestMinecraftSupport {
 	private static HolderLookup.Provider lookupProvider;
+	private static boolean builtInItemComponentsBound;
 
 	private TestMinecraftSupport() {}
 
@@ -50,6 +54,7 @@ public final class TestMinecraftSupport {
 	public static synchronized void bootstrapMinecraft() {
 		SharedConstants.tryDetectVersion();
 		Bootstrap.bootStrap();
+		bindBuiltInItemComponentsIfNeeded();
 	}
 
 	/**
@@ -58,7 +63,7 @@ public final class TestMinecraftSupport {
 	public static synchronized HolderLookup.Provider lookupProvider() {
 		bootstrapMinecraft();
 		if (lookupProvider == null) {
-			lookupProvider = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY).freeze();
+			lookupProvider = createVanillaLookupProvider();
 		}
 		return lookupProvider;
 	}
@@ -78,12 +83,20 @@ public final class TestMinecraftSupport {
 	}
 
 	/**
-	 * 在测试中短暂恢复 block / block entity intrusive holder 写窗。
+	 * 在测试中短暂恢复 block / item / block entity intrusive holder 写窗。
+	 * <p>
+	 * 26.1 起纯数据层单测里若需临时注册模组方块或物品，除了开放注册表写窗，
+	 * 还必须在注册完成后重新绑定物品默认组件，否则后续 `new ItemStack(...)`
+	 * 仍会因为 holder 未绑定组件而失败。
+	 * </p>
 	 */
 	public static <T> T withWritableBlockRegistries(Supplier<T> supplier) {
 		bootstrapMinecraft();
 		try (RegistryWriteWindow ignored = RegistryWriteWindow.open()) {
-			return supplier.get();
+			T result = supplier.get();
+			lookupProvider = null;
+			rebindAllRegisteredItemComponents();
+			return result;
 		} catch (ReflectiveOperationException ex) {
 			throw new IllegalStateException("failed to open temporary intrusive holder write window", ex);
 		}
@@ -155,6 +168,60 @@ public final class TestMinecraftSupport {
 	 */
 	public static SavedDataStorage createSavedDataStorage(Path path) {
 		return new SavedDataStorage(path, null, lookupProvider());
+	}
+
+	/**
+	 * 构造一份已完成默认组件绑定的原版测试物品栈。
+	 * <p>
+	 * 26.1 起 `ItemStack` 构造阶段会立即读取物品 holder 上的默认组件，
+	 * 因此测试里不能再假设 `Bootstrap.bootStrap()` 之后原版物品必然可直接实例化。
+	 * </p>
+	 */
+	public static ItemStack createVanillaStack(Item item) {
+		bootstrapMinecraft();
+		if (item == null) {
+			return ItemStack.EMPTY;
+		}
+		return new ItemStack(item);
+	}
+
+	/**
+	 * 按“当前类优先，父类兜底”解析字段，避免测试绑死单一声明层级。
+	 */
+	public static Field resolveDeclaredField(Class<?> owner, String fieldName) throws NoSuchFieldException {
+		Class<?> current = owner;
+		while (current != null) {
+			try {
+				Field field = current.getDeclaredField(fieldName);
+				field.setAccessible(true);
+				return field;
+			} catch (NoSuchFieldException ignored) {
+				current = current.getSuperclass();
+			}
+		}
+		throw new NoSuchFieldException(fieldName);
+	}
+
+	/**
+	 * 根据候选字段名顺序解析首个存在字段，兼容 26.1 映射字段重命名。
+	 */
+	public static Field resolveDeclaredFieldByCandidates(Class<?> owner, String... candidateNames) throws NoSuchFieldException {
+		NoSuchFieldException lastError = null;
+		for (String candidateName : candidateNames) {
+			try {
+				return resolveDeclaredField(owner, candidateName);
+			} catch (NoSuchFieldException ex) {
+				lastError = ex;
+			}
+		}
+		throw lastError == null ? new NoSuchFieldException(String.join(", ", candidateNames)) : lastError;
+	}
+
+	/**
+	 * 通过候选字段名写入测试夹具字段。
+	 */
+	public static void setFieldByCandidates(Class<?> owner, Object target, Object value, String... candidateNames) throws ReflectiveOperationException {
+		resolveDeclaredFieldByCandidates(owner, candidateNames).set(target, value);
 	}
 
 	/**
@@ -238,6 +305,59 @@ public final class TestMinecraftSupport {
 		throw new NoSuchMethodException(methodName);
 	}
 
+	/**
+	 * 为原版内建物品补齐默认组件绑定，避免 26.1 单测环境出现
+	 * `Components not bound yet`。
+	 */
+	private static synchronized void bindBuiltInItemComponentsIfNeeded() {
+		if (builtInItemComponentsBound) {
+			return;
+		}
+		rebindAllRegisteredItemComponents();
+		builtInItemComponentsBound = true;
+	}
+
+	/**
+	 * 对当前已注册的全部物品重新应用默认组件。
+	 * <p>
+	 * 该方法允许在测试阶段临时注册新物品后再次调用，补齐新增 holder 的组件绑定。
+	 * </p>
+	 */
+	private static synchronized void rebindAllRegisteredItemComponents() {
+		try {
+			Object pendingComponentsList = DATA_COMPONENT_INITIALIZERS_BUILD_METHOD.invoke(
+				BuiltInRegistries.DATA_COMPONENT_INITIALIZERS,
+				lookupProviderForBinding()
+			);
+			@SuppressWarnings("unchecked")
+			List<Object> pendingComponents = (List<Object>) pendingComponentsList;
+			for (Object pendingComponent : pendingComponents) {
+				PENDING_COMPONENTS_APPLY_METHOD.invoke(pendingComponent);
+			}
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("failed to bind built-in item components for tests", ex);
+		}
+	}
+
+	/**
+	 * 组件绑定阶段只依赖内建注册表本身，使用临时 registry access 即可，
+	 * 避免递归触发 `lookupProvider()` 初始化。
+	 */
+	private static HolderLookup.Provider lookupProviderForBinding() {
+		return createVanillaLookupProvider();
+	}
+
+	/**
+	 * 创建带完整原版 tag 视图的 lookup provider。
+	 * <p>
+	 * 26.1 下仅用 `RegistryAccess.fromRegistryOfRegistries(...).freeze()` 会缺失
+	 * `damage_type/is_fire` 等 tag，无法支撑默认组件初始化。
+	 * </p>
+	 */
+	private static HolderLookup.Provider createVanillaLookupProvider() {
+		return VanillaRegistries.createLookup();
+	}
+
 	private static final class RegistryWriteWindow implements AutoCloseable {
 		private final RegistryState[] states;
 
@@ -248,6 +368,7 @@ public final class TestMinecraftSupport {
 		private static RegistryWriteWindow open() throws ReflectiveOperationException {
 			return new RegistryWriteWindow(
 				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK),
+				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.ITEM),
 				RegistryState.open((MappedRegistry<?>) BuiltInRegistries.BLOCK_ENTITY_TYPE)
 			);
 		}
@@ -291,12 +412,32 @@ public final class TestMinecraftSupport {
 
 	private static final Field FROZEN_FIELD = field("frozen");
 	private static final Field UNREGISTERED_INTRUSIVE_HOLDERS_FIELD = field("unregisteredIntrusiveHolders");
+	private static final Method DATA_COMPONENT_INITIALIZERS_BUILD_METHOD = method(
+		"net.minecraft.core.component.DataComponentInitializers",
+		"build",
+		HolderLookup.Provider.class
+	);
+	private static final Method PENDING_COMPONENTS_APPLY_METHOD = method(
+		"net.minecraft.core.component.DataComponentInitializers$PendingComponents",
+		"apply"
+	);
 
 	private static Field field(String name) {
 		try {
 			Field field = MappedRegistry.class.getDeclaredField(name);
 			field.setAccessible(true);
 			return field;
+		} catch (ReflectiveOperationException ex) {
+			throw new ExceptionInInitializerError(ex);
+		}
+	}
+
+	private static Method method(String ownerName, String methodName, Class<?>... parameterTypes) {
+		try {
+			Class<?> owner = Class.forName(ownerName);
+			Method method = owner.getDeclaredMethod(methodName, parameterTypes);
+			method.setAccessible(true);
+			return method;
 		} catch (ReflectiveOperationException ex) {
 			throw new ExceptionInInitializerError(ex);
 		}

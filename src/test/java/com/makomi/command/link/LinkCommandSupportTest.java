@@ -7,11 +7,10 @@ import com.makomi.data.LinkItemData;
 import com.makomi.data.LinkNodeType;
 import com.makomi.data.LinkSavedData;
 import com.makomi.data.LinkSavedDataChannelSupport;
-import com.makomi.item.PairableItem;
+import com.makomi.registry.ModItems;
 import com.makomi.testsupport.TestMinecraftSupport;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -19,16 +18,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import net.minecraft.SharedConstants;
-import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.dedicated.DedicatedServer;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.SavedDataStorage;
 import org.junit.jupiter.api.BeforeAll;
@@ -44,8 +39,11 @@ import sun.misc.Unsafe;
 class LinkCommandSupportTest {
 	@BeforeAll
 	static void bootstrapMinecraft() {
-		SharedConstants.tryDetectVersion();
-		Bootstrap.bootStrap();
+		TestMinecraftSupport.bootstrapMinecraft();
+		TestMinecraftSupport.withWritableBlockRegistries(() -> {
+			ModItems.register();
+			return null;
+		});
 	}
 
 	/**
@@ -177,50 +175,8 @@ class LinkCommandSupportTest {
 	 * `PairableItem` 能力的测试物品，避免在测试阶段再次触发注册表初始化。
 	 * </p>
 	 */
-	private static ItemStack createTestCoreStack() throws Exception {
-		ItemStack stack = new ItemStack(Items.STONE);
-		setField(ItemStack.class, stack, "item", createTestCoreItem());
-		return stack;
-	}
-
-	/**
-	 * 基于已注册物品拷贝字段，拼出一个仅暴露节点类型能力的最小测试物品。
-	 */
-	private static Item createTestCoreItem() throws Exception {
-		TestPairableItem item = (TestPairableItem) unsafe().allocateInstance(TestPairableItem.class);
-		copyInstanceFields(Item.class, Items.STONE, item);
-		setField(TestPairableItem.class, item, "nodeType", LinkNodeType.CORE);
-		return item;
-	}
-
-	/**
-	 * 最小化的可配对测试物品，仅暴露节点类型能力，避免拉起方块注册依赖。
-	 */
-	private static final class TestPairableItem extends Item implements PairableItem {
-		private final LinkNodeType nodeType;
-
-		private TestPairableItem() {
-			super(new Item.Properties());
-			throw new UnsupportedOperationException("仅供 Unsafe.allocateInstance 使用");
-		}
-
-		@Override
-		public LinkNodeType getNodeType() {
-			return nodeType;
-		}
-	}
-
-	/**
-	 * 复制指定父类上的实例字段，复用原版物品的稳定底座状态。
-	 */
-	private static void copyInstanceFields(Class<?> owner, Object source, Object target) throws Exception {
-		for (Field field : owner.getDeclaredFields()) {
-			if (Modifier.isStatic(field.getModifiers())) {
-				continue;
-			}
-			field.setAccessible(true);
-			field.set(target, field.get(source));
-		}
+	private static ItemStack createTestCoreStack() {
+		return new ItemStack(ModItems.LINK_REDSTONE_CORE);
 	}
 
 	/**
@@ -244,9 +200,11 @@ class LinkCommandSupportTest {
 	 * 通过反射写入最小测试夹具字段。
 	 */
 	private static void setField(Class<?> owner, Object target, String fieldName, Object value) throws Exception {
-		Field field = owner.getDeclaredField(fieldName);
-		field.setAccessible(true);
-		field.set(target, value);
+		if (owner == ServerChunkCache.class && ("dataStorage".equals(fieldName) || "savedDataStorage".equals(fieldName))) {
+			TestMinecraftSupport.setFieldByCandidates(owner, target, value, "savedDataStorage", "dataStorage");
+			return;
+		}
+		TestMinecraftSupport.setFieldByCandidates(owner, target, value, fieldName);
 	}
 
 	/**
