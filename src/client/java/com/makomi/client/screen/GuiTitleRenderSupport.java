@@ -13,7 +13,6 @@ import net.minecraft.util.FormattedCharSequence;
  * </p>
  */
 final class GuiTitleRenderSupport {
-	private static final int FULL_BRIGHT_LIGHT = 0x00F000F0;
 	private static final TitleStyle PRIMARY_TITLE_STYLE = new TitleStyle(0xFFFFFFFF, 0xFF101010);
 	private static final int[][] OUTLINE_OFFSETS = {
 		{ 0, -1 },
@@ -60,11 +59,7 @@ final class GuiTitleRenderSupport {
 	}
 
 	/**
-	 * 使用四向轻描边模拟标题轮廓。
-	 * <p>
-	 * 1.21.11 的 GUI 文本提交流程不再暴露旧版批量描边入口，这里改为
-	 * 无阴影的四向描边，避免八向叠涂把中文笔画糊成一团。
-	 * </p>
+	 * 使用 GUI 提交流程下的四向轻描边，优先保证标题稳定可见。
 	 */
 	private static void drawOutline(GuiGraphics guiGraphics, Font font, FormattedCharSequence text, int left, int top, int outlineColor) {
 		for (int[] offset : OUTLINE_OFFSETS) {

@@ -16,12 +16,15 @@ import net.minecraft.util.Mth;
 final class StyledEditBox extends EditBox {
 	private static final int INNER_HORIZONTAL_PADDING = 4;
 	private static final int INNER_VERTICAL_PADDING = 2;
+	private static final int HINT_TEXT_COLOR = 0xFF7A7A7A;
 
+	private final Font fontRenderer;
 	private final Style style;
 	private int outerX;
 	private int outerY;
 	private int outerWidth;
 	private int outerHeight;
+	private Component shadowlessHint = Component.empty();
 
 	StyledEditBox(Font font, int x, int y, int width, int height, Component message, Style style) {
 		super(
@@ -32,6 +35,7 @@ final class StyledEditBox extends EditBox {
 			Math.max(1, height - (INNER_VERTICAL_PADDING * 2)),
 			message
 		);
+		this.fontRenderer = font;
 		this.style = style == null ? Style.defaultStyle() : style;
 		this.outerX = x;
 		this.outerY = y;
@@ -41,6 +45,12 @@ final class StyledEditBox extends EditBox {
 		setTextShadow(false);
 		setTextColor(this.style.textColor());
 		setTextColorUneditable(this.style.disabledTextColor());
+	}
+
+	@Override
+	public void setHint(Component hint) {
+		shadowlessHint = hint == null ? Component.empty() : hint;
+		super.setHint(Component.empty());
 	}
 
 	@Override
@@ -81,6 +91,7 @@ final class StyledEditBox extends EditBox {
 		setTextColor(withAlpha(colors.textColor()));
 		setTextColorUneditable(withAlpha(colors.disabledTextColor()));
 		super.renderWidget(guiGraphics, mouseX, mouseY, partialTick);
+		renderShadowlessHint(guiGraphics);
 	}
 
 	/**
@@ -101,6 +112,16 @@ final class StyledEditBox extends EditBox {
 		int baseAlpha = (argbColor >>> 24) & 0xFF;
 		int mixedAlpha = Mth.clamp(Math.round(baseAlpha * alpha), 0, 255);
 		return (mixedAlpha << 24) | (argbColor & 0x00FFFFFF);
+	}
+
+	/**
+	 * 原版 hint 在当前版本仍会沿自己的阴影路径绘制，这里在末尾用无阴影文字覆盖一次。
+	 */
+	private void renderShadowlessHint(GuiGraphics guiGraphics) {
+		if (shadowlessHint == null || shadowlessHint.getString().isEmpty() || !getValue().isEmpty() || isFocused() || !visible) {
+			return;
+		}
+		guiGraphics.drawString(fontRenderer, shadowlessHint, getX(), getY(), withAlpha(HINT_TEXT_COLOR), false);
 	}
 
 	/**
