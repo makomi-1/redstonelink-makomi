@@ -49,6 +49,7 @@ final class SeeThroughWorldGeometryRenderSupport {
 			.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 			.withLocation(Identifier.fromNamespaceAndPath(RedstoneLink.MOD_ID, "pipeline/overlay_filled_quads_through_walls"))
 			.withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+			.withCull(false)
 			.withDepthWrite(false)
 			.build()
 	);
