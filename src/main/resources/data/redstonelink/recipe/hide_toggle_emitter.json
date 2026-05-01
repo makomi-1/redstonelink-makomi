@@ -2,12 +2,8 @@
   "type": "minecraft:crafting_shapeless",
   "category": "redstone",
   "ingredients": [
-    {
-      "item": "redstonelink:link_toggle_emitter"
-    },
-    {
-      "item": "minecraft:glass"
-    }
+    "redstonelink:link_toggle_emitter",
+    "minecraft:glass"
   ],
   "result": {
     "count": 1,

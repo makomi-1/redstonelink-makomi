@@ -2,12 +2,8 @@
   "type": "minecraft:crafting_shapeless",
   "category": "redstone",
   "ingredients": [
-    {
-      "item": "redstonelink:link_chunk_activator"
-    },
-    {
-      "item": "minecraft:glass"
-    }
+    "redstonelink:link_chunk_activator",
+    "minecraft:glass"
   ],
   "result": {
     "count": 1,
