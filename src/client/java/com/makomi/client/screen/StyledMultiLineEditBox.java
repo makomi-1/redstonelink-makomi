@@ -2,6 +2,7 @@ package com.makomi.client.screen;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.MultiLineEditBox;
+import net.minecraft.client.gui.components.RedstoneLinkStyledMultiLineEditBox;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -29,16 +30,19 @@ final class StyledMultiLineEditBox {
 		Style style
 	) {
 		Style resolvedStyle = style == null ? Style.defaultStyle() : style;
-		return MultiLineEditBox
-			.builder()
-			.setX(x)
-			.setY(y)
-			.setPlaceholder(placeholder)
-			.setCursorColor(resolvedStyle.focusedBorderColor())
-			.setTextShadow(false)
-			.setShowBackground(true)
-			.setShowDecorations(true)
-			.build(font, width, height, message);
+		return new RedstoneLinkStyledMultiLineEditBox(
+			font,
+			x,
+			y,
+			width,
+			height,
+			message,
+			placeholder,
+			resolvedStyle.backgroundColor(),
+			resolvedStyle.borderColor(),
+			resolvedStyle.focusedBorderColor(),
+			resolvedStyle.counterTextColor()
+		);
 	}
 
 	/**

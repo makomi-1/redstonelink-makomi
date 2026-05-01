@@ -2,6 +2,7 @@ package com.makomi.client.screen;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.MultiLineEditBox;
+import net.minecraft.client.gui.components.RedstoneLinkShadowlessCounterMultiLineEditBox;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -27,14 +28,6 @@ final class ShadowlessCounterMultiLineEditBox {
 		Component message,
 		Component placeholder
 	) {
-		return MultiLineEditBox
-			.builder()
-			.setX(x)
-			.setY(y)
-			.setPlaceholder(placeholder)
-			.setTextShadow(false)
-			.setShowBackground(true)
-			.setShowDecorations(true)
-			.build(font, width, height, message);
+		return new RedstoneLinkShadowlessCounterMultiLineEditBox(font, x, y, width, height, message, placeholder);
 	}
 }

@@ -38,6 +38,7 @@ final class StyledEditBox extends EditBox {
 		this.outerWidth = width;
 		this.outerHeight = height;
 		setBordered(false);
+		setTextShadow(false);
 		setTextColor(this.style.textColor());
 		setTextColorUneditable(this.style.disabledTextColor());
 	}
