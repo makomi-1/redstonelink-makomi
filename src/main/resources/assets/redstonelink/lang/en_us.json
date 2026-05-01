@@ -127,6 +127,7 @@
   "tooltip.redstonelink.smart_node_container.temporary_select": "Hold Ctrl and scroll to temporarily select one node within the current placement type; after one successful use it returns to the default order",
   "tooltip.redstonelink.smart_node_container.place": "Right-click with the main hand to eject one node of the selected type and try to place it",
   "tooltip.redstonelink.smart_node_container.recover": "Sneak and right-click a node with the main hand to recover it; overflow falls back to dropped items",
+  "tooltip.redstonelink.smart_node_container.drop_configured_blocks": "Sneak and main-hand right-click a filter or chunk activator to make it drop directly as items",
   "tooltip.redstonelink.smart_node_container.connection_sync_notice": "When nodes are stored inside, connection info tooltips do not auto-sync to outside changes, just like a vanilla chest",
   "tooltip.redstonelink.graph_visual_editor.export": "Right-click to export the current visible serial graph and open the graph page",
   "tooltip.redstonelink.graph_visual_editor.dedupe": "Reuses an existing local graph asset when the structure checksum is unchanged",

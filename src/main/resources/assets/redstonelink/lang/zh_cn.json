@@ -127,6 +127,7 @@
     "tooltip.redstonelink.smart_node_container.temporary_select":  "按住 Ctrl 并滚动滚轮，可在当前放置类型内临时选取一个节点；成功作用一次后恢复默认顺序",
     "tooltip.redstonelink.smart_node_container.place":  "主手右键按当前类型弹出一个节点并尝试放置",
     "tooltip.redstonelink.smart_node_container.recover":  "潜行主手右键节点可受控回收；容器满时回退为掉落物",
+    "tooltip.redstonelink.smart_node_container.drop_configured_blocks":  "潜行主手右键过滤器或区块激活器可直接使其按掉落物形式掉出",
     "tooltip.redstonelink.smart_node_container.connection_sync_notice":  "节点放在其中时，连接信息 tooltip 不会随外部改变自动同步，原版箱子也一样",
     "tooltip.redstonelink.graph_visual_editor.export":  "主手右键导出当前可见 serial 图，并自动打开 graph 页面",
     "tooltip.redstonelink.graph_visual_editor.dedupe":  "当结构校验码未变化时复用已有本地图资产，缺失时会自动回源重传",
