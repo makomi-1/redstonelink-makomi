@@ -80,7 +80,8 @@ public final class HideFilterGhostRenderer<T extends AbstractLinkFilterBlockEnti
 
 	@Override
 	public int getViewDistance() {
-		return areaRenderer.getViewDistance();
+		// 佩戴智能眼镜后，隐藏过滤器的幽灵显示与作用域外显都不再受常规距离裁剪。
+		return Integer.MAX_VALUE;
 	}
 
 	@Override

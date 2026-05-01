@@ -69,6 +69,8 @@ class RedstoneLinkClientDisplayParserTest {
 
 		assertEquals(1024, snapshot.quickLink().serialCacheMaxLength());
 		assertEquals("key.keyboard.b", snapshot.quickLink().modeToggleKey().getName());
+		assertEquals("key.keyboard.k", snapshot.overlay().faceVectorToggleKey().getName());
+		assertEquals(false, snapshot.overlay().faceVectorEnabled());
 	}
 
 	/**
@@ -85,5 +87,29 @@ class RedstoneLinkClientDisplayParserTest {
 		);
 
 		assertEquals(32768, snapshot.quickLink().serialCacheMaxLength());
+	}
+
+	/**
+	 * 智能眼镜定向方向箭头配置应按当前键和值解析。
+	 */
+	@Test
+	void parserShouldApplySmartGlassesFaceVectorConfig() {
+		Properties properties = new Properties();
+		properties.setProperty(
+			RedstoneLinkClientDisplayParser.KEY_SMART_GLASSES_FACE_VECTOR_TOGGLE_KEY,
+			"key.keyboard.j"
+		);
+		properties.setProperty(
+			RedstoneLinkClientDisplayParser.KEY_SMART_GLASSES_FACE_VECTOR_ENABLED,
+			"true"
+		);
+
+		RedstoneLinkClientDisplaySnapshot snapshot = RedstoneLinkClientDisplayParser.parse(
+			properties,
+			LoggerFactory.getLogger("test-client-config")
+		);
+
+		assertEquals("key.keyboard.j", snapshot.overlay().faceVectorToggleKey().getName());
+		assertEquals(true, snapshot.overlay().faceVectorEnabled());
 	}
 }

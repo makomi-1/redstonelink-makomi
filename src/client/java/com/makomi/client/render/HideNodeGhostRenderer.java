@@ -83,7 +83,8 @@ public final class HideNodeGhostRenderer<T extends PairableNodeBlockEntity>
 
 	@Override
 	public int getViewDistance() {
-		return farOverlayRenderer.getViewDistance();
+		// 佩戴智能眼镜后，隐藏节点的幽灵显示与远外显都不再受常规距离裁剪。
+		return Integer.MAX_VALUE;
 	}
 
 	@Override

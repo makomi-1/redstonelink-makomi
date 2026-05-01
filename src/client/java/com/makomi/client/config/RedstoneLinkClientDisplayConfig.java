@@ -124,7 +124,9 @@ public final class RedstoneLinkClientDisplayConfig {
 				current.fontScale(),
 				current.nearDistance(),
 				current.toggleKey(),
-				current.farSeeThrough()
+				current.farSeeThrough(),
+				current.faceVectorToggleKey(),
+				current.faceVectorEnabled()
 			),
 			pairing(),
 			quickLink()
@@ -145,12 +147,44 @@ public final class RedstoneLinkClientDisplayConfig {
 				current.fontScale(),
 				current.nearDistance(),
 				current.toggleKey(),
-				seeThrough
+				seeThrough,
+				current.faceVectorToggleKey(),
+				current.faceVectorEnabled()
 			),
 			pairing(),
 			quickLink()
 		);
 		saveCurrentValues();
+	}
+
+	/**
+	 * @return 智能眼镜是否持续显示定向方向箭头
+	 */
+	public static boolean isSmartGlassesFaceVectorEnabled() {
+		return overlay().faceVectorEnabled();
+	}
+
+	/**
+	 * 切换智能眼镜的定向方向箭头持续显示状态，并持久化到客户端配置文件。
+	 */
+	public static boolean toggleSmartGlassesFaceVectorEnabled() {
+		RedstoneLinkClientOverlayConfig current = overlay();
+		snapshot = new RedstoneLinkClientDisplaySnapshot(
+			new RedstoneLinkClientOverlayConfig(
+				current.mode(),
+				current.maxDistance(),
+				current.fontScale(),
+				current.nearDistance(),
+				current.toggleKey(),
+				current.farSeeThrough(),
+				current.faceVectorToggleKey(),
+				!current.faceVectorEnabled()
+			),
+			pairing(),
+			quickLink()
+		);
+		saveCurrentValues();
+		return snapshot.overlay().faceVectorEnabled();
 	}
 
 	/**
