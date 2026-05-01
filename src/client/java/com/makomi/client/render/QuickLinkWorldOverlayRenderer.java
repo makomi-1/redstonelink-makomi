@@ -12,8 +12,6 @@ import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.item.QuickLinkToolItem;
 import com.makomi.network.QuickLinkNetwork;
 import com.makomi.util.SerialParseUtil;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -24,8 +22,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.ShapeRenderer;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.BlockOutlineRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -102,23 +98,17 @@ public final class QuickLinkWorldOverlayRenderer {
 			return false;
 		}
 
-		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.matrices() == null) {
 			return true;
 		}
 
 		VoxelShape voxelShape = blockOutlineRenderState.shape();
-		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.lines());
-		ShapeRenderer.renderShape(
-			worldRenderContext.matrices(),
-			lineVertexConsumer,
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> outlineSegments = buildOutlineSegments(
 			voxelShape,
-			(double) blockPos.getX() - cameraPosition.x,
-			(double) blockPos.getY() - cameraPosition.y,
-			(double) blockPos.getZ() - cameraPosition.z,
-			outlineColor.packedColor(),
-			1.0F
+			blockPos,
+			outlineColor
 		);
+		SeeThroughWorldGeometryRenderSupport.renderLines(worldRenderContext, outlineSegments);
 		return false;
 	}
 
@@ -132,15 +122,27 @@ public final class QuickLinkWorldOverlayRenderer {
 			clearVisualizedObjectState();
 			return;
 		}
-		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.matrices() == null) {
 			return;
 		}
 		renderPreviewOutlines(worldRenderContext, minecraft);
+	}
+
+	/**
+	 * 在主世界渲染结束后补绘第三形态连线，确保穿透连线不会再被后续主场景阶段覆盖。
+	 */
+	private static void onEndMain(WorldRenderContext worldRenderContext) {
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.player == null || minecraft.level == null) {
+			clearVisualizedObjectState();
+			return;
+		}
+		if (worldRenderContext.matrices() == null) {
+			return;
+		}
 		if (!SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)) {
 			return;
 		}
-		// 1.21.11 的世界渲染事件将 END_MAIN 更偏向直接 framebuffer 输出；
-		// 第三形态连线继续写入 consumers() 会错过稳定的批次提交时机，因此统一收敛到半透明前事件。
 		renderVisualizedConnections(worldRenderContext, minecraft);
 	}
 
@@ -160,7 +162,7 @@ public final class QuickLinkWorldOverlayRenderer {
 			clearTransientPreviewState();
 			return;
 		}
-		if (worldRenderContext.matrices() == null || worldRenderContext.consumers() == null) {
+		if (worldRenderContext.matrices() == null) {
 			return;
 		}
 		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
@@ -173,14 +175,13 @@ public final class QuickLinkWorldOverlayRenderer {
 			return;
 		}
 
-		Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().position();
-		PoseStack.Pose pose = worldRenderContext.matrices().last();
-		VertexConsumer lineVertexConsumer = worldRenderContext.consumers().getBuffer(RenderTypes.linesTranslucent());
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> lineSegments = new ArrayList<>();
 		for (PreviewOutlineBatch previewBatch : previewBatches) {
 			for (LineSegment lineSegment : previewBatch.segments()) {
-				renderPreviewLineSegment(lineVertexConsumer, pose, lineSegment, cameraPosition, previewBatch.color());
+				lineSegments.add(toColoredLineSegment(lineSegment, previewBatch.color()));
 			}
 		}
+		SeeThroughWorldGeometryRenderSupport.renderLines(worldRenderContext, lineSegments);
 	}
 
 	/**
@@ -189,6 +190,7 @@ public final class QuickLinkWorldOverlayRenderer {
 	public static void register() {
 		WorldRenderEvents.BEFORE_BLOCK_OUTLINE.register(QuickLinkWorldOverlayRenderer::onBlockOutline);
 		WorldRenderEvents.BEFORE_TRANSLUCENT.register(QuickLinkWorldOverlayRenderer::onAfterTranslucent);
+		WorldRenderEvents.END_MAIN.register(QuickLinkWorldOverlayRenderer::onEndMain);
 	}
 
 	/**
@@ -332,7 +334,7 @@ public final class QuickLinkWorldOverlayRenderer {
 		clearVisualizedObjectState();
 		cachedChannelPreviewState = null;
 		pendingChannelPreviewRequest = null;
-		QuickLinkVisualizedLineRenderSupport.close();
+		SeeThroughWorldGeometryRenderSupport.close();
 	}
 
 	/**
@@ -689,39 +691,79 @@ public final class QuickLinkWorldOverlayRenderer {
 	/**
 	 * 写入单条 preview 线段。
 	 */
-	private static void renderPreviewLineSegment(
-		VertexConsumer vertexConsumer,
-		PoseStack.Pose pose,
+	private static SeeThroughWorldGeometryRenderSupport.ColoredLineSegment toColoredLineSegment(
 		LineSegment lineSegment,
-		Vec3 cameraPosition,
 		OutlineColor color
 	) {
-		if (vertexConsumer == null || pose == null || lineSegment == null || cameraPosition == null || color == null) {
-			return;
+		if (lineSegment == null || color == null) {
+			return null;
 		}
 		int red = Math.round(color.red() * 255.0F);
 		int green = Math.round(color.green() * 255.0F);
 		int blue = Math.round(color.blue() * 255.0F);
-		float startX = (float) (lineSegment.startX() - cameraPosition.x);
-		float startY = (float) (lineSegment.startY() - cameraPosition.y);
-		float startZ = (float) (lineSegment.startZ() - cameraPosition.z);
-		float endX = (float) (lineSegment.endX() - cameraPosition.x);
-		float endY = (float) (lineSegment.endY() - cameraPosition.y);
-		float endZ = (float) (lineSegment.endZ() - cameraPosition.z);
-		vertexConsumer
-			.addVertex(pose, startX, startY, startZ)
-			.setColor(red, green, blue, 255)
-			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ())
-			.setLineWidth(1.0F);
-		vertexConsumer
-			.addVertex(pose, endX, endY, endZ)
-			.setColor(red, green, blue, 255)
-			.setNormal(pose, lineSegment.normalX(), lineSegment.normalY(), lineSegment.normalZ())
-			.setLineWidth(1.0F);
+		return new SeeThroughWorldGeometryRenderSupport.ColoredLineSegment(
+			lineSegment.startX(),
+			lineSegment.startY(),
+			lineSegment.startZ(),
+			lineSegment.endX(),
+			lineSegment.endY(),
+			lineSegment.endZ(),
+			lineSegment.normalX(),
+			lineSegment.normalY(),
+			lineSegment.normalZ(),
+			red,
+			green,
+			blue,
+			255
+		);
 	}
 
 	/**
-	 * 绘制第三形态全部显示对象的穿墙连线。
+	 * 将命中体积外框拆成世界空间线段，供穿透管线复用。
+	 */
+	private static List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> buildOutlineSegments(
+		VoxelShape voxelShape,
+		BlockPos blockPos,
+		OutlineColor outlineColor
+	) {
+		if (voxelShape == null || blockPos == null || outlineColor == null) {
+			return List.of();
+		}
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> outlineSegments = new ArrayList<>();
+		int red = Math.round(outlineColor.red() * 255.0F);
+		int green = Math.round(outlineColor.green() * 255.0F);
+		int blue = Math.round(outlineColor.blue() * 255.0F);
+		voxelShape.forAllEdges((startX, startY, startZ, endX, endY, endZ) -> {
+			double worldStartX = blockPos.getX() + startX;
+			double worldStartY = blockPos.getY() + startY;
+			double worldStartZ = blockPos.getZ() + startZ;
+			double worldEndX = blockPos.getX() + endX;
+			double worldEndY = blockPos.getY() + endY;
+			double worldEndZ = blockPos.getZ() + endZ;
+			LineSegment lineSegment = LineSegment.of(worldStartX, worldStartY, worldStartZ, worldEndX, worldEndY, worldEndZ);
+			outlineSegments.add(
+				new SeeThroughWorldGeometryRenderSupport.ColoredLineSegment(
+					lineSegment.startX(),
+					lineSegment.startY(),
+					lineSegment.startZ(),
+					lineSegment.endX(),
+					lineSegment.endY(),
+					lineSegment.endZ(),
+					lineSegment.normalX(),
+					lineSegment.normalY(),
+					lineSegment.normalZ(),
+					red,
+					green,
+					blue,
+					255
+				)
+			);
+		});
+		return outlineSegments.isEmpty() ? List.of() : List.copyOf(outlineSegments);
+	}
+
+	/**
+	 * 将 preview 线段写成统一的穿透线段参数。
 	 */
 	private static void renderVisualizedConnections(WorldRenderContext worldRenderContext, Minecraft minecraft) {
 		if (worldRenderContext == null || minecraft == null || minecraft.level == null || visualizedObjects.isEmpty()) {
@@ -733,12 +775,12 @@ public final class QuickLinkWorldOverlayRenderer {
 		if (visibleConnections.isEmpty()) {
 			return;
 		}
-		List<QuickLinkVisualizedLineRenderSupport.ColoredLineSegment> lineSegments = new ArrayList<>(visibleConnections.size());
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> lineSegments = new ArrayList<>(visibleConnections.size());
 		for (VisualizedConnection visibleConnection : visibleConnections) {
 			OutlineColor color = visibleConnection.color();
 			LineSegment lineSegment = visibleConnection.segment();
 			lineSegments.add(
-				new QuickLinkVisualizedLineRenderSupport.ColoredLineSegment(
+				new SeeThroughWorldGeometryRenderSupport.ColoredLineSegment(
 					lineSegment.startX(),
 					lineSegment.startY(),
 					lineSegment.startZ(),
@@ -755,7 +797,7 @@ public final class QuickLinkWorldOverlayRenderer {
 				)
 			);
 		}
-		QuickLinkVisualizedLineRenderSupport.render(worldRenderContext, lineSegments);
+		SeeThroughWorldGeometryRenderSupport.renderLines(worldRenderContext, lineSegments);
 	}
 
 	/**
