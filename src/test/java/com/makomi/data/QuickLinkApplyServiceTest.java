@@ -428,6 +428,29 @@ class QuickLinkApplyServiceTest {
 	}
 
 	/**
+	 * 转发器 quick-link 应保留自定义正整数延迟配置。
+	 */
+	@Test
+	void buildRepeaterSnapshotForAppliedCacheShouldPreserveCustomPositiveDelay() {
+		RepeaterConfigSnapshot currentSnapshot = new RepeaterConfigSnapshot("1/2", "7/9", RepeaterDelay.ofTicks(5));
+
+		RepeaterConfigSnapshot replacedSnapshot = QuickLinkApplyService.buildRepeaterSnapshotForAppliedCache(
+			currentSnapshot,
+			LinkNodeType.TRIGGER_SOURCE,
+			QuickLinkApplyService.buildNextRepeaterOrderedSerials(
+				currentSnapshot,
+				LinkNodeType.TRIGGER_SOURCE,
+				List.of(15L),
+				QuickLinkToolData.ApplyEditMode.REPLACE
+			)
+		);
+
+		assertEquals("15", replacedSnapshot.inputSerialExpression());
+		assertEquals("7/9", replacedSnapshot.outputSerialExpression());
+		assertEquals(RepeaterDelay.ofTicks(5), replacedSnapshot.delay());
+	}
+
+	/**
 	 * 区块激活器 quick-link 应只修改当前生效服务对象的节点集，并保留另一套配置与模式。
 	 */
 	@Test

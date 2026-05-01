@@ -41,7 +41,7 @@ class RepeaterItemDataTest {
 	void ensureSerialShouldClearOldGraphSnapshotWhenReallocating(@TempDir Path tempDir) throws Exception {
 		ServerLevel level = createServerLevel(tempDir);
 		LinkSavedData savedData = LinkSavedData.get(level);
-		ItemStack stack = new ItemStack(Items.STICK);
+		ItemStack stack = new ItemStack(Items.STONE);
 
 		RepeaterItemData.write(stack, new RepeaterConfigSnapshot("1/2", "3/4", RepeaterDelay.TWO_TICKS));
 		LinkItemData.setSerial(stack, 41L);
@@ -59,6 +59,21 @@ class RepeaterItemDataTest {
 		assertEquals(RepeaterDelay.TWO_TICKS, nextSnapshot.delay());
 	}
 
+	/**
+	 * 物品 NBT 往返应保留自定义正整数延迟。
+	 */
+	@Test
+	void readWriteShouldPreserveCustomPositiveDelay() {
+		ItemStack stack = new ItemStack(Items.STONE);
+
+		RepeaterItemData.write(stack, new RepeaterConfigSnapshot("1/2", "3/4", RepeaterDelay.ofTicks(6)));
+		RepeaterConfigSnapshot snapshot = RepeaterItemData.read(stack);
+
+		assertEquals("1/2", snapshot.inputSerialExpression());
+		assertEquals("3/4", snapshot.outputSerialExpression());
+		assertEquals(RepeaterDelay.ofTicks(6), snapshot.delay());
+	}
+
 	private static ServerLevel createServerLevel(Path tempDir) throws Exception {
 		Unsafe unsafe = unsafe();
 		ServerLevel level = (ServerLevel) unsafe.allocateInstance(ServerLevel.class);
@@ -74,7 +89,7 @@ class RepeaterItemDataTest {
 		setField(ServerLevel.class, level, "serverLevelData", levelDataProxy);
 		setField(ServerLevel.class, level, "chunkSource", chunkCache);
 		setField(ServerChunkCache.class, chunkCache, "level", level);
-		setField(ServerChunkCache.class, chunkCache, "dataStorage", dataStorage);
+		setField(ServerChunkCache.class, chunkCache, "savedDataStorage", dataStorage);
 		setField(MinecraftServer.class, server, "levels", java.util.Map.of(Level.OVERWORLD, level));
 		return level;
 	}
