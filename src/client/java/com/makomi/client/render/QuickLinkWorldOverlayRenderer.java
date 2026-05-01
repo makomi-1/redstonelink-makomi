@@ -27,8 +27,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -97,6 +99,11 @@ public final class QuickLinkWorldOverlayRenderer {
 			// 未戴眼镜时直接吞掉默认白框，避免 visible/hide 节点出现不一致外显。
 			return false;
 		}
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			// 兼容分支只在这里拦截 vanilla 白框；
+			// 实际描边统一延后到 END_MAIN 直接绘制，避免 shader 管线下的位移异常。
+			return false;
+		}
 
 		if (worldRenderContext.matrices() == null) {
 			return true;
@@ -122,6 +129,10 @@ public final class QuickLinkWorldOverlayRenderer {
 			clearVisualizedObjectState();
 			return;
 		}
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			// 兼容分支统一在 END_MAIN 重绘 preview，避免 BEFORE_TRANSLUCENT 下的时机冲突。
+			return;
+		}
 		if (worldRenderContext.matrices() == null) {
 			return;
 		}
@@ -142,6 +153,10 @@ public final class QuickLinkWorldOverlayRenderer {
 		}
 		if (!SmartGlassesAccessSupport.canRenderQuickLinkVisualization(minecraft.player)) {
 			return;
+		}
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			renderIrisCompatibleCurrentOutline(worldRenderContext, minecraft);
+			renderIrisCompatiblePreviewOutlines(worldRenderContext, minecraft);
 		}
 		renderVisualizedConnections(worldRenderContext, minecraft);
 	}
@@ -719,6 +734,70 @@ public final class QuickLinkWorldOverlayRenderer {
 	}
 
 	/**
+	 * 在兼容分支中重绘当前命中节点描边。
+	 * <p>
+	 * BEFORE_BLOCK_OUTLINE 在兼容模组下会出现轻微漂移，因此这里统一延后到 END_MAIN。
+	 * </p>
+	 */
+	private static void renderIrisCompatibleCurrentOutline(WorldRenderContext worldRenderContext, Minecraft minecraft) {
+		if (
+			worldRenderContext == null
+				|| minecraft == null
+				|| minecraft.player == null
+				|| minecraft.level == null
+				|| !(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)
+				|| !(minecraft.hitResult instanceof BlockHitResult blockHitResult)
+		) {
+			return;
+		}
+		BlockPos blockPos = blockHitResult.getBlockPos();
+		OutlineColor outlineColor = resolveOutlineColor(minecraft, blockPos);
+		if (outlineColor == null) {
+			return;
+		}
+		VoxelShape voxelShape = minecraft
+			.level
+			.getBlockState(blockPos)
+			.getShape(minecraft.level, blockPos, CollisionContext.of(minecraft.player));
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> outlineSegments = buildOutlineSegments(
+			voxelShape,
+			blockPos,
+			outlineColor
+		);
+		IrisDirectLineRenderSupport.drawWorldSegments(worldRenderContext, outlineSegments, 2.5F);
+	}
+
+	/**
+	 * 在兼容分支中重绘 quick-link preview 线框。
+	 */
+	private static void renderIrisCompatiblePreviewOutlines(WorldRenderContext worldRenderContext, Minecraft minecraft) {
+		if (
+			worldRenderContext == null
+				|| minecraft == null
+				|| minecraft.player == null
+				|| minecraft.level == null
+				|| !(minecraft.player.getMainHandItem().getItem() instanceof QuickLinkToolItem)
+		) {
+			return;
+		}
+		QuickLinkToolData.Snapshot snapshot = QuickLinkToolData.read(minecraft.player.getMainHandItem());
+		if (snapshot.mode() == QuickLinkToolData.Mode.VISUALIZE) {
+			return;
+		}
+		List<PreviewOutlineBatch> previewBatches = resolvePreviewOutlineBatches(minecraft);
+		if (previewBatches.isEmpty()) {
+			return;
+		}
+		List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> lineSegments = new ArrayList<>();
+		for (PreviewOutlineBatch previewBatch : previewBatches) {
+			for (LineSegment lineSegment : previewBatch.segments()) {
+				lineSegments.add(toColoredLineSegment(lineSegment, previewBatch.color()));
+			}
+		}
+		IrisDirectLineRenderSupport.drawWorldSegments(worldRenderContext, lineSegments, 2.5F);
+	}
+
+	/**
 	 * 将命中体积外框拆成世界空间线段，供穿透管线复用。
 	 */
 	private static List<SeeThroughWorldGeometryRenderSupport.ColoredLineSegment> buildOutlineSegments(
@@ -797,7 +876,11 @@ public final class QuickLinkWorldOverlayRenderer {
 				)
 			);
 		}
-		SeeThroughWorldGeometryRenderSupport.renderLines(worldRenderContext, lineSegments);
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			IrisDirectLineRenderSupport.drawWorldSegments(worldRenderContext, lineSegments, 2.5F);
+		} else {
+			SeeThroughWorldGeometryRenderSupport.renderLines(worldRenderContext, lineSegments);
+		}
 	}
 
 	/**

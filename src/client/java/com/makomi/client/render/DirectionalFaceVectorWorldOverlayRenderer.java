@@ -69,6 +69,10 @@ public final class DirectionalFaceVectorWorldOverlayRenderer {
 				}
 			}
 		}
-		SeeThroughWorldGeometryRenderSupport.renderLines(worldRenderContext, lineSegments);
+		if (IrisRenderCompatSupport.shouldUseCompatibilityBranch()) {
+			IrisDirectLineRenderSupport.drawWorldSegments(worldRenderContext, lineSegments, 4.0F);
+		} else {
+			SeeThroughWorldGeometryRenderSupport.renderLines(worldRenderContext, lineSegments);
+		}
 	}
 }
