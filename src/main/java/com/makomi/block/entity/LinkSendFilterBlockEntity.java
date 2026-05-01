@@ -2,6 +2,7 @@ package com.makomi.block.entity;
 
 import com.makomi.data.LinkFilterKind;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -12,7 +13,18 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public class LinkSendFilterBlockEntity extends AbstractLinkFilterBlockEntity {
 	public LinkSendFilterBlockEntity(BlockPos blockPos, BlockState blockState) {
-		super(com.makomi.registry.ModBlockEntities.LINK_SEND_FILTER, blockPos, blockState);
+		this(com.makomi.registry.ModBlockEntities.LINK_SEND_FILTER, blockPos, blockState);
+	}
+
+	/**
+	 * 允许 hide 变种切换为自定义实体类型，同时保持 SEND 过滤语义不变。
+	 */
+	protected LinkSendFilterBlockEntity(
+		BlockEntityType<? extends AbstractLinkFilterBlockEntity> blockEntityType,
+		BlockPos blockPos,
+		BlockState blockState
+	) {
+		super(blockEntityType, blockPos, blockState);
 	}
 
 	@Override

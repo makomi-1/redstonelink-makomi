@@ -1,8 +1,14 @@
 package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
+import com.makomi.block.HideChunkActivatorBlock;
 import com.makomi.block.HideCoreBlock;
+import com.makomi.block.HidePulseEmitterBlock;
+import com.makomi.block.HideReceiveFilterBlock;
+import com.makomi.block.HideRepeaterBlock;
+import com.makomi.block.HideSendFilterBlock;
 import com.makomi.block.HideSyncTriggerSourceBlock;
+import com.makomi.block.HideToggleEmitterBlock;
 import com.makomi.block.LinkCoreBlock;
 import com.makomi.block.LinkChunkActivatorBlock;
 import com.makomi.block.LinkPulseEmitterBlock;
@@ -87,10 +93,22 @@ public final class ModBlocks {
 		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
+	public static final HideToggleEmitterBlock HIDE_TOGGLE_EMITTER = register(
+		"hide_toggle_emitter",
+		HideToggleEmitterBlock::new,
+		createHideObserverLikeProperties()
+	);
+
 	public static final LinkPulseEmitterBlock LINK_PULSE_EMITTER = register(
 		"link_pulse_emitter",
 		LinkPulseEmitterBlock::new,
 		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
+	);
+
+	public static final HidePulseEmitterBlock HIDE_PULSE_EMITTER = register(
+		"hide_pulse_emitter",
+		HidePulseEmitterBlock::new,
+		createHideObserverLikeProperties()
 	);
 
 	public static final LinkSyncEmitterBlock LINK_SYNC_EMITTER = register(
@@ -117,10 +135,22 @@ public final class ModBlocks {
 		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
+	public static final HideSendFilterBlock HIDE_SEND_FILTER = register(
+		"hide_send_filter",
+		HideSendFilterBlock::new,
+		createHideObserverLikeProperties()
+	);
+
 	public static final LinkReceiveFilterBlock LINK_RECEIVE_FILTER = register(
 		"link_receive_filter",
 		LinkReceiveFilterBlock::new,
 		BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK).noOcclusion()
+	);
+
+	public static final HideReceiveFilterBlock HIDE_RECEIVE_FILTER = register(
+		"hide_receive_filter",
+		HideReceiveFilterBlock::new,
+		createHideRedstoneBlockLikeProperties()
 	);
 
 	public static final LinkChunkActivatorBlock LINK_CHUNK_ACTIVATOR = register(
@@ -129,10 +159,22 @@ public final class ModBlocks {
 		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
 	);
 
+	public static final HideChunkActivatorBlock HIDE_CHUNK_ACTIVATOR = register(
+		"hide_chunk_activator",
+		HideChunkActivatorBlock::new,
+		createHideObserverLikeProperties()
+	);
+
 	public static final LinkRepeaterBlock LINK_REPEATER = register(
 		"link_repeater",
 		LinkRepeaterBlock::new,
 		BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER).noOcclusion()
+	);
+
+	public static final HideRepeaterBlock HIDE_REPEATER = register(
+		"hide_repeater",
+		HideRepeaterBlock::new,
+		createHideObserverLikeProperties()
 	);
 
 	public static final LinkRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE = register(
@@ -160,6 +202,33 @@ public final class ModBlocks {
 
 	private static <T extends Block> T register(String path, T block) {
 		return Registry.register(BuiltInRegistries.BLOCK, id(path), block);
+	}
+
+	/**
+	 * 构建 observer 风格 hide 节点的统一方块属性。
+	 */
+	private static BlockBehaviour.Properties createHideObserverLikeProperties() {
+		return BlockBehaviour.Properties.ofFullCopy(Blocks.OBSERVER)
+			.noOcclusion()
+			.noCollision()
+			.isViewBlocking((state, level, pos) -> false)
+			.isSuffocating((state, level, pos) -> false)
+			.isRedstoneConductor((state, level, pos) -> false)
+			.isValidSpawn((state, level, pos, entityType) -> false);
+	}
+
+	/**
+	 * 构建 redstone block 风格 hide 节点的统一方块属性。
+	 */
+	private static BlockBehaviour.Properties createHideRedstoneBlockLikeProperties() {
+		return BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_BLOCK)
+			.lightLevel(state -> 0)
+			.noOcclusion()
+			.noCollision()
+			.isViewBlocking((state, level, pos) -> false)
+			.isSuffocating((state, level, pos) -> false)
+			.isRedstoneConductor((state, level, pos) -> false)
+			.isValidSpawn((state, level, pos, entityType) -> false);
 	}
 
 	/**

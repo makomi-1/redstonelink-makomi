@@ -224,7 +224,7 @@ public final class SmartNodeContainerData {
 		if (stack == null || stack.isEmpty()) {
 			return null;
 		}
-		if (stack.getItem() == ModItems.LINK_REPEATER) {
+		if (stack.getItem() == ModItems.LINK_REPEATER || stack.getItem() == ModItems.HIDE_REPEATER) {
 			return SmartNodeContainerPlacementType.REPEATER;
 		}
 		if (!(stack.getItem() instanceof PairableItem pairableItem)) {

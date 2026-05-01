@@ -14,6 +14,8 @@ import com.makomi.client.network.RepeaterNetworkClientHandlerSupport;
 import com.makomi.client.network.StatePanelNetworkClientHandlerSupport;
 import com.makomi.client.render.ChunkActivatorFarOverlayRenderer;
 import com.makomi.client.render.DirectionalFaceVectorWorldOverlayRenderer;
+import com.makomi.client.render.HideChunkActivatorGhostRenderer;
+import com.makomi.client.render.HideFilterGhostRenderer;
 import com.makomi.client.render.HideNodeGhostRenderer;
 import com.makomi.client.render.LinkFilterAreaRenderer;
 import com.makomi.client.render.LinkNodeFarOverlayRenderer;
@@ -23,6 +25,7 @@ import com.makomi.client.screen.SmartNodeContainerScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.data.LinkItemData;
+import com.makomi.data.NodeAliasDisplayUtil;
 import com.makomi.data.QuickLinkToolData;
 import com.makomi.data.SmartGlassesAccessSupport;
 import com.makomi.data.SmartNodeContainerData;
@@ -133,13 +136,19 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PUSH_BUTTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_LEVER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_TOGGLE_EMITTER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_TOGGLE_EMITTER, HideNodeGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_PULSE_EMITTER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_PULSE_EMITTER, HideNodeGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SYNC_EMITTER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.HIDE_SYNC_TRIGGER_SOURCE, HideNodeGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_SEND_FILTER, LinkFilterAreaRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_SEND_FILTER, HideFilterGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_RECEIVE_FILTER, LinkFilterAreaRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_RECEIVE_FILTER, HideFilterGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_CHUNK_ACTIVATOR, ChunkActivatorFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_CHUNK_ACTIVATOR, HideChunkActivatorGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REPEATER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.HIDE_REPEATER, HideNodeGhostRenderer::new);
 	}
 
 	/**
@@ -391,6 +400,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		if (verticalAmount == 0.0D) {
 			return false;
 		}
+		if (isHoldingSmartNodeContainer(client.player)) {
+			return handleSmartNodeContainerMouseScroll(client, verticalAmount);
+		}
 		ItemStack mainHandItem = client.player.getMainHandItem();
 		if (mainHandItem.isEmpty() || !(mainHandItem.getItem() instanceof SyncLinkerItem)) {
 			return false;
@@ -425,6 +437,47 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		long windowHandle = client.getWindow().handle();
 		return GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
 			|| GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+	}
+
+	/**
+	 * 处理智能节点容器的 `Ctrl + 鼠标滚轮` 一次性临时选取。
+	 */
+	private static boolean handleSmartNodeContainerMouseScroll(Minecraft client, double verticalAmount) {
+		if (client == null || client.player == null) {
+			return false;
+		}
+		ItemStack mainHandItem = client.player.getMainHandItem();
+		if (mainHandItem.isEmpty() || mainHandItem.getItem() != ModItems.SMART_NODE_CONTAINER) {
+			return false;
+		}
+		SmartNodeContainerData.Snapshot snapshot = SmartNodeContainerData.read(mainHandItem);
+		if (!snapshot.hasItems()) {
+			return false;
+		}
+		var contents = SmartNodeContainerData.readContents(mainHandItem, client.player.registryAccess());
+		int delta = verticalAmount > 0.0D ? 1 : -1;
+		int selectedSlotIndex = SmartNodeContainerData.cycleTemporarySelectedSlot(
+			contents,
+			snapshot.selectedType(),
+			snapshot.temporarySelectedSlotIndex(),
+			delta
+		);
+		if (selectedSlotIndex < 0) {
+			return false;
+		}
+		SmartNodeContainerData.writeTemporarySelectedSlot(mainHandItem, selectedSlotIndex);
+		ClientPlayNetworking.send(new SmartNodeContainerNetwork.SelectSmartNodeContainerSlotPayload(selectedSlotIndex));
+
+		ItemStack selectedStack = contents.get(selectedSlotIndex);
+		ClientMessageDisplaySupport.show(
+			client,
+			Component.translatable(
+				"message.redstonelink.smart_node_container.temporary_selected",
+				NodeAliasDisplayUtil.formatDisplayText(LinkItemData.getDisplayAlias(selectedStack), LinkItemData.getSerial(selectedStack))
+			),
+			true
+		);
+		return true;
 	}
 
 	/**

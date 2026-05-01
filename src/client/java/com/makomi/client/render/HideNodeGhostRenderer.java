@@ -1,12 +1,8 @@
 package com.makomi.client.render;
 
-import com.makomi.block.HideCoreBlock;
-import com.makomi.block.HideSyncTriggerSourceBlock;
-import com.makomi.block.LinkCoreBlock;
-import com.makomi.block.LinkSignalEmitterBlock;
 import com.makomi.block.entity.PairableNodeBlockEntity;
+import com.makomi.data.HideNodeSupport;
 import com.makomi.data.SmartGlassesAccessSupport;
-import com.makomi.registry.ModBlocks;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.QuadInstance;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -86,7 +82,7 @@ public final class HideNodeGhostRenderer<T extends PairableNodeBlockEntity>
 		if (!SmartGlassesAccessSupport.canRenderSerialOverlay(net.minecraft.client.Minecraft.getInstance().player)) {
 			return;
 		}
-		renderState.ghostDisplayState = resolveGhostDisplayState(blockEntity.getBlockState());
+		renderState.ghostDisplayState = HideNodeSupport.resolveGhostDisplayState(blockEntity.getBlockState());
 		if (renderState.ghostDisplayState != null) {
 			blockModelResolver.update(renderState.ghostModelState, renderState.ghostDisplayState, GHOST_DISPLAY_CONTEXT);
 		}
@@ -119,25 +115,6 @@ public final class HideNodeGhostRenderer<T extends PairableNodeBlockEntity>
 	@Override
 	public boolean shouldRenderOffScreen() {
 		return farOverlayRenderer.shouldRenderOffScreen();
-	}
-
-	/**
-	 * 将隐藏节点状态映射为智能眼镜下的普通节点显示状态。
-	 */
-	private static BlockState resolveGhostDisplayState(BlockState hiddenState) {
-		if (hiddenState == null) {
-			return null;
-		}
-		if (hiddenState.getBlock() instanceof HideCoreBlock) {
-			return ModBlocks.LINK_REDSTONE_CORE.defaultBlockState().setValue(LinkCoreBlock.ACTIVE, hiddenState.getValue(LinkCoreBlock.ACTIVE));
-		}
-		if (hiddenState.getBlock() instanceof HideSyncTriggerSourceBlock) {
-			return ModBlocks.LINK_SYNC_EMITTER.defaultBlockState().setValue(
-				LinkSignalEmitterBlock.POWERED,
-				hiddenState.getValue(LinkSignalEmitterBlock.POWERED)
-			);
-		}
-		return null;
 	}
 
 	/**

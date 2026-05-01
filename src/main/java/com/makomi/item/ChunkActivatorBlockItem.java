@@ -97,6 +97,7 @@ public class ChunkActivatorBlockItem extends BlockItem {
 		);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.chunk_activator.open_editor"));
 		tooltipComponents.add(modeDetailTooltip(activeConfig.mode()));
+		HideNodeItemTooltipSupport.appendIfNeeded(stack, tooltipComponents);
 		tooltipComponents.forEach(tooltipAdder);
 		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}

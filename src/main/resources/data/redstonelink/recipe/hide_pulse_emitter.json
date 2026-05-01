@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "redstone",
+  "ingredients": [
+    "redstonelink:link_pulse_emitter",
+    "minecraft:glass"
+  ],
+  "result": {
+    "count": 1,
+    "id": "redstonelink:hide_pulse_emitter"
+  }
+}
