@@ -65,6 +65,7 @@ public class SmartGlassesItem extends Item {
 		CreativeTooltipOriginSupport.appendRedstoneLinkOriginLineIfNeeded(stack, tooltipComponents, tooltipFlag);
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_glasses.overlay"));
 		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_glasses.visualize"));
+		tooltipComponents.add(Component.translatable("tooltip.redstonelink.smart_glasses.face_vectors"));
 		tooltipComponents.forEach(tooltipAdder);
 		super.appendHoverText(stack, context, tooltipDisplay, tooltipAdder, tooltipFlag);
 	}

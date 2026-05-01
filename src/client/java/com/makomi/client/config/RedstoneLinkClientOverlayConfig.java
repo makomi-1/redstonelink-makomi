@@ -11,7 +11,9 @@ public record RedstoneLinkClientOverlayConfig(
 	float fontScale,
 	int nearDistance,
 	InputConstants.Key toggleKey,
-	boolean farSeeThrough
+	boolean farSeeThrough,
+	InputConstants.Key faceVectorToggleKey,
+	boolean faceVectorEnabled
 ) {
 	/**
 	 * @return 是否启用远距离外显

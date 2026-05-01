@@ -40,6 +40,16 @@ final class RedstoneLinkClientDisplayTemplate {
 			# en: Whether far overlay text ignores occlusion (true=see-through, false=occluded).
 			client.serialOverlayFarSeeThrough=%s
 
+			# client.smartGlassesFaceVectorToggleKey
+			# zh: 智能眼镜定向方向箭头显示开关键（默认需配合 Ctrl 使用，例如 key.keyboard.k 表示 Ctrl+K）。
+			# en: Base toggle key for Smart Glasses directional face vectors (used with Ctrl by default, e.g. key.keyboard.k for Ctrl+K).
+			client.smartGlassesFaceVectorToggleKey=%s
+
+			# client.smartGlassesFaceVectorEnabled
+			# zh: 智能眼镜是否持续显示定向方向箭头（true=显示，false=关闭）。
+			# en: Whether Smart Glasses keep directional face vectors visible (true=enabled, false=disabled).
+			client.smartGlassesFaceVectorEnabled=%s
+
 			# client.pairingInputMaxLength
 			# zh: 配对输入框最大输入长度（字符），范围 64~32768，默认 1024。
 			# en: Maximum input length (chars) for pairing textbox, range 64~32768, default 1024.
@@ -60,6 +70,8 @@ final class RedstoneLinkClientDisplayTemplate {
 				overlay.fontScale(),
 				overlay.toggleKey().getName(),
 				Boolean.toString(overlay.farSeeThrough()),
+				overlay.faceVectorToggleKey().getName(),
+				Boolean.toString(overlay.faceVectorEnabled()),
 				snapshot.pairing().inputMaxLength(),
 				snapshot.quickLink().modeToggleKey().getName(),
 				snapshot.quickLink().serialCacheMaxLength()

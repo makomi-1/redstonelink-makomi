@@ -21,6 +21,8 @@ record RedstoneLinkClientDisplaySnapshot(
 				1.0F,
 				8,
 				InputConstants.getKey("key.keyboard.k"),
+				false,
+				InputConstants.getKey("key.keyboard.k"),
 				false
 			),
 			new RedstoneLinkClientPairingConfig(1024),
