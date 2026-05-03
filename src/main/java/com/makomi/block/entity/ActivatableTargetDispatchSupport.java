@@ -335,7 +335,7 @@ final class ActivatableTargetDispatchSupport {
 	}
 
 	/**
-	 * 批次内应用 SYNC 变更，只更新来源桶与仲裁时间，不立即提交结果。
+	 * 批次内应用 SYNC 变更，只更新来源桶，重算延后到批末统一提交。
 	 */
 	private void applySyncDeltaMutation(
 		SourceKey sourceKey,
@@ -363,8 +363,6 @@ final class ActivatableTargetDispatchSupport {
 				eventMeta.seq()
 			);
 		}
-		owner.recomputeSyncTruthFromConcurrentBuckets();
-		owner.recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}
 
@@ -415,7 +413,7 @@ final class ActivatableTargetDispatchSupport {
 	}
 
 	/**
-	 * 批次内应用“triggerSource 区块卸载失效”，仅剔除 sync 贡献。
+	 * 批次内应用“triggerSource 区块卸载失效”，仅剔除 sync 贡献，重算延后到批末。
 	 */
 	private void applyTriggerSourceChunkUnloadInvalidationMutation(
 		SourceKey sourceKey,
@@ -430,13 +428,11 @@ final class ActivatableTargetDispatchSupport {
 			return;
 		}
 		boolean bucketChanged = concurrentComponent().removeSyncConcurrentSource(sourceKey);
-		owner.recomputeSyncTruthFromConcurrentBuckets();
-		owner.recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}
 
 	/**
-	 * 批次内应用“triggerSource 其它失效”，仅剔除该来源的 sync 贡献。
+	 * 批次内应用“triggerSource 其它失效”，仅剔除该来源的 sync 贡献，重算延后到批末。
 	 */
 	private void applyTriggerSourceInvalidationMutation(
 		SourceKey sourceKey,
@@ -451,8 +447,6 @@ final class ActivatableTargetDispatchSupport {
 			return;
 		}
 		boolean bucketChanged = concurrentComponent().removeSyncConcurrentSource(sourceKey);
-		owner.recomputeSyncTruthFromConcurrentBuckets();
-		owner.recomputeAuthorityFromConcurrentBuckets(eventMeta.timeKey(), eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}
 
