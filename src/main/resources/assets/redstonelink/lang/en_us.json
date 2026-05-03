@@ -72,6 +72,7 @@
   "tooltip.redstonelink.trigger_source.signal_semantic.event": "This is an event signal with no full lifecycle or cross-chunk support",
   "tooltip.redstonelink.trigger_source.signal_semantic.state": "This is a state signal with full lifecycle and cross-chunk support",
   "tooltip.redstonelink.hide_node.smart_glasses_required": "You must wear Smart Glasses to see and interact with this node",
+  "tooltip.redstonelink.hide_node.directional_editor_required": "You need to use the Directional Face Editor to add its input/output faces",
   "tooltip.redstonelink.link_filter.alias": "Alias: %s",
   "tooltip.redstonelink.link_filter.service_target": "Service target: %s",
   "tooltip.redstonelink.link_filter.serial_expression": "Node Set: %s",
