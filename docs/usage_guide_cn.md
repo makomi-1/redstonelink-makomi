@@ -131,7 +131,7 @@
 3. GUI 侧序号缓存输入长度上限走客户端配置 `client.quickLinkSerialCacheMaxLength`，默认 `1024`。
 4. `channel` 输入要求正 `long`；`0` 或空值都视为“当前没有有效频道缓存”。
 5. 真正执行序号应用时，服务端仍会按 `server.command.linkSet.maxInputLength` 对缓存表达式再做一次长度校验。
-6. `serial/channel` 下手持快速连接工具并命中对象时，会显示预览描边：`core` 为亮蓝色，`triggerSource` 为亮橙色，过滤器为亮红色；`visualize` 的已加入显示对象与对准 tooltip 则要求佩戴智能眼镜。
+6. `serial/channel` 下手持快速连接工具并命中对象时，会显示预览描边：`core` 为亮蓝色，`triggerSource` 为亮橙色，过滤器为亮红色，区块激活器为亮紫色；`visualize` 的已加入显示对象与对准 tooltip 则要求佩戴智能眼镜。
 7. `visualize` 已加入的显示对象会按 revision 做增量刷新；连接或在线坐标变化后，不需要手动重复添加。
 - 当前建议使用顺序：
 1. 主手持快速连接工具。
@@ -310,6 +310,7 @@
 3. graph 导出、网页保存预检与网页保存提交都受 `server.web.graph.permissionLevel` 控制；保存时还会继续经过现有写控、权限与 OCC 校验。
 4. `Save` 之前会先走保存预检；本地草稿、布局和导出的图快照都保存在客户端本地网页资产目录中。
 5. 网页支持中英文切换与主题切换；当前偏好会持久化到 `gameDir/redstonelink/web/preferences.json`，重启游戏后仍会继续使用。
+6. 若网页可视化编辑过程中出现视图暂时消失，可先切换一次当前模式（如 `serial/channel` 或编辑模式），通常即可触发页面刷新并恢复视图。
 - 导出与缓存说明：
 1. 默认导出的是“当前可见 serial 图快照”，方便直接从游戏内当前上下文进入网页分析。
 2. 当结构校验码未变化时，会优先复用已有本地图资产；缺失时才会重新导出并回源写入。

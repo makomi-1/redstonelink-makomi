@@ -122,7 +122,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 3. The GUI-side serial cache input length is controlled by client config `client.quickLinkSerialCacheMaxLength`, default `1024`.
 4. Channel cache must be a positive `long`; `0` or empty means there is currently no valid channel cache.
 5. On real serial apply, the server still performs another length validation for the cache expression using `server.command.linkSet.maxInputLength`.
-6. In `serial/channel`, holding the Quick Link Tool and targeting an object still shows the preview outline: `core` is bright blue, `triggerSource` is bright orange, and filters are bright red. For `visualize`, rendered displayed objects and aim-at tooltips require Smart Glasses.
+6. In `serial/channel`, holding the Quick Link Tool and targeting an object still shows the preview outline: `core` is bright blue, `triggerSource` is bright orange, filters are bright red, and chunk activators are bright purple. For `visualize`, rendered displayed objects and aim-at tooltips require Smart Glasses.
 7. Displayed `visualize` objects now refresh incrementally by revision. After a link or runtime position changes, you do not need to manually re-add the object.
 - Recommended usage order:
 1. Hold the Quick Link Tool in the main hand.
@@ -301,6 +301,7 @@ The content below is ordered as "common player workflows -> admin/ops -> diagnos
 3. Graph export, web preview, and web save are all gated by `server.web.graph.permissionLevel`; the actual save still goes through the existing write control, permission, and OCC checks.
 4. A save preview is performed before `Save`; local drafts, layouts, and exported graph snapshots are all stored in the client-side local web asset directory.
 5. The web page supports language switching and theme switching. The current preference is persisted to `gameDir/redstonelink/web/preferences.json` and remains effective after restarting the game.
+6. If the visual editor view temporarily disappears while editing on the web page, switch the current mode once (for example `serial/channel` or the current edit mode) to trigger a refresh and restore the view.
 - Export and cache behavior:
 1. The default export is the "current visible serial graph snapshot", so the web page opens directly around the current in-game context.
 2. When the structure checksum is unchanged, the editor reuses the existing local graph asset first; it only re-exports and writes back when the asset is missing.

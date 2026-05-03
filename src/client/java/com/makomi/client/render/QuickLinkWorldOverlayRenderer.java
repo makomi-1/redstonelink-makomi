@@ -1,6 +1,7 @@
 package com.makomi.client.render;
 
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkRepeaterBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.data.LinkGuiDisplayContext;
@@ -54,6 +55,9 @@ public final class QuickLinkWorldOverlayRenderer {
 		LinkSerialOverlayRenderCommon.resolveRepeaterTextColor()
 	);
 	private static final OutlineColor FILTER_OUTLINE_COLOR = new OutlineColor(1.0F, 0.16F, 0.16F);
+	private static final OutlineColor CHUNK_ACTIVATOR_OUTLINE_COLOR = OutlineColor.fromPackedColor(
+		LinkSerialOverlayRenderCommon.resolveChunkActivatorTextColor()
+	);
 	private static final OutlineColor[] VISUALIZE_OBJECT_COLORS = new OutlineColor[] {
 		OutlineColor.fromPackedColor(0xFF74FF7B),
 		OutlineColor.fromPackedColor(0xFF5DD7FF),
@@ -1167,6 +1171,9 @@ public final class QuickLinkWorldOverlayRenderer {
 	private static OutlineColor resolveBlockEntityOutlineColor(BlockEntity blockEntity) {
 		if (blockEntity instanceof LinkRepeaterBlockEntity) {
 			return REPEATER_OUTLINE_COLOR;
+		}
+		if (blockEntity instanceof LinkChunkActivatorBlockEntity) {
+			return CHUNK_ACTIVATOR_OUTLINE_COLOR;
 		}
 		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
 			LinkNodeType targetType = pairableNodeBlockEntity.getLinkNodeType();
