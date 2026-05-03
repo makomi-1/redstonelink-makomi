@@ -203,7 +203,8 @@
       "serverConfigOverrides": {
         "crosschunk.queue.enabled": "false",
         "crosschunk.forceLoad.enabled": "true",
-        "crosschunk.forceLoad.mode": "whitelist"
+        "crosschunk.forceLoad.mode": "whitelist",
+        "crosschunk.syncSignalPersistent": "true"
       }
     },
     {
@@ -221,7 +222,8 @@
       "serverConfigOverrides": {
         "crosschunk.queue.enabled": "false",
         "crosschunk.forceLoad.enabled": "true",
-        "crosschunk.forceLoad.mode": "whitelist"
+        "crosschunk.forceLoad.mode": "whitelist",
+        "crosschunk.syncSignalPersistent": "true"
       }
     },
     {

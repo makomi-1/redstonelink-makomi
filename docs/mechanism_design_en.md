@@ -194,6 +194,26 @@ For `sync`, automatic replay is not triggered by "having resident / transient fo
 - When a new link is created while the target is offline, the system attempts an attach replay first. If the target is still offline, the dispatch is converted into pending and replayed automatically later.
 - If the source signal changes while the target is offline, including `0 -> 15`, `15 -> 0`, or any strength change, a new offline `sync` propagation event is generated. Once the target is brought up or comes back naturally, that update lands automatically.
 
+### 7.4.1 Known Boundary When a `force-load` Activator Joins Late
+
+The current implementation has a known boundary when a `force-load` chunk activator becomes active only after the real `sync` change already happened:
+
+- the source `triggerSource` already produced a `sync` change while the target was offline;
+- then both source and target are offline;
+- only later does a chunk activator become active in `force-load` mode.
+
+In that case, the implementation first attempts an early replay from the latest persisted `sync` snapshot, and after the target truly attaches it still runs the normal `target attach replay`. Under the current mechanism, those two replay attempts may reuse the same historical snapshot identity. If the earlier replay never really lands on the target, while the later replay is suppressed as a duplicate publish, the visible result becomes:
+
+- the target chunk has already been brought up by `force-load`, so `online=true`
+- but the high state is not restored, so `active=false / resolvedStrength=0 / output=0`
+
+This boundary is concentrated in the combination "late `force-load` activator + source already soft-offline + recovery depends on a historical `sync` snapshot". It does not change the mainline semantics where a player directly loads the target chunk, or where `resident` keeps the target online first and then lets normal replay happen.
+
+Current config-level guidance:
+
+- If this class of link needs a stable fallback, prefer enabling `crosschunk.syncSignalPersistent=true`, so `sync` waits indefinitely as the latest state until the target recovers.
+- If you do not want this globally, override it only for the relevant dedicated bench / suite or the specific deployment profile that needs it.
+
 ### 7.5 Non-Blocking Rule
 
 The replay path explicitly avoids blocking chunk access on critical startup paths:

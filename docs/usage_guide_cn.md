@@ -643,6 +643,8 @@
 - 对 `sync` 来说，自动补发的触发条件不是“有 resident/临时强加载”本身，而是“确实生成了一次离线 `sync` 传播事件”；票据只负责把目标变成可处理，真正会被补发的是那条离线 `sync` 事件。
 - 新连接建立且目标区块已卸载：会尝试做一次 attach replay，把当前来源的可恢复 `sync` 状态发给新目标；若目标仍离线，则进入离线队列，后续自动补发。
 - 目标离线时 signal 改变：会自动进入离线 `sync` 传播；`0 -> 15`、`15 -> 0`、强度变化都算，目标被拉起或自然上线后会自动落地。
+- 已知边界：若 `force-load` 区块激活器晚于真实 `sync` 变化才介入，且此时来源与目标都已离线，则目标区块可能会先被拉起到 `online=true`，但高态未恢复。这条边界集中出现在“`force-load` 激活器晚介入 + 来源已软下线 + 依赖历史 `sync` 快照恢复”的组合场景；玩家直接拉起目标区块或 `resident` 先保持目标在线的主链不受影响。
+- 应对建议：对这类场景，优先启用 `crosschunk.syncSignalPersistent=true` 作为 `sync` 的完整兜底；若不希望全局开启，可只在相关 dedicated bench / suite 或专门服务器配置中临时覆写。
 
 ### 跨区块接管提示（2026-03-13）
 - 触发端在“强加载接管实际生效”时提示；持久队列转发不提示。
@@ -709,6 +711,7 @@
 9. 区块活动本身不决定来源逻辑有效性：区块暂时未加载、未活跃或仅发生 context detach，不会自动把来源判成无效；默认恢复主链是目标区块加载时的 `sync` 补发。
 10. `sync` 默认不使用不限时持久化兜底（`crosschunk.syncSignalPersistent=false`）；未加载目标上的常规 relay/recovery 主链固定就是目标区块加载时的补发。
 11. 打开 `crosschunk.syncSignalPersistent=true` 后，`sync` 才会按“最新状态”无限期等待目标恢复后补投递；更适合作为兜底策略，而不是默认主恢复链。
+11a. 对“`force-load` 区块激活器晚介入，且来源/目标都已先离线”的已知边界场景，推荐直接开启 `crosschunk.syncSignalPersistent=true`；这类场景不建议仅依赖默认有限 TTL 的历史 `sync` 快照恢复。
 12. `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=true` 时，会优先在 `CHUNK_LOAD` 当 tick 直接尝试补发；若目标这时尚未真正就绪，才回落到下一 tick 的本地重试队列。
 13. 这条 `CHUNK_LOAD` 补发路径现已固定启用，不再提供独立总开关；若只想改时序，可改 `crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst=false`，让其统一先延后一 tick。
 14. `crosschunk.syncSourceAttachReplay.enabled=true` 时，`triggerSource` 重新 attach 后会按当前来源状态，对其已链接 `core` 重新发一次 `sync-only replay`；默认关闭，避免与放置后真实输入派发重复。

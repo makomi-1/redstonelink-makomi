@@ -201,6 +201,26 @@
 - 新连接建立且目标离线时，会尝试 attach replay；若目标仍离线，则转入 pending，后续自动补发。
 - 来源信号在目标离线期间发生 `0 -> 15`、`15 -> 0` 或强度变化时，会生成新的离线 `sync` 传播事件；后续目标被拉起或自然上线后自动落地。
 
+### 7.4.1 `force-load` 激活器晚介入的已知边界
+
+当前实现对“`force-load` 激活器晚于真实 `sync` 变化才介入”的场景存在一条已知边界：
+
+- 来源 `triggerSource` 已在目标离线期间完成一次 `sync` 变化；
+- 随后来源与目标都已离线；
+- 区块激活器直到更晚才被激活，并以 `force-load` 模式介入。
+
+此时实现会先尝试按最近一次持久化 `sync` 快照做一次提前 replay，目标真正 attach 后还会再走一次常规 `target attach replay`。在当前机制下，这两次 replay 可能复用同一份历史快照身份；若前一次提前 replay 没有真正落到目标，而后一次 replay 又被当作重复发布抑制，就会出现：
+
+- 目标区块已经被 `force-load` 拉起，表现为 `online=true`
+- 但高态没有恢复，表现为 `active=false / resolvedStrength=0 / output=0`
+
+这条边界集中出现在“`force-load` 激活器晚介入 + 来源已软下线 + 依赖历史 `sync` 快照恢复”的组合场景。它不会改变玩家直接把目标区块拉起、也不会改变 `resident` 先把目标保持在线再走常规 replay 的主链语义。
+
+当前配置层建议：
+
+- 若这类链路需要稳定兜底，优先启用 `crosschunk.syncSignalPersistent=true`，让 `sync` 按“最新状态”无限期等待目标恢复后补投递。
+- 若不希望全局开启，可在 dedicated bench / suite 或专门服务器配置里仅对相关场景临时覆写该项。
+
 
 ### 7.5 非阻塞原则
 
