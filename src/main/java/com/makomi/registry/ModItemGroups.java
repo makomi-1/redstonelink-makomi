@@ -53,6 +53,12 @@ public final class ModItemGroups {
 				output.accept(ModItems.DIRECTIONAL_FACE_EDITOR, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONELINK_STATUS_PANEL, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.REDSTONE_LINK_COMPONENT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_CONVERTER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_LEVER, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_STONE_BUTTON, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_STONE_PRESSURE_PLATE, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_PISTON, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_REDSTONE_LAMP, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 			})
 			.build()
 	);

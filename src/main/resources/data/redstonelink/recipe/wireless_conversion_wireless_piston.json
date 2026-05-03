@@ -1,0 +1,13 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "category": "misc",
+  "ingredient": {
+    "item": "minecraft:piston"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_piston"
+  },
+  "experience": 0.0,
+  "cookingtime": 200
+}

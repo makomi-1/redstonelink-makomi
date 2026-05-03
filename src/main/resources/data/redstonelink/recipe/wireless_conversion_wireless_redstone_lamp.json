@@ -1,0 +1,13 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "category": "misc",
+  "ingredient": {
+    "item": "minecraft:redstone_lamp"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_redstone_lamp"
+  },
+  "experience": 0.0,
+  "cookingtime": 200
+}

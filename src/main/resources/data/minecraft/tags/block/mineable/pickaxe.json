@@ -11,6 +11,12 @@
     "redstonelink:link_send_filter",
     "redstonelink:link_receive_filter",
     "redstonelink:link_chunk_activator",
-    "redstonelink:link_repeater"
+    "redstonelink:link_repeater",
+    "redstonelink:wireless_converter",
+    "redstonelink:wireless_lever",
+    "redstonelink:wireless_stone_button",
+    "redstonelink:wireless_stone_pressure_plate",
+    "redstonelink:wireless_piston",
+    "redstonelink:wireless_redstone_lamp"
   ]
 }

@@ -227,6 +227,36 @@ public final class ModItems {
 		new StatePanelToolItem(new Item.Properties().stacksTo(1))
 	);
 
+	public static final Item WIRELESS_CONVERTER = register(
+		"wireless_converter",
+		new net.minecraft.world.item.BlockItem(ModBlocks.WIRELESS_CONVERTER, new Item.Properties())
+	);
+
+	public static final Item WIRELESS_LEVER = register(
+		"wireless_lever",
+		new PairableBlockItem(ModBlocks.WIRELESS_LEVER, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_STONE_BUTTON = register(
+		"wireless_stone_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_STONE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_STONE_PRESSURE_PLATE = register(
+		"wireless_stone_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_PISTON = register(
+		"wireless_piston",
+		new PairableBlockItem(ModBlocks.WIRELESS_PISTON, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_REDSTONE_LAMP = register(
+		"wireless_redstone_lamp",
+		new PairableBlockItem(ModBlocks.WIRELESS_REDSTONE_LAMP, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
 	private ModItems() {
 	}
 

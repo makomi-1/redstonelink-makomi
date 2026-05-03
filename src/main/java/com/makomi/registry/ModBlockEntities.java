@@ -23,6 +23,12 @@ import com.makomi.block.entity.LinkTransparentRedstoneDustCoreBlockEntity;
 import com.makomi.block.entity.LinkToggleButtonBlockEntity;
 import com.makomi.block.entity.LinkToggleEmitterBlockEntity;
 import com.makomi.block.entity.LinkSyncLeverBlockEntity;
+import com.makomi.block.entity.WirelessConverterBlockEntity;
+import com.makomi.block.entity.WirelessLeverBlockEntity;
+import com.makomi.block.entity.WirelessPistonBlockEntity;
+import com.makomi.block.entity.WirelessRedstoneLampBlockEntity;
+import com.makomi.block.entity.WirelessStoneButtonBlockEntity;
+import com.makomi.block.entity.WirelessStonePressurePlateBlockEntity;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -142,6 +148,42 @@ public final class ModBlockEntities {
 		BlockEntityType.Builder.of(
 			LinkTransparentRedstoneDustCoreBlockEntity::new,
 			ModBlocks.LINK_REDSTONE_DUST_CORE_TRANSPARENT
+		).build(null)
+	);
+
+	public static final BlockEntityType<WirelessConverterBlockEntity> WIRELESS_CONVERTER = register(
+		"wireless_converter",
+		BlockEntityType.Builder.of(WirelessConverterBlockEntity::new, ModBlocks.WIRELESS_CONVERTER).build(null)
+	);
+
+	public static final BlockEntityType<WirelessLeverBlockEntity> WIRELESS_LEVER = register(
+		"wireless_lever",
+		BlockEntityType.Builder.of(WirelessLeverBlockEntity::new, ModBlocks.WIRELESS_LEVER).build(null)
+	);
+
+	public static final BlockEntityType<WirelessStoneButtonBlockEntity> WIRELESS_STONE_BUTTON = register(
+		"wireless_stone_button",
+		BlockEntityType.Builder.of(WirelessStoneButtonBlockEntity::new, ModBlocks.WIRELESS_STONE_BUTTON).build(null)
+	);
+
+	public static final BlockEntityType<WirelessStonePressurePlateBlockEntity> WIRELESS_STONE_PRESSURE_PLATE = register(
+		"wireless_stone_pressure_plate",
+		BlockEntityType.Builder.of(
+			WirelessStonePressurePlateBlockEntity::new,
+			ModBlocks.WIRELESS_STONE_PRESSURE_PLATE
+		).build(null)
+	);
+
+	public static final BlockEntityType<WirelessPistonBlockEntity> WIRELESS_PISTON = register(
+		"wireless_piston",
+		BlockEntityType.Builder.of(WirelessPistonBlockEntity::new, ModBlocks.WIRELESS_PISTON).build(null)
+	);
+
+	public static final BlockEntityType<WirelessRedstoneLampBlockEntity> WIRELESS_REDSTONE_LAMP = register(
+		"wireless_redstone_lamp",
+		BlockEntityType.Builder.of(
+			WirelessRedstoneLampBlockEntity::new,
+			ModBlocks.WIRELESS_REDSTONE_LAMP
 		).build(null)
 	);
 

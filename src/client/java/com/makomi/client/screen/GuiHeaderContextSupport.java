@@ -153,7 +153,9 @@ final class GuiHeaderContextSupport {
 				LinkGuiDisplayContext.LINK_REDSTONE_CORE_TRANSPARENT,
 				LinkGuiDisplayContext.HIDE_CORE,
 				LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE,
-				LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE_TRANSPARENT -> true;
+				LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE_TRANSPARENT,
+				LinkGuiDisplayContext.WIRELESS_PISTON,
+				LinkGuiDisplayContext.WIRELESS_REDSTONE_LAMP -> true;
 			default -> false;
 		};
 	}
@@ -176,6 +178,9 @@ final class GuiHeaderContextSupport {
 				LinkGuiDisplayContext.HIDE_TOGGLE_EMITTER,
 				LinkGuiDisplayContext.HIDE_PULSE_EMITTER,
 				LinkGuiDisplayContext.HIDE_SYNC_TRIGGER_SOURCE,
+				LinkGuiDisplayContext.WIRELESS_LEVER,
+				LinkGuiDisplayContext.WIRELESS_STONE_BUTTON,
+				LinkGuiDisplayContext.WIRELESS_STONE_PRESSURE_PLATE,
 				LinkGuiDisplayContext.REDSTONELINK_TOGGLE_LINKER,
 				LinkGuiDisplayContext.REDSTONELINK_PULSE_LINKER,
 				LinkGuiDisplayContext.REDSTONELINK_SYNC_LINKER -> true;

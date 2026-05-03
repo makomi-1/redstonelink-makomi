@@ -33,6 +33,11 @@ public final class LinkGuiDisplayContext {
 	public static final String REDSTONELINK_TOGGLE_LINKER = "redstonelink_toggle_linker";
 	public static final String REDSTONELINK_PULSE_LINKER = "redstonelink_pulse_linker";
 	public static final String REDSTONELINK_SYNC_LINKER = "redstonelink_sync_linker";
+	public static final String WIRELESS_LEVER = "wireless_lever";
+	public static final String WIRELESS_STONE_BUTTON = "wireless_stone_button";
+	public static final String WIRELESS_STONE_PRESSURE_PLATE = "wireless_stone_pressure_plate";
+	public static final String WIRELESS_PISTON = "wireless_piston";
+	public static final String WIRELESS_REDSTONE_LAMP = "wireless_redstone_lamp";
 
 	private LinkGuiDisplayContext() {
 	}
@@ -132,6 +137,11 @@ public final class LinkGuiDisplayContext {
 			case REDSTONELINK_TOGGLE_LINKER -> REDSTONELINK_TOGGLE_LINKER;
 			case REDSTONELINK_PULSE_LINKER -> REDSTONELINK_PULSE_LINKER;
 			case REDSTONELINK_SYNC_LINKER -> REDSTONELINK_SYNC_LINKER;
+			case WIRELESS_LEVER -> WIRELESS_LEVER;
+			case WIRELESS_STONE_BUTTON -> WIRELESS_STONE_BUTTON;
+			case WIRELESS_STONE_PRESSURE_PLATE -> WIRELESS_STONE_PRESSURE_PLATE;
+			case WIRELESS_PISTON -> WIRELESS_PISTON;
+			case WIRELESS_REDSTONE_LAMP -> WIRELESS_REDSTONE_LAMP;
 			default -> null;
 		};
 	}

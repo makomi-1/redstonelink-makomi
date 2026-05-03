@@ -22,6 +22,7 @@ import com.makomi.client.render.LinkSerialHudOverlayRenderer;
 import com.makomi.client.render.QuickLinkWorldOverlayRenderer;
 import com.makomi.client.screen.SmartNodeContainerScreen;
 import com.makomi.client.screen.TriggerSourcePairingScreen;
+import com.makomi.client.screen.WirelessConverterScreen;
 import com.makomi.client.web.LocalWebAppBridgeService;
 import com.makomi.data.LinkItemData;
 import com.makomi.data.NodeAliasDisplayUtil;
@@ -131,6 +132,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_CHUNK_ACTIVATOR, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REPEATER, RenderType.translucent());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LINK_REDSTONE_DUST_CORE, RenderType.translucent());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_LEVER, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_STONE_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE, RenderType.cutout());
 	}
 
 	/**
@@ -160,6 +164,11 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.HIDE_CHUNK_ACTIVATOR, HideChunkActivatorGhostRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.LINK_REPEATER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.HIDE_REPEATER, HideNodeGhostRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_LEVER, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STONE_BUTTON, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STONE_PRESSURE_PLATE, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_PISTON, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_REDSTONE_LAMP, LinkNodeFarOverlayRenderer::new);
 	}
 
 	/**
@@ -174,6 +183,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 	 */
 	private static void registerMenuScreens() {
 		MenuScreens.register(ModMenuTypes.SMART_NODE_CONTAINER, SmartNodeContainerScreen::new);
+		MenuScreens.register(ModMenuTypes.WIRELESS_CONVERTER, WirelessConverterScreen::new);
 	}
 
 	/**

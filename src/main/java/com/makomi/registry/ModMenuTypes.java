@@ -2,6 +2,7 @@ package com.makomi.registry;
 
 import com.makomi.RedstoneLink;
 import com.makomi.menu.SmartNodeContainerMenu;
+import com.makomi.menu.WirelessConverterMenu;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -16,6 +17,12 @@ public final class ModMenuTypes {
 		BuiltInRegistries.MENU,
 		id("smart_node_container"),
 		new MenuType<>(SmartNodeContainerMenu::new, FeatureFlags.DEFAULT_FLAGS)
+	);
+
+	public static final MenuType<WirelessConverterMenu> WIRELESS_CONVERTER = Registry.register(
+		BuiltInRegistries.MENU,
+		id("wireless_converter"),
+		new MenuType<>(WirelessConverterMenu::new, FeatureFlags.DEFAULT_FLAGS)
 	);
 
 	private ModMenuTypes() {

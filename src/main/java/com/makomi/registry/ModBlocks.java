@@ -23,6 +23,12 @@ import com.makomi.block.LinkTransparentRedstoneDustCoreBlock;
 import com.makomi.block.LinkToggleEmitterBlock;
 import com.makomi.block.LinkToggleButtonBlock;
 import com.makomi.block.LinkSyncLeverBlock;
+import com.makomi.block.WirelessConverterBlock;
+import com.makomi.block.WirelessLeverBlock;
+import com.makomi.block.WirelessPistonBlock;
+import com.makomi.block.WirelessRedstoneLampBlock;
+import com.makomi.block.WirelessStoneButtonBlock;
+import com.makomi.block.WirelessStonePressurePlateBlock;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -170,6 +176,36 @@ public final class ModBlocks {
 	public static final LinkTransparentRedstoneDustCoreBlock LINK_REDSTONE_DUST_CORE_TRANSPARENT = register(
 		"link_redstone_dust_core_transparent",
 		new LinkTransparentRedstoneDustCoreBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_WIRE))
+	);
+
+	public static final WirelessConverterBlock WIRELESS_CONVERTER = register(
+		"wireless_converter",
+		new WirelessConverterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.FURNACE))
+	);
+
+	public static final WirelessLeverBlock WIRELESS_LEVER = register(
+		"wireless_lever",
+		new WirelessLeverBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.LEVER))
+	);
+
+	public static final WirelessStoneButtonBlock WIRELESS_STONE_BUTTON = register(
+		"wireless_stone_button",
+		new WirelessStoneButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_BUTTON))
+	);
+
+	public static final WirelessStonePressurePlateBlock WIRELESS_STONE_PRESSURE_PLATE = register(
+		"wireless_stone_pressure_plate",
+		new WirelessStonePressurePlateBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_PRESSURE_PLATE))
+	);
+
+	public static final WirelessPistonBlock WIRELESS_PISTON = register(
+		"wireless_piston",
+		new WirelessPistonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.PISTON))
+	);
+
+	public static final WirelessRedstoneLampBlock WIRELESS_REDSTONE_LAMP = register(
+		"wireless_redstone_lamp",
+		new WirelessRedstoneLampBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_LAMP))
 	);
 
 	private ModBlocks() {

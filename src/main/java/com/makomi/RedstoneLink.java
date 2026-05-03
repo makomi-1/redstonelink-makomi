@@ -27,6 +27,8 @@ import com.makomi.registry.ModBlocks;
 import com.makomi.registry.ModItemGroups;
 import com.makomi.registry.ModItems;
 import com.makomi.registry.ModMenuTypes;
+import com.makomi.registry.ModRecipeSerializers;
+import com.makomi.registry.ModRecipeTypes;
 import net.fabricmc.api.ModInitializer;
 
 import org.slf4j.Logger;
@@ -56,6 +58,8 @@ public class RedstoneLink implements ModInitializer {
 		ModBlocks.register();
 		ModBlockEntities.register();
 		ModItems.register();
+		ModRecipeTypes.register();
+		ModRecipeSerializers.register();
 		ModMenuTypes.register();
 		ModItemGroups.register();
 		ModCommandArgumentTypes.register();

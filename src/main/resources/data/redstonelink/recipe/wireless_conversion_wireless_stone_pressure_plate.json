@@ -1,0 +1,13 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "category": "misc",
+  "ingredient": {
+    "item": "minecraft:stone_pressure_plate"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_stone_pressure_plate"
+  },
+  "experience": 0.0,
+  "cookingtime": 200
+}

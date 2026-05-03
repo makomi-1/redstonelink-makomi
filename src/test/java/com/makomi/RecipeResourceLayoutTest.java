@@ -57,7 +57,12 @@ class RecipeResourceLayoutTest {
 		"redstonelink_sync_linker.json",
 		"redstonelink_toggle_linker.json",
 		"smart_glasses.json",
-		"smart_node_container.json"
+		"smart_node_container.json",
+		"wireless_conversion_wireless_lever.json",
+		"wireless_conversion_wireless_piston.json",
+		"wireless_conversion_wireless_redstone_lamp.json",
+		"wireless_conversion_wireless_stone_button.json",
+		"wireless_conversion_wireless_stone_pressure_plate.json"
 	);
 
 	/**
