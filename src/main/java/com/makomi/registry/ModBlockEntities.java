@@ -202,6 +202,14 @@ public final class ModBlockEntities {
 		).build(null)
 	);
 
+	public static final BlockEntityType<com.makomi.block.entity.WirelessOakDoorBlockEntity> WIRELESS_OAK_DOOR = register(
+		"wireless_oak_door",
+		BlockEntityType.Builder.of(
+			com.makomi.block.entity.WirelessOakDoorBlockEntity::new,
+			ModBlocks.WIRELESS_OAK_DOOR
+		).build(null)
+	);
+
 	private ModBlockEntities() {
 	}
 

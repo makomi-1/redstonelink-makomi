@@ -228,6 +228,14 @@ public final class ModBlocks {
 		new WirelessSeaLanternBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.SEA_LANTERN).pushReaction(PushReaction.NORMAL))
 	);
 
+	public static final com.makomi.block.WirelessOakDoorBlock WIRELESS_OAK_DOOR = register(
+		"wireless_oak_door",
+		new com.makomi.block.WirelessOakDoorBlock(
+			net.minecraft.world.level.block.state.properties.BlockSetType.OAK,
+			BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_DOOR)
+		)
+	);
+
 	private ModBlocks() {
 	}
 

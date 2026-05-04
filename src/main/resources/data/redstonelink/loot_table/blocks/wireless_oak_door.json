@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [
+        {
+          "block": "redstonelink:wireless_oak_door",
+          "condition": "minecraft:block_state_property",
+          "properties": {
+            "half": "lower"
+          }
+        }
+      ],
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "redstonelink:wireless_oak_door"
+        }
+      ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "redstonelink:blocks/wireless_oak_door"
+}

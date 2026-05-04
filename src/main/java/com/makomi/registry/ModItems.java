@@ -267,6 +267,11 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.WIRELESS_SEA_LANTERN, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
 	);
 
+	public static final Item WIRELESS_OAK_DOOR = register(
+		"wireless_oak_door",
+		new PairableBlockItem(ModBlocks.WIRELESS_OAK_DOOR, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
 	private ModItems() {
 	}
 

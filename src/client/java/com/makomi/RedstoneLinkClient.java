@@ -135,6 +135,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_LEVER, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_STONE_BUTTON, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_OAK_DOOR, RenderType.cutout());
 	}
 
 	/**
@@ -171,6 +172,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STICKY_PISTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_REDSTONE_LAMP, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_SEA_LANTERN, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_OAK_DOOR, LinkNodeFarOverlayRenderer::new);
 	}
 
 	/**
