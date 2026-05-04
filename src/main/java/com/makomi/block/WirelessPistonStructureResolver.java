@@ -244,7 +244,12 @@ public final class WirelessPistonStructureResolver {
 	}
 
 	/**
-	 * 首版仅放行当前已实现的无线节点原型，避免把整套旧节点体系一起放开。
+	 * 仅放行已经接入“移动不是销毁”语义的节点方块。
+	 * <p>
+	 * 现阶段包含：
+	 * 1. 无线化原型块；
+	 * 2. 已补活塞搬运豁免的可见核心块。
+	 * </p>
 	 */
 	private static boolean isMovableWirelessNode(BlockState state) {
 		return state.is(ModBlocks.WIRELESS_LEVER)
@@ -252,7 +257,9 @@ public final class WirelessPistonStructureResolver {
 			|| state.is(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE)
 			|| state.is(ModBlocks.WIRELESS_PISTON)
 			|| state.is(ModBlocks.WIRELESS_REDSTONE_LAMP)
-			|| state.is(ModBlocks.WIRELESS_SEA_LANTERN);
+			|| state.is(ModBlocks.WIRELESS_SEA_LANTERN)
+			|| state.is(ModBlocks.LINK_REDSTONE_CORE)
+			|| state.is(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT);
 	}
 
 	private static boolean isStickyBlock(BlockState state) {

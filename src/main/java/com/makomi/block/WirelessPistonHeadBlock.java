@@ -55,7 +55,7 @@ public class WirelessPistonHeadBlock extends PistonHeadBlock {
 	@Override
 	protected boolean canSurvive(BlockState state, LevelReader level, BlockPos pos) {
 		BlockPos basePos = pos.relative(state.getValue(FACING).getOpposite());
-		return isFittingBase(state, level.getBlockState(basePos));
+		return isFittingSurvivalBase(state, level.getBlockState(basePos));
 	}
 
 	@Override
@@ -77,7 +77,7 @@ public class WirelessPistonHeadBlock extends PistonHeadBlock {
 		if (!level.isClientSide && player.getAbilities().instabuild) {
 			BlockPos basePos = pos.relative(state.getValue(FACING).getOpposite());
 			BlockState baseState = level.getBlockState(basePos);
-			if (isFittingBase(state, baseState)) {
+			if (isFittingDestructiveBase(state, baseState)) {
 				level.destroyBlock(basePos, false);
 			}
 		}
@@ -89,7 +89,7 @@ public class WirelessPistonHeadBlock extends PistonHeadBlock {
 		if (!state.is(newState.getBlock())) {
 			BlockPos basePos = pos.relative(state.getValue(FACING).getOpposite());
 			BlockState baseState = level.getBlockState(basePos);
-			if (isFittingBase(state, baseState)) {
+			if (isFittingDestructiveBase(state, baseState)) {
 				level.destroyBlock(basePos, true);
 			}
 		}
@@ -107,7 +107,20 @@ public class WirelessPistonHeadBlock extends PistonHeadBlock {
 	 * 兼容原版活塞、原版移动活塞，以及无线化活塞本体。
 	 * </p>
 	 */
-	private static boolean isFittingBase(BlockState headState, BlockState baseState) {
+	private static boolean isFittingSurvivalBase(BlockState headState, BlockState baseState) {
+		if (isFittingDestructiveBase(headState, baseState)) {
+			return true;
+		}
+		return baseState.is(Blocks.MOVING_PISTON) && baseState.getValue(MovingPistonBlock.FACING) == headState.getValue(FACING);
+	}
+
+	/**
+	 * 判断头部后方是否接到了可被“连带销毁”的真实底座。
+	 * <p>
+	 * 这里故意不接受 MOVING_PISTON，避免回缩时头部移除把无线化活塞本体误删。
+	 * </p>
+	 */
+	private static boolean isFittingDestructiveBase(BlockState headState, BlockState baseState) {
 		PistonType pistonType = headState.getValue(TYPE);
 		Block expectedBase = pistonType == PistonType.STICKY ? Blocks.STICKY_PISTON : Blocks.PISTON;
 		if (baseState.is(expectedBase)
@@ -120,6 +133,6 @@ public class WirelessPistonHeadBlock extends PistonHeadBlock {
 			&& baseState.getValue(WirelessPistonBlock.FACING) == headState.getValue(FACING)) {
 			return true;
 		}
-		return baseState.is(Blocks.MOVING_PISTON) && baseState.getValue(MovingPistonBlock.FACING) == headState.getValue(FACING);
+		return false;
 	}
 }

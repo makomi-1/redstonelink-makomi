@@ -1,7 +1,7 @@
 package com.makomi.block;
 
+import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
-import com.makomi.block.entity.WirelessCoreBlockEntity;
 import com.makomi.block.entity.WirelessSyncTriggerSourceBlockEntity;
 import com.makomi.data.LinkNodeRetireEvents;
 import java.util.ArrayList;
@@ -158,8 +158,8 @@ public final class WirelessPistonNodeMoveSupport {
 		}
 
 		// 恢复后按当前节点派生态重新校准方块外显。
-		if (blockEntity instanceof WirelessCoreBlockEntity wirelessCoreBlockEntity) {
-			wirelessCoreBlockEntity.consumePendingLoadBlockStateSync();
+		if (blockEntity instanceof ActivatableTargetBlockEntity activatableTargetBlockEntity) {
+			activatableTargetBlockEntity.consumePendingLoadBlockStateSync();
 		}
 		if (blockEntity instanceof WirelessSyncTriggerSourceBlockEntity wirelessSyncTriggerSourceBlockEntity) {
 			wirelessSyncTriggerSourceBlockEntity.clearPendingLoadInputStateResync();

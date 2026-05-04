@@ -111,11 +111,12 @@ public class LinkCoreBlock extends BaseEntityBlock {
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
+			boolean movingByWirelessPiston = WirelessPistonNodeMoveSupport.isMoveInProgress(level, pos);
+			if (!movingByWirelessPiston && level.getBlockEntity(pos) instanceof LinkCoreBlockEntity coreBlockEntity) {
 				coreBlockEntity.markPhysicalRemovalInProgress();
 				coreBlockEntity.unregisterNode(true);
 			}
-			if (!level.isClientSide) {
+			if (!movingByWirelessPiston && !level.isClientSide) {
 				// 核心块被破坏时主动补齐二级扇出：中心 + 六方向。
 				// 目的：让与核心块相邻及次邻接的红石网络在同 tick 内完成收敛。
 				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());

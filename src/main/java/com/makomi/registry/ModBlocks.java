@@ -37,6 +37,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.material.PushReaction;
 
 /**
  * 模组方块注册表。
@@ -187,17 +188,19 @@ public final class ModBlocks {
 
 	public static final WirelessLeverBlock WIRELESS_LEVER = register(
 		"wireless_lever",
-		new WirelessLeverBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.LEVER))
+		new WirelessLeverBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.LEVER).pushReaction(PushReaction.NORMAL))
 	);
 
 	public static final WirelessStoneButtonBlock WIRELESS_STONE_BUTTON = register(
 		"wireless_stone_button",
-		new WirelessStoneButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_BUTTON))
+		new WirelessStoneButtonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_BUTTON).pushReaction(PushReaction.NORMAL))
 	);
 
 	public static final WirelessStonePressurePlateBlock WIRELESS_STONE_PRESSURE_PLATE = register(
 		"wireless_stone_pressure_plate",
-		new WirelessStonePressurePlateBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_PRESSURE_PLATE))
+		new WirelessStonePressurePlateBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.STONE_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
+		)
 	);
 
 	public static final WirelessPistonBlock WIRELESS_PISTON = register(
@@ -212,12 +215,12 @@ public final class ModBlocks {
 
 	public static final WirelessRedstoneLampBlock WIRELESS_REDSTONE_LAMP = register(
 		"wireless_redstone_lamp",
-		new WirelessRedstoneLampBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_LAMP))
+		new WirelessRedstoneLampBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_LAMP).pushReaction(PushReaction.NORMAL))
 	);
 
 	public static final WirelessSeaLanternBlock WIRELESS_SEA_LANTERN = register(
 		"wireless_sea_lantern",
-		new WirelessSeaLanternBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.SEA_LANTERN))
+		new WirelessSeaLanternBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.SEA_LANTERN).pushReaction(PushReaction.NORMAL))
 	);
 
 	private ModBlocks() {
