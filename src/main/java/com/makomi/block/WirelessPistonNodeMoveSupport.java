@@ -24,6 +24,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
 
 /**
  * 无线节点活塞搬运支撑。
@@ -137,7 +138,9 @@ public final class WirelessPistonNodeMoveSupport {
 				continue;
 			}
 			BlockEntity blockEntity = level.getBlockEntity(targetKey.pos());
-			if (blockEntity == null) {
+			// 移动中的临时活塞实体不是最终落地目标；
+			// 若在这一阶段提前恢复，会导致真正节点实体回位前就清掉 pending 恢复与待退役兜底。
+			if (blockEntity == null || blockEntity instanceof PistonMovingBlockEntity) {
 				continue;
 			}
 			restoreMovedBlockEntity(level, blockEntity, snapshot);
