@@ -267,6 +267,46 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.WIRELESS_SEA_LANTERN, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
 	);
 
+	public static final Item WIRELESS_LANTERN = register(
+		"wireless_lantern",
+		new PairableBlockItem(ModBlocks.WIRELESS_LANTERN, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_SOUL_LANTERN = register(
+		"wireless_soul_lantern",
+		new PairableBlockItem(ModBlocks.WIRELESS_SOUL_LANTERN, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_JACK_O_LANTERN = register(
+		"wireless_jack_o_lantern",
+		new PairableBlockItem(ModBlocks.WIRELESS_JACK_O_LANTERN, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_GLOWSTONE = register(
+		"wireless_glowstone",
+		new PairableBlockItem(ModBlocks.WIRELESS_GLOWSTONE, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_END_ROD = register(
+		"wireless_end_rod",
+		new PairableBlockItem(ModBlocks.WIRELESS_END_ROD, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_OCHRE_FROGLIGHT = register(
+		"wireless_ochre_froglight",
+		new PairableBlockItem(ModBlocks.WIRELESS_OCHRE_FROGLIGHT, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_VERDANT_FROGLIGHT = register(
+		"wireless_verdant_froglight",
+		new PairableBlockItem(ModBlocks.WIRELESS_VERDANT_FROGLIGHT, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_PEARLESCENT_FROGLIGHT = register(
+		"wireless_pearlescent_froglight",
+		new PairableBlockItem(ModBlocks.WIRELESS_PEARLESCENT_FROGLIGHT, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
 	public static final Item WIRELESS_OAK_DOOR = register(
 		"wireless_oak_door",
 		new PairableBlockItem(ModBlocks.WIRELESS_OAK_DOOR, new Item.Properties().stacksTo(1), LinkNodeType.CORE)

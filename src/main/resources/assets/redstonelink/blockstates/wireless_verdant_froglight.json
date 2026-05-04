@@ -1,0 +1,28 @@
+{
+  "variants": {
+    "axis=x,lit=false": {
+      "model": "minecraft:block/verdant_froglight",
+      "x": 90,
+      "y": 90
+    },
+    "axis=x,lit=true": {
+      "model": "minecraft:block/verdant_froglight",
+      "x": 90,
+      "y": 90
+    },
+    "axis=y,lit=false": {
+      "model": "minecraft:block/verdant_froglight"
+    },
+    "axis=y,lit=true": {
+      "model": "minecraft:block/verdant_froglight"
+    },
+    "axis=z,lit=false": {
+      "model": "minecraft:block/verdant_froglight",
+      "x": 90
+    },
+    "axis=z,lit=true": {
+      "model": "minecraft:block/verdant_froglight",
+      "x": 90
+    }
+  }
+}

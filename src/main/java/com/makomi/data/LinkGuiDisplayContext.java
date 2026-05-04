@@ -40,6 +40,14 @@ public final class LinkGuiDisplayContext {
 	public static final String WIRELESS_STICKY_PISTON = "wireless_sticky_piston";
 	public static final String WIRELESS_REDSTONE_LAMP = "wireless_redstone_lamp";
 	public static final String WIRELESS_SEA_LANTERN = "wireless_sea_lantern";
+	public static final String WIRELESS_LANTERN = "wireless_lantern";
+	public static final String WIRELESS_SOUL_LANTERN = "wireless_soul_lantern";
+	public static final String WIRELESS_JACK_O_LANTERN = "wireless_jack_o_lantern";
+	public static final String WIRELESS_GLOWSTONE = "wireless_glowstone";
+	public static final String WIRELESS_END_ROD = "wireless_end_rod";
+	public static final String WIRELESS_OCHRE_FROGLIGHT = "wireless_ochre_froglight";
+	public static final String WIRELESS_VERDANT_FROGLIGHT = "wireless_verdant_froglight";
+	public static final String WIRELESS_PEARLESCENT_FROGLIGHT = "wireless_pearlescent_froglight";
 	public static final String WIRELESS_OAK_DOOR = "wireless_oak_door";
 
 	private LinkGuiDisplayContext() {
@@ -147,6 +155,14 @@ public final class LinkGuiDisplayContext {
 			case WIRELESS_STICKY_PISTON -> WIRELESS_STICKY_PISTON;
 			case WIRELESS_REDSTONE_LAMP -> WIRELESS_REDSTONE_LAMP;
 			case WIRELESS_SEA_LANTERN -> WIRELESS_SEA_LANTERN;
+			case WIRELESS_LANTERN -> WIRELESS_LANTERN;
+			case WIRELESS_SOUL_LANTERN -> WIRELESS_SOUL_LANTERN;
+			case WIRELESS_JACK_O_LANTERN -> WIRELESS_JACK_O_LANTERN;
+			case WIRELESS_GLOWSTONE -> WIRELESS_GLOWSTONE;
+			case WIRELESS_END_ROD -> WIRELESS_END_ROD;
+			case WIRELESS_OCHRE_FROGLIGHT -> WIRELESS_OCHRE_FROGLIGHT;
+			case WIRELESS_VERDANT_FROGLIGHT -> WIRELESS_VERDANT_FROGLIGHT;
+			case WIRELESS_PEARLESCENT_FROGLIGHT -> WIRELESS_PEARLESCENT_FROGLIGHT;
 			case WIRELESS_OAK_DOOR -> WIRELESS_OAK_DOOR;
 			default -> null;
 		};

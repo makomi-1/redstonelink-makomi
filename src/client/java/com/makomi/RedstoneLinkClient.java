@@ -136,6 +136,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_STONE_BUTTON, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_OAK_DOOR, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_LANTERN, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_SOUL_LANTERN, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_END_ROD, RenderType.cutout());
 	}
 
 	/**
@@ -172,6 +175,14 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STICKY_PISTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_REDSTONE_LAMP, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_SEA_LANTERN, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_LANTERN, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_SOUL_LANTERN, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_JACK_O_LANTERN, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_GLOWSTONE, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_END_ROD, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_OCHRE_FROGLIGHT, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_VERDANT_FROGLIGHT, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_PEARLESCENT_FROGLIGHT, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_OAK_DOOR, LinkNodeFarOverlayRenderer::new);
 	}
 

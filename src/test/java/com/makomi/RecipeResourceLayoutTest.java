@@ -58,14 +58,22 @@ class RecipeResourceLayoutTest {
 		"redstonelink_toggle_linker.json",
 		"smart_glasses.json",
 		"smart_node_container.json",
+		"wireless_conversion_wireless_end_rod.json",
+		"wireless_conversion_wireless_glowstone.json",
+		"wireless_conversion_wireless_jack_o_lantern.json",
+		"wireless_conversion_wireless_lantern.json",
 		"wireless_conversion_wireless_lever.json",
+		"wireless_conversion_wireless_ochre_froglight.json",
+		"wireless_conversion_wireless_pearlescent_froglight.json",
 		"wireless_conversion_wireless_piston.json",
 		"wireless_conversion_wireless_redstone_lamp.json",
 		"wireless_conversion_wireless_oak_door.json",
 		"wireless_conversion_wireless_sea_lantern.json",
+		"wireless_conversion_wireless_soul_lantern.json",
 		"wireless_conversion_wireless_sticky_piston.json",
 		"wireless_conversion_wireless_stone_button.json",
-		"wireless_conversion_wireless_stone_pressure_plate.json"
+		"wireless_conversion_wireless_stone_pressure_plate.json",
+		"wireless_conversion_wireless_verdant_froglight.json"
 	);
 
 	/**

@@ -1,0 +1,13 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "category": "misc",
+  "ingredient": {
+    "item": "minecraft:end_rod"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_end_rod"
+  },
+  "experience": 0.0,
+  "cookingtime": 200
+}

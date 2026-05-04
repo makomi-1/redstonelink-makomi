@@ -24,11 +24,17 @@ import com.makomi.block.LinkToggleEmitterBlock;
 import com.makomi.block.LinkToggleButtonBlock;
 import com.makomi.block.LinkSyncLeverBlock;
 import com.makomi.block.WirelessConverterBlock;
+import com.makomi.block.WirelessEndRodBlock;
+import com.makomi.block.WirelessFroglightBlock;
+import com.makomi.block.WirelessGlowstoneBlock;
+import com.makomi.block.WirelessLanternBlock;
 import com.makomi.block.WirelessLeverBlock;
+import com.makomi.block.WirelessLitPumpkinBlock;
 import com.makomi.block.WirelessPistonBlock;
 import com.makomi.block.WirelessPistonHeadBlock;
 import com.makomi.block.WirelessRedstoneLampBlock;
 import com.makomi.block.WirelessSeaLanternBlock;
+import com.makomi.block.WirelessSoulLanternBlock;
 import com.makomi.block.WirelessStoneButtonBlock;
 import com.makomi.block.WirelessStonePressurePlateBlock;
 import net.minecraft.core.Registry;
@@ -226,6 +232,71 @@ public final class ModBlocks {
 	public static final WirelessSeaLanternBlock WIRELESS_SEA_LANTERN = register(
 		"wireless_sea_lantern",
 		new WirelessSeaLanternBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.SEA_LANTERN).pushReaction(PushReaction.NORMAL))
+	);
+
+	public static final WirelessLanternBlock WIRELESS_LANTERN = register(
+		"wireless_lantern",
+		new WirelessLanternBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.LANTERN).pushReaction(PushReaction.NORMAL),
+			15,
+			() -> ModBlockEntities.WIRELESS_LANTERN
+		)
+	);
+
+	public static final WirelessSoulLanternBlock WIRELESS_SOUL_LANTERN = register(
+		"wireless_soul_lantern",
+		new WirelessSoulLanternBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.SOUL_LANTERN).pushReaction(PushReaction.NORMAL),
+			() -> ModBlockEntities.WIRELESS_SOUL_LANTERN
+		)
+	);
+
+	public static final WirelessLitPumpkinBlock WIRELESS_JACK_O_LANTERN = register(
+		"wireless_jack_o_lantern",
+		new WirelessLitPumpkinBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.JACK_O_LANTERN).pushReaction(PushReaction.NORMAL),
+			() -> ModBlockEntities.WIRELESS_JACK_O_LANTERN
+		)
+	);
+
+	public static final WirelessGlowstoneBlock WIRELESS_GLOWSTONE = register(
+		"wireless_glowstone",
+		new WirelessGlowstoneBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.GLOWSTONE).pushReaction(PushReaction.NORMAL),
+			() -> ModBlockEntities.WIRELESS_GLOWSTONE
+		)
+	);
+
+	public static final WirelessEndRodBlock WIRELESS_END_ROD = register(
+		"wireless_end_rod",
+		new WirelessEndRodBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.END_ROD).pushReaction(PushReaction.NORMAL),
+			() -> ModBlockEntities.WIRELESS_END_ROD
+		)
+	);
+
+	public static final WirelessFroglightBlock WIRELESS_OCHRE_FROGLIGHT = register(
+		"wireless_ochre_froglight",
+		new WirelessFroglightBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.OCHRE_FROGLIGHT).pushReaction(PushReaction.NORMAL),
+			() -> ModBlockEntities.WIRELESS_OCHRE_FROGLIGHT
+		)
+	);
+
+	public static final WirelessFroglightBlock WIRELESS_VERDANT_FROGLIGHT = register(
+		"wireless_verdant_froglight",
+		new WirelessFroglightBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.VERDANT_FROGLIGHT).pushReaction(PushReaction.NORMAL),
+			() -> ModBlockEntities.WIRELESS_VERDANT_FROGLIGHT
+		)
+	);
+
+	public static final WirelessFroglightBlock WIRELESS_PEARLESCENT_FROGLIGHT = register(
+		"wireless_pearlescent_froglight",
+		new WirelessFroglightBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.PEARLESCENT_FROGLIGHT).pushReaction(PushReaction.NORMAL),
+			() -> ModBlockEntities.WIRELESS_PEARLESCENT_FROGLIGHT
+		)
 	);
 
 	public static final com.makomi.block.WirelessOakDoorBlock WIRELESS_OAK_DOOR = register(

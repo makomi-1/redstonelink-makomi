@@ -25,6 +25,7 @@ import com.makomi.block.entity.LinkToggleEmitterBlockEntity;
 import com.makomi.block.entity.LinkSyncLeverBlockEntity;
 import com.makomi.block.entity.WirelessConverterBlockEntity;
 import com.makomi.block.entity.WirelessLeverBlockEntity;
+import com.makomi.block.entity.WirelessLitCoreBlockEntity;
 import com.makomi.block.entity.WirelessPistonBlockEntity;
 import com.makomi.block.entity.WirelessRedstoneLampBlockEntity;
 import com.makomi.block.entity.WirelessSeaLanternBlockEntity;
@@ -200,6 +201,83 @@ public final class ModBlockEntities {
 			WirelessSeaLanternBlockEntity::new,
 			ModBlocks.WIRELESS_SEA_LANTERN
 		).build(null)
+	);
+
+	public static final BlockEntityType<WirelessLitCoreBlockEntity> WIRELESS_LANTERN = register(
+		"wireless_lantern",
+		BlockEntityType.Builder
+			.of((blockPos, blockState) -> (WirelessLitCoreBlockEntity) ModBlocks.WIRELESS_LANTERN.newBlockEntity(blockPos, blockState), ModBlocks.WIRELESS_LANTERN)
+			.build(null)
+	);
+
+	public static final BlockEntityType<WirelessLitCoreBlockEntity> WIRELESS_SOUL_LANTERN = register(
+		"wireless_soul_lantern",
+		BlockEntityType.Builder
+			.of(
+				(blockPos, blockState) -> (WirelessLitCoreBlockEntity) ModBlocks.WIRELESS_SOUL_LANTERN.newBlockEntity(blockPos, blockState),
+				ModBlocks.WIRELESS_SOUL_LANTERN
+			)
+			.build(null)
+	);
+
+	public static final BlockEntityType<WirelessLitCoreBlockEntity> WIRELESS_JACK_O_LANTERN = register(
+		"wireless_jack_o_lantern",
+		BlockEntityType.Builder
+			.of(
+				(blockPos, blockState) -> (WirelessLitCoreBlockEntity) ModBlocks.WIRELESS_JACK_O_LANTERN.newBlockEntity(blockPos, blockState),
+				ModBlocks.WIRELESS_JACK_O_LANTERN
+			)
+			.build(null)
+	);
+
+	public static final BlockEntityType<WirelessLitCoreBlockEntity> WIRELESS_GLOWSTONE = register(
+		"wireless_glowstone",
+		BlockEntityType.Builder
+			.of(
+				(blockPos, blockState) -> (WirelessLitCoreBlockEntity) ModBlocks.WIRELESS_GLOWSTONE.newBlockEntity(blockPos, blockState),
+				ModBlocks.WIRELESS_GLOWSTONE
+			)
+			.build(null)
+	);
+
+	public static final BlockEntityType<WirelessLitCoreBlockEntity> WIRELESS_END_ROD = register(
+		"wireless_end_rod",
+		BlockEntityType.Builder
+			.of(
+				(blockPos, blockState) -> (WirelessLitCoreBlockEntity) ModBlocks.WIRELESS_END_ROD.newBlockEntity(blockPos, blockState),
+				ModBlocks.WIRELESS_END_ROD
+			)
+			.build(null)
+	);
+
+	public static final BlockEntityType<WirelessLitCoreBlockEntity> WIRELESS_OCHRE_FROGLIGHT = register(
+		"wireless_ochre_froglight",
+		BlockEntityType.Builder
+			.of(
+				(blockPos, blockState) -> (WirelessLitCoreBlockEntity) ModBlocks.WIRELESS_OCHRE_FROGLIGHT.newBlockEntity(blockPos, blockState),
+				ModBlocks.WIRELESS_OCHRE_FROGLIGHT
+			)
+			.build(null)
+	);
+
+	public static final BlockEntityType<WirelessLitCoreBlockEntity> WIRELESS_VERDANT_FROGLIGHT = register(
+		"wireless_verdant_froglight",
+		BlockEntityType.Builder
+			.of(
+				(blockPos, blockState) -> (WirelessLitCoreBlockEntity) ModBlocks.WIRELESS_VERDANT_FROGLIGHT.newBlockEntity(blockPos, blockState),
+				ModBlocks.WIRELESS_VERDANT_FROGLIGHT
+			)
+			.build(null)
+	);
+
+	public static final BlockEntityType<WirelessLitCoreBlockEntity> WIRELESS_PEARLESCENT_FROGLIGHT = register(
+		"wireless_pearlescent_froglight",
+		BlockEntityType.Builder
+			.of(
+				(blockPos, blockState) -> (WirelessLitCoreBlockEntity) ModBlocks.WIRELESS_PEARLESCENT_FROGLIGHT.newBlockEntity(blockPos, blockState),
+				ModBlocks.WIRELESS_PEARLESCENT_FROGLIGHT
+			)
+			.build(null)
 	);
 
 	public static final BlockEntityType<com.makomi.block.entity.WirelessOakDoorBlockEntity> WIRELESS_OAK_DOOR = register(

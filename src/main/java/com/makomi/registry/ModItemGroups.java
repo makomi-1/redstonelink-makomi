@@ -61,6 +61,14 @@ public final class ModItemGroups {
 				output.accept(ModItems.WIRELESS_STICKY_PISTON, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.WIRELESS_REDSTONE_LAMP, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.WIRELESS_SEA_LANTERN, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_LANTERN, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_SOUL_LANTERN, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_JACK_O_LANTERN, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_GLOWSTONE, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_END_ROD, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_OCHRE_FROGLIGHT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_VERDANT_FROGLIGHT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_PEARLESCENT_FROGLIGHT, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.WIRELESS_OAK_DOOR, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 			})
 			.build()

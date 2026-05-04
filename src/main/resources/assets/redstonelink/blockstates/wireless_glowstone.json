@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "minecraft:block/glowstone"
+    },
+    "lit=true": {
+      "model": "minecraft:block/glowstone"
+    }
+  }
+}

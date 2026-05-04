@@ -19,6 +19,13 @@
     "redstonelink:wireless_piston",
     "redstonelink:wireless_sticky_piston",
     "redstonelink:wireless_redstone_lamp",
-    "redstonelink:wireless_sea_lantern"
+    "redstonelink:wireless_sea_lantern",
+    "redstonelink:wireless_lantern",
+    "redstonelink:wireless_soul_lantern",
+    "redstonelink:wireless_glowstone",
+    "redstonelink:wireless_end_rod",
+    "redstonelink:wireless_ochre_froglight",
+    "redstonelink:wireless_verdant_froglight",
+    "redstonelink:wireless_pearlescent_froglight"
   ]
 }

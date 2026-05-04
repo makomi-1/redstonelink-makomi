@@ -1,0 +1,13 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "category": "misc",
+  "ingredient": {
+    "item": "minecraft:pearlescent_froglight"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_pearlescent_froglight"
+  },
+  "experience": 0.0,
+  "cookingtime": 200
+}
