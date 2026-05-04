@@ -23,7 +23,9 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
 
 /**
@@ -90,6 +92,18 @@ public final class WirelessPistonNodeMoveSupport {
 		state.movingSources.put(moveSnapshot.sourceKey(), moveSnapshot);
 		state.pendingTargets.put(moveSnapshot.targetKey(), moveSnapshot);
 		return true;
+	}
+
+	/**
+	 * 判断指定方块在被无线化活塞搬运前，是否需要先摘除原版方块实体。
+	 * <p>
+	 * 原因：原版容器类方块在被替换成 AIR / MOVING_PISTON 时，
+	 * 常会在 {@code onRemove()} 中按“真实破坏”处理并吐出库存。
+	 * 对这些首批放开的原版方块实体方块，先摘除源实体可把语义切到“搬运而非销毁”。
+	 * </p>
+	 */
+	public static boolean shouldDetachSourceBlockEntityForMove(BlockState state) {
+		return WirelessPistonStructureResolver.isSupportedVanillaBlockEntityBlock(state);
 	}
 
 	/**
@@ -167,11 +181,13 @@ public final class WirelessPistonNodeMoveSupport {
 	private static void restoreMovedBlockEntity(ServerLevel level, BlockEntity blockEntity, MoveSnapshot snapshot) {
 		CompoundTag tag = snapshot.snapshot().copy();
 		blockEntity.loadWithComponents(tag, resolveProvider(blockEntity));
+		blockEntity.setChanged();
 
 		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
 			restoreMovedPairableNode(level, pairableNodeBlockEntity);
 		}
 		restoreMovedPlacedState(blockEntity);
+		restoreMovedVanillaBlockEntityOutput(level, blockEntity);
 	}
 
 	/**
@@ -216,6 +232,23 @@ public final class WirelessPistonNodeMoveSupport {
 		if (blockEntity instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
 			chunkActivatorBlockEntity.restorePlacedActivatorState();
 		}
+	}
+
+	/**
+	 * 对被活塞搬运后重新落地的原版容器 / 熔炉系补发比较器输出同步。
+	 * <p>
+	 * 这些方块的库存或进度虽然已通过 NBT 恢复，
+	 * 但比较器读取不会自动因为静默恢复而立刻重算，因此需要补一拍。
+	 * </p>
+	 */
+	private static void restoreMovedVanillaBlockEntityOutput(ServerLevel level, BlockEntity blockEntity) {
+		BlockPos pos = blockEntity.getBlockPos();
+		BlockState state = level.getBlockState(pos);
+		if (!WirelessPistonStructureResolver.isSupportedVanillaBlockEntityBlock(state)) {
+			return;
+		}
+		level.updateNeighbourForOutputSignal(pos, state.getBlock());
+		level.updateNeighborsAt(pos, state.getBlock());
 	}
 
 	/**

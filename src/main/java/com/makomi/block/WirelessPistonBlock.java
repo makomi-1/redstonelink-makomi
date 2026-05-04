@@ -340,6 +340,9 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 			BlockPos shiftedPos = originalPos.relative(moveDirection);
 			movedStateMap.remove(shiftedPos);
 			WirelessPistonNodeMoveSupport.captureMovingNode(level, originalPos, shiftedPos);
+			if (WirelessPistonNodeMoveSupport.shouldDetachSourceBlockEntityForMove(originalState)) {
+				level.removeBlockEntity(originalPos);
+			}
 			BlockState movingState = Blocks.MOVING_PISTON.defaultBlockState().setValue(MovingPistonBlock.FACING, direction);
 			level.setBlock(shiftedPos, movingState, 68);
 			level.setBlockEntity(

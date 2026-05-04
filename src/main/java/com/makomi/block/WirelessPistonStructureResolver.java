@@ -17,9 +17,11 @@ import net.minecraft.world.level.material.PushReaction;
 /**
  * 无线化活塞结构解析器。
  * <p>
- * 逻辑整体沿用原版活塞结构解析，只额外放宽一件事：
- * 本 Mod 中“已接入搬运不是销毁语义”的可放置方块，
- * 即使带有方块实体，也允许被无线化活塞推进。
+ * 逻辑整体沿用原版活塞结构解析，只额外放宽两类对象：
+ * 1. 本 Mod 中“已接入搬运不是销毁语义”的可放置方块；
+ * 2. 少量高收益的原版方块实体方块（漏斗、箱子、木桶、熔炉系）。
+ * <p>
+ * 这些对象即使带有方块实体，也允许被无线化活塞推进。
  * </p>
  */
 public final class WirelessPistonStructureResolver {
@@ -146,7 +148,7 @@ public final class WirelessPistonStructureResolver {
 			if (!canPushBlock(forwardState, level, forwardPos, pushDirection, true, pushDirection) || forwardPos.equals(pistonPos)) {
 				return false;
 			}
-			if (forwardState.getPistonPushReaction() == PushReaction.DESTROY && !isMovableWirelessNode(forwardState)) {
+			if (forwardState.getPistonPushReaction() == PushReaction.DESTROY && !isMovableByWirelessPistonExtension(forwardState)) {
 				toDestroy.add(forwardPos);
 				return true;
 			}
@@ -192,7 +194,7 @@ public final class WirelessPistonStructureResolver {
 	}
 
 	/**
-	 * 在原版可推动判定基础上，仅对“本 Mod 可放置方块”放宽带方块实体限制。
+	 * 在原版可推动判定基础上，仅对“已接入无线活塞搬运扩展语义”的方块放宽带方块实体限制。
 	 */
 	static boolean canPushForWirelessPiston(
 		BlockState state,
@@ -205,7 +207,7 @@ public final class WirelessPistonStructureResolver {
 		if (PistonBaseBlock.isPushable(state, level, pos, moveDirection, canDestroy, pistonDirection)) {
 			return true;
 		}
-		if (!isMovableWirelessNode(state)) {
+		if (!isMovableByWirelessPistonExtension(state)) {
 			return false;
 		}
 		if (pos.getY() < level.getMinBuildHeight()
@@ -265,18 +267,43 @@ public final class WirelessPistonStructureResolver {
 	}
 
 	/**
-	 * 判断当前方块是否属于“可由无线化活塞额外放宽”的本 Mod 方块。
+	 * 判断当前方块是否属于“可由无线化活塞额外放宽”的方块。
 	 * <p>
-	 * 这里不再硬编码单个原型，而是统一按命名空间识别本 Mod 方块，
-	 * 再排除纯技术块（如无线化活塞头）。
+	 * 当前分两类：
+	 * 1. 本 Mod 命名空间下的可放置方块（排除纯技术块）；
+	 * 2. 显式放行的原版高收益方块实体方块。
 	 * </p>
 	 */
-	private static boolean isMovableWirelessNode(BlockState state) {
+	private static boolean isMovableByWirelessPistonExtension(BlockState state) {
+		return isMovableModBlock(state) || isSupportedVanillaBlockEntityBlock(state);
+	}
+
+	/**
+	 * 判断当前方块是否属于“可由无线化活塞额外放宽”的本 Mod 方块。
+	 */
+	private static boolean isMovableModBlock(BlockState state) {
 		if (state.is(ModBlocks.WIRELESS_PISTON_HEAD)) {
 			return false;
 		}
 		ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
 		return blockId != null && RedstoneLink.MOD_ID.equals(blockId.getNamespace());
+	}
+
+	/**
+	 * 判断当前方块是否属于首批放开的原版方块实体方块。
+	 * <p>
+	 * 这里只收边际效益最高、且状态语义相对稳定的容器 / 加工类方块：
+	 * 漏斗、箱子、木桶、熔炉、高炉、烟熏炉。
+	 * </p>
+	 */
+	static boolean isSupportedVanillaBlockEntityBlock(BlockState state) {
+		return state.is(Blocks.HOPPER)
+			|| state.is(Blocks.CHEST)
+			|| state.is(Blocks.TRAPPED_CHEST)
+			|| state.is(Blocks.BARREL)
+			|| state.is(Blocks.FURNACE)
+			|| state.is(Blocks.BLAST_FURNACE)
+			|| state.is(Blocks.SMOKER);
 	}
 
 	private static boolean isStickyBlock(BlockState state) {
