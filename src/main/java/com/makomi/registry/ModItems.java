@@ -252,6 +252,11 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.WIRELESS_PISTON, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
 	);
 
+	public static final Item WIRELESS_STICKY_PISTON = register(
+		"wireless_sticky_piston",
+		new PairableBlockItem(ModBlocks.WIRELESS_STICKY_PISTON, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
 	public static final Item WIRELESS_REDSTONE_LAMP = register(
 		"wireless_redstone_lamp",
 		new PairableBlockItem(ModBlocks.WIRELESS_REDSTONE_LAMP, new Item.Properties().stacksTo(1), LinkNodeType.CORE)

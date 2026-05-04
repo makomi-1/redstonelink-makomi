@@ -190,7 +190,7 @@ public final class WirelessPistonStructureResolver {
 	/**
 	 * 在原版可推动判定基础上，仅对白名单无线节点放宽限制。
 	 */
-	private static boolean canPushBlock(
+	static boolean canPushForWirelessPiston(
 		BlockState state,
 		Level level,
 		BlockPos pos,
@@ -243,6 +243,17 @@ public final class WirelessPistonStructureResolver {
 		return state.getDestroySpeed(level, pos) != -1.0F;
 	}
 
+	private static boolean canPushBlock(
+		BlockState state,
+		Level level,
+		BlockPos pos,
+		Direction moveDirection,
+		boolean canDestroy,
+		Direction pistonDirection
+	) {
+		return canPushForWirelessPiston(state, level, pos, moveDirection, canDestroy, pistonDirection);
+	}
+
 	/**
 	 * 仅放行已经接入“移动不是销毁”语义的节点方块。
 	 * <p>
@@ -256,6 +267,7 @@ public final class WirelessPistonStructureResolver {
 			|| state.is(ModBlocks.WIRELESS_STONE_BUTTON)
 			|| state.is(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE)
 			|| state.is(ModBlocks.WIRELESS_PISTON)
+			|| state.is(ModBlocks.WIRELESS_STICKY_PISTON)
 			|| state.is(ModBlocks.WIRELESS_REDSTONE_LAMP)
 			|| state.is(ModBlocks.WIRELESS_SEA_LANTERN)
 			|| state.is(ModBlocks.LINK_REDSTONE_CORE)

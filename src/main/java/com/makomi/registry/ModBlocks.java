@@ -208,6 +208,11 @@ public final class ModBlocks {
 		new WirelessPistonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.PISTON))
 	);
 
+	public static final WirelessPistonBlock WIRELESS_STICKY_PISTON = register(
+		"wireless_sticky_piston",
+		new WirelessPistonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.STICKY_PISTON), true)
+	);
+
 	public static final WirelessPistonHeadBlock WIRELESS_PISTON_HEAD = register(
 		"wireless_piston_head",
 		new WirelessPistonHeadBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.PISTON_HEAD))

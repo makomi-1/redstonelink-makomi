@@ -2,14 +2,23 @@ package com.makomi.block.entity;
 
 import com.makomi.block.WirelessPistonBlock;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * 无线化活塞方块实体。
  */
 public class WirelessPistonBlockEntity extends WirelessCoreBlockEntity {
+	public WirelessPistonBlockEntity(
+		BlockEntityType<? extends WirelessPistonBlockEntity> blockEntityType,
+		BlockPos blockPos,
+		BlockState blockState
+	) {
+		super(blockEntityType, blockPos, blockState);
+	}
+
 	public WirelessPistonBlockEntity(BlockPos blockPos, BlockState blockState) {
-		super(com.makomi.registry.ModBlockEntities.WIRELESS_PISTON, blockPos, blockState);
+		this(com.makomi.registry.ModBlockEntities.WIRELESS_PISTON, blockPos, blockState);
 	}
 
 	@Override

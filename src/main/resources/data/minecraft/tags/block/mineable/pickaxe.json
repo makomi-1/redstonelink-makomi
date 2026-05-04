@@ -17,6 +17,7 @@
     "redstonelink:wireless_stone_button",
     "redstonelink:wireless_stone_pressure_plate",
     "redstonelink:wireless_piston",
+    "redstonelink:wireless_sticky_piston",
     "redstonelink:wireless_redstone_lamp",
     "redstonelink:wireless_sea_lantern"
   ]

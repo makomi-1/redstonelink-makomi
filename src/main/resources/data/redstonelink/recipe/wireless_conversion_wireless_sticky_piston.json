@@ -1,0 +1,13 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "category": "misc",
+  "ingredient": {
+    "item": "minecraft:sticky_piston"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_sticky_piston"
+  },
+  "experience": 0.0,
+  "cookingtime": 200
+}

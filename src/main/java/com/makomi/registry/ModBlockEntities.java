@@ -28,6 +28,7 @@ import com.makomi.block.entity.WirelessLeverBlockEntity;
 import com.makomi.block.entity.WirelessPistonBlockEntity;
 import com.makomi.block.entity.WirelessRedstoneLampBlockEntity;
 import com.makomi.block.entity.WirelessSeaLanternBlockEntity;
+import com.makomi.block.entity.WirelessStickyPistonBlockEntity;
 import com.makomi.block.entity.WirelessStoneButtonBlockEntity;
 import com.makomi.block.entity.WirelessStonePressurePlateBlockEntity;
 import net.minecraft.core.Registry;
@@ -178,6 +179,11 @@ public final class ModBlockEntities {
 	public static final BlockEntityType<WirelessPistonBlockEntity> WIRELESS_PISTON = register(
 		"wireless_piston",
 		BlockEntityType.Builder.of(WirelessPistonBlockEntity::new, ModBlocks.WIRELESS_PISTON).build(null)
+	);
+
+	public static final BlockEntityType<WirelessStickyPistonBlockEntity> WIRELESS_STICKY_PISTON = register(
+		"wireless_sticky_piston",
+		BlockEntityType.Builder.of(WirelessStickyPistonBlockEntity::new, ModBlocks.WIRELESS_STICKY_PISTON).build(null)
 	);
 
 	public static final BlockEntityType<WirelessRedstoneLampBlockEntity> WIRELESS_REDSTONE_LAMP = register(

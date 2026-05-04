@@ -62,6 +62,7 @@ class RecipeResourceLayoutTest {
 		"wireless_conversion_wireless_piston.json",
 		"wireless_conversion_wireless_redstone_lamp.json",
 		"wireless_conversion_wireless_sea_lantern.json",
+		"wireless_conversion_wireless_sticky_piston.json",
 		"wireless_conversion_wireless_stone_button.json",
 		"wireless_conversion_wireless_stone_pressure_plate.json"
 	);

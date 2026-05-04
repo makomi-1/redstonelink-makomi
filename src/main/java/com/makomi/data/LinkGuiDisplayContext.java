@@ -37,6 +37,7 @@ public final class LinkGuiDisplayContext {
 	public static final String WIRELESS_STONE_BUTTON = "wireless_stone_button";
 	public static final String WIRELESS_STONE_PRESSURE_PLATE = "wireless_stone_pressure_plate";
 	public static final String WIRELESS_PISTON = "wireless_piston";
+	public static final String WIRELESS_STICKY_PISTON = "wireless_sticky_piston";
 	public static final String WIRELESS_REDSTONE_LAMP = "wireless_redstone_lamp";
 	public static final String WIRELESS_SEA_LANTERN = "wireless_sea_lantern";
 
@@ -142,6 +143,7 @@ public final class LinkGuiDisplayContext {
 			case WIRELESS_STONE_BUTTON -> WIRELESS_STONE_BUTTON;
 			case WIRELESS_STONE_PRESSURE_PLATE -> WIRELESS_STONE_PRESSURE_PLATE;
 			case WIRELESS_PISTON -> WIRELESS_PISTON;
+			case WIRELESS_STICKY_PISTON -> WIRELESS_STICKY_PISTON;
 			case WIRELESS_REDSTONE_LAMP -> WIRELESS_REDSTONE_LAMP;
 			case WIRELESS_SEA_LANTERN -> WIRELESS_SEA_LANTERN;
 			default -> null;

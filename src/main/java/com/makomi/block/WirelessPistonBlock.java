@@ -60,9 +60,15 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	protected static final VoxelShape NORTH_AABB = Block.box(0.0, 0.0, 4.0, 16.0, 16.0, 16.0);
 	protected static final VoxelShape UP_AABB = Block.box(0.0, 0.0, 0.0, 16.0, 12.0, 16.0);
 	protected static final VoxelShape DOWN_AABB = Block.box(0.0, 4.0, 0.0, 16.0, 16.0, 16.0);
+	private final boolean sticky;
 
 	public WirelessPistonBlock(BlockBehaviour.Properties properties) {
+		this(properties, false);
+	}
+
+	public WirelessPistonBlock(BlockBehaviour.Properties properties, boolean sticky) {
 		super(properties);
+		this.sticky = sticky;
 		registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(EXTENDED, false));
 	}
 
@@ -73,7 +79,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 
 	@Override
 	public BlockEntity newBlockEntity(BlockPos blockPos, BlockState blockState) {
-		return new WirelessPistonBlockEntity(blockPos, blockState);
+		return new WirelessPistonBlockEntity(resolveBlockEntityType(), blockPos, blockState);
 	}
 
 	@Override
@@ -188,7 +194,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 		BlockState movingBaseState = Blocks.MOVING_PISTON
 			.defaultBlockState()
 			.setValue(MovingPistonBlock.FACING, direction)
-			.setValue(MovingPistonBlock.TYPE, PistonType.DEFAULT);
+			.setValue(MovingPistonBlock.TYPE, getPistonType());
 		WirelessPistonNodeMoveSupport.captureMovingNode(level, pos, pos);
 		level.setBlock(pos, movingBaseState, 20);
 		level.setBlockEntity(
@@ -205,6 +211,10 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 		movingBaseState.updateNeighbourShapes(level, pos, 2);
 
 		BlockPos frontPos = pos.relative(direction);
+		BlockPos pullingPos = frontPos.relative(direction);
+		if (sticky) {
+			tryPullBlockOnRetract(level, pos, direction, pullingPos);
+		}
 		level.removeBlock(frontPos, false);
 		level.playSound(null, pos, SoundEvents.PISTON_CONTRACT, SoundSource.BLOCKS, 0.5F, level.random.nextFloat() * 0.15F + 0.6F);
 		level.gameEvent(GameEvent.BLOCK_DEACTIVATE, pos, GameEvent.Context.of(movingBaseState));
@@ -339,11 +349,11 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 			BlockState headState = ModBlocks.WIRELESS_PISTON_HEAD
 				.defaultBlockState()
 				.setValue(PistonHeadBlock.FACING, direction)
-				.setValue(PistonHeadBlock.TYPE, PistonType.DEFAULT);
+				.setValue(PistonHeadBlock.TYPE, getPistonType());
 			BlockState movingState = Blocks.MOVING_PISTON
 				.defaultBlockState()
 				.setValue(MovingPistonBlock.FACING, direction)
-				.setValue(MovingPistonBlock.TYPE, PistonType.DEFAULT);
+				.setValue(MovingPistonBlock.TYPE, getPistonType());
 			movedStateMap.remove(frontPos);
 			level.setBlock(frontPos, movingState, 68);
 			level.setBlockEntity(MovingPistonBlock.newMovingBlockEntity(frontPos, movingState, headState, direction, true, true));
@@ -379,5 +389,80 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 			level.updateNeighborsAt(frontPos, ModBlocks.WIRELESS_PISTON_HEAD);
 		}
 		return true;
+	}
+
+	/**
+	 * 返回当前无线化活塞对应的原版活塞类型。
+	 */
+	public final PistonType getPistonType() {
+		return sticky ? PistonType.STICKY : PistonType.DEFAULT;
+	}
+
+	/**
+	 * 返回当前无线化活塞是否为粘性变体。
+	 */
+	public final boolean isSticky() {
+		return sticky;
+	}
+
+	/**
+	 * 回缩时尝试拉回前方一个方块。
+	 * <p>
+	 * 这里只复用既有无线结构解析与节点搬运协议，不额外放宽新的可推块边界。
+	 * </p>
+	 */
+	private void tryPullBlockOnRetract(Level level, BlockPos pistonPos, Direction direction, BlockPos pullingPos) {
+		BlockState pullingState = level.getBlockState(pullingPos);
+		if (pullingState.isAir()) {
+			return;
+		}
+		if (pullingState.is(Blocks.MOVING_PISTON)) {
+			BlockEntity blockEntity = level.getBlockEntity(pullingPos);
+			if (
+				blockEntity instanceof PistonMovingBlockEntity pistonMovingBlockEntity
+					&& pistonMovingBlockEntity.getDirection() == direction
+					&& pistonMovingBlockEntity.isExtending()
+			) {
+				pistonMovingBlockEntity.finalTick();
+				return;
+			}
+		}
+		if (!canPullBlock(level, pullingPos, pullingState, direction)) {
+			return;
+		}
+		moveBlocks(level, pistonPos, direction, false);
+	}
+
+	/**
+	 * 判断回缩时前方方块是否允许被当前无线化粘性活塞拉回。
+	 */
+	private boolean canPullBlock(Level level, BlockPos pos, BlockState state, Direction direction) {
+		if (state.isAir()) {
+			return false;
+		}
+		if (state.is(Blocks.OBSIDIAN)
+			|| state.is(Blocks.CRYING_OBSIDIAN)
+			|| state.is(Blocks.RESPAWN_ANCHOR)
+			|| state.is(Blocks.REINFORCED_DEEPSLATE)) {
+			return false;
+		}
+		if (state.getDestroySpeed(level, pos) == -1.0F) {
+			return false;
+		}
+		if (state.is(ModBlocks.WIRELESS_PISTON_HEAD)) {
+			return false;
+		}
+		return WirelessPistonStructureResolver.canPushForWirelessPiston(
+			state,
+			level,
+			pos,
+			direction.getOpposite(),
+			false,
+			direction
+		);
+	}
+
+	private net.minecraft.world.level.block.entity.BlockEntityType<? extends WirelessPistonBlockEntity> resolveBlockEntityType() {
+		return sticky ? com.makomi.registry.ModBlockEntities.WIRELESS_STICKY_PISTON : com.makomi.registry.ModBlockEntities.WIRELESS_PISTON;
 	}
 }

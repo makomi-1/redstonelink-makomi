@@ -98,7 +98,7 @@ public class WirelessPistonHeadBlock extends PistonHeadBlock {
 
 	@Override
 	public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
-		return new ItemStack(ModBlocks.WIRELESS_PISTON);
+		return new ItemStack(state.getValue(TYPE) == PistonType.STICKY ? ModBlocks.WIRELESS_STICKY_PISTON : ModBlocks.WIRELESS_PISTON);
 	}
 
 	/**
@@ -129,6 +129,11 @@ public class WirelessPistonHeadBlock extends PistonHeadBlock {
 			return true;
 		}
 		if (baseState.is(ModBlocks.WIRELESS_PISTON)
+			&& baseState.getValue(WirelessPistonBlock.EXTENDED)
+			&& baseState.getValue(WirelessPistonBlock.FACING) == headState.getValue(FACING)) {
+			return true;
+		}
+		if (baseState.is(ModBlocks.WIRELESS_STICKY_PISTON)
 			&& baseState.getValue(WirelessPistonBlock.EXTENDED)
 			&& baseState.getValue(WirelessPistonBlock.FACING) == headState.getValue(FACING)) {
 			return true;
