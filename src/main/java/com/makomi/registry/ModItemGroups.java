@@ -59,6 +59,7 @@ public final class ModItemGroups {
 				output.accept(ModItems.WIRELESS_STONE_PRESSURE_PLATE, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.WIRELESS_PISTON, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 				output.accept(ModItems.WIRELESS_REDSTONE_LAMP, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
+				output.accept(ModItems.WIRELESS_SEA_LANTERN, CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
 			})
 			.build()
 	);

@@ -2,6 +2,7 @@ package com.makomi;
 
 import com.makomi.command.ModCommands;
 import com.makomi.command.argument.ModCommandArgumentTypes;
+import com.makomi.block.WirelessPistonNodeMoveSupport;
 import com.makomi.data.ChannelDispatchScheduler;
 import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.data.CoreDispatchBatchScheduler;
@@ -65,6 +66,7 @@ public class RedstoneLink implements ModInitializer {
 		ModCommandArgumentTypes.register();
 		ModCommands.register();
 		InternalDispatchDeltaProjector.register();
+		WirelessPistonNodeMoveSupport.register();
 		LinkNodeLifecycleDispatchEvents.register();
 		LinkNodeRetireEvents.register();
 		LinkDispatchFilterService.register();

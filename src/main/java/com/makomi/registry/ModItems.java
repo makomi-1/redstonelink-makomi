@@ -257,6 +257,11 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.WIRELESS_REDSTONE_LAMP, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
 	);
 
+	public static final Item WIRELESS_SEA_LANTERN = register(
+		"wireless_sea_lantern",
+		new PairableBlockItem(ModBlocks.WIRELESS_SEA_LANTERN, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
 	private ModItems() {
 	}
 

@@ -27,6 +27,7 @@ import com.makomi.block.WirelessConverterBlock;
 import com.makomi.block.WirelessLeverBlock;
 import com.makomi.block.WirelessPistonBlock;
 import com.makomi.block.WirelessRedstoneLampBlock;
+import com.makomi.block.WirelessSeaLanternBlock;
 import com.makomi.block.WirelessStoneButtonBlock;
 import com.makomi.block.WirelessStonePressurePlateBlock;
 import net.minecraft.core.Registry;
@@ -206,6 +207,11 @@ public final class ModBlocks {
 	public static final WirelessRedstoneLampBlock WIRELESS_REDSTONE_LAMP = register(
 		"wireless_redstone_lamp",
 		new WirelessRedstoneLampBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.REDSTONE_LAMP))
+	);
+
+	public static final WirelessSeaLanternBlock WIRELESS_SEA_LANTERN = register(
+		"wireless_sea_lantern",
+		new WirelessSeaLanternBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.SEA_LANTERN))
 	);
 
 	private ModBlocks() {

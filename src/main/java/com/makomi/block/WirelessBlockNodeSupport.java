@@ -95,6 +95,9 @@ public final class WirelessBlockNodeSupport {
 		if (block == newBlock) {
 			return;
 		}
+		if (WirelessPistonNodeMoveSupport.isMoveInProgress(level, pos)) {
+			return;
+		}
 		if (!blockEntityClass.isInstance(level.getBlockEntity(pos))) {
 			return;
 		}

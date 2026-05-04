@@ -191,6 +191,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 			.defaultBlockState()
 			.setValue(MovingPistonBlock.FACING, direction)
 			.setValue(MovingPistonBlock.TYPE, PistonType.DEFAULT);
+		WirelessPistonNodeMoveSupport.captureMovingNode(level, pos, pos);
 		level.setBlock(pos, movingBaseState, 20);
 		level.setBlockEntity(
 			MovingPistonBlock.newMovingBlockEntity(
@@ -327,6 +328,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 			BlockState originalState = level.getBlockState(originalPos);
 			BlockPos shiftedPos = originalPos.relative(moveDirection);
 			movedStateMap.remove(shiftedPos);
+			WirelessPistonNodeMoveSupport.captureMovingNode(level, originalPos, shiftedPos);
 			BlockState movingState = Blocks.MOVING_PISTON.defaultBlockState().setValue(MovingPistonBlock.FACING, direction);
 			level.setBlock(shiftedPos, movingState, 68);
 			level.setBlockEntity(
@@ -352,6 +354,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 		BlockState airState = Blocks.AIR.defaultBlockState();
 		for (BlockPos clearedPos : movedStateMap.keySet()) {
 			level.setBlock(clearedPos, airState, 82);
+			WirelessPistonNodeMoveSupport.finishSourceMove(level, clearedPos);
 		}
 
 		for (Map.Entry<BlockPos, BlockState> entry : movedStateMap.entrySet()) {

@@ -27,6 +27,7 @@ import com.makomi.block.entity.WirelessConverterBlockEntity;
 import com.makomi.block.entity.WirelessLeverBlockEntity;
 import com.makomi.block.entity.WirelessPistonBlockEntity;
 import com.makomi.block.entity.WirelessRedstoneLampBlockEntity;
+import com.makomi.block.entity.WirelessSeaLanternBlockEntity;
 import com.makomi.block.entity.WirelessStoneButtonBlockEntity;
 import com.makomi.block.entity.WirelessStonePressurePlateBlockEntity;
 import net.minecraft.core.Registry;
@@ -184,6 +185,14 @@ public final class ModBlockEntities {
 		BlockEntityType.Builder.of(
 			WirelessRedstoneLampBlockEntity::new,
 			ModBlocks.WIRELESS_REDSTONE_LAMP
+		).build(null)
+	);
+
+	public static final BlockEntityType<WirelessSeaLanternBlockEntity> WIRELESS_SEA_LANTERN = register(
+		"wireless_sea_lantern",
+		BlockEntityType.Builder.of(
+			WirelessSeaLanternBlockEntity::new,
+			ModBlocks.WIRELESS_SEA_LANTERN
 		).build(null)
 	);
 
