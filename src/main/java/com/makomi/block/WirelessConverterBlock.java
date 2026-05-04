@@ -6,9 +6,7 @@ import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
@@ -41,6 +39,22 @@ public class WirelessConverterBlock extends AbstractFurnaceBlock {
 	@Override
 	public BlockEntity newBlockEntity(BlockPos blockPos, BlockState blockState) {
 		return new WirelessConverterBlockEntity(blockPos, blockState);
+	}
+
+	/**
+	 * 无线化活塞搬运转化器时，沿用“搬运而非销毁”语义。
+	 * <p>
+	 * 原版炉式方块会在 {@code onRemove()} 中按真实移除吐出库存；
+	 * 这里若确认当前位置正被无线化活塞搬运，则先摘掉旧方块实体，
+	 * 让父类只处理方块替换，不再把库存额外抛到世界里。
+	 * </p>
+	 */
+	@Override
+	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
+		if (!state.is(newState.getBlock()) && WirelessPistonNodeMoveSupport.isMoveInProgress(level, pos)) {
+			level.removeBlockEntity(pos);
+		}
+		super.onRemove(state, level, pos, newState, movedByPiston);
 	}
 
 	@Override

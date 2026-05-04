@@ -5,6 +5,8 @@ import com.makomi.block.entity.ActivationMode;
 import com.makomi.data.LinkFilterKind;
 import com.makomi.item.GraphVisualEditorItem;
 import com.makomi.item.ChunkActivatorBlockItem;
+import com.makomi.item.CreativeSectionHeaderItem;
+import com.makomi.item.CreativeSectionSpacerItem;
 import com.makomi.item.DirectionalFaceEditorItem;
 import com.makomi.item.LinkerItem;
 import com.makomi.item.LinkFilterBlockItem;
@@ -70,6 +72,46 @@ public final class ModItems {
 	public static final Item ADV_CONSTELLATION_ICON = register(
 		"adv_constellation_icon",
 		new Item(new Item.Properties())
+	);
+
+	/**
+	 * 创造模式“工具材料”分组头，只用于同一标签内分段展示。
+	 */
+	public static final Item CREATIVE_SECTION_TOOLS_MATERIALS = register(
+		"creative_section_tools_materials",
+		new CreativeSectionHeaderItem(new Item.Properties())
+	);
+
+	/**
+	 * 创造模式“原型”分组头，只用于同一标签内分段展示。
+	 */
+	public static final Item CREATIVE_SECTION_PROTOTYPES = register(
+		"creative_section_prototypes",
+		new CreativeSectionHeaderItem(new Item.Properties())
+	);
+
+	/**
+	 * 创造模式“变种”分组头，只用于同一标签内分段展示。
+	 */
+	public static final Item CREATIVE_SECTION_VARIANTS = register(
+		"creative_section_variants",
+		new CreativeSectionHeaderItem(new Item.Properties())
+	);
+
+	/**
+	 * 创造模式“无线化产物”分组头，只用于同一标签内分段展示。
+	 */
+	public static final Item CREATIVE_SECTION_WIRELESS_PRODUCTS = register(
+		"creative_section_wireless_products",
+		new CreativeSectionHeaderItem(new Item.Properties())
+	);
+
+	/**
+	 * 创造模式分组隔离带空白占位物，只用于伪布局留白。
+	 */
+	public static final Item CREATIVE_SECTION_SPACER = register(
+		"creative_section_spacer",
+		new CreativeSectionSpacerItem(new Item.Properties())
 	);
 
 	public static final Item LINK_REDSTONE_CORE = register(

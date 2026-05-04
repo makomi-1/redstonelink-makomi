@@ -1,6 +1,7 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.WirelessPistonBlockEntity;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.mojang.serialization.MapCodec;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,8 +46,10 @@ import com.makomi.registry.ModBlocks;
 /**
  * 无线化活塞。
  * <p>
- * 仅接受已连接 triggerSource 的无线输入，
- * 不读取也不输出原版邻居红石信号。
+ * 以无线输入为主驱动，同时额外开放原版活塞式邻居输入。
+ * <p>
+ * 邻居输入方向仍受原版活塞规则约束；若当前方块启用了面编辑，
+ * 则只在“原版允许输入的方向 ∩ 已启用面集”上采样邻居红石。
  * </p>
  */
 public class WirelessPistonBlock extends Block implements EntityBlock {
@@ -69,7 +72,12 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	public WirelessPistonBlock(BlockBehaviour.Properties properties, boolean sticky) {
 		super(properties);
 		this.sticky = sticky;
-		registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(EXTENDED, false));
+		registerDefaultState(
+			NodeFaceSetBlockStateSupport.setAllFaces(
+				stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(EXTENDED, false),
+				true
+			)
+		);
 	}
 
 	@Override
@@ -133,14 +141,17 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 		BlockPos fromPos,
 		boolean movedByPiston
 	) {
-		// 无线化活塞不读取邻居红石输入。
+		if (level.isClientSide) {
+			return;
+		}
+		syncEffectiveExtension(level, pos, state);
 	}
 
 	@Override
 	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
-		// 无线化活塞不在放置时主动探测邻居红石。
-		if (!oldState.is(state.getBlock())) {
-			super.onPlace(state, level, pos, oldState, movedByPiston);
+		super.onPlace(state, level, pos, oldState, movedByPiston);
+		if (!oldState.is(state.getBlock()) && !level.isClientSide) {
+			syncEffectiveExtension(level, pos, state);
 		}
 	}
 
@@ -162,7 +173,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	@Override
 	protected boolean triggerEvent(BlockState state, Level level, BlockPos pos, int eventId, int eventParam) {
 		Direction direction = state.getValue(FACING);
-		boolean shouldExtend = isWirelessActive(level, pos);
+		boolean shouldExtend = isEffectivelyPowered(level, pos, state);
 		BlockState extendedState = state.setValue(EXTENDED, true);
 		if (!level.isClientSide) {
 			if (shouldExtend && (eventId == 1 || eventId == 2)) {
@@ -284,6 +295,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		builder.add(FACING, EXTENDED);
+		NodeFaceSetBlockStateSupport.appendProperties(builder);
 	}
 
 	/**
@@ -291,6 +303,69 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	 */
 	private static boolean isWirelessActive(Level level, BlockPos pos) {
 		return level.getBlockEntity(pos) instanceof WirelessPistonBlockEntity blockEntity && blockEntity.isActive();
+	}
+
+	/**
+	 * 统一按“无线输入 OR 原版邻居输入”驱动当前活塞伸缩。
+	 */
+	private void syncEffectiveExtension(Level level, BlockPos pos, BlockState state) {
+		syncWirelessExtension(level, pos, state, isEffectivelyPowered(level, pos, state));
+	}
+
+	/**
+	 * 当前活塞是否处于“应当伸出”的综合激活态。
+	 * <p>
+	 * 规则：
+	 * 1. 已连接 triggerSource 的无线激活态仍然有效；
+	 * 2. 额外开放原版活塞允许的邻居输入方向；
+	 * 3. 若当前方块声明了面集，则只在启用面上采样这些原版允许方向。
+	 * </p>
+	 */
+	private static boolean isEffectivelyPowered(Level level, BlockPos pos, BlockState state) {
+		return isWirelessActive(level, pos) || hasVanillaNeighborInput(level, pos, state);
+	}
+
+	/**
+	 * 按原版活塞输入方向规则检测邻居红石输入。
+	 */
+	private static boolean hasVanillaNeighborInput(Level level, BlockPos pos, BlockState state) {
+		Direction facing = state.getValue(FACING);
+		for (Direction direction : Direction.values()) {
+			if (direction == facing) {
+				continue;
+			}
+			if (!allowsNeighborInputFrom(state, direction)) {
+				continue;
+			}
+			if (level.hasSignal(pos.relative(direction), direction)) {
+				return true;
+			}
+		}
+		if (facing != Direction.DOWN) {
+			BlockPos abovePos = pos.above();
+			for (Direction direction : Direction.values()) {
+				if (direction == Direction.DOWN) {
+					continue;
+				}
+				if (!allowsNeighborInputFrom(state, direction)) {
+					continue;
+				}
+				if (level.hasSignal(abovePos.relative(direction), direction)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * 判断某个原版允许输入方向，当前是否也被面编辑放行。
+	 */
+	private static boolean allowsNeighborInputFrom(BlockState state, Direction direction) {
+		if (!NodeFaceSetBlockStateSupport.hasFaceProperties(state)) {
+			return true;
+		}
+		return NodeFaceSetBlockStateSupport.isFaceEnabled(state, direction);
 	}
 
 	/**

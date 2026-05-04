@@ -9,6 +9,7 @@ import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.block.entity.WirelessSyncTriggerSourceBlockEntity;
 import com.makomi.data.LinkNodeRetireEvents;
+import com.makomi.registry.ModBlocks;
 import com.makomi.util.NeighborFanoutUtil;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -103,7 +104,7 @@ public final class WirelessPistonNodeMoveSupport {
 	 * </p>
 	 */
 	public static boolean shouldDetachSourceBlockEntityForMove(BlockState state) {
-		return WirelessPistonStructureResolver.isSupportedVanillaBlockEntityBlock(state);
+		return WirelessPistonStructureResolver.isSupportedVanillaBlockEntityBlock(state) || state.is(ModBlocks.WIRELESS_CONVERTER);
 	}
 
 	/**
