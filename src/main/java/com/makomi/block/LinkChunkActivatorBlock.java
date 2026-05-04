@@ -118,7 +118,11 @@ public class LinkChunkActivatorBlock extends BaseEntityBlock {
 
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock()) && level.getBlockEntity(pos) instanceof LinkChunkActivatorBlockEntity blockEntity) {
+		if (
+			!state.is(newState.getBlock())
+				&& !WirelessPistonNodeMoveSupport.isMoveInProgress(level, pos)
+				&& level.getBlockEntity(pos) instanceof LinkChunkActivatorBlockEntity blockEntity
+		) {
 			blockEntity.markPhysicalRemovalInProgress();
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);

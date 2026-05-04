@@ -1,8 +1,11 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
+import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkCoreBlockEntity;
 import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
+import com.makomi.block.entity.LinkTriggerSourceBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.block.entity.WirelessSyncTriggerSourceBlockEntity;
 import com.makomi.data.LinkNodeRetireEvents;
@@ -61,9 +64,11 @@ public final class WirelessPistonNodeMoveSupport {
 	}
 
 	/**
-	 * 记录一个即将被活塞搬运的无线节点。
+	 * 记录一个即将被活塞搬运的方块实体。
 	 * <p>
-	 * 返回值表示是否真的登记了节点搬运上下文。
+	 * 当前实现分两层：
+	 * 1. 任意方块实体都允许保存/恢复完整 NBT 快照；
+	 * 2. 若实体同时属于节点体系，再额外补做 serial、退役与外显自愈。
 	 * </p>
 	 */
 	public static boolean captureMovingNode(Level level, BlockPos sourcePos, BlockPos targetPos) {
@@ -71,10 +76,10 @@ public final class WirelessPistonNodeMoveSupport {
 			return false;
 		}
 		BlockEntity blockEntity = level.getBlockEntity(sourcePos);
-		if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
+		if (blockEntity == null) {
 			return false;
 		}
-		CompoundTag snapshot = pairableNodeBlockEntity.saveWithoutMetadata(resolveProvider(blockEntity));
+		CompoundTag snapshot = blockEntity.saveWithoutMetadata(resolveProvider(blockEntity));
 		MoveSnapshot moveSnapshot = new MoveSnapshot(
 			PositionKey.of(serverLevel.dimension(), sourcePos),
 			PositionKey.of(serverLevel.dimension(), targetPos),
@@ -132,10 +137,10 @@ public final class WirelessPistonNodeMoveSupport {
 				continue;
 			}
 			BlockEntity blockEntity = level.getBlockEntity(targetKey.pos());
-			if (!(blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity)) {
+			if (blockEntity == null) {
 				continue;
 			}
-			restoreMovedNode(level, pairableNodeBlockEntity, snapshot);
+			restoreMovedBlockEntity(level, blockEntity, snapshot);
 			completedTargets.add(targetKey);
 		}
 
@@ -148,25 +153,65 @@ public final class WirelessPistonNodeMoveSupport {
 	}
 
 	/**
-	 * 把旧节点快照恢复到落地后的新实体。
+	 * 把旧方块实体快照恢复到落地后的新实体。
+	 * <p>
+	 * 恢复完成后：
+	 * 1. 任意持久化方块实体先恢复自身 NBT；
+	 * 2. 节点类再补做 serial 注册、取消待退役与外显校正；
+	 * 3. 过滤器 / 区块激活器等“已放置真值”实体补做世界态恢复。
+	 * </p>
 	 */
-	private static void restoreMovedNode(ServerLevel level, PairableNodeBlockEntity blockEntity, MoveSnapshot snapshot) {
+	private static void restoreMovedBlockEntity(ServerLevel level, BlockEntity blockEntity, MoveSnapshot snapshot) {
 		CompoundTag tag = snapshot.snapshot().copy();
 		blockEntity.loadWithComponents(tag, resolveProvider(blockEntity));
 
-		// 重新补一次显式 serial 刷新，确保在线节点表与生命周期 attach 一致。
+		if (blockEntity instanceof PairableNodeBlockEntity pairableNodeBlockEntity) {
+			restoreMovedPairableNode(level, pairableNodeBlockEntity);
+		}
+		restoreMovedPlacedState(blockEntity);
+	}
+
+	/**
+	 * 节点类恢复补偿：
+	 * 1. 重新刷新在线节点表；
+	 * 2. 取消旧位置遗留的待退役；
+	 * 3. 校准加载后 blockstate / 输入态缓存；
+	 * 4. 对可见 `core` 补发一次邻居 fanout。
+	 */
+	private static void restoreMovedPairableNode(ServerLevel level, PairableNodeBlockEntity blockEntity) {
 		if (blockEntity.getSerial() > 0L) {
 			blockEntity.setLinkData(blockEntity.getSerial());
 			LinkNodeRetireEvents.cancelPendingRetire(level, blockEntity.getLinkNodeType(), blockEntity.getSerial());
 		}
 
-		// 恢复后按当前节点派生态重新校准方块外显。
 		if (blockEntity instanceof ActivatableTargetBlockEntity activatableTargetBlockEntity) {
 			activatableTargetBlockEntity.consumePendingLoadBlockStateSync();
 		}
+		if (
+			blockEntity instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity
+				&& triggerSourceBlockEntity.hasPendingLoadInputStateResync()
+				&& level.getBlockState(blockEntity.getBlockPos()).getBlock() instanceof LinkSignalEmitterBlock signalEmitterBlock
+		) {
+			signalEmitterBlock.resyncPoweredStateFromCurrentInputsWithoutTrigger(level, blockEntity.getBlockPos(), level.getBlockState(blockEntity.getBlockPos()));
+		}
+		if (blockEntity instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+			triggerSourceBlockEntity.clearPendingLoadInputStateResync();
+		}
 		replayVisibleCoreNeighborFanout(level, blockEntity);
-		if (blockEntity instanceof WirelessSyncTriggerSourceBlockEntity wirelessSyncTriggerSourceBlockEntity) {
-			wirelessSyncTriggerSourceBlockEntity.clearPendingLoadInputStateResync();
+	}
+
+	/**
+	 * 恢复“已放置真值”类方块实体的世界侧索引。
+	 * <p>
+	 * 这些实体在活塞搬运后虽然 NBT 已恢复，但仍需要重新把当前放置态写回运行时索引。
+	 * </p>
+	 */
+	private static void restoreMovedPlacedState(BlockEntity blockEntity) {
+		if (blockEntity instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
+			filterBlockEntity.restorePlacedFilterState();
+		}
+		if (blockEntity instanceof LinkChunkActivatorBlockEntity chunkActivatorBlockEntity) {
+			chunkActivatorBlockEntity.restorePlacedActivatorState();
 		}
 	}
 

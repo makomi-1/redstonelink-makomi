@@ -98,7 +98,10 @@ public abstract class LinkButtonBlock extends ButtonBlock implements EntityBlock
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity) {
+			if (
+				!WirelessPistonNodeMoveSupport.isMoveInProgress(level, pos)
+					&& level.getBlockEntity(pos) instanceof LinkTriggerSourceBlockEntity triggerSourceBlockEntity
+			) {
 				triggerSourceBlockEntity.markPhysicalRemovalInProgress();
 				triggerSourceBlockEntity.unregisterNode(true);
 			}

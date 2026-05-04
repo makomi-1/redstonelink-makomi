@@ -118,12 +118,13 @@ public class LinkRedstoneDustCoreBlock extends Block implements EntityBlock {
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
+			boolean movingByWirelessPiston = WirelessPistonNodeMoveSupport.isMoveInProgress(level, pos);
+			if (!movingByWirelessPiston && level.getBlockEntity(pos) instanceof LinkRedstoneDustCoreBlockEntity coreBlockEntity) {
 				// 走“待确认退役”路径，避免正常掉落被误判为销毁。
 				coreBlockEntity.markPhysicalRemovalInProgress();
 				coreBlockEntity.unregisterNode(true);
 			}
-			if (!level.isClientSide) {
+			if (!movingByWirelessPiston && !level.isClientSide) {
 				// 核心被破坏时对齐核心块：中心 + 六方向二级扇出，确保周边红石网络立即收敛。
 				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 			}

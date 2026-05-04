@@ -1,10 +1,13 @@
 package com.makomi.block;
 
+import com.makomi.RedstoneLink;
 import com.makomi.registry.ModBlocks;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.piston.PistonBaseBlock;
@@ -15,7 +18,8 @@ import net.minecraft.world.level.material.PushReaction;
  * 无线化活塞结构解析器。
  * <p>
  * 逻辑整体沿用原版活塞结构解析，只额外放宽一件事：
- * 无线节点方块即使带有方块实体，也允许被无线化活塞推进。
+ * 本 Mod 中“已接入搬运不是销毁语义”的可放置方块，
+ * 即使带有方块实体，也允许被无线化活塞推进。
  * </p>
  */
 public final class WirelessPistonStructureResolver {
@@ -188,7 +192,7 @@ public final class WirelessPistonStructureResolver {
 	}
 
 	/**
-	 * 在原版可推动判定基础上，仅对白名单无线节点放宽限制。
+	 * 在原版可推动判定基础上，仅对“本 Mod 可放置方块”放宽带方块实体限制。
 	 */
 	static boolean canPushForWirelessPiston(
 		BlockState state,
@@ -224,11 +228,17 @@ public final class WirelessPistonStructureResolver {
 		if (moveDirection == Direction.UP && pos.getY() == level.getMaxBuildHeight() - 1) {
 			return false;
 		}
-		if (state.is(ModBlocks.WIRELESS_PISTON) && state.getValue(WirelessPistonBlock.EXTENDED)) {
+		if (
+			(state.is(ModBlocks.WIRELESS_PISTON) || state.is(ModBlocks.WIRELESS_STICKY_PISTON))
+				&& state.getValue(WirelessPistonBlock.EXTENDED)
+		) {
 			return false;
 		}
 		if (state.getDestroySpeed(level, pos) == -1.0F) {
 			return false;
+		}
+		if (state.is(ModBlocks.WIRELESS_PISTON) || state.is(ModBlocks.WIRELESS_STICKY_PISTON)) {
+			return true;
 		}
 		switch (state.getPistonPushReaction()) {
 			case BLOCK:
@@ -255,23 +265,18 @@ public final class WirelessPistonStructureResolver {
 	}
 
 	/**
-	 * 仅放行已经接入“移动不是销毁”语义的节点方块。
+	 * 判断当前方块是否属于“可由无线化活塞额外放宽”的本 Mod 方块。
 	 * <p>
-	 * 现阶段包含：
-	 * 1. 无线化原型块；
-	 * 2. 已补活塞搬运豁免的可见核心块。
+	 * 这里不再硬编码单个原型，而是统一按命名空间识别本 Mod 方块，
+	 * 再排除纯技术块（如无线化活塞头）。
 	 * </p>
 	 */
 	private static boolean isMovableWirelessNode(BlockState state) {
-		return state.is(ModBlocks.WIRELESS_LEVER)
-			|| state.is(ModBlocks.WIRELESS_STONE_BUTTON)
-			|| state.is(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE)
-			|| state.is(ModBlocks.WIRELESS_PISTON)
-			|| state.is(ModBlocks.WIRELESS_STICKY_PISTON)
-			|| state.is(ModBlocks.WIRELESS_REDSTONE_LAMP)
-			|| state.is(ModBlocks.WIRELESS_SEA_LANTERN)
-			|| state.is(ModBlocks.LINK_REDSTONE_CORE)
-			|| state.is(ModBlocks.LINK_REDSTONE_CORE_TRANSPARENT);
+		if (state.is(ModBlocks.WIRELESS_PISTON_HEAD)) {
+			return false;
+		}
+		ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+		return blockId != null && RedstoneLink.MOD_ID.equals(blockId.getNamespace());
 	}
 
 	private static boolean isStickyBlock(BlockState state) {

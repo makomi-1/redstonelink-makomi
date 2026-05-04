@@ -104,11 +104,12 @@ public class LinkRepeaterBlock extends BaseEntityBlock {
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
 		if (!state.is(newState.getBlock())) {
-			if (level.getBlockEntity(pos) instanceof LinkRepeaterBlockEntity blockEntity) {
+			boolean movingByWirelessPiston = WirelessPistonNodeMoveSupport.isMoveInProgress(level, pos);
+			if (!movingByWirelessPiston && level.getBlockEntity(pos) instanceof LinkRepeaterBlockEntity blockEntity) {
 				blockEntity.markRepeaterPhysicalRemovalInProgress();
 				blockEntity.unregisterNode(true);
 			}
-			if (!level.isClientSide) {
+			if (!movingByWirelessPiston && !level.isClientSide) {
 				NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 			}
 		}

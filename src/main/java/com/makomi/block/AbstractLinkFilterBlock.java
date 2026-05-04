@@ -110,7 +110,11 @@ public abstract class AbstractLinkFilterBlock extends BaseEntityBlock {
 
 	@Override
 	protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-		if (!state.is(newState.getBlock()) && level.getBlockEntity(pos) instanceof AbstractLinkFilterBlockEntity filterBlockEntity) {
+		if (
+			!state.is(newState.getBlock())
+				&& !WirelessPistonNodeMoveSupport.isMoveInProgress(level, pos)
+				&& level.getBlockEntity(pos) instanceof AbstractLinkFilterBlockEntity filterBlockEntity
+		) {
 			filterBlockEntity.markPhysicalRemovalInProgress();
 		}
 		super.onRemove(state, level, pos, newState, movedByPiston);
