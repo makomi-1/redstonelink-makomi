@@ -1,9 +1,12 @@
 package com.makomi.block;
 
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
+import com.makomi.block.entity.LinkCoreBlockEntity;
+import com.makomi.block.entity.LinkRedstoneDustCoreBlockEntity;
 import com.makomi.block.entity.PairableNodeBlockEntity;
 import com.makomi.block.entity.WirelessSyncTriggerSourceBlockEntity;
 import com.makomi.data.LinkNodeRetireEvents;
+import com.makomi.util.NeighborFanoutUtil;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -161,9 +164,25 @@ public final class WirelessPistonNodeMoveSupport {
 		if (blockEntity instanceof ActivatableTargetBlockEntity activatableTargetBlockEntity) {
 			activatableTargetBlockEntity.consumePendingLoadBlockStateSync();
 		}
+		replayVisibleCoreNeighborFanout(level, blockEntity);
 		if (blockEntity instanceof WirelessSyncTriggerSourceBlockEntity wirelessSyncTriggerSourceBlockEntity) {
 			wirelessSyncTriggerSourceBlockEntity.clearPendingLoadInputStateResync();
 		}
+	}
+
+	/**
+	 * 对被活塞搬运后重新落地的“可见 core”补发一次邻居通知。
+	 * <p>
+	 * 原因：活塞恢复路径只会静默恢复 blockstate，不会经过正常的 `onActiveChanged()`。
+	 * 可见 core 若不补这一拍 fanout，周围红石网络就不会按恢复后的输出状态立即收敛。
+	 * </p>
+	 */
+	private static void replayVisibleCoreNeighborFanout(ServerLevel level, PairableNodeBlockEntity blockEntity) {
+		if (!(blockEntity instanceof LinkCoreBlockEntity) && !(blockEntity instanceof LinkRedstoneDustCoreBlockEntity)) {
+			return;
+		}
+		BlockPos pos = blockEntity.getBlockPos();
+		NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, level.getBlockState(pos).getBlock());
 	}
 
 	private static net.minecraft.core.HolderLookup.Provider resolveProvider(BlockEntity blockEntity) {
