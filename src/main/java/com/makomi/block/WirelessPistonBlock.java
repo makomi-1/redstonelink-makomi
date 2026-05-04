@@ -212,10 +212,13 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 
 		BlockPos frontPos = pos.relative(direction);
 		BlockPos pullingPos = frontPos.relative(direction);
+		boolean handledByStickyPull = false;
 		if (sticky) {
-			tryPullBlockOnRetract(level, pos, direction, pullingPos);
+			handledByStickyPull = tryPullBlockOnRetract(level, pos, direction, pullingPos);
 		}
-		level.removeBlock(frontPos, false);
+		if (!handledByStickyPull) {
+			level.removeBlock(frontPos, false);
+		}
 		level.playSound(null, pos, SoundEvents.PISTON_CONTRACT, SoundSource.BLOCKS, 0.5F, level.random.nextFloat() * 0.15F + 0.6F);
 		level.gameEvent(GameEvent.BLOCK_DEACTIVATE, pos, GameEvent.Context.of(movingBaseState));
 		return true;
@@ -411,10 +414,10 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	 * 这里只复用既有无线结构解析与节点搬运协议，不额外放宽新的可推块边界。
 	 * </p>
 	 */
-	private void tryPullBlockOnRetract(Level level, BlockPos pistonPos, Direction direction, BlockPos pullingPos) {
+	private boolean tryPullBlockOnRetract(Level level, BlockPos pistonPos, Direction direction, BlockPos pullingPos) {
 		BlockState pullingState = level.getBlockState(pullingPos);
 		if (pullingState.isAir()) {
-			return;
+			return false;
 		}
 		if (pullingState.is(Blocks.MOVING_PISTON)) {
 			BlockEntity blockEntity = level.getBlockEntity(pullingPos);
@@ -424,13 +427,13 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 					&& pistonMovingBlockEntity.isExtending()
 			) {
 				pistonMovingBlockEntity.finalTick();
-				return;
+				return true;
 			}
 		}
 		if (!canPullBlock(level, pullingPos, pullingState, direction)) {
-			return;
+			return false;
 		}
-		moveBlocks(level, pistonPos, direction, false);
+		return moveBlocks(level, pistonPos, direction, false);
 	}
 
 	/**
