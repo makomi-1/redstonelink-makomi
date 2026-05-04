@@ -65,3 +65,4 @@ webapp/dist/
 webapp/*.tsbuildinfo
 webapp/test-results/
 webapp/playwright-report/
+dsz.class/

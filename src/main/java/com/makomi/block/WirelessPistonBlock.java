@@ -25,10 +25,8 @@ import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.piston.MovingPistonBlock;
-import net.minecraft.world.level.block.piston.PistonBaseBlock;
 import net.minecraft.world.level.block.piston.PistonHeadBlock;
 import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
-import net.minecraft.world.level.block.piston.PistonStructureResolver;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -36,13 +34,13 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.PistonType;
 import net.minecraft.world.level.gameevent.GameEvent;
-import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import com.makomi.registry.ModBlocks;
 
 /**
  * 无线化活塞。
@@ -223,7 +221,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 		boolean extended = state.getValue(EXTENDED);
 		Direction direction = state.getValue(FACING);
 		if (active && !extended) {
-			if (new PistonStructureResolver(level, pos, direction, true).resolve()) {
+			if (new WirelessPistonStructureResolver(level, pos, direction, true).resolve()) {
 				level.blockEvent(pos, this, 0, direction.get3DDataValue());
 			}
 			return;
@@ -287,11 +285,11 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	 */
 	private boolean moveBlocks(Level level, BlockPos pos, Direction direction, boolean extending) {
 		BlockPos frontPos = pos.relative(direction);
-		if (!extending && level.getBlockState(frontPos).is(Blocks.PISTON_HEAD)) {
+		if (!extending && level.getBlockState(frontPos).is(ModBlocks.WIRELESS_PISTON_HEAD)) {
 			level.setBlock(frontPos, Blocks.AIR.defaultBlockState(), 20);
 		}
 
-		PistonStructureResolver resolver = new PistonStructureResolver(level, pos, direction, extending);
+		WirelessPistonStructureResolver resolver = new WirelessPistonStructureResolver(level, pos, direction, extending);
 		if (!resolver.resolve()) {
 			return false;
 		}
@@ -338,7 +336,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 		}
 
 		if (extending) {
-			BlockState headState = Blocks.PISTON_HEAD
+			BlockState headState = ModBlocks.WIRELESS_PISTON_HEAD
 				.defaultBlockState()
 				.setValue(PistonHeadBlock.FACING, direction)
 				.setValue(PistonHeadBlock.TYPE, PistonType.DEFAULT);
@@ -378,7 +376,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 		}
 
 		if (extending) {
-			level.updateNeighborsAt(frontPos, Blocks.PISTON_HEAD);
+			level.updateNeighborsAt(frontPos, ModBlocks.WIRELESS_PISTON_HEAD);
 		}
 		return true;
 	}

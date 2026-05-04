@@ -26,6 +26,7 @@ import com.makomi.block.LinkSyncLeverBlock;
 import com.makomi.block.WirelessConverterBlock;
 import com.makomi.block.WirelessLeverBlock;
 import com.makomi.block.WirelessPistonBlock;
+import com.makomi.block.WirelessPistonHeadBlock;
 import com.makomi.block.WirelessRedstoneLampBlock;
 import com.makomi.block.WirelessSeaLanternBlock;
 import com.makomi.block.WirelessStoneButtonBlock;
@@ -202,6 +203,11 @@ public final class ModBlocks {
 	public static final WirelessPistonBlock WIRELESS_PISTON = register(
 		"wireless_piston",
 		new WirelessPistonBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.PISTON))
+	);
+
+	public static final WirelessPistonHeadBlock WIRELESS_PISTON_HEAD = register(
+		"wireless_piston_head",
+		new WirelessPistonHeadBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.PISTON_HEAD))
 	);
 
 	public static final WirelessRedstoneLampBlock WIRELESS_REDSTONE_LAMP = register(
