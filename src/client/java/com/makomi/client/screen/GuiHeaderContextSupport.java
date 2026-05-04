@@ -155,7 +155,9 @@ final class GuiHeaderContextSupport {
 				LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE,
 				LinkGuiDisplayContext.LINK_REDSTONE_DUST_CORE_TRANSPARENT,
 				LinkGuiDisplayContext.WIRELESS_PISTON,
-				LinkGuiDisplayContext.WIRELESS_REDSTONE_LAMP -> true;
+				LinkGuiDisplayContext.WIRELESS_STICKY_PISTON,
+				LinkGuiDisplayContext.WIRELESS_REDSTONE_LAMP,
+				LinkGuiDisplayContext.WIRELESS_SEA_LANTERN -> true;
 			default -> false;
 		};
 	}

@@ -168,7 +168,9 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STONE_BUTTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STONE_PRESSURE_PLATE, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_PISTON, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STICKY_PISTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_REDSTONE_LAMP, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_SEA_LANTERN, LinkNodeFarOverlayRenderer::new);
 	}
 
 	/**
