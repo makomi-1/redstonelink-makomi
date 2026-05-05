@@ -42,6 +42,7 @@ final class RedstoneLinkCrossChunkConfigParser {
 		return new RedstoneLinkCrossChunkConfig(
 			RedstoneLinkConfigParseSupport.parseInt(props, "crosschunk.syncSignalTtlTicks", 40, 1, 72_000),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSignalPersistent", false),
+			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncCrossTickOverride", false),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst", true),
 			RedstoneLinkConfigParseSupport.parseBoolean(props, "crosschunk.syncSourceAttachReplay.enabled", false),
 			RedstoneLinkConfig.CrossChunkDirectBatchingMode.fromConfigValue(directBatchingRaw),

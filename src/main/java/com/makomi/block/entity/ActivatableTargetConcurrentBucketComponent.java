@@ -1,5 +1,6 @@
 package com.makomi.block.entity;
 
+import com.makomi.config.RedstoneLinkConfig;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.EffectiveMode;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.SourceKey;
 import com.makomi.block.entity.ActivatableTargetBlockEntity.TimeKey;
@@ -181,9 +182,11 @@ final class ActivatableTargetConcurrentBucketComponent {
 			syncConcurrentBuckets.clear();
 			runtimeSimulatedSyncConcurrentBuckets.clear();
 		} else if (SignalStrengths.clamp(signalStrength) <= 0) {
-			bucketChanged = removeSyncConcurrentSource(sourceKey);
+			bucketChanged = removeSyncConcurrentSource(sourceKey, authorityTimeKey, authoritySeq);
 		} else {
-			bucketChanged = clearSyncTruthBefore(authorityTimeKey);
+			bucketChanged = RedstoneLinkConfig.crossChunk().syncCrossTickOverride() && authorityTimeKey != null
+				? clearSyncTruthBefore(authorityTimeKey)
+				: false;
 			bucketChanged |= upsertSyncConcurrentSource(sourceKey, authorityTimeKey, signalStrength, authoritySeq);
 		}
 		recomputeSyncTruthFromConcurrentBuckets();
@@ -191,21 +194,10 @@ final class ActivatableTargetConcurrentBucketComponent {
 	}
 
 	/**
-	 * 在更高层或更新的输入到来时，清理已失效的旧事件快照。
-	 * <p>
-	 * 本轮语义收紧为：
-	 * 1. `pulse/toggle` 属于同一事件域，互相覆盖；
-	 * 2. 同 tick 或更晚的 `sync` 会清掉事件域持久化，避免后续回露旧事件。
-	 * </p>
+	 * `sync` 到来时清理整个事件域，使 `pulse/toggle` 不再保留为可回露候选。
 	 */
 	boolean pruneOlderFramesForIncoming(TimeKey incomingTimeKey, EffectiveMode incomingMode) {
 		if (incomingMode != EffectiveMode.SYNC) {
-			return false;
-		}
-		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
-		boolean shouldClearPulse = pulseSnapshotRecorded && pulseEventTimeKey.compareTo(normalizedTimeKey) <= 0;
-		boolean shouldClearToggle = toggleSnapshotRecorded && toggleEventTimeKey.compareTo(normalizedTimeKey) <= 0;
-		if (!shouldClearPulse && !shouldClearToggle) {
 			return false;
 		}
 		return clearEventTruth();
@@ -235,6 +227,10 @@ final class ActivatableTargetConcurrentBucketComponent {
 	boolean clearRuntimeSimulatedSyncTruthBefore(TimeKey incomingTimeKey) {
 		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
 		return removeConcurrentBucketsBefore(runtimeSimulatedSyncConcurrentBuckets, normalizedTimeKey);
+	}
+
+	boolean hasEffectiveSyncTruth() {
+		return syncSignalMaxStrength > 0;
 	}
 
 	boolean clearPulseTruth() {
@@ -297,6 +293,10 @@ final class ActivatableTargetConcurrentBucketComponent {
 		return removeSourceFromConcurrentBuckets(syncConcurrentBuckets, sourceKey);
 	}
 
+	boolean removeSyncConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq) {
+		return removeSyncConcurrentSource(syncConcurrentBuckets, sourceKey, timeKey, seq);
+	}
+
 	boolean upsertRuntimeSimulatedSyncConcurrentSource(SourceKey sourceKey, TimeKey timeKey, int strength, long seq) {
 		SyncConcurrentEntry nextEntry = new SyncConcurrentEntry(strength, seq);
 		if (hasExactConcurrentEntry(runtimeSimulatedSyncConcurrentBuckets, sourceKey, timeKey, nextEntry)) {
@@ -313,6 +313,10 @@ final class ActivatableTargetConcurrentBucketComponent {
 
 	boolean removeRuntimeSimulatedSyncConcurrentSource(SourceKey sourceKey) {
 		return removeSourceFromConcurrentBuckets(runtimeSimulatedSyncConcurrentBuckets, sourceKey);
+	}
+
+	boolean removeRuntimeSimulatedSyncConcurrentSource(SourceKey sourceKey, TimeKey timeKey, long seq) {
+		return removeSyncConcurrentSource(runtimeSimulatedSyncConcurrentBuckets, sourceKey, timeKey, seq);
 	}
 
 	boolean upsertPulseConcurrentSource(
@@ -398,7 +402,11 @@ final class ActivatableTargetConcurrentBucketComponent {
 	 */
 	void recomputeSyncTruthFromConcurrentBuckets() {
 		syncSignalStrengthBySource.clear();
-		mergeLatestSyncTruthFromBuckets(syncConcurrentBuckets, runtimeSimulatedSyncConcurrentBuckets, syncSignalStrengthBySource);
+		if (RedstoneLinkConfig.crossChunk().syncCrossTickOverride()) {
+			mergeLatestSyncTruthFromBuckets(syncConcurrentBuckets, runtimeSimulatedSyncConcurrentBuckets, syncSignalStrengthBySource);
+		} else {
+			mergeAllSyncTruthFromBuckets(syncConcurrentBuckets, runtimeSimulatedSyncConcurrentBuckets, syncSignalStrengthBySource);
+		}
 		syncSignalMaxStrength = recalculateSyncMaxStrengthAndSources();
 	}
 
@@ -407,7 +415,6 @@ final class ActivatableTargetConcurrentBucketComponent {
 	 */
 	boolean recordPulseSnapshot(ActivatableTargetBlockEntity owner, TimeKey timeKey, long seq) {
 		boolean changed = clearToggleTruth();
-		changed |= clearSyncTruthBefore(timeKey);
 		int pulseTicks = Math.max(1, owner.getPulseDurationTicks());
 		Level level = owner.getLevel();
 		long now = level == null ? 0L : level.getGameTime();
@@ -435,7 +442,6 @@ final class ActivatableTargetConcurrentBucketComponent {
 	 */
 	boolean recordToggleSnapshot(boolean nextToggleState, TimeKey timeKey, long seq) {
 		boolean changed = clearPulseTruth();
-		changed |= clearSyncTruthBefore(timeKey);
 		changed |= !toggleSnapshotRecorded
 			|| toggleState != nextToggleState
 			|| !java.util.Objects.equals(toggleEventTimeKey, timeKey)
@@ -449,7 +455,11 @@ final class ActivatableTargetConcurrentBucketComponent {
 
 	PersistentSyncSnapshot buildPersistentSyncSnapshot() {
 		Map<Long, Integer> persistentStrengthBySource = new TreeMap<>();
-		mergeLatestSyncTruthFromSingleBucketSet(syncConcurrentBuckets, persistentStrengthBySource);
+		if (RedstoneLinkConfig.crossChunk().syncCrossTickOverride()) {
+			mergeLatestSyncTruthFromSingleBucketSet(syncConcurrentBuckets, persistentStrengthBySource);
+		} else {
+			mergeAllSyncTruthFromSingleBucketSet(syncConcurrentBuckets, persistentStrengthBySource);
+		}
 		int maxStrength = 0;
 		Set<Long> persistentMaxSources = new TreeSet<>();
 		for (Map.Entry<Long, Integer> entry : persistentStrengthBySource.entrySet()) {
@@ -609,6 +619,85 @@ final class ActivatableTargetConcurrentBucketComponent {
 		mergeSyncTruthFromFrame(buckets.get(latestTimeKey), targetStrengthBySource);
 	}
 
+	private static void mergeAllSyncTruthFromBuckets(
+		NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> persistentBuckets,
+		NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> runtimeBuckets,
+		Map<Long, Integer> targetStrengthBySource
+	) {
+		if (targetStrengthBySource == null) {
+			return;
+		}
+		Map<Long, SyncTruthCandidate> latestBySource = new TreeMap<>();
+		collectLatestSyncTruthCandidates(persistentBuckets, latestBySource);
+		collectLatestSyncTruthCandidates(runtimeBuckets, latestBySource);
+		writeLatestSyncTruthCandidates(latestBySource, targetStrengthBySource);
+	}
+
+	private static void mergeAllSyncTruthFromSingleBucketSet(
+		NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> buckets,
+		Map<Long, Integer> targetStrengthBySource
+	) {
+		Map<Long, SyncTruthCandidate> latestBySource = new TreeMap<>();
+		collectLatestSyncTruthCandidates(buckets, latestBySource);
+		writeLatestSyncTruthCandidates(latestBySource, targetStrengthBySource);
+	}
+
+	private static void collectLatestSyncTruthCandidates(
+		NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> buckets,
+		Map<Long, SyncTruthCandidate> latestBySource
+	) {
+		if (buckets == null || buckets.isEmpty() || latestBySource == null) {
+			return;
+		}
+		for (Map.Entry<TimeKey, Map<SourceKey, SyncConcurrentEntry>> bucketEntry : buckets.entrySet()) {
+			TimeKey timeKey = bucketEntry.getKey();
+			Map<SourceKey, SyncConcurrentEntry> bucket = bucketEntry.getValue();
+			if (timeKey == null || bucket == null || bucket.isEmpty()) {
+				continue;
+			}
+			for (Map.Entry<SourceKey, SyncConcurrentEntry> sourceEntry : bucket.entrySet()) {
+				SourceKey sourceKey = sourceEntry.getKey();
+				SyncConcurrentEntry concurrentEntry = sourceEntry.getValue();
+				if (sourceKey == null || sourceKey.sourceSerial() <= 0L || concurrentEntry == null) {
+					continue;
+				}
+				int strength = SignalStrengths.clamp(concurrentEntry.strength());
+				if (strength <= 0) {
+					continue;
+				}
+				SyncTruthCandidate nextCandidate = new SyncTruthCandidate(timeKey, concurrentEntry.seq(), strength);
+				SyncTruthCandidate previousCandidate = latestBySource.get(sourceKey.sourceSerial());
+				if (
+					previousCandidate == null
+						|| compareSyncTruthCandidate(nextCandidate, previousCandidate) > 0
+						|| (
+							compareSyncTruthCandidate(nextCandidate, previousCandidate) == 0
+								&& nextCandidate.strength() > previousCandidate.strength()
+						)
+				) {
+					latestBySource.put(sourceKey.sourceSerial(), nextCandidate);
+				}
+			}
+		}
+	}
+
+	private static void writeLatestSyncTruthCandidates(
+		Map<Long, SyncTruthCandidate> latestBySource,
+		Map<Long, Integer> targetStrengthBySource
+	) {
+		if (latestBySource == null || latestBySource.isEmpty() || targetStrengthBySource == null) {
+			return;
+		}
+		for (Map.Entry<Long, SyncTruthCandidate> entry : latestBySource.entrySet()) {
+			Long sourceSerial = entry.getKey();
+			SyncTruthCandidate candidate = entry.getValue();
+			if (sourceSerial == null || sourceSerial <= 0L || candidate == null || candidate.strength() <= 0) {
+				continue;
+			}
+			targetStrengthBySource.put(sourceSerial, candidate.strength());
+		}
+	}
+
 	private static void mergeSyncTruthFromFrame(
 		Map<SourceKey, SyncConcurrentEntry> bucket,
 		Map<Long, Integer> targetStrengthBySource
@@ -717,6 +806,75 @@ final class ActivatableTargetConcurrentBucketComponent {
 		return changed;
 	}
 
+	private static boolean removeSyncConcurrentSource(
+		NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> buckets,
+		SourceKey sourceKey,
+		TimeKey timeKey,
+		long seq
+	) {
+		SyncConcurrentSourceLocation existingLocation = findSyncConcurrentSourceLocation(buckets, sourceKey);
+		if (existingLocation == null || isIncomingSyncMutationOlder(existingLocation, timeKey, seq)) {
+			return false;
+		}
+		return removeSourceFromConcurrentBuckets(buckets, sourceKey);
+	}
+
+	private static SyncConcurrentSourceLocation findSyncConcurrentSourceLocation(
+		NavigableMap<TimeKey, Map<SourceKey, SyncConcurrentEntry>> buckets,
+		SourceKey sourceKey
+	) {
+		if (buckets == null || buckets.isEmpty() || sourceKey == null) {
+			return null;
+		}
+		for (Map.Entry<TimeKey, Map<SourceKey, SyncConcurrentEntry>> bucketEntry : buckets.entrySet()) {
+			Map<SourceKey, SyncConcurrentEntry> bucket = bucketEntry.getValue();
+			if (bucket == null || bucket.isEmpty()) {
+				continue;
+			}
+			SyncConcurrentEntry entry = bucket.get(sourceKey);
+			if (entry != null) {
+				return new SyncConcurrentSourceLocation(bucketEntry.getKey(), entry);
+			}
+		}
+		return null;
+	}
+
+	private static boolean isIncomingSyncMutationOlder(
+		SyncConcurrentSourceLocation existingLocation,
+		TimeKey incomingTimeKey,
+		long incomingSeq
+	) {
+		if (existingLocation == null) {
+			return false;
+		}
+		TimeKey normalizedTimeKey = incomingTimeKey == null ? TimeKey.of(0L, 0) : incomingTimeKey;
+		int timeCompare = normalizedTimeKey.compareTo(existingLocation.timeKey());
+		if (timeCompare < 0) {
+			return true;
+		}
+		if (timeCompare > 0) {
+			return false;
+		}
+		return Math.max(0L, incomingSeq) < existingLocation.entry().seq();
+	}
+
+	private static int compareSyncTruthCandidate(SyncTruthCandidate left, SyncTruthCandidate right) {
+		if (left == null && right == null) {
+			return 0;
+		}
+		if (left == null) {
+			return -1;
+		}
+		if (right == null) {
+			return 1;
+		}
+		int timeCompare = left.timeKey().compareTo(right.timeKey());
+		if (timeCompare != 0) {
+			return timeCompare;
+		}
+		return Long.compare(left.seq(), right.seq());
+	}
+
 	/**
 	 * `sync` 来源桶中的单来源条目。
 	 */
@@ -753,6 +911,21 @@ final class ActivatableTargetConcurrentBucketComponent {
 		PersistentSyncSnapshot {
 			strengthBySource = strengthBySource == null ? Map.of() : Map.copyOf(strengthBySource);
 			maxSources = maxSources == null ? Set.of() : Set.copyOf(maxSources);
+		}
+	}
+
+	private record SyncConcurrentSourceLocation(TimeKey timeKey, SyncConcurrentEntry entry) {
+		private SyncConcurrentSourceLocation {
+			timeKey = timeKey == null ? TimeKey.of(0L, 0) : timeKey;
+			entry = entry == null ? new SyncConcurrentEntry(0, 0L) : entry;
+		}
+	}
+
+	private record SyncTruthCandidate(TimeKey timeKey, long seq, int strength) {
+		private SyncTruthCandidate {
+			timeKey = timeKey == null ? TimeKey.of(0L, 0) : timeKey;
+			seq = Math.max(0L, seq);
+			strength = SignalStrengths.clamp(strength);
 		}
 	}
 }

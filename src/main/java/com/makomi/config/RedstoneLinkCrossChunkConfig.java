@@ -13,6 +13,7 @@ import java.util.Set;
 public record RedstoneLinkCrossChunkConfig(
 	int syncSignalTtlTicks,
 	boolean syncSignalPersistent,
+	boolean syncCrossTickOverride,
 	boolean syncTargetChunkLoadReplayImmediateAttemptFirst,
 	boolean syncSourceAttachReplayEnabled,
 	RedstoneLinkConfig.CrossChunkDirectBatchingMode directBatchingMode,

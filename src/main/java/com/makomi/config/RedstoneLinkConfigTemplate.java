@@ -284,6 +284,11 @@ final class RedstoneLinkConfigTemplate {
 			# en: Whether SYNC uses unlimited persistence as a fallback. true keeps the latest-state pending without TTL expiry until the target recovers; disabled by default because normal recovery primarily relies on target attach replay.
 			crosschunk.syncSignalPersistent=false
 
+			# crosschunk.syncCrossTickOverride
+			# zh: SYNC 在 `core` 内部是否沿用“跨 tick 仅保留最新一帧”的覆盖语义。false=跨 tick 共存并按 surviving 全量来源聚合 max；true=保持现状，仅最新帧生效。
+			# en: Whether SYNC inside a `core` keeps the current cross-tick latest-frame override semantics. false keeps cross-tick coexistence and aggregates max across all surviving sources; true preserves the current latest-frame-only behavior.
+			crosschunk.syncCrossTickOverride=false
+
 			# crosschunk.syncTargetChunkLoadReplay.immediateAttemptFirst
 			# zh: 目标区块 `CHUNK_LOAD` 时是否先立即尝试一次 sync 补发。true=当前 tick 先试，只有目标尚未真正就绪时才延后到下一 tick 重试；false=始终先延后一 tick。
 			# en: Whether target-chunk-load sync replay should try immediately first. true tries in the current tick and only defers when the target is not ready yet; false always defers by one tick first.

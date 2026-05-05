@@ -151,9 +151,6 @@ final class ActivatableTargetDispatchSupport {
 		}
 		if (deltaKind == DeltaKind.SYNC_SIGNAL) {
 			int normalizedStrength = ActivatableTargetBlockEntity.normalizeSignalStrength(signalStrength);
-			if (!owner.acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-				return;
-			}
 			boolean bucketChanged = false;
 			if (normalizedStrength > 0) {
 				bucketChanged |= concurrentComponent().pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
@@ -187,18 +184,21 @@ final class ActivatableTargetDispatchSupport {
 			return;
 		}
 		EventMeta normalizedMeta = owner.normalizeEventMeta(eventMeta);
-		if (!owner.acceptByPriority(normalizedMeta.timeKey(), 3, EffectiveMode.SYNC, normalizedMeta.seq())) {
-			return;
-		}
 		SourceKey sourceKey = new SourceKey(LinkNodeType.TRIGGER_SOURCE, sourceSerial);
 		int normalizedStrength = ActivatableTargetBlockEntity.normalizeSignalStrength(signalStrength);
 		boolean bucketChanged = false;
 		if (!removeOnly && normalizedStrength > 0) {
 			bucketChanged |= concurrentComponent().pruneOlderFramesForIncoming(normalizedMeta.timeKey(), EffectiveMode.SYNC);
-			bucketChanged |= concurrentComponent().clearRuntimeSimulatedSyncTruthBefore(normalizedMeta.timeKey());
+			if (com.makomi.config.RedstoneLinkConfig.crossChunk().syncCrossTickOverride()) {
+				bucketChanged |= concurrentComponent().clearRuntimeSimulatedSyncTruthBefore(normalizedMeta.timeKey());
+			}
 		}
 		if (removeOnly || normalizedStrength <= 0) {
-			bucketChanged |= concurrentComponent().removeRuntimeSimulatedSyncConcurrentSource(sourceKey);
+			bucketChanged |= concurrentComponent().removeRuntimeSimulatedSyncConcurrentSource(
+				sourceKey,
+				normalizedMeta.timeKey(),
+				normalizedMeta.seq()
+			);
 		} else {
 			bucketChanged |= concurrentComponent().upsertRuntimeSimulatedSyncConcurrentSource(
 				sourceKey,
@@ -223,11 +223,14 @@ final class ActivatableTargetDispatchSupport {
 		ActivationMode activationMode,
 		EventMeta eventMeta
 	) {
+		owner.recomputeSyncTruthFromConcurrentBuckets();
+		if (deltaAction != DeltaAction.REMOVE && concurrentComponent().hasEffectiveSyncTruth()) {
+			return;
+		}
 		ActivationMode normalizedMode = activationMode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
 		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
 		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
 		TimeKey normalizedTimeKey = eventMeta.timeKey() == null ? TimeKey.of(0L, 0) : eventMeta.timeKey();
-		owner.recomputeSyncTruthFromConcurrentBuckets();
 		boolean baseToggleState = normalizedMode == ActivationMode.TOGGLE
 			&& deltaAction != DeltaAction.REMOVE
 			&& owner.resolveCurrentTargetStateBeforeToggle();
@@ -344,17 +347,16 @@ final class ActivatableTargetDispatchSupport {
 		EventMeta eventMeta,
 		StructuredBatchMutationAccumulator accumulator
 	) {
-		if (!owner.acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
 		int normalizedStrength = ActivatableTargetBlockEntity.normalizeSignalStrength(signalStrength);
 		boolean bucketChanged = false;
 		if (deltaAction != DeltaAction.REMOVE && normalizedStrength > 0) {
 			bucketChanged |= concurrentComponent().pruneOlderFramesForIncoming(eventMeta.timeKey(), EffectiveMode.SYNC);
-			bucketChanged |= concurrentComponent().clearSyncTruthBefore(eventMeta.timeKey());
+			if (com.makomi.config.RedstoneLinkConfig.crossChunk().syncCrossTickOverride()) {
+				bucketChanged |= concurrentComponent().clearSyncTruthBefore(eventMeta.timeKey());
+			}
 		}
 		if (deltaAction == DeltaAction.REMOVE || normalizedStrength <= 0) {
-			bucketChanged |= concurrentComponent().removeSyncConcurrentSource(sourceKey);
+			bucketChanged |= concurrentComponent().removeSyncConcurrentSource(sourceKey, eventMeta.timeKey(), eventMeta.seq());
 		} else {
 			bucketChanged |= concurrentComponent().upsertSyncConcurrentSource(
 				sourceKey,
@@ -376,11 +378,14 @@ final class ActivatableTargetDispatchSupport {
 		EventMeta eventMeta,
 		StructuredBatchMutationAccumulator accumulator
 	) {
+		owner.recomputeSyncTruthFromConcurrentBuckets();
+		if (deltaAction != DeltaAction.REMOVE && concurrentComponent().hasEffectiveSyncTruth()) {
+			return;
+		}
 		ActivationMode normalizedMode = activationMode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
 		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
 		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
 		TimeKey normalizedTimeKey = eventMeta.timeKey() == null ? TimeKey.of(0L, 0) : eventMeta.timeKey();
-		owner.recomputeSyncTruthFromConcurrentBuckets();
 		boolean baseToggleState = normalizedMode == ActivationMode.TOGGLE
 			&& deltaAction != DeltaAction.REMOVE
 			&& owner.resolveCurrentTargetStateBeforeToggle();
@@ -424,10 +429,7 @@ final class ActivatableTargetDispatchSupport {
 		if (deltaAction != DeltaAction.REMOVE) {
 			return;
 		}
-		if (!owner.acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
-		boolean bucketChanged = concurrentComponent().removeSyncConcurrentSource(sourceKey);
+		boolean bucketChanged = concurrentComponent().removeSyncConcurrentSource(sourceKey, eventMeta.timeKey(), eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}
 
@@ -443,10 +445,7 @@ final class ActivatableTargetDispatchSupport {
 		if (deltaAction != DeltaAction.REMOVE) {
 			return;
 		}
-		if (!owner.acceptByPriority(eventMeta.timeKey(), 3, EffectiveMode.SYNC, eventMeta.seq())) {
-			return;
-		}
-		boolean bucketChanged = concurrentComponent().removeSyncConcurrentSource(sourceKey);
+		boolean bucketChanged = concurrentComponent().removeSyncConcurrentSource(sourceKey, eventMeta.timeKey(), eventMeta.seq());
 		accumulator.record(eventMeta, bucketChanged, false);
 	}
 

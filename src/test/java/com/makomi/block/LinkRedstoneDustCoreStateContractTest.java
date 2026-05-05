@@ -162,7 +162,7 @@ class LinkRedstoneDustCoreStateContractTest {
 	}
 
 	/**
-	 * L2 收敛：扇出去重守卫应复用 TimeKey 时间粒度，不可写死为仅 tick 判定。
+	 * L2 收敛：SYNC 扇出去重不应因纯 TimeKey 变化而重复激发，判定口径应收敛为 active+power。
 	 */
 	@Test
 	void fanoutDedupGuardShouldReuseTimeKeyGranularity() throws Exception {
@@ -178,12 +178,22 @@ class LinkRedstoneDustCoreStateContractTest {
 			"protected\\s+final\\s+boolean\\s+shouldFanoutByResolvedOutput\\s*\\(boolean\\s+resolvedActive\\)",
 			Pattern.MULTILINE
 		);
-		Pattern timeKeyPattern = Pattern.compile(
-			"fanoutResolvedTimeKey\\.equals\\(normalizedTimeKey\\)",
+		Pattern statePowerPattern = Pattern.compile(
+			"fanoutResolvedInitialized\\s*&&\\s*fanoutResolvedState == resolvedActive\\s*&&\\s*fanoutResolvedPower == normalizedPower",
+			Pattern.MULTILINE | Pattern.DOTALL
+		);
+		Pattern timeKeyComparePattern = Pattern.compile(
+			"fanoutResolvedTimeKey\\.equals\\(",
+			Pattern.MULTILINE
+		);
+		Pattern timeKeyRecordPattern = Pattern.compile(
+			"fanoutResolvedTimeKey\\s*=\\s*authorityTimeKey\\s*==\\s*null\\s*\\?\\s*TimeKey\\.of\\(0L,\\s*0\\)\\s*:\\s*authorityTimeKey",
 			Pattern.MULTILINE
 		);
 		assertTrue(methodPattern.matcher(baseSource).find());
-		assertTrue(timeKeyPattern.matcher(observationSource).find());
+		assertTrue(statePowerPattern.matcher(observationSource).find());
+		assertTrue(timeKeyRecordPattern.matcher(observationSource).find());
+		assertFalse(timeKeyComparePattern.matcher(observationSource).find());
 	}
 
 	/**

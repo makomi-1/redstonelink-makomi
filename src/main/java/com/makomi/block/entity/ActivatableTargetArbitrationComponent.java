@@ -149,6 +149,15 @@ final class ActivatableTargetArbitrationComponent {
 		long fallbackSeq,
 		ActivatableTargetBlockEntity owner
 	) {
+		if (concurrentComponent.hasEffectiveSyncTruth()) {
+			Candidate syncCandidate = resolveSyncCandidate(concurrentComponent);
+			if (syncCandidate != null) {
+				authorityMode = EffectiveMode.SYNC;
+				authorityTimeKey = syncCandidate.timeKey();
+				authoritySeq = syncCandidate.seq();
+				return;
+			}
+		}
 		Candidate syncCandidate = resolveSyncCandidate(concurrentComponent);
 		Candidate pulseCandidate = resolvePulseCandidate(concurrentComponent, owner);
 		Candidate toggleCandidate = resolveToggleCandidate(concurrentComponent);
@@ -220,7 +229,10 @@ final class ActivatableTargetArbitrationComponent {
 		if (buckets == null || buckets.isEmpty()) {
 			return null;
 		}
-		TimeKey timeKey = buckets.lastKey();
+		TimeKey timeKey = latestNonEmptyTimeKey(buckets);
+		if (timeKey == null) {
+			return null;
+		}
 		Map<ActivatableTargetBlockEntity.SourceKey, ActivatableTargetConcurrentBucketComponent.SyncConcurrentEntry> bucket = buckets.get(timeKey);
 		long seq = 0L;
 		if (bucket != null) {
@@ -231,6 +243,21 @@ final class ActivatableTargetArbitrationComponent {
 			}
 		}
 		return new Candidate(EffectiveMode.SYNC, timeKey, seq, PRIORITY_SYNC);
+	}
+
+	private static TimeKey latestNonEmptyTimeKey(
+		NavigableMap<TimeKey, Map<ActivatableTargetBlockEntity.SourceKey, ActivatableTargetConcurrentBucketComponent.SyncConcurrentEntry>> buckets
+	) {
+		if (buckets == null || buckets.isEmpty()) {
+			return null;
+		}
+		for (Map.Entry<TimeKey, Map<ActivatableTargetBlockEntity.SourceKey, ActivatableTargetConcurrentBucketComponent.SyncConcurrentEntry>> entry : buckets.descendingMap().entrySet()) {
+			Map<ActivatableTargetBlockEntity.SourceKey, ActivatableTargetConcurrentBucketComponent.SyncConcurrentEntry> bucket = entry.getValue();
+			if (bucket != null && !bucket.isEmpty()) {
+				return entry.getKey();
+			}
+		}
+		return null;
 	}
 
 	private Candidate resolvePulseCandidate(

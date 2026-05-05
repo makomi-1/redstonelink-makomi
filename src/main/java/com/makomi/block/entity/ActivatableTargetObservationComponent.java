@@ -125,13 +125,11 @@ final class ActivatableTargetObservationComponent {
 		if (effectiveMode != EffectiveMode.SYNC) {
 			return true;
 		}
-		TimeKey normalizedTimeKey = authorityTimeKey == null ? TimeKey.of(0L, 0) : authorityTimeKey;
 		int normalizedPower = SignalStrengths.clamp(resolvedOutputPower);
 		if (
 			fanoutResolvedInitialized
 				&& fanoutResolvedState == resolvedActive
 				&& fanoutResolvedPower == normalizedPower
-				&& fanoutResolvedTimeKey.equals(normalizedTimeKey)
 		) {
 			NeighborFanoutUtil.recordFanoutDedupHit();
 			return false;
@@ -139,7 +137,7 @@ final class ActivatableTargetObservationComponent {
 		fanoutResolvedInitialized = true;
 		fanoutResolvedState = resolvedActive;
 		fanoutResolvedPower = normalizedPower;
-		fanoutResolvedTimeKey = normalizedTimeKey;
+		fanoutResolvedTimeKey = authorityTimeKey == null ? TimeKey.of(0L, 0) : authorityTimeKey;
 		return true;
 	}
 

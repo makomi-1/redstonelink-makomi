@@ -451,6 +451,10 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 			return;
 		}
 		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
+		recomputeSyncTruthFromConcurrentBuckets();
+		if (concurrentComponent.hasEffectiveSyncTruth()) {
+			return;
+		}
 		ActivationMode normalizedMode = mode == ActivationMode.PULSE ? ActivationMode.PULSE : ActivationMode.TOGGLE;
 		int priority = ActivatableTargetArbitrationComponent.priorityOfActivationMode(normalizedMode);
 		EffectiveMode incomingMode = ActivatableTargetArbitrationComponent.effectiveModeOfActivationMode(normalizedMode);
@@ -481,6 +485,10 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 */
 	void applyToggleMerged(EventMeta eventMeta, boolean currentTargetState) {
 		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
+		recomputeSyncTruthFromConcurrentBuckets();
+		if (concurrentComponent.hasEffectiveSyncTruth()) {
+			return;
+		}
 		boolean nextToggleState = arbitrationComponent.applyToggleMerged(concurrentComponent, currentTargetState);
 		concurrentComponent.recordToggleSnapshot(nextToggleState, normalizedMeta.timeKey(), normalizedMeta.seq());
 		recomputeSyncTruthFromConcurrentBuckets();
@@ -497,6 +505,10 @@ public abstract class ActivatableTargetBlockEntity extends PairableNodeBlockEnti
 	 */
 	void applyPulseMerged(EventMeta eventMeta) {
 		EventMeta normalizedMeta = normalizeEventMeta(eventMeta);
+		recomputeSyncTruthFromConcurrentBuckets();
+		if (concurrentComponent.hasEffectiveSyncTruth()) {
+			return;
+		}
 		concurrentComponent.recordPulseSnapshot(this, normalizedMeta.timeKey(), normalizedMeta.seq());
 		recomputeSyncTruthFromConcurrentBuckets();
 		recomputeAuthorityFromConcurrentBuckets(normalizedMeta.timeKey(), normalizedMeta.seq());

@@ -91,7 +91,8 @@ record RedstoneLinkServerConfigSnapshot(
 			),
 			new RedstoneLinkCrossChunkConfig(
 				40,
-				true,
+				false,
+				false,
 				true,
 				false,
 				RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT,

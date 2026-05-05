@@ -254,7 +254,7 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 后到 toggle 应按时间键覆盖先到 sync，并清掉更早的旧 sync 真值。
+	 * 后到 toggle 在硬压制语义下不应覆盖先到 sync，也不应清理旧 sync 真值。
 	 */
 	@Test
 	void laterToggleShouldClearEarlierSyncSnapshot() {
@@ -263,9 +263,10 @@ class ActivatableTargetBlockEntityInternalTest {
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
 
 		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
-		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
 	}
 
 	/**
@@ -302,36 +303,44 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 更晚 tick 的较低强度 `sync` 应覆盖更早 tick 的较高强度 `sync`。
+	 * 覆盖模式下，更晚 tick 的较低强度 `sync` 应覆盖更早 tick 的较高强度 `sync`。
 	 */
 	@Test
-	void laterSyncShouldOverrideEarlierHigherStrengthWithinSyncOnly() {
-		TestTargetEntity target = createTarget();
-		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
-		assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
-		assertEquals(Set.of(1L), getLongSetField(target, "syncSignalMaxSources"));
+	void laterSyncShouldOverrideEarlierHigherStrengthWithinSyncOnly() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.syncCrossTickOverride", "true");
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, () -> {
+			TestTargetEntity target = createTarget();
+			target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+			assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
+			assertEquals(Set.of(1L), getLongSetField(target, "syncSignalMaxSources"));
 
-		target.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
-		assertEquals(7, getIntField(target, "syncSignalMaxStrength"));
-		assertEquals(Set.of(2L), getLongSetField(target, "syncSignalMaxSources"));
-		assertEquals(Set.of(ActivatableTargetBlockEntity.TimeKey.of(11L, 0)), getConcurrentBucketField(target, "syncConcurrentBuckets").keySet());
+			target.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+			assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+			assertEquals(7, getIntField(target, "syncSignalMaxStrength"));
+			assertEquals(Set.of(2L), getLongSetField(target, "syncSignalMaxSources"));
+			assertEquals(Set.of(ActivatableTargetBlockEntity.TimeKey.of(11L, 0)), getConcurrentBucketField(target, "syncConcurrentBuckets").keySet());
+		});
 	}
 
 	/**
-	 * 最新 tick 的 `sync` 被移除后，不应回露更早 tick 的旧 `sync`。
+	 * 覆盖模式下，最新 tick 的 `sync` 被移除后，不应回露更早 tick 的旧 `sync`。
 	 */
 	@Test
-	void removingLatestSyncShouldNotRevealEarlierTickSync() {
-		TestTargetEntity target = createTarget();
-		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
-		target.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+	void removingLatestSyncShouldNotRevealEarlierTickSync() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.syncCrossTickOverride", "true");
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, () -> {
+			TestTargetEntity target = createTarget();
+			target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+			target.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
 
-		target.syncBySource(2L, 0, ActivatableTargetBlockEntity.EventMeta.of(12L, 0, 3L));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
-		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
-		assertTrue(getLongSetField(target, "syncSignalMaxSources").isEmpty());
-		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+			target.syncBySource(2L, 0, ActivatableTargetBlockEntity.EventMeta.of(12L, 0, 3L));
+			assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+			assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
+			assertTrue(getLongSetField(target, "syncSignalMaxSources").isEmpty());
+			assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+		});
 	}
 
 	/**
@@ -353,38 +362,34 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 更晚的 `pulse` 在跨 tick 覆盖更早 `sync` 后，回落时不应再回露旧 `sync`。
+	 * 只要存在有效 `sync`，更晚的 `pulse` 应被硬压制并直接拒收。
 	 */
 	@Test
-	void laterPulseShouldClearEarlierSyncTruth() {
+	void laterPulseShouldBeRejectedWhenSyncTruthExists() {
 		TestTargetEntity target = createTarget();
 		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
 
 		target.triggerBySource(2L, ActivationMode.PULSE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.PULSE, target.getEffectiveMode());
-		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
-
-		expirePulseWindow(target, 11L, 2L);
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
-		assertFalse(getBooleanField(target, "active"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
+		assertFalse(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
 	}
 
 	/**
-	 * 更晚的 `toggle` 在跨 tick 覆盖更早 `sync` 后，应直接淘汰旧 `sync` 真值。
+	 * 只要存在有效 `sync`，更晚的 `toggle` 应被硬压制并直接拒收。
 	 */
 	@Test
-	void laterToggleShouldClearEarlierSyncTruth() {
+	void laterToggleShouldBeRejectedWhenSyncTruthExists() {
 		TestTargetEntity target = createTarget();
 		target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
 		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
 
 		target.triggerBySource(2L, ActivationMode.TOGGLE, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
-		assertFalse(getBooleanField(target, "toggleState"));
-		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
+		assertEquals(15, invokeResolveDerivedOutputPowerFromTruth(target));
 	}
 
 	/**
@@ -512,6 +517,50 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
+	 * 共存模式下，更晚 tick 的较低强度 `sync` 不应清掉更早 tick 的较高强度贡献。
+	 */
+	@Test
+	void laterSyncShouldCoexistWithEarlierHigherStrengthWhenOverrideDisabled() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.syncCrossTickOverride", "false");
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, () -> {
+			TestTargetEntity target = createTarget();
+			target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+			target.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+
+			assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+			assertEquals(15, getIntField(target, "syncSignalMaxStrength"));
+			assertEquals(Set.of(1L), getLongSetField(target, "syncSignalMaxSources"));
+			assertEquals(
+				Set.of(
+					ActivatableTargetBlockEntity.TimeKey.of(10L, 0),
+					ActivatableTargetBlockEntity.TimeKey.of(11L, 0)
+				),
+				getConcurrentBucketField(target, "syncConcurrentBuckets").keySet()
+			);
+		});
+	}
+
+	/**
+	 * 覆盖模式下，更晚 tick 的 `sync` 仍应保持现状，只保留最新帧。
+	 */
+	@Test
+	void laterSyncShouldOverrideEarlierFrameWhenOverrideEnabled() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.syncCrossTickOverride", "true");
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, () -> {
+			TestTargetEntity target = createTarget();
+			target.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+			target.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+
+			assertEquals(ActivatableTargetBlockEntity.EffectiveMode.SYNC, target.getEffectiveMode());
+			assertEquals(7, getIntField(target, "syncSignalMaxStrength"));
+			assertEquals(Set.of(2L), getLongSetField(target, "syncSignalMaxSources"));
+			assertEquals(Set.of(ActivatableTargetBlockEntity.TimeKey.of(11L, 0)), getConcurrentBucketField(target, "syncConcurrentBuckets").keySet());
+		});
+	}
+
+	/**
 	 * 重复两轮同时间粒度 `pulse+toggle` 时，每轮都只保留 `pulse`，回落后保持关闭。
 	 */
 	@Test
@@ -628,25 +677,29 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * 落盘与读档都应只保留最新 tick 的 `sync` 帧，不再回带更早 tick 的高强度结果。
+	 * 覆盖模式下，落盘与读档都应只保留最新 tick 的 `sync` 帧。
 	 */
 	@Test
-	void saveAndLoadShouldPreserveLatestSyncFrameOnly() {
-		TestTargetEntity source = createTarget();
-		source.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
-		source.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
+	void saveAndLoadShouldPreserveLatestSyncFrameOnly() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("crosschunk.syncCrossTickOverride", "true");
+		RedstoneLinkConfigTestHelper.withCrossChunkConfig(properties, () -> {
+			TestTargetEntity source = createTarget();
+			source.syncBySource(1L, 15, ActivatableTargetBlockEntity.EventMeta.of(10L, 0, 1L));
+			source.syncBySource(2L, 7, ActivatableTargetBlockEntity.EventMeta.of(11L, 0, 2L));
 
-		CompoundTag tag = new CompoundTag();
-		source.saveForTest(tag);
-		assertEquals(Map.of(2L, 7), readSyncStrengthsFromTag(tag));
-		assertEquals(Set.of(2L), Set.copyOf(longArrayToBoxedSet(tag.getLongArray("SyncMaxSources"))));
+			CompoundTag tag = new CompoundTag();
+			source.saveForTest(tag);
+			assertEquals(Map.of(2L, 7), readSyncStrengthsFromTag(tag));
+			assertEquals(Set.of(2L), Set.copyOf(longArrayToBoxedSet(tag.getLongArray("SyncMaxSources"))));
 
-		TestTargetEntity restored = createTarget();
-		restored.loadForTest(tag);
-		assertEquals(7, getIntField(restored, "syncSignalMaxStrength"));
-		assertEquals(Set.of(2L), getLongSetField(restored, "syncSignalMaxSources"));
-		assertEquals(7, getIntField(restored, "resolvedOutputPower"));
-		assertTrue(getBooleanField(restored, "active"));
+			TestTargetEntity restored = createTarget();
+			restored.loadForTest(tag);
+			assertEquals(7, getIntField(restored, "syncSignalMaxStrength"));
+			assertEquals(Set.of(2L), getLongSetField(restored, "syncSignalMaxSources"));
+			assertEquals(7, getIntField(restored, "resolvedOutputPower"));
+			assertTrue(getBooleanField(restored, "active"));
+		});
 	}
 
 	/**
@@ -747,7 +800,7 @@ class ActivatableTargetBlockEntityInternalTest {
 	}
 
 	/**
-	 * later `pulse/toggle` 已淘汰旧 sync 后，后续 invalidation 不应再重复制造脏写。
+	 * 在硬压制语义下，失效批处理只应移除当前存活的 sync 贡献，并记录一次结构变化。
 	 */
 	@Test
 	void applyDispatchBatchShouldClearHistoricalSyncContributionOnce() {
@@ -771,18 +824,18 @@ class ActivatableTargetBlockEntityInternalTest {
 			)
 		);
 
-		assertEquals(0, target.getSetChangedCount());
+		assertEquals(1, target.getSetChangedCount());
 		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
 		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertFalse(getBooleanField(target, "toggleState"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "active"));
 		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
 	}
 
 	/**
-	 * triggerSource 区块卸载失效只应剔除 sync 贡献，不应清掉 pulse/toggle 事件快照。
+	 * triggerSource 区块卸载失效在硬压制语义下只应移除 sync 贡献，不应回露事件快照。
 	 */
 	@Test
 	void chunkUnloadInvalidationShouldOnlyRemoveSyncContribution() {
@@ -803,13 +856,15 @@ class ActivatableTargetBlockEntityInternalTest {
 
 		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
 		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
 		assertEquals(0, getIntField(target, "syncSignalMaxStrength"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "active"));
 		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
 	}
 
 	/**
-	 * triggerSource 其它失效只应剔除同来源的 sync 贡献，不应回滚 pulse/toggle 事件快照。
+	 * triggerSource 其它失效在硬压制语义下只应剔除同来源 sync 贡献，不应回露事件快照。
 	 */
 	@Test
 	void triggerSourceInvalidationShouldOnlyRemoveSyncContribution() {
@@ -830,9 +885,9 @@ class ActivatableTargetBlockEntityInternalTest {
 
 		assertTrue(getConcurrentBucketField(target, "syncConcurrentBuckets").isEmpty());
 		assertFalse(getBooleanField(target, "pulseSnapshotRecorded"));
-		assertTrue(getBooleanField(target, "toggleSnapshotRecorded"));
-		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.TOGGLE, target.getEffectiveMode());
-		assertFalse(getBooleanField(target, "toggleState"));
+		assertFalse(getBooleanField(target, "toggleSnapshotRecorded"));
+		assertEquals(ActivatableTargetBlockEntity.EffectiveMode.NONE, target.getEffectiveMode());
+		assertFalse(getBooleanField(target, "active"));
 		assertEquals(0, invokeResolveDerivedOutputPowerFromTruth(target));
 	}
 

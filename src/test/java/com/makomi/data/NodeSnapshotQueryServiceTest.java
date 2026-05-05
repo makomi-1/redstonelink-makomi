@@ -321,6 +321,7 @@ class NodeSnapshotQueryServiceTest {
 			40,
 			true,
 			true,
+			true,
 			false,
 			RedstoneLinkConfig.CrossChunkDirectBatchingMode.ALL_DIRECT,
 			0,
