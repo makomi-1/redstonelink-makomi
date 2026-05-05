@@ -26,12 +26,17 @@ import com.makomi.block.entity.LinkSyncLeverBlockEntity;
 import com.makomi.block.entity.WirelessConverterBlockEntity;
 import com.makomi.block.entity.WirelessLeverBlockEntity;
 import com.makomi.block.entity.WirelessLitCoreBlockEntity;
+import com.makomi.block.entity.WirelessNoteBlockEntity;
+import com.makomi.block.entity.WirelessOpenableCoreBlockEntity;
 import com.makomi.block.entity.WirelessPistonBlockEntity;
+import com.makomi.block.entity.WirelessRedstoneBlockEntity;
 import com.makomi.block.entity.WirelessRedstoneLampBlockEntity;
 import com.makomi.block.entity.WirelessSeaLanternBlockEntity;
 import com.makomi.block.entity.WirelessStickyPistonBlockEntity;
 import com.makomi.block.entity.WirelessStoneButtonBlockEntity;
 import com.makomi.block.entity.WirelessStonePressurePlateBlockEntity;
+import com.makomi.block.entity.WirelessTntBlockEntity;
+import com.makomi.block.entity.WirelessVariantSyncTriggerSourceBlockEntity;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -177,6 +182,41 @@ public final class ModBlockEntities {
 		).build(null)
 	);
 
+	public static final BlockEntityType<WirelessVariantSyncTriggerSourceBlockEntity> WIRELESS_VARIANT_SYNC_TRIGGER_SOURCE = register(
+		"wireless_variant_sync_trigger_source",
+		BlockEntityType.Builder
+			.of(
+				WirelessVariantSyncTriggerSourceBlockEntity::new,
+				ModBlocks.WIRELESS_OAK_BUTTON,
+				ModBlocks.WIRELESS_SPRUCE_BUTTON,
+				ModBlocks.WIRELESS_BIRCH_BUTTON,
+				ModBlocks.WIRELESS_JUNGLE_BUTTON,
+				ModBlocks.WIRELESS_ACACIA_BUTTON,
+				ModBlocks.WIRELESS_CHERRY_BUTTON,
+				ModBlocks.WIRELESS_DARK_OAK_BUTTON,
+				ModBlocks.WIRELESS_MANGROVE_BUTTON,
+				ModBlocks.WIRELESS_BAMBOO_BUTTON,
+				ModBlocks.WIRELESS_CRIMSON_BUTTON,
+				ModBlocks.WIRELESS_WARPED_BUTTON,
+				ModBlocks.WIRELESS_POLISHED_BLACKSTONE_BUTTON,
+				ModBlocks.WIRELESS_OAK_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_SPRUCE_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_BIRCH_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_JUNGLE_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_ACACIA_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_CHERRY_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_DARK_OAK_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_MANGROVE_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_BAMBOO_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_CRIMSON_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_WARPED_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_POLISHED_BLACKSTONE_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_LIGHT_WEIGHTED_PRESSURE_PLATE,
+				ModBlocks.WIRELESS_HEAVY_WEIGHTED_PRESSURE_PLATE
+			)
+			.build(null)
+	);
+
 	public static final BlockEntityType<WirelessPistonBlockEntity> WIRELESS_PISTON = register(
 		"wireless_piston",
 		BlockEntityType.Builder.of(WirelessPistonBlockEntity::new, ModBlocks.WIRELESS_PISTON).build(null)
@@ -286,6 +326,32 @@ public final class ModBlockEntities {
 			com.makomi.block.entity.WirelessOakDoorBlockEntity::new,
 			ModBlocks.WIRELESS_OAK_DOOR
 		).build(null)
+	);
+
+	public static final BlockEntityType<WirelessOpenableCoreBlockEntity> WIRELESS_OPENABLE_CORE = register(
+		"wireless_openable_core",
+		BlockEntityType.Builder.of(
+			WirelessOpenableCoreBlockEntity::new,
+			ModBlocks.WIRELESS_IRON_DOOR,
+			ModBlocks.WIRELESS_OAK_TRAPDOOR,
+			ModBlocks.WIRELESS_IRON_TRAPDOOR,
+			ModBlocks.WIRELESS_OAK_FENCE_GATE
+		).build(null)
+	);
+
+	public static final BlockEntityType<WirelessRedstoneBlockEntity> WIRELESS_REDSTONE_BLOCK = register(
+		"wireless_redstone_block",
+		BlockEntityType.Builder.of(WirelessRedstoneBlockEntity::new, ModBlocks.WIRELESS_REDSTONE_BLOCK).build(null)
+	);
+
+	public static final BlockEntityType<WirelessNoteBlockEntity> WIRELESS_NOTE_BLOCK = register(
+		"wireless_note_block",
+		BlockEntityType.Builder.of(WirelessNoteBlockEntity::new, ModBlocks.WIRELESS_NOTE_BLOCK).build(null)
+	);
+
+	public static final BlockEntityType<WirelessTntBlockEntity> WIRELESS_TNT = register(
+		"wireless_tnt",
+		BlockEntityType.Builder.of(WirelessTntBlockEntity::new, ModBlocks.WIRELESS_TNT).build(null)
 	);
 
 	private ModBlockEntities() {

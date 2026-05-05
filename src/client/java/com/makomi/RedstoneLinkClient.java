@@ -135,7 +135,37 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_LEVER, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_STONE_BUTTON, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_OAK_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_SPRUCE_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_BIRCH_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_JUNGLE_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_ACACIA_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_CHERRY_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_DARK_OAK_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_MANGROVE_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_BAMBOO_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_CRIMSON_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_WARPED_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_POLISHED_BLACKSTONE_BUTTON, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_OAK_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_SPRUCE_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_BIRCH_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_JUNGLE_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_ACACIA_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_CHERRY_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_DARK_OAK_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_MANGROVE_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_BAMBOO_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_CRIMSON_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_WARPED_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_POLISHED_BLACKSTONE_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_LIGHT_WEIGHTED_PRESSURE_PLATE, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_HEAVY_WEIGHTED_PRESSURE_PLATE, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_OAK_DOOR, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_IRON_DOOR, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_OAK_TRAPDOOR, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_IRON_TRAPDOOR, RenderType.cutout());
+		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_OAK_FENCE_GATE, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_LANTERN, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_SOUL_LANTERN, RenderType.cutout());
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.WIRELESS_END_ROD, RenderType.cutout());
@@ -171,6 +201,7 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_LEVER, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STONE_BUTTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STONE_PRESSURE_PLATE, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_VARIANT_SYNC_TRIGGER_SOURCE, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_PISTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_STICKY_PISTON, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_REDSTONE_LAMP, LinkNodeFarOverlayRenderer::new);
@@ -184,6 +215,10 @@ public class RedstoneLinkClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_VERDANT_FROGLIGHT, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_PEARLESCENT_FROGLIGHT, LinkNodeFarOverlayRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_OAK_DOOR, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_OPENABLE_CORE, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_REDSTONE_BLOCK, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_NOTE_BLOCK, LinkNodeFarOverlayRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.WIRELESS_TNT, LinkNodeFarOverlayRenderer::new);
 	}
 
 	/**

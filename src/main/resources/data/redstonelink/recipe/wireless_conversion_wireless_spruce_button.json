@@ -1,0 +1,10 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "ingredient": {
+    "item": "minecraft:spruce_button"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_spruce_button"
+  }
+}

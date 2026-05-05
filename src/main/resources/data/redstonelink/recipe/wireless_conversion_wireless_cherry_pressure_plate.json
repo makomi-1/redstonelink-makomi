@@ -1,0 +1,10 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "ingredient": {
+    "item": "minecraft:cherry_pressure_plate"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_cherry_pressure_plate"
+  }
+}

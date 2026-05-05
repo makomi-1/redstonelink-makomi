@@ -26,6 +26,13 @@
     "redstonelink:wireless_end_rod",
     "redstonelink:wireless_ochre_froglight",
     "redstonelink:wireless_verdant_froglight",
-    "redstonelink:wireless_pearlescent_froglight"
+    "redstonelink:wireless_pearlescent_froglight",
+    "redstonelink:wireless_polished_blackstone_button",
+    "redstonelink:wireless_polished_blackstone_pressure_plate",
+    "redstonelink:wireless_light_weighted_pressure_plate",
+    "redstonelink:wireless_heavy_weighted_pressure_plate",
+    "redstonelink:wireless_iron_door",
+    "redstonelink:wireless_iron_trapdoor",
+    "redstonelink:wireless_redstone_block"
   ]
 }

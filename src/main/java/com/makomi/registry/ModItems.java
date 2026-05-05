@@ -284,9 +284,155 @@ public final class ModItems {
 		new PairableBlockItem(ModBlocks.WIRELESS_STONE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
 	);
 
+	public static final Item WIRELESS_OAK_BUTTON = register(
+		"wireless_oak_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_OAK_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_SPRUCE_BUTTON = register(
+		"wireless_spruce_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_SPRUCE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_BIRCH_BUTTON = register(
+		"wireless_birch_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_BIRCH_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_JUNGLE_BUTTON = register(
+		"wireless_jungle_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_JUNGLE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_ACACIA_BUTTON = register(
+		"wireless_acacia_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_ACACIA_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_CHERRY_BUTTON = register(
+		"wireless_cherry_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_CHERRY_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_DARK_OAK_BUTTON = register(
+		"wireless_dark_oak_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_DARK_OAK_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_MANGROVE_BUTTON = register(
+		"wireless_mangrove_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_MANGROVE_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_BAMBOO_BUTTON = register(
+		"wireless_bamboo_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_BAMBOO_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_CRIMSON_BUTTON = register(
+		"wireless_crimson_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_CRIMSON_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_WARPED_BUTTON = register(
+		"wireless_warped_button",
+		new PairableBlockItem(ModBlocks.WIRELESS_WARPED_BUTTON, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_POLISHED_BLACKSTONE_BUTTON = register(
+		"wireless_polished_blackstone_button",
+		new PairableBlockItem(
+			ModBlocks.WIRELESS_POLISHED_BLACKSTONE_BUTTON,
+			new Item.Properties().stacksTo(1),
+			LinkNodeType.TRIGGER_SOURCE
+		)
+	);
+
 	public static final Item WIRELESS_STONE_PRESSURE_PLATE = register(
 		"wireless_stone_pressure_plate",
 		new PairableBlockItem(ModBlocks.WIRELESS_STONE_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_OAK_PRESSURE_PLATE = register(
+		"wireless_oak_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_OAK_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_SPRUCE_PRESSURE_PLATE = register(
+		"wireless_spruce_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_SPRUCE_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_BIRCH_PRESSURE_PLATE = register(
+		"wireless_birch_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_BIRCH_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_JUNGLE_PRESSURE_PLATE = register(
+		"wireless_jungle_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_JUNGLE_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_ACACIA_PRESSURE_PLATE = register(
+		"wireless_acacia_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_ACACIA_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_CHERRY_PRESSURE_PLATE = register(
+		"wireless_cherry_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_CHERRY_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_DARK_OAK_PRESSURE_PLATE = register(
+		"wireless_dark_oak_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_DARK_OAK_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_MANGROVE_PRESSURE_PLATE = register(
+		"wireless_mangrove_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_MANGROVE_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_BAMBOO_PRESSURE_PLATE = register(
+		"wireless_bamboo_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_BAMBOO_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_CRIMSON_PRESSURE_PLATE = register(
+		"wireless_crimson_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_CRIMSON_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_WARPED_PRESSURE_PLATE = register(
+		"wireless_warped_pressure_plate",
+		new PairableBlockItem(ModBlocks.WIRELESS_WARPED_PRESSURE_PLATE, new Item.Properties().stacksTo(1), LinkNodeType.TRIGGER_SOURCE)
+	);
+
+	public static final Item WIRELESS_POLISHED_BLACKSTONE_PRESSURE_PLATE = register(
+		"wireless_polished_blackstone_pressure_plate",
+		new PairableBlockItem(
+			ModBlocks.WIRELESS_POLISHED_BLACKSTONE_PRESSURE_PLATE,
+			new Item.Properties().stacksTo(1),
+			LinkNodeType.TRIGGER_SOURCE
+		)
+	);
+
+	public static final Item WIRELESS_LIGHT_WEIGHTED_PRESSURE_PLATE = register(
+		"wireless_light_weighted_pressure_plate",
+		new PairableBlockItem(
+			ModBlocks.WIRELESS_LIGHT_WEIGHTED_PRESSURE_PLATE,
+			new Item.Properties().stacksTo(1),
+			LinkNodeType.TRIGGER_SOURCE
+		)
+	);
+
+	public static final Item WIRELESS_HEAVY_WEIGHTED_PRESSURE_PLATE = register(
+		"wireless_heavy_weighted_pressure_plate",
+		new PairableBlockItem(
+			ModBlocks.WIRELESS_HEAVY_WEIGHTED_PRESSURE_PLATE,
+			new Item.Properties().stacksTo(1),
+			LinkNodeType.TRIGGER_SOURCE
+		)
 	);
 
 	public static final Item WIRELESS_PISTON = register(
@@ -352,6 +498,41 @@ public final class ModItems {
 	public static final Item WIRELESS_OAK_DOOR = register(
 		"wireless_oak_door",
 		new PairableBlockItem(ModBlocks.WIRELESS_OAK_DOOR, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_IRON_DOOR = register(
+		"wireless_iron_door",
+		new PairableBlockItem(ModBlocks.WIRELESS_IRON_DOOR, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_OAK_TRAPDOOR = register(
+		"wireless_oak_trapdoor",
+		new PairableBlockItem(ModBlocks.WIRELESS_OAK_TRAPDOOR, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_IRON_TRAPDOOR = register(
+		"wireless_iron_trapdoor",
+		new PairableBlockItem(ModBlocks.WIRELESS_IRON_TRAPDOOR, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_OAK_FENCE_GATE = register(
+		"wireless_oak_fence_gate",
+		new PairableBlockItem(ModBlocks.WIRELESS_OAK_FENCE_GATE, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_NOTE_BLOCK = register(
+		"wireless_note_block",
+		new PairableBlockItem(ModBlocks.WIRELESS_NOTE_BLOCK, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_TNT = register(
+		"wireless_tnt",
+		new PairableBlockItem(ModBlocks.WIRELESS_TNT, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
+	);
+
+	public static final Item WIRELESS_REDSTONE_BLOCK = register(
+		"wireless_redstone_block",
+		new PairableBlockItem(ModBlocks.WIRELESS_REDSTONE_BLOCK, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
 	);
 
 	private ModItems() {

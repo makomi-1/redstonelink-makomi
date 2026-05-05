@@ -211,12 +211,14 @@ public class PairableBlockItem extends BlockItem implements PairableItem {
 	 */
 	private static boolean isSyncTriggerSourceItem(ItemStack stack) {
 		Item item = stack.getItem();
-		return item == ModItems.LINK_SYNC_LEVER
-			|| item == ModItems.LINK_SYNC_EMITTER
-			|| item == ModItems.HIDE_SYNC_TRIGGER_SOURCE
-			|| item == ModItems.WIRELESS_LEVER
-			|| item == ModItems.WIRELESS_STONE_BUTTON
-			|| item == ModItems.WIRELESS_STONE_PRESSURE_PLATE;
+		if (item == ModItems.LINK_SYNC_LEVER || item == ModItems.LINK_SYNC_EMITTER || item == ModItems.HIDE_SYNC_TRIGGER_SOURCE) {
+			return true;
+		}
+		if (item instanceof PairableBlockItem pairableBlockItem && pairableBlockItem.getNodeType() == LinkNodeType.TRIGGER_SOURCE) {
+			String registryPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath();
+			return registryPath.startsWith("wireless_");
+		}
+		return false;
 	}
 
 	/**

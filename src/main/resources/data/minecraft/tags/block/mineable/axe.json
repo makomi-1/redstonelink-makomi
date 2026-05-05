@@ -1,6 +1,32 @@
 {
   "replace": false,
   "values": [
-    "redstonelink:wireless_jack_o_lantern"
+    "redstonelink:wireless_jack_o_lantern",
+    "redstonelink:wireless_oak_button",
+    "redstonelink:wireless_spruce_button",
+    "redstonelink:wireless_birch_button",
+    "redstonelink:wireless_jungle_button",
+    "redstonelink:wireless_acacia_button",
+    "redstonelink:wireless_cherry_button",
+    "redstonelink:wireless_dark_oak_button",
+    "redstonelink:wireless_mangrove_button",
+    "redstonelink:wireless_bamboo_button",
+    "redstonelink:wireless_crimson_button",
+    "redstonelink:wireless_warped_button",
+    "redstonelink:wireless_oak_pressure_plate",
+    "redstonelink:wireless_spruce_pressure_plate",
+    "redstonelink:wireless_birch_pressure_plate",
+    "redstonelink:wireless_jungle_pressure_plate",
+    "redstonelink:wireless_acacia_pressure_plate",
+    "redstonelink:wireless_cherry_pressure_plate",
+    "redstonelink:wireless_dark_oak_pressure_plate",
+    "redstonelink:wireless_mangrove_pressure_plate",
+    "redstonelink:wireless_bamboo_pressure_plate",
+    "redstonelink:wireless_crimson_pressure_plate",
+    "redstonelink:wireless_warped_pressure_plate",
+    "redstonelink:wireless_oak_door",
+    "redstonelink:wireless_oak_trapdoor",
+    "redstonelink:wireless_oak_fence_gate",
+    "redstonelink:wireless_note_block"
   ]
 }

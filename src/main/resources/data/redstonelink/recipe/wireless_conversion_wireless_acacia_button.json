@@ -1,0 +1,10 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "ingredient": {
+    "item": "minecraft:acacia_button"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_acacia_button"
+  }
+}

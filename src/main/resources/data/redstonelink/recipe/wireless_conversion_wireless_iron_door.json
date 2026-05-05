@@ -1,0 +1,10 @@
+{
+  "type": "redstonelink:wireless_conversion",
+  "ingredient": {
+    "item": "minecraft:iron_door"
+  },
+  "result": {
+    "count": 1,
+    "id": "redstonelink:wireless_iron_door"
+  }
+}
