@@ -1,3 +1,38 @@
 {
-  "parent": "minecraft:block/sticky_piston"
+  "parent": "minecraft:block/block",
+  "render_type": "minecraft:translucent",
+  "gui_light": "side",
+  "textures": {
+    "bottom": "minecraft:block/piston_bottom",
+    "side": "minecraft:block/piston_side",
+    "top": "minecraft:block/piston_top_sticky",
+    "particle": "minecraft:block/piston_side",
+    "box": "redstonelink:item/core_box"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "down": { "texture": "#bottom" },
+        "up": { "texture": "#top" },
+        "north": { "texture": "#side" },
+        "south": { "texture": "#side" },
+        "west": { "texture": "#side" },
+        "east": { "texture": "#side" }
+      }
+    },
+    {
+      "from": [0.2, 0.2, 0.2],
+      "to": [15.8, 15.8, 15.8],
+      "faces": {
+        "down": { "texture": "#box" },
+        "up": { "texture": "#box" },
+        "north": { "texture": "#box" },
+        "south": { "texture": "#box" },
+        "west": { "texture": "#box" },
+        "east": { "texture": "#box" }
+      }
+    }
+  ]
 }

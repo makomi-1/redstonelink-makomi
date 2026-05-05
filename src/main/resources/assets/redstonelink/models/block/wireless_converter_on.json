@@ -1,0 +1,39 @@
+{
+  "parent": "minecraft:block/block",
+  "render_type": "minecraft:translucent",
+  "gui_light": "side",
+  "textures": {
+    "particle": "redstonelink:block/converter_side",
+    "top": "redstonelink:block/converter_side",
+    "front": "redstonelink:block/converter_front_bright",
+    "side": "redstonelink:block/converter_side",
+    "bottom": "redstonelink:block/converter_side",
+    "inner": "redstonelink:block/component_core_block"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "down": { "texture": "#bottom" },
+        "up": { "texture": "#top" },
+        "north": { "texture": "#front" },
+        "south": { "texture": "#side" },
+        "west": { "texture": "#side" },
+        "east": { "texture": "#side" }
+      }
+    },
+    {
+      "from": [2, 2, 2],
+      "to": [14, 14, 14],
+      "faces": {
+        "down": { "texture": "#inner" },
+        "up": { "texture": "#inner" },
+        "north": { "texture": "#inner" },
+        "south": { "texture": "#inner" },
+        "west": { "texture": "#inner" },
+        "east": { "texture": "#inner" }
+      }
+    }
+  ]
+}

@@ -200,7 +200,14 @@ public final class ModBlocks {
 
 	public static final WirelessConverterBlock WIRELESS_CONVERTER = register(
 		"wireless_converter",
-		new WirelessConverterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.FURNACE))
+		new WirelessConverterBlock(
+			BlockBehaviour.Properties.ofFullCopy(Blocks.FURNACE)
+				.noOcclusion()
+				.isViewBlocking((state, level, pos) -> false)
+				.isSuffocating((state, level, pos) -> false)
+				.isRedstoneConductor((state, level, pos) -> false)
+				.isValidSpawn((state, level, pos, entityType) -> false)
+		)
 	);
 
 	public static final WirelessLeverBlock WIRELESS_LEVER = register(
@@ -222,105 +229,6 @@ public final class ModBlocks {
 		)
 	);
 
-	public static final WirelessSyncButtonBlock WIRELESS_SPRUCE_BUTTON = register(
-		"wireless_spruce_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.SPRUCE,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.SPRUCE_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_BIRCH_BUTTON = register(
-		"wireless_birch_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.BIRCH,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.BIRCH_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_JUNGLE_BUTTON = register(
-		"wireless_jungle_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.JUNGLE,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.JUNGLE_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_ACACIA_BUTTON = register(
-		"wireless_acacia_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.ACACIA,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.ACACIA_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_CHERRY_BUTTON = register(
-		"wireless_cherry_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.CHERRY,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.CHERRY_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_DARK_OAK_BUTTON = register(
-		"wireless_dark_oak_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.DARK_OAK,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.DARK_OAK_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_MANGROVE_BUTTON = register(
-		"wireless_mangrove_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.MANGROVE,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.MANGROVE_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_BAMBOO_BUTTON = register(
-		"wireless_bamboo_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.BAMBOO,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.BAMBOO_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_CRIMSON_BUTTON = register(
-		"wireless_crimson_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.CRIMSON,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.CRIMSON_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_WARPED_BUTTON = register(
-		"wireless_warped_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.WARPED,
-			30,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.WARPED_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncButtonBlock WIRELESS_POLISHED_BLACKSTONE_BUTTON = register(
-		"wireless_polished_blackstone_button",
-		new WirelessSyncButtonBlock(
-			BlockSetType.POLISHED_BLACKSTONE,
-			20,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.POLISHED_BLACKSTONE_BUTTON).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
 	public static final WirelessStonePressurePlateBlock WIRELESS_STONE_PRESSURE_PLATE = register(
 		"wireless_stone_pressure_plate",
 		new WirelessStonePressurePlateBlock(
@@ -333,94 +241,6 @@ public final class ModBlocks {
 		new WirelessSyncPressurePlateBlock(
 			BlockSetType.OAK,
 			BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_SPRUCE_PRESSURE_PLATE = register(
-		"wireless_spruce_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.SPRUCE,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.SPRUCE_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_BIRCH_PRESSURE_PLATE = register(
-		"wireless_birch_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.BIRCH,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.BIRCH_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_JUNGLE_PRESSURE_PLATE = register(
-		"wireless_jungle_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.JUNGLE,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.JUNGLE_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_ACACIA_PRESSURE_PLATE = register(
-		"wireless_acacia_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.ACACIA,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.ACACIA_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_CHERRY_PRESSURE_PLATE = register(
-		"wireless_cherry_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.CHERRY,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.CHERRY_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_DARK_OAK_PRESSURE_PLATE = register(
-		"wireless_dark_oak_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.DARK_OAK,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.DARK_OAK_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_MANGROVE_PRESSURE_PLATE = register(
-		"wireless_mangrove_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.MANGROVE,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.MANGROVE_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_BAMBOO_PRESSURE_PLATE = register(
-		"wireless_bamboo_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.BAMBOO,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.BAMBOO_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_CRIMSON_PRESSURE_PLATE = register(
-		"wireless_crimson_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.CRIMSON,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.CRIMSON_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_WARPED_PRESSURE_PLATE = register(
-		"wireless_warped_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.WARPED,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.WARPED_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
-		)
-	);
-
-	public static final WirelessSyncPressurePlateBlock WIRELESS_POLISHED_BLACKSTONE_PRESSURE_PLATE = register(
-		"wireless_polished_blackstone_pressure_plate",
-		new WirelessSyncPressurePlateBlock(
-			BlockSetType.POLISHED_BLACKSTONE,
-			BlockBehaviour.Properties.ofFullCopy(Blocks.POLISHED_BLACKSTONE_PRESSURE_PLATE).pushReaction(PushReaction.NORMAL)
 		)
 	);
 
