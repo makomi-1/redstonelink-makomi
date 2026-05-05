@@ -103,6 +103,24 @@ public final class NodeFaceSetBlockStateSupport {
 	}
 
 	/**
+	 * 将来源状态中的面集真值复制到目标状态。
+	 * <p>
+	 * 仅当来源和目标都完整声明了 6 个面属性时才执行复制；
+	 * 否则直接返回目标状态，避免把不兼容状态误写入运行时流程。
+	 * </p>
+	 */
+	public static BlockState copyFaces(BlockState sourceState, BlockState targetState) {
+		if (!hasFaceProperties(sourceState) || !hasFaceProperties(targetState)) {
+			return targetState;
+		}
+		BlockState updatedState = targetState;
+		for (Direction direction : Direction.values()) {
+			updatedState = updatedState.setValue(propertyOf(direction), sourceState.getValue(propertyOf(direction)));
+		}
+		return updatedState;
+	}
+
+	/**
 	 * 解析当前已启用的全部方向。
 	 */
 	public static List<Direction> resolveEnabledFaces(BlockState state) {

@@ -25,6 +25,7 @@ import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.piston.PistonBaseBlock;
 import net.minecraft.world.level.block.piston.MovingPistonBlock;
 import net.minecraft.world.level.block.piston.PistonHeadBlock;
 import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
@@ -52,11 +53,10 @@ import com.makomi.registry.ModBlocks;
  * 则只在“原版允许输入的方向 ∩ 已启用面集”上采样邻居红石。
  * </p>
  */
-public class WirelessPistonBlock extends Block implements EntityBlock {
+public class WirelessPistonBlock extends PistonBaseBlock implements EntityBlock {
 	public static final MapCodec<WirelessPistonBlock> CODEC = simpleCodec(WirelessPistonBlock::new);
-	public static final net.minecraft.world.level.block.state.properties.DirectionProperty FACING =
-		net.minecraft.world.level.block.DirectionalBlock.FACING;
-	public static final BooleanProperty EXTENDED = BlockStateProperties.EXTENDED;
+	public static final net.minecraft.world.level.block.state.properties.DirectionProperty FACING = PistonBaseBlock.FACING;
+	public static final BooleanProperty EXTENDED = PistonBaseBlock.EXTENDED;
 	protected static final VoxelShape EAST_AABB = Block.box(0.0, 0.0, 0.0, 12.0, 16.0, 16.0);
 	protected static final VoxelShape WEST_AABB = Block.box(4.0, 0.0, 0.0, 16.0, 16.0, 16.0);
 	protected static final VoxelShape SOUTH_AABB = Block.box(0.0, 0.0, 0.0, 16.0, 16.0, 12.0);
@@ -70,7 +70,7 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	}
 
 	public WirelessPistonBlock(BlockBehaviour.Properties properties, boolean sticky) {
-		super(properties);
+		super(sticky, properties);
 		this.sticky = sticky;
 		registerDefaultState(
 			NodeFaceSetBlockStateSupport.setAllFaces(
@@ -81,8 +81,9 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	}
 
 	@Override
-	protected MapCodec<? extends Block> codec() {
-		return CODEC;
+	@SuppressWarnings("unchecked")
+	public MapCodec<PistonBaseBlock> codec() {
+		return (MapCodec<PistonBaseBlock>) (MapCodec<?>) CODEC;
 	}
 
 	@Override
@@ -212,7 +213,10 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 			MovingPistonBlock.newMovingBlockEntity(
 				pos,
 				movingBaseState,
-				defaultBlockState().setValue(FACING, Direction.from3DDataValue(eventParam & 7)),
+				NodeFaceSetBlockStateSupport.copyFaces(
+					state,
+					defaultBlockState().setValue(FACING, Direction.from3DDataValue(eventParam & 7)).setValue(EXTENDED, false)
+				),
 				direction,
 				false,
 				true
@@ -310,6 +314,20 @@ public class WirelessPistonBlock extends Block implements EntityBlock {
 	 */
 	private void syncEffectiveExtension(Level level, BlockPos pos, BlockState state) {
 		syncWirelessExtension(level, pos, state, isEffectivelyPowered(level, pos, state));
+	}
+
+	/**
+	 * 按当前无线输入与邻居输入重新计算一次伸缩态。
+	 * <p>
+	 * 供定向面编辑等“只改面集、不触发原版邻居变化”的场景立即刷新运行态，
+	 * 避免玩家编辑后必须再额外制造一次方块更新才生效。
+	 * </p>
+	 */
+	public final void refreshStateFromCurrentInputs(Level level, BlockPos pos, BlockState state) {
+		if (level == null || pos == null || state == null || level.isClientSide) {
+			return;
+		}
+		syncEffectiveExtension(level, pos, state);
 	}
 
 	/**

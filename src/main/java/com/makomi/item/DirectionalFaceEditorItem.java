@@ -6,6 +6,7 @@ import com.makomi.block.LinkCoreBlock;
 import com.makomi.block.LinkRepeaterBlock;
 import com.makomi.block.LinkSignalEmitterBlock;
 import com.makomi.block.LinkSyncEmitterBlock;
+import com.makomi.block.WirelessPistonBlock;
 import com.makomi.data.HideDirectionalEditorToolData;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
 import java.util.List;
@@ -99,7 +100,8 @@ public class DirectionalFaceEditorItem extends Item {
 			|| block instanceof LinkRepeaterBlock
 			|| block instanceof LinkSignalEmitterBlock
 			|| block instanceof AbstractLinkFilterBlock
-			|| block instanceof LinkChunkActivatorBlock;
+			|| block instanceof LinkChunkActivatorBlock
+			|| block instanceof WirelessPistonBlock;
 	}
 
 	/**
@@ -156,6 +158,10 @@ public class DirectionalFaceEditorItem extends Item {
 		}
 		if (updatedState.getBlock() instanceof LinkChunkActivatorBlock chunkActivatorBlock) {
 			chunkActivatorBlock.refreshStateFromCurrentInputs(level, blockPos, updatedState);
+			return;
+		}
+		if (updatedState.getBlock() instanceof WirelessPistonBlock wirelessPistonBlock) {
+			wirelessPistonBlock.refreshStateFromCurrentInputs(level, blockPos, updatedState);
 		}
 	}
 }
