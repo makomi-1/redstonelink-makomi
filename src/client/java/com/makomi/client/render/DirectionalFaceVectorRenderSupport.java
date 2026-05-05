@@ -2,6 +2,7 @@ package com.makomi.client.render;
 
 import com.makomi.block.LinkCoreBlock;
 import com.makomi.block.LinkRepeaterBlock;
+import com.makomi.block.WirelessRedstoneBlock;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
 import com.makomi.block.entity.LinkRepeaterBlockEntity;
@@ -238,7 +239,9 @@ public final class DirectionalFaceVectorRenderSupport {
 		if (state == null || enabledFace == null) {
 			return null;
 		}
-		return state.getBlock() instanceof LinkCoreBlock || state.getBlock() instanceof LinkRepeaterBlock
+		return state.getBlock() instanceof LinkCoreBlock
+				|| state.getBlock() instanceof LinkRepeaterBlock
+				|| state.getBlock() instanceof WirelessRedstoneBlock
 			? enabledFace.getOpposite()
 			: enabledFace;
 	}

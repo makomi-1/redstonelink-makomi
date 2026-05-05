@@ -7,6 +7,7 @@ import com.makomi.block.LinkRepeaterBlock;
 import com.makomi.block.LinkSignalEmitterBlock;
 import com.makomi.block.LinkSyncEmitterBlock;
 import com.makomi.block.WirelessPistonBlock;
+import com.makomi.block.WirelessRedstoneBlock;
 import com.makomi.data.HideDirectionalEditorToolData;
 import com.makomi.data.NodeFaceSetBlockStateSupport;
 import java.util.List;
@@ -64,7 +65,7 @@ public class DirectionalFaceEditorItem extends Item {
 				Component.translatable(
 					"message.redstonelink.directional_face_editor.applied",
 					Component.translatable(editMode.translationKey()),
-					NodeFaceSetBlockStateSupport.buildEnabledFaceTokenText(updatedState)
+					resolveDisplayFaceTokenText(updatedState)
 				),
 				true
 			);
@@ -101,7 +102,8 @@ public class DirectionalFaceEditorItem extends Item {
 			|| block instanceof LinkSignalEmitterBlock
 			|| block instanceof AbstractLinkFilterBlock
 			|| block instanceof LinkChunkActivatorBlock
-			|| block instanceof WirelessPistonBlock;
+			|| block instanceof WirelessPistonBlock
+			|| block instanceof WirelessRedstoneBlock;
 	}
 
 	/**
@@ -139,7 +141,11 @@ public class DirectionalFaceEditorItem extends Item {
 			return null;
 		}
 		return currentState != null
-				&& (currentState.getBlock() instanceof LinkCoreBlock || currentState.getBlock() instanceof LinkRepeaterBlock)
+				&& (
+					currentState.getBlock() instanceof LinkCoreBlock
+						|| currentState.getBlock() instanceof LinkRepeaterBlock
+						|| currentState.getBlock() instanceof WirelessRedstoneBlock
+				)
 			? clickedFace.getOpposite()
 			: clickedFace;
 	}
@@ -162,6 +168,49 @@ public class DirectionalFaceEditorItem extends Item {
 		}
 		if (updatedState.getBlock() instanceof WirelessPistonBlock wirelessPistonBlock) {
 			wirelessPistonBlock.refreshStateFromCurrentInputs(level, blockPos, updatedState);
+			return;
 		}
+		if (updatedState.getBlock() instanceof WirelessRedstoneBlock wirelessRedstoneBlock) {
+			wirelessRedstoneBlock.refreshStateFromCurrentInputs(level, blockPos, updatedState);
+		}
+	}
+
+	/**
+	 * 构建面编辑即时提示文本。
+	 * <p>
+	 * 无线化红石块对齐核心块：底层存储邻居查询方向，但提示给玩家时还原为外向量面。
+	 * </p>
+	 */
+	private static String resolveDisplayFaceTokenText(BlockState state) {
+		if (state == null || !NodeFaceSetBlockStateSupport.hasFaceProperties(state)) {
+			return "-";
+		}
+		List<net.minecraft.core.Direction> enabledFaces = NodeFaceSetBlockStateSupport.resolveEnabledFaces(state);
+		if (enabledFaces.isEmpty()) {
+			return "-";
+		}
+		StringBuilder builder = new StringBuilder();
+		for (int index = 0; index < enabledFaces.size(); index++) {
+			if (index > 0) {
+				builder.append(", ");
+			}
+			net.minecraft.core.Direction displayFace = resolveDisplayFace(state, enabledFaces.get(index));
+			builder.append(displayFace == null ? "-" : displayFace.getName());
+		}
+		return builder.toString();
+	}
+
+	/**
+	 * 将底层存储面转换为玩家理解的显示面。
+	 */
+	private static net.minecraft.core.Direction resolveDisplayFace(BlockState state, net.minecraft.core.Direction storedFace) {
+		if (state == null || storedFace == null) {
+			return storedFace;
+		}
+		return state.getBlock() instanceof LinkCoreBlock
+				|| state.getBlock() instanceof LinkRepeaterBlock
+				|| state.getBlock() instanceof WirelessRedstoneBlock
+			? storedFace.getOpposite()
+			: storedFace;
 	}
 }

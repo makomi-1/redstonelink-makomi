@@ -1,5 +1,6 @@
 package com.makomi.client.render;
 
+import com.makomi.block.WirelessRedstoneBlock;
 import com.makomi.block.entity.AbstractLinkFilterBlockEntity;
 import com.makomi.block.entity.ActivatableTargetBlockEntity;
 import com.makomi.block.entity.LinkChunkActivatorBlockEntity;
@@ -576,9 +577,19 @@ final class LinkSerialHudOverlayTextSupport {
 			if (index > 0) {
 				builder.append(", ");
 			}
-			builder.append(resolveFaceLabel(enabledFaces.get(index)));
+			builder.append(resolveFaceLabel(resolveDisplayedFaceDirection(state, enabledFaces.get(index))));
 		}
 		return builder.toString();
+	}
+
+	/**
+	 * 将底层存储面转换为 HUD 中展示给玩家的逻辑面。
+	 */
+	private static Direction resolveDisplayedFaceDirection(BlockState state, Direction storedFace) {
+		if (state == null || storedFace == null) {
+			return storedFace;
+		}
+		return state.getBlock() instanceof WirelessRedstoneBlock ? storedFace.getOpposite() : storedFace;
 	}
 
 	/**

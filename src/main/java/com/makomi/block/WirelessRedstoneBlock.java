@@ -2,6 +2,7 @@ package com.makomi.block;
 
 import com.makomi.block.entity.WirelessRedstoneBlockEntity;
 import com.makomi.config.RedstoneLinkConfig;
+import com.makomi.data.NodeFaceSetBlockStateSupport;
 import com.makomi.util.NeighborFanoutUtil;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -27,7 +28,8 @@ import net.minecraft.world.phys.BlockHitResult;
 /**
  * 无线化红石块。
  * <p>
- * 由无线输入控制是否像原版红石块一样持续向六个方向输出强信号。
+ * 由无线输入控制是否像原版红石块一样持续向六个方向输出弱信号。
+ * 同时支持定向面编辑，仅对启用面输出原版红石块式邻居信号。
  * </p>
  */
 public class WirelessRedstoneBlock extends Block implements EntityBlock {
@@ -35,7 +37,7 @@ public class WirelessRedstoneBlock extends Block implements EntityBlock {
 
 	public WirelessRedstoneBlock(BlockBehaviour.Properties properties) {
 		super(properties);
-		registerDefaultState(stateDefinition.any().setValue(ACTIVE, false));
+		registerDefaultState(NodeFaceSetBlockStateSupport.setAllFaces(stateDefinition.any().setValue(ACTIVE, false), true));
 	}
 
 	@Override
@@ -124,16 +126,28 @@ public class WirelessRedstoneBlock extends Block implements EntityBlock {
 
 	@Override
 	protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return state.getValue(ACTIVE) ? 15 : 0;
+		return state.getValue(ACTIVE) && NodeFaceSetBlockStateSupport.isFaceEnabled(state, direction) ? 15 : 0;
 	}
 
 	@Override
 	protected int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-		return state.getValue(ACTIVE) ? 15 : 0;
+		// 对齐原版红石块语义：只提供邻居弱信号，不额外做强激活。
+		return 0;
+	}
+
+	/**
+	 * 面编辑后主动补一拍邻居扇出，确保关闭/打开输出面时周围红石网络立即收敛。
+	 */
+	public final void refreshStateFromCurrentInputs(Level level, BlockPos pos, BlockState state) {
+		if (level == null || pos == null || state == null || level.isClientSide) {
+			return;
+		}
+		NeighborFanoutUtil.notifyCenterAndSixNeighbors(level, pos, state.getBlock());
 	}
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
 		builder.add(ACTIVE);
+		NodeFaceSetBlockStateSupport.appendProperties(builder);
 	}
 }
