@@ -153,7 +153,7 @@ public final class ModItemGroups {
 				output.accept(header, CreativeModeTab.TabVisibility.PARENT_TAB_ONLY);
 				continue;
 			}
-			output.accept(createUniqueSpacerStack(spacerCounter), CreativeModeTab.TabVisibility.PARENT_TAB_ONLY);
+			output.accept(createUniqueSeparatorSpacerStack(spacerCounter), CreativeModeTab.TabVisibility.PARENT_TAB_ONLY);
 		}
 	}
 
@@ -177,7 +177,7 @@ public final class ModItemGroups {
 			return;
 		}
 		for (int index = columnCount; index < GROUP_WIDTH; index++) {
-			output.accept(createUniqueSpacerStack(spacerCounter), CreativeModeTab.TabVisibility.PARENT_TAB_ONLY);
+			output.accept(createUniqueGroupFillSpacerStack(spacerCounter), CreativeModeTab.TabVisibility.PARENT_TAB_ONLY);
 		}
 	}
 
@@ -186,19 +186,33 @@ public final class ModItemGroups {
 	 */
 	private static void appendFullSpacerRow(CreativeModeTab.Output output, int[] spacerCounter) {
 		for (int index = 0; index < GROUP_WIDTH; index++) {
-			output.accept(createUniqueSpacerStack(spacerCounter), CreativeModeTab.TabVisibility.PARENT_TAB_ONLY);
+			output.accept(createUniqueGroupFillSpacerStack(spacerCounter), CreativeModeTab.TabVisibility.PARENT_TAB_ONLY);
 		}
 	}
 
 	/**
-	 * 构建一个带唯一标识的空白占位栈。
+	 * 构建一个带唯一标识的隔离带空白占位栈。
 	 * <p>
 	 * 原版创造标签会拒绝把“完全相同”的 ItemStack 重复加入；
 	 * 因此隔离带里的每一格空白都必须携带不同的自定义数据。
 	 * </p>
 	 */
-	private static ItemStack createUniqueSpacerStack(int[] spacerCounter) {
+	private static ItemStack createUniqueSeparatorSpacerStack(int[] spacerCounter) {
 		ItemStack spacerStack = new ItemStack(ModItems.CREATIVE_SECTION_SPACER);
+		int uniqueId = spacerCounter[0]++;
+		CustomData.update(DataComponents.CUSTOM_DATA, spacerStack, tag -> tag.putInt("creative_spacer_uid", uniqueId));
+		return spacerStack;
+	}
+
+	/**
+	 * 构建一个带唯一标识的组内补齐空白占位栈。
+	 * <p>
+	 * 组内补齐空白与隔离带空白使用不同物品，
+	 * 以便分别接入不同的 item 贴图资源。
+	 * </p>
+	 */
+	private static ItemStack createUniqueGroupFillSpacerStack(int[] spacerCounter) {
+		ItemStack spacerStack = new ItemStack(ModItems.CREATIVE_SECTION_EMPTY);
 		int uniqueId = spacerCounter[0]++;
 		CustomData.update(DataComponents.CUSTOM_DATA, spacerStack, tag -> tag.putInt("creative_spacer_uid", uniqueId));
 		return spacerStack;

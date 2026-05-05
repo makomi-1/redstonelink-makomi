@@ -114,6 +114,14 @@ public final class ModItems {
 		new CreativeSectionSpacerItem(new Item.Properties())
 	);
 
+	/**
+	 * 创造模式组内补齐空白占位物，只用于分组内部矩形包围盒留白。
+	 */
+	public static final Item CREATIVE_SECTION_EMPTY = register(
+		"creative_section_empty",
+		new CreativeSectionSpacerItem(new Item.Properties())
+	);
+
 	public static final Item LINK_REDSTONE_CORE = register(
 		"link_redstone_core",
 		new PairableBlockItem(ModBlocks.LINK_REDSTONE_CORE, new Item.Properties().stacksTo(1), LinkNodeType.CORE)
